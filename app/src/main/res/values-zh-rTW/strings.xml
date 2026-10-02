@@ -125,8 +125,6 @@
     <string name="app_updates">更新</string>
     <string name="settings_auto_check_updates">自動檢查更新</string>
     <string name="settings_auto_check_updates_desc">應用程式啟動後自動檢查更新</string>
-    <string name="settings_update_channel">測試更新渠道</string>
-    <string name="settings_update_channel_desc">搶先體驗即將推出的新功能，並在正式版發布前提供寶貴回饋</string>
     <string name="settings_get_updates">手動檢查更新</string>
     <string name="settings_get_updates_desc">手動取得應用程式更新</string>
     <string name="settings_distribution_platform">更新發布平台</string>
@@ -252,32 +250,10 @@
     <string name="settings_debug_tools">調試選項</string>
     <string name="settings_debug_tools_desc">供開發使用的調試與診斷功能</string>
     <string name="settings_about_source_code"><![CDATA[在 %1$s 查看原始碼<br/>在 %2$s 提交 Bug 或新功能請求]]></string>
-    <string name="settings_about_oss">NextVol 是獻給全世界所有閱讀愛好者的禮物。</string>
+    <string name="settings_about_oss">NextVol 是基於 LightNovelReader 開發的開源閱讀器，不收集使用統計。</string>
     <string name="settings_github_repo">GitHub 儲存庫</string>
     <string name="settings_github_repo_desc">給本專案點顆 star，幫助我們被更多人發現</string>
-    <string name="settings_support_author">請作者喝茶</string>
-    <string name="settings_support_author_desc">夜魚很可愛, 請給夜魚💰</string>
     <string name="settings_open_source_licenses">開放原始碼授權</string>
-    <string name="settings_communication">加入討論</string>
-    <string name="settings_communication_desc">加入我們的 QQ 群討論或回饋</string>
-    <string name="settings_statistics">匿名統計</string>
-    <string name="settings_statistics_desc">我們需要收集一些統計資料，以使 NextVol 變得更好</string>
-    <string name="settings_statistics_disable_dialog_title">等一等……</string>
-    <string name="settings_statistics_disable_dialog_text">
-        真的要關閉統計嗎 ο(=•ω＜=)ρ⌒☆
-        \nNextVol 僅統計日活等數據
-        \n不會涉及任何隱私資訊，而且是匿名統計
-        \n關閉後夜魚只能對著 0 日活哭泣了 ≧ ﹏ ≦
-    </string>
-    <string name="settings_statistics_disable_dialog_confirm">仍要關閉</string>
-    <string name="privacy_policy">隱私政策</string>
-    <string name="privacy_policy_title">我們蒐集什麼</string>
-    <string name="privacy_policy_collect_title">我們蒐集</string>
-    <string name="privacy_policy_collect_items">• 裝置品牌和型號\n• 系統與 NextVol 版本\n• 基礎日活資訊（會話時間與時長）\n• 根據 IP 的模糊地區</string>
-    <string name="privacy_policy_not_collect_title">我們不蒐集</string>
-    <string name="privacy_policy_not_collect_items">上述之外的任何個人資料，包括但不限於：NextVol 應用內資料，以及其他可能用於確定你的身份的資訊。</string>
-    <string name="privacy_policy_commitment_title">隱私承諾</string>
-    <string name="privacy_policy_commitment_items">NextVol 不會利用上述任何分享給我們的資料進行廣告定向、資料挖掘或其他可能損害你隱私的活動。</string>
     <string name="experimental_settings">實驗性</string>
     <string name="debug_settings">除錯</string>
     <string name="item_view_details">查看詳細資訊</string>
@@ -474,10 +450,6 @@
     <string name="key_default_image">預設圖片</string>
     <string name="key_default_text">預設字型</string>
     <string name="key_customize_text">自訂字型</string>
-    <!-- Update Channel -->
-    <string name="key_update_channel_release">無</string>
-    <string name="key_update_channel_development">Beta 測試版</string>
-    <string name="key_update_channel_ci">Alpha 測試版 (不穩定)</string>
     <!-- Distribution Platform -->
     <!-- Dark Mode -->
     <string name="key_dark_mode_follow_system">跟隨系統</string>

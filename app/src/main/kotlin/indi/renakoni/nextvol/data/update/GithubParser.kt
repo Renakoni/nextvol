@@ -1,254 +1,83 @@
 package indi.renakoni.nextvol.data.update
 
-import android.util.Log
+import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.R
-import androidx.compose.ui.util.fastFilter
-import indi.renakoni.nextvol.utils.md.HtmlToMdUtil
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
-import java.io.File
-import java.util.zip.ZipFile
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
-/***
- * Github的更新源获取
- * 我们知道github api
- * 但是为了可以让github加速生效(大多数加速方案不支持github api), 我们被迫选择解析网页
- */
-object GithubParser {
-    private val versionCodeRegex = Regex("versionCode = (.*)")
-    private val versionNameRegex = Regex("versionName = (.*)")
-    private val regex = Regex("([0-9]*\\.[0-9]*\\.[0-9]*\\.[0-9]*).*[^.]github.com\\n")
-    private const val RAW_HOST = "https://github.com"
-    private const val PROXY_HOST = "https://dgithub.xyz"
-    private var host = RAW_HOST
-    private fun updateHost(): String {
-        try {
-            Jsoup.connect(host).timeout(1500).get()
-            return host
-        } catch (_: Exception) { }
-        try {
-            Jsoup.connect(RAW_HOST).timeout(1500).get()
-            return RAW_HOST
-        } catch (_: Exception) { }
-        try {
-            Jsoup.connect(PROXY_HOST).timeout(1500).get()
-            return PROXY_HOST
-        } catch (_: Exception) {}
-        try {
-            Jsoup
-                .connect("https://gh-proxy.com/raw.githubusercontent.com/frankwuzp/github-host/main/hosts")
-                .ignoreContentType(true)
-                .get()
-                .outputSettings(
-                    Document.OutputSettings()
-                        .prettyPrint(false)
-                        .syntax(Document.OutputSettings.Syntax.xml)
-                )
-                .toString()
-                .let(regex::find)
-                ?.groups
-                ?.get(1)
-                ?.value
-                ?.let { return "http://$it" }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return RAW_HOST
-    }
+/** Only published, stable releases of NextVol are eligible for app updates. */
+object GithubParser : UpdateParser {
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
+        .build()
 
-    class GithubRelease(
+    data class GithubRelease(
         override val version: Int,
         override val versionName: String,
         override val releaseNotes: String,
         override val downloadUrl: String,
-        override val downloadFileProgress: ((File, File) -> Unit)? = null,
-        override val isCiBuild: Boolean = false,
-    ): Release
+    ) : Release
 
-    private fun progressReleasePage(url: String, updatePhase: MutableStateFlow<UpdatePhase>): Release? {
-        Jsoup
-            .connect(url)
-            .also {
-                if (url.startsWith("http://")) it.header("Host", "github.com")
-            }
-            .get()
-            .let { releaseDocument ->
-                updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_download_link))
-                val downloadUrl = releaseDocument
-                    .select("include-fragment")
-                    .fastFilter { it.attr("src").contains("releases") }
-                    .first()
-                    .attr("src")
-                    .replace("https://github.com", host)
-                    .let(Jsoup::connect)
-                    .header("Host", "github.com")
-                    .get()
-                    .select("""a[href^="/dmzz-yyhyy/LightNovelReader/releases/download/"]""")
-                    .map { it.attr("href") }
-                    .firstOrNull { it.endsWith("apk") }
-                    ?.let { "https://gh-proxy.com/github.com$it" }?: Log.e("GithubParser", "failed to get downloadUrl").let { return null }
-                updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_version))
-                val gradle = releaseDocument
-                    .select("""a[href^="/dmzz-yyhyy/LightNovelReader/tree/"]""")
-                    .attr("href")
-                    .replace("/dmzz-yyhyy/LightNovelReader/tree/", "")
-                    .let { "https://gh-proxy.com/raw.githubusercontent.com/dmzz-yyhyy/LightNovelReader/refs/tags/$it/app/build.gradle.kts" }
-                    .let(Jsoup::connect)
-                    .ignoreContentType(true)
-                    .get()
-                    .outputSettings(
-                        Document.OutputSettings()
-                            .prettyPrint(false)
-                            .syntax(Document.OutputSettings.Syntax.xml)
-                    )
-                    .toString()
-                val versionCode = versionCodeRegex.find(gradle)?.groups?.get(1)?.value?.replace("_", "")?.toInt() ?: Log.e("GithubParser", "failed to get versionCode").also { return null }
-                val versionName = versionNameRegex.find(gradle)?.groups?.get(1)?.value ?: Log.e("GithubParser", "failed to get versionName").also { return null }
-                updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_parse_notes))
-                val releaseNotes = releaseDocument
-                    .selectFirst("div.markdown-body")
-                    .toString()
-                    .let(HtmlToMdUtil::convertHtml)
-                return GithubRelease(
-                    versionCode,
-                    versionName.toString(),
-                    releaseNotes,
-                    downloadUrl
-                )
-            }
-    }
+    override fun parser(updatePhase: MutableStateFlow<UpdatePhase>): Release? = fetchRelease(
+        updatePhase, client, "https://api.github.com/".toHttpUrl(),
+        "https://raw.githubusercontent.com/".toHttpUrl(),
+    )
 
-    object ReleaseParser: UpdateParser {
-        private const val URL = "/dmzz-yyhyy/LightNovelReader"
-        override fun parser(updatePhase: MutableStateFlow<UpdatePhase>): Release? {
-            System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
-            host = updateHost()
-            return Jsoup
-                .connect(host+ URL)
-                .also {
-                    if (host.startsWith("http://")) it.header("Host", "github.com")
-                }
-                .get()
-                .selectFirst("""a[href^="/dmzz-yyhyy/LightNovelReader/releases/tag/"]""")
-                ?.attr("href")
-                .let { host+it }
-                .also { updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_release)) }
-                .let { progressReleasePage(it, updatePhase) }
+    internal fun fetchRelease(
+        updatePhase: MutableStateFlow<UpdatePhase>,
+        httpClient: OkHttpClient,
+        apiBase: HttpUrl,
+        rawBase: HttpUrl,
+    ): Release? {
+        updatePhase.value = UpdatePhase(R.string.update_phase_github_release)
+        val latest = apiBase.newBuilder()
+            .addPathSegments("repos/${ProjectLinks.REPOSITORY}/releases/latest").build()
+        val body = get(httpClient, latest, allowMissing = true) ?: return null
+        val json = JSONObject(body)
+        if (json.getBoolean("draft") || json.getBoolean("prerelease")) return null
+        val tag = json.getString("tag_name")
+        updatePhase.value = UpdatePhase(R.string.update_phase_github_download_link)
+        val assets = json.getJSONArray("assets")
+        val apks = (0 until assets.length()).map { assets.getJSONObject(it) }
+            .filter { it.getString("name").endsWith(".apk", ignoreCase = true) }
+        // The release contract is one universal APK, avoiding arbitrary ABI/build selection.
+        if (apks.size != 1) throw IOException("Expected one NextVol release APK, found ${apks.size}")
+        val downloadUrl = apks.single().getString("browser_download_url").toHttpUrl()
+        if (downloadUrl.scheme != "https" || downloadUrl.host != "github.com" ||
+            downloadUrl.port != 443 || downloadUrl.username.isNotEmpty() || downloadUrl.password.isNotEmpty() ||
+            downloadUrl.pathSegments.take(5) != listOf("Renakoni", "nextvol", "releases", "download", tag)) {
+            throw IOException("APK does not belong to ${ProjectLinks.REPOSITORY}")
         }
+
+        updatePhase.value = UpdatePhase(R.string.update_phase_github_version)
+        val gradleUrl = rawBase.newBuilder().addPathSegments(ProjectLinks.REPOSITORY)
+            .addPathSegments("refs/tags").addPathSegment(tag)
+            .addPathSegments("app/build.gradle.kts").build()
+        val gradle = get(httpClient, gradleUrl)!!
+        val version = Regex("(?m)^\\s*versionCode\\s*=\\s*([0-9_]+)\\s*(?://.*)?$")
+            .find(gradle)?.groupValues?.get(1)?.replace("_", "")?.toIntOrNull()
+            ?: throw IOException("Release tag has no valid versionCode")
+        val versionName = Regex("(?m)^\\s*versionName\\s*=\\s*\"([^\"]+)\"")
+            .find(gradle)?.groupValues?.get(1)
+            ?: throw IOException("Release tag has no valid versionName")
+        return GithubRelease(version, versionName, json.optString("body", ""), downloadUrl.toString())
     }
-    object DevelopmentParser: UpdateParser {
-        private const val URL = "/dmzz-yyhyy/LightNovelReader/releases"
-        override fun parser(updatePhase: MutableStateFlow<UpdatePhase>): Release? {
-            System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
-            host = updateHost()
-            return Jsoup
-                .connect(host+ URL)
-                .also {
-                    if (host.startsWith("http://")) it.header("Host", "github.com")
-                }
-                .get()
-                .selectFirst("""a[href^="/dmzz-yyhyy/LightNovelReader/releases/tag/"]""")
-                ?.attr("href")
-                .also { updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_release)) }
-                .let { host+it }
-                .let { progressReleasePage(it, updatePhase) }
-        }
-    }
-    object CIParser: UpdateParser {
-        private const val URL = "/dmzz-yyhyy/LightNovelReader/actions/workflows/marge.yml"
-        private val prIdRegex = Regex("Merge pull request #([0-9]*)")
-        override fun parser(updatePhase: MutableStateFlow<UpdatePhase>): Release? {
-            System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
-            host = updateHost()
-            updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_release))
-            val downloadUrl: String?
-            updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_version))
-            val gradle = Jsoup
-                .connect("https://gh-proxy.com/raw.githubusercontent.com/dmzz-yyhyy/LightNovelReader/refs/heads/refactoring/app/build.gradle.kts")
-                .ignoreContentType(true)
-                .get()
-                .outputSettings(
-                    Document.OutputSettings()
-                        .prettyPrint(false)
-                        .syntax(Document.OutputSettings.Syntax.xml)
-                )
-                .toString()
-            val versionCode = versionCodeRegex.find(gradle)?.groups?.get(1)?.value?.replace("_", "")?.toInt() ?: Log.e("GithubParser", "failed to get versionCode").also { return null }
-            val versionName = versionNameRegex.find(gradle)?.groups?.get(1)?.value?.replace("\"", "") ?: Log.e("GithubParser", "failed to get versionName").also { return null }
-            val connection = Jsoup.connect(host + URL)
-            if (host.startsWith("http://")) {
-                connection.header("Host", "github.com")
-            }
-            val document = connection.get()
-            updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_download_link))
-            val apkLinkElement = document.select(
-                "div[id^=check_suite_]:contains(ReleaseApkBuild) > div > div.d-table-cell.v-align-top.col-11.col-md-6.position-relative > a"
-            ).first()
-            val actionUrl = "https://nightly.link" + apkLinkElement?.attr("href")
-            val fileDocument = Jsoup.connect(actionUrl).get()
-            val apkDownloadHref = fileDocument
-                .select("body > article > table > tbody > tr > td > a")
-                .attr("href")
-            downloadUrl = apkDownloadHref
-            val downloadFileProgress: ((File, File) -> Unit) = { zipFile, targetApk ->
-                try {
 
-                    ZipFile(zipFile).use { zip ->
-                        val apkEntry = zip.entries().asSequence()
-                            .filterNot { it.isDirectory }
-                            .find { entry ->
-                                entry.name.endsWith(".apk") &&
-                                        "release" in entry.name
-                            }
-
-                            ?: throw MissingUpdateApkException(zipFile.name)
-
-                        targetApk.parentFile?.mkdirs()
-                        if (targetApk.exists()) targetApk.delete()
-
-                        zip.getInputStream(apkEntry).use { input ->
-                            targetApk.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("Unzip", "failed to extract: ${e.message}")
-                    targetApk.delete()
-                    throw e
-                }
-            }
-            updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_fetch_notes))
-
-            val spanText = document.select("span").text()
-            val prId = prIdRegex.find(spanText)?.groups?.get(1)?.value
-
-            val prUrl = prId?.let { "$host/dmzz-yyhyy/LightNovelReader/pull/$it" }
-            val prConnection = prUrl?.let { Jsoup.connect(it) }
-            if (host.startsWith("http://")) {
-                prConnection?.header("Host", "github.com")
-            }
-
-            val taskListElement = prConnection?.get()?.select(
-                "#discussion_bucket > div > div.Layout-main > div > div.js-discussion.ml-0.pl-0.ml-md-6.pl-md-3 > div.TimelineItem.TimelineItem--condensed.pt-0.js-comment-container.js-socket-channel.js-updatable-content.js-command-palette-pull-body > div.timeline-comment-group.js-minimizable-comment-group.js-targetable-element.TimelineItem-body.my-0 > div > div:nth-child(2) > div > task-lists > div"
-            )?.toString()
-
-            val releaseNotes = taskListElement
-                ?.let(HtmlToMdUtil::convertHtml)
-
-            updatePhase.tryEmit(UpdatePhase(R.string.update_phase_github_compare))
-            val lastReleaseRelease = ReleaseParser.parser(MutableStateFlow(UpdatePhase(R.string.update_phase_not_checked)))
-            return if (lastReleaseRelease == null || lastReleaseRelease.version < versionCode)
-                GithubRelease(
-                    versionCode,
-                    versionName.toString() ,
-                    releaseNotes!!,
-                    downloadUrl,
-                    downloadFileProgress,
-                    isCiBuild = true,
-                )
-            else lastReleaseRelease
+    private fun get(client: OkHttpClient, url: HttpUrl, allowMissing: Boolean = false): String? {
+        val request = Request.Builder().url(url).header("User-Agent", "NextVol")
+            .header("Accept", "application/vnd.github+json").build()
+        return client.newCall(request).execute().use { response ->
+            if (allowMissing && response.code == 404) return null
+            if (!response.isSuccessful) throw IOException("GitHub HTTP ${response.code}")
+            response.body.string()
         }
     }
 }

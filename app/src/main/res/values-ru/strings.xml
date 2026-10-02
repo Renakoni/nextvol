@@ -125,8 +125,6 @@
     <string name="app_updates">Обновления</string>
     <string name="settings_auto_check_updates">Авто-проверка обновлений</string>
     <string name="settings_auto_check_updates_desc">Включить автоматическую проверку обновлений при запуске</string>
-    <string name="settings_update_channel">Канал обновления</string>
-    <string name="settings_update_channel_desc">Выберите предпочитаемый канал обновления.</string>
     <string name="settings_get_updates">Проверить обновления</string>
     <string name="settings_get_updates_desc">Проверить и установить последнюю версию.</string>
     <string name="settings_distribution_platform">Платформа распространения</string>
@@ -252,27 +250,10 @@
     <string name="settings_debug_tools">Средства отладки</string>
     <string name="settings_debug_tools_desc">Утилиты для отладки</string>
     <string name="settings_about_source_code"><![CDATA[Исходный код: %1$s<br/>Сообщить об ошибках и запросить функции: %2$s]]></string>
-    <string name="settings_about_oss">NextVol — подарок всем любителям ранобэ в мире.</string>
+    <string name="settings_about_oss">NextVol — открытая читалка на основе LightNovelReader. Статистика использования не собирается.</string>
     <string name="settings_github_repo">Репозиторий GitHub</string>
     <string name="settings_github_repo_desc">Поставьте звезду нашему репозиторию, чтобы помочь нам привлечь больше пользователей</string>
-    <string name="settings_support_author">Угостить автора чаем</string>
-    <string name="settings_support_author_desc">Поддержать NightFish небольшим пожертвованием</string>
     <string name="settings_open_source_licenses">Лицензии открытого ПО</string>
-    <string name="settings_communication">Связь</string>
-    <string name="settings_communication_desc">Присоединяйтесь к нашей группе QQ для обсуждений и отзывов</string>
-    <string name="settings_statistics">Статистика</string>
-    <string name="settings_statistics_desc">Мы используем Microsoft AppCenter для сбора анонимной статистики и улучшения NextVol</string>
-    <string name="settings_statistics_disable_dialog_title">Подождите…</string>
-    <string name="settings_statistics_disable_dialog_text">Вы действительно хотите отключить статистику? ο(=•ω＜=)ρ⌒☆ NextVol собирает только число активных пользователей за день и подобные показатели использования. Личные данные не затрагиваются, вся статистика анонимна. Если отключить её, NightFish останется лишь плакать над нулём активных пользователей ≧ ﹏ ≦</string>
-    <string name="settings_statistics_disable_dialog_confirm">Отключить</string>
-    <string name="privacy_policy">Политика конфиденциальности</string>
-    <string name="privacy_policy_title">Какие данные мы собираем</string>
-    <string name="privacy_policy_collect_title">Мы собираем</string>
-    <string name="privacy_policy_collect_items">• Марку и модель устройства\n• Версии системы и приложения\n• Основные данные ежедневной активности (время и продолжительность сеансов)\n• Примерное местоположение по IP-адресу</string>
-    <string name="privacy_policy_not_collect_title">Мы НЕ собираем</string>
-    <string name="privacy_policy_not_collect_items">Любые личные данные, кроме перечисленных выше, в том числе данные внутри NextVol и любую другую информацию, позволяющую установить вашу личность.</string>
-    <string name="privacy_policy_commitment_title">Наши обязательства по конфиденциальности</string>
-    <string name="privacy_policy_commitment_items">NextVol не будет использовать переданные нам данные для таргетированной рекламы, добычи данных или других действий, нарушающих конфиденциальность.</string>
     <string name="experimental_settings">Экспериментальные</string>
     <string name="debug_settings">Отладка</string>
     <string name="item_view_details">Просмотр деталей</string>
@@ -469,10 +450,6 @@
     <string name="key_default_image">Изображение по умолчанию</string>
     <string name="key_default_text">Шрифт по умолчанию</string>
     <string name="key_customize_text">Настроить текст</string>
-    <!-- Update Channel -->
-    <string name="key_update_channel_release">Релизные сборки</string>
-    <string name="key_update_channel_development">Разработческие сборки</string>
-    <string name="key_update_channel_ci">CI</string>
     <!-- Distribution Platform -->
     <!-- Dark Mode -->
     <string name="key_dark_mode_follow_system">Следовать системным настройкам</string>

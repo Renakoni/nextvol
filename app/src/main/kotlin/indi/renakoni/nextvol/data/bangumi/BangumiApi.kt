@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.data.bangumi
 
+import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -91,7 +92,7 @@ class BangumiApi internal constructor(private val client: OkHttpClient, private 
         val url = requireNotNull(baseUrl.resolve(path))
         require(url.host == baseUrl.host && url.scheme == baseUrl.scheme)
         val builder = Request.Builder().url(url).header("Accept", "application/json")
-            .header("User-Agent", "Renakoni/NextVol/${BuildConfig.VERSION_NAME} (Android) (https://github.com/Renakoni/hnovel)")
+            .header("User-Agent", "Renakoni/NextVol/${BuildConfig.VERSION_NAME} (Android) (${ProjectLinks.GITHUB})")
             // Bangumi's write endpoints reject the charset suffix added by OkHttp's String overload.
             .method(method, body?.toString()?.toByteArray(Charsets.UTF_8)?.toRequestBody("application/json".toMediaType()))
         val call = session?.request(builder, transport::newCall) ?: transport.newCall(builder.build())

@@ -130,8 +130,6 @@
     <string name="app_updates">Updates</string>
     <string name="settings_auto_check_updates">Auto Check for Updates</string>
     <string name="settings_auto_check_updates_desc">Enable automatic update checks upon app launch</string>
-    <string name="settings_update_channel">Test Update Channel</string>
-    <string name="settings_update_channel_desc">Join the Beta program to experience upcoming features before the stable release and share your feedback</string>
     <string name="settings_get_updates">Check for Updates</string>
     <string name="settings_get_updates_desc">Check and install the latest version</string>
     <string name="settings_distribution_platform">Distribution Platform</string>
@@ -263,32 +261,10 @@
     <string name="settings_debug_tools">Debug Options</string>
     <string name="settings_debug_tools_desc">Advanced debugging controls for development use</string>
     <string name="settings_about_source_code"><![CDATA[View the source code at %1$s<br/>Report bugs & request features via %2$s]]></string>
-    <string name="settings_about_oss">NextVol is the gift for all the light novel lovers in the world.</string>
+    <string name="settings_about_oss">NextVol is an open-source reader based on LightNovelReader. Usage analytics are not collected.</string>
     <string name="settings_github_repo">GitHub Repository</string>
     <string name="settings_github_repo_desc">Star our repo to help us reach more users</string>
-    <string name="settings_support_author">Buy the Author a Tea</string>
-    <string name="settings_support_author_desc">Consider supporting NightFish with a small tip</string>
     <string name="settings_open_source_licenses">Open-source licenses</string>
-    <string name="settings_communication">Communication</string>
-    <string name="settings_communication_desc">Join our QQ group for discussions and feedback</string>
-    <string name="settings_statistics">Statistics</string>
-    <string name="settings_statistics_desc">We need to collect statistics to improve NextVol</string>
-    <string name="settings_statistics_disable_dialog_title">Hold on…</string>
-    <string name="settings_statistics_disable_dialog_text">
-        Do you really want to turn off statistics? ο(=•ω＜=)ρ⌒☆
-        NextVol only collects DAU and similar usage metrics.
-        No personal privacy data is involved, and all statistics are anonymous.
-        If you turn this off, NightFish can only cry at 0 DAU ≧ ﹏ ≦
-    </string>
-    <string name="settings_statistics_disable_dialog_confirm">Turn off</string>
-    <string name="privacy_policy">Privacy Policy</string>
-    <string name="privacy_policy_title">What We Collect</string>
-    <string name="privacy_policy_collect_title">We Collect</string>
-    <string name="privacy_policy_collect_items">• Device brand and model\n• System and app version\n• Basic daily active usage (session time and duration)\n• Approximate geographic location based on IP address</string>
-    <string name="privacy_policy_not_collect_title">We Do NOT Collect</string>
-    <string name="privacy_policy_not_collect_items">Any personal data other than those listed above, including but not limited to: NextVol in-app data, and any other information that could be used to identify you.</string>
-    <string name="privacy_policy_commitment_title">Our Privacy Commitment</string>
-    <string name="privacy_policy_commitment_items">NextVol will not utilize any data shared with us for targeted advertising, data mining, or other privacy-harmful activities.</string>
     <string name="experimental_settings">Experimental</string>
     <string name="debug_settings">Debug</string>
     <string name="item_view_details">View Details</string>
@@ -491,14 +467,9 @@
     <string name="key_default_image">Default Image</string>
     <string name="key_default_text">Default Font</string>
     <string name="key_customize_text">Customize Image</string>
-    <!-- Update Channel -->
-    <string name="key_update_channel_release">None (Stable)</string>
-    <string name="key_update_channel_development">Beta Version</string>
-    <string name="key_update_channel_ci">Alpha Version (Unstable)</string>
     <!-- Distribution Platform -->
     <string name="key_platform_github" translatable="false">GitHub</string>
     <string name="key_platform_appcenter" translatable="false">AppCenter</string>
-    <string name="key_platform_lnr_api" translatable="false">LightNovelReader API</string>
     <!-- Dark Mode -->
     <string name="key_dark_mode_follow_system">Follow System</string>
     <string name="key_dark_mode_enabled">Override Enabled</string>
