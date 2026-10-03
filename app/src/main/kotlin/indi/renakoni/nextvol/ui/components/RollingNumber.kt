@@ -18,7 +18,6 @@ import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -143,7 +142,10 @@ fun RollingNumber(
         horizontalArrangement = Arrangement.Center,
     ) {
         val max = with(transition) { max(currentState.length, targetState.length) }
-        items(max, key = { it }) { reversed ->
+        // Prepare the reserved digit slots once. A progress jump from 0 to 100 must not create
+        // two complete digit columns in the same frame as a chapter boundary.
+        val slots = max(max, (length ?: 0) - if (isNegative) 1 else 0)
+        items(slots, key = { it }) { reversed ->
             val rotate by transition.animateOffset(transitionSpec = {
                 if (animationEnabled) spring(visibilityThreshold = Offset.VisibilityThreshold) else snap()
             }) { str ->
@@ -153,7 +155,7 @@ fun RollingNumber(
                 val v = if (where < absent) null else str[where - absent].digitToInt()
                 conceptSpaceToIntermediate(v)
             }
-            if (reversed != 0 && reversed % 3 == 0 && separator) {
+            if (reversed < max && reversed != 0 && reversed % 3 == 0 && separator) {
                 Text(
                     text = ",",
                     modifier = Modifier.size(size),
@@ -192,11 +194,6 @@ fun RollingNumber(
                     style = styleNoSpacing,
                     textAlign = TextAlign.Center,
                 )
-            }
-        }
-        if (length != null) {
-            items(length - max - if (isNegative) 1 else 0) {
-                Spacer(Modifier.size(size))
             }
         }
     }

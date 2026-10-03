@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
@@ -22,7 +24,10 @@ import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalDensity
@@ -31,6 +36,8 @@ import androidx.compose.ui.unit.sp
 import indi.renakoni.nextvol.ui.book.reader.content.componet.LocalReaderTextDrawObserver
 import indi.renakoni.nextvol.ui.book.reader.content.componet.LocalReaderTextWorkObserver
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragment
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSelectionState
+import indi.renakoni.nextvol.ui.book.reader.content.ReaderSelectionState
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -42,6 +49,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlinx.coroutines.runBlocking
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
@@ -53,6 +61,9 @@ class ScrollTextFirstDrawTest {
     private val offset = mutableStateOf(0)
     private val draws = mutableListOf<Set<Int>>()
     private val drawnFragments = mutableSetOf<Int>()
+    private val textLayouts = mutableMapOf<Int, TextLayoutResult>()
+    private val listState = LazyListState()
+    private val selection = ReaderSelectionState()
     private var measurements = 0
     private var compositions = 0
     private val density = mutableStateOf(Density(1f))
@@ -76,11 +87,14 @@ class ScrollTextFirstDrawTest {
     }
     @After fun close() { activity.pause().stop().destroy() }
 
-    private fun mount(observeDraws: Boolean = true, lookahead: Boolean = false) {
+    private fun mount(observeDraws: Boolean = true, lookahead: Boolean = false, lazy: Boolean = false,
+        nextChapter: ScrollTextLayout? = null) {
         activity.get().setContent {
             MaterialTheme {
-                CompositionLocalProvider(LocalReaderTextDrawObserver provides if (observeDraws) { fragment, _, _ ->
+                CompositionLocalProvider(LocalReaderSelectionState provides selection,
+                    LocalReaderTextDrawObserver provides if (observeDraws) { fragment, result, _ ->
                     drawnFragments += fragment.start
+                    textLayouts[fragment.start] = result
                 } else null, LocalDensity provides density.value, LocalReaderTextWorkObserver provides if (observeDraws) { phase ->
                     if (phase == "compose") compositions++ else measurements++
                 } else null) {
@@ -90,10 +104,21 @@ class ScrollTextFirstDrawTest {
                             drawContent()
                             draws += drawnFragments.toSet()
                         }) {
-                            // Move only the ancestor placement, as LazyColumn's scroll-only path does.
-                            Layout(content = { ScrollTextContent(prepared.value, Color.Black, Modifier) }) { children, constraints ->
-                                val child = children.single().measure(Constraints.fixedWidth(constraints.maxWidth))
-                                layout(constraints.maxWidth, constraints.maxHeight) { child.place(0, -offset.value) }
+                            if (lazy) LazyColumn(state = listState) {
+                                item(key = "chapter") { ScrollTextContent(prepared.value, Color.Black, Modifier) }
+                                if (nextChapter != null) item(key = "next") {
+                                    // Keep the work counter specific to the chapter being re-entered.
+                                    CompositionLocalProvider(LocalReaderTextWorkObserver provides null,
+                                        LocalReaderTextDrawObserver provides null) {
+                                        ScrollTextContent(nextChapter, Color.Black, Modifier)
+                                    }
+                                }
+                            } else {
+                                // Move only the ancestor placement, as LazyColumn's scroll-only path does.
+                                Layout(content = { ScrollTextContent(prepared.value, Color.Black, Modifier) }) { children, constraints ->
+                                    val child = children.single().measure(Constraints.fixedWidth(constraints.maxWidth))
+                                    layout(constraints.maxWidth, constraints.maxHeight) { child.place(0, -offset.value) }
+                                }
                             }
                         }
                     }
@@ -107,6 +132,74 @@ class ScrollTextFirstDrawTest {
     @Test fun firstDrawAlreadyContainsText() {
         mount()
         assertEveryDrawHasText()
+    }
+
+    @Test fun upwardChapterEntryDoesNotComposeAnExtraScreenOfParagraphs() {
+        prepared.value = ScrollTextLayout(chapter().fragments.map { it.copy(spacingBefore = 0) }, chapter().style)
+        val next = ScrollTextLayout(chapter().fragments.map { it.copy(text = "NEXT_${it.start / 10}") }, chapter().style)
+        mount(lookahead = true, lazy = true, nextChapter = next)
+        repeat(3) {
+            compose.runOnIdle { runBlocking { listState.scrollToItem(1, 5_000) } }
+            compose.waitForIdle()
+            compose.runOnIdle { runBlocking { listState.scrollToItem(1) } }
+            compose.waitForIdle()
+            val before = compositions
+            compose.runOnIdle {
+                draws.clear()
+                listState.dispatchRawDelta(-20f)
+            }
+            compose.waitForIdle()
+            assertEveryDrawHasText()
+            compose.onNodeWithText("TEXT_199", useUnmergedTree = true).assertIsDisplayed()
+            compose.onNodeWithText("NEXT_0", useUnmergedTree = true).assertIsDisplayed()
+            // Lookahead can initially place a recreated item at its old origin before placing
+            // its tail. Allow both placement windows, but no extra screen around either one.
+            assertTrue("Chapter entry must bound offscreen text work: ${compositions - before}",
+                compositions - before in 1..16)
+        }
+    }
+
+    @Test fun lazyLookaheadScrollingRetainsOverlappingTextLayouts() {
+        mount(lookahead = true, lazy = true)
+        compose.runOnIdle { runBlocking { listState.scrollToItem(0, 5_000) } }
+        compose.waitForIdle()
+        for (destination in listOf(5_100, 5_200, 5_100, 5_000)) {
+            val before = textLayouts.toMap()
+            compose.runOnIdle {
+                draws.clear()
+                textLayouts.clear()
+                runBlocking { listState.scrollToItem(0, destination) }
+            }
+            compose.waitForIdle()
+            assertEveryDrawHasText()
+            compose.onNodeWithText("TEXT_${destination / 100}", useUnmergedTree = true).assertIsDisplayed()
+            val overlap = before.keys.intersect(textLayouts.keys)
+            assertTrue("The test must retain overlapping paragraphs", overlap.size >= 2)
+            overlap.forEach { start ->
+                assertSame("Scrolling must retain the measured text of overlapping fragment $start",
+                    before[start], textLayouts[start])
+            }
+        }
+    }
+
+    // API 27 avoids Robolectric's unsupported native magnifier surface (API 28+).
+    @Config(sdk = [27])
+    @GraphicsMode(GraphicsMode.Mode.LEGACY)
+    @Test fun overlappingTextKeepsSelectionWhenTheWindowAdvances() {
+        mount(lookahead = true, lazy = true)
+        compose.runOnIdle { runBlocking { listState.scrollToItem(0, 5_000) } }
+        compose.waitForIdle()
+        compose.onNodeWithText("TEXT_51").performTouchInput { longClick(center.copy(x = 20f)) }
+        compose.runOnIdle {
+            assertTrue("Long press must select visible text", selection.hasSelection)
+            runBlocking { listState.scrollToItem(0, 5_100) }
+        }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertTrue("Advancing the window must retain the overlapping selection", selection.hasSelection)
+            selection.clear()
+            assertFalse(selection.hasSelection)
+        }
     }
 
     @Test fun scrollingInsideLookaheadUpdatesTheDisplayedText() {

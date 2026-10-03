@@ -191,6 +191,11 @@ class ScrollModeContractTest {
         assertEquals("next", env.records.writes.last().lastReadChapterId)
         env.emit("next", Ok(env.chapter("next", "current", "later")))
         assertEquals(listOf("current", "later", "next"), env.chapters.active.map { it.chapterId }.sorted())
+        assertSame("An unchanged promoted chapter must retain its prepared content",
+            oldNext!!.second.get(), mode.uiState.contentList[1]!!.second.get())
+        env.emit("current", Ok(env.chapter("current", "prev", "next")))
+        assertSame("The shifted previous chapter must also retain its prepared content",
+            oldCurrent!!.second.get(), mode.uiState.contentList[0]!!.second.get())
         assertTrue(env.chapters.preloads.isEmpty())
     }
 

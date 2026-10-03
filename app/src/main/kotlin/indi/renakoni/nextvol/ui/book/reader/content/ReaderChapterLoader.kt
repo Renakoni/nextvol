@@ -24,6 +24,7 @@ class ReaderChapterLoader @Inject constructor(
         bookId: String,
         priority: WebDataSourcePriority = WebDataSourcePriority.Default,
         interactive: Boolean = true,
+        retainedContent: ChapterContentUiState? = null,
     ): Flow<Result<ChapterContentUiState, WebRequestError>> =
         chapterSource.getChapterContentFlow(chapterId, bookId, priority).distinctUntilChanged { previous, next ->
             // Compare complete, already-processed values within this subscription only.
@@ -31,13 +32,16 @@ class ReaderChapterLoader @Inject constructor(
             previous.isOk && next.isOk && previous.get() == next.get()
         }.map { result ->
             result.map {
-                readerTrace("reader.prepare") {
+                // A promoted scroll slot already owns its mapped body and geometry. Revalidate
+                // normally, but preserve that identity when the complete processed source agrees.
+                retainedContent?.takeIf { previous -> previous.source == (bookId to it) } ?: readerTrace("reader.prepare") {
                     ChapterContentUiState(
                         id = it.id,
                         title = it.title,
                         content = contentRenderer.getContentDataFromJson(it.content).components,
                         prevChapter = it.prevChapter,
                         nextChapter = it.nextChapter,
+                        source = bookId to it,
                     )
                 }
             }

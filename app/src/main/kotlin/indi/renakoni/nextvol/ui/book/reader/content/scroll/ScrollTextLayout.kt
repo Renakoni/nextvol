@@ -23,7 +23,8 @@ import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderTextLayoutInput
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragment
-import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragments
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragmentContent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextSelection
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextSource
 import indi.renakoni.nextvol.ui.book.reader.content.componet.layoutReaderText
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
@@ -135,35 +136,35 @@ internal fun rememberPreparedScrollChapter(
 
 @Composable
 internal fun ScrollTextContent(layout: ScrollTextLayout, color: Color, modifier: Modifier) {
-    SubcomposeLayout(modifier) { constraints ->
-        var previousRange = IntRange.EMPTY
-        var content: @Composable () -> Unit = {}
-        layout(constraints.maxWidth, layout.height) {
-            // Reading coordinates here also reruns placement when an ancestor scrolls without
-            // remeasurement. Compose supplies coordinates on the real (non-alignment) placement.
-            val positioned = coordinates ?: return@layout
-            val viewport = positioned.localBoundingBoxOf(positioned.findRootCoordinates(), clipBounds = false)
-            val visible = layout.visibleRange(
-                floor(viewport.top - viewport.height).toInt(),
-                ceil(viewport.bottom + viewport.height).toInt(),
-            )
-            // Compose and measure in this placement, before drawing. A state write from
-            // onGloballyPositioned would leave the current frame with the old/empty text window.
-            if (!visible.isEmpty()) {
-                if (visible != previousRange) {
-                    previousRange = visible
-                    content = {
-                        ReaderTextFragments(layout.fragments.subList(visible.first, visible.last + 1),
-                            layout.style, color, Modifier)
+    // Retain overlapping paragraphs across both placement-only and full measure passes.
+    // Only nearby fragments retain content lambdas; offscreen slots are disposed by Compose.
+    val contents = remember(layout, color) { mutableMapOf<Int, @Composable () -> Unit>() }
+    ReaderTextSelection {
+        SubcomposeLayout(modifier) { constraints ->
+            layout(constraints.maxWidth, layout.height) {
+                // Reading coordinates here also reruns placement when an ancestor scrolls without
+                // remeasurement. Compose supplies coordinates on the real (non-alignment) placement.
+                val positioned = coordinates ?: return@layout
+                val viewport = positioned.localBoundingBoxOf(positioned.findRootCoordinates(), clipBounds = false)
+                val onScreen = layout.visibleRange(floor(viewport.top).toInt(), ceil(viewport.bottom).toInt())
+                // Bound overscan by fragments: a whole extra screen eagerly creates dozens of
+                // offscreen paragraphs when a previous chapter first re-enters the lazy list.
+                val visible = if (onScreen.isEmpty()) onScreen else
+                    (onScreen.first - 1).coerceAtLeast(0)..(onScreen.last + 1).coerceAtMost(layout.fragments.lastIndex)
+                // Compose and measure in this placement, before drawing. A state write from
+                // onGloballyPositioned would leave the current frame with the old/empty text window.
+                contents.keys.removeAll { it !in visible }
+                for (index in visible) {
+                    val fragment = layout.fragments[index]
+                    val content = contents.getOrPut(index) {
+                        { ReaderTextFragmentContent(fragment, layout.style, color) }
                     }
+                    // A slot always identifies the same geometry and paragraph, including
+                    // when lookahead and approach have different visible windows.
+                    subcompose(layout to index, content).single()
+                        .measure(Constraints.fixedWidth(constraints.maxWidth))
+                        .placeRelative(0, layout.offsets[index] + fragment.spacingBefore)
                 }
-                // Reuse the content identity during scroll-only placement. Still claim the slot
-                // every time (unused slots are disposed) and let Compose reuse its measurement
-                // unless constraints or child state changed. Never retain a stale Placeable.
-                // Navigation's lookahead may still hold another window. A shared slot would
-                // return that window's old text in the approach pass at this window's new offset.
-                subcompose(visible, content).firstOrNull()?.measure(Constraints.fixedWidth(constraints.maxWidth))
-                    ?.placeRelative(0, layout.offsets[visible.first])
             }
         }
     }
