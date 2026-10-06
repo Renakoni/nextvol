@@ -44,7 +44,7 @@ internal fun SourceScopeTitle(state: DiscoveryPageState, onScope: (SourceCategor
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             item { Text(stringResource(R.string.source_range_title), Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.displayMedium) }
-            items(listOf(null) + categories) { category ->
+            items(listOf(null) + categories, key = { it?.name ?: "all" }) { category ->
                 ListItem(headlineContent = { Text(stringResource(category?.title ?: R.string.source_range_all)) },
                     trailingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
