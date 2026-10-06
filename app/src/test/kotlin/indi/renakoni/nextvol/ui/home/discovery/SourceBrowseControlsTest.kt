@@ -145,17 +145,24 @@ class SourceBrowseControlsTest {
         }
     }
 
-    @Test fun zeroCountScopeCanBeSelectedAndOffersAnExplicitReturnToAllSources() {
-        var state by mutableStateOf(DiscoveryPageState())
+    @Test fun scopePickerListsOnlyCategoriesInUseAndKeepsAnEmptyActiveScopeSelected() {
+        val anime = sources(1).single().let { it.copy(metadata = it.metadata.copy(category = SourceCategory.Anime)) }
+        var state by mutableStateOf(DiscoveryPageState(scope = SourceCategory.Female, availableSources = listOf(anime)))
         activity.get().setContent { MaterialTheme { Column {
             SourceScopeTitle(state) { state = state.copy(scope = it) }
             SourceScopeEmpty(state, true, { state = state.copy(scope = it) }, {})
         } } }
-        compose.onNodeWithContentDescription("Source scope: All sources").performClick()
-        compose.onNodeWithText("Female fiction").performClick()
-        compose.onNodeWithContentDescription("Source scope: Female fiction").assertIsDisplayed()
         compose.onNodeWithText("No enabled Female fiction sources support discovery.").assertIsDisplayed()
-        compose.onNodeWithText("All sources").performClick()
+        compose.onNodeWithContentDescription("Source scope: Female fiction").performClick()
+        compose.onAllNodes(isSelectable()).assertCountEquals(3)
+        compose.onNode(hasText("Female fiction") and isSelectable()).assertIsSelected()
+        compose.onNodeWithText("Mainstream").assertDoesNotExist()
+        compose.onNodeWithText("Light novels").performClick()
+        assertEquals(SourceCategory.Anime, state.scope)
+        compose.onNodeWithContentDescription("Source scope: Light novels").performClick()
+        compose.onAllNodes(isSelectable()).assertCountEquals(2)
+        compose.onNodeWithText("Female fiction").assertDoesNotExist()
+        compose.onNode(hasText("All sources") and isSelectable()).performClick()
         assertNull(state.scope)
     }
 
