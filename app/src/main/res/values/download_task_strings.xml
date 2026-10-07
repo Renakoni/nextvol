@@ -6,7 +6,6 @@
     <string name="download_task_retry_time">Retry %1$d: no earlier than %2$s</string>
     <string name="download_error_rate_limited">The source is temporarily limiting requests or unavailable</string>
     <string name="download_error_retry_exhausted">Automatic retries stopped; try again later</string>
-    <string name="download_stage_unknown">Stage not recorded</string>
     <string name="download_task_unknown">Download task %1$s</string>
     <string name="download_task_unfinished">Unfinished downloads</string>
     <string name="download_task_remove">Cancel and remove task (keep downloaded content)</string>
@@ -14,13 +13,6 @@
     <string name="download_task_interrupted">Interrupted; ready to continue</string>
     <string name="download_task_cancelled">Cancelled</string>
     <string name="download_task_content">Offline chapters: %1$d/%2$d</string>
-    <string name="download_task_chapter">Chapter %1$d</string>
-    <string name="download_stage_details">Book details</string>
-    <string name="download_stage_directory">Table of contents</string>
-    <string name="download_stage_body">Chapter text</string>
-    <string name="download_stage_image">Chapter images</string>
-    <string name="download_stage_cover">Cover</string>
-    <string name="download_stage_storage">Local storage</string>
     <string name="download_error_network">Network unavailable or timed out</string>
     <string name="download_error_authentication">Sign in to the source, then retry</string>
     <string name="download_error_verification">Complete source verification, then retry</string>
@@ -33,7 +25,4 @@
     <string name="download_notification_cancel">Cancel download</string>
     <string name="download_error_system_restricted">Background execution restricted; open the app to continue</string>
     <string name="download_error_system_interrupted">The previous execution was interrupted</string>
-    <string name="download_body_coverage">Bodies saved: %1$d/%2$d</string>
-    <string name="download_missing_images">Missing images: %1$d</string>
-    <string name="download_missing_cover">Cover not downloaded</string>
 </resources>

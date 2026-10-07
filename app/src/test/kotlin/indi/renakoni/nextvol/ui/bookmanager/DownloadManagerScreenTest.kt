@@ -86,12 +86,11 @@ class DownloadManagerScreenTest {
 
     @Test fun interruptedContentShowsCountsAndActiveTasksCannotBeStartedAgain() {
         val status = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Partial, 1, 3),
-            DownloadTaskState(DownloadTaskStatus.Interrupted, DownloadStage.Body, chapterIndex = 2))
+            DownloadTaskState(DownloadTaskStatus.Interrupted, DownloadStage.Body))
         val item = item(status)
         show(item)
         compose.onNodeWithText(activity.get().getString(R.string.download_task_interrupted), substring = true).assertIsDisplayed()
         compose.onNodeWithText(activity.get().getString(R.string.download_task_content, 1, 3), substring = true).assertExists()
-        compose.onNodeWithText(activity.get().getString(R.string.download_task_chapter, 2), substring = true).assertExists()
         compose.onNodeWithText(activity.get().getString(R.string.book_download_continue)).assertIsDisplayed()
         compose.runOnIdle {
             item.status = status.copy(task = status.task.copy(status = DownloadTaskStatus.Running))

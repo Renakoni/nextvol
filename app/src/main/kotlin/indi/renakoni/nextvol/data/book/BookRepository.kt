@@ -260,14 +260,12 @@ class BookRepository @Inject constructor(
                         ?.let { workManager.getWorkInfoByIdFlow(UUID.fromString(it)) } ?: flowOf(null)
                     work.map { info ->
                         val volumes = localBookDataSource.getBookVolumes(book.storageKey)
-                        val chapterIndex = volumes?.volumes?.flatMap { it.chapters }?.distinctBy { it.id }
-                            ?.indexOfFirst { it.id == owner?.taskChapter }?.takeIf { it >= 0 }?.plus(1)
                         val task = owner?.taskState(info?.state) ?: DownloadTaskState()
                         val chapterId = task.chapterId.takeIf { it.isNotEmpty() }?.let {
                             SourceChapterId(BookIdentity.book(bookId), BookIdentity.chapter(it, book).remoteId).storageKey
                         }.orEmpty()
                         BookDownloadStatus(downloads.state(book, volumes, active = false, contentOnly = true),
-                            task.copy(chapterId = chapterId, chapterIndex = chapterIndex))
+                            task.copy(chapterId = chapterId))
                     }
                 }
         }

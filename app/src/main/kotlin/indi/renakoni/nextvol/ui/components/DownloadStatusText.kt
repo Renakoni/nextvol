@@ -10,7 +10,7 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.download.BookDownloadPhase
 import indi.renakoni.nextvol.data.download.BookDownloadStatus
 import indi.renakoni.nextvol.data.download.DownloadFailure
-import indi.renakoni.nextvol.data.download.DownloadStage
+import indi.renakoni.nextvol.data.download.DownloadTaskState
 import indi.renakoni.nextvol.data.download.DownloadTaskStatus
 import indi.renakoni.nextvol.data.download.DownloadSubmission
 
@@ -24,8 +24,7 @@ fun downloadStatusLabel(status: BookDownloadStatus): String = stringResource(whe
     DownloadTaskStatus.Interrupted -> R.string.download_task_interrupted
     DownloadTaskStatus.Cancelled -> R.string.download_task_cancelled
     DownloadTaskStatus.Failed -> R.string.book_download_failed
-    DownloadTaskStatus.Complete -> if (status.content.selectedChapters != null) R.string.download_selection_complete
-        else if (status.content.phase == BookDownloadPhase.Complete) R.string.cached else R.string.book_download_partial
+    DownloadTaskStatus.Complete -> if (status.content.phase == BookDownloadPhase.Complete) R.string.cached else R.string.book_download_partial
     else -> when (status.content.phase) {
         BookDownloadPhase.None -> R.string.cached_false
         BookDownloadPhase.Partial -> R.string.book_download_partial
@@ -35,38 +34,22 @@ fun downloadStatusLabel(status: BookDownloadStatus): String = stringResource(whe
     }
 })
 
+/** One short line: the state, how much of the book is offline, and why a task stopped. */
 @Composable
 fun downloadStatusText(status: BookDownloadStatus): String {
     val parts = mutableListOf(downloadStatusLabel(status))
-    if (status.content.selectedChapters != null) {
-        parts += stringResource(R.string.download_selection_progress, status.content.taskSavedChapters, status.content.taskTotalChapters)
-    }
     if (status.content.totalChapters > 0) {
         parts += stringResource(R.string.download_task_content, status.content.savedChapters, status.content.totalChapters)
-        parts += stringResource(R.string.download_body_coverage, status.content.bodyChapters, status.content.totalChapters)
-    }
-    if (status.content.missingImages > 0) parts += stringResource(R.string.download_missing_images, status.content.missingImages)
-    if (status.content.coverMissing) parts += stringResource(R.string.download_missing_cover)
-    if (status.task.status == DownloadTaskStatus.WaitingRetry) {
-        parts += stringResource(R.string.download_task_retry_time, status.task.retryCount,
-            java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
-                .format(java.util.Date(status.task.nextAttemptAt)))
-    }
-    if (status.task.active || status.task.canResume) {
-        parts += stringResource(when (status.task.stage) {
-            DownloadStage.Unknown -> R.string.download_stage_unknown
-            DownloadStage.Details -> R.string.download_stage_details
-            DownloadStage.Directory -> R.string.download_stage_directory
-            DownloadStage.Body -> R.string.download_stage_body
-            DownloadStage.Image -> R.string.download_stage_image
-            DownloadStage.Cover -> R.string.download_stage_cover
-            DownloadStage.Storage -> R.string.download_stage_storage
-        })
-        status.task.chapterIndex?.let { parts += stringResource(R.string.download_task_chapter, it) }
     }
     status.task.failure?.let { parts += stringResource(downloadFailureResource(it)) }
+    if (status.task.status == DownloadTaskStatus.WaitingRetry) parts += downloadRetryTimeText(status.task)
     return parts.joinToString(" · ")
 }
+
+@Composable
+internal fun downloadRetryTimeText(task: DownloadTaskState): String = stringResource(R.string.download_task_retry_time,
+    task.retryCount, java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
+        .format(java.util.Date(task.nextAttemptAt)))
 
 internal fun downloadFailureResource(failure: DownloadFailure) = when (failure) {
     DownloadFailure.Network -> R.string.download_error_network

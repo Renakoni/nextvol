@@ -1,8 +1,19 @@
 package indi.renakoni.nextvol.ui.book.download
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,7 +67,8 @@ import indi.renakoni.nextvol.data.download.DownloadStage
 import indi.renakoni.nextvol.data.download.DownloadTaskStatus
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.components.downloadFailureResource
-import indi.renakoni.nextvol.ui.components.downloadStatusText
+import indi.renakoni.nextvol.ui.components.downloadRetryTimeText
+import indi.renakoni.nextvol.ui.components.downloadStatusLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,8 +79,9 @@ fun BookDownloadScreen(
     onOpenStorage: () -> Unit = {},
 ) {
     val chapters = remember(state.volumes) { state.allChapters }
-    val chapterIds = remember(chapters) { chapters.map { it.id }.toSet() }
-    val allSelected = chapterIds.isNotEmpty() && state.selected.containsAll(chapterIds)
+    // Downloaded chapters are final: they show a mark instead of a checkbox and are never selected.
+    val downloadable = remember(state.volumes, state.chapters) { state.downloadableIds }
+    val allSelected = downloadable.isNotEmpty() && state.selected.containsAll(downloadable)
     var expandedVolume by rememberSaveable(state.bookId) { mutableStateOf<Int?>(null) }
     val editable = state.ready && !state.locked
     Scaffold(
@@ -77,7 +91,10 @@ fun BookDownloadScreen(
                 Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.download_back))
             } },
         ) },
-        bottomBar = { Surface(tonalElevation = 1.dp) {
+        // Only offer the action while there is something left to choose; the summary covers the rest.
+        bottomBar = { AnimatedVisibility(!state.ready || editable && downloadable.isNotEmpty(),
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()) { Surface(tonalElevation = 1.dp) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
                 Button(onSubmit, Modifier.fillMaxWidth().heightIn(min = 52.dp), enabled = editable && state.selected.isNotEmpty(),
                     contentPadding = PaddingValues(16.dp)) {
@@ -85,82 +102,41 @@ fun BookDownloadScreen(
                         stringResource(R.string.download_start_selected, state.selected.size))
                 }
             }
-        } },
+        } } },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp)) {
             item(key = "summary") {
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        val information = state.information
-                        Cover(state.bookId, 64.dp, 88.dp, information?.coverUri ?: Uri.EMPTY,
-                            information?.title ?: stringResource(R.string.download_page_title))
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(information?.title ?: stringResource(R.string.download_page_title),
-                                style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            information?.author?.takeIf { it.isNotBlank() }?.let {
-                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(stringResource(R.string.download_book_coverage, state.status.content.savedChapters,
-                                if (state.ready) chapters.size else state.status.content.totalChapters),
-                                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
-            }
-            if (state.status.task.status != DownloadTaskStatus.None) item(key = "task") {
-                Surface(modifier = Modifier.padding(top = 16.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(downloadStatusText(state.status), style = MaterialTheme.typography.bodyMedium)
-                        if (state.status.task.active) {
-                            if (state.status.task.status == DownloadTaskStatus.Queued || state.status.task.stage in
-                                setOf(DownloadStage.Unknown, DownloadStage.Details, DownloadStage.Directory)) {
-                                LinearProgressIndicator(Modifier.fillMaxWidth())
-                            } else LinearProgressIndicator(
-                                progress = { (state.status.content.taskSavedChapters.toFloat() /
-                                    state.status.content.taskTotalChapters.coerceAtLeast(1)).coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        Row {
-                            if (state.status.task.canResume && (!state.locked || state.status.task.status == DownloadTaskStatus.WaitingVerification))
-                                TextButton(onResume, enabled = !state.submitting) {
-                                Text(stringResource(if (state.status.task.status == DownloadTaskStatus.WaitingVerification)
-                                    R.string.download_task_verify else R.string.download_resume_selection))
-                            }
-                            if (state.locked) TextButton(onCancel, enabled = !state.submitting) {
-                                Text(stringResource(R.string.download_cancel_reselect))
-                            }
-                        }
-                    }
-                }
-            }
-            if (state.status.task.failure?.isStorageFailure == true || state.directoryFailure?.isStorageFailure == true) {
-                item(key = "storage-recovery") {
-                    TextButton(onOpenStorage, Modifier.padding(top = 8.dp).testTag("download-open-storage")) {
-                        Text(stringResource(R.string.storage_manager_title))
-                    }
-                }
+                val saved = if (state.ready) chapters.count { state.chapters.chapters[it.id]?.downloaded == true }
+                    else state.status.content.savedChapters
+                DownloadSummary(state, saved, if (state.ready) chapters.size else state.status.content.totalChapters,
+                    onResume, onCancel, onOpenStorage)
             }
             when {
                 state.loading -> item(key = "directory-loading") {
-                    Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                         Text(stringResource(R.string.download_directory_loading), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 state.directoryFailure != null -> item(key = "directory-error") {
-                    Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.download_directory_failed), style = MaterialTheme.typography.titleMedium)
                         Text(stringResource(downloadFailureResource(state.directoryFailure)), style = MaterialTheme.typography.bodyMedium)
-                        FilledTonalButton(onReload) { Text(stringResource(R.string.download_directory_retry)) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledTonalButton(onReload) { Text(stringResource(R.string.download_directory_retry)) }
+                            if (state.directoryFailure.isStorageFailure) TextButton(onOpenStorage, Modifier.testTag("download-open-storage")) {
+                                Text(stringResource(R.string.storage_manager_title))
+                            }
+                        }
                     }
                 }
                 else -> {
                     item(key = "selection-tools") {
-                        Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.download_directory_ready, chapters.size), Modifier.weight(1f),
                                 style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            TextButton({ onSelect(if (allSelected) emptySet() else chapterIds) }, enabled = editable) {
+                            if (downloadable.isNotEmpty()) TextButton({ onSelect(if (allSelected) emptySet() else downloadable) }, enabled = editable) {
                                 Text(stringResource(if (allSelected) R.string.download_select_none else R.string.download_select_all))
                             }
                         }
@@ -168,8 +144,9 @@ fun BookDownloadScreen(
                     state.volumes?.volumes?.forEachIndexed { volumeIndex, volume ->
                         val expanded = expandedVolume == volumeIndex
                         item(key = "volume:$volumeIndex") {
-                            val ids = volume.chapters.map { it.id }.toSet()
-                            val selected = ids.count { it in state.selected }
+                            val ids = volume.chapters.map { it.id }
+                            val open = ids.filter { it in downloadable }.toSet()
+                            val selected = open.count { it in state.selected }
                             val title = volume.volumeTitle.ifBlank { stringResource(R.string.download_volume_number, volumeIndex + 1) }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -183,38 +160,128 @@ fun BookDownloadScreen(
                                         Modifier.size(14.dp).rotate(if (expanded) -90f else 90f), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                        Text(stringResource(R.string.info_volume_chapters_count, ids.size), style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        val savedInVolume = ids.size - open.size
+                                        Text(if (savedInVolume == 0) stringResource(R.string.info_volume_chapters_count, ids.size)
+                                            else stringResource(R.string.download_book_coverage, savedInVolume, ids.size),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (open.isEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
-                                TriStateCheckbox(when (selected) { 0 -> ToggleableState.Off; ids.size -> ToggleableState.On; else -> ToggleableState.Indeterminate },
-                                    onClick = { onSelect(if (selected == ids.size) state.selected - ids else state.selected + ids) }, enabled = editable,
+                                if (open.isEmpty()) DownloadedMark()
+                                else TriStateCheckbox(when (selected) { 0 -> ToggleableState.Off; open.size -> ToggleableState.On; else -> ToggleableState.Indeterminate },
+                                    onClick = { onSelect(if (selected == open.size) state.selected - open else state.selected + open) }, enabled = editable,
                                     modifier = Modifier.testTag("download-volume-$volumeIndex").semantics { contentDescription = title })
                             }
                         }
                         if (expanded) items(volume.chapters, key = { "chapter:${it.id}" }) { chapter ->
                             val saved = state.chapters.chapters[chapter.id]
+                            val downloaded = saved?.downloaded == true
                             val active = state.status.task.active && state.status.task.chapterId == chapter.id
-                            Row(Modifier.fillMaxWidth().toggleable(chapter.id in state.selected, enabled = editable, role = Role.Checkbox) {
-                                onSelect(if (it) state.selected + chapter.id else state.selected - chapter.id)
-                            }.heightIn(min = 56.dp).padding(start = 28.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(chapter.title, style = MaterialTheme.typography.bodyMedium)
-                                    val label = when {
-                                        active -> R.string.download_chapter_downloading
-                                        saved?.failure != null -> downloadFailureResource(saved.failure)
-                                        saved?.downloaded == true -> R.string.download_chapter_saved
-                                        else -> null
-                                    }
-                                    if (label != null) Text(stringResource(label), style = MaterialTheme.typography.labelSmall,
-                                        color = if (saved?.failure != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                            val row = if (downloaded) Modifier.semantics(mergeDescendants = true) {}
+                                else Modifier.toggleable(chapter.id in state.selected, enabled = editable, role = Role.Checkbox) {
+                                    onSelect(if (it) state.selected + chapter.id else state.selected - chapter.id)
                                 }
-                                Checkbox(chapter.id in state.selected, onCheckedChange = null, enabled = editable, modifier = Modifier.padding(start = 8.dp))
+                            Row(Modifier.fillMaxWidth().then(row).heightIn(min = 56.dp).padding(start = 28.dp, top = 10.dp, bottom = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(chapter.title, style = MaterialTheme.typography.bodyMedium,
+                                        color = if (downloaded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                                    if (active) Text(stringResource(R.string.download_chapter_downloading),
+                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    else if (!downloaded) saved?.failure?.let {
+                                        Text(stringResource(downloadFailureResource(it)), style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                                if (downloaded) DownloadedMark(Modifier.padding(start = 8.dp))
+                                else Checkbox(chapter.id in state.selected, onCheckedChange = null, enabled = editable, modifier = Modifier.padding(start = 8.dp))
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** Book progress and, while one exists, the task that changes it. One card instead of two status blocks. */
+@Composable
+private fun DownloadSummary(state: BookDownloadUiState, saved: Int, total: Int,
+    onResume: () -> Unit, onCancel: () -> Unit, onOpenStorage: () -> Unit) {
+    val information = state.information
+    val title = information?.title ?: stringResource(R.string.download_page_title)
+    val progress by animateFloatAsState(if (total > 0) (saved.toFloat() / total).coerceIn(0f, 1f) else 0f,
+        ProgressIndicatorDefaults.ProgressAnimationSpec, label = "DownloadBookProgress")
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Cover(state.bookId, 64.dp, 88.dp, information?.coverUri ?: Uri.EMPTY, title)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    information?.author?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (total > 0) {
+                        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest)
+                        Text(stringResource(R.string.download_book_coverage, saved, total), style = MaterialTheme.typography.labelMedium,
+                            color = if (saved >= total) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            // The leaving section keeps the state it was shown with while it fades and collapses.
+            AnimatedContent(state.takeIf { it.status.task.status !in setOf(DownloadTaskStatus.None, DownloadTaskStatus.Complete) },
+                contentKey = { it != null },
+                transitionSpec = { fadeIn(tween(220, delayMillis = 90)) togetherWith fadeOut(tween(90)) using SizeTransform(clip = true) },
+                label = "DownloadTask") { shown ->
+                if (shown != null) DownloadTask(shown, onResume, onCancel, onOpenStorage)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadTask(state: BookDownloadUiState, onResume: () -> Unit, onCancel: () -> Unit, onOpenStorage: () -> Unit) {
+    val task = state.status.task
+    val content = state.status.content
+    val counting = task.status == DownloadTaskStatus.Running &&
+        task.stage !in setOf(DownloadStage.Unknown, DownloadStage.Details, DownloadStage.Directory)
+    val progress by animateFloatAsState((content.taskSavedChapters.toFloat() / content.taskTotalChapters.coerceAtLeast(1)).coerceIn(0f, 1f),
+        ProgressIndicatorDefaults.ProgressAnimationSpec, label = "DownloadTaskProgress")
+    Column(Modifier.padding(top = 16.dp).testTag("download-task"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HorizontalDivider(Modifier.padding(bottom = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        // The status and its actions share one line so the card stays compact.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (counting) stringResource(R.string.download_task_progress, content.taskSavedChapters, content.taskTotalChapters)
+                else downloadStatusLabel(state.status), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            if (task.failure?.isStorageFailure == true) TextButton(onOpenStorage, Modifier.testTag("download-open-storage")) {
+                Text(stringResource(R.string.storage_manager_title))
+            }
+            if (state.locked) TextButton(onCancel, enabled = !state.submitting) { Text(stringResource(R.string.cancel)) }
+            if (task.status == DownloadTaskStatus.WaitingVerification) TextButton(onResume, enabled = !state.submitting) {
+                Text(stringResource(R.string.download_task_verify))
+            } else if (task.canResume && !state.locked) TextButton(onResume, enabled = !state.submitting) {
+                Text(stringResource(if (task.status == DownloadTaskStatus.Failed) R.string.book_download_retry
+                    else R.string.book_download_continue))
+            }
+        }
+        if (task.active) {
+            if (counting) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(),
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest)
+            else LinearProgressIndicator(Modifier.fillMaxWidth(), trackColor = MaterialTheme.colorScheme.surfaceContainerHighest)
+        }
+        val details = listOfNotNull(task.failure?.let { stringResource(downloadFailureResource(it)) },
+            if (task.status == DownloadTaskStatus.WaitingRetry) downloadRetryTimeText(task) else null)
+        if (details.isNotEmpty()) Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall,
+            color = if (task.canResume && !state.locked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun DownloadedMark(modifier: Modifier = Modifier) {
+    Box(modifier.size(48.dp), contentAlignment = Alignment.Center) {
+        Icon(painterResource(R.drawable.check_24px), stringResource(R.string.download_chapter_saved),
+            Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
     }
 }

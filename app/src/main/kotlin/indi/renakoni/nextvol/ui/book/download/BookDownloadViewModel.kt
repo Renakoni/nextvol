@@ -40,6 +40,8 @@ data class BookDownloadUiState(
     val submitting: Boolean = false,
 ) {
     val allChapters get() = volumes?.volumes.orEmpty().flatMap { it.chapters }
+    /** Downloaded chapters are final, so only the rest can be selected. */
+    val downloadableIds get() = allChapters.map { it.id }.filterTo(mutableSetOf()) { chapters.chapters[it]?.downloaded != true }
     val locked get() = submitting || status.task.active || status.task.status in
         setOf(DownloadTaskStatus.WaitingRetry, DownloadTaskStatus.WaitingVerification)
     val ready get() = !loading && directoryFailure == null && allChapters.isNotEmpty()
@@ -84,8 +86,11 @@ class BookDownloadViewModel @Inject constructor(
                 }
                 val chapters = books.downloadSelection(state.bookId, volumes)
                 val book = BookIdentity.book(state.bookId)
-                val selected = if (initializedSelection) state.selected.intersect(seen) else
-                    chapters.selectedChapterIds?.let { stored -> seen.filter { BookIdentity.chapter(it, book).remoteId in stored }.toSet() } ?: seen
+                val downloadable = seen.filterTo(mutableSetOf()) { chapters.chapters[it]?.downloaded != true }
+                // Restore what is left of the last selection; otherwise offer every chapter not downloaded yet.
+                val selected = if (initializedSelection) state.selected.intersect(downloadable) else
+                    chapters.selectedChapterIds?.let { stored -> downloadable.filterTo(mutableSetOf()) { BookIdentity.chapter(it, book).remoteId in stored } }
+                        ?.takeIf { it.isNotEmpty() } ?: downloadable
                 initializedSelection = true
                 state = state.copy(volumes = volumes, chapters = chapters, selected = selected, loading = false)
             } catch (cancelled: CancellationException) { throw cancelled }
@@ -103,11 +108,12 @@ class BookDownloadViewModel @Inject constructor(
         val selected = if (state.locked) state.allChapters.filter { chapter ->
             snapshot.selectedChapterIds?.contains(BookIdentity.chapter(chapter.id, book).remoteId) ?: true
         }.map { it.id }.toSet() else state.selected
-        state = state.copy(chapters = snapshot, selected = selected)
+        val next = state.copy(chapters = snapshot)
+        state = next.copy(selected = selected.intersect(next.downloadableIds))
     }
 
     fun select(ids: Set<String>) {
-        if (!state.locked && state.ready) state = state.copy(selected = ids.intersect(state.allChapters.map { it.id }.toSet()))
+        if (!state.locked && state.ready) state = state.copy(selected = ids.intersect(state.downloadableIds))
     }
 
     fun submit(resume: Boolean = false) {
