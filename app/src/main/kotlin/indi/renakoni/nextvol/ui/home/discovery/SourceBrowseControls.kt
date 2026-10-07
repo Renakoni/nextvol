@@ -37,10 +37,14 @@ internal fun SourceScopeTitle(state: DiscoveryPageState, onScope: (SourceCategor
         Text(" ▾", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (expanded) ModalBottomSheet(onDismissRequest = { expanded = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        // List only categories that available sources belong to; an active empty scope stays visible as selected.
+        val categories = SourceCategory.entries.filter { category ->
+            category == state.scope || state.availableSources.any { it.metadata.category == category }
+        }
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             item { Text(stringResource(R.string.source_range_title), Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.displayMedium) }
-            items(listOf(null) + SourceCategory.entries) { category ->
+            items(listOf(null) + categories, key = { it?.name ?: "all" }) { category ->
                 ListItem(headlineContent = { Text(stringResource(category?.title ?: R.string.source_range_all)) },
                     trailingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

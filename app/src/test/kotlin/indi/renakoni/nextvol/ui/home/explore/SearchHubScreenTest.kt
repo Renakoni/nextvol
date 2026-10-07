@@ -114,6 +114,7 @@ class SearchHubScreenTest {
         compose.onNodeWithText("Source 0").assertDoesNotExist()
         compose.onNodeWithTag("search_source_query").assertDoesNotExist()
         compose.onNodeWithText("One source").assertIsDisplayed()
+        compose.onNodeWithText("Mainstream").assertDoesNotExist()
         compose.onNodeWithTag("search_scope_options").performScrollToNode(hasText("r18"))
         compose.onNodeWithText("r18").performClick()
         assertEquals(SourceCategory.Adult, state.scope)

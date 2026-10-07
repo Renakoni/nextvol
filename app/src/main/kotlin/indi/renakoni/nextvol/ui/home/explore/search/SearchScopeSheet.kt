@@ -91,7 +91,10 @@ internal fun SearchScopeSheet(
                         ScopeRow(stringResource(R.string.search_single_source), selected = state.selectedSource != null,
                             opensSearch = true, value = selectedName, onClick = { choosingSource = true })
                     }
-                    items(SourceCategory.entries, key = { it.name }) { category ->
+                    // Only categories with searchable sources; an active empty scope stays visible as selected.
+                    items(SourceCategory.entries.filter { category ->
+                        category == state.scope || state.sources.any { it.category == category }
+                    }, key = { it.name }) { category ->
                         ScopeRow(stringResource(category.title), selected = state.selectedSource == null && state.scope == category,
                             count = state.sources.count { it.category == category }, onClick = { onScope(category) })
                     }
