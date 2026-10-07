@@ -117,7 +117,9 @@ class BookDownloadViewModel @Inject constructor(
     }
 
     fun submit(resume: Boolean = false) {
-        if (state.submitting || !resume && (!state.ready || state.locked || state.selected.isEmpty())) return
+        // A late tap on a task that has already ended must not start a whole-book download.
+        if (state.submitting || resume && !state.status.task.canResume ||
+            !resume && (!state.ready || state.locked || state.selected.isEmpty())) return
         val selected = if (resume) null else state.selected.toList()
         state = state.copy(submitting = true)
         viewModelScope.launch {
@@ -129,7 +131,8 @@ class BookDownloadViewModel @Inject constructor(
     }
 
     fun cancel() {
-        if (state.submitting) return
+        // Only a live task can be cancelled; a finished one must not turn into "Cancelled".
+        if (state.submitting || !state.locked) return
         state = state.copy(submitting = true)
         viewModelScope.launch {
             try { books.dismissDownload(state.bookId) }
