@@ -4,7 +4,6 @@
     <string name="download_book_coverage">已離線儲存 %1$d / %2$d 章</string>
     <string name="download_choose_chapters">請選擇章節</string>
     <string name="download_start_selected">下載所選 %1$d 章</string>
-    <string name="download_update_selected">更新所選 %1$d 章</string>
     <string name="download_selection_complete">所選章節已下載</string>
     <string name="download_selection_progress">本次所選：%1$d / %2$d 章</string>
     <string name="download_selection_unavailable">目錄中已找不到部分所選章節，請重新載入目錄並選擇。</string>
@@ -20,6 +19,5 @@
     <string name="download_volume_number">第 %1$d 卷</string>
     <string name="download_chapter_downloading">正在下載</string>
     <string name="download_chapter_saved">已下載</string>
-    <string name="download_chapter_outdated">已下載 · 待更新</string>
     <string name="download_manage_selection">章節與下載</string>
 </resources>

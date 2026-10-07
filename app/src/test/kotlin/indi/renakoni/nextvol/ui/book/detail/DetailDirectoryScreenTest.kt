@@ -92,7 +92,7 @@ class DetailDirectoryScreenTest {
                 LocalDensity provides Density(LocalDensity.current.density, fontScale),
             ) {
                 MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme(), typography = AppTypography) {
-                    DetailScreen(state, {}, {}, { opened = it }, { resumed = true }, { _, _ -> }, {}, {}, {}, {},
+                    DetailScreen(state, {}, {}, { opened = it }, { resumed = true }, {}, {}, {}, {}, {},
                         onMarkChaptersUnread = { writes += it })
                 }
             }

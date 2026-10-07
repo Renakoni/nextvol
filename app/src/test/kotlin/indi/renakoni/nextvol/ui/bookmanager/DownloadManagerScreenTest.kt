@@ -101,7 +101,7 @@ class DownloadManagerScreenTest {
         compose.onNodeWithContentDescription(activity.get().getString(R.string.download_task_remove)).assertExists()
     }
 
-    @Test fun completedTaskRefreshesButIncompleteTaskResumesFromTheManager() {
+    @Test fun completedTaskOffersNoUpdateButIncompleteTaskResumesFromTheManager() {
         val repository = mockk<BookRepository>()
         coEvery { repository.submitDownload(any(), any()) } returns
             indi.renakoni.nextvol.data.download.DownloadSubmission.Rejected(indi.renakoni.nextvol.data.download.DownloadFailure.Scheduling)
@@ -113,16 +113,14 @@ class DownloadManagerScreenTest {
                 DownloadTaskState(DownloadTaskStatus.Complete, DownloadStage.Body))
             val item = item(status).apply { progress = 1f }
             show(item, retry = model::onClickRetry)
-            compose.onNodeWithText(activity.get().getString(R.string.book_download_check_updates)).performClick()
-            compose.waitForIdle()
-            coVerify(exactly = 1) { repository.submitDownload(book.storageKey, true) }
+            compose.onNodeWithText(activity.get().getString(R.string.book_download_continue)).assertDoesNotExist()
             compose.runOnIdle {
                 item.status = status.copy(task = status.task.copy(status = DownloadTaskStatus.Failed))
                 item.progress = -1f
             }
             compose.onNodeWithText(activity.get().getString(R.string.book_download_continue)).performClick()
             compose.waitForIdle()
-            coVerify(exactly = 1) { repository.submitDownload(book.storageKey, false) }
+            coVerify(exactly = 1) { repository.submitDownload(book.storageKey, null) }
         } finally {
             model.viewModelScope.cancel()
         }

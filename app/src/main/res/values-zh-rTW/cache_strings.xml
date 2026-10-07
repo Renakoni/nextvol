@@ -9,9 +9,6 @@
     <string name="book_download_partial">部分下載</string>
     <string name="book_download_updating">下載中</string>
     <string name="book_download_failed">下載失敗</string>
-    <string name="book_download_outdated">有更新</string>
-    <string name="book_download_check_updates">更新離線內容</string>
     <string name="book_download_continue">繼續下載</string>
     <string name="book_download_retry">重試</string>
-    <string name="book_download_update">更新</string>
 </resources>

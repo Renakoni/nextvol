@@ -32,7 +32,6 @@ fun downloadStatusLabel(status: BookDownloadStatus): String = stringResource(whe
         BookDownloadPhase.Complete -> R.string.cached
         BookDownloadPhase.Updating -> R.string.book_download_updating
         BookDownloadPhase.Failed -> R.string.book_download_failed
-        BookDownloadPhase.Outdated -> R.string.book_download_outdated
     }
 })
 

@@ -6,7 +6,7 @@ import io.nightfish.lightnovelreader.api.book.ChapterContent
 import io.nightfish.lightnovelreader.api.book.ChapterInformation
 import java.security.MessageDigest
 
-enum class BookDownloadPhase { None, Partial, Complete, Updating, Failed, Outdated }
+enum class BookDownloadPhase { None, Partial, Complete, Updating, Failed }
 
 data class BookDownloadState(val phase: BookDownloadPhase = BookDownloadPhase.None,
     val savedChapters: Int = 0, val totalChapters: Int = 0,

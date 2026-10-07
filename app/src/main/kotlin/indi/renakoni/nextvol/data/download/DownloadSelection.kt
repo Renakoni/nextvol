@@ -6,7 +6,7 @@ import indi.renakoni.nextvol.data.local.room.entity.BookDownloadEntity
 import io.nightfish.lightnovelreader.api.book.ChapterInformation
 import kotlinx.serialization.json.Json
 
-data class DownloadChapterState(val downloaded: Boolean, val current: Boolean, val failure: DownloadFailure? = null)
+data class DownloadChapterState(val downloaded: Boolean, val failure: DownloadFailure? = null)
 
 data class DownloadSelectionState(
     val chapters: Map<String, DownloadChapterState> = emptyMap(),

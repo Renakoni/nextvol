@@ -53,7 +53,7 @@ class BookDownloadViewModelTest {
         coEvery { books.downloadDirectory(book) } returns Ok(BookVolumes(book.storageKey,
             listOf(Volume("volume", "Volume", listOf(ChapterInformation("1", "One"))))))
         coEvery { books.downloadSelection(book.storageKey, any()) } returns DownloadSelectionState()
-        coEvery { books.submitDownload(book.storageKey, false, listOf("1")) } coAnswers { reply.await() }
+        coEvery { books.submitDownload(book.storageKey, listOf("1")) } coAnswers { reply.await() }
         val model = BookDownloadViewModel(SavedStateHandle(mapOf("bookId" to book.storageKey, "refresh" to false)), books)
         try {
             runCurrent()

@@ -173,33 +173,26 @@ class BookDownloadTest {
         CacheBookWork(context, workerParameters(workDataOf("bookId" to book.storageKey, "downloadGeneration" to generation)),
             progress, books, downloads).doWork()
 
-    private suspend fun submittedDownload(book: SourceBookId, refresh: Boolean): ListenableWorker.Result {
+    private suspend fun submittedDownload(book: SourceBookId): ListenableWorker.Result {
         val id = java.util.UUID.randomUUID()
-        downloads.queueTask(book, downloads.generation(), id.toString(), refresh)
+        downloads.queueTask(book, downloads.generation(), id.toString())
         return CacheBookWork(context, workerParameters(workDataOf("bookId" to book.storageKey,
             "downloadGeneration" to downloads.generation(), "persistedTask" to true), id), progress, books, downloads).doWork()
     }
 
-    @Test fun httpReuseAndExplicitUpdateKeepOldVersionUntilImagesPublish() = runBlocking {
+    @Test fun httpReuseAndRepeatDownloadsKeepTheDownloadedVersion() = runBlocking {
         hnovel.content.RuleSourceFixture().use { fixture ->
             var body = "old body"
-            var failImage = false
-            var imageBytes = png
             val bodyCalls = java.util.concurrent.atomic.AtomicInteger()
             val imageCalls = java.util.concurrent.atomic.AtomicInteger()
-            val conditionalCalls = java.util.concurrent.atomic.AtomicInteger()
             fixture.server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
                 override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): okhttp3.mockwebserver.MockResponse {
-                    if (request.getHeader("If-None-Match") != null || request.getHeader("If-Modified-Since") != null) conditionalCalls.incrementAndGet()
                     val response = okhttp3.mockwebserver.MockResponse()
                     return when (request.path) {
                         "/book/one" -> response.setBody("<h1>Book</h1><a class='toc' href='/toc/1'>toc</a>")
                         "/toc/1" -> response.setBody("<li><a href='/c/1'>One</a></li>")
                         "/c/1" -> { bodyCalls.incrementAndGet(); response.setBody("<article><p>$body</p><img src='/image.png'></article>") }
-                        "/image.png" -> {
-                            imageCalls.incrementAndGet()
-                            if (failImage) response.setResponseCode(404) else response.setBody(okio.Buffer().write(imageBytes))
-                        }
+                        "/image.png" -> { imageCalls.incrementAndGet(); response.setBody(okio.Buffer().write(png)) }
                         else -> response.setResponseCode(404)
                     }
                 }
@@ -227,35 +220,18 @@ class BookDownloadTest {
             assertEquals(1, bodyCalls.get())
             assertTrue(books.getChapterContentFlow(id, book.storageKey).toList().last().get()!!.content.toString().contains("old body"))
             assertEquals(afterPreload, fixture.server.requestCount)
-            assertEquals(ListenableWorker.Result.success(), submittedDownload(book, refresh = false))
+            assertEquals(ListenableWorker.Result.success(), submittedDownload(book))
             assertEquals(1, bodyCalls.get()) // Promote validated reading content; only fetch its image.
             assertEquals(1, imageCalls.get())
             body = "new body"
-            assertEquals(ListenableWorker.Result.success(), submittedDownload(book, refresh = false))
-            assertEquals(1, bodyCalls.get())
+            assertEquals(ListenableWorker.Result.success(), submittedDownload(book))
+            assertEquals(1, bodyCalls.get()) // Downloaded chapters are final; a later run fetches nothing.
             assertEquals(1, imageCalls.get())
-            failImage = true
-            assertTrue(submittedDownload(book, refresh = true) is ListenableWorker.Result.Failure)
-            val refreshId = downloads.entry(book)!!.taskRefreshId
-            assertEquals(2, bodyCalls.get())
-            assertTrue(local.getChapterContent(id)!!.content.toString().contains("old body"))
             assertArrayEquals(png, downloads.image(image)!!.readBytes())
-            val beforeReading = fixture.server.requestCount
-            books.getChapterContentFlow(id, book.storageKey).toList()
-            assertEquals(beforeReading, fixture.server.requestCount)
-            failImage = false
-            imageBytes = ByteArrayOutputStream().also {
-                Bitmap.createBitmap(3, 3, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
-            }.toByteArray()
-            assertEquals(ListenableWorker.Result.success(), submittedDownload(book, refresh = false))
-            assertEquals(refreshId, downloads.entry(book)!!.taskRefreshId)
-            assertEquals(2, bodyCalls.get()) // Resume the same candidate, not another body fetch.
-            assertArrayEquals(imageBytes, downloads.image(image)!!.readBytes())
-            assertEquals(0, conditionalCalls.get()) // This source exposes no validator; these are full body requests.
             registry.unregister(book.sourceId)
             val beforeOffline = fixture.server.requestCount
-            assertTrue(books.getChapterContentFlow(id, book.storageKey).toList().single().get()!!.content.toString().contains("new body"))
-            assertTrue(books.exportChapter(book, id).get()!!.content.toString().contains("new body"))
+            assertTrue(books.getChapterContentFlow(id, book.storageKey).toList().single().get()!!.content.toString().contains("old body"))
+            assertTrue(books.exportChapter(book, id).get()!!.content.toString().contains("old body"))
             assertTrue(export(book = book) is ListenableWorker.Result.Success)
             assertEquals(beforeOffline, fixture.server.requestCount)
         }
@@ -464,20 +440,19 @@ class BookDownloadTest {
         assertNotEquals(downloads.image(SourceImage(a, IMAGE)), downloads.image(SourceImage(b, IMAGE)))
     }
 
-    @Test fun changedCatalogAndRetryReuseOnlySuccessfullySavedUnchangedChapters() = runBlocking {
+    @Test fun changedCatalogAndRetryFetchOnlyChaptersThatAreNotDownloaded() = runBlocking {
         val source = register(a)
         assertEquals(ListenableWorker.Result.success(), download())
         source.chapters = source.chapters.map { if (it.id == "2") it.copy(title = "Revised") else it } +
-            ChapterInformation("4", "New")
-        source.failedChapter = "2"
+            ChapterInformation("4", "New") + ChapterInformation("5", "Newer")
+        source.failedChapter = "5"
         assertTrue(download() is ListenableWorker.Result.Failure)
         assertEquals(BookDownloadPhase.Failed, state().phase)
-        assertEquals("Chapter 2", chapter(a, "2")!!.title)
         source.failedChapter = null
         assertEquals(ListenableWorker.Result.success(), download())
-        assertEquals(mapOf("1" to 1, "2" to 3, "3" to 2, "4" to 1), source.chapterCalls)
-        assertEquals("Revised", chapter(a, "2")!!.title)
-        assertEquals(BookDownloadState(BookDownloadPhase.Complete, 4, 4), state())
+        assertEquals(mapOf("1" to 1, "2" to 1, "3" to 1, "4" to 1, "5" to 2), source.chapterCalls)
+        assertEquals("Chapter 2", chapter(a, "2")!!.title)
+        assertEquals(BookDownloadState(BookDownloadPhase.Complete, 5, 5), state())
         assertEquals(3, source.directoryCalls)
     }
 
@@ -517,31 +492,21 @@ class BookDownloadTest {
         assertEquals(BookDownloadPhase.Complete, state().phase)
     }
 
-    @Test fun imageFailureAndReadingRefreshKeepPreviouslyDownloadedBody() = runBlocking {
+    @Test fun laterDownloadsAndReadingRefreshKeepTheDownloadedBody() = runBlocking {
         val source = register(a).apply { withImages = true; extraImage = true }
         assertEquals(ListenableWorker.Result.success(), download())
         val before = chapter(a, "1")!!
+        val imageCalls = source.imageCalls
         source.chapters = source.chapters.mapIndexed { index, chapter -> if (index == 0) chapter.copy(title = "Changed") else chapter }
-        source.failedImage = "$IMAGE?extra"
-        source.imageBytes = ByteArrayOutputStream().also {
-            Bitmap.createBitmap(3, 3, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
-        }.toByteArray()
-        assertTrue(download() is ListenableWorker.Result.Failure)
+        assertEquals(ListenableWorker.Result.success(), download())
+        assertEquals(mapOf("1" to 1, "2" to 1, "3" to 1), source.chapterCalls)
+        assertEquals(imageCalls, source.imageCalls)
         assertEquals(before, chapter(a, "1"))
         local.updateChapterContent(before.copy(title = "Incomplete reading refresh"))
         assertEquals(before, chapter(a, "1"))
-        assertArrayEquals(png, downloads.image(SourceImage(a, IMAGE))!!.readBytes())
-        assertEquals(1, db.bookDownloadDao().candidates(a.storageKey).size)
-        val calls = source.imageCalls
-        source.failedImage = null
-        assertEquals(ListenableWorker.Result.success(), download())
-        assertEquals(2, source.chapterCalls["1"])
-        assertEquals(calls + 1, source.imageCalls)
-        assertEquals("Changed", chapter(a, "1")!!.title)
-        assertArrayEquals(source.imageBytes, downloads.image(SourceImage(a, IMAGE,
-            chapterId = SourceChapterId(a, "1").storageKey))!!.readBytes())
         assertArrayEquals(png, downloads.image(SourceImage(a, IMAGE,
-            chapterId = SourceChapterId(a, "2").storageKey))!!.readBytes())
+            chapterId = SourceChapterId(a, "1").storageKey))!!.readBytes())
+        assertEquals(BookDownloadPhase.Complete, state().phase)
     }
 
     @Test fun clearingDownloadsRevokesLateResultsAndPreUpgradeQueuedWork() = runBlocking {
@@ -564,20 +529,25 @@ class BookDownloadTest {
         assertEquals(BookDownloadPhase.Complete, state().phase)
     }
 
-    @Test fun sourceRevisionAndRemovedVolumesHaveAccurateUpdateState() = runBlocking {
+    @Test fun downloadedChaptersStayFinalAcrossSourceRevisionsAndNewChapters() = runBlocking {
         val source = register(a)
         assertEquals(ListenableWorker.Result.success(), download())
         registry.unregister(a.sourceId)
         register(a, revision = "2", source = source)
-        assertEquals(BookDownloadPhase.Outdated, state().phase)
+        assertEquals(BookDownloadPhase.Complete, state().phase)
         assertEquals(ListenableWorker.Result.success(), download())
-        assertEquals(mapOf("1" to 2, "2" to 2, "3" to 2), source.chapterCalls)
+        assertEquals(mapOf("1" to 1, "2" to 1, "3" to 1), source.chapterCalls)
+        source.chapters = source.chapters + ChapterInformation("4", "New")
+        books.downloadDirectory(a)
+        assertEquals(BookDownloadState(BookDownloadPhase.Partial, 3, 4), state())
+        assertEquals(ListenableWorker.Result.success(), download())
+        // Chapter 3 gained a next chapter; it is still not fetched again.
+        assertEquals(mapOf("1" to 1, "2" to 1, "3" to 1, "4" to 1), source.chapterCalls)
+        assertEquals(BookDownloadState(BookDownloadPhase.Complete, 4, 4), state())
         source.volumeId = "replacement"
         source.chapters = listOf(ChapterInformation("4", "Only new chapter"))
         books.downloadDirectory(a)
-        assertEquals(BookDownloadPhase.Outdated, state().phase)
         assertEquals(1, local.getBookVolumes(a.storageKey)!!.volumes.size)
-        assertEquals(ListenableWorker.Result.success(), download())
         assertEquals(BookDownloadState(BookDownloadPhase.Complete, 1, 1), state())
         assertNotNull("Removed remote chapters remain available until download cleanup", chapter(a, "1"))
     }
@@ -679,8 +649,8 @@ class BookDownloadTest {
         downloads.clearReadingCache()
         assertNotNull(chapter(a, "1"))
         assertArrayEquals(png, downloads.image(image)!!.readBytes())
-        // Migrated bytes remain readable, but lack a trusted signature for current task progress.
-        assertEquals(BookDownloadState(BookDownloadPhase.Partial, 1, 3, taskSavedChapters = 0), state())
+        // Migrated bytes are downloaded like any other chapter; later runs fetch only the rest.
+        assertEquals(BookDownloadState(BookDownloadPhase.Partial, 1, 3), state())
     }
 
     @Test fun firstRequestFailuresStayVisibleAfterDatabaseReopenAndSourceRemoval() = runBlocking {
@@ -791,15 +761,12 @@ class BookDownloadTest {
         val source = register(a)
         val canonical = SourceBookId(a.sourceId, "series")
         val id = java.util.UUID.randomUUID().toString()
-        downloads.queueTask(a, downloads.generation(), id, refresh = true, chapterIds = listOf("2"))
-        val refreshId = downloads.entry(a)!!.taskRefreshId
-        assertTrue(refreshId.isNotEmpty())
+        downloads.queueTask(a, downloads.generation(), id, chapterIds = listOf("2"))
         val task = downloads.startTask(a, downloads.generation(), id, 0)
         downloads.begin(a, downloads.generation(), id)
         downloads.mergeIdentity(a, canonical, canonical.bind(BookVolumes(canonical.remoteId, source.directory().volumes)), commit = {})
         assertNull(downloads.entry(a))
         assertEquals(id, downloads.entry(canonical)!!.taskWorkId)
-        assertEquals(refreshId, downloads.entry(canonical)!!.taskRefreshId)
         assertEquals(setOf("2"), downloads.entry(canonical)!!.selectedChapterIds())
         assertEquals("", downloads.entry(canonical)!!.attempt)
         assertTrue(runCatching { downloads.taskStage(task, DownloadStage.Body) }.exceptionOrNull() is CancellationException)
@@ -822,7 +789,6 @@ class BookDownloadTest {
         val selection = books.downloadSelection(a.storageKey, a.bind(source.directory()))
         assertEquals(3, selection.chapters.size)
         assertTrue(selection.chapters.values.all { it.downloaded })
-        assertTrue(selection.chapters.values.none { it.current })
     }
 
     @Test fun imageVerificationKeepsItsCategoryInsteadOfBecomingANetworkError() = runBlocking {
@@ -1069,36 +1035,6 @@ class BookDownloadTest {
         assertTrue(export() is ListenableWorker.Result.Success)
         assertEquals(mapOf("1" to 2, "2" to 2, "3" to 2), source.chapterCalls)
         assertEquals(2, source.imageCalls)
-        assertEquals(BookDownloadPhase.Complete, state().phase)
-    }
-
-    @Test fun exportReusesCandidateImagesAfterAnIncompleteManualRefresh() = runBlocking {
-        val source = register(a).apply {
-            chapters = chapters.take(1)
-            withImages = true
-            extraImage = true
-        }
-        assertEquals(ListenableWorker.Result.success(), submittedDownload(a, refresh = false))
-        source.chapters = source.chapters.map { it.copy(title = "Updated") }
-        source.imageBytes = ByteArrayOutputStream().also {
-            Bitmap.createBitmap(3, 3, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
-        }.toByteArray()
-        source.failedImage = "$IMAGE?extra"
-        assertTrue(submittedDownload(a, refresh = true) is ListenableWorker.Result.Failure)
-        val candidate = db.bookDownloadDao().candidates(a.storageKey).single()
-        assertArrayEquals(png, downloads.image(SourceImage(a, IMAGE))!!.readBytes())
-        val callsAfterFailure = source.imageCalls
-        downloads.clearReadingCache()
-        cache.clear()
-        source.failedImage = null
-        assertTrue(export() is ListenableWorker.Result.Success)
-        assertEquals(callsAfterFailure + 1, source.imageCalls)
-        assertEquals(mapOf("1" to 2), source.chapterCalls)
-        assertEquals("Updated", chapter(a, "1")!!.title)
-        assertEquals(candidate.resourceVersion, db.bookDownloadDao().chapters(a.storageKey).single().resourceVersion)
-        assertArrayEquals(source.imageBytes, downloads.image(SourceImage(a, IMAGE))!!.readBytes())
-        assertArrayEquals(source.imageBytes, downloads.image(SourceImage(a, "$IMAGE?extra"))!!.readBytes())
-        assertTrue(db.bookDownloadDao().candidates(a.storageKey).isEmpty())
         assertEquals(BookDownloadPhase.Complete, state().phase)
     }
 

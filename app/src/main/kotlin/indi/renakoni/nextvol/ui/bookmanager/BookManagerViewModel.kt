@@ -81,7 +81,7 @@ class BookManagerViewModel @Inject constructor(
 
     fun onClickRetry(item: DownloadItem) {
         if (item.type == DownloadType.CACHE) viewModelScope.launch {
-            _downloadSubmissions.emit(bookRepository.submitDownload(item.bookId, refresh = item.progress >= 1f))
+            _downloadSubmissions.emit(bookRepository.submitDownload(item.bookId))
         }
     }
 

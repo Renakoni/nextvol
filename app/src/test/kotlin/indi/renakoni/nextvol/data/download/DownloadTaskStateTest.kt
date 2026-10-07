@@ -51,10 +51,9 @@ class DownloadTaskStateTest {
             .taskState(WorkInfo.State.RUNNING).status)
     }
 
-    @Test fun taskCompletionDoesNotMakeMissingImagesOrAnOldVersionComplete() {
+    @Test fun taskCompletionDoesNotMakeAPartialDownloadComplete() {
         val task = DownloadTaskState(DownloadTaskStatus.Complete)
         assertEquals(BookDownloadPhase.Partial, BookDownloadStatus(BookDownloadState(BookDownloadPhase.Partial, 1, 2), task).displayPhase)
-        assertEquals(BookDownloadPhase.Outdated, BookDownloadStatus(BookDownloadState(BookDownloadPhase.Outdated, 2, 2), task).displayPhase)
     }
 
     @Test fun failuresStoreCategoriesNotSensitiveMessages() {
