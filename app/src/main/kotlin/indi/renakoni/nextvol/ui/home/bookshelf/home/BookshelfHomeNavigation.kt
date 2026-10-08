@@ -7,10 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -56,12 +53,8 @@ fun NavGraphBuilder.bookshelfHomeDestination(sharedTransitionScope: SharedTransi
         val activity = LocalView.current.context as ComponentActivity
         val importViewModel = hiltViewModel<LocalBookImportViewModel>(activity)
         val externalFiles = hiltViewModel<ExternalFileViewModel>(activity)
-        val localBookshelfName = stringResource(R.string.local_bookshelf_name)
-        var targetShelf by rememberSaveable { mutableStateOf<Int?>(null) }
-        var targetName by rememberSaveable { mutableStateOf(localBookshelfName) }
         val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null && externalFiles.checkAvailable(importViewModel.state.visible)) {
-                importViewModel.selectTarget(targetShelf, targetName)
                 importViewModel.open(uri)
             }
         }
@@ -99,12 +92,7 @@ fun NavGraphBuilder.bookshelfHomeDestination(sharedTransitionScope: SharedTransi
             uiState = uiState,
             onSettings = navController::navigateToSettingsDestination,
             onImportLocalBook = {
-                if (externalFiles.checkAvailable(importViewModel.state.visible)) {
-                    val shelf = bookshelfHomeViewModel.uiState.selectedBookshelf
-                    targetShelf = shelf?.id
-                    targetName = shelf?.name ?: localBookshelfName
-                    importLauncher.launch(arrayOf("*/*"))
-                }
+                if (externalFiles.checkAvailable(importViewModel.state.visible)) importLauncher.launch(arrayOf("*/*"))
             },
         )
     }

@@ -7,7 +7,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.net.toUri
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -57,28 +56,16 @@ class LocalBookImportViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val books: LocalBookStore,
     private val storage: StorageUsageRepository,
-    private val savedState: SavedStateHandle,
 ) : ViewModel() {
     var state by mutableStateOf(LocalBookImportState())
         private set
     private var draft: LocalBookDraft? = null
-    private val targetShelf: Int? get() = savedState["targetShelf"]
-    private val targetName: String get() = savedState["targetName"] ?: context.getString(R.string.local_bookshelf_name)
+    /** Every import goes to this bookshelf, created on the first confirmed import. */
+    private val targetName: String get() = context.getString(R.string.local_bookshelf_name)
     private var operation: Job? = null
     private var revision = 0
     private val completed = Channel<Int>(Channel.BUFFERED)
     val imported = completed.receiveAsFlow()
-
-    fun selectTarget(id: Int?, name: String) {
-        savedState["targetShelf"] = id
-        savedState["targetName"] = name
-        savedState["localShelf"] = false
-    }
-
-    fun selectLocalShelf(name: String) {
-        selectTarget(null, name)
-        savedState["localShelf"] = true
-    }
 
     fun open(uri: Uri, name: String? = null, format: LocalBookFormat? = null) {
         if (state.importing) return
@@ -149,9 +136,7 @@ class LocalBookImportViewModel @Inject constructor(
         state = state.copy(importing = true)
         operation = viewModelScope.launch {
             try {
-                val (_, shelfId) = if (savedState.get<Boolean>("localShelf") == true) {
-                    books.publish(staged, parsed, title, null, localShelfName = targetName)
-                } else books.publish(staged, parsed, title, targetShelf)
+                val (_, shelfId) = books.publish(staged, parsed, title, null, localShelfName = targetName)
                 draft = null
                 runCatching { storage.invalidateSnapshot() }.onFailure { Log.e("LocalBookImport", "Cannot invalidate storage estimate", it) }
                 state = LocalBookImportState()
