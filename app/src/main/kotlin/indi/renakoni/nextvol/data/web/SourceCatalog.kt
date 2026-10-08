@@ -4,7 +4,12 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.imports.SourceDefinition
 import indi.renakoni.nextvol.R
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonArray
@@ -21,7 +26,15 @@ enum class SourceCategory(val title: Int) {
     Literature(R.string.source_category_literature),
     General(R.string.source_category_general),
     Adult(R.string.source_category_adult),
-    Official(R.string.source_category_official),
+}
+
+/** Stored preferences name their category. A retired name, such as the former Official Sites, reads as none
+ *  so restoring still succeeds; the catalog then supplies the source's current category. */
+internal object StoredSourceCategorySerializer : KSerializer<SourceCategory?> {
+    private val names = String.serializer().nullable
+    override val descriptor = names.descriptor
+    override fun serialize(encoder: Encoder, value: SourceCategory?) = names.serialize(encoder, value?.name)
+    override fun deserialize(decoder: Decoder) = names.deserialize(decoder)?.let { name -> SourceCategory.entries.firstOrNull { it.name == name } }
 }
 
 @Serializable

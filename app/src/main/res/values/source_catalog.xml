@@ -5,10 +5,8 @@
     <string name="source_category_anime">Light novels</string>
     <string name="source_category_literature">Classics</string>
     <string name="source_category_general">More fiction</string>
-    <string name="source_category_adult">r18</string>
+    <string name="source_category_adult">R18</string>
     <string name="source_catalog_tab">Categories</string>
-    <string name="source_category_official">Official sites</string>
-    <string name="source_category_official_description">Official platforms; some works may require payment.</string>
     <string name="source_import_tab">Import</string>
     <string name="source_catalog_count">%1$d sources</string>
     <string name="source_catalog_count_added">%1$d sources · %2$d added</string>
