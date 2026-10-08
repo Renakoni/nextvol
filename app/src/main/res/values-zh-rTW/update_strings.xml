@@ -8,19 +8,11 @@
     <string name="update_phase_download_failed">下載失敗（%1$s）</string>
     <string name="update_phase_download_failed_unknown">下載失敗（未知錯誤）</string>
     <string name="update_phase_download_progress">正在下載… %1$d%%</string>
-    <string name="update_phase_processing">正在處理更新檔案…</string>
     <string name="update_phase_download_complete">下載完成</string>
     <string name="update_phase_empty_file">下載失敗（檔案為空）</string>
-    <string name="update_phase_api_request">API：請求 %1$s 頻道更新</string>
-    <string name="update_phase_api_parse">API：解析更新資訊</string>
-    <string name="update_phase_api_download_link">API：取得下載連結</string>
-    <string name="update_phase_api_complete">API：更新資訊取得完成</string>
     <string name="update_phase_github_download_link">GitHub：取得 APK 下載連結</string>
     <string name="update_phase_github_version">GitHub：取得遠端版本號</string>
-    <string name="update_phase_github_parse_notes">GitHub：解析更新日誌</string>
     <string name="update_phase_github_release">GitHub：取得最新版本</string>
-    <string name="update_phase_github_fetch_notes">GitHub：取得更新日誌</string>
-    <string name="update_phase_github_compare">GitHub：比對版本號</string>
     <string name="update_download_empty_file">下載的檔案為空</string>
     <string name="update_notification_channel">應用程式更新</string>
     <string name="update_notification_channel_description">應用程式更新下載進度</string>
@@ -29,6 +21,9 @@
     <string name="update_notification_complete">更新下載完成</string>
     <string name="update_notification_install">點選安裝</string>
     <string name="update_notification_failed">更新下載失敗</string>
-    <string name="update_phase_missing_apk">下載失敗：%1$s 中未找到 APK</string>
-    <string name="update_ci_warning">**此版本由 GitHub Actions 建置，尚未經過充分測試。**</string>
+    <string name="update_phase_no_release">NextVol 暫無正式發布版本</string>
+    <string name="update_invalid_apk">下載的檔案不是有效的 APK</string>
+    <string name="update_wrong_package">此 APK 的應用程式或建置類型與目前安裝不一致</string>
+    <string name="update_wrong_version">APK 版本與發布資訊不符，或不高於目前版本</string>
+    <string name="update_wrong_signature">APK 簽署憑證與目前安裝的應用程式不一致</string>
 </resources>

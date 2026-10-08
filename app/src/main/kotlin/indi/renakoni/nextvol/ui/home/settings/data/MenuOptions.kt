@@ -1,8 +1,6 @@
 package indi.renakoni.nextvol.ui.home.settings.data
 
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.data.update.UpdateChannel
-import indi.renakoni.nextvol.data.update.UpdatePlatform
 import io.nightfish.lightnovelreader.api.bookshelf.BookshelfSortType
 import indi.renakoni.nextvol.ui.bookmanager.LocalBookSort
 
@@ -60,25 +58,6 @@ sealed class MenuOptions {
         override val nameId: Int,
         val value: T
     ): Option(key, nameId)
-
-    data object UpdateChannelOptions: MenuOptions(
-        UpdateChannel.entries.map { channel ->
-            Option(channel.key, when (channel) {
-                UpdateChannel.RELEASE -> R.string.key_update_channel_release
-                UpdateChannel.DEVELOPMENT -> R.string.key_update_channel_development
-                UpdateChannel.CI -> R.string.key_update_channel_ci
-            })
-        }
-    )
-
-    data object UpdatePlatformOptions: MenuOptions(
-        UpdatePlatform.entries.map { platform ->
-            Option(platform.key, when (platform) {
-                UpdatePlatform.GITHUB -> R.string.key_platform_github
-                UpdatePlatform.LNR_API -> R.string.key_platform_lnr_api
-            })
-        }
-    )
 
     data object DarkModeOptions: MenuOptions(
         Option("FollowSystem", R.string.key_dark_mode_follow_system),

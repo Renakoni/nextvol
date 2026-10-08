@@ -8,19 +8,11 @@
     <string name="update_phase_download_failed">Не удалось загрузить обновление (%1$s)</string>
     <string name="update_phase_download_failed_unknown">Не удалось загрузить обновление (неизвестная ошибка)</string>
     <string name="update_phase_download_progress">Загрузка… %1$d%%</string>
-    <string name="update_phase_processing">Обработка файлов обновления…</string>
     <string name="update_phase_download_complete">Загрузка завершена</string>
     <string name="update_phase_empty_file">Не удалось загрузить обновление (пустой файл)</string>
-    <string name="update_phase_api_request">API: запрос обновлений канала %1$s</string>
-    <string name="update_phase_api_parse">API: чтение сведений об обновлении</string>
-    <string name="update_phase_api_download_link">API: получение ссылки на загрузку</string>
-    <string name="update_phase_api_complete">API: сведения об обновлении получены</string>
     <string name="update_phase_github_download_link">GitHub: получение ссылки на APK</string>
     <string name="update_phase_github_version">GitHub: проверка версии на сервере</string>
-    <string name="update_phase_github_parse_notes">GitHub: чтение списка изменений</string>
     <string name="update_phase_github_release">GitHub: поиск последней версии</string>
-    <string name="update_phase_github_fetch_notes">GitHub: получение списка изменений</string>
-    <string name="update_phase_github_compare">GitHub: сравнение версий</string>
     <string name="update_download_empty_file">Загруженный файл пуст</string>
     <string name="update_notification_channel">Обновления приложения</string>
     <string name="update_notification_channel_description">Ход загрузки обновлений приложения</string>
@@ -29,6 +21,9 @@
     <string name="update_notification_complete">Обновление загружено</string>
     <string name="update_notification_install">Нажмите для установки</string>
     <string name="update_notification_failed">Не удалось загрузить обновление</string>
-    <string name="update_phase_missing_apk">Не удалось загрузить обновление: APK не найден в %1$s</string>
-    <string name="update_ci_warning">**Эта сборка создана GitHub Actions и не прошла полное тестирование.**</string>
+    <string name="update_phase_no_release">Стабильных выпусков NextVol пока нет</string>
+    <string name="update_invalid_apk">Загруженный файл не является корректным APK</string>
+    <string name="update_wrong_package">Этот APK относится к другому приложению или варианту сборки</string>
+    <string name="update_wrong_version">Версия APK не соответствует выпуску или не новее установленной</string>
+    <string name="update_wrong_signature">Сертификат подписи APK не совпадает с установленным приложением</string>
 </resources>

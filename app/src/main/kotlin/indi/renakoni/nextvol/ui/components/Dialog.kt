@@ -64,6 +64,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.R
 import kotlinx.coroutines.delay
@@ -578,8 +579,8 @@ fun SettingsAboutInfoDialog(
                 AnnotatedText(
                     text = stringResource(
                         id = R.string.settings_about_source_code,
-                        "<b><a href=\"https://github.com/dmzz-yyhyy/LightNovelReader\">GitHub</a></b>",
-                        "<b><a href=\"https://github.com/dmzz-yyhyy/LightNovelReader/issues\">GitHub Issues</a></b>"
+                        "<b><a href=\"${ProjectLinks.GITHUB}\">GitHub</a></b>",
+                        "<b><a href=\"${ProjectLinks.ISSUES}\">GitHub Issues</a></b>"
                     ),
                     style = typography.labelLarge
                 )
@@ -593,7 +594,7 @@ fun SettingsAboutInfoDialog(
                         stringResource(R.string.dialog_about_version), color = titleColor
                     )
                     Text(
-                        "${BuildConfig.VERSION_NAME} [${BuildConfig.VERSION_CODE}]", color = contentColor
+                        "${BuildConfig.VERSION_NAME} [${BuildConfig.VERSION_CODE}] · ${BuildConfig.BUILD_TYPE}", color = contentColor
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
@@ -607,120 +608,6 @@ fun SettingsAboutInfoDialog(
             }
         },
         confirmButton = {},
-    )
-}
-
-@Composable
-fun SettingsDisableStatsDialog(
-    onClickConfirm: () -> Unit,
-    onDismissRequest: () -> Unit,
-    onClickShowPrivacyPolicy: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text(
-            text = stringResource(R.string.settings_statistics_disable_dialog_title),
-            style = typography.titleLarge
-        ) },
-        text = { 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(text = stringResource(R.string.settings_statistics_disable_dialog_text))
-                Spacer(modifier = Modifier.height(12.dp))
-                TextButton(
-                    onClick = onClickShowPrivacyPolicy,
-                    modifier = Modifier.align(Alignment.Start),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.privacy_policy),
-                        color = colorScheme.primary,
-                        style = typography.labelMedium
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onClickConfirm()
-                }
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_statistics_disable_dialog_confirm),
-                    color = colorScheme.error
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = stringResource(R.string.cancel))
-            }
-        }
-    )
-}
-
-@Composable
-fun SettingsPrivacyPolicyDialog(
-    onDismissRequest: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { 
-            Text(
-                text = stringResource(R.string.privacy_policy_title),
-                style = typography.titleLarge
-            ) 
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = stringResource(R.string.privacy_policy_collect_title),
-                    style = typography.titleMedium,
-                    color = colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Text(
-                    text = stringResource(R.string.privacy_policy_collect_items),
-                    style = typography.bodyMedium,
-                    color = colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                
-                Text(
-                    text = stringResource(R.string.privacy_policy_not_collect_title),
-                    style = typography.titleMedium,
-                    color = colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Text(
-                    text = stringResource(R.string.privacy_policy_not_collect_items),
-                    style = typography.bodyMedium,
-                    color = colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                
-                Text(
-                    text = stringResource(R.string.privacy_policy_commitment_title),
-                    style = typography.titleMedium,
-                    color = colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Text(
-                    text = stringResource(R.string.privacy_policy_commitment_items),
-                    style = typography.bodyMedium,
-                    color = colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = stringResource(android.R.string.ok))
-            }
-        }
     )
 }
 

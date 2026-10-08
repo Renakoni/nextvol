@@ -164,7 +164,7 @@ fun UpdatesAvailableDialog(
                         item {
                             MarkdownText(
                                 modifier = Modifier.fillMaxWidth(),
-                                markdown = if (release.isCiBuild) "${stringResource(R.string.update_ci_warning)}\n\n$it" else it
+                                markdown = it
                             )
                         }
                     }
