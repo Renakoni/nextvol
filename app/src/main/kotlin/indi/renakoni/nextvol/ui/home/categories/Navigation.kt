@@ -22,6 +22,7 @@ import io.nightfish.lightnovelreader.api.identifier.Identifier
 import kotlinx.serialization.json.Json
 import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
+import indi.renakoni.nextvol.ui.components.ListCoverViewModel
 
 fun NavGraphBuilder.categoriesDestination() {
     composable<Route.Main.Categories> { entry ->
@@ -41,6 +42,7 @@ fun NavGraphBuilder.categoriesDestination() {
     composable<Route.Main.DiscoveryResults> { entry ->
         val nav = LocalNavController.current
         val model = hiltViewModel<DiscoveryResultsViewModel>()
+        val covers = hiltViewModel<ListCoverViewModel>()
         val state by model.state.collectAsStateWithLifecycle()
         val environment = discoveryEnvironment()
         LifecycleStartEffect(model, environment) {
@@ -54,7 +56,7 @@ fun NavGraphBuilder.categoriesDestination() {
         DiscoveryResultsScreen(state, model::filter, model::loadMore, model::refresh, model::scroll,
             onBook = { nav.navigateToBookDetailDestination(it.storageKey) },
             onManageSources = { nav.navigate(Route.Main.Settings.SourceDetail(model.sourceId.namespace, model.sourceId.id)) },
-            onSettings = nav::navigateToSettingsDestination, onBack = { nav.popBackStackIfResumed() })
+            onSettings = nav::navigateToSettingsDestination, onBack = { nav.popBackStackIfResumed() }, coverFor = covers::cover)
     }
 }
 

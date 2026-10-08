@@ -149,6 +149,13 @@ class BookRepository @Inject constructor(
         }
     }
 
+    /** A listed book without a cover borrows the one from its details: stored ones first, else one low-priority read. */
+    suspend fun detailCover(bookId: String): Result<Uri, WebRequestError> {
+        val book = BookIdentity.book(bookId)
+        localBookDataSource.getBookInformation(book.storageKey)?.let { return Ok(it.coverUri) }
+        return refreshBookInformation(book).map { it.coverUri }
+    }
+
     /** Remote-only refresh reports failure even when a local copy exists (background checks). */
     suspend fun refreshBookInformation(book: SourceBookId, priority: WebDataSourcePriority = WebDataSourcePriority.Low, fresh: Boolean = false,
         expectedRuntime: indi.renakoni.nextvol.data.web.SourceRuntime? = null): Result<BookInformation, WebRequestError> {
