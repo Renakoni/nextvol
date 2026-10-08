@@ -2,14 +2,11 @@
     <string name="download_page_title">下载章节</string>
     <string name="download_back">返回</string>
     <string name="download_book_coverage">已离线保存 %1$d / %2$d 章</string>
+    <string name="download_task_progress">正在下载 %1$d / %2$d 章</string>
     <string name="download_choose_chapters">请选择章节</string>
     <string name="download_start_selected">下载所选 %1$d 章</string>
-    <string name="download_selection_complete">所选章节已下载</string>
-    <string name="download_selection_progress">本次所选：%1$d / %2$d 章</string>
     <string name="download_selection_unavailable">目录中已找不到部分所选章节，请重新加载目录并选择。</string>
     <string name="download_selection_active">本书已有任务，取消后才可更改下载范围。</string>
-    <string name="download_resume_selection">继续上次所选章节</string>
-    <string name="download_cancel_reselect">取消任务并重新选择</string>
     <string name="download_directory_loading">正在准备完整目录… 加载完成后才能选择并确认下载。</string>
     <string name="download_directory_failed">完整目录加载失败，暂不能重新选章，已有下载仍然保留。</string>
     <string name="download_directory_retry">重新加载目录</string>

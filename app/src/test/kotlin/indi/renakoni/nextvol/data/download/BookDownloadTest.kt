@@ -696,7 +696,7 @@ class BookDownloadTest {
             val state = awaitTask(repository, a).status!!
             assertEquals(DownloadTaskStatus.Interrupted, state.task.status)
             assertEquals(2, state.task.runAttemptCount)
-            assertEquals(2, state.task.chapterIndex)
+            assertEquals(SourceChapterId(a, "2").storageKey, state.task.chapterId)
             assertEquals(BookDownloadState(BookDownloadPhase.Partial, 1, 3), state.content)
             assertTrue(state.task.canResume)
         } finally { repository.close() }
@@ -800,7 +800,7 @@ class BookDownloadTest {
         val state = books.downloadStatusFlow(a.storageKey).first()
         assertEquals(DownloadFailure.Verification, state.task.failure)
         assertEquals(DownloadStage.Image, state.task.stage)
-        assertEquals(1, state.task.chapterIndex)
+        assertEquals(SourceChapterId(a, "1").storageKey, state.task.chapterId)
         assertEquals(0, state.content.savedChapters)
     }
 

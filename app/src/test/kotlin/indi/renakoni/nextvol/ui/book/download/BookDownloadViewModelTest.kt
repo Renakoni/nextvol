@@ -7,11 +7,13 @@ import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.download.BookDownloadStatus
+import indi.renakoni.nextvol.data.download.DownloadChapterState
 import indi.renakoni.nextvol.data.download.DownloadSelectionState
 import indi.renakoni.nextvol.data.download.DownloadSubmission
 import indi.renakoni.nextvol.data.download.DownloadTaskState
 import indi.renakoni.nextvol.data.download.DownloadTaskStatus
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.book.BookVolumes
@@ -68,6 +70,53 @@ class BookDownloadViewModelTest {
             runCurrent()
             assertEquals(complete, model.state.status)
             assertFalse(model.state.locked)
+        } finally {
+            model.viewModelScope.cancel()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun downloadedChaptersAreNeverSelected() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val book = SourceBookId(Identifier("test", "download"), "book")
+        val books = mockk<BookRepository>()
+        every { books.downloadInformationFlow(book.storageKey) } returns emptyFlow()
+        every { books.downloadStatusFlow(book.storageKey) } returns MutableStateFlow(BookDownloadStatus())
+        coEvery { books.downloadDirectory(book) } returns Ok(BookVolumes(book.storageKey, listOf(Volume("volume", "Volume",
+            listOf(ChapterInformation("1", "One"), ChapterInformation("2", "Two"), ChapterInformation("3", "Three"))))))
+        coEvery { books.downloadSelection(book.storageKey, any()) } returns
+            DownloadSelectionState(mapOf("1" to DownloadChapterState(downloaded = true)))
+        val model = BookDownloadViewModel(SavedStateHandle(mapOf("bookId" to book.storageKey)), books)
+        try {
+            runCurrent()
+            assertEquals(setOf("2", "3"), model.state.selected)
+            model.select(setOf("1", "2"))
+            assertEquals(setOf("2"), model.state.selected)
+        } finally {
+            model.viewModelScope.cancel()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun lateTaskActionsAreIgnoredOnceTheTaskHasEnded() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val book = SourceBookId(Identifier("test", "download"), "book")
+        val books = mockk<BookRepository>()
+        every { books.downloadInformationFlow(book.storageKey) } returns emptyFlow()
+        every { books.downloadStatusFlow(book.storageKey) } returns
+            MutableStateFlow(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.Complete)))
+        coEvery { books.downloadDirectory(book) } returns Ok(BookVolumes(book.storageKey,
+            listOf(Volume("volume", "Volume", listOf(ChapterInformation("1", "One"))))))
+        coEvery { books.downloadSelection(book.storageKey, any()) } returns DownloadSelectionState()
+        val model = BookDownloadViewModel(SavedStateHandle(mapOf("bookId" to book.storageKey)), books)
+        try {
+            runCurrent()
+            model.cancel()
+            model.submit(resume = true)
+            runCurrent()
+            assertFalse(model.state.submitting)
+            coVerify(exactly = 0) { books.dismissDownload(any()) }
+            coVerify(exactly = 0) { books.submitDownload(any(), any()) }
         } finally {
             model.viewModelScope.cancel()
             Dispatchers.resetMain()

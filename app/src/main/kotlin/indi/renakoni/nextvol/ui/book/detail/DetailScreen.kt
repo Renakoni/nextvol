@@ -1224,21 +1224,12 @@ private fun QuickOperationsBlock(
 
         val phase = downloadState.displayPhase
         if (canCache || phase != BookDownloadPhase.None) {
-            val action = if (downloadState.task.status == indi.renakoni.nextvol.data.download.DownloadTaskStatus.WaitingVerification) {
-                R.string.download_task_verify
-            } else if (downloadState.task.canResume) {
-                if (phase == BookDownloadPhase.Failed) R.string.book_download_retry else R.string.book_download_continue
-            } else when (phase) {
-                BookDownloadPhase.None, BookDownloadPhase.Updating, BookDownloadPhase.Complete -> null
-                BookDownloadPhase.Partial -> R.string.book_download_continue
-                BookDownloadPhase.Failed -> R.string.book_download_retry
-            }
+            // The status alone; tapping opens the download page. Only a running download adds its progress.
             QuickOperationButton(
                 icon = if (phase == BookDownloadPhase.Complete) filledCloud else cloud,
                 title = downloadStatusLabel(downloadState),
                 supportingText = if (phase == BookDownloadPhase.Updating)
-                    downloadItem?.progress?.takeIf { it >= 0f && it < 1f }?.let { "${(it * 100).toInt()}%" }
-                else action?.takeIf { canCache }?.let { stringResource(it) },
+                    downloadItem?.progress?.takeIf { it >= 0f && it < 1f }?.let { "${(it * 100).toInt()}%" } else null,
                 enabled = canCache && phase != BookDownloadPhase.Updating,
                 onClick = onClickCache,
                 modifier = Modifier.weight(1f),

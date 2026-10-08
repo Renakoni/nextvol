@@ -2,14 +2,11 @@
     <string name="download_page_title">Download chapters</string>
     <string name="download_back">Back</string>
     <string name="download_book_coverage">Offline: %1$d of %2$d chapters</string>
+    <string name="download_task_progress">Downloading %1$d of %2$d chapters</string>
     <string name="download_choose_chapters">Select chapters</string>
     <string name="download_start_selected">Download %1$d chapters</string>
-    <string name="download_selection_complete">Selected chapters downloaded</string>
-    <string name="download_selection_progress">This selection: %1$d / %2$d</string>
     <string name="download_selection_unavailable">Selected chapters are no longer in the directory. Reload and select again.</string>
     <string name="download_selection_active">A task already owns this book. Cancel it before changing its selection.</string>
-    <string name="download_resume_selection">Continue previous selection</string>
-    <string name="download_cancel_reselect">Cancel task and reselect</string>
     <string name="download_directory_loading">Preparing the full directory… Selection is available only after it finishes.</string>
     <string name="download_directory_failed">Could not prepare the full directory. New selections are disabled; existing downloads are safe.</string>
     <string name="download_directory_retry">Reload directory</string>
