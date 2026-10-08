@@ -11,10 +11,12 @@ import androidx.lifecycle.ViewModel
 import com.github.michaelbull.result.get
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
@@ -30,8 +32,13 @@ class ListCoverViewModel internal constructor(private val detailCover: suspend (
     private val reading = ConcurrentHashMap<String, Mutex>()
 
     suspend fun cover(bookId: String): Uri? = (found[bookId] ?: reading.getOrPut(bookId) { Mutex() }.withLock {
-        found[bookId] ?: gate.withPermit { detailCover(bookId) }?.also { found[bookId] = it }
+        found[bookId] ?: gate.withPermit { read(bookId) }?.also { found[bookId] = it }
     })?.takeIf { it.toString().isNotBlank() }
+
+    // As in search results, a slow or failing source keeps the generated cover and is tried again later.
+    private suspend fun read(bookId: String): Uri? = try {
+        withTimeoutOrNull(30_000) { detailCover(bookId) }
+    } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
 }
 
 /** A card whose list gave no cover shows the generated cover until the book's own cover is known. */

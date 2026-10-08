@@ -5,6 +5,7 @@ import android.net.Uri
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -51,5 +52,18 @@ class ListCoverViewModelTest {
         assertNull(model.cover("book-2"))
         assertNull(model.cover("book-3"))
         assertEquals(listOf("book-3"), reads.drop(6))
+    }
+
+    @Test fun failingOrHangingReadsKeepTheGeneratedCoverAndAreRetried() = runTest {
+        val reads = mutableListOf<String>()
+        val model = ListCoverViewModel { id ->
+            reads += id
+            if (id == "broken") throw IllegalStateException("Source failed")
+            awaitCancellation()
+        }
+        assertNull(model.cover("broken"))
+        assertNull(model.cover("hanging")) // Times out instead of holding a read slot.
+        assertNull(model.cover("broken"))
+        assertEquals(listOf("broken", "hanging", "broken"), reads)
     }
 }
