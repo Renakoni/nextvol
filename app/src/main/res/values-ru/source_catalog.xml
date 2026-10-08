@@ -4,9 +4,7 @@
     <string name="source_category_anime">Ранобэ</string>
     <string name="source_category_literature">Классика</string>
     <string name="source_category_general">Другая проза</string>
-    <string name="source_category_adult">r18</string>
-    <string name="source_category_official">Официальные сайты</string>
-    <string name="source_category_official_description">Официальные платформы; некоторые произведения могут быть платными.</string>
+    <string name="source_category_adult">R18</string>
     <string name="source_catalog_tab">Категории</string>
     <string name="source_import_tab">Импорт</string>
     <string name="source_catalog_count">Источников: %1$d</string>
