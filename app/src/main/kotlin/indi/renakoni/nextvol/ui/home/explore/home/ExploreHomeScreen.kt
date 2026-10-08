@@ -30,6 +30,7 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.web.*
 import indi.renakoni.nextvol.ui.components.Cover
+import indi.renakoni.nextvol.ui.components.rememberListCover
 import indi.renakoni.nextvol.ui.home.HomeSettingsAction
 import indi.renakoni.nextvol.ui.home.discovery.*
 import indi.renakoni.nextvol.utils.fadingEdge
@@ -53,6 +54,7 @@ fun ExploreHomeScreen(
     onScope: (SourceCategory?) -> Unit = {},
     onPage: (Int) -> Unit = {},
     onRetryPreview: ((SourceDiscoverySection) -> Unit)? = null,
+    coverFor: suspend (String) -> Uri? = { null },
 ) {
     Scaffold(topBar = {
         TopAppBar(
@@ -114,7 +116,7 @@ fun ExploreHomeScreen(
                             if (content.loaded && content.sections.isEmpty() && content.buttons.isEmpty() && content.filters.isEmpty())
                                 item { DiscoveryEmpty(stringResource(R.string.explore_empty), onManageSources) }
                             items(content.sections, key = { "section:" + it.id }) { section ->
-                                ExploreRowSection(Modifier, section, titleHeight, onMore, onBook, onManageSources, onRetryPreview)
+                                ExploreRowSection(Modifier, section, titleHeight, onMore, onBook, onManageSources, onRetryPreview, coverFor)
                             }
                         }
                     }
@@ -134,6 +136,7 @@ private fun ExploreRowSection(
     onClickBook: (SourceBookId) -> Unit,
     onManageSources: () -> Unit,
     onRetryPreview: ((SourceDiscoverySection) -> Unit)?,
+    coverFor: suspend (String) -> Uri?,
 ) {
     Column(
         modifier = modifier
@@ -228,6 +231,7 @@ private fun ExploreRowSection(
                     ExploreBookCard(
                         book = exploreDisplayBook,
                         titleHeight = titleHeight,
+                        coverFor = coverFor,
                         onClickBook = onClickBook
                     )
                 }
@@ -251,6 +255,7 @@ private fun ExploreRowSection(
 private fun ExploreBookCard(
     book: SourceDiscoveryBook,
     titleHeight: androidx.compose.ui.unit.Dp,
+    coverFor: suspend (String) -> Uri?,
     onClickBook: (SourceBookId) -> Unit
 ) {
     Column(
@@ -265,7 +270,7 @@ private fun ExploreBookCard(
                 bookId = book.id.storageKey,
                 width = 98.dp,
                 height = 138.dp,
-                uri = Uri.parse(book.coverUrl),
+                uri = rememberListCover(book.id.storageKey, book.coverUrl, coverFor),
                 title = book.title,
                 author = book.author,
                 rounded = 6.dp
