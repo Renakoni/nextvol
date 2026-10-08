@@ -11,8 +11,8 @@ internal fun exportDownloads(): BookDownloadStore = mockk<BookDownloadStore>(rel
     coEvery { store.withBookOperation<Any?>(any(), any()) } coAnswers { secondArg<suspend () -> Any?>().invoke() }
     coEvery { store.begin(any(), any(), any()) } answers { BookDownloadStore.Attempt(firstArg(), secondArg(), thirdArg()) }
     coEvery { store.reusable(any(), any(), any()) } returns null
-    coEvery { store.checkpoint(any(), any(), any(), any()) } answers { checkpoints[secondArg<String>() to thirdArg<String>()] }
-    coEvery { store.saveCandidate(any(), any(), any(), any()) } answers {
+    coEvery { store.checkpoint(any(), any(), any()) } answers { checkpoints[secondArg<String>() to thirdArg<String>()] }
+    coEvery { store.saveCandidate(any(), any(), any()) } answers {
         val content = secondArg<io.nightfish.lightnovelreader.api.book.ChapterContent>()
         val signature = thirdArg<String>()
         BookDownloadStore.ChapterCheckpoint(content, signature, emptyList(), "").also {

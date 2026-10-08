@@ -81,7 +81,7 @@ class ChapterUnreadSelectionTest {
                 LocalSnackbarHost provides snackbar, LocalClaimSnackbarHost provides {},
             ) {
                 MaterialTheme {
-                    DetailScreen(state, {}, {}, { openedChapter = it }, {}, { _, _ -> }, {}, {}, {}, {},
+                    DetailScreen(state, {}, {}, { openedChapter = it }, {}, {}, {}, {}, {}, {},
                         onMarkChaptersUnread = save)
                 }
             }

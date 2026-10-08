@@ -287,7 +287,7 @@ class DownloadRecoveryTest {
             failedPath = "/image.png"; queue()
             assertEquals(Result.retry(), run())
             val candidate = db.bookDownloadDao().candidates(book.storageKey).single()
-            val state = downloads.state(book, local.getBookVolumes(book.storageKey), "1", false, contentOnly = true)
+            val state = downloads.state(book, local.getBookVolumes(book.storageKey), false, contentOnly = true)
             assertEquals(2, state.bodyChapters); assertEquals(1, state.savedChapters)
             assertEquals(1, state.missingImages); assertTrue(state.coverMissing)
             now = owner().taskNextAttemptAt

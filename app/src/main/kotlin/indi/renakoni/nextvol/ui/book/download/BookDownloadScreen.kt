@@ -82,7 +82,7 @@ fun BookDownloadScreen(
                 Button(onSubmit, Modifier.fillMaxWidth().heightIn(min = 52.dp), enabled = editable && state.selected.isNotEmpty(),
                     contentPadding = PaddingValues(16.dp)) {
                     Text(if (state.selected.isEmpty()) stringResource(R.string.download_choose_chapters) else
-                        stringResource(if (state.refresh) R.string.download_update_selected else R.string.download_start_selected, state.selected.size))
+                        stringResource(R.string.download_start_selected, state.selected.size))
                 }
             }
         } },
@@ -203,15 +203,11 @@ fun BookDownloadScreen(
                                     val label = when {
                                         active -> R.string.download_chapter_downloading
                                         saved?.failure != null -> downloadFailureResource(saved.failure)
-                                        saved?.current == true -> R.string.download_chapter_saved
-                                        saved?.downloaded == true -> R.string.download_chapter_outdated
+                                        saved?.downloaded == true -> R.string.download_chapter_saved
                                         else -> null
                                     }
-                                    if (label != null) Text(stringResource(label), style = MaterialTheme.typography.labelSmall, color = when {
-                                        saved?.failure != null -> MaterialTheme.colorScheme.error
-                                        active || saved?.current == true -> MaterialTheme.colorScheme.primary
-                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    })
+                                    if (label != null) Text(stringResource(label), style = MaterialTheme.typography.labelSmall,
+                                        color = if (saved?.failure != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                                 }
                                 Checkbox(chapter.id in state.selected, onCheckedChange = null, enabled = editable, modifier = Modifier.padding(start = 8.dp))
                             }

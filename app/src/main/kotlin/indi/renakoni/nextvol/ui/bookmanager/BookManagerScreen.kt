@@ -521,11 +521,11 @@ private fun Card(
                     }
                 }
             }
-            if (downloadItem.type == DownloadType.CACHE && downloadItem.status?.task?.active == false)
+            val verifying = downloadItem.status?.task?.status == indi.renakoni.nextvol.data.download.DownloadTaskStatus.WaitingVerification
+            if (downloadItem.type == DownloadType.CACHE && downloadItem.status?.task?.active == false &&
+                (verifying || downloadItem.progress < 1f))
                 TextButton(onClickRetry) {
-                    Text(stringResource(if (downloadItem.status?.task?.status == indi.renakoni.nextvol.data.download.DownloadTaskStatus.WaitingVerification) R.string.download_task_verify
-                        else if (downloadItem.progress >= 1f) R.string.book_download_check_updates
-                        else R.string.book_download_continue))
+                    Text(stringResource(if (verifying) R.string.download_task_verify else R.string.book_download_continue))
                 }
             if (downloadItem.progress < 1 || downloadItem.type == DownloadType.CACHE)
                 IconButton(onClickCancel) {

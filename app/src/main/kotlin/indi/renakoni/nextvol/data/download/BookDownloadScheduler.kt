@@ -40,22 +40,21 @@ class BookDownloadScheduler @Inject constructor(
     private val submissions = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
 
-    fun enqueue(requested: SourceBookId, refresh: Boolean = false): Flow<WorkInfo?> {
+    fun enqueue(requested: SourceBookId): Flow<WorkInfo?> {
         if (LocalBookStore.isLocal(requested)) return flowOf(null)
-        val submission = enqueueTask(requested, refresh, null, resumePrevious = false)
+        val submission = enqueueTask(requested, null, resumePrevious = false)
         return flow { emitAll(workManager.getWorkInfoByIdFlow(submission.await().workId)) }
     }
 
     suspend fun submit(
         requested: SourceBookId,
-        refresh: Boolean = false,
         chapterIds: List<String>? = null,
         resumePrevious: Boolean = true,
     ): DownloadSubmission {
         if (LocalBookStore.isLocal(requested)) return DownloadSubmission.Rejected(DownloadFailure.SourceUnavailable)
         if (chapterIds?.isEmpty() == true) return DownloadSubmission.Rejected(DownloadFailure.SelectionUnavailable)
         return try {
-            enqueueTask(requested, refresh, chapterIds?.distinct(), resumePrevious).await()
+            enqueueTask(requested, chapterIds?.distinct(), resumePrevious).await()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -68,7 +67,7 @@ class BookDownloadScheduler @Inject constructor(
             downloadFailure(io.nightfish.lightnovelreader.api.error.WebRequestError("", "", failure), DownloadStage.Storage)
         else DownloadFailure.Scheduling
 
-    private fun enqueueTask(requested: SourceBookId, refresh: Boolean, chapterIds: List<String>?, resumePrevious: Boolean) = run {
+    private fun enqueueTask(requested: SourceBookId, chapterIds: List<String>?, resumePrevious: Boolean) = run {
         val generation = downloads.generation()
         // Submit eagerly even when a caller does not collect the progress flow.
         submissions.async(start = CoroutineStart.UNDISPATCHED) { lock.withLock {
@@ -89,7 +88,7 @@ class BookDownloadScheduler @Inject constructor(
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .setInputData(workDataOf("bookId" to book.storageKey, "downloadGeneration" to generation, "persistedTask" to true))
                 .build()
-            downloads.queueTask(book, generation, request.id.toString(), refresh, chapterIds, resumePrevious)
+            downloads.queueTask(book, generation, request.id.toString(), chapterIds, resumePrevious)
             try {
                 workManager.enqueueUniqueWork(name,
                     if (revoked) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, request).await()

@@ -75,7 +75,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
     fun observeEntries() = dao.observeAll()
     suspend fun entry(book: SourceBookId) = withContext(Dispatchers.IO) { dao.get(book.storageKey) }
 
-    suspend fun queueTask(book: SourceBookId, generation: Long, workId: String, refresh: Boolean = false,
+    suspend fun queueTask(book: SourceBookId, generation: Long, workId: String,
         chapterIds: List<String>? = null, resumePrevious: Boolean = true) = withContext(Dispatchers.IO) { lock.withLock {
         migrateLegacy()
         if (generation != this@BookDownloadStore.generation()) throw CancellationException("Download was cleared")
@@ -87,9 +87,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             taskStage = DownloadStage.Details.name, taskChapter = "", taskError = "", taskRunAttempt = 0, taskHidden = false,
             taskRetryCount = 0, taskNextAttemptAt = 0, taskSourceRevision = "", taskAccountGeneration = -1,
             taskChapterIds = chapterIds?.let { Json.encodeToString(it) } ?: owner.taskChapterIds.takeIf { resumeScope }.orEmpty(),
-            taskChapterFailures = "{}",
-            taskRefreshId = if (refresh) java.util.UUID.randomUUID().toString()
-                else owner.taskRefreshId.takeIf { resumeScope }.orEmpty()))
+            taskChapterFailures = "{}"))
     } }
 
     suspend fun startTask(book: SourceBookId, generation: Long, workId: String, runAttempt: Int,
@@ -247,7 +245,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
                         taskRunAttempt = previous.taskRunAttempt, taskHidden = previous.taskHidden,
                         taskRetryCount = previous.taskRetryCount, taskNextAttemptAt = previous.taskNextAttemptAt,
                         taskSourceRevision = previous.taskSourceRevision, taskAccountGeneration = previous.taskAccountGeneration,
-                        taskRefreshId = previous.taskRefreshId, taskChapterIds = previous.taskChapterIds,
+                        taskChapterIds = previous.taskChapterIds,
                         taskChapterFailures = previous.taskChapterFailures))
                 } else if (existing == null) dao.put(destination)
                 retained.forEach { chapter ->
@@ -335,15 +333,12 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
     private fun ChapterContentEntity.toContent() =
         ChapterContent(id, title, content, prevChapter.ifEmpty { null }, nextChapter.ifEmpty { null })
 
-    suspend fun checkpoint(attempt: Attempt, chapterId: String, signature: String, refreshId: String = ""): ChapterCheckpoint? = current(attempt) {
-        fun matchesVersion(version: String) = refreshId.isEmpty() || version.startsWith("$refreshId:")
-        dao.candidate(chapterId)?.takeIf { it.bookId == attempt.book.storageKey && it.signature == signature &&
-            matchesVersion(it.resourceVersion) }?.let { candidate ->
+    suspend fun checkpoint(attempt: Attempt, chapterId: String, signature: String): ChapterCheckpoint? = current(attempt) {
+        dao.candidate(chapterId)?.takeIf { it.bookId == attempt.book.storageKey && it.signature == signature }?.let { candidate ->
             return@current ChapterCheckpoint(Json.decodeFromString<ChapterContentEntity>(candidate.body).toContent(),
                 signature, Json.decodeFromString(candidate.images), candidate.resourceVersion)
         }
-        val saved = dao.chapter(chapterId)?.takeIf { it.bookId == attempt.book.storageKey && it.signature == signature &&
-            matchesVersion(it.resourceVersion) }
+        val saved = dao.chapter(chapterId)?.takeIf { it.bookId == attempt.book.storageKey && it.signature == signature }
             ?: return@current null
         database.chapterContentDao().get(chapterId)?.let { body ->
             ChapterCheckpoint(body.toContent(), signature, Json.decodeFromString(saved.images), saved.resourceVersion)
@@ -355,13 +350,13 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             ?.toContent()?.takeIf { downloadChapterSignature(it, revision) == signature && isReusableReadingContent(it) }
     }
 
-    suspend fun saveCandidate(attempt: Attempt, chapter: ChapterContent, signature: String, refreshId: String = ""): ChapterCheckpoint = current(attempt) {
+    suspend fun saveCandidate(attempt: Attempt, chapter: ChapterContent, signature: String): ChapterCheckpoint = current(attempt) {
         require(SourceChapterId.fromStorageKey(chapter.id).book == attempt.book)
         listOfNotNull(chapter.prevChapter, chapter.nextChapter).forEach { id ->
             require(SourceChapterId.fromStorageKey(id).book == attempt.book)
         }
         val images = chapterImages(chapter)
-        val version = (if (refreshId.isEmpty()) "" else "$refreshId:") + java.util.UUID.randomUUID().toString()
+        val version = java.util.UUID.randomUUID().toString()
         val body = ChapterContentEntity(chapter.id, chapter.title, chapter.content,
             chapter.prevChapter.orEmpty(), chapter.nextChapter.orEmpty())
         dao.put(DownloadChapterCandidateEntity(chapter.id, attempt.book.storageKey, signature,
@@ -465,7 +460,8 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
         pruneResources(attempt.book, attempt.generation)
     }
 
-    suspend fun state(book: SourceBookId, volumes: BookVolumes?, revision: String?, active: Boolean,
+    /** Downloaded chapters are final: source revisions and directory changes never make them outdated. */
+    suspend fun state(book: SourceBookId, volumes: BookVolumes?, active: Boolean,
         contentOnly: Boolean = false): BookDownloadState =
         withContext(Dispatchers.IO) { lock.withLock {
             migrateLegacy()
@@ -477,38 +473,26 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             val savedIds = dao.savedContentIds(book.storageKey).toSet()
             val bodies = chapters.count { it.id in candidates || it.id in savedIds }
             val missingImages = chapters.sumOf { chapter ->
-                val candidate = candidates[chapter.id]
                 val saved = records[chapter.id]
-                Json.decodeFromString<List<String>>(candidate?.images ?: saved?.images ?: "[]").count { uri ->
+                val candidate = candidates[chapter.id]
+                Json.decodeFromString<List<String>>(saved?.images ?: candidate?.images ?: "[]").count { uri ->
                     val file = imageFile(book, owner.generation, uri, false,
-                        candidate?.resourceVersion ?: saved?.resourceVersion.orEmpty())
-                    !file.isFile || file.length() == 0L || staleMarker(file).exists()
+                        saved?.resourceVersion ?: candidate?.resourceVersion.orEmpty())
+                    !file.isFile || file.length() == 0L
                 }
             }
             val savedChapters = chapters.filter { chapter -> chapterSaved(book, owner, records[chapter.id], savedIds) }.map { it.id }.toSet()
             val count = savedChapters.size
             val selection = owner.selectedChapterIds()
-            val taskCount = chapters.withIndex().count { (index, chapter) ->
-                val saved = records[chapter.id]
-                (selection == null || BookIdentity.chapter(chapter.id, book).remoteId in selection) &&
-                    chapter.id in savedChapters && saved != null &&
-                    saved.signature == downloadChapterSignature(chapters, index, owner.revision) &&
-                    (owner.taskRefreshId.isEmpty() || saved.resourceVersion.startsWith("${owner.taskRefreshId}:"))
+            val taskCount = chapters.count { chapter ->
+                (selection == null || BookIdentity.chapter(chapter.id, book).remoteId in selection) && chapter.id in savedChapters
             }
-            val coverFile = imageFile(book, owner.generation, owner.coverUri, true)
-            val coverSaved = owner.coverUri.isEmpty() || coverFile.isFile && !staleMarker(coverFile).exists()
-            val signaturesCurrent = chapters.withIndex().all { (index, chapter) ->
-                val signature = records[chapter.id]?.signature
-                signature == downloadChapterSignature(chapters, index, owner.revision) ||
-                    signature == "" && owner.revision.isEmpty()
-            }
+            val coverSaved = owner.coverUri.isEmpty() || imageFile(book, owner.generation, owner.coverUri, true).isFile
             val phase = when {
                 active -> BookDownloadPhase.Updating
                 !contentOnly && owner.phase == "failed" -> BookDownloadPhase.Failed
                 !contentOnly && owner.phase == "updating" -> BookDownloadPhase.Partial // interrupted process
-                volumes != null && owner.directoryHash != downloadDirectoryHash(volumes) -> BookDownloadPhase.Outdated
-                !revision.isNullOrEmpty() && owner.revision.isNotEmpty() && owner.revision != revision -> BookDownloadPhase.Outdated
-                chapters.isNotEmpty() && count == chapters.size && candidates.isEmpty() && missingImages == 0 && coverSaved && signaturesCurrent -> BookDownloadPhase.Complete
+                chapters.isNotEmpty() && count == chapters.size && coverSaved -> BookDownloadPhase.Complete
                 else -> BookDownloadPhase.Partial
             }
             BookDownloadState(phase, count, chapters.size, bodies, missingImages, !coverSaved,
@@ -516,7 +500,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
         } }
 
     /** Per-chapter results are read only by the single-book page, not every global task card. */
-    suspend fun selectionState(book: SourceBookId, volumes: BookVolumes, revision: String?): DownloadSelectionState =
+    suspend fun selectionState(book: SourceBookId, volumes: BookVolumes): DownloadSelectionState =
         withContext(Dispatchers.IO) { lock.withLock {
             migrateLegacy()
             val owner = dao.get(book.storageKey) ?: return@withLock DownloadSelectionState()
@@ -524,21 +508,24 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             val records = dao.chapters(book.storageKey).associateBy { it.id }
             val savedIds = dao.savedContentIds(book.storageKey).toSet()
             val failures = owner.chapterFailures()
-            DownloadSelectionState(chapters.mapIndexed { index, chapter ->
-                val saved = records[chapter.id]
-                val downloaded = chapterSaved(book, owner, saved, savedIds, requireCurrentImages = false)
-                chapter.id to DownloadChapterState(downloaded, downloaded && chapterSaved(book, owner, saved, savedIds) &&
-                    (revision.isNullOrEmpty() || owner.revision == revision) &&
-                    saved?.signature == downloadChapterSignature(chapters, index, owner.revision),
+            DownloadSelectionState(chapters.associate { chapter ->
+                chapter.id to DownloadChapterState(chapterSaved(book, owner, records[chapter.id], savedIds),
                     failures[BookIdentity.chapter(chapter.id, book).remoteId])
-            }.toMap(), owner.selectedChapterIds())
+            }, owner.selectedChapterIds())
         } }
 
+    /** A later run never fetches these again, whatever changed at the source. */
+    suspend fun downloadedChapterIds(attempt: Attempt): Set<String> = current(attempt) { owner ->
+        val savedIds = dao.savedContentIds(attempt.book.storageKey).toSet()
+        dao.chapters(attempt.book.storageKey).filter { chapterSaved(attempt.book, owner, it, savedIds) }.map { it.id }.toSet()
+    }
+
+    /** A chapter is downloaded once its body and every image file it references are on disk. */
     private fun chapterSaved(book: SourceBookId, owner: BookDownloadEntity, saved: DownloadedChapterEntity?,
-        savedIds: Set<String>, requireCurrentImages: Boolean = true): Boolean = saved != null && saved.id in savedIds &&
+        savedIds: Set<String>): Boolean = saved != null && saved.id in savedIds &&
         Json.decodeFromString<List<String>>(saved.images).all {
             val file = imageFile(book, owner.generation, it, false, saved.resourceVersion)
-            file.isFile && file.length() > 0 && (!requireCurrentImages || !staleMarker(file).exists())
+            file.isFile && file.length() > 0
         }
 
     suspend fun clearReadingCache(): Boolean = withContext(Dispatchers.IO) { lock.withLock {

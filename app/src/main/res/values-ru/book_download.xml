@@ -4,7 +4,6 @@
     <string name="download_book_coverage">Сохранено: %1$d из %2$d глав</string>
     <string name="download_choose_chapters">Выберите главы</string>
     <string name="download_start_selected">Загрузить главы: %1$d</string>
-    <string name="download_update_selected">Обновить главы: %1$d</string>
     <string name="download_selection_complete">Выбранные главы загружены</string>
     <string name="download_selection_progress">Выбрано: %1$d / %2$d</string>
     <string name="download_selection_unavailable">Некоторые выбранные главы исчезли из оглавления. Обновите его и выберите главы заново.</string>
@@ -20,6 +19,5 @@
     <string name="download_volume_number">Том %1$d</string>
     <string name="download_chapter_downloading">Загрузка</string>
     <string name="download_chapter_saved">Загружено</string>
-    <string name="download_chapter_outdated">Загружено · нужно обновление</string>
     <string name="download_manage_selection">Главы и загрузки</string>
 </resources>

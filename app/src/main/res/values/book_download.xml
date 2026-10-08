@@ -4,7 +4,6 @@
     <string name="download_book_coverage">Offline: %1$d of %2$d chapters</string>
     <string name="download_choose_chapters">Select chapters</string>
     <string name="download_start_selected">Download %1$d chapters</string>
-    <string name="download_update_selected">Update %1$d chapters</string>
     <string name="download_selection_complete">Selected chapters downloaded</string>
     <string name="download_selection_progress">This selection: %1$d / %2$d</string>
     <string name="download_selection_unavailable">Selected chapters are no longer in the directory. Reload and select again.</string>
@@ -20,6 +19,5 @@
     <string name="download_volume_number">Volume %1$d</string>
     <string name="download_chapter_downloading">Downloading</string>
     <string name="download_chapter_saved">Downloaded</string>
-    <string name="download_chapter_outdated">Downloaded · needs update</string>
     <string name="download_manage_selection">Chapters and downloads</string>
 </resources>

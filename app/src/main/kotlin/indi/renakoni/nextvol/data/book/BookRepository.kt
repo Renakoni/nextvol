@@ -209,23 +209,23 @@ class BookRepository @Inject constructor(
     override suspend fun updateUserReadingData(id: String, update: (UserReadingData) -> UserReadingData) =
         readingDataRepository.updateUserReadingData(id, update)
 
-    fun cacheBook(bookId: String, refresh: Boolean = false): Flow<WorkInfo?> =
-        downloadScheduler.enqueue(BookIdentity.book(bookId), refresh)
+    fun cacheBook(bookId: String): Flow<WorkInfo?> =
+        downloadScheduler.enqueue(BookIdentity.book(bookId))
 
-    suspend fun submitDownload(bookId: String, refresh: Boolean = false, chapterIds: List<String>? = null): DownloadSubmission {
+    suspend fun submitDownload(bookId: String, chapterIds: List<String>? = null): DownloadSubmission {
         val book = BookIdentity.book(bookId)
         if (LocalBookStore.isLocal(book) || sourceRegistry.sources.value.none {
                 it.metadata.id == book.sourceId && it.metadata.supportsReading &&
                     it.status != indi.renakoni.nextvol.data.web.SourceStatus.Failed
             }) return DownloadSubmission.Rejected(DownloadFailure.SourceUnavailable)
-        return downloadScheduler.submit(book, refresh, chapterIds?.map { BookIdentity.chapter(it, book).remoteId }?.distinct())
+        return downloadScheduler.submit(book, chapterIds?.map { BookIdentity.chapter(it, book).remoteId }?.distinct())
     }
 
     suspend fun dismissDownload(bookId: String): Unit = downloadScheduler.dismiss(BookIdentity.book(bookId))
 
     suspend fun downloadSelection(bookId: String, volumes: BookVolumes) = canonicalBook(BookIdentity.book(bookId)).let { book ->
         val requested = BookIdentity.book(bookId)
-        val state = downloads.selectionState(book, if (book == requested) volumes else volumes.rebind(requested, book), sourceRevision(book))
+        val state = downloads.selectionState(book, if (book == requested) volumes else volumes.rebind(requested, book))
         if (book == requested) state else state.copy(chapters = state.chapters.mapKeys { (id, _) ->
             SourceChapterId(requested, BookIdentity.chapter(id, book).remoteId).storageKey
         })
@@ -266,7 +266,7 @@ class BookRepository @Inject constructor(
                         val chapterId = task.chapterId.takeIf { it.isNotEmpty() }?.let {
                             SourceChapterId(BookIdentity.book(bookId), BookIdentity.chapter(it, book).remoteId).storageKey
                         }.orEmpty()
-                        BookDownloadStatus(downloads.state(book, volumes, sourceRevision(book), active = false, contentOnly = true),
+                        BookDownloadStatus(downloads.state(book, volumes, active = false, contentOnly = true),
                             task.copy(chapterId = chapterId, chapterIndex = chapterIndex))
                     }
                 }
@@ -328,7 +328,7 @@ class BookRepository @Inject constructor(
         .flatMapLatest { downloads.observe(it) }
 
     suspend fun downloadState(bookId: String, active: Boolean = false) = canonicalBook(BookIdentity.book(bookId)).let { book ->
-        downloads.state(book, localBookDataSource.getBookVolumes(book.storageKey), sourceRevision(book), active)
+        downloads.state(book, localBookDataSource.getBookVolumes(book.storageKey), active)
     }
 
     /** Download refresh must report remote failures even when the reader can keep showing local content. */

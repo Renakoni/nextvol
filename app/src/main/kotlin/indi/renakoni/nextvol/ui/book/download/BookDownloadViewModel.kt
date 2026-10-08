@@ -38,7 +38,6 @@ data class BookDownloadUiState(
     val chapters: DownloadSelectionState = DownloadSelectionState(),
     val status: BookDownloadStatus = BookDownloadStatus(),
     val submitting: Boolean = false,
-    val refresh: Boolean = false,
 ) {
     val allChapters get() = volumes?.volumes.orEmpty().flatMap { it.chapters }
     val locked get() = submitting || status.task.active || status.task.status in
@@ -51,7 +50,7 @@ class BookDownloadViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle, private val books: BookRepository,
 ) : ViewModel() {
     private val route = savedStateHandle.toRoute<BookDownloadRoute>()
-    var state by mutableStateOf(BookDownloadUiState(BookIdentity.bookKey(route.bookId), refresh = route.refresh))
+    var state by mutableStateOf(BookDownloadUiState(BookIdentity.bookKey(route.bookId)))
         private set
     private val messages = Channel<DownloadSubmission>(Channel.BUFFERED)
     val submissions = messages.receiveAsFlow()
@@ -117,7 +116,7 @@ class BookDownloadViewModel @Inject constructor(
         state = state.copy(submitting = true)
         viewModelScope.launch {
             try {
-                val result = books.submitDownload(state.bookId, if (resume) false else state.refresh, selected)
+                val result = books.submitDownload(state.bookId, selected)
                 messages.send(result)
             } finally { state = state.copy(submitting = false) }
         }

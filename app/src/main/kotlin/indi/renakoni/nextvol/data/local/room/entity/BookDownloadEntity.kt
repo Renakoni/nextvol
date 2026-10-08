@@ -27,6 +27,7 @@ data class BookDownloadEntity(
     @ColumnInfo(defaultValue = "0") val taskNextAttemptAt: Long = 0,
     @ColumnInfo(defaultValue = "''") val taskSourceRevision: String = "",
     @ColumnInfo(defaultValue = "-1") val taskAccountGeneration: Long = -1,
+    // Retired with offline-content updates. Unused; kept so existing tables need no migration.
     @ColumnInfo(defaultValue = "''") val taskRefreshId: String = "",
     @ColumnInfo(defaultValue = "''") val taskChapterIds: String = "",
     @ColumnInfo(defaultValue = "'{}'") val taskChapterFailures: String = "{}",

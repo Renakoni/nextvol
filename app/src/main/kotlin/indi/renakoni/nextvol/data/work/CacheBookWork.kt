@@ -217,7 +217,6 @@ class CacheBookWork @AssistedInject constructor(
             attempt = active
             val revision = bookRepository.sourceRevision(book)
             val owner = checkNotNull(downloads.entry(book))
-            val refreshId = owner.taskRefreshId
             val result = coroutineBinding<Unit, WebRequestError> {
                 mark(DownloadStage.Directory)
                 val volumes = NativeDownloadBudget.document(concurrent) { bookRepository.downloadDirectory(book) }.bind()
@@ -226,7 +225,10 @@ class CacheBookWork @AssistedInject constructor(
                 val selected = selectedDownloadChapters(book, chapters, owner.selectedChapterIds())
                 val cover = information.coverUri.toString()
                 mark(DownloadStage.Storage)
-                val unchanged = downloads.target(active, volumes, revision, cover) && refreshId.isEmpty()
+                val unchanged = downloads.target(active, volumes, revision, cover)
+                // Downloaded chapters are final; only chapters still missing are fetched.
+                val downloaded = downloads.downloadedChapterIds(active)
+                val pending = selected.filterNot { it.value.id in downloaded }
                 val fetchedImages = mutableSetOf<String>()
                 // The static-rule replay gate excludes scripts and shared book variables.
                 // Use the transport's option parser, including single-quoted request options.
@@ -239,20 +241,19 @@ class CacheBookWork @AssistedInject constructor(
                 var chapterFailure: Triple<WebRequestError, DownloadStage, String>? = null
                 var finishedChapters = 0
                 mark(DownloadStage.Body)
-                NativeDownloadBudget.chapters(selected, concurrent) { (index, chapter) ->
+                NativeDownloadBudget.chapters(pending, concurrent) { (index, chapter) ->
                     if (!concurrent) mark(DownloadStage.Body, chapter.id)
                     var chapterStage = DownloadStage.Body
                     val prepared = try {
                         coroutineBinding<BookDownloadStore.ChapterCheckpoint, WebRequestError> {
                             currentCoroutineContext()[SourceRequestVersion]?.check(bookRepository.downloadSource(book))
                             val signature = downloadChapterSignature(chapters, index, revision)
-                            downloads.checkpoint(active, chapter.id, signature, refreshId) ?: run {
-                                val content = (if (refreshId.isEmpty())
-                                    downloads.readingContent(active, chapter.id, signature, revision) else null)
+                            downloads.checkpoint(active, chapter.id, signature) ?: run {
+                                val content = downloads.readingContent(active, chapter.id, signature, revision)
                                     ?: bookRepository.downloadChapter(book, chapter.id).bind()
                                 chapterStage = DownloadStage.Storage
                                 currentCoroutineContext()[SourceRequestVersion]?.check(bookRepository.downloadSource(book))
-                                downloads.saveCandidate(active, content, signature, refreshId)
+                                downloads.saveCandidate(active, content, signature)
                             }
                         }
                     } catch (failure: CancellationException) { throw failure }
@@ -296,7 +297,7 @@ class CacheBookWork @AssistedInject constructor(
                             chapterResult.bind()
                         if (chapterFailure == null) chapterFailure = Triple(error, stage, chapterId)
                     }
-                    item.progress = (++finishedChapters).toFloat() / (selected.size + 1)
+                    item.progress = (++finishedChapters).toFloat() / (pending.size + 1)
                 }
                 if (cover.isNotEmpty() && (!unchanged || !downloads.hasImage(active, cover, true))) {
                     mark(DownloadStage.Cover)

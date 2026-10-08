@@ -149,7 +149,7 @@ fun DetailScreen(
     onClickBackButton: () -> Unit,
     onClickChapter: (String) -> Unit,
     onClickRead: () -> Unit,
-    cacheBook: (String, Boolean) -> Unit,
+    cacheBook: (String) -> Unit,
     requestAddBookToBookshelf: (String) -> Unit,
     onClickTag: (String) -> Unit,
     onClickCover: (Uri) -> Unit,
@@ -566,7 +566,7 @@ private fun DetailContent(
     lazyListState: LazyListState,
     onActiveListStateChange: (LazyListState) -> Unit,
     onClickChapter: (String) -> Unit,
-    cacheBook: (String, Boolean) -> Unit,
+    cacheBook: (String) -> Unit,
     requestAddBookToBookshelf: (String) -> Unit,
     onClickTag: (String) -> Unit,
     onClickCover: (Uri) -> Unit,
@@ -697,7 +697,7 @@ private fun DetailContent(
                 canCache = uiState.canCache,
                 downloadItem = uiState.downloadItem,
                 onClickAddToBookShelf = { requestAddBookToBookshelf(bookInformation.id) },
-                onClickCache = { refresh -> cacheBook(bookInformation.id, refresh) },
+                onClickCache = { cacheBook(bookInformation.id) },
                 onClickShowInfo = onClickShowInfo
             )
             if (uiState.downloadState.content.phase != BookDownloadPhase.None) {
@@ -1189,7 +1189,7 @@ private fun QuickOperationsBlock(
     canCache: Boolean,
     downloadItem: DownloadItem?,
     onClickAddToBookShelf: () -> Unit,
-    onClickCache: (Boolean) -> Unit,
+    onClickCache: () -> Unit,
     onClickShowInfo: () -> Unit
 ) {
     val bookmark = painterResource(R.drawable.bookmark_add_24px)
@@ -1229,11 +1229,9 @@ private fun QuickOperationsBlock(
             } else if (downloadState.task.canResume) {
                 if (phase == BookDownloadPhase.Failed) R.string.book_download_retry else R.string.book_download_continue
             } else when (phase) {
-                BookDownloadPhase.None, BookDownloadPhase.Updating -> null
-                BookDownloadPhase.Complete -> R.string.book_download_check_updates
+                BookDownloadPhase.None, BookDownloadPhase.Updating, BookDownloadPhase.Complete -> null
                 BookDownloadPhase.Partial -> R.string.book_download_continue
                 BookDownloadPhase.Failed -> R.string.book_download_retry
-                BookDownloadPhase.Outdated -> R.string.book_download_update
             }
             QuickOperationButton(
                 icon = if (phase == BookDownloadPhase.Complete) filledCloud else cloud,
@@ -1242,8 +1240,7 @@ private fun QuickOperationsBlock(
                     downloadItem?.progress?.takeIf { it >= 0f && it < 1f }?.let { "${(it * 100).toInt()}%" }
                 else action?.takeIf { canCache }?.let { stringResource(it) },
                 enabled = canCache && phase != BookDownloadPhase.Updating,
-                onClick = { onClickCache(!downloadState.task.canResume &&
-                    phase in setOf(BookDownloadPhase.Complete, BookDownloadPhase.Outdated)) },
+                onClick = onClickCache,
                 modifier = Modifier.weight(1f),
             )
         }
