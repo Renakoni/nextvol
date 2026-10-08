@@ -7,12 +7,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.unit.dp
-import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.dialog.UpdatesAvailableDialogViewModel
 import indi.renakoni.nextvol.ui.dialog.navigateUpdatesAvailableDialog
 import indi.renakoni.nextvol.ui.navigation.NextVolNavHost
@@ -41,7 +39,6 @@ fun NextVolApp(
     val context = LocalContext.current
     val externalFiles = hiltViewModel<ExternalFileViewModel>()
     val bookImport = hiltViewModel<LocalBookImportViewModel>()
-    val localShelfName = stringResource(R.string.local_bookshelf_name)
     val speech = hiltViewModel<ReadAloudOverlayViewModel>()
     val playback by speech.controller.state.collectAsStateWithLifecycle()
     val playingBook by speech.book.collectAsStateWithLifecycle()
@@ -71,7 +68,6 @@ fun NextVolApp(
     }
     LaunchedEffect(externalFiles.book) {
         externalFiles.book?.let { file ->
-            bookImport.selectLocalShelf(localShelfName)
             bookImport.open(file.uri, file.name, file.bookFormat)
             externalFiles.bookOpened()
         }
