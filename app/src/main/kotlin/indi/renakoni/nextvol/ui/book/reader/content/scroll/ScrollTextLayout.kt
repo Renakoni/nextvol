@@ -195,7 +195,7 @@ internal fun rememberPreparedScrollChapter(
                 measureReaderText(sources, width) { paragraph, maxWidth ->
                     cancellation.ensureActive()
                     workObserver?.invoke("shape")
-                    measurer.measure(paragraph, layout.style, constraints = Constraints(maxWidth = maxWidth))
+                    measurer.measure(paragraph, layout.style, constraints = Constraints.fixedWidth(maxWidth))
                 }.groupBy { it.componentIndex }
             }
             val text = paragraphs.mapValues { (_, paragraphs) ->

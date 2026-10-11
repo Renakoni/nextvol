@@ -9,11 +9,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.compose.ui.text.intl.LocaleList
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
+import indi.renakoni.nextvol.ui.book.reader.ReaderLayoutSettings
 import indi.renakoni.nextvol.ui.book.reader.rememberReaderTextLayout
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.componet.LocalReaderTextWorkObserver
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextSource
+import indi.renakoni.nextvol.ui.book.reader.content.componet.layoutReaderText
 import io.mockk.every
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
@@ -32,6 +42,33 @@ import java.util.concurrent.atomic.AtomicInteger
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ScrollTextMeasurementTest {
     @get:Rule val compose = createEmptyComposeRule()
+
+    @Test fun fixedBodyWidthPreservesNativePageGeometryAndSourceAnchors() {
+        val sources = listOf(
+            ReaderTextSource(0, "\r\n午后的阳光。Mixed words 𠮷🙂e\u0301\u2028soft break\n\n" +
+                "مرحبا بالعالم 123 中文\nעברית English\n\ttrailing spaces  \n"),
+            ReaderTextSource(2, "A paragraph with several words and punctuation! ".repeat(5)),
+        )
+        val resolver = createFontFamilyResolver(org.robolectric.RuntimeEnvironment.getApplication())
+        val settings = ReaderLayoutSettings(15f, 500f, 7f, 3f, Uri.EMPTY, false, 12f, 12f, 16f, 16f)
+        for (density in listOf(Density(1f), Density(3f, 1.3f))) for (direction in LayoutDirection.entries) {
+            val measurer = TextMeasurer(resolver, density, direction, cacheSize = 0)
+            for (font in listOf(FontFamily.Default, FontFamily.Serif)) {
+                val style = settings.textStyle(font, LocaleList("zh-CN,en-US,ar"))
+                for (width in listOf(1, 90, 620)) for (height in listOf(1, 160, 600)) {
+                    val original = layoutReaderText(sources, width, height, 9) { text, maxWidth ->
+                        measurer.measure(text, style, constraints = Constraints(maxWidth = maxWidth))
+                    }
+                    val fixed = layoutReaderText(sources, width, height, 9, style, measurer)
+                    assertEquals("$density $direction $font width=$width height=$height", original, fixed)
+                    sources.forEach { source ->
+                        assertEquals(source.text, fixed.flatten().filter { it.componentIndex == source.componentIndex }
+                            .joinToString("") { source.text.substring(it.start, it.end) })
+                    }
+                }
+            }
+        }
+    }
 
     @Test fun paragraphGapsAndHeightReuseLinesButFontWidthAndTextStillRemeasure() {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup()

@@ -163,7 +163,8 @@ internal fun layoutReaderText(
     sources: List<ReaderTextSource>, width: Int, height: Int, paragraphSpacing: Int,
     style: TextStyle, measurer: TextMeasurer,
 ): List<List<ReaderTextFragment>> = layoutReaderText(sources, width, height, paragraphSpacing) { text, maxWidth ->
-    measurer.measure(text, style, constraints = Constraints(maxWidth = maxWidth))
+    // Fragments fill this width when drawn; no intrinsic shrink-to-fit measurement is needed.
+    measurer.measure(text, style, constraints = Constraints.fixedWidth(maxWidth))
 }
 
 @Composable
