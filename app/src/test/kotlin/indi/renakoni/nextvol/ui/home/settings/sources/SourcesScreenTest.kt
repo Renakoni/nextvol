@@ -90,18 +90,72 @@ class SourcesScreenTest {
         val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
             "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
         val installed = InstalledRuleSource(definition, emptyList(), null)
-        val draft = SourceEditorState(installed, "{", "", originalJson = "{}",
+        val draft = SourceEditorState(installed, "{", originalJson = "{}",
             error = SourceSaveError(indi.renakoni.nextvol.R.string.sources_editor_invalid, "JSON"))
         val state = SourceManagementState(installed = listOf(installed), selected = ImportedRuleSources.id(definition), editor = draft)
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
-        compose.onNodeWithText("Save rules and permissions").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Save").assertIsDisplayed().performClick()
         compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.sources_editor_invalid, "JSON")).assertIsDisplayed()
         verify(exactly = 1) { model.saveEditor() }
         compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithText("Leave the editor without saving these rules and permissions?").assertIsDisplayed()
+        compose.onNodeWithText("Discard unsaved changes?").assertIsDisplayed()
         verify(exactly = 0) { model.closeEditor() }
         compose.onAllNodesWithText("Discard changes").onLast().performClick()
         verify(exactly = 1) { model.closeEditor() }
+    }
+
+    @Test @Config(qualifiers = "en-rUS-w320dp-h640dp")
+    fun jsonEditorIsImmediatelyEditableAndFindReplaceChangesOnlyTheDraft() {
+        val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
+            "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
+        val installed = InstalledRuleSource(definition, emptyList(), null)
+        val raw = """{"url":"old.example","script":"old.example"}"""
+        var state by mutableStateOf(SourceManagementState(installed = listOf(installed), selected = ImportedRuleSources.id(definition),
+            editor = SourceEditorState(installed, raw)))
+        every { model.editDraft(any()) } answers { state = state.copy(editor = state.editor!!.copy(rawJson = firstArg())) }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        val editor = compose.onNodeWithContentDescription("Source rules (JSON)")
+        editor.assertIsDisplayed().assertTextContains(raw)
+        compose.onNodeWithText("Network access permissions").assertDoesNotExist()
+        compose.onNodeWithText("Replace domain").assertDoesNotExist()
+        compose.onNodeWithText("Find").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Find and replace").performClick()
+        compose.onNodeWithText("Replace all").assertIsNotEnabled()
+        compose.onNodeWithText("Find").performTextInput("old.example")
+        compose.onNodeWithText("Replace with").performTextInput("new")
+        compose.onNodeWithText("Next").performClick()
+        val first = androidx.compose.ui.text.TextRange(raw.indexOf("old.example"), raw.indexOf("old.example") + "old.example".length)
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, first))
+        compose.onNodeWithText("Next").performClick()
+        compose.onNodeWithText("Next").performClick()
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, first))
+        compose.onNodeWithText("Replace").performClick()
+        org.junit.Assert.assertEquals(raw.replaceFirst("old.example", "new"), state.editor!!.rawJson)
+        compose.onNodeWithText("Replace all").performClick()
+        org.junit.Assert.assertEquals(raw.replace("old.example", "new"), state.editor!!.rawJson)
+        compose.onNodeWithText("Next").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Find and replace").performClick()
+        compose.onNodeWithText("Find").assertDoesNotExist()
+        editor.assertTextContains(state.editor!!.rawJson)
+        compose.onNodeWithContentDescription("Format JSON").performClick()
+        verify(exactly = 1) { model.formatEditor() }
+        verify(exactly = 0) { model.saveEditor() }
+    }
+
+    @Test @Config(qualifiers = "en-rUS-w320dp-h640dp")
+    fun newSitesAreConfirmedOnlyAtSaveWithoutASecondPermissionsForm() {
+        val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
+            "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
+        val draft = SourceEditorState(InstalledRuleSource(definition, emptyList(), null), "{}",
+            pendingOrigins = listOf("https://new.example:443"))
+        activity.get().setContent { MaterialTheme { SourceEditorScreen(draft, false, model) } }
+        compose.onNodeWithText("Allow access to new sites?").assertIsDisplayed()
+        compose.onNodeWithText("https://new.example:443").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        verify(exactly = 1) { model.dismissEditorOrigins() }
+        verify(exactly = 0) { model.approveEditorOrigins() }
+        compose.onNodeWithText("Allow and save").performClick()
+        verify(exactly = 1) { model.approveEditorOrigins() }
     }
 
     @Test @Config(qualifiers = "en-rUS-w320dp-h640dp")

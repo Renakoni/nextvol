@@ -178,6 +178,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
     var deleting by remember { mutableStateOf(false) }
     var rollback by remember { mutableStateOf(false) }
     var discardEditor by remember { mutableStateOf(false) }
+    var findingInEditor by rememberSaveable(state.editor?.installed?.definition?.sourceId) { mutableStateOf(false) }
     val managementListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val listState = if (state.selected == null) managementListState
         else rememberSaveable(state.selected, saver = LazyListState.Saver) { LazyListState() }
@@ -256,6 +257,15 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
             navigationIcon = { IconButton(onClick = { back() }) {
                 Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back))
             } }, actions = {
+                if (state.editor != null) {
+                    IconButton(onClick = { findingInEditor = !findingInEditor }, enabled = !state.busy) {
+                        Icon(painterResource(R.drawable.find_replace_24px), stringResource(R.string.sources_editor_find_replace))
+                    }
+                    IconButton(onClick = model::formatEditor, enabled = !state.busy) {
+                        Icon(painterResource(R.drawable.code_24px), stringResource(R.string.sources_editor_format))
+                    }
+                    TextButton(onClick = model::saveEditor, enabled = !state.busy) { Text(stringResource(R.string.sources_editor_save)) }
+                }
                 if (managingGroups && openedGroup != null && !addingGroupSources && !selectingGroupSources && state.selected == null) {
                     Box {
                         IconButton(onClick = { groupMenu = true }, enabled = !state.busy) {
@@ -301,7 +311,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         val installed = state.installed.find { ImportedRuleSources.id(it.definition) == state.selected }
         val selectedEntry = state.registry.find { it.metadata.id == state.selected }
         if (state.editor != null) {
-            SourceEditorScreen(state.editor, state.busy, model, Modifier.padding(padding))
+            SourceEditorScreen(state.editor, state.busy, model, Modifier.padding(padding).consumeWindowInsets(padding), findingInEditor)
         } else if (state.preview != null) {
             SourceImportPreview(state, model, Modifier.padding(padding))
         } else if (page.adding && state.selected == null) {

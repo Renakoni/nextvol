@@ -18,8 +18,7 @@ class SourceDefinitionEditsTest {
         digest(canonical(raw).toString()), 4, canonical(raw).toString())
 
     @Test fun localEditKeepsImportIdentityAndChangesOnlyRevisionData() {
-        val preview = SourceDefinitionEdits.previewDomain(raw.toString(), "old.example", "new.example")
-        val edited = SourceDefinitionEdits.prepare(definition, preview.rawJson, 8)
+        val edited = SourceDefinitionEdits.prepare(definition, raw.toString().replace("old.example", "new.example"), 8)
         assertEquals(definition.sourceId, edited.sourceId)
         assertEquals(definition.importKey, edited.importKey)
         assertEquals(definition.origin, edited.origin)
@@ -32,26 +31,6 @@ class SourceDefinitionEditsTest {
         assertSame(definition, SourceDefinitionEdits.prepare(definition, SourceDefinitionEdits.format(definition.rawJson)))
     }
 
-    @Test fun previewCoversHeadersScriptsAndNestedRulesWithoutChangingInput() {
-        val preview = SourceDefinitionEdits.previewDomain(raw.toString(), "https://old.example/", "new.example")
-        assertEquals(setOf("bookSourceUrl", "searchUrl", "header", "ruleToc.chapterUrl", "ruleContent.nextContentUrl"),
-            preview.changes.map { it.field }.toSet())
-        assertTrue(preview.remaining.isEmpty())
-        assertTrue(preview.changes.single { it.field == "header" }.after.contains("www.new.example"))
-        assertEquals("https://old.example/", raw.getValue("bookSourceUrl").jsonPrimitive.content)
-    }
-
-    @Test fun replacementHonorsDomainBoundariesAndReportsUnchangedResiduals() {
-        val input = JsonObject(raw + mapOf(
-            "jsLib" to JsonPrimitive("/old\\.example/; 'https://OLD.EXAMPLE:8443/a'; 'https:\\/\\/old.example/b'"),
-            "bookSourceComment" to JsonPrimitive("notold.example old.example.evil invalid-old.example old\\.example\\.evil")))
-        val preview = SourceDefinitionEdits.previewDomain(input.toString(), "old.example", "new.example")
-        val after = Json.parseToJsonElement(preview.rawJson).jsonObject
-        assertEquals("/new\\.example/; 'https://new.example:8443/a'; 'https:\\/\\/new.example/b'", after.getValue("jsLib").jsonPrimitive.content)
-        assertEquals(input["bookSourceComment"], after["bookSourceComment"])
-        assertEquals(listOf("bookSourceComment"), preview.remaining)
-    }
-
     @Test fun invalidDraftsCannotBecomeRevisions() {
         for (text in listOf("{", "[$raw]", raw.toString().replace("\"Original\"", "\"Original\",\"bookSourceName\":\"duplicate\""),
                 JsonObject(raw - "ruleContent").toString(), JsonObject(raw + ("ruleToc" to JsonObject(emptyMap()))).toString())) {
@@ -59,9 +38,4 @@ class SourceDefinitionEditsTest {
         }
     }
 
-    @Test fun replacementRejectsNonDomainInputs() {
-        for (domain in listOf("old.example", "new.example/path", "new.example:443", "https://user@new.example/", "new.example?q=x", "")) {
-            assertTrue(domain, runCatching { SourceDefinitionEdits.previewDomain(raw.toString(), "old.example", domain) }.isFailure)
-        }
-    }
 }

@@ -52,11 +52,10 @@ data class SourceNetworkState(val bypassVpn: Boolean = false, val limitation: In
     val certificates: List<CertificateExceptionSite> = emptyList())
 
 data class SourceSaveError(val message: Int, val detail: String? = null)
-data class SourceEditorState(val installed: InstalledRuleSource, val rawJson: String, val permissions: String,
-    val oldDomain: String = "", val newDomain: String = "", val preview: SourceDomainPreview? = null,
-    val error: SourceSaveError? = null, val saved: Boolean = false, val originalJson: String = rawJson) {
-    val dirty get() = rawJson != originalJson ||
-        permissions != installed.origins.joinToString("\n") { it.origin }
+data class SourceEditorState(val installed: InstalledRuleSource, val rawJson: String,
+    val error: SourceSaveError? = null, val saved: Boolean = false, val originalJson: String = rawJson,
+    val pendingOrigins: List<String> = emptyList()) {
+    val dirty get() = rawJson != originalJson
 }
 
 /** Screen state survives rotation; previews grant nothing and each explicit mutation has a single owner. */
@@ -346,42 +345,43 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
 
     fun beginEditor(id: Identifier) = launch(showProgress = false) {
         val installed = sources.installedSources().single { ImportedRuleSources.id(it.definition) == id }
-        mutable.update { it.copy(editor = SourceEditorState(installed, SourceDefinitionEdits.format(installed.definition.rawJson),
-            installed.origins.joinToString("\n") { grant -> grant.origin }), configurationError = null) }
+        mutable.update { it.copy(editor = SourceEditorState(installed, SourceDefinitionEdits.format(installed.definition.rawJson)), configurationError = null) }
     }
     fun closeEditor() { if (!state.value.busy) mutable.update { it.copy(editor = null) } }
-    fun editDraft(rawJson: String, permissions: String) {
+    fun editDraft(rawJson: String) {
         if (!state.value.busy) mutable.update { state -> state.copy(editor = state.editor?.copy(rawJson = rawJson,
-            permissions = permissions, preview = null, error = null, saved = false)) }
+            pendingOrigins = emptyList(), error = null, saved = false)) }
     }
-    fun editDomains(oldDomain: String, newDomain: String) {
-        if (!state.value.busy) mutable.update { state -> state.copy(editor = state.editor?.copy(oldDomain = oldDomain,
-            newDomain = newDomain, preview = null, error = null, saved = false)) }
-    }
-    fun previewDomain() = launch(showProgress = false, onFailure = { failure ->
-        mutable.update { it.copy(editor = it.editor?.copy(error = if (failure is SourceEditException) saveError(failure)
-            else SourceSaveError(R.string.sources_domain_invalid))) }
-    }) {
-        val draft = checkNotNull(state.value.editor)
-        val preview = SourceDefinitionEdits.previewDomain(draft.rawJson, draft.oldDomain, draft.newDomain)
-        mutable.update { it.copy(editor = draft.copy(preview = preview, error = null, saved = false)) }
-    }
-    fun applyDomainPreview() {
-        if (!state.value.busy) mutable.update { state -> state.copy(editor = state.editor?.let { draft ->
-            draft.preview?.let { draft.copy(rawJson = it.rawJson, preview = null, error = null, saved = false) } ?: draft
-        }) }
-    }
-    fun saveEditor() = launch(showProgress = false, onFailure = { failure ->
+    fun formatEditor() = launch(showProgress = false, onFailure = { failure ->
         mutable.update { it.copy(editor = it.editor?.copy(error = saveError(failure), saved = false)) }
     }) {
         val draft = checkNotNull(state.value.editor)
-        mutable.update { it.copy(editor = draft.copy(error = null, saved = false)) }
+        mutable.update { it.copy(editor = draft.copy(rawJson = SourceDefinitionEdits.format(draft.rawJson),
+            pendingOrigins = emptyList(), error = null, saved = false)) }
+    }
+    fun dismissEditorOrigins() { if (!state.value.busy) mutable.update { it.copy(editor = it.editor?.copy(pendingOrigins = emptyList())) } }
+    fun saveEditor() = persistEditor(false)
+    fun approveEditorOrigins() = persistEditor(true)
+    private fun persistEditor(approve: Boolean) = launch(showProgress = false, onFailure = { failure ->
+        mutable.update { it.copy(editor = it.editor?.copy(error = saveError(failure), pendingOrigins = emptyList(), saved = false)) }
+    }) {
+        val draft = checkNotNull(state.value.editor)
+        if (approve && draft.pendingOrigins.isEmpty()) return@launch
+        val next = SourceDefinitionEdits.prepare(draft.installed.definition, draft.rawJson)
+        val existing = SourceOriginCandidates.discover(Json.parseToJsonElement(draft.installed.definition.rawJson).jsonObject).map { it.origin }.toSet()
+        val granted = draft.installed.origins.mapNotNull { sourcePermissionOrigin(it.origin) }.toSet()
+        val introduced = SourceOriginCandidates.discover(Json.parseToJsonElement(next.rawJson).jsonObject)
+            .map { it.origin }.distinct().filter { it !in existing && it !in granted }
+        if (introduced.isNotEmpty() && (!approve || draft.pendingOrigins != introduced)) {
+            mutable.update { it.copy(editor = draft.copy(pendingOrigins = introduced, error = null, saved = false)) }
+            return@launch
+        }
+        mutable.update { it.copy(editor = draft.copy(error = null, pendingOrigins = emptyList(), saved = false)) }
         val id = ImportedRuleSources.id(draft.installed.definition)
-        updates.edit(id, draft.installed, draft.rawJson, editedGrants(draft.permissions, draft.installed))
+        updates.edit(id, draft.installed, draft.rawJson, draft.installed.origins + introduced.map { NetworkGrant(it) })
         reload()
         val installed = state.value.installed.single { ImportedRuleSources.id(it.definition) == id }
-        mutable.update { it.copy(editor = SourceEditorState(installed, SourceDefinitionEdits.format(installed.definition.rawJson),
-            installed.origins.joinToString("\n") { grant -> grant.origin }, saved = true)) }
+        mutable.update { it.copy(editor = SourceEditorState(installed, SourceDefinitionEdits.format(installed.definition.rawJson), saved = true)) }
     }
 
     private fun editedGrants(text: String, installed: InstalledRuleSource): List<NetworkGrant> {

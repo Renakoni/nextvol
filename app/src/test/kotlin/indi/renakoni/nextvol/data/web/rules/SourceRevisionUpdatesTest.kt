@@ -85,12 +85,12 @@ class SourceRevisionUpdatesTest {
                 sources.saveVariable(id, "keep configuration")
                 val before = sources.installedSources().single()
                 val runtime = (registry.resolve(id) as SourceResolution.Ready).runtime
-                val preview = SourceDefinitionEdits.previewDomain(first.rawJson, "old.example", "127.0.0.1")
+                val draft = first.rawJson.replace("old.example", "127.0.0.1")
                 assertEquals(first, sources.installedSources().single().definition)
                 assertEquals(0, fixture.server.requestCount)
                 val grants = listOf(NetworkGrant("http://127.0.0.1:${fixture.server.port}", true))
                 val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
-                updates.edit(id, before, preview.rawJson, grants)
+                updates.edit(id, before, draft, grants)
                 assertFalse(runtime.isAvailable)
                 val edited = sources.installedSources().single()
                 assertEquals(first.sourceId, edited.definition.sourceId)
@@ -119,7 +119,7 @@ class SourceRevisionUpdatesTest {
                 val restoredUpdates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
                 restoredUpdates.rollback(id, originalGrants)
                 assertEquals(first, sources.installedSources().single().definition)
-                restoredUpdates.edit(id, sources.installedSources().single(), preview.rawJson, grants)
+                restoredUpdates.edit(id, sources.installedSources().single(), draft, grants)
                 assertTrue(sources.installedSources().single().definition.revision > edited.definition.revision)
             } finally { sources.stop(); host.root.deleteRecursively() }
         }
