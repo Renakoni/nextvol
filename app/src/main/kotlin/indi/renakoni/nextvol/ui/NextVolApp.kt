@@ -20,7 +20,7 @@ import indi.renakoni.nextvol.ui.tts.navigateToReadAloudBook
 import indi.renakoni.nextvol.ui.tts.ReadAloudOverlayHost
 import indi.renakoni.nextvol.ui.tts.ReadAloudOverlayViewModel
 import indi.renakoni.nextvol.ui.components.Cover
-import indi.renakoni.nextvol.ui.components.ImportUserDataDialog
+import indi.renakoni.nextvol.ui.home.settings.ImportUserDataDialog
 import indi.renakoni.nextvol.ui.localbook.LocalBookImportDialog
 import indi.renakoni.nextvol.ui.localbook.LocalBookImportViewModel
 import indi.renakoni.nextvol.utils.textToast

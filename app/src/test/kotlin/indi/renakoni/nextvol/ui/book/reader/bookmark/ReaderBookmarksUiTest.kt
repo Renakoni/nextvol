@@ -114,7 +114,7 @@ class ReaderBookmarksUiTest {
     @Test fun exportDialogLetsTheUserExcludeBookmarks() {
         var included: Boolean? = null
         activity.get().setContent { MaterialTheme {
-            indi.renakoni.nextvol.ui.components.ExportUserDataDialog({}, {}, { included = it.bookmark })
+            indi.renakoni.nextvol.ui.home.settings.ExportUserDataDialog({}, {}, { included = it.bookmark })
         } }
         compose.onNodeWithText("Bookmarks").performScrollTo().performClick()
         compose.onNodeWithText(activity.get().getString(R.string.export_to_file)).performClick()
