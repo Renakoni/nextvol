@@ -33,11 +33,12 @@ data class SourceManagementState(val installed: List<InstalledRuleSource> = empt
     val busy: Boolean = false, val showProgress: Boolean = true, val message: Int? = null, val loginForm: LoginForm? = null,
     val configurationPanel: Boolean = false,
     val loginStatus: LoginStatus = LoginStatus.LoggedOut, val variable: String = "",
-    val zLibrary: ZLibraryState = ZLibraryState(), val checks: Map<String, SourceCheckSummary> = emptyMap(),
+    val zLibrary: ZLibraryState = ZLibraryState(),
     val network: SourceNetworkState? = null, val storedSettingsAvailable: Boolean = false,
     val accountName: String? = null, val verifications: List<VerificationPrompt> = emptyList(),
     val groups: List<SourceGroup> = emptyList(), val groupRevision: Long = 0,
-    val configurationError: SourceSaveError? = null, val editor: SourceEditorState? = null) {
+    val configurationError: SourceSaveError? = null, val variableError: SourceSaveError? = null,
+    val editor: SourceEditorState? = null) {
     val ruleSettings = installed.find { ImportedRuleSources.id(it.definition) == selected }
         ?.let { RuleSettingsPresentation.read(it.definition) }
     val verification get() = verifications.firstOrNull { prompt ->
@@ -63,7 +64,7 @@ data class SourceEditorState(val installed: InstalledRuleSource, val rawJson: St
 class SourcesViewModel @Inject constructor(@ApplicationContext private val context: Context,
     private val sources: ImportedRuleSources, private val updates: SourceRevisionUpdates,
     private val login: SourceLoginService, private val registry: WebSourceRegistry,
-    private val zLibrary: ZLibrarySources, private val checkHistory: SourceCheckHistory = SourceCheckHistory(context),
+    private val zLibrary: ZLibrarySources,
     private val networkSettings: SourceNetworkSettings = SourceNetworkSettings(context, AndroidSourceNetworks(context)),
     private val verification: SourceVerificationCoordinator = SourceVerificationCoordinator(registry),
     private val catalog: SourceCatalog = SourceCatalog(context)) : ViewModel() {
@@ -93,10 +94,6 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
                 refreshStoredSettings(selected)
         } }
         viewModelScope.launch { zLibrary.state.collect { state -> mutable.update { it.copy(zLibrary = state) } } }
-        viewModelScope.launch {
-            checkHistory.restore()
-            checkHistory.results.collect { results -> mutable.update { it.copy(checks = results) } }
-        }
         refresh()
     }
 
@@ -149,7 +146,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     private suspend fun selectSource(id: Identifier?) {
         reload() // Includes the current session's redacted refusals, including background image loads.
         if (id == ZLibrarySources.ID) zLibrary.refresh()
-        mutable.update { it.copy(selected = id, preview = null, updateTarget = null, configurationError = null, editor = null,
+        mutable.update { it.copy(selected = id, preview = null, updateTarget = null, configurationError = null, variableError = null, editor = null,
             loginStatus = if (it.selected == id) it.loginStatus else LoginStatus.LoggedOut,
             variable = if (it.selected == id) it.variable else "", storedSettingsAvailable = false,
             accountName = if (it.selected == id) it.accountName else null,
@@ -273,6 +270,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     fun checkUpdate(id: Identifier) = launch {
         showUpdate(updates.check(id), id)
     }
+    fun canCheckUpdate(definition: SourceDefinition): Boolean = updates.canCheckUpdate(definition)
     private fun showUpdate(checked: RevisionCheck, id: Identifier) {
         if (checked.unchanged) mutable.update { it.copy(message = R.string.sources_up_to_date) }
         else showPreview(checked.preview, id)
@@ -326,19 +324,25 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         mutable.update { it.copy(message = R.string.sources_saved) }
     }
     fun clearConfigurationError() { mutable.update { it.copy(configurationError = null) } }
-    fun saveConfiguration(id: Identifier, variable: String?, permissions: String) = launch(onFailure = { failure ->
+    fun clearVariableError() { mutable.update { it.copy(variableError = null) } }
+    fun saveVariable(id: Identifier, variable: String) = launch(showProgress = false, onFailure = { failure ->
+        mutable.update { it.copy(variableError = saveError(failure)) }
+    }) {
+        clearVariableError()
+        if (variable.length > 32768) {
+            mutable.update { it.copy(variableError = SourceSaveError(R.string.sources_variable_too_long)) }
+            return@launch
+        }
+        sources.saveVariable(id, variable)
+        mutable.update { it.copy(variable = if (it.selected == id) variable else it.variable, message = R.string.sources_saved) }
+    }
+    fun savePermissions(id: Identifier, permissions: String) = launch(onFailure = { failure ->
         mutable.update { it.copy(configurationError = saveError(failure)) }
     }) {
         clearConfigurationError()
-        require(variable == null || variable.length <= 32768)
         val installed = state.value.installed.single { ImportedRuleSources.id(it.definition) == id }
         val approved = editedGrants(permissions, installed)
-        // A closed variable editor passes null. Preserve its value when only grants are saved.
-        if (variable != null && approved.isEmpty())
-            sources.saveVariable(id, variable)
         updates.updatePermissions(id, approved)
-        if (variable != null && approved.isNotEmpty())
-            sources.saveVariable(id, variable)
         selectSource(id)
         mutable.update { it.copy(message = R.string.sources_saved) }
     }

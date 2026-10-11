@@ -50,7 +50,7 @@ class SourceCatalogScreenTest {
     @After fun destroy() { activity.pause().stop().destroy() }
 
     @Test fun addAndBackKeepBothPagesDuringTheTransitionThenRemoveTheOldPage() {
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.mainClock.autoAdvance = false
         try {
             compose.onNodeWithText("Add book source").performClick()
@@ -76,7 +76,7 @@ class SourceCatalogScreenTest {
             override fun setContent(composable: @Composable () -> Unit) { activity.get().setContent(content = composable) }
         }
         val restoration = StateRestorationTester(contentRule)
-        restoration.setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        restoration.setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Add book source").performClick()
         compose.onNodeWithText("Categories").performClick()
         compose.onNodeWithText("Female fiction").performClick()
@@ -102,7 +102,7 @@ class SourceCatalogScreenTest {
         val catalog = SourceCatalog(activity.get())
         val pixiv = catalog.entries.single { it.key == "https://www.pixiv.net/novel" }
         activity.get().setContent { MaterialTheme {
-            SourcesScreen(state.copy(catalog = catalog.entries), model, onDiagnostics = {}) {}
+            SourcesScreen(state.copy(catalog = catalog.entries), model) {}
         } }
         compose.onNodeWithText("Add book source").performClick()
         compose.onNodeWithText("Categories").performClick()
@@ -115,7 +115,7 @@ class SourceCatalogScreenTest {
     }
 
     @Test fun importTabUsesTheExistingUrlAndFileEntryPoints() {
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Add book source").performClick()
         compose.onNodeWithText("Import").assertIsSelected()
         compose.onNodeWithText("Download and preview").assertIsNotEnabled()

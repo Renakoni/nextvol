@@ -548,11 +548,10 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "ContentTrace, bounded script logging and SourceDiagnostics emit redacted stage/field/result/version reports. Disposable anonymous execution uses production search/detail/directory/content/discovery/login-form code with installed grants, never the normal account's cookies or mutable state. Cancellation and unknown APIs remain failures; counts/reference presence do not certify a public site's availability.",
+      "evidence": "ContentTrace and bounded script logging retain redacted stage, field and error information in the reading runtime. Cancellation and unknown APIs remain failures. The app does not provide a source-testing screen or diagnostic-report export.",
       "productTests": [
         "hnovel.rhino.RhinoScriptEngineTest",
         "hnovel.content.RuleSourceTest",
-        "indi.renakoni.nextvol.data.web.rules.SourceDiagnosticsTest",
         "indi.renakoni.nextvol.data.web.rules.MixedSourceAcceptanceTest"
       ]
     },

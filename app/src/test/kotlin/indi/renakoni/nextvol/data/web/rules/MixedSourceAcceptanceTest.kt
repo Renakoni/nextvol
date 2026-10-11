@@ -236,12 +236,6 @@ class MixedSourceAcceptanceTest {
                 updates.rollback(a, grants)
                 assertEquals(prior.contentDigest, (registry.resolve(a) as SourceResolution.Ready).runtime.metadata.revision)
                 assertEquals(LoginStatus.LoginSubmitted, login.status(a))
-                val diagnostics = SourceDiagnostics(context, sources, fixture.runner, fixture.authority, accounts, registry, StorageCipher.Plain)
-                val report = diagnostics.run(b, DiagnosticStage.LoginForm, "", "", "")
-                assertEquals("Success", report.result)
-                assertEquals(EXTENSION_PROFILE, report.profile)
-                assertFalse(report.export().contains("sid=bob"))
-                assertFalse(report.export().contains(fixture.server.url("/").toString()))
 
                 fixture.extraChapter = true
                 val update = awaitWork(OneTimeWorkRequestBuilder<CheckUpdateWork>().build())

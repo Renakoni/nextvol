@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sources_permissions_title">Network permissions</string>
-    <string name="sources_permissions_edit_help">These addresses only allow network access. To change the homepage or request rules, use Edit source.</string>
     <string name="sources_missing_origin">The source still requires access to %1$s. Keep this permission, or change the rules in Edit source before removing it.</string>
     <string name="sources_editor_title">Edit source</string>
     <string name="sources_editor_json">Source rules (JSON)</string>

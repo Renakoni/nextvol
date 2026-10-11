@@ -57,7 +57,7 @@ class SourceGroupsScreenTest {
 
     @Test fun managementOnlyOffersActualGroupsNotTheEntireCatalog() {
         activity.get().setContent { MaterialTheme { SourcesScreen(initial.copy(groups = emptyList(),
-            installed = listOf(source("One"))), model, onDiagnostics = {}) {} } }
+            installed = listOf(source("One"))), model) {} } }
         compose.onNode(hasText("Ungrouped") and isSelectable()).assertIsDisplayed()
         compose.onAllNodesWithText("All").assertCountEquals(1)
         compose.onNodeWithText("All ▾").assertDoesNotExist()
@@ -67,7 +67,7 @@ class SourceGroupsScreenTest {
     }
 
     @Test fun groupManagementIsBesideAddAndCreatesAnEmptyGroupWithoutImporting() {
-        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model) {} } }
         compose.onNodeWithText("Add book source").assertIsDisplayed()
         assertEquals(compose.onNodeWithText("Add book source").fetchSemanticsNode().boundsInRoot.top,
             compose.onNodeWithText("Manage groups").fetchSemanticsNode().boundsInRoot.top)
@@ -82,7 +82,7 @@ class SourceGroupsScreenTest {
 
     @Test fun zeroUngroupedIsHiddenButEmptyRealGroupsRemainAndCardsDoNotRepeatGroups() {
         activity.get().setContent { MaterialTheme { SourcesScreen(initial.copy(
-            installed = listOf(source("One", "work"))), model, onDiagnostics = {}) {} } }
+            installed = listOf(source("One", "work"))), model) {} } }
         compose.onNodeWithText("Ungrouped").assertDoesNotExist()
         compose.onAllNodesWithText("Work").assertCountEquals(1)
         compose.onNodeWithContentDescription("Empty, 0 sources").performScrollTo().performClick()
@@ -93,7 +93,7 @@ class SourceGroupsScreenTest {
 
     @Test fun noInstalledSourcesStillKeepRealEmptyGroupsWithoutAnUngroupedChip() {
         activity.get().setContent { MaterialTheme { SourcesScreen(initial.copy(installed = emptyList()),
-            model, onDiagnostics = {}) {} } }
+            model) {} } }
         compose.onNodeWithText("Ungrouped").assertDoesNotExist()
         compose.onNodeWithContentDescription("Work, 0 sources").assertIsDisplayed()
         compose.onNodeWithContentDescription("Empty, 0 sources").performScrollTo().assertIsDisplayed()
@@ -103,7 +103,7 @@ class SourceGroupsScreenTest {
     @Test fun numericGroupNamesStayDistinctFromCountsAndEmptyGroupsOmitTheBadge() {
         activity.get().setContent { MaterialTheme { SourcesScreen(initial.copy(
             groups = listOf(SourceGroup("numeric", "1"), SourceGroup("adult", "r18")),
-            installed = listOf(source("One", "adult"), source("Two", "adult"))), model, onDiagnostics = {}) {} } }
+            installed = listOf(source("One", "adult"), source("Two", "adult"))), model) {} } }
         compose.onNodeWithContentDescription("1, 0 sources").assert(hasText("1")).performScrollTo().performClick().assertIsSelected()
         compose.onNodeWithText("0").assertDoesNotExist()
         compose.onNodeWithContentDescription("r18, 2 sources").assert(hasText("r18") and hasText("2"))
@@ -114,7 +114,7 @@ class SourceGroupsScreenTest {
 
     @Test fun assigningTheLastUngroupedSourceReturnsToAllAndUngroupedCanReappear() {
         var state by mutableStateOf(initial)
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNode(hasText("Ungrouped") and isSelectable()).performClick()
         compose.onNodeWithText("One").assertIsDisplayed()
         compose.onNodeWithText("Two").assertDoesNotExist()
@@ -130,7 +130,7 @@ class SourceGroupsScreenTest {
     }
 
     @Test fun inlineSelectionTracksVisibleGroupsAndBackClearsSelection() {
-        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model) {} } }
         val title = compose.onNodeWithText(activity.get().getString(R.string.source_catalog_installed, 2)).fetchSemanticsNode().boundsInRoot
         val action = compose.onNodeWithText("Select").fetchSemanticsNode().boundsInRoot
         assertTrue(title.center.y in action.top..action.bottom)
@@ -152,7 +152,7 @@ class SourceGroupsScreenTest {
     }
 
     @Test fun sourceTapOpensSettingsAndItsSwitchDoesNotSelectOrOpenTheSource() {
-        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model) {} } }
         compose.onNodeWithText("One").performScrollTo().performClick()
         verify(exactly = 1) { model.select(Identifier("rules", "One")) }
         compose.onNode(isToggleable() and hasAnyAncestor(hasText("One"))).performClick()
@@ -167,7 +167,7 @@ class SourceGroupsScreenTest {
 
     @Test fun busyStateDisablesHeaderSelectionLongPressAndSelectedRows() {
         var state by mutableStateOf(initial)
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Select").performClick()
         compose.runOnIdle { state = state.copy(busy = true) }
         compose.onNodeWithText("Select all").assertIsNotEnabled()
@@ -189,7 +189,7 @@ class SourceGroupsScreenTest {
         activity.get().setContent { MaterialTheme {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.6f)) {
                 SourcesScreen(initial.copy(installed = listOf(one.copy(definition = one.definition.copy(displayName = longName)))),
-                    model, onDiagnostics = {}) {}
+                    model) {}
             }
         } }
         compose.onNodeWithText("Select").performScrollTo().assertIsDisplayed().performClick()
@@ -202,7 +202,7 @@ class SourceGroupsScreenTest {
 
     @Test fun batchSelectionSurvivesFilteringAndUpdatesOnlyChosenGroups() {
         var state by mutableStateOf(initial.copy(message = indi.renakoni.nextvol.R.string.source_groups_saved, groupRevision = 1))
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Select").performScrollTo().performClick()
         compose.onNodeWithText("One").performScrollTo().performClick()
         compose.onNodeWithText("Selected: 1").assertIsDisplayed()
@@ -227,7 +227,7 @@ class SourceGroupsScreenTest {
     fun duplicateNamesAreRejectedAndDeletingAGroupRequiresConfirmation() {
         activity.get().setContent { MaterialTheme {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.6f)) {
-                SourcesScreen(initial, model, onDiagnostics = {}) {}
+                SourcesScreen(initial, model) {}
             }
         } }
         compose.onNodeWithText("Manage groups").performClick()
@@ -249,7 +249,7 @@ class SourceGroupsScreenTest {
     }
 
     @Test fun singleSourceCanCreateItsGroupWithoutOpeningSourceSettings() {
-        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model) {} } }
         compose.onNodeWithText("One").performScrollTo().performTouchInput { longClick() }
         compose.onNodeWithText("Edit groups").performClick()
         compose.onNodeWithText("New group").performClick()
@@ -260,7 +260,7 @@ class SourceGroupsScreenTest {
     }
 
     @Test fun addPageExplainsDefaultGroupAndDoesNotContainGroupManagement() {
-        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(initial, model) {} } }
         compose.onNodeWithText("Add book source").performClick()
         compose.onNodeWithText("Manage groups").assertDoesNotExist()
         compose.onNodeWithText("Catalog sources are grouped by category. Sources imported from a link or file start ungrouped.").assertIsDisplayed()
@@ -268,7 +268,7 @@ class SourceGroupsScreenTest {
 
     @Test fun failedSaveKeepsTheNameAndRepeatedSuccessClosesTheEditor() {
         var state by mutableStateOf(initial.copy(message = indi.renakoni.nextvol.R.string.source_groups_saved, groupRevision = 1))
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Manage groups").performClick()
         compose.onNodeWithText("New group").performClick()
         compose.onNode(hasSetTextAction()).performTextInput("Weekend")
@@ -286,7 +286,7 @@ class SourceGroupsScreenTest {
 
     @Test fun managementOmitsUngroupedAndRemovalOnlyChangesTheCurrentGroup() {
         var state by mutableStateOf(initial)
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Manage groups").performClick()
         compose.onNode(isDialog()).assertDoesNotExist()
         compose.onNodeWithText("Ungrouped").assertDoesNotExist()
@@ -310,7 +310,7 @@ class SourceGroupsScreenTest {
 
     @Test fun addingSourcesSearchesAcrossGroupsAndKeepsSelectionOnFailure() {
         var state by mutableStateOf(initial.copy(installed = initial.installed + source("Three", "empty")))
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Manage groups").performClick()
         compose.onNodeWithText("Work").performClick()
         compose.onNodeWithText("Choose sources").performClick()
@@ -339,7 +339,7 @@ class SourceGroupsScreenTest {
 
     @Test fun cancellingAddDoesNotChangeGroupsAndDeletingReturnsToOverview() {
         var state by mutableStateOf(initial)
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Manage groups").performClick()
         compose.onNodeWithText("Work").performClick()
         compose.onNodeWithText("Choose sources").performClick()
@@ -360,7 +360,7 @@ class SourceGroupsScreenTest {
 
     @Test fun renameInTheMemberPagePreservesMembershipAndUngroupedCannotBeDeleted() {
         var state by mutableStateOf(initial)
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Manage groups").performClick()
         compose.onNodeWithText("Work").performClick()
         groupOption("Rename group")
@@ -382,7 +382,7 @@ class SourceGroupsScreenTest {
     fun anEmptyGroupSupportsAddingSourcesAtLargeFontSize() {
         activity.get().setContent { MaterialTheme {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.6f)) {
-                SourcesScreen(initial, model, onDiagnostics = {}) {}
+                SourcesScreen(initial, model) {}
             }
         } }
         compose.onNodeWithText("Manage groups").performClick()
@@ -395,7 +395,7 @@ class SourceGroupsScreenTest {
 
     @Test fun returningFromAddRestoresSearchAndRemovingTheLastMatchShowsAnEmptyGroup() {
         var state by mutableStateOf(initial)
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Manage groups").performClick()
         compose.onNodeWithText("Work").performClick()
         compose.onNode(hasSetTextAction()).performTextInput("missing")
@@ -418,7 +418,7 @@ class SourceGroupsScreenTest {
 
     @Test fun aSourceCanHaveTwoCheckedGroupsAndOnlyUncheckingOneIsSaved() {
         activity.get().setContent { MaterialTheme { SourcesScreen(initial.copy(
-            installed = listOf(source("One", "work", "empty"))), model, onDiagnostics = {}) {} } }
+            installed = listOf(source("One", "work", "empty"))), model) {} } }
         compose.onNodeWithText("One").performScrollTo().performTouchInput { longClick() }
         compose.onNodeWithText("Edit groups").performClick()
         compose.onNode(hasText("Work") and isToggleable()).assertIsOn().performClick()
@@ -430,7 +430,7 @@ class SourceGroupsScreenTest {
 
     @Test fun creatingGroupSavesPendingAdditionsAndRemovalsAndKeepsDraftOnFailure() {
         var state by mutableStateOf(initial.copy(installed = listOf(source("One", "work"), source("Two", "work"))))
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("One").performScrollTo().performTouchInput { longClick() }
         compose.onNodeWithText("Edit groups").performClick()
         compose.onNode(hasText("Work") and isToggleable()).assertIsOn().performClick()
@@ -456,7 +456,7 @@ class SourceGroupsScreenTest {
 
     @Test fun longPressAndSelectAllRespectTheSearchAndBackLeavesTheGroupOpen() {
         activity.get().setContent { MaterialTheme { SourcesScreen(initial.copy(installed = listOf(
-            source("One", "work"), source("Two", "work"))), model, onDiagnostics = {}) {} } }
+            source("One", "work"), source("Two", "work"))), model) {} } }
         compose.onNodeWithText("Manage groups").performClick()
         compose.onNodeWithText("Work").performClick()
         compose.onNodeWithText("One").performTouchInput { longClick() }

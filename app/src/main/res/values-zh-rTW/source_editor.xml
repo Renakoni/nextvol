@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sources_permissions_title">網路存取權限</string>
-    <string name="sources_permissions_edit_help">這些位址僅用於允許網路存取。修改首頁或請求規則，請使用「編輯書源」。</string>
     <string name="sources_missing_origin">目前規則仍需存取 %1$s。請保留此授權，或先在「編輯書源」中修改規則再移除此網站。</string>
     <string name="sources_editor_title">編輯書源</string>
     <string name="sources_editor_json">書源規則（JSON）</string>

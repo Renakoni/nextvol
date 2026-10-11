@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sources_permissions_title">网络访问权限</string>
-    <string name="sources_permissions_edit_help">这些地址仅用于允许网络访问。修改主页或请求规则，请使用「编辑书源」。</string>
     <string name="sources_missing_origin">当前规则仍需访问 %1$s。请保留此授权，或先在「编辑书源」中修改规则再移除此站点。</string>
     <string name="sources_editor_title">编辑书源</string>
     <string name="sources_editor_json">书源规则（JSON）</string>

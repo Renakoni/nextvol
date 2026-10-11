@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sources_permissions_title">Сетевые разрешения</string>
-    <string name="sources_permissions_edit_help">Эти адреса только разрешают доступ к сети. Чтобы изменить главную страницу или правила запросов, выберите «Редактировать источник».</string>
     <string name="sources_missing_origin">Текущим правилам нужен доступ к %1$s. Сохраните это разрешение или сначала измените правила в редакторе источника.</string>
     <string name="sources_editor_title">Редактировать источник</string>
     <string name="sources_editor_json">Правила источника (JSON)</string>

@@ -356,6 +356,9 @@ class SourceRevisionUpdatesTest {
                         val first = sources.definitions.list().single()
                         val id = sources.activate(first.reference(), listOf(NetworkGrant(fixture.server.url("/").toString(), true)))
                         val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
+                        assertTrue(updates.canCheckUpdate(first))
+                        assertFalse(updates.canCheckUpdate(first.copy(origin = ImportOrigin(ImportOrigin.Kind.Paste))))
+                        assertFalse(updates.canCheckUpdate(first.copy(origin = ImportOrigin(ImportOrigin.Kind.File, "source.json"))))
                         val collection = JsonArray(listOf(fixture.raw(), buildJsonObject {
                             put("bookSourceUrl", "https://audio.invalid/"); put("bookSourceType", 1)
                             put("bookSourceComment", "x".repeat(4 * 1024 * 1024))

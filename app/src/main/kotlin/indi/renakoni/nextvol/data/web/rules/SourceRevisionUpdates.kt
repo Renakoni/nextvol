@@ -38,13 +38,18 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
 
     fun manages(definition: SourceDefinition): Boolean = pixiv.manages(definition)
 
+    fun canCheckUpdate(definition: SourceDefinition): Boolean = updateAddress(definition) != null
+
+    private fun updateAddress(definition: SourceDefinition): String? =
+        if (pixiv.manages(definition)) PixivUpdateAdapter.UPDATE_URL
+        else definition.origin.takeIf { it.kind == ImportOrigin.Kind.Url }?.location?.takeIf(String::isNotBlank)
+
     suspend fun check(source: Identifier, downloadGrant: NetworkGrant? = null,
         expected: DefinitionReference? = null): RevisionCheck = withContext(Dispatchers.IO) {
         val installed = installed(source).definition
         if (expected != null && installed.reference() != expected) throw RevisionException(RevisionError.Stale)
         val managed = pixiv.manages(installed)
-        val address = if (managed) PixivUpdateAdapter.UPDATE_URL else installed.origin.takeIf { it.kind == ImportOrigin.Kind.Url }?.location
-            ?: throw RevisionException(RevisionError.NoUpdateAddress)
+        val address = updateAddress(installed) ?: throw RevisionException(RevisionError.NoUpdateAddress)
         val downloaded = downloader.preview(sources.importer, address, installed.profile, downloadGrant)
         if (managed && downloaded.issues.any { it.code in setOf(ImportCode.DownloadFailed, ImportCode.ReadFailed) })
             throw RevisionException(RevisionError.UpdateDownloadFailed)
