@@ -39,6 +39,153 @@ class SourceRevisionUpdatesTest {
         return sources.definitions.list().single()
     }
 
+    @Test fun missingHomepagePermissionReportsTheSiteAndAdditionalGrantsSurviveRestart() = runBlocking {
+        val host = Host()
+        RuleSourceFixture().use { fixture ->
+            val accounts = SourceSessionManager(fixture.authority)
+            val registry = WebSourceRegistry(fixture.authority)
+            var sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
+            try {
+                val first = candidate(sources, fixture.raw())
+                val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
+                val id = sources.activate(first.reference(), grants)
+                val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
+                val extra = NetworkGrant("https://new.example:443")
+                val snapshot = File(host.filesDir, "rule-sources/active.json").readBytes()
+                val failure = runCatching { updates.updatePermissions(id, listOf(extra)) }.exceptionOrNull() as RevisionException
+                assertEquals(RevisionError.PermissionRequired, failure.code)
+                assertEquals(hnovel.network.sourcePermissionOrigin(first.importKey), failure.requiredOrigin)
+                assertArrayEquals(snapshot, File(host.filesDir, "rule-sources/active.json").readBytes())
+                updates.updatePermissions(id, grants + extra)
+                sources.stop()
+                sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
+                assertEquals(grants + extra, sources.installedSources().single().origins)
+                assertEquals(first, sources.installedSources().single().definition)
+            } finally { sources.stop(); host.root.deleteRecursively() }
+        }
+    }
+
+    @Test fun domainEditPreservesIdentityAndReadsDiscoveryDetailsDirectoryAndContentFromNewSite() = runBlocking {
+        val host = Host()
+        RuleSourceFixture().use { fixture ->
+            val accounts = SourceSessionManager(fixture.authority)
+            val registry = WebSourceRegistry(fixture.authority)
+            var sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
+            try {
+                val oldOrigin = "http://old.example:${fixture.server.port}"
+                val raw = JsonObject(fixture.raw() + mapOf(
+                    "bookSourceUrl" to JsonPrimitive("$oldOrigin/source"),
+                    "searchUrl" to JsonPrimitive("$oldOrigin/search?q={{key}}"),
+                    "exploreUrl" to JsonPrimitive("Latest::$oldOrigin/search"),
+                    "header" to JsonPrimitive("""{"Referer":"$oldOrigin/","X-Source":"A"}""")))
+                val first = candidate(sources, raw)
+                val originalGrants = listOf(NetworkGrant(oldOrigin))
+                val id = sources.activate(first.reference(), originalGrants)
+                sources.createGroup("Keep group", setOf(id))
+                sources.saveVariable(id, "keep configuration")
+                val before = sources.installedSources().single()
+                val runtime = (registry.resolve(id) as SourceResolution.Ready).runtime
+                val preview = SourceDefinitionEdits.previewDomain(first.rawJson, "old.example", "127.0.0.1")
+                assertEquals(first, sources.installedSources().single().definition)
+                assertEquals(0, fixture.server.requestCount)
+                val grants = listOf(NetworkGrant("http://127.0.0.1:${fixture.server.port}", true))
+                val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
+                updates.edit(id, before, preview.rawJson, grants)
+                assertFalse(runtime.isAvailable)
+                val edited = sources.installedSources().single()
+                assertEquals(first.sourceId, edited.definition.sourceId)
+                assertEquals(first.importKey, edited.definition.importKey)
+                assertEquals(before.preferences, edited.preferences)
+                assertEquals("keep configuration", sources.storedSettings(id).variable)
+                assertEquals(first, sources.definitions.list().single())
+                assertEquals(grants, edited.origins)
+                val rules = sources.loginTarget(id).rules
+                val base = "http://127.0.0.1:${fixture.server.port}"
+                val book = rules.discovery("$base/search").single()
+                assertEquals("$base/book/one", book.id)
+                assertEquals(book.id, rules.search("same").single().id)
+                assertEquals("Same title", rules.information(book.id).title)
+                val chapter = rules.directory(book.id).first { !it.isVolume }
+                assertEquals("$base/c/1", chapter.id)
+                assertTrue(rules.content(book.id, chapter.id).parts.any { it.text == "A first" })
+                repeat(fixture.server.requestCount) {
+                    val request = fixture.server.takeRequest()
+                    assertEquals("127.0.0.1:${fixture.server.port}", request.getHeader("Host"))
+                    assertEquals("$base/", request.getHeader("Referer"))
+                }
+                sources.stop()
+                sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
+                assertEquals(edited, sources.installedSources().single())
+                val restoredUpdates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
+                restoredUpdates.rollback(id, originalGrants)
+                assertEquals(first, sources.installedSources().single().definition)
+                restoredUpdates.edit(id, sources.installedSources().single(), preview.rawJson, grants)
+                assertTrue(sources.installedSources().single().definition.revision > edited.definition.revision)
+            } finally { sources.stop(); host.root.deleteRecursively() }
+        }
+    }
+
+    @Test fun rejectedEditsLeaveTheDefinitionGrantsAndRuntimeIntactAndStaleDraftsCannotOverwrite() = runBlocking {
+        val host = Host()
+        RuleSourceFixture().use { fixture ->
+            val accounts = SourceSessionManager(fixture.authority)
+            val registry = WebSourceRegistry(fixture.authority)
+            val sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
+            try {
+                val first = candidate(sources, fixture.raw())
+                val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
+                val id = sources.activate(first.reference(), grants)
+                val before = sources.installedSources().single()
+                val oldRuntime = (registry.resolve(id) as SourceResolution.Ready).runtime
+                val snapshot = File(host.filesDir, "rule-sources/active.json").readBytes()
+                val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
+                val brokenScript = JsonObject(fixture.raw() + ("jsLib" to JsonPrimitive("throw new Error('private-secret')"))).toString()
+                val renamed = JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Edited"))).toString()
+                for ((text, approved) in listOf("{" to grants, JsonObject(fixture.raw() - "ruleContent").toString() to grants,
+                        brokenScript to grants, renamed to listOf(NetworkGrant("https://unapproved.example")))) {
+                    assertTrue(runCatching { updates.edit(id, before, text, approved) }.isFailure)
+                    assertArrayEquals(snapshot, File(host.filesDir, "rule-sources/active.json").readBytes())
+                    assertEquals(first, sources.definitions.list().single())
+                    assertSame(oldRuntime, (registry.resolve(id) as SourceResolution.Ready).runtime)
+                }
+                updates.updatePermissions(id, grants + NetworkGrant("https://extra.example"))
+                assertEquals(RevisionError.Stale, (runCatching { updates.edit(id, before, renamed, grants) }
+                    .exceptionOrNull() as RevisionException).code)
+                val current = sources.installedSources().single()
+                updates.edit(id, current, renamed, current.origins)
+                assertEquals(RevisionError.Stale, (runCatching { updates.edit(id, current, first.rawJson, grants) }
+                    .exceptionOrNull() as RevisionException).code)
+                assertEquals("Edited", sources.installedSources().single().definition.displayName)
+            } finally { sources.stop(); host.root.deleteRecursively() }
+        }
+    }
+
+    @Test fun cancellingAnEditDuringInitializationKeepsTheInstalledSnapshot() = runBlocking {
+        val host = Host()
+        RuleSourceFixture().use { fixture ->
+            val accounts = SourceSessionManager(fixture.authority)
+            val registry = WebSourceRegistry(fixture.authority)
+            val sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
+            val entered = CompletableDeferred<Unit>()
+            try {
+                val first = candidate(sources, fixture.raw())
+                val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
+                val id = sources.activate(first.reference(), grants)
+                val before = sources.installedSources().single()
+                val snapshot = File(host.filesDir, "rule-sources/active.json").readBytes()
+                fixture.afterRun = { entered.complete(Unit); awaitCancellation() }
+                val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
+                val changed = JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Cancelled"))).toString()
+                val pending = launch { updates.edit(id, before, changed, grants) }
+                withTimeout(5000) { entered.await() }
+                pending.cancelAndJoin()
+                assertEquals(before, sources.installedSources().single())
+                assertArrayEquals(snapshot, File(host.filesDir, "rule-sources/active.json").readBytes())
+                assertEquals(first, sources.definitions.list().single())
+            } finally { sources.stop(); host.root.deleteRecursively() }
+        }
+    }
+
     @Test fun approvingACoverOriginRetiresOnlyItsOwnerAndClearsOldRequests() = runBlocking {
         val host = Host()
         RuleSourceFixture().use { fixture -> okhttp3.mockwebserver.MockWebServer().use { cdn ->

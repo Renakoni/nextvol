@@ -293,11 +293,12 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
 
     /** Validated candidate is compared again at commit; remove/account changes cannot resurrect it. */
     internal suspend fun replaceRevision(expected: SourceDefinition, next: SourceDefinition, origins: List<NetworkGrant>,
-        generation: Long) = withContext(Dispatchers.IO) { lock.withLock {
+        generation: Long, expectedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) { lock.withLock {
         check(!restorationFailed)
         val id = id(expected)
         val old = checkNotNull(active[id]) { "Source is not installed" }
-        check(old.installed.definition == expected) { "Installed revision changed" }
+        if (old.installed.definition != expected || old.installed.origins != expectedOrigins)
+            throw RevisionException(RevisionError.Stale)
         require(next.sourceId == expected.sourceId && next.profile == expected.profile && origins.size <= 32)
         if (next != expected || origins != old.installed.origins) downloads?.revokeSourceTasks(id)
         val installed = InstalledSource(next, origins.map { it.copy(headers = it.headers.toMap()) },

@@ -36,7 +36,8 @@ data class SourceManagementState(val installed: List<InstalledRuleSource> = empt
     val zLibrary: ZLibraryState = ZLibraryState(), val checks: Map<String, SourceCheckSummary> = emptyMap(),
     val network: SourceNetworkState? = null, val storedSettingsAvailable: Boolean = false,
     val accountName: String? = null, val verifications: List<VerificationPrompt> = emptyList(),
-    val groups: List<SourceGroup> = emptyList(), val groupRevision: Long = 0) {
+    val groups: List<SourceGroup> = emptyList(), val groupRevision: Long = 0,
+    val configurationError: SourceSaveError? = null, val editor: SourceEditorState? = null) {
     val ruleSettings = installed.find { ImportedRuleSources.id(it.definition) == selected }
         ?.let { RuleSettingsPresentation.read(it.definition) }
     val verification get() = verifications.firstOrNull { prompt ->
@@ -49,6 +50,14 @@ data class SourceManagementState(val installed: List<InstalledRuleSource> = empt
 
 data class SourceNetworkState(val bypassVpn: Boolean = false, val limitation: Int? = null,
     val certificates: List<CertificateExceptionSite> = emptyList())
+
+data class SourceSaveError(val message: Int, val detail: String? = null)
+data class SourceEditorState(val installed: InstalledRuleSource, val rawJson: String, val permissions: String,
+    val oldDomain: String = "", val newDomain: String = "", val preview: SourceDomainPreview? = null,
+    val error: SourceSaveError? = null, val saved: Boolean = false, val originalJson: String = rawJson) {
+    val dirty get() = rawJson != originalJson ||
+        permissions != installed.origins.joinToString("\n") { it.origin }
+}
 
 /** Screen state survives rotation; previews grant nothing and each explicit mutation has a single owner. */
 @HiltViewModel
@@ -92,14 +101,14 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         refresh()
     }
 
-    private fun launch(showProgress: Boolean = true, block: suspend () -> Unit) {
+    private fun launch(showProgress: Boolean = true, onFailure: ((Exception) -> Unit)? = null, block: suspend () -> Unit) {
         if (mutable.value.busy) return
         val generation = ++operationGeneration
         mutable.update { it.copy(busy = true, showProgress = showProgress, message = null) }
         operation = viewModelScope.launch(foreground) {
             try { withContext(Dispatchers.IO) { block() } }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { mutable.update { it.copy(message = when (failure) {
+            catch (failure: Exception) { if (onFailure != null) onFailure(failure) else mutable.update { it.copy(message = when (failure) {
                 is RevisionException -> when (failure.code) {
                     RevisionError.NoUpdateAddress -> R.string.sources_no_update_url
                     RevisionError.PermissionRequired -> R.string.sources_permission_denied
@@ -141,7 +150,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     private suspend fun selectSource(id: Identifier?) {
         reload() // Includes the current session's redacted refusals, including background image loads.
         if (id == ZLibrarySources.ID) zLibrary.refresh()
-        mutable.update { it.copy(selected = id, preview = null, updateTarget = null,
+        mutable.update { it.copy(selected = id, preview = null, updateTarget = null, configurationError = null, editor = null,
             loginStatus = if (it.selected == id) it.loginStatus else LoginStatus.LoggedOut,
             variable = if (it.selected == id) it.variable else "", storedSettingsAvailable = false,
             accountName = if (it.selected == id) it.accountName else null,
@@ -317,9 +326,14 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
             origins = permissions.lines().filter(String::isNotBlank)))
         mutable.update { it.copy(message = R.string.sources_saved) }
     }
-    fun saveConfiguration(id: Identifier, variable: String?, permissions: String) = launch {
+    fun clearConfigurationError() { mutable.update { it.copy(configurationError = null) } }
+    fun saveConfiguration(id: Identifier, variable: String?, permissions: String) = launch(onFailure = { failure ->
+        mutable.update { it.copy(configurationError = saveError(failure)) }
+    }) {
+        clearConfigurationError()
         require(variable == null || variable.length <= 32768)
-        val approved = grants(permissions)
+        val installed = state.value.installed.single { ImportedRuleSources.id(it.definition) == id }
+        val approved = editedGrants(permissions, installed)
         // A closed variable editor passes null. Preserve its value when only grants are saved.
         if (variable != null && approved.isEmpty())
             sources.saveVariable(id, variable)
@@ -328,6 +342,67 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
             sources.saveVariable(id, variable)
         selectSource(id)
         mutable.update { it.copy(message = R.string.sources_saved) }
+    }
+
+    fun beginEditor(id: Identifier) = launch(showProgress = false) {
+        val installed = sources.installedSources().single { ImportedRuleSources.id(it.definition) == id }
+        mutable.update { it.copy(editor = SourceEditorState(installed, SourceDefinitionEdits.format(installed.definition.rawJson),
+            installed.origins.joinToString("\n") { grant -> grant.origin }), configurationError = null) }
+    }
+    fun closeEditor() { if (!state.value.busy) mutable.update { it.copy(editor = null) } }
+    fun editDraft(rawJson: String, permissions: String) {
+        if (!state.value.busy) mutable.update { state -> state.copy(editor = state.editor?.copy(rawJson = rawJson,
+            permissions = permissions, preview = null, error = null, saved = false)) }
+    }
+    fun editDomains(oldDomain: String, newDomain: String) {
+        if (!state.value.busy) mutable.update { state -> state.copy(editor = state.editor?.copy(oldDomain = oldDomain,
+            newDomain = newDomain, preview = null, error = null, saved = false)) }
+    }
+    fun previewDomain() = launch(showProgress = false, onFailure = { failure ->
+        mutable.update { it.copy(editor = it.editor?.copy(error = if (failure is SourceEditException) saveError(failure)
+            else SourceSaveError(R.string.sources_domain_invalid))) }
+    }) {
+        val draft = checkNotNull(state.value.editor)
+        val preview = SourceDefinitionEdits.previewDomain(draft.rawJson, draft.oldDomain, draft.newDomain)
+        mutable.update { it.copy(editor = draft.copy(preview = preview, error = null, saved = false)) }
+    }
+    fun applyDomainPreview() {
+        if (!state.value.busy) mutable.update { state -> state.copy(editor = state.editor?.let { draft ->
+            draft.preview?.let { draft.copy(rawJson = it.rawJson, preview = null, error = null, saved = false) } ?: draft
+        }) }
+    }
+    fun saveEditor() = launch(showProgress = false, onFailure = { failure ->
+        mutable.update { it.copy(editor = it.editor?.copy(error = saveError(failure), saved = false)) }
+    }) {
+        val draft = checkNotNull(state.value.editor)
+        mutable.update { it.copy(editor = draft.copy(error = null, saved = false)) }
+        val id = ImportedRuleSources.id(draft.installed.definition)
+        updates.edit(id, draft.installed, draft.rawJson, editedGrants(draft.permissions, draft.installed))
+        reload()
+        val installed = state.value.installed.single { ImportedRuleSources.id(it.definition) == id }
+        mutable.update { it.copy(editor = SourceEditorState(installed, SourceDefinitionEdits.format(installed.definition.rawJson),
+            installed.origins.joinToString("\n") { grant -> grant.origin }, saved = true)) }
+    }
+
+    private fun editedGrants(text: String, installed: InstalledRuleSource): List<NetworkGrant> {
+        val invalid = invalidPermissionLines(text)
+        if (invalid.isNotEmpty()) throw InvalidPermissions(invalid)
+        return grants(text).map { grant -> installed.origins.firstOrNull { sourcePermissionOrigin(it.origin) == grant.origin } ?: grant }
+    }
+    private class InvalidPermissions(val lines: List<Int>) : Exception()
+    private fun saveError(failure: Exception): SourceSaveError = when (failure) {
+        is InvalidPermissions -> SourceSaveError(R.string.sources_invalid_permission_lines, failure.lines.joinToString(", "))
+        is SourceEditException -> SourceSaveError(R.string.sources_editor_invalid,
+            failure.field?.takeIf { it.matches(Regex("[A-Za-z0-9_.]{1,120}")) } ?: "JSON")
+        is RevisionException -> when (failure.code) {
+            RevisionError.PermissionRequired -> failure.requiredOrigin?.let { SourceSaveError(R.string.sources_missing_origin, it) }
+                ?: SourceSaveError(R.string.sources_permission_denied)
+            RevisionError.Stale -> SourceSaveError(R.string.sources_editor_stale)
+            RevisionError.InitializationFailed -> SourceSaveError(R.string.sources_editor_initialization_failed)
+            RevisionError.UpstreamNotAdapted -> SourceSaveError(R.string.sources_pixiv_update_unsupported)
+            else -> SourceSaveError(R.string.sources_revision_failed)
+        }
+        else -> SourceSaveError(R.string.sources_action_failed)
     }
     fun remove(id: Identifier) = launch {
         sources.remove(id); reload()

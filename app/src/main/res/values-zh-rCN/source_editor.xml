@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sources_permissions_title">网络访问权限</string>
+    <string name="sources_permissions_edit_help">这些地址仅用于允许网络访问。修改主页或请求规则，请使用「编辑书源」。</string>
+    <string name="sources_missing_origin">当前规则仍需访问 %1$s。请保留此授权，或先在「编辑书源」中修改规则再移除此站点。</string>
+    <string name="sources_editor_title">编辑书源</string>
+    <string name="sources_editor_help">同时编辑已有书源的规则和网络权限，保存后才会生效。</string>
+    <string name="sources_editor_old_books">保留书源身份、书架、阅读记录和已下载内容，不改写已有书籍与章节链接。若旧站失效，请在新站重新搜索并添加书籍。重新导入更新可能覆盖本地修改。</string>
+    <string name="sources_editor_json">书源规则（JSON）</string>
+    <string name="sources_editor_save">保存规则与权限</string>
+    <string name="sources_editor_permissions_help">请在下方添加新规则实际访问的站点。替换域名不会自动授权，子域名也需单独添加。清空列表会停止所有网络访问。</string>
+    <string name="sources_editor_invalid">书源规则无效：%1$s。请检查 JSON 格式，以及必需的章节列表和正文规则。</string>
+    <string name="sources_editor_stale">编辑期间书源已发生变化。请复制需要保留的修改，再重新打开编辑器。</string>
+    <string name="sources_editor_initialization_failed">书源初始化失败，已保存的规则和权限未改变。请检查脚本及所需站点授权。</string>
+    <string name="sources_editor_discard">放弃修改</string>
+    <string name="sources_editor_discard_help">不保存这些规则和权限，退出编辑器？</string>
+    <string name="sources_domain_replace">替换域名</string>
+    <string name="sources_domain_help">输入域名，例如 old.example 和 new.example。协议、端口、路径和子域名前缀会保留，请先核对各字段的替换预览。</string>
+    <string name="sources_domain_old">旧域名</string>
+    <string name="sources_domain_new">新域名</string>
+    <string name="sources_domain_preview">预览替换</string>
+    <string name="sources_domain_changes">受影响字段：%1$d</string>
+    <string name="sources_domain_before">替换前：%1$s</string>
+    <string name="sources_domain_after">替换后：%1$s</string>
+    <string name="sources_domain_remaining">仍含旧域名的字段：%1$s</string>
+    <string name="sources_domain_none">未发现明文残留</string>
+    <string name="sources_domain_review_help">编码或动态拼接的域名可能无法识别，请检查规则和授权，包括子域名。应用预览或修改输入后才能保存。</string>
+    <string name="sources_domain_apply">应用到草稿</string>
+    <string name="sources_domain_invalid">请输入两个不同的域名，不要包含路径、端口、账号或查询参数。</string>
+</resources>

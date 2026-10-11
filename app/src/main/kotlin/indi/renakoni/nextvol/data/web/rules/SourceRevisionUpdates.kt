@@ -22,7 +22,7 @@ import javax.inject.Singleton
 
 enum class RevisionError { NotInstalled, NoUpdateAddress, InvalidCandidate, IdentityChanged, ProfileChanged,
     PermissionRequired, InitializationFailed, Stale, NoPreviousRevision, UpstreamNotAdapted, UpdateDownloadFailed }
-class RevisionException(val code: RevisionError) : Exception(code.name)
+class RevisionException(val code: RevisionError, val requiredOrigin: String? = null) : Exception(code.name)
 data class RevisionCheck(val installed: SourceDefinition, val preview: ImportPreview, val unchanged: Boolean)
 
 /** Checks never execute source code. Apply validates in disposable storage before one durable activation. */
@@ -74,6 +74,16 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
         replace(before, before.definition, approvedOrigins)
     }
 
+    /** The installed snapshot is authoritative; local edits do not overwrite staged import candidates. */
+    suspend fun edit(source: Identifier, expected: InstalledRuleSource, text: String, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
+        val before = installed(source)
+        if (before.definition != expected.definition || before.origins != expected.origins) throw RevisionException(RevisionError.Stale)
+        val revision = maxOf(expected.definition.revision, before.previous?.revision ?: 0, sources.definitions.list().filter { it.sourceId == expected.definition.sourceId }
+            .maxOfOrNull { it.revision } ?: 0) + 1
+        val next = SourceDefinitionEdits.prepare(expected.definition, text, revision)
+        replace(before, next, approvedOrigins)
+    }
+
     suspend fun rollback(source: Identifier, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
         val before = installed(source)
         val previous = before.previous ?: throw RevisionException(RevisionError.NoPreviousRevision)
@@ -93,7 +103,7 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
         if (before.preferences.enabled && grants.isNotEmpty()) validate(next, grants)
         currentCoroutineContext().ensureActive()
         if (accounts.current(id).generation != generation) throw RevisionException(RevisionError.Stale)
-        sources.replaceRevision(before.definition, next, grants, generation)
+        sources.replaceRevision(before.definition, next, grants, generation, before.origins)
     }
 
     private suspend fun validate(definition: SourceDefinition, grants: List<NetworkGrant>) {
@@ -106,7 +116,8 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
                     val session = broker.open(SourceScope(namespace, definition.sourceId, definition.profile), grants)
                     val raw = Json.parseToJsonElement(definition.rawJson).jsonObject
                     val base = raw.getValue("bookSourceUrl").jsonPrimitive.content
-                    if (session.permissionFailure(base) != null) throw RevisionException(RevisionError.PermissionRequired)
+                    if (session.permissionFailure(base) != null)
+                        throw RevisionException(RevisionError.PermissionRequired, sourcePermissionOrigin(base))
                     // Adapter construction checks structure; initialization runs only in the real isolated runner.
                     RuleSource(definition, ticket, authority, session, runner).use {
                         // BookInfo may reuse the name already extracted by search/discovery.

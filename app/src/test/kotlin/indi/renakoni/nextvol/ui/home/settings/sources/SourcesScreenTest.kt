@@ -65,6 +65,46 @@ class SourcesScreenTest {
     @After fun destroy() { activity.pause().stop().destroy() }
 
     @Test @Config(qualifiers = "en-rUS-w320dp-h640dp")
+    fun permissionFailureStaysVisibleBesideSaveAndTheSourceEditorIsSeparate() {
+        val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
+            "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
+        val installed = InstalledRuleSource(definition, listOf(hnovel.network.NetworkGrant("https://old.example:443")), null)
+        val id = ImportedRuleSources.id(definition)
+        var state by mutableStateOf(SourceManagementState(installed = listOf(installed), selected = id))
+        every { model.saveConfiguration(id, null, any()) } answers {
+            state = state.copy(configurationError = SourceSaveError(indi.renakoni.nextvol.R.string.sources_missing_origin, "https://old.example:443"))
+        }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        compose.onNodeWithText("Advanced options").performScrollTo().performClick()
+        compose.onNodeWithText("Save permissions").performScrollTo().performClick()
+        val message = activity.get().getString(indi.renakoni.nextvol.R.string.sources_missing_origin, "https://old.example:443")
+        compose.onNodeWithText(message).assertIsDisplayed()
+        compose.onNodeWithText("Save permissions").assertIsDisplayed()
+        compose.onNodeWithText("Edit source").performScrollTo().performClick()
+        verify(exactly = 1) { model.beginEditor(id) }
+        verify(exactly = 0) { model.saveEditor() }
+    }
+
+    @Test @Config(qualifiers = "en-rUS-w320dp-h640dp")
+    fun editorKeepsSaveErrorsVisibleAndBackRequiresDiscardingAnUnsavedDraft() {
+        val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
+            "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
+        val installed = InstalledRuleSource(definition, emptyList(), null)
+        val draft = SourceEditorState(installed, "{", "", originalJson = "{}",
+            error = SourceSaveError(indi.renakoni.nextvol.R.string.sources_editor_invalid, "JSON"))
+        val state = SourceManagementState(installed = listOf(installed), selected = ImportedRuleSources.id(definition), editor = draft)
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onDiagnostics = {}) {} } }
+        compose.onNodeWithText("Save rules and permissions").assertIsDisplayed().performClick()
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.sources_editor_invalid, "JSON")).assertIsDisplayed()
+        verify(exactly = 1) { model.saveEditor() }
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Leave the editor without saving these rules and permissions?").assertIsDisplayed()
+        verify(exactly = 0) { model.closeEditor() }
+        compose.onAllNodesWithText("Discard changes").onLast().performClick()
+        verify(exactly = 1) { model.closeEditor() }
+    }
+
+    @Test @Config(qualifiers = "en-rUS-w320dp-h640dp")
     fun configurationControlsScrollAndClosingDoesNotAuthenticate() {
         val form = LoginForm((1..40).map { LoginField("Control $it", "button", action = "configure()") }, null)
         var submitted = false

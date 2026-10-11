@@ -34,6 +34,70 @@ import java.nio.file.Files
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class SourcesViewModelTest {
+    @Test fun permissionsAndEditorKeepDraftFailuresLocalAndOnlySaveExplicitChanges(): Unit = runBlocking {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        val root = Files.createTempDirectory("source-editor").toFile()
+        val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
+            override fun getFilesDir() = File(root, "files")
+            override fun getCacheDir() = File(root, "cache")
+        }
+        RuleSourceFixture().use { fixture ->
+            val registry = WebSourceRegistry(fixture.authority)
+            val accounts = SourceSessionManager(fixture.authority)
+            val sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
+            val model = SourcesViewModel(context, sources, SourceRevisionUpdates(context, sources, accounts, fixture.runner, fixture.authority),
+                SourceLoginService(sources, accounts), registry, ZLibrarySources(context, registry, hnovel.network.StorageCipher.Plain))
+            suspend fun idle() = withTimeout(10000) { model.state.first { !it.busy } }
+            try {
+                idle()
+                val raw = JsonObject(fixture.raw() + ("bookSourceUrl" to JsonPrimitive("https://old.example/")))
+                val reference = sources.importer.commit(sources.importer.preview(raw.toString()),
+                    listOf(ImportSelection(0, ImportDecision.Add))).items.single().reference!!
+                val id = sources.activate(reference, listOf(NetworkGrant("https://old.example:443")))
+                model.select(id); idle()
+                model.saveConfiguration(id, null, "https://new.example/")
+                val denied = idle()
+                assertNull(denied.message)
+                assertEquals(indi.renakoni.nextvol.R.string.sources_missing_origin, denied.configurationError?.message)
+                assertEquals("https://old.example:443", denied.configurationError?.detail)
+                model.saveConfiguration(id, null, "https://old.example/\ninvalid")
+                assertEquals("2", idle().configurationError?.detail)
+                model.saveConfiguration(id, null, "https://old.example/\nhttps://new.example/")
+                assertNull(idle().configurationError)
+                model.select(null); idle(); model.select(id)
+                assertEquals(2, idle().installed.single().origins.size)
+                model.beginEditor(id)
+                val original = idle().editor!!
+                assertFalse(original.dirty)
+                val snapshot = File(context.filesDir, "rule-sources/active.json").readBytes()
+                model.editDraft("{", original.permissions)
+                model.saveEditor()
+                val failed = idle().editor!!
+                assertEquals("{", failed.rawJson)
+                assertEquals(indi.renakoni.nextvol.R.string.sources_editor_invalid, failed.error?.message)
+                assertArrayEquals(snapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                model.editDraft(original.rawJson, original.permissions)
+                model.editDomains("old.example", "new.example")
+                model.previewDomain()
+                assertNotNull(idle().editor?.preview)
+                assertArrayEquals(snapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                model.applyDomainPreview()
+                assertEquals(original.permissions, model.state.value.editor!!.permissions)
+                assertTrue(model.state.value.editor!!.dirty)
+                model.saveEditor()
+                val saved = idle().editor!!
+                assertTrue(saved.saved)
+                assertFalse(saved.dirty)
+                assertNull(saved.error)
+                assertEquals(id, ImportedRuleSources.id(saved.installed.definition))
+                assertEquals("https://new.example/", Json.parseToJsonElement(saved.rawJson).jsonObject["bookSourceUrl"]?.jsonPrimitive?.content)
+                assertEquals(0, fixture.server.requestCount)
+                model.closeEditor()
+                assertNull(model.state.value.editor)
+            } finally { model.cancel(); sources.stop(); Dispatchers.resetMain(); root.deleteRecursively() }
+        }
+    }
+
     @Test fun bundledPixivKeepsAccountAndUpdateActionsWithSectionedSettingsAndFeedback(): Unit = runBlocking {
         val original = RuntimeEnvironment.getApplication().assets.open("source-catalog/Adult.json").bufferedReader().use {
             Json.parseToJsonElement(it.readText()).jsonArray.map { entry -> entry.jsonObject }

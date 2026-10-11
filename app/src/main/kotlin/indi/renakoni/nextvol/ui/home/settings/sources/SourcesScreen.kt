@@ -120,6 +120,7 @@ private fun SourceSettingsLifecycle(model: SourcesViewModel, entry: NavBackStack
 private data class SourcesPage(val state: SourceManagementState, val adding: Boolean, val category: SourceCategory?,
     val listState: LazyListState, val managingGroups: Boolean, val group: String?, val addingGroupSources: Boolean) {
     val key get() = when {
+        state.editor != null -> "editor:${state.selected}"
         state.preview != null -> "preview"
         state.selected != null -> "source:${state.selected}"
         managingGroups && addingGroupSources -> "group-add:$group"
@@ -129,6 +130,7 @@ private data class SourcesPage(val state: SourceManagementState, val adding: Boo
         else -> "list"
     }
     val depth get() = when {
+        state.editor != null -> 2
         state.preview != null -> 3
         state.selected != null -> 1
         managingGroups && addingGroupSources -> 3
@@ -175,6 +177,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
     val addStates = rememberSaveableStateHolder()
     var deleting by remember { mutableStateOf(false) }
     var rollback by remember { mutableStateOf(false) }
+    var discardEditor by remember { mutableStateOf(false) }
     val managementListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val listState = if (state.selected == null) managementListState
         else rememberSaveable(state.selected, saver = LazyListState.Saver) { LazyListState() }
@@ -222,6 +225,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         when {
             state.loginForm != null -> model.cancelLogin()
             state.busy -> model.cancel()
+            state.editor != null -> if (state.editor.dirty) discardEditor = true else model.closeEditor()
             state.preview != null -> model.dismissPreview()
             state.selected != null -> model.select(null)
             adding && category != null -> category = null
@@ -237,6 +241,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
     BackHandler { back() }
     Scaffold(topBar = {
         TopAppBar(title = { Text(when {
+            state.editor != null -> stringResource(R.string.sources_editor_title)
             state.preview != null -> stringResource(R.string.sources_preview)
             state.selected == ZLibrarySources.ID -> "Z-Library"
             installed != null -> state.catalog.find { it.key == installed.definition.importKey }?.name ?: installed.definition.displayName
@@ -295,7 +300,9 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         val state = page.state
         val installed = state.installed.find { ImportedRuleSources.id(it.definition) == state.selected }
         val selectedEntry = state.registry.find { it.metadata.id == state.selected }
-        if (state.preview != null) {
+        if (state.editor != null) {
+            SourceEditorScreen(state.editor, state.busy, model, Modifier.padding(padding))
+        } else if (state.preview != null) {
             SourceImportPreview(state, model, Modifier.padding(padding))
         } else if (page.adding && state.selected == null) {
             val selectedCategory = page.category
@@ -383,6 +390,9 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                         }
                         TextButton(onClick = { showDetails = !showDetails }) { Text(stringResource(R.string.sources_advanced)) }
                         if (showDetails) {
+                            OutlinedButton(onClick = { model.beginEditor(state.selected!!) }, enabled = !state.busy) {
+                                Text(stringResource(R.string.sources_editor_title))
+                            }
                             TextButton(onClick = { editVariable = !editVariable }, enabled = !state.busy && state.storedSettingsAvailable) {
                                 Text(stringResource(R.string.sources_edit_variable))
                             }
@@ -396,10 +406,12 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                                     SourcePermissionCandidate(request.origin, request.kind.name, permissions, state.busy) { permissions = it }
                                 }
                             }
-                            OutlinedTextField(permissions, { permissions = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.sources_permissions)) }, enabled = !state.busy)
-                            Button(onClick = { model.saveConfiguration(state.selected!!, configuration.takeIf { editVariable && state.storedSettingsAvailable }, permissions) }, enabled = !state.busy) {
-                                Text(stringResource(if (editVariable && state.storedSettingsAvailable) R.string.sources_save else R.string.sources_save_permissions))
-                            }
+                            SectionHeader(text = stringResource(R.string.sources_permissions_title))
+                            Text(stringResource(R.string.sources_permissions_edit_help), style = MaterialTheme.typography.bodySmall)
+                            SourcePermissionsField(permissions, state.busy) { permissions = it; model.clearConfigurationError() }
+                            SourceSaveActions(state.configurationError, state.busy,
+                                if (editVariable && state.storedSettingsAvailable) R.string.sources_save else R.string.sources_save_permissions,
+                                onSave = { model.saveConfiguration(state.selected!!, configuration.takeIf { editVariable && state.storedSettingsAvailable }, permissions) })
                             OutlinedButton(onClick = { model.checkUpdate(state.selected!!) }, enabled = !state.busy) { Text(stringResource(R.string.sources_check_update)) }
                             OutlinedButton(onClick = { onDiagnostics(state.selected!!) }, enabled = !state.busy && active) { Text(stringResource(R.string.sources_diagnostics)) }
                             Text(stringResource(R.string.sources_format, definition.format), style = MaterialTheme.typography.bodySmall)
@@ -520,6 +532,12 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
             }
         }
     } }
+    if (discardEditor) AlertDialog(onDismissRequest = { discardEditor = false },
+        title = { Text(stringResource(R.string.sources_editor_discard)) },
+        text = { Text(stringResource(R.string.sources_editor_discard_help)) },
+        confirmButton = { TextButton(onClick = { discardEditor = false; model.closeEditor() }) {
+            Text(stringResource(R.string.sources_editor_discard))
+        } }, dismissButton = { TextButton(onClick = { discardEditor = false }) { Text(stringResource(android.R.string.cancel)) } })
     if (groupingSources != null) {
         val members = groupingSources.orEmpty().map { Identifier("rules", it) }.toSet()
         SourceGroupsDialog(state.groups, state.installed, state.busy, state.message, state.groupRevision, groupingSources.orEmpty().toSet(),
