@@ -46,7 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
@@ -55,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -65,7 +66,6 @@ import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
 import indi.renakoni.nextvol.ui.book.reader.resolveReaderBodyLayout
 import indi.renakoni.nextvol.ui.book.reader.LocalReaderLayoutResult
@@ -320,7 +320,7 @@ fun ScrollContentTextComponent(
                 listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == prepared.content.id && it.contentType == true }
             }.filterNotNull().first()
             val sourceOffset = if (anchor != null) {
-                snapshotFlow { prepared.componentOffsets.containsKey(anchor.componentIndex) }.first { it }
+                snapshotFlow { prepared.isPositioned(anchor.componentIndex) }.first { it }
                 prepared.offsetFor(anchor)
             } else null
             if (uiState.lazyListState !== listState || !ownsRenderer() ||
@@ -451,10 +451,10 @@ fun ScrollContentTextComponent(
                 .height(with(density) {
                     screenHeight.toDp()
                 })
-                .offset(y = with(density) {
-                    ((uiState.lazyListState.layoutInfo.visibleItemsInfo.getOrNull(0)?.offset
-                        ?: 0) % screenHeight + screenHeight).toDp()
-                }),
+                .offset {
+                    IntOffset(0, (listState.layoutInfo.visibleItemsInfo.firstOrNull()?.offset
+                        ?: 0) % screenHeight + screenHeight)
+                },
             painter = rememberReaderBackgroundPainter(settingState),
             contentDescription = null,
             contentScale = ContentScale.Crop
@@ -465,10 +465,10 @@ fun ScrollContentTextComponent(
                 .height(with(density) {
                     screenHeight.toDp()
                 })
-                .offset(y = with(density) {
-                    ((uiState.lazyListState.layoutInfo.visibleItemsInfo.getOrNull(0)?.offset
-                        ?: 0) % screenHeight).toDp()
-                }),
+                .offset {
+                    IntOffset(0, (listState.layoutInfo.visibleItemsInfo.firstOrNull()?.offset
+                        ?: 0) % screenHeight)
+                },
             painter = rememberReaderBackgroundPainter(settingState),
             contentDescription = null,
             contentScale = ContentScale.Crop
@@ -649,16 +649,12 @@ private fun TextContent(
                 Spacer(Modifier.height(16.dp))
             }
         }
-        val components = content.content.withIndex().filterNot { (it.value as? SimpleTextComponent)?.data?.text?.isEmpty() == true }
-        val paragraphSpacing = LocalReaderTextLayout.current?.paragraphSpacingPx ?: 0
         val colors = LocalReaderStyle.current
-        components.forEachIndexed { index, (componentIndex, component) ->
-            if (component is SimpleTextComponent && components.getOrNull(index - 1)?.value is SimpleTextComponent) {
-                Spacer(Modifier.height(with(density) { paragraphSpacing.toDp() }))
-            }
-            val text = prepared.text[componentIndex]
-            Box(Modifier.onGloballyPositioned {
-                prepared.componentOffsets[componentIndex] = it.positionInParent().y.toInt()
+        prepared.blocks.forEach { block ->
+            val component = content.content[block.componentIndex]
+            val text = block.text
+            Box(Modifier.onPlaced {
+                block.top = it.positionInParent().y.toInt()
             }) {
                 CompositionLocalProvider(LocalReaderSpeechRanges provides speechRanges,
                     indi.renakoni.nextvol.ui.LocalReaderChapterId provides content.id) {

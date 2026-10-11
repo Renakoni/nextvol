@@ -35,23 +35,34 @@ internal object ReaderPerformanceFixture {
     fun preferences(context: Context) = context.getSharedPreferences("reader-performance", Context.MODE_PRIVATE)
     fun profile(context: Context) = preferences(context).getString("profile", "short")!!
     fun text(id: String, profile: String): String {
-        val count = if (profile == "long" || profile == "paragraph") 2_000 else 30
+        val count = when (profile) {
+            "long", "paragraph" -> 2_000
+            "components" -> 1_097
+            "components-short" -> 29
+            else -> 30
+        }
         val separator = if (profile == "paragraph") " " else "\n\n"
         return (0 until count).joinToString(separator) { index ->
             "R${id}_P${index.toString().padStart(4, '0')} 中文原文𠮷🙂 deterministic reader text preserves every source offset."
         }
     }
     fun content(context: Context, id: String): ChapterContent {
-        val builder = ContentBuilder().simpleText(text(id, profile(context)))
+        val builder = ContentBuilder()
+        textComponents(id, profile(context)).forEach { builder.simpleText(it) }
         if (profile(context) == "mixed") {
             builder.image(Uri.fromFile(File(context.filesDir, "reader-fixture.png")))
-                .simpleText("R${id}_AFTER_IMAGE 原文 after the deterministic local image.")
+                .simpleText(afterImageText(id))
         }
         return ChapterContent(id, "Reader chapter $id", builder.build(),
             if (id == "2") "1" else null, if (id == "1") "2" else null)
     }
+    fun textComponents(id: String, profile: String): List<String> =
+        if (profile.startsWith("components")) text(id, profile).split("\n\n") else listOf(text(id, profile))
+
+    fun afterImageText(id: String) = "R${id}_AFTER_IMAGE 原文 after the deterministic local image."
+
     suspend fun seed(context: Context, profile: String, cache: String) {
-        require(profile in setOf("short", "long", "paragraph", "mixed"))
+        require(profile in setOf("short", "long", "paragraph", "mixed", "components", "components-short"))
         require(cache in setOf("trusted", "legacy", "missing"))
         preferences(context).edit().putString("profile", profile).putString("cache", cache)
             .putInt("utf16PerChapter", text("1", profile).length).commit()
