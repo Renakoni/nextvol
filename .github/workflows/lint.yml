@@ -19,10 +19,17 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Select affected checks
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          check: lint
       - name: Prepare fixed Android environment
+        if: steps.scope.outputs.run == 'true'
         id: environment
         uses: ./.github/actions/android-environment
       - name: Check resource contracts
+        if: steps.scope.outputs.run == 'true'
         shell: bash
         run: |
           mkdir -p build/reports/lint
@@ -35,7 +42,7 @@ jobs:
           mkdir -p build/reports/lint
           ./gradlew --no-daemon :app:lintDebug :app:lintVitalRelease --continue --console=plain --stacktrace --max-workers=2 2>&1 | tee build/reports/lint/gradle.log
       - name: Upload Lint reports
-        if: always()
+        if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android-lint-reports

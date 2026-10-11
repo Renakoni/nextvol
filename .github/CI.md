@@ -9,15 +9,62 @@ Pull requests, merge groups, and manual runs use four independent workflows:
 | `release-checks.yml` (3/4) | `Release APK` and `Minified source runtime (API 35)` | `release-build-reports`, `minified-source-runtime` |
 | `lint.yml` (4/4) | `Android Lint` | `android-lint-reports` |
 
-The JVM check no longer waits for the release APK build. Device tests retain the
-API matrix, test classes, and diagnostic reports. The minified check still builds
-the benchmark variant and exercises the source runtime and read-aloud service.
+The JVM check does not wait for the release APK build. Selected device tests retain
+the API matrix and diagnostic reports. The minified check builds the benchmark
+variant when its source runtime or read-aloud coverage is affected.
 The workflows have separate concurrency groups so they cannot cancel each other.
 
 Require all six check names above in the `main` branch's status checks. In
 particular, `Release APK` must be required separately now that it is outside the
 JVM job. Keep strict up-to-date checking and the other branch protections enabled.
 YAML alone does not update repository protection settings.
+
+## Checks selected by change scope
+
+Each required job checks out the tested tree and runs the shared `ci-scope` action
+before preparing Java, Gradle, the SDK, or an emulator. The action uses
+[`ci_scope.py`](scripts/ci_scope.py) to select work. Jobs with no relevant work
+finish successfully with a selection summary; workflow-level path filters are
+not used, so all six required check names still report a result. A selector error
+fails its job. An unavailable base/diff conservatively selects full checks.
+
+| Changed scope | JVM tasks | Debug devices | Minified runtime | Lint / Release APK |
+| --- | --- | --- | --- | --- |
+| Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens | App UI tests, excluding reader and speech UI | Skip | Skip | Run |
+| Discovery and categories UI | Same UI tests | Skip | Source runtime smoke (uses categories/discovery) | Run |
+| Reader UI and reader tests | App UI tests plus content and mixed-source reader consumers, excluding speech UI | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
+| Speech implementation/UI/tests | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
+| Shared/unknown code, resources, source/EPUB modules, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
+| Only root Markdown or `.github/*.md` documentation | Skip | Skip | Skip | Skip |
+
+The exact allowlist is in the selector. In particular, `ui/components`, navigation,
+theme/settings and the data layer retain full checks. These are reviewed path
+boundaries, not automatic dependency analysis; update the selection when sharing
+code across them. Resource files and Markdown fixtures under source directories
+are not assumed to be documentation. Mixed changes take the union; any unknown
+path selects full checks. No existing test is deleted by this selection.
+
+PR and merge-group comparisons use the event's base SHA and the checked-out merge
+tree. A missing base is fetched shallowly by SHA. Git lists all changed paths
+without rename collapsing, preserving deletions and both sides of cross-scope
+moves; this avoids API file-list limits and downloading historical binary assets.
+Manual `workflow_dispatch` always runs the full coverage of the chosen workflow.
+Run all four workflows manually when a complete check of a ref is needed.
+
+For local task selection (default remains full), use the existing Gradle task:
+
+```sh
+./gradlew :app:testDebugUnitTest -PciTestScope=ui
+./gradlew :app:testDebugUnitTest -PciTestScope=reader
+./gradlew :app:testDebugUnitTest :source-speech:test -PciTestScope=reader,speech
+python3 .github/scripts/ci_scope.py --paths app/src/main/kotlin/indi/renakoni/nextvol/ui/home/reading/stats/StatsOverviewScreen.kt
+```
+
+The Gradle property filters test execution, not compilation: App and test sources
+still compile together. Release assembly and Lint remain necessary for production
+UI changes. Selection reduces unrelated work; it does not promise a fixed runtime.
+The JVM job always runs the lightweight selector regression tests, including
+documentation-only changes. Emulator/environment script checks run for full scope.
 
 ## Fixed tools and reusable caches
 
@@ -83,8 +130,11 @@ main refreshes them without introducing extra checks on every PR.
 
 JVM tests, Lint, and Release assembly do not start an emulator. Device tests cover
 real Binder/isolated processes, WebView, Android UI, and service behavior that a
-host JVM cannot fully validate. API 24 retains minimum-version coverage. The
-Minified API 35 check runs only `MinifiedSourceRuntimeTest` and
+host JVM cannot fully validate. API 24 retains minimum-version coverage. Full
+selection runs 17 normal-viewport classes on API 24 and 9 on API 35; both also run
+the two wide-viewport reader classes. `ci_scope.py` owns these class lists, and
+`connected-tests.sh` installs the prebuilt APKs only for selected nonempty suites.
+The Minified API 35 check runs only `MinifiedSourceRuntimeTest` and
 `ReadAloudSmokeTest` against a shrunk App; it does not repeat the Debug suite.
 Both `:app:assembleBenchmark` and `:benchmark:assembleBenchmark` are required:
 the former builds the shrunk App, the latter its instrumentation APK. The target
@@ -103,15 +153,15 @@ only API 24's unused preinstalled Google Messaging package, whose boot crash can
 leave a system error dialog over the tests. Remaining dialogs from these packages
 block test startup. It streams crash/system/event logcat to `runtime-events.txt`
 throughout testing and collects final diagnostics without replacing the test exit
-status. A missing
-JUnit/native report alone is not proof of an App crash: correlate these logs
-with instrumentation output and the job timeout/cancellation reason. Native
-environment reports remain required on API 35.
+status. A missing test report alone is not proof of an App crash: correlate these
+logs with instrumentation output and the job timeout/cancellation reason.
 
 ## Lint and translation coverage
 
 `Android Lint` runs the standard-library resource contract tests/checker and
-`:app:lintDebug` with the repository wrapper and JDK 22. No emulator is required.
+`:app:lintDebug` plus `:app:lintVitalRelease` with the repository wrapper and JDK 22.
+APK jobs exclude Vital Lint to avoid duplicating this work alongside R8; local
+assembly defaults are unchanged. No emulator is required.
 Lint still runs after a resource-check failure to collect its diagnostics. Bash
 pipefail preserves failures while tee records output; neither step allows errors
 to become a successful check. HTML/XML/text reports and logs upload with
@@ -142,7 +192,9 @@ the protection settings and retain the existing five checks and strict mode.
 
 ## Maintenance
 
-After workflow changes, run `actionlint`, the script regression tests, and the
-affected Gradle input/task resolution. Exercise both cache hits and misses,
-including failed downloads, interrupted boot, and preserved test failures. Generated
+After workflow changes, run `actionlint`, the affected script regression tests, and
+the affected Gradle input/task resolution. Selection changes must cover mixed
+scopes, shared/unknown paths, docs, renames/deletions, fallback to full checks, and
+preserved device failures. For cache or environment changes, exercise both cache
+hits and misses, failed downloads, and interrupted boot. Generated
 test reports belong in Actions artifacts or local build directories, not in Git.
