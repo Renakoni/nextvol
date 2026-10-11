@@ -11,6 +11,7 @@ import indi.renakoni.nextvol.ui.home.bookshelf.toBookshelfUiState
 import io.nightfish.lightnovelreader.api.bookshelf.BookshelfSortType
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.map
@@ -44,6 +45,7 @@ class BookshelfHomeViewModel @Inject constructor(
     val uiState: BookshelfHomeUiState = _uiState
     private val bookshelfOrderUserData = userDataRepository.intListUserData(UserDataPath.BookshelfOrder.path)
     private val bookshelfLayoutUserData = userDataRepository.stringUserData(UserDataPath.Settings.Display.BookshelfLayout.path)
+    private var loadJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -60,7 +62,9 @@ class BookshelfHomeViewModel @Inject constructor(
     }
 
     fun load() {
-        viewModelScope.launch(Dispatchers.IO) {
+        // The main-graph model survives tab changes and already observes shelf updates.
+        if (loadJob?.isActive == true) return
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
             val bookshelfIdsFlow = bookshelfRepository.getAllBookshelvesFlow()
             val savedOrderFlow = bookshelfOrderUserData.getFlowWithDefault(emptyList())
             combine(bookshelfIdsFlow, savedOrderFlow) { bookshelves, savedOrder ->
