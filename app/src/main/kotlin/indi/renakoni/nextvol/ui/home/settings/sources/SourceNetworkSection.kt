@@ -16,7 +16,7 @@ internal fun SourceNetworkSection(state: SourceNetworkState, busy: Boolean, onBy
     onRevokeCertificate: (String) -> Unit = {}) {
     val label = stringResource(R.string.sources_bypass_vpn)
     ListItem(headlineContent = { Text(label) },
-        supportingContent = { Text(stringResource(state.limitation ?: R.string.sources_bypass_vpn_help)) },
+        supportingContent = state.limitation?.let { limitation -> ({ Text(stringResource(limitation)) }) },
         trailingContent = {
             Switch(state.bypassVpn, onBypassVpn, enabled = !busy && (state.limitation == null || state.bypassVpn),
                 modifier = Modifier.semantics { contentDescription = label })

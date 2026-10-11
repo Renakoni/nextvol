@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sources_permissions_title">Сетевые разрешения</string>
+    <string name="sources_missing_origin">Текущим правилам нужен доступ к %1$s. Сохраните это разрешение или сначала измените правила в редакторе источника.</string>
+    <string name="sources_editor_title">Редактировать источник</string>
+    <string name="sources_editor_json">Правила источника (JSON)</string>
+    <string name="sources_editor_save">Сохранить</string>
+    <string name="sources_editor_invalid">Неверные правила: %1$s. Проверьте формат JSON и обязательные правила списка глав и текста.</string>
+    <string name="sources_editor_stale">Источник изменился во время редактирования. Скопируйте нужные изменения и откройте редактор заново.</string>
+    <string name="sources_editor_initialization_failed">Ошибка инициализации. Сохранённые правила и разрешения не изменены. Проверьте скрипты и разрешения сайтов.</string>
+    <string name="sources_editor_discard">Отменить изменения</string>
+    <string name="sources_editor_discard_help">Отменить несохранённые изменения?</string>
+    <string name="sources_editor_find_replace">Поиск и замена</string>
+    <string name="sources_editor_format">Форматировать JSON</string>
+    <string name="sources_editor_find">Найти</string>
+    <string name="sources_editor_replace_with">Заменить на</string>
+    <string name="sources_editor_next">Далее</string>
+    <string name="sources_editor_replace">Заменить</string>
+    <string name="sources_editor_replace_all">Заменить всё</string>
+    <string name="sources_editor_allow_sites">Разрешить доступ к новым сайтам?</string>
+    <string name="sources_editor_allow_save">Разрешить и сохранить</string>
+    <string name="sources_editor_tools">Инструменты редактора</string>
+    <string name="sources_editor_validate">Проверить JSON</string>
+    <string name="sources_editor_json_valid">Синтаксис JSON верен</string>
+    <string name="sources_editor_syntax_error">Ошибка синтаксиса JSON</string>
+    <string name="sources_editor_duplicate_field">Повторяющееся поле JSON</string>
+    <string name="sources_editor_object_required">Источник должен быть объектом JSON</string>
+    <string name="sources_editor_too_deep">Слишком глубокая вложенность JSON</string>
+    <string name="sources_editor_too_large">JSON слишком большой</string>
+    <string name="sources_editor_error_position">Строка %1$d, столбец %2$d</string>
+    <string name="sources_editor_close_find">Закрыть поиск</string>
+    <string name="sources_editor_show_replace">Показать замену</string>
+    <string name="sources_editor_hide_replace">Скрыть замену</string>
+    <string name="sources_editor_previous">Предыдущее</string>
+    <string name="sources_editor_no_matches">Нет совпадений</string>
+    <string name="sources_editor_match_count">Совпадений: %1$d</string>
+</resources>

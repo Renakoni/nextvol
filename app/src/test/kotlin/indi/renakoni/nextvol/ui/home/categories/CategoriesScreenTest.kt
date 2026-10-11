@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import com.github.michaelbull.result.get
 import hnovel.content.DiscoveryCatalogFixtures
 import hnovel.content.RuleSourceFixture
+import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.web.*
 import indi.renakoni.nextvol.data.web.rules.RuleDiscoveryProvider
 import indi.renakoni.nextvol.ui.home.discovery.*
@@ -130,7 +131,7 @@ class CategoriesScreenTest {
                 mapOf(id to DiscoveryPageContent(error = DiscoveryError.Limit, errorField = "exploreUrl"))),
                 {}, {}, { _, _ -> }, {}, {}, {}, {})
         } }
-        compose.onNodeWithText("The source exceeded a processing limit. Check source diagnostics or update the source.").assertExists()
+        compose.onNodeWithText(activity.get().getString(R.string.discovery_limit)).assertExists()
         compose.onNodeWithText("Source rule: exploreUrl").assertDoesNotExist()
         compose.onNodeWithText("Error details").performClick()
         compose.onNodeWithText("Source rule: exploreUrl").assertExists()

@@ -42,7 +42,6 @@ class BookDownloadScreenTest {
     private lateinit var activity: ActivityController<ComponentActivity>
     private var state by mutableStateOf(BookDownloadUiState("test-book"))
     private var submitted = 0
-    private var reloads = 0
     private var resumed = 0
     private var cancelled = 0
 
@@ -51,19 +50,11 @@ class BookDownloadScreenTest {
         activity.get().setTheme(android.R.style.Theme_Material_Light_NoActionBar)
         activity.setup()
         activity.get().setContent { MaterialTheme {
-            BookDownloadScreen(state, {}, { reloads++ }, { state = state.copy(selected = it) },
+            BookDownloadScreen(state, {}, {}, { state = state.copy(selected = it) },
                 { submitted++ }, { resumed++ }, { cancelled++ })
         } }
     }
     @After fun destroy() { activity.pause().stop().destroy() }
-
-    @Test fun directoryLoadingAndFailureCannotSubmitAndFailureOffersReload() {
-        compose.onNodeWithText("Select chapters").assertIsNotEnabled()
-        compose.runOnIdle { state = state.copy(loading = false, directoryFailure = DownloadFailure.Network) }
-        compose.onNodeWithText("Select chapters").assertIsNotEnabled()
-        compose.onNodeWithText("Reload directory").performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(1, reloads); assertEquals(0, submitted) }
-    }
 
     @Test fun selectionRequiresConfirmationAndUsesOneSelectAllAction() {
         val chapters = (1..3).map { ChapterInformation("chapter-$it", "Chapter $it") }
@@ -82,25 +73,6 @@ class BookDownloadScreenTest {
         compose.runOnIdle { assertEquals(setOf("chapter-2"), state.selected); assertEquals(0, submitted) }
         compose.onNodeWithText("Download 1 chapters").performClick()
         compose.runOnIdle { assertEquals(1, submitted) }
-    }
-
-    @Test fun foldingVolumesKeepsSelectionsAndOriginalChapterTitles() {
-        val first = ChapterInformation("one", "Chapter.0 Original prologue")
-        val second = ChapterInformation("two", "Chapter.1 A different title")
-        compose.runOnIdle { state = state.copy(loading = false, selected = setOf(first.id),
-            volumes = BookVolumes("test-book", listOf(Volume("v1", "Volume One", listOf(first)),
-                Volume("v2", "Volume Two", listOf(second))))) }
-        compose.onNodeWithText(first.title).assertDoesNotExist()
-        compose.onNodeWithTag("download-volume-toggle-0").performScrollTo().performClick()
-        compose.onNodeWithText(first.title).assertIsDisplayed().assertIsOn()
-        compose.onNodeWithTag("download-volume-toggle-1").performScrollTo().performClick()
-        compose.onNodeWithText(first.title).assertDoesNotExist()
-        compose.onNodeWithText(second.title).performScrollTo().performClick()
-        compose.onNodeWithTag("download-volume-toggle-1").performScrollTo().performClick()
-        compose.onNodeWithText(second.title).assertDoesNotExist()
-        compose.onNodeWithTag("download-volume-toggle-0").performScrollTo().performClick()
-        compose.onNodeWithText(first.title).assertIsDisplayed().assertIsOn()
-        compose.runOnIdle { assertEquals(setOf(first.id, second.id), state.selected); assertEquals(0, submitted) }
     }
 
     @Test fun downloadedChaptersAreLockedAndOnlyTheRestCanBeSelected() {

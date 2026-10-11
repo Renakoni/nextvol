@@ -209,14 +209,28 @@ internal class ScriptBudgetExceeded : Error()
 private class ScriptCancelled : Error()
 private class ScriptSyntaxError : Error()
 
-internal fun evaluateGlobal(context: Context, scope: Scriptable, code: String, name: String): Any? {
-    val compiled = try { context.compileString(code, name, 1, null) }
+/** Batch-local interpreted programs only; every execution still gets its own invocation bindings. */
+class ScriptCompilationCache {
+    internal val scripts = mutableMapOf<String, Script>()
+    private var chars = 0
+    internal fun put(code: String, script: Script) {
+        if (chars + code.length <= 256 * 1024) {
+            scripts[code] = script
+            chars += code.length
+        }
+    }
+}
+
+internal fun evaluateGlobal(context: Context, scope: Scriptable, code: String, name: String,
+    cache: ScriptCompilationCache? = null): Any? {
+    val compiled = cache?.scripts?.get(code) ?: try { context.compileString(code, name, 1, null).also { cache?.put(code, it) } }
         catch (_: EvaluatorException) { throw ScriptSyntaxError() }
     return compiled.exec(context, scope)
 }
 
 /** The instruction observer checks deadlines/cancellation; native work also retains the process deadline. */
-class RhinoScriptEngine(private val bridge: HostBridge, private val limits: ScriptLimits = ScriptLimits(), private val archives: ArchiveDecoder = ArchiveDecoder.Zip) {
+class RhinoScriptEngine(private val bridge: HostBridge, private val limits: ScriptLimits = ScriptLimits(), private val archives: ArchiveDecoder = ArchiveDecoder.Zip,
+    private val compilations: ScriptCompilationCache? = null) {
     fun evaluate(source: String, frame: ScriptFrame, library: ScriptLibrary? = null): ScriptResult =
         if (library == null) evaluateOwned(source, frame, null)
         else synchronized(library) { evaluateOwned(source, frame, library) }
@@ -325,7 +339,7 @@ class RhinoScriptEngine(private val bridge: HostBridge, private val limits: Scri
                 context.putThreadLocal(bridgeLimitKey, limits.maxBridgeChars)
                 scope.put("src", scope, rules.sourceValue(context))
                 ScriptBridge(bridge, rules, ScriptRequestTemplates(scope, frame), archives).install(context, scope, frame)
-                val value = try { evaluateGlobal(context, scope, source, "source-script") }
+                val value = try { evaluateGlobal(context, scope, source, "source-script", compilations) }
                     finally {
                         ruleContext.initializeMetadataVariables = null
                         ruleContext.readSpecialVariable = null

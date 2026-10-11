@@ -1,0 +1,283 @@
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import ci_scope
+
+
+ROOT = Path(__file__).resolve().parents[2]
+MAIN = ci_scope.KOTLIN_ROOTS[0]
+
+
+class ScopeTests(unittest.TestCase):
+    def select(self, *paths):
+        return ci_scope.plan(ci_scope.scopes_for_paths(paths))
+
+    def test_independent_layouts_skip_reader_devices_and_library_tasks(self):
+        for path in ('ui/home/bookshelf/home/BookshelfScreen.kt',
+                     'ui/home/reading/stats/StatsOverviewScreen.kt',
+                     'ui/home/explore/search/SearchHubScreen.kt'):
+            with self.subTest(path=path):
+                plan = self.select(MAIN + path)
+                self.assertEqual('ui', plan['scopes'])
+                self.assertEqual(':app:testDebugUnitTest -PciTestScope=ui', plan['gradle-args'])
+                for check in ('jvm', 'lint', 'release'):
+                    self.assertTrue(plan[check])
+                for check in ('device-24', 'device-35', 'minified'):
+                    self.assertFalse(plan[check])
+
+    def test_reader_keeps_both_api_reflow_suites_without_source_browser_tests(self):
+        plan = self.select(MAIN + 'ui/book/reader/ReaderScreen.kt')
+        self.assertEqual('reader', plan['scopes'])
+        self.assertTrue(plan['device-24'])
+        self.assertTrue(plan['device-35'])
+        self.assertFalse(plan['minified'])
+        for api in (24, 35):
+            main, wide = ci_scope.device_classes({'reader'}, api)
+            self.assertNotIn('NativeBrowser', main)
+            self.assertNotIn('IsolatedExecution', main)
+            self.assertIn('ReaderPositionInstrumentedTest', wide)
+            self.assertIn('ReaderSpreadInstrumentedTest', wide)
+        self.assertEqual('', ci_scope.device_classes({'reader'}, 35)[0])
+        self.assertIn('ReaderLayoutInstrumentedTest', ci_scope.device_classes({'reader'}, 24)[0])
+
+    def test_speech_includes_reader_and_only_speech_minified_smoke(self):
+        for path in ('tts/ReadAloudSession.kt', 'ui/tts/ReadAloudScreen.kt'):
+            plan = self.select(MAIN + path)
+            self.assertEqual('reader,speech', plan['scopes'])
+            self.assertIn(':source-speech:test', plan['gradle-args'])
+            self.assertEqual(ci_scope.MINIFIED_SPEECH, plan['minified-classes'])
+            self.assertIn('SystemSpeechInstrumentedTest',
+                          ci_scope.device_classes({'reader', 'speech'}, 24)[0])
+
+    def test_catalog_keeps_source_smoke_without_unrelated_device_suites(self):
+        for path in ('ui/home/discovery/DiscoveryComponents.kt',
+                     'ui/home/categories/CategoriesScreen.kt'):
+            plan = self.select(MAIN + path)
+            self.assertEqual('catalog,ui', plan['scopes'])
+            self.assertEqual(ci_scope.MINIFIED_SOURCE, plan['minified-classes'])
+            self.assertIn('-PciTestScope=ui', plan['gradle-args'])
+            self.assertFalse(plan['device-24'])
+            self.assertFalse(plan['device-35'])
+        plan = self.select(MAIN + 'ui/home/categories/CategoriesScreen.kt', MAIN + 'tts/ReadAloudSession.kt')
+        self.assertEqual(ci_scope.MINIFIED_SOURCE + ',' + ci_scope.MINIFIED_SPEECH, plan['minified-classes'])
+
+    def test_mixed_changes_union_scopes(self):
+        plan = self.select(MAIN + 'ui/home/bookshelf/home/BookshelfScreen.kt',
+                           MAIN + 'ui/book/reader/ReaderScreen.kt', 'README.md')
+        self.assertEqual('reader,ui', plan['scopes'])
+        self.assertIn('-PciTestScope=reader,ui', plan['gradle-args'])
+        self.assertTrue(plan['device-35'])
+
+    def test_shared_unknown_resources_and_build_changes_run_everything(self):
+        for path in (MAIN + 'ui/components/Cards.kt', MAIN + 'ui/navigation/Navigation.kt',
+                     MAIN + 'ui/home/settings/list/ReadingSettingsList.kt',
+                     MAIN + 'data/local/UserReadingDataRepository.kt',
+                     MAIN + 'ui/newfeature/NewScreen.kt',
+                     'app/src/main/res/values/strings.xml', 'app/src/main/AndroidManifest.xml',
+                     'app/src/test/resources/source-updates/README.md',
+                     'sources/content/src/main/kotlin/NewClass.kt', 'gradle/libs.versions.toml',
+                     'app/build.gradle.kts', '.github/scripts/ci_scope.py',
+                     '.github/workflows/device-tests.yml', '.github/actions/ci-scope/action.yml'):
+            with self.subTest(path=path):
+                plan = self.select(path, MAIN + 'ui/home/bookshelf/home/BookshelfScreen.kt')
+                self.assertEqual(ci_scope.plan({'full'}), plan)
+
+    def test_documentation_only_skips_android_work(self):
+        plan = self.select('README.md', 'AGENTS.md', '.github/CI.md')
+        self.assertEqual('docs', plan['scopes'])
+        self.assertEqual('', plan['gradle-args'])
+        for check in ('jvm', 'device-24', 'device-35', 'release', 'lint', 'minified'):
+            self.assertFalse(plan[check])
+
+    def test_test_changes_select_their_scope(self):
+        self.assertEqual('reader', self.select(
+            'app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/ReaderLayoutTest.kt')['scopes'])
+        self.assertEqual('reader', self.select(
+            'app/src/androidTest/kotlin/indi/renakoni/nextvol/reader/ReaderLayoutInstrumentedTest.kt')['scopes'])
+        self.assertEqual('reader,speech', self.select(
+            'app/src/androidTest/kotlin/indi/renakoni/nextvol/tts/SystemSpeechInstrumentedTest.kt')['scopes'])
+
+    def test_empty_diff_runs_full_checks(self):
+        self.assertEqual(ci_scope.plan({'full'}), self.select())
+
+    def test_cli_writes_action_outputs_and_skip_summary(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output, summary = Path(folder) / 'output', Path(folder) / 'summary'
+            env = dict(os.environ, GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(summary))
+            result = subprocess.run([sys.executable, str(ROOT / '.github/scripts/ci_scope.py'),
+                                     '--check', 'device-24', '--paths',
+                                     MAIN + 'ui/home/bookshelf/home/BookshelfScreen.kt'],
+                                    env=env, capture_output=True, text=True, timeout=15)
+            self.assertEqual(0, result.returncode, result.stderr)
+            values = dict(line.split('=', 1) for line in output.read_text().splitlines())
+            self.assertEqual('false', values['run'])
+            self.assertEqual('true', values['release'])
+            self.assertEqual('ui', values['scopes'])
+            self.assertIn('device-24 | False', summary.read_text())
+
+    def test_full_device_class_inventory_exists_and_keeps_current_coverage(self):
+        for api, count in ((24, 17), (35, 9)):
+            main, wide = ci_scope.device_classes({'full'}, api)
+            self.assertEqual(count, len(main.split(',')))
+            self.assertEqual(2, len(wide.split(',')))
+            classes = (main + ',' + wide).split(',')
+            self.assertEqual(len(classes), len(set(classes)))
+            for name in classes:
+                self.assertTrue((ROOT / 'app/src/androidTest/kotlin' /
+                                 (name.replace('.', '/') + '.kt')).is_file(), name)
+
+    def test_manual_missing_event_and_failed_diff_fall_back_to_full(self):
+        with tempfile.TemporaryDirectory() as folder:
+            event = Path(folder) / 'event.json'
+            event.write_text('{}', encoding='utf-8')
+            for name in ('workflow_dispatch', 'pull_request', 'merge_group'):
+                with patch.dict(os.environ, GITHUB_EVENT_PATH=str(event), GITHUB_EVENT_NAME=name):
+                    plan, reason = ci_scope.github_plan()
+                    self.assertEqual(ci_scope.plan({'full'}), plan)
+                    self.assertIn('Full checks:', reason)
+            with patch.dict(os.environ, GITHUB_EVENT_PATH=str(event), GITHUB_EVENT_NAME='pull_request'):
+                with patch.object(ci_scope, 'changed_paths', side_effect=subprocess.CalledProcessError(1, 'git')):
+                    self.assertEqual(ci_scope.plan({'full'}), ci_scope.github_plan()[0])
+
+    def test_failed_base_fetch_falls_back_to_full(self):
+        with tempfile.TemporaryDirectory() as folder:
+            event = Path(folder) / 'event.json'
+            event.write_text(json.dumps({'pull_request': {'base': {'sha': 'a' * 40}}}), encoding='utf-8')
+            with patch.dict(os.environ, GITHUB_EVENT_PATH=str(event), GITHUB_EVENT_NAME='pull_request'):
+                with patch.object(ci_scope.subprocess, 'run', side_effect=[
+                    subprocess.CompletedProcess([], 1), subprocess.TimeoutExpired('git fetch', 120)
+                ]):
+                    self.assertEqual(ci_scope.plan({'full'}), ci_scope.github_plan()[0])
+
+    def test_real_git_diff_keeps_deleted_renamed_and_more_than_300_paths(self):
+        with tempfile.TemporaryDirectory() as folder:
+            def git(*args):
+                return subprocess.check_output(['git', '-C', folder, *args], stderr=subprocess.DEVNULL).decode().strip()
+
+            git('init')
+            git('config', 'user.email', 'ci-test@example.invalid')
+            git('config', 'user.name', 'CI scope test')
+            root = Path(folder)
+            old = root / (MAIN + 'ui/book/reader/ReaderScreen.kt')
+            old.parent.mkdir(parents=True)
+            old.write_text('reader', encoding='utf-8')
+            (root / 'deleted.txt').touch()
+            git('add', '.')
+            git('commit', '-m', 'base')
+            base = git('rev-parse', 'HEAD')
+            new = root / (MAIN + 'ui/home/bookshelf/FormerReader.kt')
+            new.parent.mkdir(parents=True)
+            old.rename(new)
+            (root / 'deleted.txt').unlink()
+            for index in range(305):
+                (root / f'doc-{index}.md').touch()
+            git('add', '-A')
+            git('commit', '-m', 'move and delete')
+            previous = Path.cwd()
+            try:
+                os.chdir(folder)
+                for event_name, event in (
+                    ('pull_request', {'pull_request': {'base': {'sha': base}}}),
+                    ('merge_group', {'merge_group': {'base_sha': base}}),
+                ):
+                    paths = ci_scope.changed_paths(event_name, event)
+                    self.assertEqual(308, len(paths))
+                    self.assertIn(old.relative_to(root).as_posix(), paths)
+                    self.assertIn(new.relative_to(root).as_posix(), paths)
+                    self.assertIn('deleted.txt', paths)
+                    self.assertEqual({'full'}, ci_scope.scopes_for_paths(paths))
+                    self.assertEqual({'reader', 'ui'}, ci_scope.scopes_for_paths(
+                        [path for path in paths if path != 'deleted.txt']))
+                shallow = root / 'shallow'
+                subprocess.run(['git', 'clone', '--depth=1', root.as_uri(), str(shallow)],
+                               check=True, capture_output=True)
+                os.chdir(shallow)
+                self.assertNotEqual(0, subprocess.run(['git', 'cat-file', '-e', base],
+                                                     capture_output=True).returncode)
+                self.assertEqual(set(paths), set(ci_scope.changed_paths(
+                    'pull_request', {'pull_request': {'base': {'sha': base}}})))
+            finally:
+                os.chdir(previous)
+
+
+@unittest.skipIf(os.name == 'nt', 'Shell execution requires Linux, as used by CI')
+class ConnectedSelectionTests(unittest.TestCase):
+    def run_connected(self, api, scopes, failure=''):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            scripts = root / '.github/scripts'
+            scripts.mkdir(parents=True)
+            for name in ('connected-tests.sh', 'ci_scope.py'):
+                shutil.copyfile(ROOT / '.github/scripts' / name, scripts / name)
+            (scripts / 'run-prebuilt-tests.sh').write_text('''echo "$4" >> calls
+if [[ "$FAILURE" == narrow && "$3" != */reader ]]; then exit 23; fi
+if [[ "$FAILURE" == wide && "$3" == */reader ]]; then exit 24; fi
+''')
+            adb = root / 'adb'
+            adb.write_text('''#!/usr/bin/env bash
+echo "$*" >> adb-calls
+case "$*" in
+  'shell getprop ro.build.version.sdk') echo "$API" ;;
+  'shell wm size') echo 'Physical size: 2560x1440' ;;
+  'shell wm density') echo 'Physical density: 160' ;;
+esac
+''')
+            adb.chmod(0o755)
+            gradle = root / 'gradlew'
+            gradle.write_text('#!/usr/bin/env bash\necho "$*" >> calls\n')
+            gradle.chmod(0o755)
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
+                       API=str(api), CI_TEST_SCOPES=scopes, FAILURE=failure)
+            result = subprocess.run(['bash', str(scripts / 'connected-tests.sh')],
+                                    cwd=root, env=env, capture_output=True, text=True, timeout=15)
+            calls = (root / 'calls').read_text().splitlines() if (root / 'calls').exists() else []
+            return result, calls, (root / 'adb-calls').read_text()
+
+    def test_api35_reader_runs_only_wide_suite_and_restores_viewport(self):
+        result, calls, adb = self.run_connected(35, 'reader')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual([ci_scope.device_classes({'reader'}, 35)[1]], calls)
+        self.assertIn('shell wm size reset', adb)
+        self.assertIn('shell wm density reset', adb)
+
+    def test_api24_reader_runs_narrow_and_wide_suites(self):
+        result, calls, _ = self.run_connected(24, 'reader')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(list(ci_scope.device_classes({'reader'}, 24)), calls)
+
+    def test_full_retains_both_api_suites(self):
+        for api in (24, 35):
+            result, calls, _ = self.run_connected(api, 'full')
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(list(ci_scope.device_classes({'full'}, api)), calls)
+
+    def test_test_failures_propagate_and_wide_failure_restores_viewport(self):
+        result, calls, _ = self.run_connected(24, 'reader', 'narrow')
+        self.assertEqual(23, result.returncode)
+        self.assertEqual(1, len(calls))
+        result, _, adb = self.run_connected(35, 'reader', 'wide')
+        self.assertEqual(24, result.returncode)
+        self.assertIn('shell wm size reset', adb)
+
+    def test_empty_selection_cannot_accidentally_run_all_instrumentation(self):
+        result, calls, _ = self.run_connected(24, 'ui')
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual([], calls)
+
+    def test_other_device_apis_retain_the_local_gradle_entry(self):
+        result, calls, adb = self.run_connected(36, 'full')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(1, len(calls))
+        self.assertIn(':app:connectedDebugAndroidTest', calls[0])
+        self.assertNotIn('shell wm size', adb)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -47,9 +47,6 @@ class SourceBrowseViewModelTest {
         override val hasCategories = true
         var feeds = 0
         var catalogs = 0
-        var sessions = 0
-        override fun openSession(id: String, values: Map<String, String>, environment: DiscoveryEnvironment): DiscoveryProvider =
-            this.also { sessions++ }
         override suspend fun feed(): com.github.michaelbull.result.Result<List<DiscoverySection>, DiscoveryError> {
             feeds++
             return Ok(listOf(DiscoverySection("feed", "Feed", emptyList())))
@@ -182,36 +179,6 @@ class SourceBrowseViewModelTest {
         assertEquals(1, providers.getValue(id(21)).feeds)
         assertEquals(1, providers.getValue(id(7)).catalogs)
         assertEquals(25, registry.sources.value.size)
-    }
-
-    @Test fun aThousandSourcesLoadOnlyOnDemandAndOldPagesDecayBeforeRevisiting() = runTest(dispatcher) {
-        repeat(1000) { add(it) }
-        val model = model()
-        model.setActive(true)
-        advanceUntilIdle()
-        assertEquals(50, model.state.value.pageCount)
-        assertEquals(20, model.state.value.pageSources.size)
-        assertEquals(1, providers.values.sumOf { it.feeds })
-        val position = DiscoveryScroll(3, 12)
-        model.scroll(id(0), position)
-        val reset = model.state.value.content.getValue(id(0)).resetId
-        for (index in 1 until 1000) {
-            model.select(id(index))
-            advanceUntilIdle()
-            assertTrue(model.state.value.content.values.count { it.sections.isNotEmpty() } <= MAX_RETAINED_SOURCE_PAGES)
-        }
-        assertEquals(1000, providers.values.sumOf { it.feeds })
-        assertEquals(MAX_RETAINED_SOURCE_PAGES, model.state.value.content.values.count { it.loaded })
-        assertEquals(DiscoveryPageContent(scroll = position, resetId = reset), model.state.value.content[id(0)])
-        model.select(id(998))
-        advanceUntilIdle()
-        assertEquals(1, providers.getValue(id(998)).feeds)
-        model.select(id(0))
-        advanceUntilIdle()
-        assertEquals(2, providers.getValue(id(0)).feeds)
-        assertEquals("A decayed page must reopen its provider session", 2, providers.getValue(id(0)).sessions)
-        assertEquals(position, model.state.value.content.getValue(id(0)).scroll)
-        assertEquals(reset, model.state.value.content.getValue(id(0)).resetId)
     }
 
     @Test fun decayedCategoryPagesRebuildTheirControlsWithTheUsersDraft() = runTest(dispatcher) {

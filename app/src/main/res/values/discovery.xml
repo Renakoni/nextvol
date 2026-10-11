@@ -16,12 +16,12 @@
     <string name="discovery_unsupported">This source does not provide this browsing capability.</string>
     <string name="discovery_login_required">Sign in to this source in source management, then retry.</string>
     <string name="discovery_permission">This source needs network permission. Check its allowed sites in source management.</string>
-    <string name="discovery_invalid_rules">The source rules are incompatible. Check source diagnostics or update the source.</string>
-    <string name="discovery_limit">The source exceeded a processing limit. Check source diagnostics or update the source.</string>
+    <string name="discovery_invalid_rules">The source rules are incompatible. Update the source rules and try again.</string>
+    <string name="discovery_limit">The source exceeded a processing limit. Update the source rules and try again.</string>
     <string name="discovery_network">Could not load this source. Check the connection and retry.</string>
     <string name="discovery_http_denied">The site rejected the request (HTTP %1$d). Check your sign-in status and access permissions.</string>
     <string name="discovery_http_error">The site returned an error (HTTP %1$d). Retry later or check the site.</string>
     <string name="discovery_invalid_target">This category or filter is no longer available. Return to the category list.</string>
-    <string name="discovery_invalid_response">The source returned an invalid result. Retry or check source diagnostics.</string>
+    <string name="discovery_invalid_response">The source returned an invalid result. Retry or update the source rules.</string>
     <string name="discovery_unavailable">This source was removed, disabled or replaced. Return to the list or open source management.</string>
 </resources>

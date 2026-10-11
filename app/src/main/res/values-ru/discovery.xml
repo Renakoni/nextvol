@@ -16,12 +16,12 @@
     <string name="discovery_unsupported">Источник не поддерживает этот способ просмотра.</string>
     <string name="discovery_login_required">Войдите в аккаунт этого источника в управлении источниками и повторите попытку.</string>
     <string name="discovery_permission">Источнику нужно разрешение на доступ к сети. Проверьте разрешённые сайты в управлении источниками.</string>
-    <string name="discovery_invalid_rules">Правила источника несовместимы. Откройте диагностику или обновите источник.</string>
-    <string name="discovery_limit">Источник превысил лимит обработки. Откройте диагностику или обновите источник.</string>
+    <string name="discovery_invalid_rules">Правила источника несовместимы. Обновите правила источника и повторите попытку.</string>
+    <string name="discovery_limit">Источник превысил лимит обработки. Обновите правила источника и повторите попытку.</string>
     <string name="discovery_network">Не удалось загрузить источник. Проверьте соединение и повторите попытку.</string>
     <string name="discovery_http_denied">Сайт отклонил запрос (HTTP %1$d). Проверьте вход в аккаунт и права доступа.</string>
     <string name="discovery_http_error">Сайт вернул ошибку (HTTP %1$d). Повторите попытку позже или проверьте сайт.</string>
     <string name="discovery_invalid_target">Категория или фильтр больше недоступны. Вернитесь к списку категорий.</string>
-    <string name="discovery_invalid_response">Источник вернул некорректный результат. Повторите попытку или откройте диагностику источника.</string>
+    <string name="discovery_invalid_response">Источник вернул некорректный результат. Повторите попытку или обновите правила источника.</string>
     <string name="discovery_unavailable">Источник удалён, отключён или заменён. Вернитесь к списку или откройте управление источниками.</string>
 </resources>

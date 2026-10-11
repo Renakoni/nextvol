@@ -49,14 +49,10 @@
     <string name="sources_builtin">Встроенный источник</string>
     <string name="sources_available">Включён</string>
     <string name="sources_format">Формат: %1$s</string>
-    <string name="sources_revision">Редакция: %1$s</string>
     <string name="sources_configuration">Настройки источника</string>
     <string name="sources_permissions">Разрешённые адреса сайтов, по одному в строке</string>
     <string name="sources_permissions_help">Разрешайте только нужные источнику сайты. Укажите протокол и при необходимости порт. Запросы к другим сайтам и адресам локальной сети будут отклонены.</string>
-    <string name="sources_save">Сохранить настройки и разрешения</string>
     <string name="sources_check_update">Проверить обновления</string>
-    <string name="sources_rollback">Восстановить предыдущую редакцию</string>
-    <string name="sources_rollback_help">Проверить и восстановить предыдущую редакцию с показанными разрешениями сайтов. Идентификаторы книг и прогресса чтения сохраняются.</string>
     <string name="sources_delete">Удалить источник</string>
     <string name="sources_delete_help">Чтение онлайн из этого источника станет недоступно. Сохранённые книги, прогресс и доступное офлайн-содержимое останутся. Другие источники не затрагиваются.</string>
     <string name="sources_login">Войти</string>
@@ -96,4 +92,6 @@
     <string name="sources_invalid_permission_lines">Недопустимый адрес сайта, строки: %1$s</string>
     <string name="sources_pixiv_update_unsupported">Ошибка адаптации. Не обновлено</string>
     <string name="sources_pixiv_update_failed">Ошибка сети. Повторите попытку</string>
+    <string name="sources_save_variable">Сохранить переменную</string>
+    <string name="sources_variable_too_long">Переменная превышает 32 768 символов.</string>
 </resources>
