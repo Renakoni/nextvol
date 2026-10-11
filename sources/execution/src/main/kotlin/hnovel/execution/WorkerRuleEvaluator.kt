@@ -9,7 +9,8 @@ import kotlinx.serialization.json.*
 @Serializable data class ExecutedRule(val value: RuleValue, val writes: Map<String, String>,
     val bookWrites: Map<String, String?> = emptyMap(), val chapterWrites: Map<String, String?> = emptyMap(),
     val bookBigWrites: Map<String, String?> = emptyMap(), val chapterBigWrites: Map<String, String?> = emptyMap(),
-    val book: JsonObject? = null, val chapter: JsonObject? = null, val discovery: JsonObject? = null)
+    val book: JsonObject? = null, val chapter: JsonObject? = null, val discovery: JsonObject? = null,
+    val directoryRows: List<DirectoryRow> = emptyList())
 
 /** Selectors, regex and scripts all run inside the worker's hard process deadline. */
 internal object WorkerRuleEvaluator {

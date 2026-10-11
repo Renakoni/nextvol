@@ -569,7 +569,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         store.read(sourceLink(spec.baseUrl, bookId))?.book
     }
 
-    suspend fun information(bookId: String): RuleBook {
+    suspend fun information(bookId: String, inferUpdate: Boolean = true): RuleBook {
         val requestedAt = currentCoroutineContext()[SourceWorkRequest]?.startedAtNanos ?: System.nanoTime()
         return operation("ruleBookInfo", timeoutMillis = DIRECTORY_TIMEOUT_MILLIS) {
             val id = store.canonicalId(sourceLink(spec.baseUrl, bookId))
@@ -583,7 +583,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 old.book
             } else {
                 prefetchedDirectoryId = null
-                saveInformation(id, old, inferUpdate = true).book
+                saveInformation(id, old, inferUpdate = inferUpdate, reuseInformation = inferUpdate).book
             }
         }
     }
@@ -628,7 +628,13 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 if (prefetched || reused) {
                     if (reused) trace.record(ContentTraceEvent("cache", "ruleToc", 0, result = "QueuedRefreshReuse"))
                     book.chapters
-                } else directory(book).also {
+                } else directory(book).let { refreshed ->
+                    // Foreground details no longer infer updates by loading the catalogue inside
+                    // information(). Retain the observed change for later background checks.
+                    if (book.chapters.map { it.id } != refreshed.chapters.map { it.id })
+                        refreshed.copy(book = refreshed.book.copy(observedUpdate = System.currentTimeMillis()))
+                    else refreshed
+                }.also {
                     store.write(it)
                     completedDirectory = it.book.id to System.nanoTime()
                 }.chapters
@@ -860,6 +866,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         val queue = ArrayDeque<String>().apply { add(sourceLink(initial.book.id, tocUrl)) }
         val visited = linkedSetOf<String>()
         val chapters = mutableListOf<RuleChapter>()
+        val rowRules = ExecutionTask.DirectoryRows.FIELDS.associateWith(spec.toc::string)
         var completePageList = false
         var interrupted: SourceContentException? = null
         while (queue.isNotEmpty()) {
@@ -878,35 +885,19 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             if (!document.inline && document.url != url && !visited.add(document.url)) continue
             val items = context.value(rule.removePrefix("-").removePrefix("+"), document.input(), "ruleToc.chapterList", OutputKind.Elements).items()
             if (items.size + chapters.size > DIRECTORY_MAX_CHAPTERS) throw SourceContentException(ContentError.Limit, "ruleToc.chapterList")
-            for ((index, item) in items.withIndex()) {
-                val row = context.fork(chapterId = "pending:$index")
-                row.chapterField("baseUrl", JsonPrimitive(document.url))
-                row.chapterField("bookUrl", JsonPrimitive(initial.book.id))
-                val title = row.text(spec.toc.string("chapterName"), item, "ruleToc.chapterName")
-                if (title.isBlank()) continue
-                row.chapterField("title", JsonPrimitive(title))
-                val raw = row.text(spec.toc.string("chapterUrl"), item, "ruleToc.chapterUrl")
-                row.chapterField("url", JsonPrimitive(raw))
-                val time = row.text(spec.toc.string("updateTime"), item, "ruleToc.updateTime")
-                row.chapterField("updateTime", JsonPrimitive(time))
-                row.chapterField("tag", JsonPrimitive(time))
-                val volume = row.text(spec.toc.string("isVolume"), item, "ruleToc.isVolume").truth()
-                val id = if (volume && raw.isBlank()) "volume:" + digest("$url:$index:$title") else try {
-                    sourceLink(document.url, raw.ifBlank { url })
-                } catch (failure: SourceContentException) {
-                    if (failure.code != ContentError.InvalidRule) throw failure
-                    // Reading retains locked/placeholder links in the catalogue. Validate them
-                    // when requested so one non-HTTP link cannot discard all readable chapters.
-                    raw
+            var index = 0
+            while (index < items.size) {
+                // Keep both large JSON rows and ordinary HTML pages within one bounded wire envelope.
+                var end = index
+                var chars = 0
+                while (end < items.size && end - index < ExecutionTask.DirectoryRows.MAX_ROWS) {
+                    val size = items[end].toString().length
+                    if (end > index && chars + size > 256 * 1024) break
+                    chars += size
+                    end++
                 }
-                row.chapterId = id
-                row.chapterField("url", JsonPrimitive(raw.ifBlank { if (volume) title + index else url }))
-                row.chapterField("isVolume", JsonPrimitive(volume))
-                val vip = row.text(spec.toc.string("isVip"), item, "ruleToc.isVip").truth()
-                val pay = row.text(spec.toc.string("isPay"), item, "ruleToc.isPay").truth()
-                row.chapterField("isVip", JsonPrimitive(vip)); row.chapterField("isPay", JsonPrimitive(pay))
-                chapters += RuleChapter(id, title, volume, vip, pay, time, row.chapter)
-                context.book = row.book
+                chapters += context.directoryRows(items.subList(index, end), rowRules, document.url, url, index)
+                index = end
             }
             if (!completePageList) {
                 val next = links(context, spec.toc.string("nextTocUrl"), document, "ruleToc.nextTocUrl")
@@ -1173,4 +1164,3 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
 
 private fun PageDocument.input() = RuleValue.Text(body)
 private fun String.isScriptRule() = trimStart().let { it.startsWith("@js:", true) || it.startsWith("<js>", true) }
-private fun String.truth() = isNotBlank() && this != "null" && trim().lowercase() !in setOf("false", "no", "not", "0", "0.0")
