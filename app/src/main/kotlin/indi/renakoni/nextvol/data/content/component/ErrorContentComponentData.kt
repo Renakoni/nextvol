@@ -1,11 +1,7 @@
 package indi.renakoni.nextvol.data.content.component
 
 import android.content.Context
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderErrorContent
 import indi.renakoni.nextvol.utils.ofId
-import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponentData
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -13,22 +9,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import org.dom4j.DocumentHelper
 import org.dom4j.Element
-
-class ErrorContentComponent(data: ErrorContentComponentData) :
-    AbstractContentComponent<ErrorContentComponentData>(data) {
-    override val id = ErrorContentComponentData.id
-
-    @Composable
-    override fun Content(modifier: Modifier) {
-        ReaderErrorContent(data.message)
-    }
-
-    companion object {
-        fun of(message: String) = ErrorContentComponent(
-            ErrorContentComponentData(message)
-        )
-    }
-}
 
 @Serializable
 data class ErrorContentComponentData(

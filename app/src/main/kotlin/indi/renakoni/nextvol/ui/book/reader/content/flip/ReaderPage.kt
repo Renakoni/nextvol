@@ -3,7 +3,7 @@ package indi.renakoni.nextvol.ui.book.reader.content.flip
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Constraints
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderTextLayoutInput
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragments
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextSource

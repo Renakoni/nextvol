@@ -21,8 +21,8 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.book.SourceChapterId
 import indi.renakoni.nextvol.data.bookmark.ReadingBookmark
-import indi.renakoni.nextvol.data.content.component.ImageComponent
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ImageComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderBottomBar
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor

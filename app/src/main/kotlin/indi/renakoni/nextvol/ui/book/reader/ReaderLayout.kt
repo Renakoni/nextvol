@@ -16,7 +16,6 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
-import indi.renakoni.nextvol.utils.loadReaderFontFamilySafe
 import io.nightfish.lightnovelreader.api.ui.LocalTextLocaleList
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
 

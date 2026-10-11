@@ -29,7 +29,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import com.github.michaelbull.result.Ok
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.theme.AppTheme
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout

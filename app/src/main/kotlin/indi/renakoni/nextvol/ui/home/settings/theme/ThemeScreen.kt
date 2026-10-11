@@ -87,8 +87,8 @@ import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.utils.navigationBarSpacer
-import indi.renakoni.nextvol.utils.readerBackgroundColor
-import indi.renakoni.nextvol.utils.readerTextColor
+import indi.renakoni.nextvol.ui.book.reader.readerBackgroundColor
+import indi.renakoni.nextvol.ui.book.reader.readerTextColor
 import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
 import io.nightfish.lightnovelreader.api.ui.components.SettingsSwitchEntry
 import kotlinx.coroutines.Dispatchers

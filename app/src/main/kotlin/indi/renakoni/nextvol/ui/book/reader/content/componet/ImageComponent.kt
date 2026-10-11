@@ -1,8 +1,7 @@
-package indi.renakoni.nextvol.data.content.component
+package indi.renakoni.nextvol.ui.book.reader.content.componet
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderImageContent
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
 import io.nightfish.lightnovelreader.api.content.component.ImageComponentData
 

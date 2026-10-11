@@ -45,9 +45,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
-import indi.renakoni.nextvol.utils.readerTextColor
-import indi.renakoni.nextvol.utils.readerBackgroundColor
-import indi.renakoni.nextvol.utils.rememberReaderBackgroundPainter
 import io.nightfish.lightnovelreader.api.ui.components.SettingsSwitchEntry
 import io.nightfish.lightnovelreader.api.userdata.FloatUserData
 import kotlin.math.roundToInt
