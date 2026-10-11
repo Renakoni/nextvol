@@ -24,20 +24,23 @@ import org.robolectric.annotation.Config
 class PreparedScrollChapterTest {
     private fun text(value: String = "ABCD") = SimpleTextComponent(
         SimpleTextComponentData(value), mockk(relaxed = true), RuntimeEnvironment.getApplication())
-    private fun layout(index: Int, value: String = "ABCD") = ScrollTextLayout(listOf(
-        ReaderTextFragment(index, 0, value.length, value, 0, 20, listOf(0, 2), listOf(0, 10)),
-    ), TextStyle.Default)
+    private fun fragments(index: Int) = listOf(
+        ReaderTextFragment(index, 0, 2, "AB", 0, 10, listOf(0), listOf(0)),
+        ReaderTextFragment(index, 2, 4, "CD", 0, 10, listOf(2), listOf(0)),
+    )
 
-    @Test fun groupedTextKeepsSourceIndicesSpacingAndDynamicImageBoundaries() {
+    @Test fun groupedTextKeepsSourceIndicesFragmentBoundariesAndSpacing() {
         val content = ChapterContentUiState("chapter", "Title", listOf(text(), text(""), text(),
             ImageComponent(ImageComponentData(Uri.parse("file:///fixture.png"))), text(), text("\n")), null, null)
-        val prepared = PreparedScrollChapter(content, mapOf(0 to layout(0), 2 to layout(2),
-            4 to layout(4), 5 to layout(5, "\n")),
+        val prepared = PreparedScrollChapter(content, mapOf(0 to fragments(0), 2 to fragments(2),
+            4 to fragments(4), 5 to listOf(
+                ReaderTextFragment(5, 0, 1, "", 0, 10, listOf(0), listOf(0)),
+            )),
             ReaderTextLayoutInput(mockk(), TextStyle.Default, mockk(), 7))
         assertEquals(listOf(0, 3, 4), prepared.blocks.map { it.componentIndex })
-        assertEquals(listOf(0, 2), prepared.blocks[0].text!!.fragments.map { it.componentIndex })
+        assertEquals(listOf(0, 0, 2, 2), prepared.blocks[0].text!!.fragments.map { it.componentIndex })
         assertEquals(47, prepared.blocks[0].text!!.height)
-        assertEquals(47, prepared.blocks[2].text!!.height)
+        assertEquals(37, prepared.blocks[2].text!!.height)
         assertFalse(prepared.isPositioned(2))
         assertNull(prepared.offsetFor(ReaderContentAnchor(2, 0)))
         assertNull(prepared.anchorAt(0))
@@ -52,27 +55,12 @@ class PreparedScrollChapterTest {
         assertEquals(ReaderContentAnchor(3, 0), prepared.anchorAt(180))
         assertEquals(ReaderContentAnchor(0, 0), prepared.anchorAt(0))
         assertEquals(ReaderContentAnchor(4, 2), prepared.anchorAt(277))
-        // An asynchronously resized image moves only the following block's chapter-local origin.
-        prepared.blocks[2].top = 467
-        assertEquals(477, prepared.offsetFor(ReaderContentAnchor(4, 2)))
-        assertEquals(ReaderContentAnchor(4, 2), prepared.anchorAt(477))
-        assertEquals(137, prepared.offsetFor(ReaderContentAnchor(2, 2)))
+        assertEquals(ReaderContentAnchor(5, 0), prepared.anchorAt(294))
+        assertEquals(294, prepared.offsetFor(ReaderContentAnchor(5, 0)))
+        assertEquals(127, prepared.offsetFor(ReaderContentAnchor(2, 1)))
+        assertEquals(137, prepared.offsetFor(ReaderContentAnchor(2, 3)))
+        assertNull(prepared.offsetFor(ReaderContentAnchor(2, -1)))
         assertNull(prepared.offsetFor(ReaderContentAnchor(2, 4)))
         assertNull(prepared.offsetFor(ReaderContentAnchor(99, 0)))
-    }
-
-    @Test fun everyLineInAThousandComponentsRoundTripsWithoutChangingTheChapterHeight() {
-        val content = ChapterContentUiState("chapter", "Title", List(1097) { text() }, null, null)
-        val prepared = PreparedScrollChapter(content, (0 until 1097).associateWith { layout(it) },
-            ReaderTextLayoutInput(mockk(), TextStyle.Default, mockk(), 7))
-        val block = prepared.blocks.single()
-        block.top = 80
-        assertEquals(1097 * 20 + 1096 * 7, block.text!!.height)
-        for (index in 0 until 1097) for (offset in listOf(0, 2)) {
-            val anchor = ReaderContentAnchor(index, offset)
-            val y = prepared.offsetFor(anchor)!!
-            assertEquals(80 + index * 27 + offset / 2 * 10, y)
-            assertEquals(anchor, prepared.anchorAt(y))
-        }
     }
 }

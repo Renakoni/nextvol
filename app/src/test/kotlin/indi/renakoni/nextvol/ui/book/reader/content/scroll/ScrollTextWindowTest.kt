@@ -6,11 +6,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -41,6 +43,8 @@ import indi.renakoni.nextvol.tts.SpeechChapter
 import io.mockk.every
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
+import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
+import io.nightfish.lightnovelreader.api.content.component.ImageComponentData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -113,7 +117,7 @@ class ScrollTextWindowTest {
 
     @Test fun reflowKeepsSpeechVisibleWithoutChangingTheSourceAnchor() {
         speech = position(100)
-        mount(0f)
+        mount(0f, splitComponents = true)
         awaitBody()
         val oldHeight = state.lazyListState.layoutInfo.visibleItemsInfo.single { it.key == "chapter" }.size
         compose.runOnIdle { fontSize = 24f }
@@ -125,6 +129,11 @@ class ScrollTextWindowTest {
                 node.boundsInRoot.bottom <= 320 * activity.get().resources.displayMetrics.density
         }
         compose.onNodeWithText("PARAGRAPH_100", useUnmergedTree = true).assertIsDisplayed()
+        compose.runOnIdle { speech = position(180) }
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasText("PARAGRAPH_180"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("PARAGRAPH_180", useUnmergedTree = true).assertIsDisplayed()
         assertTrue(following)
         assertBoundedText()
     }
@@ -268,20 +277,36 @@ class ScrollTextWindowTest {
         assertBoundedText()
     }
 
-    @Test fun speechCanFollowAndReflowANonzeroSourceComponent() {
-        speech = position(100)
-        mount(0f, splitComponents = true)
-        awaitBody()
-        compose.onNodeWithText("PARAGRAPH_100", useUnmergedTree = true).assertIsDisplayed()
-        compose.runOnIdle { fontSize = 24f }
-        compose.waitForIdle()
-        compose.runOnIdle { speech = position(180) }
-        compose.waitUntil(10_000) {
-            compose.onAllNodes(hasText("PARAGRAPH_180"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+    @Test fun bookmarkAfterAResizedOpaqueComponentUsesItsNewPlacedOrigin() {
+        following = false
+        var componentHeight by mutableStateOf(80.dp)
+        val resizable = object : AbstractContentComponent<ImageComponentData>(
+            ImageComponentData(Uri.parse("file:///fixture.png"))) {
+            override val id = ImageComponentData.id
+            @Composable override fun Content(modifier: Modifier) {
+                Spacer(modifier.height(componentHeight))
+            }
         }
-        compose.onNodeWithText("PARAGRAPH_180", useUnmergedTree = true).assertIsDisplayed()
-        assertTrue(following)
-        assertBoundedText()
+        val components = chapterText.split('\n').map(::textComponent).toMutableList<AbstractContentComponent<*>>()
+        components.add(2, resizable)
+        mount(0.5f, sourceComponents = components)
+        awaitBody()
+        val saved = compose.runOnIdle { bookmarks.capture!!.invoke()!!.bookmark() }
+        assertTrue(saved.componentIndex > 2)
+        fun restore(): Int {
+            compose.runOnIdle { bookmarks.pending = saved }
+            compose.waitUntil(10_000) { compose.waitForIdle(); bookmarks.pending == null }
+            compose.onNodeWithText(saved.preview, useUnmergedTree = true).assertIsDisplayed()
+            val actual = compose.runOnIdle { bookmarks.capture!!.invoke()!!.bookmark() }
+            assertEquals(saved.componentIndex, actual.componentIndex)
+            assertEquals(saved.offset, actual.offset)
+            return state.lazyListState.firstVisibleItemScrollOffset
+        }
+        val before = restore()
+        compose.runOnIdle { componentHeight = 280.dp }
+        compose.waitForIdle()
+        assertEquals(200 * activity.get().resources.displayMetrics.density,
+            (restore() - before).toFloat(), 1f)
     }
 
     private fun assertBoundedText() {
@@ -322,11 +347,12 @@ class ScrollTextWindowTest {
         assertEquals(indi.renakoni.nextvol.R.string.reader_bookmarks_changed, bookmarks.notice)
     }
 
+    private fun textComponent(text: String) =
+        SimpleTextComponent(SimpleTextComponentData(text), mockk(relaxed = true), activity.get())
+
     private fun mount(progress: Float, text: String = chapterText, previousText: String? = null,
-        splitComponents: Boolean = false) {
-        val components = (if (splitComponents) text.split('\n') else listOf(text)).map {
-            SimpleTextComponent(SimpleTextComponentData(it), mockk(relaxed = true), activity.get())
-        }
+        splitComponents: Boolean = false, sourceComponents: List<AbstractContentComponent<*>>? = null) {
+        val components = sourceComponents ?: (if (splitComponents) text.split('\n') else listOf(text)).map(::textComponent)
         state.bookId = "book"
         state.readingChapterId = "chapter"
         state.readingProgress = progress

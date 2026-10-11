@@ -118,9 +118,16 @@ class ReaderJourneyBenchmark {
         report(after)
     }
 
-    @Test fun fontModeAndActivityRecreationReportOriginalAnchor() = measure {
+    @Test fun fontModeAndActivityRecreationReportOriginalAnchor() = measure(profile = "components") {
+        repeat(3) {
+            device.swipe(device.displayWidth / 2, device.displayHeight * 4 / 5,
+                device.displayWidth / 2, device.displayHeight / 3, 24)
+        }
+        assertFalse(device.hasObject(By.textContains("R1_P0000")))
         click("Bigger")
         readable("1", "font")
+        assertTrue("Font reflow must report the visible source component",
+            state().getString("anchor").split(':')[1].toInt() > 0)
         report(state())
         click("Mode")
         readable("1", "mode")

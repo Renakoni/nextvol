@@ -51,13 +51,15 @@ internal object ReaderPerformanceFixture {
         textComponents(id, profile(context)).forEach { builder.simpleText(it) }
         if (profile(context) == "mixed") {
             builder.image(Uri.fromFile(File(context.filesDir, "reader-fixture.png")))
-                .simpleText("R${id}_AFTER_IMAGE 原文 after the deterministic local image.")
+                .simpleText(afterImageText(id))
         }
         return ChapterContent(id, "Reader chapter $id", builder.build(),
             if (id == "2") "1" else null, if (id == "1") "2" else null)
     }
     fun textComponents(id: String, profile: String): List<String> =
         if (profile.startsWith("components")) text(id, profile).split("\n\n") else listOf(text(id, profile))
+
+    fun afterImageText(id: String) = "R${id}_AFTER_IMAGE 原文 after the deterministic local image."
 
     suspend fun seed(context: Context, profile: String, cache: String) {
         require(profile in setOf("short", "long", "paragraph", "mixed", "components", "components-short"))

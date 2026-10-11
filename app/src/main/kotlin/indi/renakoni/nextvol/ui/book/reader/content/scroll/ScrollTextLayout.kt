@@ -88,7 +88,7 @@ internal class ScrollContentBlock(val componentIndex: Int, val text: ScrollTextL
 
 internal class PreparedScrollChapter(
     val content: ChapterContentUiState,
-    text: Map<Int, ScrollTextLayout>,
+    text: Map<Int, List<ReaderTextFragment>>,
     val layout: ReaderTextLayoutInput? = null,
     val size: IntSize = IntSize.Zero,
 ) {
@@ -98,8 +98,7 @@ internal class PreparedScrollChapter(
         var cursor = 0
         while (cursor < components.size) {
             val first = components[cursor].index
-            val firstText = text[first]
-            if (firstText == null) {
+            if (text[first] == null) {
                 add(ScrollContentBlock(first, null))
                 cursor++
                 continue
@@ -107,14 +106,14 @@ internal class PreparedScrollChapter(
             val fragments = mutableListOf<ReaderTextFragment>()
             while (cursor < components.size) {
                 val next = text[components[cursor].index] ?: break
-                next.fragments.forEachIndexed { index, fragment ->
+                next.forEachIndexed { index, fragment ->
                     // Preserve the existing per-component line cuts and inter-component Spacer.
                     fragments += if (index == 0 && fragments.isNotEmpty())
                         fragment.copy(spacingBefore = layout?.paragraphSpacingPx ?: 0) else fragment
                 }
                 cursor++
             }
-            add(ScrollContentBlock(first, ScrollTextLayout(fragments, firstText.style)))
+            add(ScrollContentBlock(first, ScrollTextLayout(fragments, layout?.style ?: TextStyle.Default)))
         }
     }
     private val blockByComponent = IntArray(content.content.size) { -1 }.also { indices ->
@@ -178,7 +177,8 @@ internal fun rememberPreparedScrollChapter(
                     cancellation.ensureActive()
                     measurer.measure(paragraph, layout.style, constraints = Constraints(maxWidth = maxWidth))
                 }.flatten()
-                index to ScrollTextLayout(fragments, layout.style)
+                // Build cumulative offsets once per merged block, not once per source component.
+                index to fragments
             }.toMap()
             PreparedScrollChapter(content, text, layout, IntSize(width, viewportHeight))
         }
