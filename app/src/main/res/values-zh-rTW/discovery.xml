@@ -16,12 +16,12 @@
     <string name="discovery_unsupported">此書源不支援這項瀏覽功能。</string>
     <string name="discovery_login_required">請到書源管理登入此書源後重試。</string>
     <string name="discovery_permission">此書源需要網路權限。請到書源管理檢查允許的網站。</string>
-    <string name="discovery_invalid_rules">書源規則不相容。請查看書源診斷或更新書源。</string>
-    <string name="discovery_limit">書源超出處理限制。請查看書源診斷或更新書源。</string>
+    <string name="discovery_invalid_rules">書源規則不相容。請更新書源規則後重試。</string>
+    <string name="discovery_limit">書源超出處理限制。請更新書源規則後重試。</string>
     <string name="discovery_network">無法載入此書源。請檢查連線後重試。</string>
     <string name="discovery_http_denied">網站拒絕了請求（HTTP %1$d），請檢查登入狀態或帳號存取權限。</string>
     <string name="discovery_http_error">網站傳回錯誤（HTTP %1$d），請稍後重試或檢查網站狀態。</string>
     <string name="discovery_invalid_target">此分類或篩選項目已失效。請返回分類清單。</string>
-    <string name="discovery_invalid_response">書源傳回無效結果。請重試或查看書源診斷。</string>
+    <string name="discovery_invalid_response">書源傳回無效結果。請重試或更新書源規則。</string>
     <string name="discovery_unavailable">書源已移除、停用或替換。請返回清單或開啟書源管理。</string>
 </resources>

@@ -1,4 +1,3 @@
 <resources>
-    <string name="source_diagnostics_dependency">This source uses %1$s in %2$s, which profile %3$s cannot provide. Ask the source author to use supported script tools and broker requests, then check each stage again.</string>
-    <string name="sources_dependency_unavailable">This source requires an unsupported Java interface. Check source diagnostics and use adapted rules.</string>
+    <string name="sources_dependency_unavailable">This source requires an unsupported Java interface. Use adapted source rules.</string>
 </resources>

@@ -553,7 +553,6 @@
     <string name="sources_profile_extension">扩展阅读书源</string>
     <string name="sources_profile_help">按书源作者的说明选择。扩展模式支持动态登录表单和扩展控件。</string>
     <string name="sources_apply_field">执行字段动作</string>
-    <string name="source_diagnostics_login_form">检查登录表单</string>
     <string name="source_verification_download_paused">已停止：需要完成网站验证</string>
     <string name="source_verification_background_open">打开验证</string>
     <string name="source_verification_background">%1$s 需要验证，后台读取已停止。验证后请重新开始下载。</string>

@@ -49,14 +49,10 @@
     <string name="sources_available">Enabled</string>
     <string name="sources_unavailable">Unavailable · Review source settings</string>
     <string name="sources_format">Format: %1$s</string>
-    <string name="sources_revision">Revision: %1$s</string>
     <string name="sources_configuration">Source configuration</string>
     <string name="sources_permissions">Allowed site origins, one per line</string>
     <string name="sources_permissions_help">Only authorize sites this source needs. Include the scheme and optional port. Requests to other sites or private network addresses are denied.</string>
-    <string name="sources_save">Save configuration and permissions</string>
     <string name="sources_check_update">Check for update</string>
-    <string name="sources_rollback">Restore previous revision</string>
-    <string name="sources_rollback_help">Validate and restore the previous revision with the displayed site permissions. Your books and reading progress keep their identities.</string>
     <string name="sources_delete">Remove source</string>
     <string name="sources_delete_help">Remove this source from online reading. Saved books, progress and readable offline content remain; other sources are unaffected.</string>
     <string name="sources_login">Sign in</string>
@@ -96,4 +92,6 @@
     <string name="sources_invalid_permission_lines">Invalid site address on line(s): %1$s</string>
     <string name="sources_pixiv_update_unsupported">Adaptation failed. Not updated</string>
     <string name="sources_pixiv_update_failed">Network error. Please retry</string>
+    <string name="sources_save_variable">Save variable</string>
+    <string name="sources_variable_too_long">The variable exceeds 32,768 characters.</string>
 </resources>

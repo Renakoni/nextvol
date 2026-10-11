@@ -9,7 +9,7 @@ The selected entry, recursively sorted by object key and serialized as compact
 UTF-8 JSON, hashes to `7e2acfc99886fa084433dc67a3f7f050cedae94a7135ba8564664e3708a2faf9`.
 
 `pixiv-adapted-previous.json` is the previously shipped adaptation from commit
-`0cd73347`. It exercises real update and rollback boundaries without fabricating
+`0cd73347`. It exercises real update boundaries without fabricating
 content digests. Its canonical digest is
 `04651074a09090be288ece1fae4e67081143696e00473d98a19def8ad7884a6e`.
 

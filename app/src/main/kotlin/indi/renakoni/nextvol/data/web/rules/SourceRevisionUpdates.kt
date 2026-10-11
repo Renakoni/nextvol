@@ -21,8 +21,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 enum class RevisionError { NotInstalled, NoUpdateAddress, InvalidCandidate, IdentityChanged, ProfileChanged,
-    PermissionRequired, InitializationFailed, Stale, NoPreviousRevision, UpstreamNotAdapted, UpdateDownloadFailed }
-class RevisionException(val code: RevisionError) : Exception(code.name)
+    PermissionRequired, InitializationFailed, Stale, UpstreamNotAdapted, UpdateDownloadFailed }
+class RevisionException(val code: RevisionError, val requiredOrigin: String? = null) : Exception(code.name)
 data class RevisionCheck(val installed: SourceDefinition, val preview: ImportPreview, val unchanged: Boolean)
 
 /** Checks never execute source code. Apply validates in disposable storage before one durable activation. */
@@ -38,13 +38,18 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
 
     fun manages(definition: SourceDefinition): Boolean = pixiv.manages(definition)
 
+    fun canCheckUpdate(definition: SourceDefinition): Boolean = updateAddress(definition) != null
+
+    private fun updateAddress(definition: SourceDefinition): String? =
+        if (pixiv.manages(definition)) PixivUpdateAdapter.UPDATE_URL
+        else definition.origin.takeIf { it.kind == ImportOrigin.Kind.Url }?.location?.takeIf(String::isNotBlank)
+
     suspend fun check(source: Identifier, downloadGrant: NetworkGrant? = null,
         expected: DefinitionReference? = null): RevisionCheck = withContext(Dispatchers.IO) {
         val installed = installed(source).definition
         if (expected != null && installed.reference() != expected) throw RevisionException(RevisionError.Stale)
         val managed = pixiv.manages(installed)
-        val address = if (managed) PixivUpdateAdapter.UPDATE_URL else installed.origin.takeIf { it.kind == ImportOrigin.Kind.Url }?.location
-            ?: throw RevisionException(RevisionError.NoUpdateAddress)
+        val address = updateAddress(installed) ?: throw RevisionException(RevisionError.NoUpdateAddress)
         val downloaded = downloader.preview(sources.importer, address, installed.profile, downloadGrant)
         if (managed && downloaded.issues.any { it.code in setOf(ImportCode.DownloadFailed, ImportCode.ReadFailed) })
             throw RevisionException(RevisionError.UpdateDownloadFailed)
@@ -68,21 +73,25 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
         replace(before, next, approvedOrigins)
     }
 
-    /** Permissions apply to the installed snapshot, including after rollback or a rejected import. */
+    /** Permissions apply to the installed snapshot, including after a rejected import. */
     suspend fun updatePermissions(source: Identifier, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
         val before = installed(source)
         replace(before, before.definition, approvedOrigins)
     }
 
-    suspend fun rollback(source: Identifier, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
+    /** The installed snapshot is authoritative; local edits do not overwrite staged import candidates. */
+    suspend fun edit(source: Identifier, expected: InstalledRuleSource, text: String, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
         val before = installed(source)
-        val previous = before.previous ?: throw RevisionException(RevisionError.NoPreviousRevision)
-        replace(before, previous, approvedOrigins)
+        if (before.definition != expected.definition || before.origins != expected.origins) throw RevisionException(RevisionError.Stale)
+        val revision = maxOf(expected.definition.revision, sources.definitions.list().filter { it.sourceId == expected.definition.sourceId }
+            .maxOfOrNull { it.revision } ?: 0) + 1
+        val next = SourceDefinitionEdits.prepare(expected.definition, text, revision)
+        replace(before, next, approvedOrigins)
     }
 
     private suspend fun replace(before: InstalledRuleSource, next: SourceDefinition, grants: List<NetworkGrant>) {
         if (next.profile != before.definition.profile) throw RevisionException(RevisionError.ProfileChanged)
-        // Also guard direct update/rollback calls; a preview is not permission to restore removed code.
+        // Also guard direct update calls; a preview is not permission to restore removed code.
         if (pixiv.manages(before.definition) && next.contentDigest != before.definition.contentDigest && !pixiv.accepts(next))
             throw RevisionException(RevisionError.UpstreamNotAdapted)
         if (grants.size > 32) throw RevisionException(RevisionError.InvalidCandidate)
@@ -93,7 +102,7 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
         if (before.preferences.enabled && grants.isNotEmpty()) validate(next, grants)
         currentCoroutineContext().ensureActive()
         if (accounts.current(id).generation != generation) throw RevisionException(RevisionError.Stale)
-        sources.replaceRevision(before.definition, next, grants, generation)
+        sources.replaceRevision(before.definition, next, grants, generation, before.origins)
     }
 
     private suspend fun validate(definition: SourceDefinition, grants: List<NetworkGrant>) {
@@ -106,7 +115,8 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
                     val session = broker.open(SourceScope(namespace, definition.sourceId, definition.profile), grants)
                     val raw = Json.parseToJsonElement(definition.rawJson).jsonObject
                     val base = raw.getValue("bookSourceUrl").jsonPrimitive.content
-                    if (session.permissionFailure(base) != null) throw RevisionException(RevisionError.PermissionRequired)
+                    if (session.permissionFailure(base) != null)
+                        throw RevisionException(RevisionError.PermissionRequired, sourcePermissionOrigin(base))
                     // Adapter construction checks structure; initialization runs only in the real isolated runner.
                     RuleSource(definition, ticket, authority, session, runner).use {
                         // BookInfo may reuse the name already extracted by search/discovery.

@@ -542,7 +542,6 @@
     <string name="sources_profile_extension">擴展閱讀書源</string>
     <string name="sources_profile_help">按書源作者的說明選擇。擴展模式支援動態登入表單和擴展控制項。</string>
     <string name="sources_apply_field">執行欄位動作</string>
-    <string name="source_diagnostics_login_form">檢查登入表單</string>
     <string name="source_verification_code">圖片驗證碼</string>
     <string name="local_book_supported_formats">請選擇 EPUB 或 TXT 檔案。</string>
     <string name="local_book_file_too_large">支援匯入最大 16 MB 的 TXT 或 64 MB 的 EPUB 檔案。</string>

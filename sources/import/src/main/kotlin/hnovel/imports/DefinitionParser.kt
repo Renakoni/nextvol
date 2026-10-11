@@ -39,9 +39,17 @@ internal fun parseDefinitionJson(text: String, maxDepth: Int): JsonElement {
                 else -> throw ImportFailure(ImportCode.InvalidJson)
             }
         }
-        val result = read(0)
-        if (reader.peek() != JsonToken.END_DOCUMENT) throw ImportFailure(ImportCode.InvalidJson)
-        return result
+        try {
+            val result = read(0)
+            if (reader.peek() != JsonToken.END_DOCUMENT) throw ImportFailure(ImportCode.InvalidJson)
+            return result
+        } catch (failure: Exception) {
+            // Gson exposes its cursor in the reader description. Retain only numeric coordinates.
+            val location = Regex(" at line (\\d+) column (\\d+) path ").find(reader.toString())
+            throw ImportFailure((failure as? ImportFailure)?.code ?: ImportCode.InvalidJson,
+                (failure as? ImportFailure)?.field, location?.groupValues?.get(1)?.toIntOrNull(),
+                location?.groupValues?.get(2)?.toIntOrNull())
+        }
     }
 }
 

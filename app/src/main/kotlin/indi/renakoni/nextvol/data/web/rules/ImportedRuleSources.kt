@@ -23,6 +23,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
@@ -75,13 +77,17 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
 
     suspend fun restore() = withContext(Dispatchers.IO) { lock.withLock {
         if (restored) return@withLock
+        var removedRevisions = false
         val installed = try {
             committed.openRead().use {
                 check(it.channel.size() <= MAX_SNAPSHOT_BYTES) { "Installed source snapshot exceeds quota" }
                 val json = Json.parseToJsonElement(it.readBytes().toString(Charsets.UTF_8))
+                val rows = if (json is JsonArray) json else json.jsonObject.getValue("sources").jsonArray
+                removedRevisions = rows.any { "previous" in it.jsonObject }
+                val current = JsonArray(rows.map { row -> JsonObject(row.jsonObject - "previous") })
                 val snapshot = if (json is JsonArray) InstalledSnapshot(
-                    Json.decodeFromJsonElement(ListSerializer(InstalledSource.serializer()), json))
-                else Json.decodeFromJsonElement(InstalledSnapshot.serializer(), json)
+                    Json.decodeFromJsonElement(ListSerializer(InstalledSource.serializer()), current))
+                else Json.decodeFromJsonElement(InstalledSnapshot.serializer(), JsonObject(json.jsonObject + ("sources" to current)))
                 check(snapshot.groups.map { it.id }.distinct().size == snapshot.groups.size)
                 check(snapshot.groups.map { it.name.lowercase(java.util.Locale.ROOT) }.distinct().size == snapshot.groups.size)
                 check(snapshot.groups.all { it.id.isNotBlank() && SourceGroup.validName(it.name) && it.name == it.name.trim() })
@@ -102,7 +108,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
             val category = catalog.entry(entry.definition)?.category ?: preferences.category
             if (category == preferences.category) entry else entry.copy(preferences = preferences.copy(category = category))
         }
-        if (classified != installed) save(classified)
+        if (!restorationFailed && (classified != installed || removedRevisions)) save(classified)
         classified.forEach { entry -> active[id(entry.definition)] = restoreBinding(entry) }
         restored = true
     } }
@@ -129,7 +135,6 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
                 definitions.list().singleOrNull { it.reference() == reference } ?: return installed
             }
             installed.copy(definition = next.copy(origin = before.origin),
-                previous = SavedRevision(before, installed.origins),
                 bundledRepairs = installed.bundledRepairs + before.contentDigest)
         } catch (_: Exception) {
             android.util.Log.w("ImportedRuleSources", "Bundled source repair remains pending")
@@ -225,7 +230,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
     suspend fun installedSources(): List<InstalledRuleSource> = withContext(Dispatchers.IO) {
         restore()
         lock.withLock { active.values.map { InstalledRuleSource(it.installed.definition,
-            it.installed.origins, it.installed.previous?.definition, it.session?.deniedOrigins.orEmpty(), it.installed.preferences()) } }
+            it.installed.origins, it.session?.deniedOrigins.orEmpty(), it.installed.preferences()) } }
     }
 
     suspend fun sourceGroups(): List<SourceGroup> = withContext(Dispatchers.IO) {
@@ -293,16 +298,16 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
 
     /** Validated candidate is compared again at commit; remove/account changes cannot resurrect it. */
     internal suspend fun replaceRevision(expected: SourceDefinition, next: SourceDefinition, origins: List<NetworkGrant>,
-        generation: Long) = withContext(Dispatchers.IO) { lock.withLock {
+        generation: Long, expectedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) { lock.withLock {
         check(!restorationFailed)
         val id = id(expected)
         val old = checkNotNull(active[id]) { "Source is not installed" }
-        check(old.installed.definition == expected) { "Installed revision changed" }
+        if (old.installed.definition != expected || old.installed.origins != expectedOrigins)
+            throw RevisionException(RevisionError.Stale)
         require(next.sourceId == expected.sourceId && next.profile == expected.profile && origins.size <= 32)
         if (next != expected || origins != old.installed.origins) downloads?.revokeSourceTasks(id)
         val installed = InstalledSource(next, origins.map { it.copy(headers = it.headers.toMap()) },
-            if (next == expected) old.installed.previous else SavedRevision(expected, old.installed.origins), old.installed.preferences(),
-            old.installed.bundledRepairs)
+            old.installed.preferences(), old.installed.bundledRepairs)
         accounts.withCurrent(id) { account ->
             check(account.generation == generation) { "Account changed during validation" }
             replace(old, installed)
@@ -511,10 +516,9 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         active.clear()
     }
 
-    @Serializable private data class SavedRevision(val definition: SourceDefinition, val origins: List<NetworkGrant>)
     @Serializable private data class InstalledSnapshot(val sources: List<InstalledSource>, val groups: List<SourceGroup> = emptyList())
     @Serializable private data class InstalledSource(val definition: SourceDefinition, val origins: List<NetworkGrant>,
-        val previous: SavedRevision? = null, val preferences: SourcePreferences? = null,
+        val preferences: SourcePreferences? = null,
         val bundledRepairs: Set<String> = emptySet()) {
         fun preferences() = preferences ?: SourcePreferences(definition.enabled, definition.enabledExplore)
     }
@@ -526,7 +530,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
     }
 }
 
-data class InstalledRuleSource(val definition: SourceDefinition, val origins: List<NetworkGrant>, val previous: SourceDefinition?,
+data class InstalledRuleSource(val definition: SourceDefinition, val origins: List<NetworkGrant>,
     val deniedOrigins: List<hnovel.network.OriginDenial> = emptyList(),
     val preferences: SourcePreferences = SourcePreferences(definition.enabled, definition.enabledExplore)) {
     val hasDiscovery: Boolean = kotlinx.serialization.json.Json.parseToJsonElement(definition.rawJson)

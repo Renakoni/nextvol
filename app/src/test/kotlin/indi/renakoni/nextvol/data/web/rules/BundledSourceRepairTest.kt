@@ -106,7 +106,6 @@ class BundledSourceRepairTest {
                 val installed = sources.installedSources().single()
                 assertEquals(id, ImportedRuleSources.id(installed.definition))
                 assertEquals(repaired, Json.parseToJsonElement(installed.definition.rawJson))
-                assertEquals(before, installed.previous)
                 assertEquals(grants, installed.origins)
                 assertEquals(preferences, installed.preferences)
                 assertEquals(account.generation, accounts.current(id).generation)
@@ -142,7 +141,7 @@ class BundledSourceRepairTest {
         }
     }
 
-    @Test fun interruptedRepairResumesAndAnExplicitRollbackSurvivesRestart() = runBlocking {
+    @Test fun interruptedRepairResumesAndSurvivesRestart() = runBlocking {
         val host = Host()
         RuleSourceFixture().use { fixture ->
             val accounts = SourceSessionManager(fixture.authority)
@@ -150,7 +149,7 @@ class BundledSourceRepairTest {
             try {
                 val before = commit(sources, fixture.raw())
                 val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
-                val id = sources.activate(before.reference(), grants)
+                sources.activate(before.reference(), grants)
                 val raw = JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Repair")))
                 val repaired = commit(sources, raw) // Process stopped before writing active.json.
                 val catalog = catalog(before, raw)
@@ -158,14 +157,11 @@ class BundledSourceRepairTest {
                 sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner, catalog = catalog)
                 sources.restore()
                 assertEquals(repaired, sources.installedSources().single().definition)
-                assertEquals(before, sources.installedSources().single().previous)
                 assertEquals(repaired.revision, sources.definitions.list().single().revision)
-                SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority).rollback(id, grants)
                 sources.stop()
                 sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner, catalog = catalog)
                 sources.restore()
-                assertEquals(before, sources.installedSources().single().definition)
-                assertEquals(repaired, sources.installedSources().single().previous)
+                assertEquals(repaired, sources.installedSources().single().definition)
             } finally { sources.stop(); host.root.deleteRecursively() }
         }
     }

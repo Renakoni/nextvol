@@ -82,7 +82,8 @@ data class ImportLimits(val maxBytes: Int = 32 * 1024 * 1024, val maxEntries: In
     init { require(maxBytes > 0 && maxEntries > 0 && maxDepth in 1..128 && maxStoredBytes > 0 && maxStoredEntries > 0) }
 }
 
-internal class ImportFailure(val code: ImportCode, val field: String? = null) : RuntimeException(code.name)
+internal class ImportFailure(val code: ImportCode, val field: String? = null,
+    val line: Int? = null, val column: Int? = null) : RuntimeException(code.name)
 internal fun digest(text: String): String = MessageDigest.getInstance("SHA-256")
     .digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 

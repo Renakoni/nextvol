@@ -49,14 +49,10 @@
     <string name="sources_available">已启用</string>
     <string name="sources_unavailable">不可用 · 请检查书源设置</string>
     <string name="sources_format">格式：%1$s</string>
-    <string name="sources_revision">修订：%1$s</string>
     <string name="sources_configuration">书源配置</string>
     <string name="sources_permissions">允许的站点地址，每行一个</string>
     <string name="sources_permissions_help">只授权此书源需要的站点，填写协议和可选端口。其他站点和局域网地址的请求会被拒绝。</string>
-    <string name="sources_save">保存配置和权限</string>
     <string name="sources_check_update">检查更新</string>
-    <string name="sources_rollback">恢复上一修订</string>
-    <string name="sources_rollback_help">使用当前显示的站点权限验证并恢复上一修订。书籍及阅读进度的身份保持不变。</string>
     <string name="sources_delete">删除书源</string>
     <string name="sources_delete_help">此书源将无法继续在线阅读。已保存的书籍、进度和可读离线内容保留，其他书源不受影响。</string>
     <string name="sources_login">登录</string>
@@ -96,4 +92,6 @@
     <string name="sources_invalid_permission_lines">站点地址无效，所在行：%1$s</string>
     <string name="sources_pixiv_update_unsupported">适配失败，未更新</string>
     <string name="sources_pixiv_update_failed">网络错误，请重试</string>
+    <string name="sources_save_variable">保存变量</string>
+    <string name="sources_variable_too_long">变量不能超过 32,768 个字符。</string>
 </resources>

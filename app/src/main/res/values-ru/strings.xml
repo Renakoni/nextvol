@@ -537,7 +537,6 @@
     <string name="sources_profile_extension">Расширенный источник Legado</string>
     <string name="sources_profile_help">Следуйте инструкциям автора источника. Расширенный режим поддерживает формы входа со скриптами и дополнительные элементы управления.</string>
     <string name="sources_apply_field">Выполнить действие поля</string>
-    <string name="source_diagnostics_login_form">Проверить форму входа</string>
     <string name="source_verification_code">Код с картинки</string>
     <string name="local_book_supported_formats">Выберите файл EPUB или TXT.</string>
     <string name="local_book_file_too_large">Максимальный размер: 16 МБ для TXT и 64 МБ для EPUB.</string>

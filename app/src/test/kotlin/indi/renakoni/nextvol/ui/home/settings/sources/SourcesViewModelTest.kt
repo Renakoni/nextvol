@@ -34,6 +34,97 @@ import java.nio.file.Files
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class SourcesViewModelTest {
+    @Test fun permissionsAndEditorKeepDraftFailuresLocalAndOnlySaveExplicitChanges(): Unit = runBlocking {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        val root = Files.createTempDirectory("source-editor").toFile()
+        val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
+            override fun getFilesDir() = File(root, "files")
+            override fun getCacheDir() = File(root, "cache")
+        }
+        RuleSourceFixture().use { fixture ->
+            val registry = WebSourceRegistry(fixture.authority)
+            val accounts = SourceSessionManager(fixture.authority)
+            val sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
+            val model = SourcesViewModel(context, sources, SourceRevisionUpdates(context, sources, accounts, fixture.runner, fixture.authority),
+                SourceLoginService(sources, accounts), registry, ZLibrarySources(context, registry, hnovel.network.StorageCipher.Plain))
+            suspend fun idle() = withTimeout(10000) { model.state.first { !it.busy } }
+            try {
+                idle()
+                val raw = JsonObject(fixture.raw() + ("bookSourceUrl" to JsonPrimitive("https://old.example/")))
+                val reference = sources.importer.commit(sources.importer.preview(raw.toString()),
+                    listOf(ImportSelection(0, ImportDecision.Add))).items.single().reference!!
+                val id = sources.activate(reference, listOf(NetworkGrant("https://old.example:443")))
+                model.select(id); idle()
+                model.savePermissions(id, "https://new.example/")
+                val denied = idle()
+                assertNull(denied.message)
+                assertEquals(indi.renakoni.nextvol.R.string.sources_missing_origin, denied.configurationError?.message)
+                assertEquals("https://old.example:443", denied.configurationError?.detail)
+                model.savePermissions(id, "https://old.example/\ninvalid")
+                assertEquals("2", idle().configurationError?.detail)
+                model.savePermissions(id, "https://old.example/\nhttps://new.example/")
+                assertNull(idle().configurationError)
+                model.select(null); idle(); model.select(id)
+                assertEquals(2, idle().installed.single().origins.size)
+                model.beginEditor(id)
+                val original = idle().editor!!
+                assertFalse(original.dirty)
+                val snapshot = File(context.filesDir, "rule-sources/active.json").readBytes()
+                model.editDraft("{}")
+                model.validateEditor()
+                val validated = idle().editor!!
+                assertTrue(validated.jsonValid)
+                assertEquals("{}", validated.rawJson)
+                assertArrayEquals(snapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                model.editDraft("{\n  \"name\":\n}")
+                assertFalse(model.state.value.editor!!.jsonValid)
+                model.validateEditor()
+                assertEquals(3, idle().editor!!.error?.line)
+                model.editDraft("{")
+                model.saveEditor()
+                val failed = idle().editor!!
+                assertEquals("{", failed.rawJson)
+                assertEquals(indi.renakoni.nextvol.R.string.sources_editor_syntax_error, failed.error?.message)
+                assertArrayEquals(snapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                model.editDraft(original.rawJson)
+                model.editDraft(original.rawJson.replace("old.example", "new.example"))
+                assertArrayEquals(snapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                assertTrue(model.state.value.editor!!.dirty)
+                model.saveEditor()
+                val saved = idle().editor!!
+                assertTrue(saved.saved)
+                assertFalse(saved.dirty)
+                assertNull(saved.error)
+                assertEquals(id, ImportedRuleSources.id(saved.installed.definition))
+                assertEquals("https://new.example/", Json.parseToJsonElement(saved.rawJson).jsonObject["bookSourceUrl"]?.jsonPrimitive?.content)
+                assertEquals(0, fixture.server.requestCount)
+                val savedSnapshot = File(context.filesDir, "rule-sources/active.json").readBytes()
+                model.editDraft(saved.rawJson.replace("new.example", "third.example"))
+                model.saveEditor()
+                assertEquals(listOf("https://third.example:443"), idle().editor!!.pendingOrigins)
+                assertArrayEquals(savedSnapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                model.dismissEditorOrigins()
+                assertTrue(model.state.value.editor!!.pendingOrigins.isEmpty())
+                assertArrayEquals(savedSnapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                model.saveEditor(); idle()
+                model.editDraft(saved.rawJson)
+                model.approveEditorOrigins(); idle()
+                assertArrayEquals(savedSnapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                model.editDraft(saved.rawJson.replace("new.example", "third.example"))
+                model.formatEditor(); idle()
+                model.saveEditor(); idle()
+                model.approveEditorOrigins()
+                val approved = idle().editor!!
+                assertTrue(approved.saved)
+                assertEquals(saved.installed.origins + NetworkGrant("https://third.example:443"), approved.installed.origins)
+                assertTrue(approved.pendingOrigins.isEmpty())
+                assertEquals(0, fixture.server.requestCount)
+                model.closeEditor()
+                assertNull(model.state.value.editor)
+            } finally { model.cancel(); sources.stop(); Dispatchers.resetMain(); root.deleteRecursively() }
+        }
+    }
+
     @Test fun bundledPixivKeepsAccountAndUpdateActionsWithSectionedSettingsAndFeedback(): Unit = runBlocking {
         val original = RuntimeEnvironment.getApplication().assets.open("source-catalog/Adult.json").bufferedReader().use {
             Json.parseToJsonElement(it.readText()).jsonArray.map { entry -> entry.jsonObject }
@@ -231,7 +322,7 @@ class SourcesViewModelTest {
             setOf(SourceCapability.Search, SourceCapability.Login))) { source }
         val sources = mockk<ImportedRuleSources>()
         coEvery { sources.sourceGroups() } returns emptyList()
-        coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, listOf(NetworkGrant("https://fixture.invalid/")), null))
+        coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, listOf(NetworkGrant("https://fixture.invalid/"))))
         coEvery { sources.storedSettings(id, "account") } returns RuleStoredSettings("saved variable", "session", "reader")
         val login = mockk<SourceLoginService>(relaxed = true)
         val zLibrary = mockk<ZLibrarySources>()
@@ -295,22 +386,28 @@ class SourcesViewModelTest {
                 assertTrue(registry.sources.value.isEmpty())
                 model.setEnabled(id, true); idle()
                 assertTrue(registry.resolve(id) is SourceResolution.Missing)
-                model.saveConfiguration(id, null, "https://fixture.invalid/"); idle()
+                model.savePermissions(id, "https://fixture.invalid/"); idle()
                 assertTrue(registry.resolve(id) is SourceResolution.Ready)
-                model.saveConfiguration(id, "keep this", "https://fixture.invalid/")
+                model.savePermissions(id, "invalid"); idle()
+                assertNotNull(idle().configurationError)
+                model.saveVariable(id, "keep this")
+                idle()
+                assertEquals("keep this", sources.storedSettings(id).variable)
+                assertEquals(listOf("https://fixture.invalid:443"), sources.installedSources().single().origins.map { it.origin })
                 assertEquals("keep this", idle().variable)
                 model.setEnabled(id, false)
                 assertEquals("keep this", idle().variable)
-                model.saveConfiguration(id, "edited while disabled", "https://fixture.invalid/")
+                model.saveVariable(id, "edited while disabled")
                 assertEquals("edited while disabled", idle().variable)
-                model.saveConfiguration(id, null, ""); idle()
-                model.saveConfiguration(id, null, "https://fixture.invalid/"); idle()
+                model.savePermissions(id, ""); idle()
+                model.savePermissions(id, "https://fixture.invalid/"); idle()
                 assertTrue(registry.resolve(id) is SourceResolution.Missing)
                 model.setEnabled(id, true)
                 assertEquals("edited while disabled", idle().variable)
-                model.saveConfiguration(id, "saved before revocation", ""); idle()
+                model.saveVariable(id, "saved before revocation"); idle()
+                model.savePermissions(id, ""); idle()
                 assertTrue(registry.resolve(id) is SourceResolution.Missing)
-                model.saveConfiguration(id, null, "https://fixture.invalid/")
+                model.savePermissions(id, "https://fixture.invalid/")
                 assertEquals("saved before revocation", idle().variable)
                 assertEquals(0, fixture.server.requestCount)
             } finally { model.cancel(); sources.stop(); Dispatchers.resetMain(); root.deleteRecursively() }
@@ -435,7 +532,7 @@ class SourcesViewModelTest {
         }
     }
 
-    @Test fun previewApprovalUpdateRollbackAndRemovalUseProductionServices(): Unit = runBlocking {
+    @Test fun previewApprovalUpdateAndRemovalUseProductionServices(): Unit = runBlocking {
         Dispatchers.setMain(Dispatchers.Unconfined)
         val root = Files.createTempDirectory("source-management").toFile()
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
@@ -467,13 +564,10 @@ class SourcesViewModelTest {
                 val updated = idle().installed.single()
                 assertEquals(id, ImportedRuleSources.id(updated.definition))
                 assertEquals("New name", updated.definition.displayName)
-                model.rollback(id, permissions.getValue(0))
-                assertEquals(first.definition.contentDigest, idle().installed.single().definition.contentDigest)
-                model.saveConfiguration(id, "saved after rollback", permissions.getValue(0))
+                model.saveVariable(id, "saved after update")
                 assertEquals(indi.renakoni.nextvol.R.string.sources_saved, idle().message)
-                assertEquals(updated.definition.contentDigest, idle().installed.single().previous!!.contentDigest)
                 model.select(id)
-                assertEquals("saved after rollback", idle().variable)
+                assertEquals("saved after update", idle().variable)
                 model.checkUpdate(id)
                 assertEquals(indi.renakoni.nextvol.R.string.sources_no_update_url, idle().message)
                 model.remove(id)
@@ -496,7 +590,7 @@ class SourcesViewModelTest {
                 assertNull(partial.preview)
                 assertTrue(partial.installed.any { it.definition.displayName == "Batch success" })
                 assertEquals(second.definition, partial.installed.single { ImportedRuleSources.id(it.definition) == secondId }.definition)
-                model.saveConfiguration(secondId, "kept after rejected candidate", batchPermissions.getValue(1))
+                model.saveVariable(secondId, "kept after rejected candidate")
                 assertEquals(indi.renakoni.nextvol.R.string.sources_saved, idle().message)
             } finally { model.cancel(); sources.stop(); root.deleteRecursively(); Dispatchers.resetMain() }
         }
