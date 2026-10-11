@@ -15,7 +15,7 @@ import io.nightfish.lightnovelreader.api.ui.LocalNavController
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class BookDownloadRoute(val bookId: String, val refresh: Boolean = false)
+data class BookDownloadRoute(val bookId: String)
 
 fun NavGraphBuilder.bookDownload() {
     composable<BookDownloadRoute> {
@@ -32,6 +32,6 @@ fun NavGraphBuilder.bookDownload() {
     }
 }
 
-fun NavController.navigateToBookDownload(bookId: String, refresh: Boolean = false) {
-    if (isResumed()) navigate(BookDownloadRoute(BookIdentity.bookKey(bookId), refresh))
+fun NavController.navigateToBookDownload(bookId: String) {
+    if (isResumed()) navigate(BookDownloadRoute(BookIdentity.bookKey(bookId)))
 }

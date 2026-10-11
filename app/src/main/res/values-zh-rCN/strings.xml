@@ -606,4 +606,7 @@
     <string name="reader_page_layout_short">当前单页：窗口高度不足。</string>
     <string name="reader_page_layout_large_text">当前单页：字号过大，双页正文空间不足。</string>
     <string name="reader_page_layout_unsupported">当前单页：本章包含暂不支持双页的内容。</string>
+    <string name="external_file_busy">请先完成或取消当前导入，再打开其他文件。</string>
+    <string name="external_file_unsupported">不支持此文件类型，请选择 EPUB、TXT、.nvbackup 或 .lnr 文件。</string>
+    <string name="external_file_unreadable">无法读取此文件。请先下载文件，再从发送应用重新打开。</string>
 </resources>

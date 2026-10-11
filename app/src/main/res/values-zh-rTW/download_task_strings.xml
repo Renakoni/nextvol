@@ -6,7 +6,6 @@
     <string name="download_task_retry_time">第 %1$d 次重試：不早於 %2$s</string>
     <string name="download_error_rate_limited">書源暫時限制請求或無法使用</string>
     <string name="download_error_retry_exhausted">自動重試已停止，請稍後再試</string>
-    <string name="download_stage_unknown">未記錄執行階段</string>
     <string name="download_task_unknown">下載工作 %1$s</string>
     <string name="download_task_unfinished">未完成的下載</string>
     <string name="download_task_remove">取消並移除工作（保留已下載內容）</string>
@@ -14,13 +13,6 @@
     <string name="download_task_interrupted">已中斷，可繼續</string>
     <string name="download_task_cancelled">已取消</string>
     <string name="download_task_content">離線章節：%1$d/%2$d</string>
-    <string name="download_task_chapter">第 %1$d 章</string>
-    <string name="download_stage_details">書籍詳情</string>
-    <string name="download_stage_directory">目錄</string>
-    <string name="download_stage_body">章節正文</string>
-    <string name="download_stage_image">章節圖片</string>
-    <string name="download_stage_cover">封面</string>
-    <string name="download_stage_storage">本機儲存</string>
     <string name="download_error_network">網路無法使用或請求逾時</string>
     <string name="download_error_authentication">請登入書源後重試</string>
     <string name="download_error_verification">請完成書源驗證後重試</string>
@@ -33,7 +25,4 @@
     <string name="download_notification_cancel">取消下載</string>
     <string name="download_error_system_restricted">系統限制背景執行，請開啟應用程式後繼續</string>
     <string name="download_error_system_interrupted">上次執行已中斷</string>
-    <string name="download_body_coverage">正文已儲存 %1$d/%2$d 章</string>
-    <string name="download_missing_images">缺少 %1$d 張圖片</string>
-    <string name="download_missing_cover">封面未下載</string>
 </resources>

@@ -4,14 +4,14 @@
     <string name="search_source_count">%1$d 个可搜索书源</string>
     <string name="search_delete_history_entry">删除搜索记录：%1$s</string>
     <string name="search_start_title">寻找下一本想读的书</string>
-    <string name="search_start_description">搜索已启用的书源，也可以选择分组缩小范围。</string>
+    <string name="search_start_description">搜索当前范围，也可以切换书源或分组。</string>
     <string name="search_book_count">找到 %1$d 本书</string>
     <string name="search_progress">已搜索 %1$d / %2$d 个书源</string>
     <string name="search_stopped">搜索已暂停</string>
     <string name="search_stop">暂停搜索</string>
     <string name="search_resume">继续搜索</string>
     <string name="search_failure_count">%1$d 个未完成</string>
-    <string name="search_empty_description">试试其他关键词，或切换书源分组。</string>
+    <string name="search_empty_description">试试其他关键词，或切换搜索范围。</string>
     <string name="search_incomplete_title">部分书源未完成搜索</string>
     <string name="search_incomplete_description">暂未找到书籍。可以查看未完成的书源并重试。</string>
     <string name="search_result_limit">最多展示 1000 本书，请使用更具体的关键词或书源分组缩小范围。</string>
@@ -19,6 +19,15 @@
     <string name="search_retry_failed">重试未完成的书源</string>
     <string name="search_book_unavailable">书籍信息暂不可用</string>
     <string name="search_book_loading">正在加载书籍信息…</string>
-    <string name="search_no_sources">此分组暂无可搜索书源</string>
-    <string name="search_no_sources_description">请选择其他分组，或前往书源管理启用书源。</string>
+    <string name="search_no_sources">当前范围暂无可搜索书源</string>
+    <string name="search_no_sources_description">请选择其他范围，或前往书源管理启用书源。</string>
+    <string name="search_scope_title">搜索范围</string>
+    <string name="search_change_scope">切换搜索范围：%1$s</string>
+    <string name="search_selected_source">当前选择</string>
+    <string name="search_find_source">书源名称</string>
+    <string name="search_single_source">单个书源</string>
+    <string name="search_source_matches">匹配到 %1$d 个书源</string>
+    <string name="search_source_not_found">没有找到匹配的书源，试试其他名称。</string>
+    <string name="search_source_empty">%1$s 中未找到相关书籍</string>
+    <string name="search_expand_all">在全部书源中搜索</string>
 </resources>

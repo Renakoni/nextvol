@@ -73,7 +73,7 @@ class MetadataDetailScreenTest {
         activity.get().setContent {
             CompositionLocalProvider(LocalNavController provides NavHostController(activity.get()),
                 LocalSnackbarHost provides SnackbarHostState(), LocalClaimSnackbarHost provides {}) {
-                MaterialTheme { DetailScreen(state, {}, {}, chapter, {}, { id, _ -> cache(id) }, bookmark, {}, {}, {}, retry) }
+                MaterialTheme { DetailScreen(state, {}, {}, chapter, {}, cache, bookmark, {}, {}, {}, retry) }
             }
         }
     }
@@ -203,7 +203,7 @@ class MetadataDetailScreenTest {
         compose.onNodeWithText("Chapter two").assertIsDisplayed()
     }
 
-    @Test fun completedDownloadsCanUpdateAndFailuresCanRetryWithoutNegativeProgress() {
+    @Test fun downloadButtonShowsOnlyItsStatusAndOpensTheDownloadPageWithoutNegativeProgress() {
         val key = SourceBookId(io.nightfish.lightnovelreader.api.identifier.Identifier("fixture", "a"), "book").storageKey
         val state = MutableDetailUiState().apply {
             bookInformation = Ok(BookInformation(key, "Book", author = "Author", description = "",
@@ -213,9 +213,9 @@ class MetadataDetailScreenTest {
         }
         var requests = 0
         show(state, cache = { assertEquals(key, it); requests++ })
-        val update = activity.get().getString(R.string.book_download_check_updates)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(update))
-        compose.onNodeWithText(update).assertIsEnabled().performClick()
+        val downloaded = activity.get().getString(R.string.cached)
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(downloaded))
+        compose.onNodeWithText(downloaded).assertIsEnabled().performClick()
         assertEquals(1, requests)
         compose.runOnIdle {
             state.downloadState = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Updating, 1, 3))
@@ -227,14 +227,14 @@ class MetadataDetailScreenTest {
             state.downloadState = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Failed, 1, 3))
             (state.downloadItem as MutableDownloadItem).progress = -1f
         }
-        compose.onNodeWithText(activity.get().getString(R.string.book_download_retry)).assertIsEnabled().performClick()
+        compose.onNodeWithText(activity.get().getString(R.string.book_download_failed)).assertIsEnabled().performClick()
+        compose.onNodeWithText(activity.get().getString(R.string.book_download_retry)).assertDoesNotExist()
         compose.onNodeWithText("-100%").assertDoesNotExist()
         assertEquals(2, requests)
         compose.runOnIdle {
             state.downloadState = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Complete, 3, 3))
             state.canCache = false
         }
-        compose.onNodeWithText(activity.get().getString(R.string.cached)).assertIsNotEnabled()
-        compose.onNodeWithText(update).assertDoesNotExist()
+        compose.onNodeWithText(downloaded).assertIsNotEnabled()
     }
 }

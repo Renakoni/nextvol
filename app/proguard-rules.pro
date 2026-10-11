@@ -27,6 +27,8 @@
 -dontwarn org.kxml2.io.**
 -dontwarn android.content.res.**
 -dontwarn org.slf4j.impl.StaticLoggerBinder
+# dnsjava retains this compile-time annotation on generated logger fields.
+-dontwarn lombok.Generated
 -dontwarn org.jetbrains.kotlin.**
 -dontwarn com.google.gson.**
 # Rhino 1.8.1's optional BEAN JSON converter uses desktop JavaBeans introspection.

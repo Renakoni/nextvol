@@ -330,8 +330,7 @@ class HostMultiSourceIntegrationTest {
 
     @Test fun automaticBookshelfDownloadAfterCancelledSelectionUsesTheWholeBook() = runBlocking {
         val source = register(a)
-        val selected = books.submitDownload(a.storageKey, refresh = true, chapterIds = listOf("2")) as DownloadSubmission.Accepted
-        assertTrue(downloads.entry(a)!!.taskRefreshId.isNotEmpty())
+        val selected = books.submitDownload(a.storageKey, chapterIds = listOf("2")) as DownloadSubmission.Accepted
         books.dismissDownload(a.storageKey)
         shelves.addBookshelf(Bookshelf(id = 1, name = "Automatic", autoCache = true))
         shelves.addBookIntoBookShelf(1, books.getBookInformationFlow(a).last().get()!!)
@@ -339,7 +338,6 @@ class HostMultiSourceIntegrationTest {
         val owner = downloads.entry(a)!!
         assertNotEquals(selected.workId.toString(), owner.taskWorkId)
         assertEquals("", owner.taskChapterIds)
-        assertEquals("", owner.taskRefreshId)
         val finished = withTimeout(30_000) {
             workManager.getWorkInfoByIdFlow(java.util.UUID.fromString(owner.taskWorkId))
                 .filterNotNull().first { it.state.isFinished }

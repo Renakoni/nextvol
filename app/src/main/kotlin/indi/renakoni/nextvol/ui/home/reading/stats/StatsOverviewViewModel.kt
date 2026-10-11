@@ -8,7 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.statistics.Count
 import indi.renakoni.nextvol.data.statistics.StatsRepository
-import indi.renakoni.nextvol.utils.DurationFormat
+import indi.renakoni.nextvol.utils.formReadingDuration
 import indi.renakoni.nextvol.utils.quickSelect
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
@@ -17,8 +17,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
-import kotlin.time.DurationUnit
-import kotlin.time.toDuration
 
 @HiltViewModel
 class StatsOverviewViewModel @Inject constructor(
@@ -81,8 +79,7 @@ class StatsOverviewViewModel @Inject constructor(
             .sortedByDescending { it.second }
             .toMutableList()
 
-        val formattedTotal = DurationFormat()
-            .format(totalSeconds.toDuration(DurationUnit.SECONDS), DurationFormat.Unit.MINUTE)
+        val formattedTotal = formReadingDuration(totalSeconds)
 
         _uiState.selectedDateDetails = DailyDateDetails(
             formattedTotalTime = formattedTotal,

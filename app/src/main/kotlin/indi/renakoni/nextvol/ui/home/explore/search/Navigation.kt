@@ -27,7 +27,7 @@ fun NavGraphBuilder.searchHubDestination() {
         }
         SearchHubScreen(
             state = state, onQuery = model::setQuery, onSearch = model::search,
-            onScope = model::selectScope,
+            onScope = model::selectScope, onSelectSource = model::selectSource,
             onDeleteHistory = model::deleteHistory, onClearHistory = model::clearHistory,
             onLoadMore = model::loadMore, onStop = model::stop, onResume = model::resume, onRetry = model::retryFailures,
             onManageSources = { nav.navigate(Route.Main.Settings.Sources) },

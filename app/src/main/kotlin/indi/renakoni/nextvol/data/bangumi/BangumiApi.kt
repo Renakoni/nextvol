@@ -3,6 +3,8 @@ package indi.renakoni.nextvol.data.bangumi
 import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
@@ -29,10 +31,11 @@ class BangumiResponseException : IOException("Invalid Bangumi response")
 class BangumiLinkException : IllegalArgumentException("Invalid Bangumi subject link")
 
 @Singleton
-class BangumiApi internal constructor(private val client: OkHttpClient, private val baseUrl: HttpUrl) {
+class BangumiApi internal constructor(private val client: OkHttpClient, private val baseUrl: HttpUrl,
+    private val network: BangumiNetwork? = null) {
     private val transport = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
-    @Inject constructor() : this(OkHttpClient.Builder().followRedirects(false).followSslRedirects(false)
-        .callTimeout(30, TimeUnit.SECONDS).build(), "https://api.bgm.tv/".toHttpUrl())
+    @Inject constructor(network: BangumiNetwork) : this(OkHttpClient.Builder().followRedirects(false).followSslRedirects(false)
+        .callTimeout(30, TimeUnit.SECONDS).build(), "https://api.bgm.tv/".toHttpUrl(), network)
 
     suspend fun me(token: String): BangumiUser {
         BangumiAccountStore.validateToken(token)
@@ -91,11 +94,16 @@ class BangumiApi internal constructor(private val client: OkHttpClient, private 
         session: BangumiSession? = null, allowMissing: Boolean = false): String? = withContext(Dispatchers.IO) {
         val url = requireNotNull(baseUrl.resolve(path))
         require(url.host == baseUrl.host && url.scheme == baseUrl.scheme)
+        val started = System.nanoTime()
+        session?.checkActive()
+        val requestTransport = network?.client() ?: transport
         val builder = Request.Builder().url(url).header("Accept", "application/json")
             .header("User-Agent", "Renakoni/NextVol/${BuildConfig.VERSION_NAME} (Android) (${ProjectLinks.GITHUB})")
             // Bangumi's write endpoints reject the charset suffix added by OkHttp's String overload.
             .method(method, body?.toString()?.toByteArray(Charsets.UTF_8)?.toRequestBody("application/json".toMediaType()))
-        val call = session?.request(builder, transport::newCall) ?: transport.newCall(builder.build())
+        val call = session?.request(builder, requestTransport::newCall) ?: requestTransport.newCall(builder.build())
+        if (network != null) call.timeout().timeout(
+            (TimeUnit.SECONDS.toNanos(30) - (System.nanoTime() - started)).coerceAtLeast(1), TimeUnit.NANOSECONDS)
         try {
             call.await { response ->
                 session?.checkActive()
@@ -104,6 +112,10 @@ class BangumiApi internal constructor(private val client: OkHttpClient, private 
                     response.header("Retry-After")?.toLongOrNull()?.coerceAtLeast(0) ?: 0)
                 response.body.string()
             }
+        } catch (failure: IOException) {
+            currentCoroutineContext().ensureActive()
+            if (failure !is BangumiApiException) network?.invalidate(requestTransport)
+            throw failure
         } finally { session?.finished(call) }
     }
 

@@ -81,8 +81,11 @@ fun NavGraphBuilder.bookReaderDestination(onReaderActiveChanged: (Boolean) -> Un
             }
         }
         val route = navBackStackEntry.toRoute<Route.Book.Reader>()
-        val currentChapter = viewModel.uiState.contentUiState?.readingChapterId
-        LaunchedEffect(route.bookId, currentChapter) { panelModel.bind(route.bookId, currentChapter) }
+        LaunchedEffect(route.bookId, viewModel, panelModel) {
+            // Binding follows chapter changes without invalidating the navigation content.
+            androidx.compose.runtime.snapshotFlow { viewModel.uiState.contentUiState?.readingChapterId }
+                .collect { panelModel.bind(route.bookId, it) }
+        }
         val notice = panelModel.notice?.let { stringResource(it) }
         LaunchedEffect(notice) {
             if (notice != null) {

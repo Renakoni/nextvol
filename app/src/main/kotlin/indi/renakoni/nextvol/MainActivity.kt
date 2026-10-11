@@ -11,6 +11,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.data.work.CheckUpdateWork
 import indi.renakoni.nextvol.theme.NextVolTheme
 import indi.renakoni.nextvol.ui.NextVolApp
+import indi.renakoni.nextvol.ui.ExternalFileViewModel
 import indi.renakoni.nextvol.utils.FormattingSettings
 import indi.renakoni.nextvol.utils.LogUtils
 import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
@@ -40,10 +42,7 @@ import io.nightfish.lightnovelreader.api.userdata.UserDataPath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -53,8 +52,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var loggerRepository: LoggerRepository
     @Inject lateinit var bookshelfRepository: BookshelfRepository
 
-    private val intentChannel = Channel<Intent>(capacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    val intentFlow = intentChannel.receiveAsFlow()
+    private val externalFiles: ExternalFileViewModel by viewModels()
 
     @Inject lateinit var userDataRepository: UserDataRepository
     @Inject lateinit var updateCheckRepository: UpdateCheckRepository
@@ -85,7 +83,7 @@ class MainActivity : ComponentActivity() {
         initDefaultBookshelf()
         observeDisplaySettings()
         observeFormattingSettings()
-        handleIntent(intent)
+        externalFiles.accept(intent, initial = true)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { /* Android 13 + */
             if (ContextCompat.checkSelfPermission(this, POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -133,7 +131,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 NextVolApp(
                     readerStyle = readerStyle,
-                    intentFlow = intentFlow,
+                    intentFlow = externalFiles.intentFlow,
                     onReaderActiveChanged = ::setReaderActive
                 )
                 indi.renakoni.nextvol.ui.SourceVerificationHost(sourceVerification)
@@ -143,11 +141,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intentChannel.trySend(intent)
-    }
-
-    private fun handleIntent(intent: Intent) {
-        intentChannel.trySend(intent)
+        setIntent(intent)
+        externalFiles.accept(intent)
     }
 
     private fun initDefaultBookshelf() {

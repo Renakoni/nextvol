@@ -2,9 +2,11 @@ package indi.renakoni.nextvol.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
@@ -18,6 +20,10 @@ import indi.renakoni.nextvol.ui.tts.navigateToReadAloudBook
 import indi.renakoni.nextvol.ui.tts.ReadAloudOverlayHost
 import indi.renakoni.nextvol.ui.tts.ReadAloudOverlayViewModel
 import indi.renakoni.nextvol.ui.components.Cover
+import indi.renakoni.nextvol.ui.components.ImportUserDataDialog
+import indi.renakoni.nextvol.ui.localbook.LocalBookImportDialog
+import indi.renakoni.nextvol.ui.localbook.LocalBookImportViewModel
+import indi.renakoni.nextvol.utils.textToast
 import io.nightfish.lightnovelreader.api.ui.ReaderStyle
 import kotlinx.coroutines.flow.Flow
 import hnovel.imports.sourceImportUrl
@@ -30,6 +36,9 @@ fun NextVolApp(
     intentFlow: Flow<Intent>,
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val externalFiles = hiltViewModel<ExternalFileViewModel>()
+    val bookImport = hiltViewModel<LocalBookImportViewModel>()
     val speech = hiltViewModel<ReadAloudOverlayViewModel>()
     val playback by speech.controller.state.collectAsStateWithLifecycle()
     val playingBook by speech.book.collectAsStateWithLifecycle()
@@ -51,8 +60,28 @@ fun NextVolApp(
                 val uri = intent.data ?: return@collect
                 if (uri.scheme == "legado") {
                     sourceImportUrl(uri.toString())?.let { navController.navigate(Route.Main.Settings.SourceImport(it)) }
+                    return@collect
                 }
             }
+            externalFiles.open(intent, bookImport.state.visible)
+        }
+    }
+    LaunchedEffect(externalFiles.book) {
+        externalFiles.book?.let { file ->
+            bookImport.open(file.uri, file.name, file.bookFormat)
+            externalFiles.bookOpened()
+        }
+    }
+    LaunchedEffect(externalFiles) {
+        externalFiles.messageFlow.collect { textToast(context, it, Toast.LENGTH_LONG).show() }
+    }
+    LaunchedEffect(bookImport) {
+        bookImport.imported.collect { shelf ->
+            navController.navigate(Route.Main.Bookshelf.Home) {
+                popUpTo<Route.Main.Bookshelf.Home>()
+                launchSingleTop = true
+            }
+            navController.currentBackStackEntry?.savedStateHandle?.set("externalShelf", shelf)
         }
     }
     ReadAloudOverlayHost(playback, speech.controller::command, navController::navigateToReadAloudBook,
@@ -69,4 +98,18 @@ fun NextVolApp(
             readerStyle = readerStyle
         )
     }
+    if (bookImport.state.visible) LocalBookImportDialog(
+        state = bookImport.state,
+        onDismiss = bookImport::dismiss,
+        onTitleChange = bookImport::changeTitle,
+        onEncodingChange = bookImport::changeEncoding,
+        onRuleChange = bookImport::changeRule,
+        onImport = bookImport::confirm,
+    )
+    if (externalFiles.backupName != null) ImportUserDataDialog(
+        isImporting = externalFiles.restoring,
+        onDismissRequest = externalFiles::dismissBackup,
+        onClickMerge = { externalFiles.restore(false) },
+        onClickOverwrite = { externalFiles.restore(true) },
+    )
 }

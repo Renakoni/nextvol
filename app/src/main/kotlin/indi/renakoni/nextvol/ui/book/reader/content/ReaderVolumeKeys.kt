@@ -73,7 +73,10 @@ internal fun Modifier.readerVolumeKeys(
     }
     return this
         .onPreviewKeyEvent { event ->
-            input.setEnabled(available && focused && windowInfo.isWindowFocused &&
+            // A preview event is delivered only through the focused node. The focus callback can
+            // lag one composition behind during a scroll remeasure, so do not reject that event
+            // using the callback's cached state.
+            input.setEnabled(available && windowInfo.isWindowFocused &&
                 lifecycle.currentState == Lifecycle.State.RESUMED && !selection.hasSelection)
             val direction = when (event.key) {
                 Key.VolumeUp -> ReaderVolumeDirection.Backward

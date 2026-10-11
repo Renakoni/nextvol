@@ -18,7 +18,9 @@ internal interface PagedSearchProvider {
 data class SearchPage(
     val books: List<SearchResult.MultipleBook>, val nextPage: Int?,
     val complete: Boolean = true, val failure: Throwable? = null,
+    /** Adapter-local recall order, retained for existing single-source consumers. */
     val scores: Map<String, Int> = emptyMap(),
     /** These items contain catalogue previews; the host should still load their full metadata. */
     val previewIds: Set<String> = emptySet(),
+    val evidence: Map<String, SearchEvidence> = emptyMap(),
 )

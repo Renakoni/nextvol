@@ -16,6 +16,7 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.web.SourceDiscoveryBook
 import indi.renakoni.nextvol.ui.components.Cover
+import indi.renakoni.nextvol.ui.components.rememberListCover
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +30,7 @@ fun DiscoveryResultsScreen(
     onManageSources: () -> Unit,
     onSettings: () -> Unit,
     onBack: () -> Unit,
+    coverFor: suspend (String) -> Uri? = { null },
 ) {
     val list = key(state.resetId) { rememberLazyListState(state.scroll.index, state.scroll.offset) }
     LaunchedEffect(list) {
@@ -41,7 +43,7 @@ fun DiscoveryResultsScreen(
             items(state.definitions, key = { "filter:${it.id}" }) { filter ->
                 DiscoveryFilterControl(filter, state.filters[filter.id].orEmpty()) { onFilter(filter.id, it) }
             }
-            items(state.books, key = { it.id.storageKey }) { book -> DiscoveryBookCard(book) { onBook(book.id) } }
+            items(state.books, key = { it.id.storageKey }) { book -> DiscoveryBookCard(book, coverFor) { onBook(book.id) } }
             if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             state.error?.let { error -> item { DiscoveryFailure(error, onLoadMore, onManageSources, onBack, state.errorField, state.errorPermission, state.errorDiagnostic, state.errorHttpStatus) } }
             if (state.loaded && !state.hasMore && state.books.isEmpty() && state.error == null) item { Text(stringResource(R.string.discovery_no_books)) }
@@ -54,12 +56,12 @@ fun DiscoveryResultsScreen(
     }
 }
 
-/** Discovery summaries share the source-aware cover and result renderer without fetching every book detail. */
+/** Discovery summaries share the source-aware cover and result renderer. Details are read only for a book listed without a cover. */
 @Composable
-internal fun DiscoveryBookCard(book: SourceDiscoveryBook, onClick: () -> Unit) {
+internal fun DiscoveryBookCard(book: SourceDiscoveryBook, coverFor: suspend (String) -> Uri? = { null }, onClick: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Cover(book.id.storageKey, 72.dp, 108.dp, Uri.parse(book.coverUrl), book.title, author = book.author)
+            Cover(book.id.storageKey, 72.dp, 108.dp, rememberListCover(book.id.storageKey, book.coverUrl, coverFor), book.title, author = book.author)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Text(book.author, style = MaterialTheme.typography.bodyMedium)

@@ -87,8 +87,18 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         }
     }
 
-    suspend fun discoveryReadPlan(urls: List<String>, header: String, rules: List<String>): Boolean =
-        execute(ExecutionTask.DiscoveryReadPlan(urls, header, rules), "discovery.previewPlan",
+    suspend fun searchBooks(inputs: List<RuleValue>, rules: Map<String, String>): List<Map<String, String>> {
+        val count = inputs.size * rules.values.count { it.isNotBlank() }
+        if (count > 1 && calls.addAndGet(count - 1) >= maxRuleCalls)
+            throw SourceContentException(ContentError.Limit, "ruleSearch.books")
+        val task = ExecutionTask.SearchBooks(inputs, rules, baseUrl, book.metadata["name"]?.jsonPrimitive?.content.orEmpty())
+        return execute(task, "ruleSearch.books", inputs.sumOf { it.toString().length }).value.items().map {
+            ExecutionTask.SearchBooks.FIELDS.zip(it.items().map { value -> value.text() }).toMap()
+        }
+    }
+
+    suspend fun discoveryReadPlan(urls: List<String>, header: String, rules: List<String>, field: String = "discovery.previewPlan"): Boolean =
+        execute(ExecutionTask.DiscoveryReadPlan(urls, header, rules), field,
             (urls + rules + header).sumOf { it.length }).value.text() == "true"
 
     private suspend fun execute(task: ExecutionTask, field: String, inputChars: Int): ExecutedRule {
@@ -105,7 +115,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
             "ruleToc.chapterList" -> this.limits.copy(maxOutputBytes = 16 * 1024 * 1024, maxDataBytes = BridgeWire.MAX_REPLY_BYTES)
             "ruleSearch.bookList", "ruleExplore.bookList" ->
                 this.limits.copy(maxOutputBytes = 2 * 1024 * 1024, maxDataBytes = BridgeWire.MAX_REPLY_BYTES)
-            "ruleExplore.overviews" -> this.limits.copy(maxOutputBytes = 4 * 1024 * 1024)
+            "ruleExplore.overviews", "ruleSearch.books" -> this.limits.copy(maxOutputBytes = 4 * 1024 * 1024)
             "ruleContent.content", "ruleContent.images", "ruleContent.replaceRegex", "ruleContent.parts" ->
                 this.limits.copy(maxOutputBytes = 2 * 1024 * 1024)
             else -> this.limits
@@ -136,7 +146,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         val failure = result as? ExecutionResult.Failure
         val dependency = failure?.takeIf { it.code == FailureCode.UnsupportedDependency }?.dependency
         val failureField = if (dependency != null && failure.ruleError?.location?.field == "jsLib") "jsLib"
-            else if (task is ExecutionTask.BookOverviews) failure?.ruleError?.location?.field ?: field else field
+            else if (task is ExecutionTask.BookOverviews || task is ExecutionTask.SearchBooks) failure?.ruleError?.location?.field ?: field else field
         trace.record(ContentTraceEvent("rule", failureField, (System.nanoTime() - started) / 1_000_000,
             inputChars, (result as? ExecutionResult.Success)?.output?.length ?: 0,
             if (result is ExecutionResult.Failure && result.code == FailureCode.BridgeDenied)

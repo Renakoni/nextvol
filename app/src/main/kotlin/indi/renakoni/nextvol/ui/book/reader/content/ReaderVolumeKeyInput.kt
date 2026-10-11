@@ -6,7 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-internal const val DefaultVolumeKeyScrollFraction = 0.25f
+internal const val DefaultVolumeKeyScrollFraction = 0.6f
 
 internal fun volumeKeyScrollFraction(value: Float): Float =
     value.takeIf { it.isFinite() && it in 0.1f..1f } ?: DefaultVolumeKeyScrollFraction

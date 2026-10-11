@@ -201,8 +201,9 @@ internal class ScrollChapterWindow(
     ) {
         cancelSlot(index)
         val generation = slotGenerations[index]
+        val retained = uiState.contentList[index]?.takeIf { it.first == chapterId }?.second?.get()
         slotJobs[index] = coroutineScope.launch {
-            chapters.load(chapterId, expected.bookId, interactive = interactive)
+            chapters.load(chapterId, expected.bookId, interactive = interactive, retainedContent = retained)
                 .flowOn(ioDispatcher).collect { result ->
                     if (!isCurrent(expected) || generation != slotGenerations[index]) return@collect
                     result.onOk { beforePublish(it) }

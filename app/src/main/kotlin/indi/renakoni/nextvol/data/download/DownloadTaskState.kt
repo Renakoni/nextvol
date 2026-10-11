@@ -19,7 +19,6 @@ data class DownloadTaskState(
     val chapterId: String = "",
     val failure: DownloadFailure? = null,
     val runAttemptCount: Int = 0,
-    val chapterIndex: Int? = null,
     val retryCount: Int = 0,
     val nextAttemptAt: Long = 0,
 ) {

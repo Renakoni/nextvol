@@ -337,6 +337,28 @@ class ReaderPositionInstrumentedTest {
     @Test fun chapterScrollAccessibilityAfterReflowResumesProgressWrites() = reflowAndBackground(false, false, accessibility = true)
     @Test fun continuousScrollAccessibilityAfterReflowResumesProgressWrites() = reflowAndBackground(false, true, accessibility = true)
 
+    @Test fun continuousReflowKeepsPromotionBlockedUntilTheSourcePositionIsRestored() {
+        runBlocking {
+            settings.isUsingContinuousScrollingUserData.set(true)
+            settings.isUsingFlipPageUserData.set(false)
+        }
+        val fixture = Fixture(initialProgress = 0.6f, interceptRestore = true)
+        val prematureCompletion = mutableListOf<Boolean>()
+        compose.runOnIdle {
+            fixture.interceptRestored = { prematureCompletion += fixture.reader.positions.pending != null }
+            // The shorter body can put the old pixel offset in the next chapter while reflowing.
+            fixture.width = 900.dp
+            fixture.height = 560.dp
+        }
+        compose.waitUntil(15_000) { prematureCompletion.isNotEmpty() }
+        compose.runOnIdle {
+            assertFalse("Reflow must not enable promotion while its source position is pending",
+                prematureCompletion.any { it })
+        }
+        fixture.assertPosition()
+        assertTrue("Reflow is not new reading", fixture.progressWrites.isEmpty())
+    }
+
     @Test fun cancelledBookmarkRestorationDoesNotLeaveScrollWritesBlocked() {
         runBlocking { settings.isUsingFlipPageUserData.set(false) }
         val fixture = Fixture(initialProgress = 0.6f, interceptRestore = true)
@@ -416,6 +438,7 @@ class ReaderPositionInstrumentedTest {
         val bookmarks = ReaderBookmarkSession()
         val layoutResult = mutableStateOf<ReaderLayoutResult?>(null)
         var interceptRestoration: (() -> Unit)? = null
+        var interceptRestored: (() -> Unit)? = null
         private var interceptedScroll by mutableStateOf<ScrollContentUiState?>(null)
         val chapter = ChapterContentUiState("marked-chapter", "Source positions",
             if (empty) emptyList() else listOf(SimpleTextComponent(SimpleTextComponentData(text), repository, context)), "before", "after")
@@ -526,6 +549,10 @@ class ReaderPositionInstrumentedTest {
                         override val onProgressRestoring: (androidx.compose.foundation.lazy.LazyListState) -> Unit = { list ->
                             state.onProgressRestoring(list)
                             interceptRestoration?.invoke()
+                        }
+                        override val onProgressRestored: (androidx.compose.foundation.lazy.LazyListState) -> Unit = { list ->
+                            interceptRestored?.invoke()
+                            state.onProgressRestored(list)
                         }
                     }
                     val checkpoint = reader.positions.captureNow()

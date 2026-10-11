@@ -209,7 +209,8 @@ class BangumiRepository @Inject constructor(
             for (entity in dao.getAll(session.user.id)) {
                 session.checkActive()
                 val value = entity.binding()
-                if (!value.status.successful) {
+                // A global retry cannot replace token validation or binding confirmation.
+                if (!value.status.successful && value.status !in confirmationRequiredStatuses) {
                     dao.save(entity.withBinding(value.copy(status = BangumiSyncStatus.PENDING,
                         forceSync = true, revision = UUID.randomUUID().toString())))
                 }
@@ -392,8 +393,8 @@ class BangumiRepository @Inject constructor(
     }
 
     companion object {
-        private val pausedStatuses = setOf(BangumiSyncStatus.AUTH_REQUIRED, BangumiSyncStatus.REMOTE_CHANGED,
-            BangumiSyncStatus.MAPPING_CHANGED, BangumiSyncStatus.REMOTE_STATE, BangumiSyncStatus.REMOTE_MISSING,
-            BangumiSyncStatus.REQUEST_REJECTED, BangumiSyncStatus.MATCH_REQUIRED)
+        private val confirmationRequiredStatuses = setOf(BangumiSyncStatus.AUTH_REQUIRED, BangumiSyncStatus.REMOTE_CHANGED,
+            BangumiSyncStatus.MAPPING_CHANGED, BangumiSyncStatus.REMOTE_STATE, BangumiSyncStatus.REMOTE_MISSING)
+        private val pausedStatuses = confirmationRequiredStatuses + setOf(BangumiSyncStatus.REQUEST_REJECTED, BangumiSyncStatus.MATCH_REQUIRED)
     }
 }

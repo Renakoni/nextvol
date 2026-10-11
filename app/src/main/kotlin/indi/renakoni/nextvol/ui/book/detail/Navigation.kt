@@ -141,8 +141,8 @@ fun NavGraphBuilder.bookDetailDestination() {
                     navController.navigateToBookReaderDestination(bookId, viewModel.uiState.userReadingData!!.lastReadChapterId!!, context)
                 }
             },
-            cacheBook = { bookId, refresh ->
-                navController.navigateToBookDownload(bookId, refresh)
+            cacheBook = { bookId ->
+                navController.navigateToBookDownload(bookId)
             },
             requestAddBookToBookshelf = navController::navigateToAddBookToBookshelfDialog,
             onClickTag = { tag ->

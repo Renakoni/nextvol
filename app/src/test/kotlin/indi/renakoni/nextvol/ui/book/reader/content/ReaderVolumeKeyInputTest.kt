@@ -127,7 +127,7 @@ class ReaderVolumeKeyInputTest {
         assertEquals(400f, volumeKeyScrollDistance(800, 0.5f, forward))
         assertEquals(0f, volumeKeyScrollDistance(0, 0.25f, forward))
         for (invalid in listOf(Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, 0f, -1f, 1.01f)) {
-            assertEquals(200f, volumeKeyScrollDistance(800, invalid, forward))
+            assertEquals(480f, volumeKeyScrollDistance(800, invalid, forward), 0.001f)
         }
         assertEquals(80f, volumeKeyScrollDistance(800, 0.1f, forward))
         assertEquals(800f, volumeKeyScrollDistance(800, 1f, forward))

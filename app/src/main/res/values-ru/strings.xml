@@ -610,4 +610,7 @@
     <string name="reader_page_layout_short">Одна страница: высота окна недостаточна.</string>
     <string name="reader_page_layout_large_text">Одна страница: шрифт слишком крупный для двух страниц.</string>
     <string name="reader_page_layout_unsupported">Одна страница: содержимое главы не поддерживает двухстраничный режим.</string>
+    <string name="external_file_busy">Завершите или отмените текущий импорт, прежде чем открывать другой файл.</string>
+    <string name="external_file_unsupported">Этот тип файла не поддерживается. Выберите файл EPUB, TXT, .nvbackup или .lnr.</string>
+    <string name="external_file_unreadable">Не удалось прочитать файл. Сначала скачайте его, затем снова откройте из приложения-отправителя.</string>
 </resources>

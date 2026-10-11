@@ -49,8 +49,8 @@ class SourceCatalogTest {
     }
 
     @Test fun catalogEntriesUseTheirBundledDefinitionsAndPassTheProductionImporter() {
-        assertEquals(listOf(7, 3, 6, 14, 9, 7, 29), SourceCategory.entries.map { category -> catalog.entries.count { it.category == category } })
-        assertEquals(75, catalog.entries.map { it.key }.toSet().size)
+        assertEquals(listOf(18, 15, 9, 15, 9, 8), SourceCategory.entries.map { category -> catalog.entries.count { it.category == category } })
+        assertEquals(74, catalog.entries.map { it.key }.toSet().size)
         val store = SourceDefinitionStore(folder.newFolder().toPath())
         val importer = SourceDefinitionImporter(store)
         val preview = importer.preview(catalog.definitions(catalog.entries.map { it.key }.toSet()), AUTO_PROFILE)
@@ -125,7 +125,7 @@ class SourceCatalogTest {
 
     @Test fun withdrawnSourcesRetainInstalledClassificationButCannotBeAddedFromTheCatalog() {
         val entries = allEntries()
-        assertEquals(93, entries.size)
+        assertEquals(92, entries.size)
         val importer = SourceDefinitionImporter(SourceDefinitionStore(folder.newFolder().toPath()))
         val preview = importer.preview(JsonArray(entries.map(::raw)).toString(), AUTO_PROFILE)
         assertTrue(preview.issues.toString(), preview.issues.isEmpty())
@@ -140,17 +140,16 @@ class SourceCatalogTest {
         assertTrue(entries.filter { raw(it)["exploreUrl"]?.jsonPrimitive?.content.isNullOrBlank() }.all { !it.available })
     }
 
-    @Test fun officialPlatformsAreExplicitAndSeparateFromFreeRecommendations() {
-        val official = catalog.entries.filter { it.category == SourceCategory.Official }
-        assertTrue(official.map { it.name }.containsAll(setOf("起点中文网", "纵横中文网", "磨铁中文", "红袖添香", "潇湘书院",
-            "花溪小说", "米国度", "刺猬猫", "次元姬", "晋江文学城", "QQ阅读", "长佩文学", "SF轻小说／菠萝包")))
-        val free = catalog.entries.filterNot { it.category == SourceCategory.Official }
-        assertTrue(free.map { it.name }.containsAll(setOf("番茄小说", "七猫小说", "爱丽丝书屋", "hlib", "疯读小说",
-            "33言情", "言情书吧", "轻小说百科", "全本同人", "国学典籍（新都）", "书海阁", "八叉书库", "涩涩俱乐部",
-            "笔趣阁 · biqusa", "笔趣阁 · 365", "经典书库")))
-        assertTrue(official.none { site -> free.any { it.key == site.key } })
-        val raw = Json.parseToJsonElement(catalog.definitions(free.map { it.key }.toSet())).jsonArray
-        assertEquals(free.map { it.key }, raw.map { it.jsonObject.getValue("bookSourceUrl").jsonPrimitive.content })
+    @Test fun formerOfficialSitesSitInTheirOriginalCategoriesAndDeadSitesAreGone() {
+        fun category(name: String) = allEntries().single { it.name == name }.category
+        assertEquals(SourceCategory.Platforms, category("QQ阅读"))
+        assertEquals(SourceCategory.Platforms, category("起点中文网"))
+        assertEquals(SourceCategory.Female, category("晋江文学城"))
+        assertEquals(SourceCategory.Anime, category("SF轻小说／菠萝包"))
+        assertEquals(SourceCategory.Literature, category("豆瓣阅读"))
+        assertEquals(SourceCategory.Adult, category("PO18"))
+        assertTrue(allEntries().none { it.name == "涩涩俱乐部" })
+        assertFalse(assets.list("source-catalog")!!.contains("Official.json"))
     }
 
     @Test fun bundledRepairsMatchOnlyTheirKnownDigests() {

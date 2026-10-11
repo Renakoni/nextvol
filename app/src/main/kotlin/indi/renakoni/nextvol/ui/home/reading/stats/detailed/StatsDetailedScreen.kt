@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,6 +33,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,19 +52,15 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.components.AnimatedText
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.home.reading.stats.ActivityStatsCard
-import indi.renakoni.nextvol.ui.home.reading.stats.MonthlyStatsChart
+import indi.renakoni.nextvol.ui.home.reading.stats.ReadingTimeStatsChart
 import indi.renakoni.nextvol.ui.home.reading.stats.ReadingDetailStatsCard
-import indi.renakoni.nextvol.ui.home.reading.stats.WeeklyStatsChart
-import indi.renakoni.nextvol.ui.home.reading.stats.YearlyStatsChart
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
-import kotlin.random.Random
 
 sealed class StatsViewOption(val viewIndex: Int) {
     abstract fun rangeFor(date: LocalDate): ClosedRange<LocalDate>
@@ -116,7 +112,6 @@ fun StatsDetailedScreen(
     onClickBack: () -> Unit
 ) {
     val uiState = viewModel.uiState
-    uiState.selectedDate = targetDate
     val pinnedScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val viewOptions = listOf(
         stringResource(R.string.view_weekly),
@@ -147,7 +142,7 @@ fun StatsDetailedScreen(
 }
 
 @Composable
-private fun StatisticsContent(
+internal fun StatisticsContent(
     uiState: StatsDetailedUiState,
     viewOptions: List<String>,
     onViewSelected: (Int) -> Unit,
@@ -187,13 +182,21 @@ private fun StatisticsContent(
             Spacer(Modifier.height(12.dp))
         }
 
-        val indexes = mapOf(
-            0 to { dailyStatistics(uiState) },
-            1 to { weeklyStatistics(uiState) },
-            2 to { monthlyStatistics(uiState) }
-        )
-
-        indexes[uiState.selectedViewIndex]?.invoke()
+        item(key = "activity") {
+            ActivityStatsCard(uiState)
+        }
+        item(key = "reading-time") {
+            StatsCard(title = stringResource(R.string.activity_reading_time)) {
+                if (uiState.hasData) ReadingTimeStatsChart(
+                    statsMap = uiState.targetDateRangeCountMap,
+                    selectedDate = uiState.selectedDate,
+                    viewOption = StatsViewOption.fromIndex(uiState.displayedViewIndex),
+                ) else Spacer(Modifier.fillMaxWidth().height(280.dp))
+            }
+        }
+        item(key = "reading-details") {
+            ReadingDetailStatsCard(uiState)
+        }
     }
 }
 
@@ -246,7 +249,7 @@ fun BookStack(
     compact: Boolean = true,
     rotate: Float? = null,
 ) {
-    val displayBooks = books.distinct().take(count)
+    val displayBooks = books.distinctBy { it.first }.take(count)
 
     BoxWithConstraints(
         modifier = modifier.then(
@@ -274,96 +277,47 @@ fun BookStack(
         }
 
         displayBooks.fastForEachIndexed { index, pair ->
-            val scale = if (scaleEnabled) {
-                1f - (index * 0.01f).coerceAtMost(0.3f)
-            } else 1f
+            key(pair.first) {
+                val scale = if (scaleEnabled) {
+                    1f - (index * 0.01f).coerceAtMost(0.3f)
+                } else 1f
 
-            val offsetY = remember(pair.first) {
-                Random.nextInt(-3, 4).dp
-            }
+                val offsetY = remember(pair.first) {
+                    (Math.floorMod(pair.first.hashCode(), 7) - 3).dp
+                }
 
-            Box(
-                modifier = Modifier
-                    .wrapContentHeight()
-                    .zIndex((displayBooks.size - index).toFloat())
-                    .align(Alignment.CenterStart)
-                    .offset(
-                        x = offsetStep * index,
-                        y = offsetY
-                    )
-                    .graphicsLayer {
-                        rotationZ = rotate ?: 0f
+                Box(
+                    modifier = Modifier
+                        .wrapContentHeight()
+                        .zIndex((displayBooks.size - index).toFloat())
+                        .align(Alignment.CenterStart)
+                        .offset(
+                            x = offsetStep * index,
+                            y = offsetY
+                        )
+                        .graphicsLayer {
+                            rotationZ = rotate ?: 0f
+                        }
+                ) {
+                    val result by pair.second.collectAsStateWithLifecycle(null)
+                    result?.onOk {
+                        Cover(
+                            bookId = it.id,
+                            width = 63.dp * scale,
+                            height = 90.dp * scale,
+                            uri = it.coverUri,
+                            title = it.title,
+                            author = it.author,
+                            rounded = 6.dp
+                        )
+                    }?.onErr {
+                        //TODO 错误显示
+                    } ?: {
+                        //TODO 加载显示
                     }
-            ) {
-                val result by pair.second.collectAsStateWithLifecycle(null)
-                result?.onOk {
-                    Cover(
-                        bookId = it.id,
-                        width = 63.dp * scale,
-                        height = 90.dp * scale,
-                        uri = it.coverUri,
-                        title = it.title,
-                        author = it.author,
-                        rounded = 6.dp
-                    )
-                }?.onErr {
-                    //TODO 错误显示
-                } ?: {
-                    //TODO 加载显示
                 }
             }
         }
-    }
-}
-
-private fun LazyListScope.dailyStatistics(uiState: StatsDetailedUiState) {
-    item {
-        ActivityStatsCard(uiState)
-    }
-    item {
-        StatsCard(title = stringResource(R.string.activity_reading_time)) {
-            WeeklyStatsChart(
-                statsMap = uiState.targetDateRangeCountMap,
-                selectedDate = uiState.selectedDate
-            )
-        }
-    }
-    item {
-        ReadingDetailStatsCard(uiState)
-    }
-}
-
-private fun LazyListScope.weeklyStatistics(uiState: StatsDetailedUiState) {
-    item {
-        ActivityStatsCard(uiState)
-    }
-    item {
-        StatsCard(title = stringResource(R.string.activity_reading_time)) {
-            MonthlyStatsChart(
-                statsMap = uiState.targetDateRangeCountMap,
-                selectedDate = uiState.selectedDate
-            )
-        }
-    }
-    item {
-        ReadingDetailStatsCard(uiState)
-    }
-}
-
-private fun LazyListScope.monthlyStatistics(uiState: StatsDetailedUiState) {
-    item {
-        ActivityStatsCard(uiState)
-    }
-    item {
-        StatsCard(title = stringResource(R.string.activity_reading_time)) {
-            YearlyStatsChart(
-                statsMap = uiState.targetDateRangeCountMap,
-                selectedDate = uiState.selectedDate
-            )
-        }
-    }
-    item {
-        ReadingDetailStatsCard(uiState)
     }
 }
 
@@ -384,7 +338,7 @@ private fun TopBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                AnimatedText(
+                Text(
                     text = if (dateRange.first == dateRange.second) dateRange.second.toString()
                     else "${dateRange.first} " + stringResource(R.string.to) + " ${dateRange.second} ",
                     style = typography.labelMedium,

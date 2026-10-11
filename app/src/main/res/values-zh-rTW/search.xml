@@ -4,14 +4,14 @@
     <string name="search_source_count">%1$d 個可搜尋書源</string>
     <string name="search_delete_history_entry">刪除搜尋記錄：%1$s</string>
     <string name="search_start_title">尋找下一本想讀的書</string>
-    <string name="search_start_description">搜尋已啟用的書源，也可以選擇分組縮小範圍。</string>
+    <string name="search_start_description">搜尋目前範圍，也可以切換書源或分組。</string>
     <string name="search_book_count">找到 %1$d 本書</string>
     <string name="search_progress">已搜尋 %1$d / %2$d 個書源</string>
     <string name="search_stopped">搜尋已暫停</string>
     <string name="search_stop">暫停搜尋</string>
     <string name="search_resume">繼續搜尋</string>
     <string name="search_failure_count">%1$d 個未完成</string>
-    <string name="search_empty_description">試試其他關鍵字，或切換書源分組。</string>
+    <string name="search_empty_description">試試其他關鍵字，或切換搜尋範圍。</string>
     <string name="search_incomplete_title">部分書源未完成搜尋</string>
     <string name="search_incomplete_description">暫未找到書籍。可以查看未完成的書源並重試。</string>
     <string name="search_result_limit">最多顯示 1000 本書，請使用更具體的關鍵字或書源分組縮小範圍。</string>
@@ -19,6 +19,15 @@
     <string name="search_retry_failed">重試未完成的書源</string>
     <string name="search_book_unavailable">書籍資訊暫不可用</string>
     <string name="search_book_loading">正在載入書籍資訊…</string>
-    <string name="search_no_sources">此分組暫無可搜尋書源</string>
-    <string name="search_no_sources_description">請選擇其他分組，或前往書源管理啟用書源。</string>
+    <string name="search_no_sources">目前範圍暫無可搜尋書源</string>
+    <string name="search_no_sources_description">請選擇其他範圍，或前往書源管理啟用書源。</string>
+    <string name="search_scope_title">搜尋範圍</string>
+    <string name="search_change_scope">切換搜尋範圍：%1$s</string>
+    <string name="search_selected_source">目前選擇</string>
+    <string name="search_find_source">書源名稱</string>
+    <string name="search_single_source">單個書源</string>
+    <string name="search_source_matches">找到 %1$d 個符合的書源</string>
+    <string name="search_source_not_found">沒有找到符合的書源，試試其他名稱。</string>
+    <string name="search_source_empty">%1$s 中未找到相關書籍</string>
+    <string name="search_expand_all">在全部書源中搜尋</string>
 </resources>

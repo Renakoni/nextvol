@@ -47,6 +47,12 @@ case "$*" in
     if [[ "$CASE" == boot-crash || "$CASE" == boot-timeout ]]; then exit 1; fi
     if [[ "$CASE" == boot-recovers ]] && [[ ! -f "$CASE_ROOT/launches" || $(wc -l < "$CASE_ROOT/launches") != 2 ]]; then exit 1; fi
     echo 1 ;;
+  'shell wm size 320x640')
+    if [[ "$CASE" == prepare-timeout ]]; then exit 124; fi
+    if [[ "$CASE" == prepare-recovers && ! -f "$CASE_ROOT/prepare-retried" ]]; then
+      touch "$CASE_ROOT/prepare-retried"
+      exit 124
+    fi ;;
   'shell settings put global '* )
     if [[ "$CASE" == settings-fail ]]; then exit 31; fi ;;
   'emu kill')
@@ -125,6 +131,20 @@ exit "$TEST_EXIT"
         result = self.run_case('settings-fail')
         self.assertEqual(31, result.returncode, result.stderr)
         self.assertFalse((self.root / 'ran').exists())
+
+    def test_viewport_timeout_restarts_before_running_tests_once(self):
+        result = self.run_case('prepare-recovers')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(2, len((self.root / 'launches').read_text().splitlines()))
+        self.assertEqual(['one argument'], (self.root / 'ran').read_text().splitlines())
+
+    def test_persistent_viewport_timeout_never_runs_tests_or_later_setup(self):
+        result = self.run_case('prepare-timeout')
+        self.assertEqual(124, result.returncode, result.stderr)
+        self.assertFalse((self.root / 'ran').exists())
+        calls = (self.root / 'adb-calls').read_text().splitlines()
+        self.assertEqual(2, calls.count('start-server'))
+        self.assertFalse(any('settings put' in call for call in calls))
 
     def test_missing_image_never_launches_emulator(self):
         result = self.run_case(api='24')

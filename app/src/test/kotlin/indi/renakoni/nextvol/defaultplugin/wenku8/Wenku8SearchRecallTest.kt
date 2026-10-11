@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.defaultplugin.wenku8
 import android.app.Application
 import indi.renakoni.nextvol.data.bangumi.*
 import indi.renakoni.nextvol.data.explore.SearchPage
+import indi.renakoni.nextvol.data.explore.SearchEvidence
 import indi.renakoni.nextvol.defaultplugin.wenku8.search.*
 import io.mockk.*
 import kotlinx.coroutines.*
@@ -162,6 +163,8 @@ class Wenku8SearchRecallTest {
         val result = session.page(1).last()
         assertEquals(listOf("1973", "3314"), result.books.map { it.bookId })
         assertTrue(result.scores.getValue("1973") < result.scores.getValue("3314"))
+        assertEquals(SearchEvidence.Related, result.evidence["1973"])
+        assertEquals(SearchEvidence.Loose, result.evidence["3314"])
     }
 
     @Test fun unavailableBangumiDoesNotFailAnEmptyOrLocallyMatchedSourceSearch() = runBlocking {
@@ -237,11 +240,26 @@ class Wenku8SearchRecallTest {
         val search: suspend (String, Int) -> SearchPage = { _, _ -> calls++; SearchPage(emptyList(), null) }
         val result = Wenku8SearchSession(support(entries), "articlename", "1973", search).page(1).last()
         assertEquals(listOf("4350", "1973"), result.books.map { it.bookId })
+        assertEquals(SearchEvidence.Loose, result.evidence["1973"])
         val direct = Wenku8SearchSession(support(entries), "articlename", "#1973", search).page(1).last()
         assertEquals("1973", direct.books.single().bookId)
+        assertEquals(SearchEvidence.ExplicitId, direct.evidence["1973"])
         assertEquals(1, calls)
         coVerify(exactly = 0) { api.search(any(), any()) }
         coVerify(exactly = 0) { api.searchTag(any(), any()) }
+    }
+
+    @Test fun exactAliasEvidenceDoesNotPromoteRelatedVolumesOrLooseNameMappings() = runBlocking {
+        val entries = listOf(Wenku8SearchEntry("1", "原作", "Author", listOf("Alias")),
+            Wenku8SearchEntry("2", "原作续集", "Author"), Wenku8SearchEntry("3", "AB", "Author"))
+        coEvery { api.search("Alias", 0) } returns BangumiSearchPage(listOf(
+            BangumiSubject(10, nameCn = "原作", name = "Alias", platform = "小说"),
+            BangumiSubject(30, nameCn = "A-B", name = "Alias", platform = "小说")), 2)
+        coEvery { api.related(10) } returns listOf(BangumiRelatedSubject(20, 1, nameCn = "原作续集", relation = "续集"))
+        val page = Wenku8SearchSession(support(entries), "articlename", "Alias") { _, _ -> SearchPage(emptyList(), null) }.page(1).last()
+        assertEquals(SearchEvidence.VerifiedAlias, page.evidence["1"])
+        assertEquals(SearchEvidence.Related, page.evidence["2"])
+        assertEquals(SearchEvidence.Loose, page.evidence["3"])
     }
 
     @Test fun recordedPublicPagesRecallAbbreviationsRegardlessOfWhichChannelFinishesFirst() = runBlocking {

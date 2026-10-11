@@ -26,6 +26,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
     private val serial = SourceWorkQueue()
     private var previewPlan: Pair<List<String>, Boolean>? = null
     private var parallelPreviewParsing: Boolean? = null
+    private var searchBatchPlan: Boolean? = null
     private var prefetchedDirectoryId: String? = null
     private var completedInformation: Pair<String, Long>? = null
     private var completedDirectory: Pair<String, Long>? = null
@@ -452,6 +453,14 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         ExecutionTask.BookOverviews.supports(fields.string(name))
     }
 
+    private suspend fun canBatchSearch(context: RuleEvaluation): Boolean {
+        searchBatchPlan?.let { return it }
+        val static = spec.library == null && !canLogin && spec.loginCheck.isBlank() &&
+            spec.search.values.all { (it as? JsonPrimitive)?.contentOrNull?.let(ExecutionTask.BookOverviews::supports) == true }
+        return (static && context.discoveryReadPlan(listOf(spec.searchUrl), spec.header,
+            spec.search.keys.map(spec.search::string), "search.readPlan")).also { searchBatchPlan = it }
+    }
+
     private suspend fun booksFromPage(context: RuleEvaluation, document: PageDocument, fields: JsonObject,
         field: String, overview: Boolean = false, previewLimit: Int? = null): List<RuleBook> {
         val rule = fields.string("bookList")
@@ -489,13 +498,22 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             context.value(rule.removePrefix("-").removePrefix("+"), document.input(), "$field.bookList", OutputKind.Elements).items()
         }
         val lightweight = overview && canDeferBookFields(fields)
+        val batchSearch = field == "ruleSearch" && !overview && canBatchSearch(context)
+        val searchRules = if (batchSearch) ExecutionTask.SearchBooks.FIELDS.associateWith(fields::string) else emptyMap()
         val books = mutableListOf<RuleBook>()
         val previews = mutableMapOf<String, BookPreview>()
         val candidates = if (lightweight && rule.startsWith('-')) items.asReversed() else items
         var batchStart = 0
         var batch = emptyList<Triple<String, String, String>>()
+        var searchBatch = emptyList<Map<String, String>>()
         for ((index, item) in candidates.withIndex()) {
             val row = context.fork()
+            if (batchSearch && index >= batchStart + searchBatch.size) {
+                batchStart = index
+                searchBatch = context.searchBooks(candidates.subList(index,
+                    minOf(index + ExecutionTask.SearchBooks.MAX_ROWS, candidates.size)), searchRules)
+            }
+            val extracted = if (batchSearch) searchBatch[index - batchStart] else null
             if (lightweight && index >= batchStart + batch.size) {
                 batchStart = index
                 val count = minOf(ExecutionTask.BookOverviews.MAX_ROWS, previewLimit?.minus(books.size) ?: Int.MAX_VALUE,
@@ -514,9 +532,10 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 }
                 row.bookField("coverUrl", cover)
                 RuleBook("", title = title, coverUrl = cover, state = row.book)
-            } else bookFields(row, item, fields, field, RuleBook(""))
+            } else bookFields(row, item, fields, field, RuleBook(""), extracted = extracted)
             if (parsed.title.isBlank()) continue
-            val rawUrl = if (lightweight) batch[index - batchStart].second else row.url(fields.string("bookUrl"), item, "$field.bookUrl")
+            val rawUrl = if (lightweight) batch[index - batchStart].second
+                else extracted?.getValue("bookUrl") ?: row.url(fields.string("bookUrl"), item, "$field.bookUrl")
             val id = sourceLink(document.url, rawUrl.ifBlank { document.url })
             if (lightweight && id in previews) continue
             row.bookId = id; row.bookField("bookUrl", id)
@@ -776,14 +795,14 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
     }
 
     private suspend fun bookFields(context: RuleEvaluation, input: RuleValue, rules: JsonObject, prefix: String, seed: RuleBook,
-        overview: Boolean = false): RuleBook {
+        overview: Boolean = false, extracted: Map<String, String>? = null): RuleBook {
         val priorTitle = context.book.metadata["name"]?.jsonPrimitive?.content ?: seed.title
         val priorAuthor = context.book.metadata["author"]?.jsonPrimitive?.content ?: seed.author
         // BookList creates an empty SearchBook before evaluating its first field.
         context.bookField("name", priorTitle)
         suspend fun field(name: String, prior: String, metadata: String = name): String {
             val rule = rules.string(name)
-            val extracted = try {
+            val valueFromRule = extracted?.getValue(name) ?: try {
                 if (name == "kind" && rule.isNotBlank()) context.value(rule, input, "$prefix.$name", OutputKind.TextList)
                     .items().joinToString(",") { it.text() }
                 else context.text(rule, input, "$prefix.$name")
@@ -793,7 +812,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 if (name !in setOf("kind", "wordCount", "updateTime", "lastChapter", "intro", "coverUrl") || failure.code != ContentError.InvalidRule) throw failure
                 ""
             }
-            val value = extracted.ifBlank {
+            val value = valueFromRule.ifBlank {
                 context.book.metadata[metadata]?.jsonPrimitive?.content ?: prior
             }
             context.bookField(metadata, value)

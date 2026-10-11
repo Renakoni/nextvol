@@ -55,9 +55,7 @@ internal fun SourceCatalogAddScreen(state: SourceManagementState, tab: Int, onTa
                                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     val examples = grouped[category].orEmpty().take(3).map { it.name }
-                                    if (category == SourceCategory.Official) Text(stringResource(R.string.source_category_official_description),
-                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    else FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         examples.forEachIndexed { index, name ->
                                             Text(name + if (index < examples.lastIndex) " ·" else "", style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant)

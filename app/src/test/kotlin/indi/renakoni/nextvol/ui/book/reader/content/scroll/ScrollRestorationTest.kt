@@ -67,6 +67,7 @@ class ScrollRestorationTest {
     private val settings = mockk<ReaderSettings>(relaxed = true) {
         every { fontFamilyUri } returns Uri.EMPTY
         every { reduceMotion } returns true
+        every { isUsingContinuousScrolling } answers { continuous }
     }
 
     @Before fun open() { activity = Robolectric.buildActivity(ComponentActivity::class.java).setup() }

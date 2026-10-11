@@ -498,6 +498,11 @@ class BangumiRepositoryTest {
         assertEquals(listOf(BangumiSyncStatus.AUTH_REQUIRED, BangumiSyncStatus.OFFLINE),
             database.bangumiBindingDao().getRecords(17).map { it.status })
         assertEquals(listOf(401, 429), database.bangumiBindingDao().getRecords(17).map { it.httpStatus })
+        val unauthorizedRequests = server.requestCount
+        repository.requestSync()
+        assertFalse(repository.syncAll())
+        assertEquals(unauthorizedRequests, server.requestCount)
+        assertEquals(BangumiSyncStatus.AUTH_REQUIRED, binding().status)
     }
 
     @Test fun rejectedOrMissingCollectionsPauseWithTheHttpCodeAndNoRepeatedRequests() = runBlocking {
@@ -609,6 +614,23 @@ class BangumiRepositoryTest {
         assertEquals(BangumiSyncStatus.REMOTE_CHANGED, binding().status)
         repository.syncAll()
         assertTrue(writes.isEmpty())
+    }
+
+    @Test fun globalSyncCannotBypassBindingReviewAfterReconnect() = runBlocking {
+        bind(); repository.syncAll(); read(1)
+        accounts.disconnect()
+        repository.connect("replacement-test-token")
+        assertEquals(BangumiSyncStatus.REMOTE_CHANGED, binding().status)
+        val requests = server.requestCount
+        repository.requestSync(); repository.syncAll()
+        assertEquals(BangumiSyncStatus.REMOTE_CHANGED, binding().status)
+        assertEquals(requests, server.requestCount)
+        assertTrue(writes.isEmpty())
+        val preview = repository.preview(book.storageKey, 10)
+        repository.bind(preview, preview.mapping, emptySet(), true)
+        repository.syncAll()
+        assertEquals(1, remote!!.volumes)
+        assertEquals(BangumiSyncStatus.SYNCED, binding().status)
     }
 
     @Test fun roomCommitAutomaticallySchedulesWorkAndFailureDoesNotEnqueueAFeedbackLoop() = runBlocking {

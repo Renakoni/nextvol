@@ -4,14 +4,14 @@
     <string name="search_source_count">Searchable sources: %1$d</string>
     <string name="search_delete_history_entry">Delete history: %1$s</string>
     <string name="search_start_title">Find your next book</string>
-    <string name="search_start_description">Search your enabled sources, or choose a group to narrow your search.</string>
+    <string name="search_start_description">Search the selected scope, or switch to another source or group.</string>
     <string name="search_book_count">Books found: %1$d</string>
     <string name="search_progress">Sources searched: %1$d / %2$d</string>
     <string name="search_stopped">Search paused</string>
     <string name="search_stop">Pause search</string>
     <string name="search_resume">Continue</string>
     <string name="search_failure_count">Failed: %1$d</string>
-    <string name="search_empty_description">Try another keyword or search a different source group.</string>
+    <string name="search_empty_description">Try another keyword or change the search scope.</string>
     <string name="search_incomplete_title">Some sources could not finish</string>
     <string name="search_incomplete_description">No books have been found yet. Check the failed sources or retry them.</string>
     <string name="search_result_limit">Showing up to 1,000 books. Use a more specific keyword or source group to narrow the results.</string>
@@ -19,6 +19,15 @@
     <string name="search_retry_failed">Retry failed sources</string>
     <string name="search_book_unavailable">Book information unavailable</string>
     <string name="search_book_loading">Loading book information…</string>
-    <string name="search_no_sources">No searchable sources in this group</string>
-    <string name="search_no_sources_description">Choose another group or enable a source in source management.</string>
+    <string name="search_no_sources">No searchable sources in this scope</string>
+    <string name="search_no_sources_description">Choose another scope or enable a source in source management.</string>
+    <string name="search_scope_title">Search scope</string>
+    <string name="search_change_scope">Change search scope: %1$s</string>
+    <string name="search_selected_source">Selected source</string>
+    <string name="search_find_source">Source name</string>
+    <string name="search_single_source">One source</string>
+    <string name="search_source_matches">Matching sources: %1$d</string>
+    <string name="search_source_not_found">No matching sources. Try another name.</string>
+    <string name="search_source_empty">No books found in %1$s</string>
+    <string name="search_expand_all">Search all sources</string>
 </resources>

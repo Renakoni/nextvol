@@ -19,6 +19,8 @@ interface StatsDetailedUiState {
     var selectedChartDateRange: Pair<LocalDate, LocalDate>?
     var selectedDate: LocalDate
     var selectedViewIndex: Int
+    val displayedViewIndex: Int
+    val hasData: Boolean
     val isLoading: Boolean
     val bookFirstReadDateMap: Map<Pair<String, Flow<Result<BookInformation, WebRequestError>>>, LocalDate>
     val bookFirstFinishedDateMap: Map<Pair<String, Flow<Result<BookInformation, WebRequestError>>>, LocalDate>
@@ -32,6 +34,8 @@ class MutableStatsDetailedUiState : StatsDetailedUiState {
     override var selectedChartDateRange: Pair<LocalDate, LocalDate>? by mutableStateOf(null)
     override var selectedDate: LocalDate by mutableStateOf(LocalDate.now())
     override var selectedViewIndex: Int by mutableIntStateOf(0)
+    override var displayedViewIndex: Int by mutableIntStateOf(0)
+    override var hasData: Boolean by mutableStateOf(false)
     override var isLoading: Boolean by mutableStateOf(false)
     override var bookFirstReadDateMap: Map<Pair<String, Flow<Result<BookInformation, WebRequestError>>>, LocalDate> by mutableStateOf(emptyMap())
     override var bookFirstFinishedDateMap: Map<Pair<String, Flow<Result<BookInformation, WebRequestError>>>, LocalDate> by mutableStateOf(emptyMap())
@@ -39,4 +43,4 @@ class MutableStatsDetailedUiState : StatsDetailedUiState {
 }
 
 val StatsDetailedUiState.currentDateRange: ClosedRange<LocalDate>
-    get() = StatsViewOption.fromIndex(selectedViewIndex).rangeFor(selectedDate)
+    get() = targetDateRange.first..targetDateRange.second

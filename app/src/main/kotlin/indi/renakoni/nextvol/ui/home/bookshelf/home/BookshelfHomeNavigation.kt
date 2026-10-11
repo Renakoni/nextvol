@@ -1,12 +1,15 @@
 package indi.renakoni.nextvol.ui.home.bookshelf.home
 
 import androidx.compose.animation.SharedTransitionScope
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -16,11 +19,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.dialog
 import androidx.navigation.toRoute
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.ExternalFileViewModel
 import indi.renakoni.nextvol.ui.book.detail.navigateToBookDetailDestination
 import indi.renakoni.nextvol.ui.dialog.AddBookToBookshelfDialog
 import indi.renakoni.nextvol.ui.home.bookshelf.edit.navigateToBookshelfEditDestination
 import indi.renakoni.nextvol.ui.home.settings.navigateToSettingsDestination
-import indi.renakoni.nextvol.ui.localbook.LocalBookImportDialog
 import indi.renakoni.nextvol.ui.localbook.LocalBookImportViewModel
 import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
@@ -28,6 +31,7 @@ import io.nightfish.lightnovelreader.api.ui.LocalNavController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 @Suppress("UNUSED_PARAMETER")
 fun NavGraphBuilder.bookshelfHomeDestination(sharedTransitionScope: SharedTransitionScope) {
@@ -35,13 +39,24 @@ fun NavGraphBuilder.bookshelfHomeDestination(sharedTransitionScope: SharedTransi
         val navController = LocalNavController.current
         val parentEntry = remember(it) { navController.getBackStackEntry(Route.Main) }
         val bookshelfHomeViewModel = hiltViewModel<BookshelfHomeViewModel>(parentEntry)
-        val importViewModel = hiltViewModel<LocalBookImportViewModel>()
-        val localBookshelfName = stringResource(R.string.local_bookshelf_name)
-        val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            uri?.let(importViewModel::open)
+        val entry = it
+        LaunchedEffect(entry) {
+            entry.savedStateHandle.getStateFlow<Int?>("externalShelf", null).collect { shelf ->
+                if (shelf != null) {
+                    snapshotFlow { bookshelfHomeViewModel.uiState.bookshelfList.any { it.id == shelf } }.first { it }
+                    bookshelfHomeViewModel.changePage(shelf)
+                    entry.savedStateHandle["externalShelf"] = null
+                }
+            }
         }
-        LaunchedEffect(importViewModel) {
-            importViewModel.imported.collect { bookshelfHomeViewModel.changePage(it) }
+        // Share the activity's import session and dialog with external file intents.
+        val activity = LocalView.current.context as ComponentActivity
+        val importViewModel = hiltViewModel<LocalBookImportViewModel>(activity)
+        val externalFiles = hiltViewModel<ExternalFileViewModel>(activity)
+        val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null && externalFiles.checkAvailable(importViewModel.state.visible)) {
+                importViewModel.open(uri)
+            }
         }
         val bookshelfNewTitle = stringResource(R.string.bookshelf_new_title)
         val bookshelfEditTitle = stringResource(R.string.bookshelf_edit_title)
@@ -77,18 +92,8 @@ fun NavGraphBuilder.bookshelfHomeDestination(sharedTransitionScope: SharedTransi
             uiState = uiState,
             onSettings = navController::navigateToSettingsDestination,
             onImportLocalBook = {
-                val shelf = bookshelfHomeViewModel.uiState.selectedBookshelf
-                importViewModel.selectTarget(shelf?.id, shelf?.name ?: localBookshelfName)
-                importLauncher.launch(arrayOf("*/*"))
+                if (externalFiles.checkAvailable(importViewModel.state.visible)) importLauncher.launch(arrayOf("*/*"))
             },
-        )
-        if (importViewModel.state.visible) LocalBookImportDialog(
-            state = importViewModel.state,
-            onDismiss = importViewModel::dismiss,
-            onTitleChange = importViewModel::changeTitle,
-            onEncodingChange = importViewModel::changeEncoding,
-            onRuleChange = importViewModel::changeRule,
-            onImport = importViewModel::confirm,
         )
     }
 

@@ -51,7 +51,8 @@ class SourceSearch internal constructor(private val runtime: SourceRuntime, val 
             val book = SourceBookId(runtime.id, item.bookId)
             SearchResult.MultipleBook(book.storageKey, item.information?.takeIf { it.id == item.bookId }?.let(book::bind))
         }, scores = result.scores.mapKeys { (id, _) -> SourceBookId(runtime.id, id).storageKey },
-            previewIds = result.previewIds.mapTo(hashSetOf()) { SourceBookId(runtime.id, it).storageKey })
+            previewIds = result.previewIds.mapTo(hashSetOf()) { SourceBookId(runtime.id, it).storageKey },
+            evidence = result.evidence.mapKeys { (id, _) -> SourceBookId(runtime.id, id).storageKey })
     }
 
     fun search(type: SearchType, keyword: String) = runtime.search.search(type, keyword).map { result ->
@@ -88,6 +89,7 @@ internal fun searchFailure(failure: Throwable): SourceSearchFailure = when (fail
         ContentError.RouteUnsupported -> DiscoveryError.RouteUnsupported
         ContentError.Certificate -> DiscoveryError.Certificate
         ContentError.Network -> DiscoveryError.Network
+        ContentError.Limit -> DiscoveryError.Limit
         ContentError.Unavailable -> DiscoveryError.Unavailable
         else -> DiscoveryError.InvalidRules
     }, failure.field, failure.denial?.let { DiscoveryPermission(it.origin, it.kind.name) }, failure.diagnostic, failure.httpStatus)

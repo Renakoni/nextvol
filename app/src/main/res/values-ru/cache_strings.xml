@@ -9,9 +9,6 @@
     <string name="book_download_partial">Частично</string>
     <string name="book_download_updating">Загрузка</string>
     <string name="book_download_failed">Ошибка</string>
-    <string name="book_download_outdated">Доступно обновление</string>
-    <string name="book_download_check_updates">Обновить офлайн-содержимое</string>
     <string name="book_download_continue">Продолжить</string>
     <string name="book_download_retry">Повторить</string>
-    <string name="book_download_update">Обновить</string>
 </resources>

@@ -10,9 +10,6 @@
     <string name="book_download_partial">Partial</string>
     <string name="book_download_updating">Downloading</string>
     <string name="book_download_failed">Failed</string>
-    <string name="book_download_outdated">Update available</string>
-    <string name="book_download_check_updates">Update offline content</string>
     <string name="book_download_continue">Continue</string>
     <string name="book_download_retry">Retry</string>
-    <string name="book_download_update">Update</string>
 </resources>

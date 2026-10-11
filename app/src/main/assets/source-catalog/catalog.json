@@ -1,10 +1,10 @@
 [
   {
     "key": "https://book.qq.com/",
-    "category": "Official",
+    "category": "Platforms",
     "name": "QQ阅读",
     "subtitle": "平台网文 · 官方站点，部分作品可能需付费",
-    "index": 0,
+    "index": 7,
     "host": "book.qq.com",
     "available": true
   },
@@ -28,37 +28,37 @@
   },
   {
     "key": "http://m.zhangyue.com",
-    "category": "Official",
+    "category": "Platforms",
     "name": "掌阅",
     "subtitle": "原规则正文串章或返回应用提示，暂不推荐",
-    "index": 1,
+    "index": 8,
     "host": "m.zhangyue.com",
     "available": false
   },
   {
     "key": "https://wap.cmread.com/",
-    "category": "Official",
+    "category": "Platforms",
     "name": "咪咕阅读",
     "subtitle": "网文、出版 · 官方站点，部分作品可能需付费",
-    "index": 2,
+    "index": 9,
     "host": "wap.cmread.com",
     "available": true
   },
   {
     "key": "https://m.yuedu.163.com/",
-    "category": "Official",
+    "category": "Platforms",
     "name": "网易阅读",
     "subtitle": "网文、出版 · 官方站点，部分作品可能需付费",
-    "index": 3,
+    "index": 10,
     "host": "m.yuedu.163.com",
     "available": true
   },
   {
     "key": "https://www.shuqi.com/",
-    "category": "Official",
+    "category": "Platforms",
     "name": "书旗小说",
     "subtitle": "免费网文 · 官方站点，部分作品可能需付费",
-    "index": 4,
+    "index": 11,
     "host": "shuqi.com",
     "available": true
   },
@@ -91,10 +91,10 @@
   },
   {
     "key": "https://www.qidian.com",
-    "category": "Official",
+    "category": "Platforms",
     "name": "起点中文网",
     "subtitle": "官方榜单前20 · 部分章节需登录订阅",
-    "index": 5,
+    "index": 12,
     "host": "qidian.com",
     "replaces": [
       "36e9f5df9d628f261ba45d85ca6bbe6573b56685c4995bbb48fdac5d851d11c8"
@@ -103,55 +103,55 @@
   },
   {
     "key": "https://www.zongheng.com",
-    "category": "Official",
+    "category": "Platforms",
     "name": "纵横中文网",
     "subtitle": "官方平台 · 含付费章节，当前规则无登录入口",
-    "index": 6,
+    "index": 13,
     "host": "zongheng.com",
     "available": true
   },
   {
     "key": "https://www.17k.com",
-    "category": "Official",
+    "category": "Platforms",
     "name": "17K小说网",
     "subtitle": "玄幻、都市、历史 · 官方站点，部分作品可能需付费",
-    "index": 7,
+    "index": 14,
     "host": "17k.com",
     "available": true
   },
   {
     "key": "https://b.faloo.com#温暖满怀",
-    "category": "Official",
+    "category": "Platforms",
     "name": "飞卢小说",
     "subtitle": "同人、都市、玄幻 · 官方站点，部分作品可能需付费",
-    "index": 8,
+    "index": 15,
     "host": "b.faloo.com",
     "available": true
   },
   {
     "key": "https://www.heiyan.com#玄奇21.0202",
-    "category": "Official",
+    "category": "Platforms",
     "name": "黑岩阅读",
     "subtitle": "都市、悬疑 · 官方站点，部分作品可能需付费",
-    "index": 9,
+    "index": 16,
     "host": "heiyan.com",
     "available": true
   },
   {
     "key": "https://www.zhulang.com",
-    "category": "Official",
+    "category": "Platforms",
     "name": "逐浪小说",
     "subtitle": "玄幻、都市 · 官方站点，部分作品可能需付费",
-    "index": 10,
+    "index": 17,
     "host": "zhulang.com",
     "available": false
   },
   {
     "key": "http://app2.motie.com",
-    "category": "Official",
+    "category": "Platforms",
     "name": "磨铁中文",
     "subtitle": "官方平台 · 含付费章节，当前规则无登录入口",
-    "index": 11,
+    "index": 18,
     "host": "app2.motie.com",
     "replaces": [
       "f19b487e19bbd5a578a0131b3a1fa01bb608aae75cc0f03239aa4c7d30174723"
@@ -169,28 +169,28 @@
   },
   {
     "key": "http://www.azycjd.com",
-    "category": "Official",
+    "category": "Platforms",
     "name": "安之原创",
     "subtitle": "原创网文 · 官方站点，部分作品可能需付费",
-    "index": 12,
+    "index": 19,
     "host": "azycjd.com",
     "available": true
   },
   {
     "key": "https://m.jjwxc.net/channel/",
-    "category": "Official",
+    "category": "Female",
     "name": "晋江文学城",
     "subtitle": "言情、耽美、百合、无CP · 官方站点，部分作品可能需付费",
-    "index": 13,
+    "index": 4,
     "host": "m.jjwxc.net",
     "available": true
   },
   {
     "key": "https://www.hongxiu.com",
-    "category": "Official",
+    "category": "Female",
     "name": "红袖添香",
     "subtitle": "官方女频 · 部分章节需登录订阅",
-    "index": 14,
+    "index": 5,
     "host": "hongxiu.com",
     "replaces": [
       "04e4c842a3f060543925b22c6b492e3b20d8e772bccbf28f8f5f1710d5f34855"
@@ -199,10 +199,10 @@
   },
   {
     "key": "https://www.xxsy.net/",
-    "category": "Official",
+    "category": "Female",
     "name": "潇湘书院",
     "subtitle": "官方女频 · 部分章节需登录订阅",
-    "index": 15,
+    "index": 6,
     "host": "xxsy.net",
     "replaces": [
       "28f2528eb1921c8ceed03355e23b4c58b13ac2c0e3cf18ad11c1c5bc8bc8415f"
@@ -211,55 +211,55 @@
   },
   {
     "key": "https://yunqi.qq.com",
-    "category": "Official",
+    "category": "Female",
     "name": "云起书院",
     "subtitle": "现言、古言、穿越 · 官方站点，部分作品可能需付费",
-    "index": 16,
+    "index": 7,
     "host": "yunqi.qq.com",
     "available": false
   },
   {
     "key": "https://www.qdmm.com",
-    "category": "Official",
+    "category": "Female",
     "name": "起点女生网",
     "subtitle": "女频原创、穿越、重生 · 官方站点，部分作品可能需付费",
-    "index": 17,
+    "index": 8,
     "host": "qdmm.com",
     "available": true
   },
   {
     "key": "http://search.ruochu.com",
-    "category": "Official",
+    "category": "Female",
     "name": "若初文学",
     "subtitle": "言情、悬疑 · 官方站点，部分作品可能需付费",
-    "index": 18,
+    "index": 9,
     "host": "search.ruochu.com",
     "available": true
   },
   {
     "key": "http://www.xiang5.com/",
-    "category": "Official",
+    "category": "Female",
     "name": "香网",
     "subtitle": "现言、古言 · 官方站点，部分作品可能需付费",
-    "index": 19,
+    "index": 10,
     "host": "xiang5.com",
     "available": true
   },
   {
     "key": "https://www.xluochen.com/",
-    "category": "Official",
+    "category": "Female",
     "name": "落尘小说",
     "subtitle": "言情网文 · 官方站点，部分作品可能需付费",
-    "index": 20,
+    "index": 11,
     "host": "xluochen.com",
     "available": false
   },
   {
     "key": "https://w.huaxi.net",
-    "category": "Official",
+    "category": "Female",
     "name": "花溪小说",
     "subtitle": "官方平台 · 含付费章节，当前规则无登录入口",
-    "index": 21,
+    "index": 12,
     "host": "w.huaxi.net",
     "replaces": [
       "4b5bba69c57a23951ed3356d437b5e790e3b1d324dbcf5ef2ce5554f1ca72440"
@@ -268,10 +268,10 @@
   },
   {
     "key": "https://lcread.com",
-    "category": "Official",
+    "category": "Female",
     "name": "连城读书",
     "subtitle": "言情、耽美、原创 · 官方站点，部分作品可能需付费",
-    "index": 22,
+    "index": 13,
     "host": "lcread.com",
     "available": false,
     "replaces": [
@@ -280,46 +280,46 @@
   },
   {
     "key": "https://g.hongshu.com/",
-    "category": "Official",
+    "category": "Female",
     "name": "红薯阅读",
     "subtitle": "言情、多题材 · 官方站点，部分作品可能需付费",
-    "index": 23,
+    "index": 14,
     "host": "g.hongshu.com",
     "available": true
   },
   {
     "key": "https://www.popo.tw",
-    "category": "Official",
+    "category": "Female",
     "name": "POPO原创",
     "subtitle": "繁体原创、言情 · 官方站点，部分作品可能需付费",
-    "index": 24,
+    "index": 15,
     "host": "popo.tw",
     "available": true
   },
   {
     "key": "https://www.gongzicp.com",
-    "category": "Official",
+    "category": "Female",
     "name": "长佩文学",
     "subtitle": "原创、耽美 · 官方站点，部分作品可能需付费",
-    "index": 25,
+    "index": 16,
     "host": "gongzicp.com",
     "available": true
   },
   {
     "key": "https://app.shubl.com",
-    "category": "Official",
+    "category": "Female",
     "name": "书耽",
     "subtitle": "原创、耽美 · 官方站点，部分作品可能需付费",
-    "index": 26,
+    "index": 17,
     "host": "app.shubl.com",
     "available": true
   },
   {
     "key": "http://api.doufu.me/",
-    "category": "Official",
+    "category": "Female",
     "name": "豆腐阅读",
     "subtitle": "耽美、同人、原创 · 官方站点，部分作品可能需付费",
-    "index": 27,
+    "index": 18,
     "host": "api.doufu.me",
     "available": false
   },
@@ -343,10 +343,10 @@
   },
   {
     "key": "https://www.myrics.com",
-    "category": "Official",
+    "category": "Female",
     "name": "米国度",
     "subtitle": "官方平台 · 搜索需登录，部分章节付费",
-    "index": 28,
+    "index": 19,
     "host": "myrics.com",
     "available": true
   },
@@ -361,10 +361,10 @@
   },
   {
     "key": "https://book.sfacg.com",
-    "category": "Official",
+    "category": "Anime",
     "name": "SF轻小说／菠萝包",
     "subtitle": "原创轻小说、二次元 · 官方站点，部分作品可能需付费",
-    "index": 29,
+    "index": 9,
     "host": "book.sfacg.com",
     "available": true
   },
@@ -379,10 +379,10 @@
   },
   {
     "key": "https://www.ciweimao.com/",
-    "category": "Official",
+    "category": "Anime",
     "name": "刺猬猫",
     "subtitle": "官方轻小说 · 部分章节付费，可能需网页验证",
-    "index": 30,
+    "index": 10,
     "host": "ciweimao.com",
     "replaces": [
       "107bbb2e13d38305e7b0e134c972da0fdfa601883fa978b04fcddc173487c7f9"
@@ -391,10 +391,10 @@
   },
   {
     "key": "https://www.ciyuanji.com/",
-    "category": "Official",
+    "category": "Anime",
     "name": "次元姬",
     "subtitle": "官方二次元 · 部分章节需登录订阅",
-    "index": 31,
+    "index": 11,
     "host": "ciyuanji.com",
     "replaces": [
       "087da5733df8dfc7f97e354a44e2365a16b0817056c00408986476af6b2c6ab4"
@@ -403,19 +403,19 @@
   },
   {
     "key": "https://wenxue.bkneng.com/wap",
-    "category": "Official",
+    "category": "Anime",
     "name": "不可能的世界",
     "subtitle": "幻想、悬疑、轻小说 · 官方站点，部分作品可能需付费",
-    "index": 32,
+    "index": 12,
     "host": "wenxue.bkneng.com",
     "available": false
   },
   {
     "key": "https://www.kadokado.com.tw/",
-    "category": "Official",
+    "category": "Anime",
     "name": "角角者 KadoKado",
     "subtitle": "繁体原创、轻小说 · 官方站点，部分作品可能需付费",
-    "index": 33,
+    "index": 13,
     "host": "kadokado.com.tw",
     "available": false
   },
@@ -553,10 +553,10 @@
   },
   {
     "key": "https://read.douban.com",
-    "category": "Official",
+    "category": "Literature",
     "name": "豆瓣阅读",
     "subtitle": "原创、文学、悬疑 · 官方站点，部分作品可能需付费",
-    "index": 34,
+    "index": 15,
     "host": "read.douban.com",
     "available": true
   },
@@ -808,32 +808,20 @@
   },
   {
     "key": "https://www.htlvbooks.com",
-    "category": "Official",
+    "category": "Adult",
     "name": "海棠文学",
     "subtitle": "成人向、耽美、百合 · 官方站点，部分作品可能需付费",
-    "index": 35,
+    "index": 7,
     "host": "htlvbooks.com",
     "available": true
   },
   {
     "key": "https://www.po18.tw",
-    "category": "Official",
+    "category": "Adult",
     "name": "PO18",
     "subtitle": "成人向、言情 · 官方站点，部分作品可能需付费",
-    "index": 36,
+    "index": 8,
     "host": "po18.tw",
-    "available": true
-  },
-  {
-    "key": "https://seseclub.com",
-    "category": "Adult",
-    "name": "涩涩俱乐部",
-    "subtitle": "成人向文字",
-    "index": 5,
-    "host": "seseclub.com",
-    "replaces": [
-      "e738691cbfcb4b1191d277b3c8a1f93bacbf77ad506977ad72de275f621b2300"
-    ],
     "available": true
   },
   {
@@ -841,7 +829,7 @@
     "category": "Adult",
     "name": "hlib",
     "subtitle": "成人向文字、系列、单篇",
-    "index": 6,
+    "index": 5,
     "host": "hlib.cc",
     "available": true
   },
@@ -883,7 +871,7 @@
     "category": "Adult",
     "name": "Pixiv 小说",
     "subtitle": "小说与同人 · 需登录 Pixiv，内容以账号权限为准",
-    "index": 7,
+    "index": 6,
     "host": "www.pixiv.net",
     "available": true,
     "replaces": [

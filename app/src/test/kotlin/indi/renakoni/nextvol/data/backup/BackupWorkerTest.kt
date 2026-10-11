@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.work.ListenableWorker
 import androidx.work.workDataOf
 import com.github.michaelbull.result.Ok
+import indi.renakoni.nextvol.data.ExternalFiles
 import indi.renakoni.nextvol.data.local.LocalDataManager
 import indi.renakoni.nextvol.data.local.cbor.AppLocalData
 import indi.renakoni.nextvol.data.local.cbor.LocalData
@@ -35,6 +36,43 @@ import java.util.zip.ZipOutputStream
 class BackupWorkerTest {
     private val context = RuntimeEnvironment.getApplication()
     private val data = AppLocalData(localDataList = listOf(LocalData.empty()), globalLocalData = LocalData.empty())
+
+    @Test fun stagedExternalBackupRestoresWithoutTheSenderPermissionAndIsCleanedOnSuccessOrFailure() = runBlocking {
+        val manager = mockk<LocalDataManager>(relaxed = true)
+        every { manager.currentAppDataVersion } returns 1
+        coEvery { manager.importAppLocalData(any(), any()) } returns Ok(Unit)
+        for (valid in listOf(true, false)) {
+            val staged = ExternalFiles.backupFile(context, "${java.util.UUID.randomUUID()}.nvbackup")
+            staged.parentFile!!.mkdirs()
+            if (valid) BackupArchive.write(staged, data, BackupArchive.manifest(BackupKind.USER_DATA, emptySet()))
+            else staged.writeText("not a backup")
+            val worker = ImportDataWork(context, workerParameters(workDataOf(
+                ExternalFiles.STAGED_BACKUP to staged.name, "overwrite" to false)), manager)
+            val result = worker.doWork()
+            if (valid) assertEquals(ListenableWorker.Result.success(), result)
+            else assertEquals(ListenableWorker.Result.failure(workDataOf(BackupException.ERROR_KEY to BackupFailure.INVALID.name)), result)
+            assertFalse(staged.exists())
+        }
+        coVerify(exactly = 1) { manager.importAppLocalData(data, false) }
+    }
+
+    @Test fun interruptedRestoreRetainsTheStagedBackupForWorkManagerToRestart() = runBlocking {
+        val manager = mockk<LocalDataManager>(relaxed = true)
+        every { manager.currentAppDataVersion } returns 1
+        val staged = ExternalFiles.backupFile(context, "${java.util.UUID.randomUUID()}.nvbackup")
+        staged.parentFile!!.mkdirs()
+        BackupArchive.write(staged, data, BackupArchive.manifest(BackupKind.USER_DATA, emptySet()))
+        val parameters = workerParameters(workDataOf(ExternalFiles.STAGED_BACKUP to staged.name))
+        coEvery { manager.importAppLocalData(any(), any()) } throws kotlinx.coroutines.CancellationException("stopped")
+        try {
+            ImportDataWork(context, parameters, manager).doWork()
+            fail("Expected cancellation")
+        } catch (_: kotlinx.coroutines.CancellationException) { }
+        assertTrue(staged.exists())
+        coEvery { manager.importAppLocalData(any(), any()) } returns Ok(Unit)
+        assertEquals(ListenableWorker.Result.success(), ImportDataWork(context, parameters, manager).doWork())
+        assertFalse(staged.exists())
+    }
 
     @Test fun malformedAndFutureArchivesReportSpecificFailuresWithoutRestoring() = runBlocking {
         val future = ByteArrayOutputStream().also { bytes ->

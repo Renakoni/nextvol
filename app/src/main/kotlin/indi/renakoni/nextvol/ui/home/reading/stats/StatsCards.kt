@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.get
 import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.R
@@ -40,12 +42,9 @@ import indi.renakoni.nextvol.ui.home.reading.stats.detailed.BookStack
 import indi.renakoni.nextvol.ui.home.reading.stats.detailed.StatsCard
 import indi.renakoni.nextvol.ui.home.reading.stats.detailed.StatsDetailedUiState
 import indi.renakoni.nextvol.ui.home.reading.stats.detailed.currentDateRange
-import indi.renakoni.nextvol.utils.stats.generateTimeBarItems
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOf
 import java.time.LocalDate
 
 val predefinedColors = listOf(
@@ -118,23 +117,23 @@ private fun BookActivitySection(
                 text = stringResource(titleResId),
                 style = typography.titleMedium
             )
-            val bookList = books
-                .take(2)
-                .map { it.second }
-            bookList.forEach { flow ->
-                val result by flow.collectAsStateWithLifecycle(null)
-                result?.onOk {
-                    Text(
-                        text = it.title,
-                        style = typography.bodyMedium,
-                        maxLines = 1,
-                        color = colorScheme.secondary,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }?.onErr {
-                    //TODO 错误显示
-                } ?: {
-                    //TODO 加载显示
+            val bookList = books.take(2)
+            bookList.forEach { (bookId, flow) ->
+                key(bookId) {
+                    val result by flow.collectAsStateWithLifecycle(null)
+                    result?.onOk {
+                        Text(
+                            text = it.title,
+                            style = typography.bodyMedium,
+                            maxLines = 1,
+                            color = colorScheme.secondary,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }?.onErr {
+                        //TODO 错误显示
+                    } ?: {
+                        //TODO 加载显示
+                    }
                 }
             }
             if (books.size > bookList.size)
@@ -186,17 +185,19 @@ fun ActivityStatsCard(
             ).filter { it.second.isNotEmpty() }
 
             sections.forEachIndexed { index, (title, books) ->
-                BookActivitySection(
-                    titleResId = title,
-                    books = books
-                )
-
-                if (index != sections.lastIndex) {
-                    HorizontalDivider(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
+                key(title) {
+                    BookActivitySection(
+                        titleResId = title,
+                        books = books
                     )
+
+                    if (index != sections.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        )
+                    }
                 }
             }
         }
@@ -223,7 +224,7 @@ fun ReadingDetailStatsCard(
                 val books = allRecords
                     .sortedBy { it.lastSeen }
                     .map { it.bookId to it.bookInformationFlow }
-                    .distinct()
+                    .distinctBy { it.first }
                 BookStack(
                     books = books,
                     count = 8,
@@ -251,22 +252,24 @@ fun ReadingTimeBar(
         assignColors(recordList)
     }
 
-    val barItemsFlow = remember(recordList) {
-        generateTimeBarItems(
-            recordList,
-            colorMap
-        ).let { flows ->
-            if (flows.isEmpty()) {
-                flowOf(emptyList())
-            } else {
-                combine(flows) {
-                    it.toList()
-                }
+    val groupedTime = remember(recordList) {
+        recordList.groupBy { it.bookId }.values
+            .map { it.first() to it.sumOf(BookRecord::seconds) }
+            .sortedByDescending { it.second }
+    }
+    // Times belong to the committed period. Metadata may arrive later, without holding back
+    // those times or restarting subscriptions for books that remain in the visible list.
+    val barItems = buildList {
+        groupedTime.take(8).forEach { (record, seconds) ->
+            key(record.bookId) {
+                val information by record.bookInformationFlow.collectAsStateWithLifecycle(null)
+                add(TimeBarItem(information?.get()?.title ?: "Unknown", seconds,
+                    colorMap[record.bookId] ?: Color.Gray))
             }
         }
+        val othersTime = groupedTime.drop(8).sumOf { it.second }
+        if (othersTime > 0) add(TimeBarItem("Others", othersTime, Color.Gray))
     }
-
-    val barItems by barItemsFlow.collectAsStateWithLifecycle(emptyList())
     val normalizedItems = remember(barItems) {
         barItems.normalize()
     }

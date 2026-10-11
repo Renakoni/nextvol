@@ -71,11 +71,11 @@ class ReaderBatteryTest {
 
     @After fun close() { activity.pause().stop().destroy() }
 
-    private fun mount(indicator: Boolean = false) {
+    private fun mount(indicator: Boolean = false, reduced: Boolean = true) {
         activity.get().setContent {
             MaterialTheme {
                 CompositionLocalProvider(LocalContext provides context, LocalLifecycleOwner provides owner,
-                    LocalReduceReaderMotion provides true) {
+                    LocalReduceReaderMotion provides reduced) {
                     if (indicator) Column {
                         Indicator(enableBatteryIndicator = visible.value, enableTimeIndicator = false,
                         enableChapterTitle = false, chapterTitle = "", enableReadingChapterProgressIndicator = true,
@@ -100,6 +100,22 @@ class ReaderBatteryTest {
         assertEquals(0, context.batteryServiceQueries.get())
         assertEquals(1, context.registered.get())
         assertTrue(context.binderThreads.none { it === Looper.getMainLooper().thread })
+    }
+
+    @Test fun progressIsImmediateAndKeepsItsWidthAcrossDigitBoundaries() {
+        mount(indicator = true, reduced = false)
+        val width = compose.onNodeWithTag("reader-progress-number").fetchSemanticsNode().boundsInRoot.width
+        compose.mainClock.autoAdvance = false
+        for (value in listOf(9, 10, 99, 100, 0)) {
+            compose.runOnUiThread { progress.value = value / 100f }
+            repeat(2) {
+                compose.mainClock.advanceTimeByFrame()
+                compose.waitForIdle()
+            }
+            compose.onNodeWithText(value.toString()).assertIsDisplayed()
+            assertEquals(width, compose.onNodeWithTag("reader-progress-number").fetchSemanticsNode().boundsInRoot.width, 0.1f)
+        }
+        compose.mainClock.autoAdvance = true
     }
 
     @Test fun broadcastsConvertScaleAndInvalidValuesRemainUnknown() {

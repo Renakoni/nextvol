@@ -401,9 +401,11 @@ private fun ReadingBookCard(
             formTime(it)
         } ?: return@remember neverRead
     }
-    val minutes = remember(userReadingData.totalReadTime) { formReadingDuration(userReadingData.totalReadTime) }
+    val readingTime = remember(userReadingData.totalReadTime) {
+        formReadingDuration(userReadingData.totalReadTime.toLong())
+    }
     val progress = remember(userReadingData.readingProgress) { "${(userReadingData.readingProgress * 100).toInt()}%" }
-    val infoText = "$lastRead • $minutes • $progress"
+    val infoText = "$lastRead • $readingTime • $progress"
     val description = remember(bookInformation.description) { bookInformation.description.trim() }
 
     Box(

@@ -132,6 +132,42 @@ class ReaderChapterLoaderTest {
     }
 
     @Test
+    fun retainedWindowContentRequiresTheSameBookAndCompleteSourceAndStillPublishesRecovery() {
+        val results = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
+        val first = env.scope.launch { env.loader.load("request", "book").collect(results::add) }
+        env.runCurrent()
+        val original = env.chapter("request", "prev", "next", "First")
+        env.emit("request", Ok(original))
+        val retained = results.single().get()!!
+        first.cancel(); env.runCurrent()
+        results.clear()
+        env.scope.launch {
+            env.loader.load("request", "book", retainedContent = retained).collect(results::add)
+        }
+        env.runCurrent()
+        val error = Err(WebRequestError("offline", "failed"))
+        listOf(Ok(original.copy()), error, Ok(original.copy())).forEach { env.emit("request", it) }
+        assertEquals(3, results.size)
+        assertSame(retained, results[0].get())
+        assertEquals(error, results[1])
+        assertSame(retained, results[2].get())
+        assertEquals(1, env.events.count { it.startsWith("render/") })
+        listOf(original.copy(content = env.chapter("request", title = "Revised").content),
+            original.copy(title = "Renamed"), original.copy(prevChapter = "other-prev"),
+            original.copy(nextChapter = "other-next")).forEach { changed ->
+            env.emit("request", Ok(changed))
+            assertNotSame(retained, results.last().get())
+        }
+        val otherBook = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
+        env.scope.launch {
+            env.loader.load("request", "other-book", retainedContent = retained).collect(otherBook::add)
+        }
+        env.runCurrent()
+        env.emit("request", Ok(original.copy()))
+        assertNotSame(retained, otherBook.single().get())
+    }
+
+    @Test
     fun errorsAndRecoveryArePublishedEvenWhenTheRecoveredBodyIsUnchanged() {
         val results = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
         env.scope.launch { env.loader.load("request", "book").collect(results::add) }

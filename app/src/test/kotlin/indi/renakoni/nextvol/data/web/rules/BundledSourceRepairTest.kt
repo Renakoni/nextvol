@@ -45,7 +45,7 @@ class BundledSourceRepairTest {
         }
     }
 
-    @Test fun movingAKnownSourceToOfficialUpdatesOnlyItsStoredClassification() = runBlocking {
+    @Test fun aRetiredStoredCategoryStillRestoresAndTakesTheCatalogCategory() = runBlocking {
         val host = Host()
         RuleSourceFixture().use { fixture ->
             val accounts = SourceSessionManager(fixture.authority)
@@ -66,13 +66,18 @@ class BundledSourceRepairTest {
                 val before = sources.installedSources().single()
                 val generation = accounts.current(id).generation
                 sources.stop()
+                // Installs from before Official Sites was dissolved still store that name.
+                val snapshot = File(host.root, "rule-sources/active.json")
+                val stored = snapshot.readText()
+                assertTrue(stored.contains("\"category\":\"Platforms\""))
+                snapshot.writeText(stored.replace("\"category\":\"Platforms\"", "\"category\":\"Official\""))
                 sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority,
-                    accounts, fixture.runner, catalog = category(SourceCategory.Official))
+                    accounts, fixture.runner, catalog = category(SourceCategory.Female))
                 sources.restore()
                 val after = sources.installedSources().single()
                 assertEquals(before.definition, after.definition)
                 assertEquals(before.origins, after.origins)
-                assertEquals(before.preferences.copy(category = SourceCategory.Official), after.preferences)
+                assertEquals(before.preferences.copy(category = SourceCategory.Female), after.preferences)
                 assertEquals(generation, accounts.current(id).generation)
                 assertEquals(0, fixture.server.requestCount)
             } finally { sources.stop(); host.root.deleteRecursively() }

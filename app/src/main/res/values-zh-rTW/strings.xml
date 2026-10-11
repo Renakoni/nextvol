@@ -607,4 +607,7 @@
     <string name="reader_page_layout_short">目前單頁：視窗高度不足。</string>
     <string name="reader_page_layout_large_text">目前單頁：字級過大，雙頁正文空間不足。</string>
     <string name="reader_page_layout_unsupported">目前單頁：本章包含暫不支援雙頁的內容。</string>
+    <string name="external_file_busy">請先完成或取消目前的匯入，再開啟其他檔案。</string>
+    <string name="external_file_unsupported">不支援此檔案類型，請選擇 EPUB、TXT、.nvbackup 或 .lnr 檔案。</string>
+    <string name="external_file_unreadable">無法讀取此檔案。請先下載檔案，再從傳送應用程式重新開啟。</string>
 </resources>

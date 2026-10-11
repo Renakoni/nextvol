@@ -137,55 +137,68 @@ internal fun layoutReaderText(
 internal fun ReaderTextFragments(
     fragments: List<ReaderTextFragment>, style: TextStyle, color: Color, modifier: Modifier,
 ) {
-    val readerSelection = LocalReaderSelectionState.current
-    val drawObserver = LocalReaderTextDrawObserver.current
-    val workObserver = LocalReaderTextWorkObserver.current
-    if (workObserver != null) SideEffect { workObserver("compose") }
-    val selectionState = rememberSelectionState()
     val density = LocalDensity.current
-    val speechRanges = LocalReaderSpeechRanges.current
-    val paperHighlight = LocalReaderSpeechHighlight.current
-    val highlight = if (paperHighlight.isSpecified) paperHighlight else color.copy(alpha = 0.13f)
-    DisposableEffect(readerSelection, selectionState) {
-        readerSelection.register(selectionState)
-        onDispose { readerSelection.unregister(selectionState) }
-    }
-    SelectionContainer(state = selectionState) {
-        Column(modifier.then(if (workObserver == null) Modifier else Modifier.layout { measurable, constraints ->
-            workObserver("measure")
-            val child = measurable.measure(constraints)
-            layout(child.width, child.height) { child.placeRelative(0, 0) }
-        })) {
+    ReaderTextSelection {
+        Column(modifier) {
             fragments.forEach { fragment ->
                 key(fragment.componentIndex, fragment.start) {
-                    var measured by remember { mutableStateOf<TextLayoutResult?>(null) }
-                    val observation = if (drawObserver == null) Modifier else {
-                        var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-                        Modifier.onGloballyPositioned { coordinates = it }
-                            .drawWithContent {
-                                drawContent()
-                                val positioned = coordinates
-                                val textLayout = measured
-                                if (positioned?.isAttached == true && textLayout != null) {
-                                    drawObserver(fragment, textLayout, positioned)
-                                }
-                            }
-                    }
-                    val range = speechRanges.firstOrNull { it.componentIndex == fragment.componentIndex }
-                    val start = ((range?.start ?: fragment.end) - fragment.start).coerceIn(0, fragment.text.length)
-                    val end = ((range?.end ?: fragment.start) - fragment.start).coerceIn(0, fragment.text.length)
                     if (fragment.spacingBefore > 0) Spacer(Modifier.height(with(density) { fragment.spacingBefore.toDp() }))
-                    Text(
-                        text = fragment.text, style = style, color = color,
-                        modifier = Modifier.fillMaxWidth().then(observation).drawBehind {
-                            if (start < end && !readerSelection.hasSelection) measured?.let {
-                                drawPath(it.getPathForRange(start, end), highlight)
-                            }
-                        },
-                        onTextLayout = { measured = it },
-                    )
+                    ReaderTextFragmentContent(fragment, style, color)
                 }
             }
         }
     }
+}
+
+/** One selection scope also covers fragments hosted in separate scroll subcomposition slots. */
+@Composable
+internal fun ReaderTextSelection(content: @Composable () -> Unit) {
+    val readerSelection = LocalReaderSelectionState.current
+    val selectionState = rememberSelectionState()
+    DisposableEffect(readerSelection, selectionState) {
+        readerSelection.register(selectionState)
+        onDispose { readerSelection.unregister(selectionState) }
+    }
+    SelectionContainer(state = selectionState, content = content)
+}
+
+@Composable
+internal fun ReaderTextFragmentContent(fragment: ReaderTextFragment, style: TextStyle, color: Color) {
+    val readerSelection = LocalReaderSelectionState.current
+    val drawObserver = LocalReaderTextDrawObserver.current
+    val workObserver = LocalReaderTextWorkObserver.current
+    if (workObserver != null) SideEffect { workObserver("compose") }
+    val speechRanges = LocalReaderSpeechRanges.current
+    val paperHighlight = LocalReaderSpeechHighlight.current
+    val highlight = if (paperHighlight.isSpecified) paperHighlight else color.copy(alpha = 0.13f)
+    var measured by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val observation = if (drawObserver == null) Modifier else {
+        var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+        Modifier.onGloballyPositioned { coordinates = it }
+            .drawWithContent {
+                drawContent()
+                val positioned = coordinates
+                val textLayout = measured
+                if (positioned?.isAttached == true && textLayout != null) {
+                    drawObserver(fragment, textLayout, positioned)
+                }
+            }
+    }
+    val range = speechRanges.firstOrNull { it.componentIndex == fragment.componentIndex }
+    val start = ((range?.start ?: fragment.end) - fragment.start).coerceIn(0, fragment.text.length)
+    val end = ((range?.end ?: fragment.start) - fragment.start).coerceIn(0, fragment.text.length)
+    Text(
+        text = fragment.text, style = style, color = color,
+        modifier = Modifier.fillMaxWidth().then(observation)
+            .then(if (workObserver == null) Modifier else Modifier.layout { measurable, constraints ->
+                workObserver("measure")
+                val child = measurable.measure(constraints)
+                layout(child.width, child.height) { child.placeRelative(0, 0) }
+            }).drawBehind {
+                if (start < end && !readerSelection.hasSelection) measured?.let {
+                    drawPath(it.getPathForRange(start, end), highlight)
+                }
+            },
+        onTextLayout = { measured = it },
+    )
 }

@@ -137,7 +137,7 @@ class MetadataBookmarkTest {
 
     @Test fun automaticDownloadDropsOldSelectionAndSubmissionFailureKeepsBookmark() = runBlocking(Dispatchers.IO) {
         val oldWorkId = java.util.UUID.randomUUID().toString()
-        downloads.queueTask(novel, downloads.generation(), oldWorkId, refresh = true, chapterIds = listOf("selected"))
+        downloads.queueTask(novel, downloads.generation(), oldWorkId, chapterIds = listOf("selected"))
         downloads.finishTask(BookDownloadStore.Task(novel, downloads.generation(), oldWorkId), DownloadFailure.Scheduling)
         every { work.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>()) } returns
             mockk<androidx.work.Operation> { every { result } returns
@@ -148,7 +148,6 @@ class MetadataBookmarkTest {
         assertEquals("Failed", owner.taskStatus)
         assertEquals(DownloadFailure.Scheduling.name, owner.taskError)
         assertNull(owner.selectedChapterIds())
-        assertEquals("", owner.taskRefreshId)
         shelves.addBookIntoBookShelf(1, info.copy(id = novel.storageKey))
         verify(exactly = 1) { work.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>()) }
     }

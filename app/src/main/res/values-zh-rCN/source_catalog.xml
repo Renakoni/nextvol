@@ -5,10 +5,8 @@
     <string name="source_category_anime">二次元</string>
     <string name="source_category_literature">经典文学</string>
     <string name="source_category_general">综合补充</string>
-    <string name="source_category_adult">r18</string>
+    <string name="source_category_adult">R18</string>
     <string name="source_catalog_tab">分类</string>
-    <string name="source_category_official">官方站点</string>
-    <string name="source_category_official_description">官方站点，部分作品可能需要付费</string>
     <string name="source_import_tab">导入</string>
     <string name="source_catalog_count">%1$d 个</string>
     <string name="source_catalog_count_added">%1$d 个 · 已添加 %2$d 个</string>

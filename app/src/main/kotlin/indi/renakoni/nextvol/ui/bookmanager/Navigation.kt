@@ -12,7 +12,6 @@ import androidx.navigation.compose.composable
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.downloadSubmissionText
 import indi.renakoni.nextvol.ui.book.download.navigateToBookDownload
-import indi.renakoni.nextvol.data.download.DownloadType
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.utils.isResumed
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
@@ -60,11 +59,7 @@ private fun BookManagerDestination(localContent: Boolean) {
         downloadItemIdList = viewModel.downloadItemIdList,
         uiState = uiState,
         onClickCancel = viewModel::onClickCancel,
-        onClickRetry = { item ->
-            if (item.type == DownloadType.CACHE && item.progress >= 1f)
-                navController.navigateToBookDownload(item.bookId, refresh = true)
-            else viewModel.onClickRetry(item)
-        },
+        onClickRetry = viewModel::onClickRetry,
         onOpenDownload = { navController.navigateToBookDownload(it) },
         onClickClearCompleted = viewModel::onClickClearCompleted
     )

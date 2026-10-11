@@ -5,10 +5,12 @@ package indi.renakoni.nextvol.ui.book.reader.content.scroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +43,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -83,7 +87,6 @@ import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechFollow
 import indi.renakoni.nextvol.ui.book.reader.content.PrepareReaderSpeechIndex
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechRanges
 import indi.renakoni.nextvol.ui.book.reader.content.readerSpeechManualScroll
-import indi.renakoni.nextvol.ui.components.Loading
 import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.utils.readerTextColor
@@ -96,6 +99,8 @@ import indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarkPosition
 import indi.renakoni.nextvol.ui.book.reader.bookmark.RegisterBookmarkCapture
 import indi.renakoni.nextvol.ui.book.reader.bookmark.anchorIn
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
@@ -160,7 +165,12 @@ fun ScrollContentTextComponent(
         }
     }
     val textLayout = LocalReaderTextLayout.current
-    val preparedChapters = uiState.contentList.mapIndexed { index, entry ->
+    // Lazy items can recompose during scrolling before this parent does. Capture the window
+    // once so their keys, neighbours and prepared bodies always use the same slot ordering.
+    val chapterEntries = uiState.contentList.toList()
+    val showAdjacentChapters = settingState.isUsingContinuousScrolling &&
+        chapterEntries.getOrNull(1)?.second?.isErr != true
+    val preparedChapters = chapterEntries.mapIndexed { index, entry ->
         key(listState, entry?.first ?: "placeholder-$index") {
             PrepareReaderSpeechIndex(entry?.second?.get())
             rememberPreparedScrollChapter(entry?.second?.get(), textLayout,
@@ -170,6 +180,7 @@ fun ScrollContentTextComponent(
     val bookmarks = LocalReaderBookmarks.current
     val positions = LocalReaderPositionSession.current
     var bookmarkReady by remember(listState) { mutableStateOf(false) }
+    var entryReady by remember(listState) { mutableStateOf(false) }
     var readingPosition by remember(listState) { mutableStateOf<ReaderPosition?>(null) }
     var anchoredViewport by remember(listState) { mutableStateOf<Pair<Int, Int>?>(null) }
     var restoredGeometry by remember(listState) { mutableStateOf(textLayout to IntSize.Zero) }
@@ -290,6 +301,8 @@ fun ScrollContentTextComponent(
             }.first { it }
             if (uiState.readingChapterContent?.isErr == true) {
                 positions?.pending?.let { positions.finish(uiState, it, null) }
+                listState.scrollToItem(1)
+                if (uiState.lazyListState === listState && ownsRenderer()) entryReady = true
                 return@LaunchedEffect
             }
             val prepared = latestPrepared.first { it?.content === uiState.readingChapterContent?.get() }!!
@@ -332,7 +345,9 @@ fun ScrollContentTextComponent(
             bookmarkReady = true
             publishInitial = !reflow && restoredProgress <= 0f && anchor == null && bookmarks?.pending == null
         } finally {
-            if (restorationOwner === attempt && ownsRenderer()) {
+            // Cancellation hands restoration to the replacement effect. Releasing the barrier
+            // here can promote a neighbour under the old pixel offset while the body reflows.
+            if (currentCoroutineContext().isActive && restorationOwner === attempt && ownsRenderer()) {
                 uiState.onProgressRestored(listState)
                 if (publishInitial) uiState.onReadingPositioned(listState)
             }
@@ -368,16 +383,8 @@ fun ScrollContentTextComponent(
         snapshotFlow { listState.isScrollInProgress }
             .collect { scrolling ->
                 if (!scrolling) {
-                    val layoutInfo = listState.layoutInfo
-                    val totalCount = layoutInfo.totalItemsCount
-                    val firstIndex = listState.firstVisibleItemIndex
-                    val firstOffset = listState.firstVisibleItemScrollOffset
-                    val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()
-
-                    val isAtTop = firstIndex == 0 && firstOffset == 0
-                    val isAtBottom = lastVisible != null &&
-                            lastVisible.index == totalCount - 1 &&
-                            (lastVisible.offset + lastVisible.size) <= layoutInfo.viewportEndOffset
+                    val isAtTop = !listState.canScrollBackward
+                    val isAtBottom = !listState.canScrollForward
 
                     when {
                         isAtTop -> {
@@ -470,62 +477,76 @@ fun ScrollContentTextComponent(
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         if (active) uiState.writeProgressRightNow()
     }
-    AnimatedVisibility(
-        uiState.contentList.getOrNull(1) == null,
-        enter = if (settingState.reduceMotion) EnterTransition.None else fadeIn(),
-        exit = if (settingState.reduceMotion) ExitTransition.None else fadeOut()
-    ) {
-        Loading()
-    }
-    AnimatedVisibility(
-        uiState.contentList.getOrNull(1) != null,
-        enter = if (settingState.reduceMotion) EnterTransition.None else fadeIn(),
-        exit = if (settingState.reduceMotion) ExitTransition.None else fadeOut(),
+    // Measure and position the list behind one loader; revealing it earlier exposes all three
+    // chapter placeholders and the intermediate scrollToItem steps. Reflows keep the body visible.
+    val showContent = entryReady || (bookmarkReady && bookmarks?.pending == null && !uiState.isRestoringProgress)
+    SideEffect { if (showContent) entryReady = true }
+    Box(
         modifier = modifier
                 .fillMaxSize()
                 .onSizeChanged { hostSize = it }
-                .then(if (active) Modifier else Modifier.clearAndSetSemantics { })
                 .readerSpeechManualScroll {
                     if (ownsRenderer())
                         uiState.onReadingPositioned(listState)
                 }
                 .readerVolumeKeys(
                     enabled = settingState.isUsingVolumeKeyFlip && !settingState.isUsingFlipPage &&
+                        showContent &&
                         !uiState.isRestoringProgress &&
                         uiState.readingChapterContent?.get() != null && lazyColumnSize.height > 0,
                     intervalSeconds = settingState.volumeKeyContinuousFlipInterval,
                 ) { direction ->
                     speech.onManualNavigation()
-                    val consumed = listState.scrollBy(volumeKeyScrollDistance(
+                    val distance = volumeKeyScrollDistance(
                         listState.layoutInfo.viewportSize.height,
                         settingState.volumeKeyScrollFraction,
                         direction,
-                    ))
-                    if (consumed != 0f && ownsRenderer())
-                        uiState.onReadingPositioned(listState)
+                    )
+                    val canScroll = if (distance > 0f) listState.canScrollForward else listState.canScrollBackward
+                    listState.scroll {
+                        var consumed = 0f
+                        fun moveTo(target: Float) {
+                            val delta = scrollBy(target - consumed)
+                            consumed += delta
+                            // Record actual movement, including frames before cancellation.
+                            if (delta != 0f && ownsRenderer()) uiState.onReadingPositioned(listState)
+                        }
+                        if (reduceMotion || !canScroll) {
+                            moveTo(distance)
+                        } else {
+                            animate(0f, distance, animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)) {
+                                value, _ -> moveTo(value)
+                            }
+                        }
+                    }
                 }
                 .readerTapGestures { changeIsImmersive() },
     ) {
         if (geometry != null) LazyColumn(
-            modifier = Modifier.fillMaxSize().readerBodyGeometry(geometry),
+            modifier = Modifier.fillMaxSize().readerBodyGeometry(geometry)
+                .drawWithContent { if (showContent) drawContent() }
+                .then(if (active && showContent) Modifier else Modifier.clearAndSetSemantics { }),
             state = listState,
-            userScrollEnabled = active && (!uiState.isRestoringProgress || uiState.readingChapterContent?.isErr == true),
+            userScrollEnabled = active && showContent && (!uiState.isRestoringProgress || uiState.readingChapterContent?.isErr == true),
         ) {
             itemsIndexed(
-                items = uiState.contentList,
+                items = chapterEntries,
                 key = { index, pair -> pair?.first ?: "placeholder-$index" },
                 contentType = { index, pair -> pair?.second?.isOk == true && preparedChapters[index] != null },
             ) { index, pair ->
+                if (index != 1 && !showAdjacentChapters) return@itemsIndexed
                 pair?.second.let { result ->
-                    uiState.contentList.getOrNull(index + 1)?.second?.get()?.let {
+                    chapterEntries.getOrNull(index + 1)?.second?.get()?.let {
                         if (!it.hasPrevChapter()) return@itemsIndexed
                     }
-                    uiState.contentList.getOrNull(index - 1)?.second?.get()?.let {
+                    chapterEntries.getOrNull(index - 1)?.second?.get()?.let {
                         if (!it.hasNextChapter()) return@itemsIndexed
                     }
                     result?.onOk {
                         val prepared = preparedChapters[index]
-                        if (prepared == null) ChapterContentLoading() else TextContent(
+                        if (prepared == null) Box(Modifier.fillParentMaxHeight().fillMaxWidth()) {
+                            if (showContent) ChapterContentLoading()
+                        } else TextContent(
                             modifier = modifier,
                             settingState = settingState,
                             fontFamilySettings = fontFamilySettings,
@@ -535,10 +556,18 @@ fun ScrollContentTextComponent(
                         ChapterContentError(it, pair?.first?.let(chapterTitle)) {
                             pair?.first?.let(uiState.retryChapter)
                         }
-                    } ?: ChapterContentLoading()
+                    } ?: Box(Modifier.fillParentMaxHeight().fillMaxWidth()) {
+                        if (showContent) ChapterContentLoading()
+                    }
                 }
             }
         }
+        if (!showContent) Box(Modifier.matchParentSize().pointerInput(Unit) {
+            // Hidden chapter controls must not receive gestures while the list is being positioned.
+            awaitPointerEventScope {
+                while (true) awaitPointerEvent().changes.forEach { it.consume() }
+            }
+        }) { ChapterContentLoading() }
     }
 }
 

@@ -536,6 +536,7 @@ data class InstalledRuleSource(val definition: SourceDefinition, val origins: Li
 
 @Serializable data class SourcePreferences(val enabled: Boolean, val discoveryVisible: Boolean, val enabledSetByUser: Boolean = false,
     // Keep the old field readable; new membership writes use groupIds and clear groupId.
+    @Serializable(with = indi.renakoni.nextvol.data.web.StoredSourceCategorySerializer::class)
     val category: SourceCategory? = null, private val groupId: String? = null,
     val groupIds: Set<String> = setOfNotNull(groupId))
 

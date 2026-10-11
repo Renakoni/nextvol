@@ -93,16 +93,16 @@ class LocalBookStore @Inject constructor(
         private const val MAX_FILE_BYTES = 64L * 1024 * 1024
     }
 
-    suspend fun stage(uri: Uri): LocalBookDraft {
+    suspend fun stage(uri: Uri, displayName: String? = null, knownFormat: LocalBookFormat? = null): LocalBookDraft {
         var staged: LocalBookDraft? = null
         try {
             return withContext(Dispatchers.IO) { lock.withLock {
                 recoverLocked()
-                val name = (context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                val name = (displayName ?: context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                     if (it.moveToFirst()) it.getString(0) else null
                 } ?: uri.lastPathSegment.orEmpty()).substringAfterLast('/').substringAfterLast('\\')
-                val mime = context.contentResolver.getType(uri)
-                val format = when {
+                val mime = if (knownFormat == null) context.contentResolver.getType(uri) else null
+                val format = knownFormat ?: when {
                     name.endsWith(".epub", true) || mime == "application/epub+zip" -> LocalBookFormat.EPUB
                     name.endsWith(".txt", true) || mime == "text/plain" -> LocalBookFormat.TXT
                     else -> throw LocalBookImportException(LocalBookImportReason.UnsupportedFormat, "Only EPUB and TXT files are supported.")
@@ -158,7 +158,8 @@ class LocalBookStore @Inject constructor(
     } }
 
     /** Confirmation cannot be cancelled halfway through publishing files and the Room transaction. */
-    suspend fun publish(draft: LocalBookDraft, parsed: ParsedLocalBook, title: String, shelfId: Int?): Pair<SourceBookId, Int> =
+    suspend fun publish(draft: LocalBookDraft, parsed: ParsedLocalBook, title: String, shelfId: Int?,
+        localShelfName: String? = null): Pair<SourceBookId, Int> =
         withContext(NonCancellable + Dispatchers.IO) { lock.withLock {
             requireImport(draft.directory in drafts, LocalBookImportReason.SessionExpired) { "This import session is no longer available." }
             requireImport(title.isNotBlank() && title.length <= 200, LocalBookImportReason.InvalidTitle) { "Enter a book title of at most 200 characters." }
@@ -177,7 +178,14 @@ class LocalBookStore @Inject constructor(
                 moved = true
                 val target = database.withTransaction {
                     val shelves = database.bookshelfDao()
-                    val shelf = if (shelfId == null) {
+                    val shelf = if (localShelfName != null) {
+                        val existing = shelves.getAllBookshelves()
+                        existing.firstOrNull { it.name == localShelfName } ?: BookshelfEntity(
+                            id = generateSequence(0) { it + 1 }.first { id -> existing.none { it.id == id } },
+                            name = localShelfName, sortType = BookshelfSortType.Default.key,
+                            autoCache = false, systemUpdateReminder = false, allBookIds = emptyList(),
+                            pinnedBookIds = emptyList(), updatedBookIds = emptyList())
+                    } else if (shelfId == null) {
                         requireImport(shelves.getAllBookshelfIds().isEmpty(), LocalBookImportReason.ShelfChanged) { "The selected bookshelf is no longer available." }
                         BookshelfEntity(0, context.getString(R.string.local_bookshelf_name), BookshelfSortType.Default.key,
                             autoCache = false, systemUpdateReminder = false, allBookIds = emptyList(),

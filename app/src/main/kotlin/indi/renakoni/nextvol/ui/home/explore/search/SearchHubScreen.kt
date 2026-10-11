@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -20,7 +19,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,6 +39,7 @@ fun SearchHubScreen(
     onScope: (SourceCategory?) -> Unit, onDeleteHistory: (String) -> Unit, onClearHistory: () -> Unit,
     onLoadMore: () -> Unit, onStop: () -> Unit, onResume: () -> Unit, onRetry: () -> Unit,
     onManageSources: () -> Unit, onSource: (Identifier) -> Unit, onBook: (String) -> Unit, onBack: () -> Unit,
+    onSelectSource: (Identifier) -> Unit,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
@@ -53,6 +54,11 @@ fun SearchHubScreen(
     var showFailures by rememberSaveable { mutableStateOf(false) }
     val historyList = rememberLazyListState()
     val resultsList = rememberSaveable(state.revision, saver = LazyListState.Saver) { LazyListState() }
+    val scopeLabel = if (state.selectedSource != null) {
+        state.sources.firstOrNull { it.id == state.selectedSource }?.name
+            ?: state.selectedSourceName.ifBlank { stringResource(R.string.search_selected_source) }
+    } else stringResource(state.scope?.title ?: R.string.source_range_all)
+    val scopeDescription = stringResource(R.string.search_change_scope, scopeLabel)
 
     Scaffold(topBar = {
         Column(Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(top = 8.dp)) {
@@ -81,10 +87,15 @@ fun SearchHubScreen(
             }
             FlowRow(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
                 itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AssistChip(onClick = { showScope = true }, label = {
-                    Text(stringResource(state.scope?.title ?: R.string.source_range_all), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                AssistChip(onClick = { keyboard?.hide(); focus.clearFocus(); showScope = true },
+                    shape = MaterialTheme.shapes.extraLarge, border = null,
+                    colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        labelColor = MaterialTheme.colorScheme.onSurface,
+                        trailingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier.testTag("search_scope").semantics { contentDescription = scopeDescription }, label = {
+                    Text(scopeLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }, trailingIcon = { Icon(painterResource(R.drawable.search_expand_24px), null, Modifier.size(18.dp)) })
-                Text(stringResource(R.string.search_source_count, state.scopedSources.size),
+                if (state.selectedSource == null) Text(stringResource(R.string.search_source_count, state.scopedSources.size),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -97,7 +108,7 @@ fun SearchHubScreen(
                 LazyColumn(Modifier.widthIn(max = 840.dp).fillMaxSize().testTag("search_history"), state = historyList,
                     contentPadding = PaddingValues(bottom = 24.dp)) {
                     if (state.scopedSources.isEmpty()) item {
-                        SearchEmptyScope(onManageSources)
+                        SearchEmptyScope(onManageSources, onChooseScope = { showScope = true })
                     }
                     if (history.isNotEmpty()) {
                         item {
@@ -141,9 +152,14 @@ fun SearchHubScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(2.dp))
                     LazyColumn(Modifier.weight(1f).testTag("search_results"), state = resultsList,
                         contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-                        if (state.scopedSources.isEmpty()) item { SearchEmptyScope(onManageSources) }
+                        if (state.scopedSources.isEmpty()) item { SearchEmptyScope(onManageSources, onChooseScope = { showScope = true }) }
                         else if (state.books.isEmpty() && !state.hasMore && !state.searching && !state.stopped) item {
-                            if (state.failures.isEmpty()) SearchMessage(stringResource(R.string.search_no_results), stringResource(R.string.search_empty_description))
+                            if (state.failures.isEmpty()) {
+                                SearchMessage(if (state.selectedSource != null) stringResource(R.string.search_source_empty, scopeLabel)
+                                    else stringResource(R.string.search_no_results), stringResource(R.string.search_empty_description))
+                                if (state.selectedSource != null || state.scope != null) TextButton(onClick = { onScope(null) },
+                                    modifier = Modifier.padding(horizontal = 24.dp)) { Text(stringResource(R.string.search_expand_all)) }
+                            }
                             else SearchMessage(stringResource(R.string.search_incomplete_title), stringResource(R.string.search_incomplete_description))
                         }
                         items(state.books, key = { it.id }, contentType = { "book" }) { book ->
@@ -163,24 +179,9 @@ fun SearchHubScreen(
             }
         }
     }
-    if (showScope) ModalBottomSheet(onDismissRequest = { showScope = false },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-            item { Text(stringResource(R.string.source_range_title), Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                style = MaterialTheme.typography.displayMedium) }
-            items(listOf(null) + SourceCategory.entries) { category ->
-                ListItem(headlineContent = { Text(stringResource(category?.title ?: R.string.source_range_all)) },
-                    supportingContent = { Text(stringResource(R.string.search_source_count,
-                        state.sources.count { category == null || it.category == category })) },
-                    trailingContent = { if (state.scope == category) Icon(painterResource(R.drawable.check_24px), null) },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    modifier = Modifier.selectable(state.scope == category, role = Role.RadioButton, onClick = {
-                        showScope = false
-                        onScope(category)
-                    }))
-            }
-        }
-    }
+    if (showScope) SearchScopeSheet(state, onDismiss = { showScope = false },
+        onScope = { showScope = false; onScope(it) },
+        onSource = { showScope = false; onSelectSource(it) })
     if (showFailures) ModalBottomSheet(onDismissRequest = { showFailures = false },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -203,8 +204,8 @@ fun SearchHubScreen(
 
 @Composable
 private fun SearchBookRow(book: SearchHubBook, onClick: () -> Unit) {
-    val result by book.information.collectAsStateWithLifecycle(initialValue = null)
-    val info = result?.getOrElse { null } ?: book.preview
+    val result by key(book.information) { book.information.collectAsStateWithLifecycle(initialValue = null) }
+    val info = book.preview ?: result?.getOrElse { null }
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 24.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Cover(book.id, 80.dp, 112.dp, info?.coverUri ?: android.net.Uri.EMPTY,
@@ -233,10 +234,11 @@ private fun SearchMessage(title: String, description: String) {
 }
 
 @Composable
-private fun SearchEmptyScope(onManageSources: () -> Unit) {
+private fun SearchEmptyScope(onManageSources: () -> Unit, onChooseScope: () -> Unit) {
     Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.search_no_sources), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.search_no_sources_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        TextButton(onClick = onChooseScope) { Text(stringResource(R.string.search_scope_title)) }
         FilledTonalButton(onClick = onManageSources) { Text(stringResource(R.string.sources_title)) }
     }
 }

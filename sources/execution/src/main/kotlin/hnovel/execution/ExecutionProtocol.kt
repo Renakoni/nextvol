@@ -39,6 +39,13 @@ internal val ExecutionLimits.scriptDataLimit: Int get() = maxDataBytes ?: maxOut
  @Serializable data class ContentMarkup(val html: String,
   val location: RuleLocation = RuleLocation("ruleContent.parts"), val formatted: Boolean = false) : ExecutionTask
  @Serializable data class DiscoveryReadPlan(val urls: List<String>, val header: String, val rules: List<String>) : ExecutionTask
+ @Serializable data class SearchBooks(val inputs: List<RuleValue>, val rules: Map<String, String>, val baseUrl: String,
+  val fallbackTitle: String = "") : ExecutionTask {
+  companion object {
+   const val MAX_ROWS = 8
+   val FIELDS = listOf("name", "author", "kind", "wordCount", "lastChapter", "intro", "coverUrl", "updateTime", "bookUrl")
+  }
+ }
  @Serializable data class BookOverviews(val inputs: List<RuleValue>, val nameRule: String, val urlRule: String,
   val baseUrl: String, val fallbackTitle: String = "", val field: String = "ruleExplore",
   val coverRule: String = "") : ExecutionTask {
@@ -243,6 +250,7 @@ class WorkerRuntime(private val archives: hnovel.rhino.ArchiveDecoder = hnovel.r
    is ExecutionTask.ContentMarkup -> WorkerContentMarkup.evaluate(task, wire.limits)
    is ExecutionTask.DiscoveryReadPlan -> WorkerDiscoveryReadPlan.evaluate(task, wire.limits)
    is ExecutionTask.BookOverviews -> WorkerBookOverviews.evaluate(task, wire.identity, wire.limits)
+   is ExecutionTask.SearchBooks -> WorkerSearchBooks.evaluate(task, wire.identity, wire.limits)
    is ExecutionTask.Rule -> WorkerRuleEvaluator.evaluate(task, wire.identity, wire.limits, bridge,
     library(wire.identity, task.libraryCode, wire.libraryScripts), archives)
    is ExecutionTask.Echo -> if (task.value.toByteArray().size > wire.limits.maxOutputBytes) ExecutionResult.Failure(FailureCode.OutputLimit) else ExecutionResult.Success(task.value)

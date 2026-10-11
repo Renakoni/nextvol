@@ -3,9 +3,13 @@ package indi.renakoni.nextvol.utils
 import android.icu.text.RelativeDateTimeFormatter
 import android.icu.text.RelativeDateTimeFormatter.Direction
 import android.icu.text.RelativeDateTimeFormatter.RelativeUnit
+import android.icu.text.MeasureFormat
+import android.icu.text.NumberFormat
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 fun formTime(
     time: LocalDateTime,
@@ -46,22 +50,37 @@ fun formTime(time: LocalDateTime): String =
     formTime(time, DateFormat.fromString(FormattingSettings.dateFormat), FormattingSettings.useRelativeTime)
 
 fun formMinutes(totalMinutes: Int): String =
-    DurationFormat(appDisplayLocale).format(totalMinutes.minutes, DurationFormat.Unit.MINUTE, DurationFormat.Unit.HOUR)
+    formReadingDuration(totalMinutes.toLong() * 60)
 
-fun formReadingDuration(totalMinutes: Int): String {
+fun formReadingDuration(totalSeconds: Int): String =
+    formReadingDuration(totalSeconds.toLong())
+
+fun formReadingDuration(totalSeconds: Long): String {
     val df = DurationFormat(appDisplayLocale)
 
-    return if (totalMinutes < 60) {
-        df.format(
-            totalMinutes.minutes,
+    return when {
+        totalSeconds < 60 -> df.format(
+            totalSeconds.coerceAtLeast(0).seconds,
+            DurationFormat.Unit.SECOND,
+            DurationFormat.Unit.SECOND
+        )
+
+        totalSeconds < 60 * 60 -> df.format(
+            totalSeconds.seconds,
             DurationFormat.Unit.MINUTE,
             DurationFormat.Unit.MINUTE
         )
-    } else {
-        df.format(
-            (totalMinutes / 60).minutes,
-            DurationFormat.Unit.HOUR,
-            DurationFormat.Unit.HOUR
-        )
+
+        else -> {
+            val numberFormat = NumberFormat.getNumberInstance(appDisplayLocale).apply {
+                minimumFractionDigits = 1
+                maximumFractionDigits = 1
+            }
+            MeasureFormat.getInstance(
+                appDisplayLocale,
+                MeasureFormat.FormatWidth.NARROW,
+                numberFormat
+            ).format(Measure(totalSeconds / (60 * 60.0), MeasureUnit.HOUR))
+        }
     }
 }

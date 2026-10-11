@@ -92,7 +92,7 @@ object Route {
             @Serializable
             data class Search(val namespace: String, val sourceId: String)
             @Serializable
-            object SearchHub
+            data class SearchHub(val sourceNamespace: String? = null, val sourceId: String? = null, val sourceName: String? = null)
         }
         @Serializable
         data class Categories(val namespace: String? = null, val sourceId: String? = null)

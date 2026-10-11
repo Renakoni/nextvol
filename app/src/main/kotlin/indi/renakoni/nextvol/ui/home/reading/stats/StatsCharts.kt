@@ -1,10 +1,10 @@
 package indi.renakoni.nextvol.ui.home.reading.stats
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
+import com.patrykandpatrick.vico.compose.cartesian.Zoom
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
@@ -38,7 +41,7 @@ import com.patrykandpatrick.vico.compose.cartesian.layer.ColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
 import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerController
-import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarkerVisibilityListener
+import com.patrykandpatrick.vico.compose.cartesian.marker.Interaction
 import com.patrykandpatrick.vico.compose.cartesian.marker.ColumnCartesianLayerMarkerTarget
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
@@ -49,6 +52,7 @@ import com.patrykandpatrick.vico.compose.common.component.TextComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
 import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.home.reading.stats.detailed.StatsViewOption
 import indi.renakoni.nextvol.data.statistics.Count
 import indi.renakoni.nextvol.utils.formMinutes
 import java.time.DayOfWeek
@@ -58,7 +62,6 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
-import kotlin.math.roundToInt
 import java.time.format.TextStyle as JavaTextStyle
 
 private val BottomAxisLabelKey = ExtraStore.Key<List<String>>()
@@ -70,7 +73,7 @@ private val BottomAxisValueFormatter = CartesianValueFormatter { context, x, _ -
 private val EndAxisItemPlacer = VerticalAxis.ItemPlacer.count({ 8 })
 
 private fun useHoursUnit(values: List<Float>): Boolean =
-    values.maxOrNull()?.let { it > 400f } == true
+    values.maxOrNull()?.let { it >= 60f } == true
 
 @Composable
 fun rememberAxisLabelComponent(): TextComponent {
@@ -87,7 +90,7 @@ private fun rememberReadingTimeAxisFormatter(useHours: Boolean): CartesianValueF
     return remember(useHours) {
         CartesianValueFormatter { _, value, _ ->
             if (useHours) {
-                (value / 60.0).roundToInt().toString()
+                String.format(Locale.getDefault(), "%.1f", value / 60.0)
             } else {
                 value.toInt().toString()
             }
@@ -205,56 +208,84 @@ private fun DailyStatsChart(
 }
 
 @Composable
-fun WeeklyStatsChart(
+fun ReadingTimeStatsChart(
     statsMap: Map<LocalDate, Count>,
     selectedDate: LocalDate,
+    viewOption: StatsViewOption,
     showAverage: Boolean = true,
 ) {
     val dates = remember(selectedDate) {
         (0..6).map { selectedDate.minusDays((6 - it).toLong()) }
     }
+    val weekBuckets = remember(selectedDate) { buildWeek(YearMonth.from(selectedDate)) }
     val locale = LocalLocale.current.platformLocale
-    val dayLabels = remember(dates, locale) {
-        val fmt = DateTimeFormatter.ofPattern("MM/dd", locale)
-        dates.map { fmt.format(it) }
+    val labels = when (viewOption) {
+        StatsViewOption.Daily -> remember(dates, locale) {
+            val format = DateTimeFormatter.ofPattern("MM/dd", locale)
+            dates.map { format.format(it) }
+        }
+        StatsViewOption.Weekly -> weekBuckets.map { stringResource(R.string.week_label_format, it.weekIndex) }
+        StatsViewOption.Monthly -> remember(locale) {
+            (1..12).map { Month.of(it).getDisplayName(JavaTextStyle.SHORT, locale) }
+        }
     }
-    val values = remember(dates, statsMap) {
-        dates.map { statsMap[it]?.getTotalMinutes()?.toFloat() ?: 0f }
+    val values = remember(viewOption, selectedDate, statsMap) {
+        when (viewOption) {
+            StatsViewOption.Daily -> dates.map { statsMap[it]?.getTotalMinutes()?.toFloat() ?: 0f }
+            StatsViewOption.Weekly -> weekBuckets.map { bucket ->
+                bucket.days.sumOf { statsMap[it]?.getTotalMinutes() ?: 0 }.toFloat()
+            }
+            StatsViewOption.Monthly -> (1..12).map { month ->
+                val yearMonth = YearMonth.of(selectedDate.year, month)
+                (1..yearMonth.lengthOfMonth()).sumOf { day ->
+                    statsMap[yearMonth.atDay(day)]?.getTotalMinutes() ?: 0
+                }.toFloat()
+            }
+        }
     }
     val useHoursOnAxis = remember(values) { useHoursUnit(values) }
     val axisValueFormatter = rememberReadingTimeAxisFormatter(useHoursOnAxis)
     val totalMinutes = values.sum()
-    val average = remember(values) {
-        totalMinutes / values.size
+    val average = remember(values, viewOption) {
+        val included = if (viewOption == StatsViewOption.Monthly) values.filter { it > 0f } else values
+        if (included.isEmpty()) 0f else included.sum() / included.size
     }
-
-    var selectedIndex by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(selectedDate) { selectedIndex = -1 }
-
+    var selectedIndex by remember(viewOption, selectedDate) { mutableIntStateOf(-1) }
     val modelProducer = remember { CartesianChartModelProducer() }
-    LaunchedEffect(values) {
+    LaunchedEffect(values, labels) {
         modelProducer.runTransaction {
             columnModel { series(values) }
-            extras { it[BottomAxisLabelKey] = dayLabels }
+            extras { it[BottomAxisLabelKey] = labels }
         }
     }
 
-    val marker = readingTimeMarker()
+    val timeMarker = readingTimeMarker()
+    val markerVisible by rememberUpdatedState(selectedIndex >= 0)
+    // The chart host survives period changes. Its internal marker x can outlive a period,
+    // so only an explicit tap in the current period may show a marker or open details.
+    val marker = remember(timeMarker) {
+        object : CartesianMarker by timeMarker {
+            override fun drawUnderLayers(context: CartesianDrawingContext, targets: List<CartesianMarker.Target>) {
+                if (markerVisible) timeMarker.drawUnderLayers(context, targets)
+            }
+            override fun drawOverLayers(context: CartesianDrawingContext, targets: List<CartesianMarker.Target>) {
+                if (markerVisible) timeMarker.drawOverLayers(context, targets)
+            }
+        }
+    }
+    val markerController = remember(viewOption, selectedDate) {
+        object : CartesianMarkerController {
+            override val acceptsLongPress = false
+            override fun shouldAcceptInteraction(interaction: Interaction, targets: List<CartesianMarker.Target>) =
+                interaction is Interaction.Tap && targets.isNotEmpty()
+            override fun shouldShowMarker(interaction: Interaction, targets: List<CartesianMarker.Target>): Boolean {
+                val index = targets.first().x.toInt()
+                selectedIndex = if (selectedIndex == index) -1 else index
+                return selectedIndex >= 0
+            }
+        }
+    }
     val averageLine = rememberAverageLine(average, showAverage)
-
-    val markerListener = remember {
-        object : CartesianMarkerVisibilityListener {
-            override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                val target = targets.firstOrNull() as? ColumnCartesianLayerMarkerTarget
-                target?.columns?.firstOrNull()?.entry?.let { selectedIndex = it.x.toInt() }
-            }
-            override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                val target = targets.firstOrNull() as? ColumnCartesianLayerMarkerTarget
-                target?.columns?.firstOrNull()?.entry?.let { selectedIndex = it.x.toInt() }
-            }
-            override fun onHidden(marker: CartesianMarker) {}
-        }
-    }
 
     Column(Modifier.fillMaxWidth()) {
         Row {
@@ -285,7 +316,7 @@ fun WeeklyStatsChart(
                     ColumnCartesianLayer.ColumnProvider.series(
                         rememberLineComponent(
                             fill = Fill(colorScheme.primary),
-                            thickness = 16.dp,
+                            thickness = if (viewOption == StatsViewOption.Weekly) 24.dp else 16.dp,
                             shape = RoundedCornerShape(topStartPercent = 26, topEndPercent = 26)
                         )
                     )
@@ -302,19 +333,33 @@ fun WeeklyStatsChart(
                 ),
                 decorations = listOfNotNull(averageLine),
                 marker = marker,
-                markerVisibilityListener = markerListener,
-                markerController = CartesianMarkerController.rememberToggleOnTap(),
+                markerController = markerController,
             ),
             modelProducer = modelProducer,
+            animateIn = false,
+            animationSpec = tween(220),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(230.dp),
-            scrollState = rememberVicoScrollState(scrollEnabled = true),
-            zoomState = rememberVicoZoomState(zoomEnabled = false)
+            scrollState = rememberVicoScrollState(scrollEnabled = viewOption != StatsViewOption.Weekly),
+            zoomState = rememberVicoZoomState(
+                zoomEnabled = false,
+                initialZoom = remember(viewOption) {
+                    if (viewOption == StatsViewOption.Weekly) Zoom.Content else Zoom.max(Zoom.fixed(), Zoom.Content)
+                },
+            )
         )
 
-        if (selectedIndex in dates.indices) {
-            DailyStatsChart(date = dates[selectedIndex], statsMap = statsMap)
+        when (viewOption) {
+            StatsViewOption.Daily -> if (selectedIndex in dates.indices) {
+                DailyStatsChart(date = dates[selectedIndex], statsMap = statsMap)
+            }
+            StatsViewOption.Weekly -> if (selectedIndex in weekBuckets.indices && weekBuckets[selectedIndex].days.size > 1) {
+                WeekDailyBreakdown(bucket = weekBuckets[selectedIndex], statsMap = statsMap)
+            }
+            StatsViewOption.Monthly -> if (selectedIndex in 0..11) {
+                MonthWeeklyBreakdown(yearMonth = YearMonth.of(selectedDate.year, selectedIndex + 1), statsMap = statsMap)
+            }
         }
     }
 }
@@ -352,130 +397,6 @@ private fun buildWeek(yearMonth: YearMonth): List<Week> {
     }
 
     return buckets
-}
-
-private fun resolveExpandableWeekIndex(
-    targets: List<CartesianMarker.Target>,
-    weekBuckets: List<Week>,
-): Int {
-    val target = targets.firstOrNull() as? ColumnCartesianLayerMarkerTarget
-    val index = target?.columns?.firstOrNull()?.entry?.x?.toInt() ?: return -1
-    return index.takeIf { (weekBuckets.getOrNull(it)?.days?.size ?: 0) > 1 } ?: -1
-}
-
-@Composable
-fun MonthlyStatsChart(
-    statsMap: Map<LocalDate, Count>,
-    selectedDate: LocalDate,
-    showAverage: Boolean = true,
-) {
-    val yearMonth = remember(selectedDate) { YearMonth.from(selectedDate) }
-    val weekBuckets = remember(yearMonth) { buildWeek(yearMonth) }
-
-    val weekLabels = weekBuckets.map { stringResource(R.string.week_label_format, it.weekIndex) }
-    val values = remember(weekBuckets, statsMap) {
-        weekBuckets.map { bucket ->
-            bucket.days.sumOf { day ->
-                statsMap[day]?.getTotalMinutes() ?: 0
-            }.toFloat()
-        }
-    }
-    val useHoursOnAxis = remember(values) { useHoursUnit(values) }
-    val axisValueFormatter = rememberReadingTimeAxisFormatter(useHoursOnAxis)
-    val totalMinutes = values.sum()
-    val average = remember(values) {
-        if (values.isEmpty()) 0f else totalMinutes / values.size
-    }
-
-    var selectedWeek by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(selectedDate) { selectedWeek = -1 }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-    LaunchedEffect(values) {
-        modelProducer.runTransaction {
-            columnModel { series(values) }
-            extras { it[BottomAxisLabelKey] = weekLabels }
-        }
-    }
-
-    val marker = readingTimeMarker()
-    val averageLine = rememberAverageLine(average, showAverage)
-
-    val markerListener = remember(weekBuckets) {
-        object : CartesianMarkerVisibilityListener {
-            override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                selectedWeek = resolveExpandableWeekIndex(targets, weekBuckets)
-            }
-            override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                selectedWeek = resolveExpandableWeekIndex(targets, weekBuckets)
-            }
-            override fun onHidden(marker: CartesianMarker) {}
-        }
-    }
-
-    Column(Modifier.fillMaxWidth()) {
-        Row {
-            Column {
-                Text(
-                    text = stringResource(R.string.stats_total),
-                    style = typography.bodyMedium,
-                    color = colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formMinutes(totalMinutes.toInt()),
-                    style = typography.titleLarge,
-                    color = colorScheme.secondary,
-                    modifier = Modifier.padding(end = 2.dp)
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = stringResource(if (useHoursOnAxis) R.string.unit_hours else R.string.unit_minutes),
-                style = typography.labelSmall,
-                color = colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.Bottom)
-            )
-        }
-        CartesianChartHost(
-            chart = rememberCartesianChart(
-                rememberColumnCartesianLayer(
-                    ColumnCartesianLayer.ColumnProvider.series(
-                        rememberLineComponent(
-                            fill = Fill(colorScheme.primary),
-                            thickness = 24.dp,
-                            shape = RoundedCornerShape(topStartPercent = 26, topEndPercent = 26)
-                        )
-                    )
-                ),
-                endAxis = VerticalAxis.rememberEnd(
-                    label = rememberAxisLabelComponent(),
-                    itemPlacer = EndAxisItemPlacer,
-                    guideline = rememberAxisGuidelineComponent(),
-                    valueFormatter = axisValueFormatter
-                ),
-                bottomAxis = HorizontalAxis.rememberBottom(
-                    label = rememberAxisLabelComponent(),
-                    valueFormatter = BottomAxisValueFormatter
-                ),
-                decorations = listOfNotNull(averageLine),
-                marker = marker,
-                markerVisibilityListener = markerListener,
-                markerController = CartesianMarkerController.rememberToggleOnTap(),
-            ),
-            modelProducer = modelProducer,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(230.dp),
-            scrollState = rememberVicoScrollState(scrollEnabled = false),
-        )
-
-        if (selectedWeek in weekBuckets.indices) {
-            WeekDailyBreakdown(
-                bucket = weekBuckets[selectedWeek],
-                statsMap = statsMap
-            )
-        }
-    }
 }
 
 @Composable
@@ -564,127 +485,6 @@ private fun WeekDailyBreakdown(
         scrollState = rememberVicoScrollState(scrollEnabled = false),
         zoomState = rememberVicoZoomState(zoomEnabled = false)
     )
-}
-
-@Composable
-fun YearlyStatsChart(
-    statsMap: Map<LocalDate, Count>,
-    selectedDate: LocalDate,
-    showAverage: Boolean = true,
-) {
-    val year = selectedDate.year
-    val locale = LocalLocale.current.platformLocale
-    val monthLabels = remember(locale) {
-        (1..12).map { Month.of(it).getDisplayName(JavaTextStyle.SHORT, locale) }
-    }
-    val values = remember(year, statsMap) {
-        (1..12).map { month ->
-            val ym = YearMonth.of(year, month)
-            (1..ym.lengthOfMonth()).sumOf { day ->
-                statsMap[ym.atDay(day)]?.getTotalMinutes() ?: 0
-            }.toFloat()
-        }
-    }
-    val useHoursOnAxis = remember(values) { useHoursUnit(values) }
-    val axisValueFormatter = rememberReadingTimeAxisFormatter(useHoursOnAxis)
-    val totalMinutes = values.sum()
-    val average = remember(values) {
-        val nonZeroValues = values.filter { it > 0f }
-        if (nonZeroValues.isEmpty()) 0f else nonZeroValues.sum() / nonZeroValues.size
-    }
-
-    var selectedMonth by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(year) { selectedMonth = -1 }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-    LaunchedEffect(values) {
-        modelProducer.runTransaction {
-            columnModel { series(values) }
-            extras { it[BottomAxisLabelKey] = monthLabels }
-        }
-    }
-
-    val marker = readingTimeMarker()
-    val averageLine = rememberAverageLine(average, showAverage)
-
-    val markerListener = remember {
-        object : CartesianMarkerVisibilityListener {
-            override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                val target = targets.firstOrNull() as? ColumnCartesianLayerMarkerTarget
-                target?.columns?.firstOrNull()?.entry?.let { selectedMonth = it.x.toInt() }
-            }
-            override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
-                val target = targets.firstOrNull() as? ColumnCartesianLayerMarkerTarget
-                target?.columns?.firstOrNull()?.entry?.let { selectedMonth = it.x.toInt() }
-            }
-            override fun onHidden(marker: CartesianMarker) {}
-        }
-    }
-
-    Column(Modifier.fillMaxWidth()) {
-        Row {
-            Column {
-                Text(
-                    text = stringResource(R.string.stats_total),
-                    style = typography.bodyMedium,
-                    color = colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formMinutes(totalMinutes.toInt()),
-                    style = typography.titleLarge,
-                    color = colorScheme.secondary,
-                    modifier = Modifier.padding(end = 2.dp)
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = stringResource(if (useHoursOnAxis) R.string.unit_hours else R.string.unit_minutes),
-                style = typography.labelSmall,
-                color = colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.Bottom)
-            )
-        }
-        CartesianChartHost(
-            chart = rememberCartesianChart(
-                rememberColumnCartesianLayer(
-                    ColumnCartesianLayer.ColumnProvider.series(
-                        rememberLineComponent(
-                            fill = Fill(colorScheme.primary),
-                            thickness = 16.dp,
-                            shape = RoundedCornerShape(topStartPercent = 26, topEndPercent = 26)
-                        )
-                    )
-                ),
-                endAxis = VerticalAxis.rememberEnd(
-                    label = rememberAxisLabelComponent(),
-                    itemPlacer = EndAxisItemPlacer,
-                    guideline = rememberAxisGuidelineComponent(),
-                    valueFormatter = axisValueFormatter
-                ),
-                bottomAxis = HorizontalAxis.rememberBottom(
-                    label = rememberAxisLabelComponent(),
-                    valueFormatter = BottomAxisValueFormatter
-                ),
-                decorations = listOfNotNull(averageLine),
-                marker = marker,
-                markerVisibilityListener = markerListener,
-                markerController = CartesianMarkerController.rememberToggleOnTap(),
-            ),
-            modelProducer = modelProducer,
-            modifier = Modifier
-                .fillMaxSize()
-                .height(230.dp),
-            scrollState = rememberVicoScrollState(scrollEnabled = true),
-            zoomState = rememberVicoZoomState(zoomEnabled = false)
-        )
-
-        if (selectedMonth in 0..11) {
-            MonthWeeklyBreakdown(
-                yearMonth = YearMonth.of(year, selectedMonth + 1),
-                statsMap = statsMap
-            )
-        }
-    }
 }
 
 @Composable

@@ -57,7 +57,18 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
+prepare_emulator() {
+  echo 'Setting viewport: wm size 320x640'
+  timeout 10s adb shell wm size 320x640 || return $?
+  for setting in window_animation_scale transition_animation_scale animator_duration_scale; do
+    echo "Setting $setting=0"
+    timeout 10s adb shell settings put global "$setting" 0 || return $?
+  done
+  echo 'Unlocking emulator: input keyevent 82'
+  timeout 10s adb shell input keyevent 82
+}
 booted=false
+readiness_status=1
 # Retry only infrastructure startup, before any app test has run. A fresh data
 # partition prevents an interrupted first boot from poisoning the second attempt.
 for attempt in 1 2; do
@@ -83,18 +94,24 @@ for attempt in 1 2; do
     fi
     sleep 2
   done
-  if [[ "$booted" == true ]]; then break; fi
+  if [[ "$booted" == true ]]; then
+    # Android can report boot completion while window/settings services still time out.
+    # Include preparation in the bounded startup retry, before invoking any app tests.
+    if prepare_emulator > "$diagnostics/prepare-$attempt.txt" 2>&1; then
+      break
+    else
+      readiness_status=$?
+    fi
+    cat "$diagnostics/prepare-$attempt.txt" >&2
+    echo "Emulator preparation failed with exit $readiness_status (attempt $attempt)." >&2
+    booted=false
+  fi
   timeout 10s adb devices -l > "$diagnostics/devices-$attempt.txt" 2>&1 || true
   cat "$diagnostics/emulator-$attempt.txt" >&2
   stop_emulator
 done
 if [[ "$booted" != true ]]; then
-  echo 'Android boot/ADB readiness failed after two attempts with 180-second polling windows.' >&2
-  exit 1
+  echo 'Android boot/ADB/preparation failed after two attempts with 180-second polling windows.' >&2
+  exit "$readiness_status"
 fi
-timeout 10s adb shell wm size 320x640
-for setting in window_animation_scale transition_animation_scale animator_duration_scale; do
-  timeout 10s adb shell settings put global "$setting" 0
-done
-timeout 10s adb shell input keyevent 82
 "$@"

@@ -69,7 +69,7 @@ class BookRepositoryOperationsTest {
         val first = async { repository.cacheBook(book.storageKey).first() }
         val second = async { repository.cacheBook(book.storageKey).first() }
         assertSame(waiting, first.await()); assertSame(waiting, second.await())
-        coVerify(exactly = 0) { fixture.downloads.queueTask(any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { fixture.downloads.queueTask(any(), any(), any(), any(), any()) }
         verify(exactly = 0) { fixture.workManager.enqueueUniqueWork(any<String>(), any(), any<OneTimeWorkRequest>()) }
     }
 

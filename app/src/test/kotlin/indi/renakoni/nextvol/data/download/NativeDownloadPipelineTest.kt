@@ -156,8 +156,8 @@ class NativeDownloadPipelineTest {
             assertTrue(item.captured.progress >= partial)
             assertEquals(1f, item.captured.progress)
             assertEquals(setOf("2", "4", "5", "7"), calls.keys)
-            val selection = store.selectionState(book, book.bind(BookVolumes(book.remoteId, listOf(Volume("v", "Volume", chapters)))), "1")
-            assertEquals(setOf("2", "4", "5", "7"), selection.chapters.filterValues { it.current }.keys
+            val selection = store.selectionState(book, book.bind(BookVolumes(book.remoteId, listOf(Volume("v", "Volume", chapters)))))
+            assertEquals(setOf("2", "4", "5", "7"), selection.chapters.filterValues { it.downloaded }.keys
                 .map { SourceChapterId.fromStorageKey(it).remoteId }.toSet())
             assertTrue(db.bookDownloadDao().chapters(book.storageKey).all {
                 val index = SourceChapterId.fromStorageKey(it.id).remoteId.toInt() - 1

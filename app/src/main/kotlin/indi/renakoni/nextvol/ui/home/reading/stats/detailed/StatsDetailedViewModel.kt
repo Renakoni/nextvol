@@ -2,13 +2,25 @@ package indi.renakoni.nextvol.ui.home.reading.stats.detailed
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.snapshots.Snapshot
+import com.github.michaelbull.result.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.statistics.BookRecord
 import indi.renakoni.nextvol.data.statistics.Count
 import indi.renakoni.nextvol.data.statistics.StatsRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import io.nightfish.lightnovelreader.api.book.BookInformation
+import io.nightfish.lightnovelreader.api.error.WebRequestError
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -22,62 +34,77 @@ class StatsDetailedViewModel @Inject constructor(
     val uiState: StatsDetailedUiState = _uiState
 
 
-    fun initialize(targetDate: LocalDate) {
-        _uiState.selectedDate = targetDate
-        val viewOption = StatsViewOption.fromIndex(_uiState.selectedViewIndex)
-        val range = viewOption.rangeFor(targetDate)
-        _uiState.targetDateRange = range.start to range.endInclusive
+    private var loadJob: Job? = null
+    private var requestedDate: LocalDate? = null
+    private val bookInformation = mutableMapOf<String, Flow<Result<BookInformation, WebRequestError>>>()
 
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.isLoading = true
-            loadStatistics()
-            _uiState.isLoading = false
-        }
+    private fun information(bookId: String) = bookInformation.getOrPut(bookId) {
+        bookRepository.getBookInformationFlow(bookId).flowOn(Dispatchers.IO)
+            .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+    }
+
+    fun initialize(targetDate: LocalDate) {
+        if (requestedDate == targetDate && loadJob?.isActive == true) return
+        requestedDate = targetDate
+        loadStatistics(_uiState.selectedViewIndex, targetDate)
     }
 
     fun setSelectedView(index: Int) {
-        val viewOption = StatsViewOption.fromIndex(index)
+        StatsViewOption.fromIndex(index)
+        if (_uiState.selectedViewIndex == index && loadJob?.isActive == true) return
         _uiState.selectedViewIndex = index
-        val range = viewOption.rangeFor(_uiState.selectedDate)
-        _uiState.targetDateRange = range.start to range.endInclusive
-
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.isLoading = true
-            loadStatistics()
-            _uiState.isLoading = false
-        }
+        requestedDate?.let { loadStatistics(index, it) }
     }
 
-    private suspend fun loadStatistics() {
-        val (startDate, endDate) = _uiState.targetDateRange
-        val bookRecordsMap: Map<LocalDate, List<BookRecord>> =
-            statsRepository.getBookRecords(startDate, endDate)
-        val dailyCountsMap: Map<LocalDate, Count> =
-            statsRepository.getDailyCounts(startDate, endDate)
-        val firstReadDateMap = statsRepository.getBookFirstReadDateMap().mapKeys {
-            it.key to bookRepository.getBookInformationFlow(it.key)
+    private fun loadStatistics(index: Int, date: LocalDate) {
+        loadJob?.cancel()
+        val range = StatsViewOption.fromIndex(index).rangeFor(date)
+        val startDate = range.start
+        val endDate = range.endInclusive
+        if (!_uiState.hasData) {
+            _uiState.selectedDate = date
+            _uiState.targetDateRange = startDate to endDate
         }
-        val firstFinishedDateMap = statsRepository.getBookFirstFinishedDateMap().mapKeys {
-            it.key to bookRepository.getBookInformationFlow(it.key)
+        _uiState.isLoading = true
+        loadJob = viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val bookRecordsMap: Map<LocalDate, List<BookRecord>> =
+                        statsRepository.getBookRecords(startDate, endDate)
+                    val dailyCountsMap: Map<LocalDate, Count> =
+                        statsRepository.getDailyCounts(startDate, endDate)
+                    val firstReadDateMap = statsRepository.getBookFirstReadDateMap()
+                    val firstFinishedDateMap = statsRepository.getBookFirstFinishedDateMap()
+                    val favoriteDateMap = statsRepository.getBookFavoriteDateMap()
+
+                    val allDates = generateSequence(startDate) { it.plusDays(1) }
+                        .takeWhile { it <= endDate }
+                        .toList()
+
+                    val counts = allDates.associateWith { date ->
+                        dailyCountsMap[date] ?: Count()
+                    }.toSortedMap()
+                    // The old period stays visible until the whole replacement is ready. Returning to
+                    // Main is cancellable, so a superseded database read cannot publish late results.
+                    withContext(Dispatchers.Main.immediate) {
+                        Snapshot.withMutableSnapshot {
+                            _uiState.targetDateRangeCountMap = counts
+                            _uiState.targetDateRangeRecordsMap = allDates.associateWith { day ->
+                                bookRecordsMap[day].orEmpty().map { it.copy(bookInformationFlow = information(it.bookId)) }
+                            }
+                            _uiState.bookFirstReadDateMap = firstReadDateMap.mapKeys { it.key to information(it.key) }
+                            _uiState.bookFirstFinishedDateMap = firstFinishedDateMap.mapKeys { it.key to information(it.key) }
+                            _uiState.bookFavoriteDateMap = favoriteDateMap.mapKeys { it.key to information(it.key) }
+                            _uiState.selectedDate = date
+                            _uiState.targetDateRange = startDate to endDate
+                            _uiState.displayedViewIndex = index
+                            _uiState.hasData = true
+                        }
+                    }
+                }
+            } finally {
+                if (currentCoroutineContext().isActive) _uiState.isLoading = false
+            }
         }
-        val favoriteDateMap = statsRepository.getBookFavoriteDateMap().mapKeys {
-            it.key to bookRepository.getBookInformationFlow(it.key)
-        }
-
-        val allDates = generateSequence(startDate) { it.plusDays(1) }
-            .takeWhile { it <= endDate }
-            .toList()
-
-        val recordsMap: Map<LocalDate, List<BookRecord>> = allDates.associateWith { date ->
-            bookRecordsMap[date] ?: emptyList()
-        }.toSortedMap()
-
-        _uiState.targetDateRangeCountMap = allDates.associateWith { date ->
-            dailyCountsMap[date] ?: Count()
-        }.toSortedMap()
-        _uiState.targetDateRangeRecordsMap = recordsMap
-        _uiState.bookFirstReadDateMap = firstReadDateMap
-        _uiState.bookFirstFinishedDateMap = firstFinishedDateMap
-        _uiState.bookFavoriteDateMap = favoriteDateMap
     }
 }

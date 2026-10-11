@@ -632,4 +632,7 @@
     <string name="reader_page_layout_short">Single page: the window is too short.</string>
     <string name="reader_page_layout_large_text">Single page: the text is too large for two pages.</string>
     <string name="reader_page_layout_unsupported">Single page: this chapter contains content that does not support two pages.</string>
+    <string name="external_file_busy">Finish or cancel the current import before opening another file.</string>
+    <string name="external_file_unsupported">This file type is not supported. Choose an EPUB, TXT, .nvbackup or .lnr file.</string>
+    <string name="external_file_unreadable">Cannot read this file. Download it first, then open it again from the sending app.</string>
 </resources>

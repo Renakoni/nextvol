@@ -60,7 +60,7 @@ import indi.renakoni.nextvol.ui.components.calendar.core.CalendarWeek
 import indi.renakoni.nextvol.ui.components.calendar.core.displayText
 import indi.renakoni.nextvol.ui.components.calendar.core.yearMonth
 import indi.renakoni.nextvol.ui.components.calendar.rememberHeatMapCalendarState
-import indi.renakoni.nextvol.utils.DurationFormat
+import indi.renakoni.nextvol.utils.formReadingDuration
 import indi.renakoni.nextvol.utils.navigationBarSpacer
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
@@ -69,8 +69,6 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
 import java.time.format.DateTimeFormatter
-import kotlin.time.DurationUnit
-import kotlin.time.toDuration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -253,8 +251,7 @@ private fun DailyStatsBlock(
                     } else {
                         Column {
                             details?.timeDetails?.forEach { pair ->
-                                val duration = pair.second.toDuration(DurationUnit.SECONDS)
-                                val formattedTime = DurationFormat().format(duration, DurationFormat.Unit.MINUTE)
+                                val formattedTime = formReadingDuration(pair.second.toLong())
                                 val bookInformation by pair.first.collectAsStateWithLifecycle(null)
                                 bookInformation?.onOk {
                                     DataItem(it.title, formattedTime)
@@ -300,10 +297,7 @@ private fun getDailyDetails(records: List<BookRecord>): DailyDateDetails? {
 
     val sortedTimeDetails = timeDetailsList.sortedByDescending { it.second }
 
-    val formattedTotalTime = DurationFormat().format(
-        totalSeconds.toDuration(DurationUnit.SECONDS),
-        DurationFormat.Unit.MINUTE
-    )
+    val formattedTotalTime = formReadingDuration(totalSeconds)
 
     return DailyDateDetails(
         formattedTotalTime = formattedTotalTime,

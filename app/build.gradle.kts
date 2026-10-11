@@ -268,6 +268,8 @@ dependencies {
     implementation(libs.kotlin.result.coroutines)
     // http
     implementation(libs.okhttp)
+    implementation(libs.conscrypt.android)
+    implementation(libs.dnsjava)
     implementation(libs.okhttp3.logging.interceptor)
     implementation(libs.androidx.profileinstaller)
     // RE2J
@@ -291,6 +293,11 @@ dependencies {
 
 configurations.implementation {
     exclude(group = "com.intellij", module = "annotations")
+}
+
+// Robolectric supplies desktop Conscrypt; Android's JNI binary cannot run in the JVM test worker.
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    exclude(group = "org.conscrypt", module = "conscrypt-android")
 }
 
 tasks.register("printVersion") {

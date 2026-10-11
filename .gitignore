@@ -30,3 +30,4 @@ captures/
 /research/
 __pycache__/
 *.py[cod]
+/.workbuddy/

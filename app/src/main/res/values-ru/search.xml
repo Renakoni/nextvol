@@ -4,14 +4,14 @@
     <string name="search_source_count">Доступно источников: %1$d</string>
     <string name="search_delete_history_entry">Удалить из истории: %1$s</string>
     <string name="search_start_title">Найдите следующую книгу</string>
-    <string name="search_start_description">Ищите во включённых источниках или выберите группу для поиска.</string>
+    <string name="search_start_description">Ищите в выбранной области или переключитесь на другой источник или группу.</string>
     <string name="search_book_count">Найдено книг: %1$d</string>
     <string name="search_progress">Проверено источников: %1$d из %2$d</string>
     <string name="search_stopped">Поиск приостановлен</string>
     <string name="search_stop">Приостановить поиск</string>
     <string name="search_resume">Продолжить</string>
     <string name="search_failure_count">Ошибок: %1$d</string>
-    <string name="search_empty_description">Попробуйте другой запрос или группу источников.</string>
+    <string name="search_empty_description">Попробуйте другой запрос или измените область поиска.</string>
     <string name="search_incomplete_title">Некоторые источники не ответили</string>
     <string name="search_incomplete_description">Книги пока не найдены. Проверьте источники с ошибками или повторите поиск.</string>
     <string name="search_result_limit">Показано до 1000 книг. Уточните запрос или выберите группу источников.</string>
@@ -19,6 +19,15 @@
     <string name="search_retry_failed">Повторить для источников с ошибками</string>
     <string name="search_book_unavailable">Сведения о книге недоступны</string>
     <string name="search_book_loading">Загрузка сведений о книге…</string>
-    <string name="search_no_sources">В группе нет источников для поиска</string>
-    <string name="search_no_sources_description">Выберите другую группу или включите источник в настройках источников.</string>
+    <string name="search_no_sources">В выбранной области нет источников для поиска</string>
+    <string name="search_no_sources_description">Выберите другую область или включите источник в настройках источников.</string>
+    <string name="search_scope_title">Область поиска</string>
+    <string name="search_change_scope">Изменить область поиска: %1$s</string>
+    <string name="search_selected_source">Выбранный источник</string>
+    <string name="search_find_source">Название источника</string>
+    <string name="search_single_source">Один источник</string>
+    <string name="search_source_matches">Подходящих источников: %1$d</string>
+    <string name="search_source_not_found">Источники не найдены. Попробуйте другое название.</string>
+    <string name="search_source_empty">В источнике «%1$s» книги не найдены</string>
+    <string name="search_expand_all">Искать во всех источниках</string>
 </resources>

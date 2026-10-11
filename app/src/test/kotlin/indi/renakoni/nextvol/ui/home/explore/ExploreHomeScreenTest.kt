@@ -86,6 +86,17 @@ class ExploreHomeScreenTest {
         assertEquals(b, search)
     }
 
+    @Test fun bookListedWithoutACoverAsksForItsDetailCover() {
+        val id = Identifier("fixture", "Coverless source")
+        val requested = mutableListOf<String>()
+        activity.get().setContent { MaterialTheme {
+            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to content(id))),
+                {}, { _, _ -> }, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, coverFor = { requested += it; null })
+        } }
+        compose.onNode(hasClickAction() and hasText("Same book")).assertExists()
+        compose.runOnIdle { assertEquals(listOf(SourceBookId(id, "same").storageKey), requested) }
+    }
+
     @Test fun partialFeedRemainsVisibleAndNavigableWhileLaterPreviewsLoad() {
         val id = Identifier("fixture", "Progressive source")
         val page = content(id).copy(loaded = false, loading = true)

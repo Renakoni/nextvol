@@ -1,5 +1,10 @@
 package indi.renakoni.nextvol.ui.book.reader.content
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,7 +29,6 @@ import indi.renakoni.nextvol.ui.book.reader.content.flip.FlipPageContentComponen
 import indi.renakoni.nextvol.ui.book.reader.content.flip.FlipPageContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.scroll.ScrollContentComponent
 import indi.renakoni.nextvol.ui.book.reader.content.scroll.ScrollContentUiState
-import indi.renakoni.nextvol.ui.components.Loading
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 
 @Composable
@@ -76,7 +80,11 @@ fun ContentComponent(
 
 @Composable
 fun ChapterContentLoading() {
-    Loading()
+    // Chapter entry is already doing first composition and text layout. A simple spinner avoids
+    // constructing the expressive indicator's polygon morphs in that same frame.
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(Modifier.size(46.dp))
+    }
 }
 
 @Composable
