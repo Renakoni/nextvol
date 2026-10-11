@@ -56,6 +56,40 @@ internal data class ReaderTextFragment(
     val lineTops: List<Int> = emptyList(),
 )
 
+/** Immutable line geometry, independent of page height, paragraph gaps and screen coordinates. */
+internal class MeasuredReaderParagraph(
+    val componentIndex: Int,
+    val start: Int,
+    val end: Int,
+    val text: String,
+    val lineStarts: IntArray,
+    val lineTops: FloatArray,
+    val lineBottoms: FloatArray,
+)
+
+internal fun measureReaderText(
+    sources: List<ReaderTextSource>,
+    width: Int,
+    measure: (String, Int) -> TextLayoutResult,
+): List<MeasuredReaderParagraph> = buildList {
+    sources.forEach { source ->
+        var start = 0
+        while (start < source.text.length) {
+            val newline = source.text.indexOf('\n', start)
+            val end = if (newline < 0) source.text.length else newline
+            val contentEnd = if (newline >= 0 && end > start && source.text[end - 1] == '\r') end - 1 else end
+            val nextStart = if (newline < 0) source.text.length else newline + 1
+            val text = source.text.substring(start, contentEnd)
+            val measured = measure(text, width.coerceAtLeast(1))
+            add(MeasuredReaderParagraph(source.componentIndex, start, nextStart, text,
+                IntArray(measured.lineCount) { measured.getLineStart(it) },
+                FloatArray(measured.lineCount) { measured.getLineTop(it) },
+                FloatArray(measured.lineCount) { measured.getLineBottom(it) }))
+            start = nextStart
+        }
+    }
+}
+
 /** Legacy simple_text uses LF/CRLF as paragraph boundaries; U+2028 remains a soft break.
  * Empty paragraphs are explicit blank lines, and a terminal separator adds no phantom paragraph.
  */
@@ -67,6 +101,15 @@ internal fun layoutReaderText(
     keepParagraphSpacingAtPageBreaks: Boolean = false,
     measure: (String, Int) -> TextLayoutResult,
 ): List<List<ReaderTextFragment>> = readerTrace("reader.layout") {
+    splitReaderText(measureReaderText(sources, width, measure), height, paragraphSpacing, keepParagraphSpacingAtPageBreaks)
+}
+
+internal fun splitReaderText(
+    paragraphs: List<MeasuredReaderParagraph>,
+    height: Int,
+    paragraphSpacing: Int,
+    keepParagraphSpacingAtPageBreaks: Boolean = false,
+): List<List<ReaderTextFragment>> {
     val pages = mutableListOf<List<ReaderTextFragment>>()
     var page = mutableListOf<ReaderTextFragment>()
     var usedHeight = 0
@@ -76,54 +119,44 @@ internal fun layoutReaderText(
         page = mutableListOf()
         usedHeight = 0
     }
-    sources.forEach { source ->
-        var paragraphStart = 0
-        while (paragraphStart < source.text.length) {
-            val newline = source.text.indexOf('\n', paragraphStart)
-            val paragraphEnd = if (newline < 0) source.text.length else newline
-            val contentEnd = if (newline >= 0 && paragraphEnd > paragraphStart && source.text[paragraphEnd - 1] == '\r')
-                paragraphEnd - 1 else paragraphEnd
-            val nextStart = if (newline < 0) source.text.length else newline + 1
-            val paragraph = source.text.substring(paragraphStart, contentEnd)
-            val measured = measure(paragraph, width.coerceAtLeast(1))
-            var firstLine = 0
-            while (firstLine < measured.lineCount) {
-                var spacing = if (firstLine == 0 && (page.isNotEmpty() ||
-                    keepParagraphSpacingAtPageBreaks && pages.isNotEmpty())) paragraphSpacing else 0
-                val top = measured.getLineTop(firstLine)
-                fun lineHeight(lastLine: Int) = ceil(measured.getLineBottom(lastLine) - top).toInt().coerceAtLeast(1)
-                if (page.isNotEmpty() && lineHeight(firstLine) + spacing > safeHeight - usedHeight) {
-                    nextPage()
-                    if (!keepParagraphSpacingAtPageBreaks) spacing = 0
-                }
-                var lastLine = firstLine
-                while (lastLine + 1 < measured.lineCount &&
-                    lineHeight(lastLine + 1) <= safeHeight - usedHeight - spacing
-                ) lastLine++
-                // Even a viewport shorter than one line consumes a complete line.
-                val start = measured.getLineStart(firstLine)
-                val end = if (lastLine == measured.lineCount - 1) paragraph.length
-                    else measured.getLineStart(lastLine + 1)
-                val fragmentHeight = lineHeight(lastLine)
-                page += ReaderTextFragment(
-                    source.componentIndex,
-                    paragraphStart + start,
-                    if (lastLine == measured.lineCount - 1) nextStart else paragraphStart + end,
-                    paragraph.substring(start, end).let {
-                        if (lastLine < measured.lineCount - 1) it.removeSuffix("\u2028") else it
-                    }, spacing, fragmentHeight,
-                    (firstLine..lastLine).map { paragraphStart + measured.getLineStart(it) },
-                    (firstLine..lastLine).map { (measured.getLineTop(it) - top).toInt() },
-                )
-                usedHeight += spacing + fragmentHeight
-                firstLine = lastLine + 1
-                if (firstLine < measured.lineCount) nextPage()
+    paragraphs.forEach { paragraph ->
+        val lineCount = paragraph.lineStarts.size
+        var firstLine = 0
+        while (firstLine < lineCount) {
+            var spacing = if (firstLine == 0 && (page.isNotEmpty() ||
+                keepParagraphSpacingAtPageBreaks && pages.isNotEmpty())) paragraphSpacing else 0
+            val top = paragraph.lineTops[firstLine]
+            fun lineHeight(lastLine: Int) = ceil(paragraph.lineBottoms[lastLine] - top).toInt().coerceAtLeast(1)
+            if (page.isNotEmpty() && lineHeight(firstLine) + spacing > safeHeight - usedHeight) {
+                nextPage()
+                if (!keepParagraphSpacingAtPageBreaks) spacing = 0
             }
-            paragraphStart = nextStart
+            var lastLine = firstLine
+            while (lastLine + 1 < lineCount &&
+                lineHeight(lastLine + 1) <= safeHeight - usedHeight - spacing
+            ) lastLine++
+            // Even a viewport shorter than one line consumes a complete line.
+            val start = paragraph.lineStarts[firstLine]
+            val end = if (lastLine == lineCount - 1) paragraph.text.length
+                else paragraph.lineStarts[lastLine + 1]
+            val fragmentHeight = lineHeight(lastLine)
+            page += ReaderTextFragment(
+                paragraph.componentIndex,
+                paragraph.start + start,
+                if (lastLine == lineCount - 1) paragraph.end else paragraph.start + end,
+                paragraph.text.substring(start, end).let {
+                    if (lastLine < lineCount - 1) it.removeSuffix("\u2028") else it
+                }, spacing, fragmentHeight,
+                (firstLine..lastLine).map { paragraph.start + paragraph.lineStarts[it] },
+                (firstLine..lastLine).map { (paragraph.lineTops[it] - top).toInt() },
+            )
+            usedHeight += spacing + fragmentHeight
+            firstLine = lastLine + 1
+            if (firstLine < lineCount) nextPage()
         }
     }
     nextPage()
-    pages
+    return pages
 }
 
 internal fun layoutReaderText(
