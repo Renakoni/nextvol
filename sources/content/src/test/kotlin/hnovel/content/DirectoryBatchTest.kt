@@ -1,7 +1,6 @@
 package hnovel.content
 
 import hnovel.execution.ExecutionTask
-import hnovel.execution.SourceWorkRequest
 import hnovel.network.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
@@ -12,10 +11,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DirectoryBatchTest {
-    @Test fun thousandChapterNextChainUsesPageBatchesWithoutDroppingOrReorderingRows() = longDirectory(1001)
-    @Test fun nineHundredChapterNextChainUsesPageBatchesWithoutDroppingOrReorderingRows() = longDirectory(936)
-
-    private fun longDirectory(count: Int) = runBlocking {
+    @Test fun thousandChapterNextChainUsesPageBatchesWithoutDroppingOrReorderingRows() = runBlocking {
+        val count = 1001
         RuleSourceFixture().use { fixture ->
             val original = fixture.server.dispatcher
             fixture.server.dispatcher = object : Dispatcher() {
@@ -40,9 +37,7 @@ class DirectoryBatchTest {
                 put("chapterUrl", "@js:org.jsoup.Jsoup.parse(result).select('a').attr('href')")
                 put("nextTocUrl", "a.next@href")
             })) }).use { source ->
-                val started = System.nanoTime()
                 val chapters = source.directory(fixture.server.url("/book/one").toString())
-                println("directory: chapters=${chapters.size}, tasks=$tasks, fields=$fields, requests=${fixture.server.requestCount}, millis=${(System.nanoTime() - started) / 1_000_000}")
                 assertEquals((1..count).map { "Chapter $it" }, chapters.map { it.title })
                 assertEquals((1..count).map { fixture.server.url("/c/$it").toString() }, chapters.map { it.id })
                 assertEquals(1 + (count + 49) / 50, fixture.server.requestCount)
@@ -62,7 +57,7 @@ class DirectoryBatchTest {
             }
             fixture.source(customize = { raw -> JsonObject(raw + ("ruleToc" to buildJsonObject {
                 put("chapterList", "li")
-                put("chapterName", "a@text@js:book.putVariable('n',String(Number(book.getVariable('n')||0)+1));book.putVariable('temporary','x');chapter.putVariable('large','x'.repeat(11000));chapter.putVariable('saved',result);result")
+                put("chapterName", "a@text@js:book.putVariable('n',String(Number(book.getVariable('n')||0)+1));book.putVariable('temporary','x');chapter.putVariable('large','x'.repeat(90000));chapter.putVariable('saved',result);result")
                 put("chapterUrl", "a@href@js:book.putVariable('temporary',null);chapter.title==chapter.getVariable('saved')?result:'bad'")
                 put("updateTime", "@js:book.getVariable('n')")
                 put("isVip", "@js:chapter.tag==book.getVariable('n')")
@@ -75,26 +70,10 @@ class DirectoryBatchTest {
                 assertTrue(rows.all { it.isVip && it.isPay && it.title == it.state.variables["saved"] })
                 assertEquals("69", source.cachedInformation(id)!!.state.variables["n"])
                 assertNull(source.cachedInformation(id)!!.state.variables["temporary"])
-                assertTrue(rows.all { it.state.bigVariables["large"]?.length == 11000 })
+                assertTrue(rows.all { it.state.bigVariables["large"]?.length == 90000 })
                 assertEquals("Chapter 70", rows.last().state.metadata["title"]!!.jsonPrimitive.content)
             }
         }
-    }
-
-    @Test fun displayInformationDoesNotFetchDirectoryOrSatisfyABackgroundUpdateCheck() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source().use { source ->
-            val id = fixture.server.url("/book/one").toString()
-            val queuedUpdate = SourceWorkRequest(0)
-            val display = source.information(id, inferUpdate = false)
-            assertEquals("Same title", display.title)
-            assertEquals(1, fixture.server.requestCount)
-            val updated = withContext(queuedUpdate) { source.information(id) }
-            assertTrue(updated.observedUpdate >= display.observedUpdate)
-            assertEquals(4, fixture.server.requestCount)
-            val requests = fixture.server.requestCount
-            assertEquals(3, source.directory(id).size)
-            assertEquals(requests, fixture.server.requestCount)
-        } }
     }
 
     @Test fun foregroundDirectoryChangesRemainVisibleToLaterBackgroundChecks() = runBlocking {

@@ -17,9 +17,10 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
     private val retryContext: RequestRetryContext? = null, private val directoryFields: Int = 0) : AutoCloseable {
     private val currentRequest = currentRequest?.let { it.copy(headers = it.headers.toMap()) }
     // Waiting for a person must not increase a single HTTP request's network budget.
-    private val requestTimeoutMillis = limits.timeoutMillis.coerceAtMost(60000)
+    private val requestTimeoutMillis = limits.timeoutMillis.coerceAtMost(if (directoryFields > 0) 30000 else 60000)
     private val lifetime = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var requests = 0
+    private var libraryRequests = 0
     private var directoryField = -1
     private val storageReads = mutableSetOf<Pair<StorageArea, String>>()
     private var closed = false
@@ -73,7 +74,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
                 require(field in 0 until directoryFields && field >= directoryField)
                 if (field != directoryField) {
                     directoryField = field
-                    requests = 0
+                    requests = libraryRequests
                     storageReads.clear()
                 }
             }
@@ -510,6 +511,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
         var size = 0L
         SourceLibraryDefinition.urls(definition).map { url ->
             val requestNumber = reserveRequest()
+            authorized { libraryRequests++ }
             checkPermission(url, ResourceKind.Script)
             val digest = java.security.MessageDigest.getInstance("SHA-256").digest(url.toByteArray(Charsets.UTF_8))
                 .joinToString("") { "%02x".format(it.toInt() and 255) }

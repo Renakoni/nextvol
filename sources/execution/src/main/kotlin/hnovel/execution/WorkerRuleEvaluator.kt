@@ -10,7 +10,7 @@ import kotlinx.serialization.json.*
     val bookWrites: Map<String, String?> = emptyMap(), val chapterWrites: Map<String, String?> = emptyMap(),
     val bookBigWrites: Map<String, String?> = emptyMap(), val chapterBigWrites: Map<String, String?> = emptyMap(),
     val book: JsonObject? = null, val chapter: JsonObject? = null, val discovery: JsonObject? = null,
-    val directoryRows: List<DirectoryRow> = emptyList())
+    val directoryRows: List<DirectoryRow> = emptyList(), val directoryInputs: Int = 0)
 
 /** Selectors, regex and scripts all run inside the worker's hard process deadline. */
 internal object WorkerRuleEvaluator {
@@ -20,7 +20,8 @@ internal object WorkerRuleEvaluator {
         context.putSourceVariable = { key, value -> bridge.call("source.put", listOf(JsonPrimitive(key), JsonPrimitive(value))) }
     }
     fun evaluate(task: ExecutionTask.Rule, identity: ExecutionIdentity, limits: ExecutionLimits,
-        bridge: HostBridge, library: ScriptLibrary?, archives: ArchiveDecoder = ArchiveDecoder.Zip): ExecutionResult {
+        bridge: HostBridge, library: ScriptLibrary?, archives: ArchiveDecoder = ArchiveDecoder.Zip,
+        compilations: ScriptCompilationCache? = null): ExecutionResult {
         val context = RuleContext(identity.sourceId, task.bookId, task.chapterId, task.baseUrl,
             task.sourceVariables, task.bookVariables, task.chapterVariables, task.bookBigVariables, task.chapterBigVariables)
         context.bookMetadata = task.book.toString()
@@ -35,7 +36,7 @@ internal object WorkerRuleEvaluator {
                 sourceHeaderRule = task.sourceHeaderRule, discovery = discovery, sourceLoginUrl = task.sourceLoginUrl,
                 sourceComment = task.sourceComment, nextChapterUrl = task.nextChapterUrl, scriptInput = request.input)
             when (val result = RhinoScriptEngine(bridge, ScriptLimits(timeoutMillis = limits.timeoutMillis, maxResultChars = limits.maxOutputBytes,
-                maxBridgeChars = limits.scriptDataLimit), archives)
+                maxBridgeChars = limits.scriptDataLimit), archives, compilations)
                 .evaluate(request.script, frame, library)) {
                 is ScriptResult.Success -> value(Json.parseToJsonElement(result.json))
                 is ScriptResult.Failure -> { scriptFailure = result; throw RuleScriptFailure(result.code.name) }

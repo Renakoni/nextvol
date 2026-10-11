@@ -110,7 +110,8 @@ internal class RuleWebBookDataSource(override val id: Identifier, private val so
     override suspend fun getBookInformation(id: String) = request {
         // The legacy source API keeps the caller's remote ID; migration is a separate host operation.
         val display = currentCoroutineContext()[indi.renakoni.nextvol.data.web.ForegroundSourceRequest]?.allowsInteraction == true
-        source.information(id, inferUpdate = !display).information().copy(id = id)
+        val download = currentCoroutineContext()[indi.renakoni.nextvol.data.web.DownloadSourceRequest] != null
+        source.information(id, inferUpdate = !display && !download).information().copy(id = id)
     }
     override suspend fun getBookVolumes(id: String) = request { source.directory(id).volumes(id) }.mapError { error ->
         val partial = error.throwable as? PartialDirectoryException

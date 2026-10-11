@@ -3,6 +3,7 @@ package hnovel.execution
 import hnovel.rhino.ArchiveDecoder
 import hnovel.rhino.HostBridge
 import hnovel.rhino.ScriptLibrary
+import hnovel.rhino.ScriptCompilationCache
 import hnovel.rules.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
@@ -27,7 +28,10 @@ internal object WorkerDirectoryRows {
         var book = task.context
         val rows = mutableListOf<DirectoryRow>()
         var outputBytes = 0
+        var bookBytes = 0
         var fieldIndex = 0
+        var processed = 0
+        val compilations = ScriptCompilationCache()
         fun remaining(): Long {
             if (Thread.currentThread().isInterrupted) throw Failed(ExecutionResult.Failure(FailureCode.Cancelled))
             val time = limits.timeoutMillis - (System.nanoTime() - started) / 1_000_000
@@ -36,7 +40,12 @@ internal object WorkerDirectoryRows {
         }
         try {
             for ((offset, input) in task.inputs.withIndex()) {
-                remaining()
+                val remainingMillis = remaining()
+                // Yield only between complete rows: never replay script side effects. Leave enough
+                // of the hard process deadline for a row's six independently bounded fields.
+                if (processed > 0 && (limits.timeoutMillis - remainingMillis >= minOf(5000, limits.timeoutMillis / 4) ||
+                    outputBytes + bookBytes >= limits.maxOutputBytes / 4)) break
+                processed++
                 val index = task.startIndex + offset
                 var row = book.copy(input = input, chapterId = "pending:$index")
                 var inherited = emptyMap<String, String>()
@@ -51,8 +60,8 @@ internal object WorkerDirectoryRows {
                         listOf(JsonPrimitive(currentField), JsonPrimitive(method), JsonArray(args))) }
                     val result = WorkerRuleEvaluator.evaluate(row.copy(rule = rule, output = OutputKind.Text,
                         location = RuleLocation("ruleToc.$name")), identity,
-                        limits.copy(timeoutMillis = remaining(), maxOutputBytes = minOf(196608, limits.maxOutputBytes)),
-                        fieldBridge, library, archives)
+                        limits.copy(timeoutMillis = minOf(30000, remaining()), maxOutputBytes = minOf(196608, limits.maxOutputBytes)),
+                        fieldBridge, library, archives, compilations)
                     if (result is ExecutionResult.Failure) throw Failed(result)
                     val executed = Json.decodeFromString(ExecutedRule.serializer(), (result as ExecutionResult.Success).output)
                     inherited = inherited + executed.writes
@@ -92,7 +101,13 @@ internal object WorkerDirectoryRows {
                 if (outputBytes > limits.maxOutputBytes) return ExecutionResult.Failure(FailureCode.OutputLimit)
                 rows += chapter
                 // Each row starts with a fresh chapter, but sees the previous successful row's book writes.
-                book = book.copy(book = row.book, bookVariables = row.bookVariables, bookBigVariables = row.bookBigVariables)
+                if (book.book != row.book || book.bookVariables != row.bookVariables || book.bookBigVariables != row.bookBigVariables) {
+                    book = book.copy(book = row.book, bookVariables = row.bookVariables, bookBigVariables = row.bookBigVariables)
+                    bookBytes = Json.encodeToString(ExecutedRule.serializer(), ExecutedRule(RuleValue.Empty, emptyMap(),
+                        bookWrites = changes(task.context.bookVariables, book.bookVariables),
+                        bookBigWrites = changes(task.context.bookBigVariables, book.bookBigVariables), book = book.book))
+                        .toByteArray(Charsets.UTF_8).size
+                }
             }
             remaining()
         } catch (failure: Failed) {
@@ -101,7 +116,7 @@ internal object WorkerDirectoryRows {
         val output = Json.encodeToString(ExecutedRule.serializer(), ExecutedRule(RuleValue.Empty, emptyMap(),
             bookWrites = changes(task.context.bookVariables, book.bookVariables),
             bookBigWrites = changes(task.context.bookBigVariables, book.bookBigVariables),
-            book = book.book, directoryRows = rows))
+            book = book.book, directoryRows = rows, directoryInputs = processed))
         return if (output.toByteArray(Charsets.UTF_8).size > limits.maxOutputBytes) ExecutionResult.Failure(FailureCode.OutputLimit)
             else ExecutionResult.Success(output)
     }
