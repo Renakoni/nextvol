@@ -20,10 +20,10 @@ captures/
 .kotlin/
 /app/snapshot/
 /artifacts/
-/docs/
 /.codex-logs/
 
 # Local research, handoff notes and browser captures are never project sources.
+/archive/
 /.local/
 /.playwright-mcp/
 /ref/

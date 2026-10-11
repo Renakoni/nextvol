@@ -1,4 +1,4 @@
-[简体中文](README.md) | [繁體中文](README_TW.md) | **English** | [Русский](README_RU.md)
+[简体中文](../README.md) | [繁體中文](README_TW.md) | **English** | [Русский](README_RU.md)
 
 <div align="center">
     <h1>NextVol</h1>
@@ -9,7 +9,7 @@
     <a href="https://discord.gg/pnf4ABmDJt"><img alt="Discord" src="https://img.shields.io/badge/Discord-JOIN-4285F4.svg?logo=discord&logoColor=white&style=for-the-badge"></a>
     <a href="https://t.me/lightnoble"><img alt="Discord" src="https://img.shields.io/badge/Telegram-JOIN-188FCA.svg?logo=telegram&logoColor=white&style=for-the-badge"></a>
     <p>Light novel reading application built with Jetpack Compose</p>
-    <img src="assets/header.png" alt="drawing" width="80%"/>
+    <img src="../assets/header.png" alt="drawing" width="80%"/>
 </div>
 
 ## Introduction
@@ -32,7 +32,7 @@ NextVol <sup>*Refactored Version*</sup> is an open-source app for reading light 
 ## Custom Sources
 
 Import JSON rule sources by URL, local file or pasted text in Settings → Sources.
-See the [source import documentation](sources/import/README.md) for supported formats.
+See the [source import documentation](../sources/import/README.md) for supported formats.
 
 Developers are welcome to contribute!
 
@@ -55,13 +55,13 @@ Download the latest release from [GitHub Releases](https://github.com/dmzz-yyhyy
 
 |                             |
 |-----------------------------|
-| ![image](assets/light1.png) |
-| ![image](assets/light2.png) |
-| ![image](assets/light3.png) |
+| ![image](../assets/light1.png) |
+| ![image](../assets/light2.png) |
+| ![image](../assets/light3.png) |
 
 ### About EpubLib
 
-We’ve developed a dedicated module to handle EPUB export more effectively. If you're interested, check it out [**here**](https://github.com/dmzz-yyhyy/LightNovelReader/blob/refactoring/epub.md)
+We’ve developed a dedicated module to handle EPUB export more effectively. If you're interested, check it out [**here**](epub.md)
 
 ## Contributing
 
