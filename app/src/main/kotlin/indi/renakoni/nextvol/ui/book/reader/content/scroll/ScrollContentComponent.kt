@@ -165,7 +165,12 @@ fun ScrollContentTextComponent(
         }
     }
     val textLayout = LocalReaderTextLayout.current
-    val preparedChapters = uiState.contentList.mapIndexed { index, entry ->
+    // Lazy items can recompose during scrolling before this parent does. Capture the window
+    // once so their keys, neighbours and prepared bodies always use the same slot ordering.
+    val chapterEntries = uiState.contentList.toList()
+    val showAdjacentChapters = settingState.isUsingContinuousScrolling &&
+        chapterEntries.getOrNull(1)?.second?.isErr != true
+    val preparedChapters = chapterEntries.mapIndexed { index, entry ->
         key(listState, entry?.first ?: "placeholder-$index") {
             PrepareReaderSpeechIndex(entry?.second?.get())
             rememberPreparedScrollChapter(entry?.second?.get(), textLayout,
@@ -525,17 +530,16 @@ fun ScrollContentTextComponent(
             userScrollEnabled = active && showContent && (!uiState.isRestoringProgress || uiState.readingChapterContent?.isErr == true),
         ) {
             itemsIndexed(
-                items = uiState.contentList,
+                items = chapterEntries,
                 key = { index, pair -> pair?.first ?: "placeholder-$index" },
                 contentType = { index, pair -> pair?.second?.isOk == true && preparedChapters[index] != null },
             ) { index, pair ->
-                if (index != 1 && (!settingState.isUsingContinuousScrolling ||
-                        uiState.readingChapterContent?.isErr == true)) return@itemsIndexed
+                if (index != 1 && !showAdjacentChapters) return@itemsIndexed
                 pair?.second.let { result ->
-                    uiState.contentList.getOrNull(index + 1)?.second?.get()?.let {
+                    chapterEntries.getOrNull(index + 1)?.second?.get()?.let {
                         if (!it.hasPrevChapter()) return@itemsIndexed
                     }
-                    uiState.contentList.getOrNull(index - 1)?.second?.get()?.let {
+                    chapterEntries.getOrNull(index - 1)?.second?.get()?.let {
                         if (!it.hasNextChapter()) return@itemsIndexed
                     }
                     result?.onOk {
