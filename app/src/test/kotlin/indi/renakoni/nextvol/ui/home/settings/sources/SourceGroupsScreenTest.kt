@@ -41,7 +41,7 @@ class SourceGroupsScreenTest {
     private fun source(id: String, vararg groups: String): InstalledRuleSource {
         val definition = SourceDefinition(id, "legado", LEGADO_PROFILE, "https://$id.invalid/", id,
             true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
-        return InstalledRuleSource(definition, emptyList(), null, preferences = SourcePreferences(true, false, groupIds = groups.toSet()))
+        return InstalledRuleSource(definition, emptyList(), preferences = SourcePreferences(true, false, groupIds = groups.toSet()))
     }
     private val initial = SourceManagementState(groups = groups, installed = listOf(source("One"), source("Two", "work")))
     @Before fun create() {

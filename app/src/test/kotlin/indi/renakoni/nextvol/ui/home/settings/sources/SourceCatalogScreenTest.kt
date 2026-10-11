@@ -40,7 +40,7 @@ class SourceCatalogScreenTest {
         CatalogSource("https://platform.invalid/", SourceCategory.Platforms, "Platform source", "Subscription chapters", 0))
     private val installed = SourceDefinition("existing", "legado", LEGADO_PROFILE, entries[1].key, entries[1].name,
         true, true, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
-    private val state = SourceManagementState(catalog = entries, installed = listOf(InstalledRuleSource(installed, emptyList(), null)))
+    private val state = SourceManagementState(catalog = entries, installed = listOf(InstalledRuleSource(installed, emptyList())))
 
     @Before fun create() {
         activity = Robolectric.buildActivity(ComponentActivity::class.java)

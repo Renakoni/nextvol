@@ -19,4 +19,19 @@
     <string name="sources_editor_replace_all">全部替换</string>
     <string name="sources_editor_allow_sites">允许访问新站点？</string>
     <string name="sources_editor_allow_save">允许并保存</string>
+    <string name="sources_editor_tools">编辑工具</string>
+    <string name="sources_editor_validate">校验 JSON</string>
+    <string name="sources_editor_json_valid">JSON 格式正确</string>
+    <string name="sources_editor_syntax_error">JSON 格式错误</string>
+    <string name="sources_editor_duplicate_field">JSON 包含重复字段</string>
+    <string name="sources_editor_object_required">书源必须是 JSON 对象</string>
+    <string name="sources_editor_too_deep">JSON 嵌套层级过深</string>
+    <string name="sources_editor_too_large">JSON 内容过大</string>
+    <string name="sources_editor_error_position">第 %1$d 行，第 %2$d 列</string>
+    <string name="sources_editor_close_find">关闭查找</string>
+    <string name="sources_editor_show_replace">展开替换</string>
+    <string name="sources_editor_hide_replace">收起替换</string>
+    <string name="sources_editor_previous">上一处</string>
+    <string name="sources_editor_no_matches">无结果</string>
+    <string name="sources_editor_match_count">%1$d 处匹配</string>
 </resources>

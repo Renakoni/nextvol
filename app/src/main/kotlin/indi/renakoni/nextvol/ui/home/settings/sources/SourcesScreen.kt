@@ -173,7 +173,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
     val addStates = rememberSaveableStateHolder()
     val settingsStates = rememberSaveableStateHolder()
     var deleting by remember { mutableStateOf(false) }
-    var rollback by remember { mutableStateOf(false) }
+    var editorMenu by remember { mutableStateOf(false) }
     var discardEditor by remember { mutableStateOf(false) }
     var findingInEditor by rememberSaveable(state.editor?.installed?.definition?.sourceId) { mutableStateOf(false) }
     val managementListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -258,8 +258,16 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                     IconButton(onClick = { findingInEditor = !findingInEditor }, enabled = !state.busy) {
                         Icon(painterResource(R.drawable.find_replace_24px), stringResource(R.string.sources_editor_find_replace))
                     }
-                    IconButton(onClick = model::formatEditor, enabled = !state.busy) {
-                        Icon(painterResource(R.drawable.code_24px), stringResource(R.string.sources_editor_format))
+                    Box {
+                        IconButton(onClick = { editorMenu = true }, enabled = !state.busy) {
+                            Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.sources_editor_tools))
+                        }
+                        DropdownMenu(editorMenu, onDismissRequest = { editorMenu = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.sources_editor_validate)) },
+                                onClick = { editorMenu = false; model.validateEditor() })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.sources_editor_format)) },
+                                onClick = { editorMenu = false; model.formatEditor() })
+                        }
                     }
                     TextButton(onClick = model::saveEditor, enabled = !state.busy) { Text(stringResource(R.string.sources_editor_save)) }
                 }
@@ -308,7 +316,8 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         val installed = state.installed.find { ImportedRuleSources.id(it.definition) == state.selected }
         val selectedEntry = state.registry.find { it.metadata.id == state.selected }
         if (state.editor != null) {
-            SourceEditorScreen(state.editor, state.busy, model, Modifier.padding(padding).consumeWindowInsets(padding), findingInEditor)
+            SourceEditorScreen(state.editor, state.busy, model, Modifier.padding(padding).consumeWindowInsets(padding), findingInEditor,
+                onCloseFind = { findingInEditor = false })
         } else if (state.preview != null) {
             SourceImportPreview(state, model, Modifier.padding(padding))
         } else if (page.adding && state.selected == null) {
@@ -427,21 +436,18 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                             }
                         }
                         if (hasVariable) variableEditor()
-                        HorizontalDivider(Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                        Column {
+                        val canCheckUpdate = model.canCheckUpdate(definition)
+                        if (!hasVariable || canCheckUpdate) Column {
+                            HorizontalDivider(Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                             SourceSettingsRow(stringResource(R.string.sources_advanced), expanded = showDetails) { showDetails = !showDetails }
                             if (showDetails) {
-                                if (model.canCheckUpdate(definition)) SourceSettingsRow(stringResource(R.string.sources_check_update), !state.busy) {
+                                if (canCheckUpdate) SourceSettingsRow(stringResource(R.string.sources_check_update), !state.busy) {
                                     model.checkUpdate(state.selected!!)
                                 }
                                 // An undeclared variable can still be used by dynamically loaded scripts.
                                 if (!hasVariable) SourceSettingsRow(stringResource(R.string.sources_edit_variable),
                                     !state.busy && state.storedSettingsAvailable, editVariable) { manualVariable = true; editVariable = !editVariable }
                                 if (!hasVariable) variableEditor()
-                                if (installed.previous != null) SourceSettingsRow(stringResource(R.string.sources_rollback), !state.busy) { rollback = true }
-                                Text(stringResource(R.string.sources_revision, definition.revision.toString()),
-                                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         TextButton(onClick = { deleting = true }, enabled = !state.busy) { Text(stringResource(R.string.sources_delete), color = MaterialTheme.colorScheme.error) }
@@ -449,9 +455,6 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                     if (deleting) AlertDialog(onDismissRequest = { deleting = false }, title = { Text(stringResource(R.string.sources_delete)) },
                         text = { Text(stringResource(R.string.sources_delete_help)) }, confirmButton = { TextButton(onClick = { deleting = false; model.remove(state.selected!!) }) { Text(stringResource(R.string.sources_delete)) } },
                         dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(android.R.string.cancel)) } })
-                    if (rollback) AlertDialog(onDismissRequest = { rollback = false }, title = { Text(stringResource(R.string.sources_rollback)) },
-                        text = { Text(stringResource(R.string.sources_rollback_help)) }, confirmButton = { TextButton(onClick = { rollback = false; model.rollback(state.selected!!, permissions) }) { Text(stringResource(R.string.sources_rollback)) } },
-                        dismissButton = { TextButton(onClick = { rollback = false }) { Text(stringResource(android.R.string.cancel)) } })
                 }
             } else if (state.selected != null) {
                 item(key = "registered-settings") {

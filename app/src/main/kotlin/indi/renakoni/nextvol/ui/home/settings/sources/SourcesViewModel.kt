@@ -52,10 +52,10 @@ data class SourceManagementState(val installed: List<InstalledRuleSource> = empt
 data class SourceNetworkState(val bypassVpn: Boolean = false, val limitation: Int? = null,
     val certificates: List<CertificateExceptionSite> = emptyList())
 
-data class SourceSaveError(val message: Int, val detail: String? = null)
+data class SourceSaveError(val message: Int, val detail: String? = null, val line: Int? = null, val column: Int? = null)
 data class SourceEditorState(val installed: InstalledRuleSource, val rawJson: String,
     val error: SourceSaveError? = null, val saved: Boolean = false, val originalJson: String = rawJson,
-    val pendingOrigins: List<String> = emptyList()) {
+    val pendingOrigins: List<String> = emptyList(), val jsonValid: Boolean = false) {
     val dirty get() = rawJson != originalJson
 }
 
@@ -275,10 +275,6 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         if (checked.unchanged) mutable.update { it.copy(message = R.string.sources_up_to_date) }
         else showPreview(checked.preview, id)
     }
-    fun rollback(id: Identifier, permissions: String) = launch {
-        updates.rollback(id, grants(permissions)); selectSource(id)
-        mutable.update { it.copy(message = R.string.sources_saved) }
-    }
     fun setEnabled(id: Identifier, enabled: Boolean) = launch {
         val hasDiscovery = state.value.installed.firstOrNull { ImportedRuleSources.id(it.definition) == id }?.hasDiscovery == true
         // Enabling a source is the single user action that makes its catalogue visible.
@@ -354,14 +350,21 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     fun closeEditor() { if (!state.value.busy) mutable.update { it.copy(editor = null) } }
     fun editDraft(rawJson: String) {
         if (!state.value.busy) mutable.update { state -> state.copy(editor = state.editor?.copy(rawJson = rawJson,
-            pendingOrigins = emptyList(), error = null, saved = false)) }
+            pendingOrigins = emptyList(), error = null, saved = false, jsonValid = false)) }
+    }
+    fun validateEditor() = launch(showProgress = false, onFailure = { failure ->
+        mutable.update { it.copy(editor = it.editor?.copy(error = saveError(failure), jsonValid = false, saved = false)) }
+    }) {
+        val draft = checkNotNull(state.value.editor)
+        SourceDefinitionEdits.validateJson(draft.rawJson)
+        mutable.update { it.copy(editor = draft.copy(error = null, jsonValid = true, saved = false)) }
     }
     fun formatEditor() = launch(showProgress = false, onFailure = { failure ->
-        mutable.update { it.copy(editor = it.editor?.copy(error = saveError(failure), saved = false)) }
+        mutable.update { it.copy(editor = it.editor?.copy(error = saveError(failure), jsonValid = false, saved = false)) }
     }) {
         val draft = checkNotNull(state.value.editor)
         mutable.update { it.copy(editor = draft.copy(rawJson = SourceDefinitionEdits.format(draft.rawJson),
-            pendingOrigins = emptyList(), error = null, saved = false)) }
+            pendingOrigins = emptyList(), error = null, saved = false, jsonValid = true)) }
     }
     fun dismissEditorOrigins() { if (!state.value.busy) mutable.update { it.copy(editor = it.editor?.copy(pendingOrigins = emptyList())) } }
     fun saveEditor() = persistEditor(false)
@@ -396,8 +399,15 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     private class InvalidPermissions(val lines: List<Int>) : Exception()
     private fun saveError(failure: Exception): SourceSaveError = when (failure) {
         is InvalidPermissions -> SourceSaveError(R.string.sources_invalid_permission_lines, failure.lines.joinToString(", "))
-        is SourceEditException -> SourceSaveError(R.string.sources_editor_invalid,
-            failure.field?.takeIf { it.matches(Regex("[A-Za-z0-9_.]{1,120}")) } ?: "JSON")
+        is SourceEditException -> when (failure.code) {
+            ImportCode.InvalidJson -> SourceSaveError(R.string.sources_editor_syntax_error, line = failure.line, column = failure.column)
+            ImportCode.DuplicateField -> SourceSaveError(R.string.sources_editor_duplicate_field, line = failure.line, column = failure.column)
+            ImportCode.InvalidShape -> SourceSaveError(R.string.sources_editor_object_required)
+            ImportCode.TooDeep -> SourceSaveError(R.string.sources_editor_too_deep, line = failure.line, column = failure.column)
+            ImportCode.TooLarge -> SourceSaveError(R.string.sources_editor_too_large)
+            else -> SourceSaveError(R.string.sources_editor_invalid,
+                failure.field?.takeIf { it.matches(Regex("[A-Za-z0-9_.]{1,120}")) } ?: "JSON")
+        }
         is RevisionException -> when (failure.code) {
             RevisionError.PermissionRequired -> failure.requiredOrigin?.let { SourceSaveError(R.string.sources_missing_origin, it) }
                 ?: SourceSaveError(R.string.sources_permission_denied)

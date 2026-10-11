@@ -38,4 +38,19 @@ class SourceDefinitionEditsTest {
         }
     }
 
+    @Test fun syntaxValidationAcceptsObjectsWithoutExecutingOrRequiringSourceRules() {
+        SourceDefinitionEdits.validateJson("{\"text\":\"中文\",\"items\":[true,null,42]}")
+        val invalid = runCatching { SourceDefinitionEdits.validateJson("{\n  \"name\":\n}") }.exceptionOrNull() as SourceEditException
+        assertEquals(ImportCode.InvalidJson, invalid.code)
+        assertEquals(3, invalid.line)
+        assertNotNull(invalid.column)
+        val duplicate = runCatching { SourceDefinitionEdits.validateJson("{\n\"name\":1,\n\"name\":2\n}") }.exceptionOrNull() as SourceEditException
+        assertEquals(ImportCode.DuplicateField, duplicate.code)
+        assertEquals(3, duplicate.line)
+        assertEquals(ImportCode.InvalidShape,
+            (runCatching { SourceDefinitionEdits.validateJson("[]") }.exceptionOrNull() as SourceEditException).code)
+        for (text in listOf("{\"x\":1,}", "{\"x\":NaN}", "{unquoted:1}", "{} {}"))
+            assertTrue(runCatching { SourceDefinitionEdits.validateJson(text) }.exceptionOrNull() is SourceEditException)
+    }
+
 }

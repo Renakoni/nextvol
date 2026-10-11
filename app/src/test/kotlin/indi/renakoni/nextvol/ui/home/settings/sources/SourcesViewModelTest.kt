@@ -70,11 +70,21 @@ class SourcesViewModelTest {
                 val original = idle().editor!!
                 assertFalse(original.dirty)
                 val snapshot = File(context.filesDir, "rule-sources/active.json").readBytes()
+                model.editDraft("{}")
+                model.validateEditor()
+                val validated = idle().editor!!
+                assertTrue(validated.jsonValid)
+                assertEquals("{}", validated.rawJson)
+                assertArrayEquals(snapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
+                model.editDraft("{\n  \"name\":\n}")
+                assertFalse(model.state.value.editor!!.jsonValid)
+                model.validateEditor()
+                assertEquals(3, idle().editor!!.error?.line)
                 model.editDraft("{")
                 model.saveEditor()
                 val failed = idle().editor!!
                 assertEquals("{", failed.rawJson)
-                assertEquals(indi.renakoni.nextvol.R.string.sources_editor_invalid, failed.error?.message)
+                assertEquals(indi.renakoni.nextvol.R.string.sources_editor_syntax_error, failed.error?.message)
                 assertArrayEquals(snapshot, File(context.filesDir, "rule-sources/active.json").readBytes())
                 model.editDraft(original.rawJson)
                 model.editDraft(original.rawJson.replace("old.example", "new.example"))
@@ -312,7 +322,7 @@ class SourcesViewModelTest {
             setOf(SourceCapability.Search, SourceCapability.Login))) { source }
         val sources = mockk<ImportedRuleSources>()
         coEvery { sources.sourceGroups() } returns emptyList()
-        coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, listOf(NetworkGrant("https://fixture.invalid/")), null))
+        coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, listOf(NetworkGrant("https://fixture.invalid/"))))
         coEvery { sources.storedSettings(id, "account") } returns RuleStoredSettings("saved variable", "session", "reader")
         val login = mockk<SourceLoginService>(relaxed = true)
         val zLibrary = mockk<ZLibrarySources>()
@@ -522,7 +532,7 @@ class SourcesViewModelTest {
         }
     }
 
-    @Test fun previewApprovalUpdateRollbackAndRemovalUseProductionServices(): Unit = runBlocking {
+    @Test fun previewApprovalUpdateAndRemovalUseProductionServices(): Unit = runBlocking {
         Dispatchers.setMain(Dispatchers.Unconfined)
         val root = Files.createTempDirectory("source-management").toFile()
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
@@ -554,13 +564,10 @@ class SourcesViewModelTest {
                 val updated = idle().installed.single()
                 assertEquals(id, ImportedRuleSources.id(updated.definition))
                 assertEquals("New name", updated.definition.displayName)
-                model.rollback(id, permissions.getValue(0))
-                assertEquals(first.definition.contentDigest, idle().installed.single().definition.contentDigest)
-                model.saveVariable(id, "saved after rollback")
+                model.saveVariable(id, "saved after update")
                 assertEquals(indi.renakoni.nextvol.R.string.sources_saved, idle().message)
-                assertEquals(updated.definition.contentDigest, idle().installed.single().previous!!.contentDigest)
                 model.select(id)
-                assertEquals("saved after rollback", idle().variable)
+                assertEquals("saved after update", idle().variable)
                 model.checkUpdate(id)
                 assertEquals(indi.renakoni.nextvol.R.string.sources_no_update_url, idle().message)
                 model.remove(id)

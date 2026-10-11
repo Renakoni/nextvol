@@ -21,7 +21,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 enum class RevisionError { NotInstalled, NoUpdateAddress, InvalidCandidate, IdentityChanged, ProfileChanged,
-    PermissionRequired, InitializationFailed, Stale, NoPreviousRevision, UpstreamNotAdapted, UpdateDownloadFailed }
+    PermissionRequired, InitializationFailed, Stale, UpstreamNotAdapted, UpdateDownloadFailed }
 class RevisionException(val code: RevisionError, val requiredOrigin: String? = null) : Exception(code.name)
 data class RevisionCheck(val installed: SourceDefinition, val preview: ImportPreview, val unchanged: Boolean)
 
@@ -73,7 +73,7 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
         replace(before, next, approvedOrigins)
     }
 
-    /** Permissions apply to the installed snapshot, including after rollback or a rejected import. */
+    /** Permissions apply to the installed snapshot, including after a rejected import. */
     suspend fun updatePermissions(source: Identifier, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
         val before = installed(source)
         replace(before, before.definition, approvedOrigins)
@@ -83,21 +83,15 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
     suspend fun edit(source: Identifier, expected: InstalledRuleSource, text: String, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
         val before = installed(source)
         if (before.definition != expected.definition || before.origins != expected.origins) throw RevisionException(RevisionError.Stale)
-        val revision = maxOf(expected.definition.revision, before.previous?.revision ?: 0, sources.definitions.list().filter { it.sourceId == expected.definition.sourceId }
+        val revision = maxOf(expected.definition.revision, sources.definitions.list().filter { it.sourceId == expected.definition.sourceId }
             .maxOfOrNull { it.revision } ?: 0) + 1
         val next = SourceDefinitionEdits.prepare(expected.definition, text, revision)
         replace(before, next, approvedOrigins)
     }
 
-    suspend fun rollback(source: Identifier, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
-        val before = installed(source)
-        val previous = before.previous ?: throw RevisionException(RevisionError.NoPreviousRevision)
-        replace(before, previous, approvedOrigins)
-    }
-
     private suspend fun replace(before: InstalledRuleSource, next: SourceDefinition, grants: List<NetworkGrant>) {
         if (next.profile != before.definition.profile) throw RevisionException(RevisionError.ProfileChanged)
-        // Also guard direct update/rollback calls; a preview is not permission to restore removed code.
+        // Also guard direct update calls; a preview is not permission to restore removed code.
         if (pixiv.manages(before.definition) && next.contentDigest != before.definition.contentDigest && !pixiv.accepts(next))
             throw RevisionException(RevisionError.UpstreamNotAdapted)
         if (grants.size > 32) throw RevisionException(RevisionError.InvalidCandidate)

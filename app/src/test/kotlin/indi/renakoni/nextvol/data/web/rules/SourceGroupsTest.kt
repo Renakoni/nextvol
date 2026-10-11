@@ -209,7 +209,7 @@ class SourceGroupsTest {
         }
     }
 
-    @Test fun replacementAndRollbackPreserveGroupWhileRemovalDoesNotRestoreMembership() = runBlocking {
+    @Test fun replacementPreservesGroupWhileRemovalDoesNotRestoreMembership() = runBlocking {
         val context = host()
         RuleSourceFixture().use { fixture ->
             val accounts = SourceSessionManager(fixture.authority)
@@ -224,8 +224,6 @@ class SourceGroupsTest {
                 val update = commit(sources, JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Renamed"))))
                 val service = SourceRevisionUpdates(context, sources, accounts, fixture.runner, fixture.authority)
                 service.apply(id, update, grants)
-                assertEquals(memberships, sources.installedSources().single().preferences.groupIds)
-                service.rollback(id, grants)
                 assertEquals(memberships, sources.installedSources().single().preferences.groupIds)
                 sources.rotateAccount(id)
                 assertEquals(memberships, sources.installedSources().single().preferences.groupIds)

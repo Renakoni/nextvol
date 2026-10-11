@@ -119,7 +119,7 @@ class PixivSourceUpdatesTest {
         }
     }
 
-    @Test fun adaptedUpdatePreservesAccountGroupsPreferencesAndRejectsLegacyRollback(): Unit = runBlocking {
+    @Test fun adaptedUpdatePreservesAccountGroupsAndPreferences(): Unit = runBlocking {
         withSource(pixivUpdateFixture("pixiv-adapted-previous.json")) {
             sources.setPreferences(id, enabled = true, discoveryVisible = false)
             sources.createGroup("Novels", setOf(id))
@@ -139,16 +139,12 @@ class PixivSourceUpdatesTest {
             val next = commit(Json.parseToJsonElement(check.preview.candidates.single().rawJson).jsonObject)
             updates.apply(id, next.reference(), grants)
             assertEquals(next, installed().definition)
-            assertEquals(before.definition, installed().previous)
             assertEquals(before.preferences, installed().preferences)
             assertEquals(groups, sources.sourceGroups())
             assertEquals(account, accounts.current(id))
             assertEquals(StorageResult.Value("saved-account"), stored(StorageArea.Account, StorageRequestKey.LOGIN_INFO))
             assertEquals(StorageResult.Value("saved-preference"), stored(StorageArea.Config, "variable"))
             assertEquals(StorageResult.Value("{\"FAST\":true}"), stored(StorageArea.Cache, "value:pixivSettings"))
-            rejects(RevisionError.UpstreamNotAdapted) { updates.rollback(id, grants) }
-            assertEquals(next, installed().definition)
-            assertEquals(account, accounts.current(id))
         }
     }
 

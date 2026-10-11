@@ -39,6 +39,44 @@ class SourceRevisionUpdatesTest {
         return sources.definitions.list().single()
     }
 
+    @Test fun legacyRevisionBackupIsRemovedWhileActiveSourceAndSettingsSurvive() = runBlocking {
+        for (legacyArray in listOf(false, true)) {
+            val host = Host()
+            RuleSourceFixture().use { fixture ->
+                val accounts = SourceSessionManager(fixture.authority)
+                var sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
+                try {
+                    val first = candidate(sources, fixture.raw())
+                    val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
+                    val id = sources.activate(first.reference(), grants)
+                    sources.saveVariable(id, "keep configuration")
+                    sources.setPreferences(id, enabled = false)
+                    val before = sources.installedSources().single()
+                    sources.stop()
+                    val file = File(host.filesDir, "rule-sources/active.json")
+                    val snapshot = Json.parseToJsonElement(file.readText()).jsonObject
+                    val row = snapshot.getValue("sources").jsonArray.single().jsonObject
+                    val legacy = JsonArray(listOf(JsonObject(row + ("previous" to buildJsonObject {
+                        put("definition", row.getValue("definition")); put("origins", row.getValue("origins"))
+                    }))))
+                    file.writeText(if (legacyArray) legacy.toString() else JsonObject(snapshot + ("sources" to legacy)).toString())
+                    sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
+                    assertEquals(before, sources.installedSources().single())
+                    assertEquals("keep configuration", sources.storedSettings(id).variable)
+                    val migrated = Json.parseToJsonElement(file.readText()).jsonObject.getValue("sources").jsonArray.single().jsonObject
+                    assertFalse("previous" in migrated)
+                    assertEquals(0, fixture.server.requestCount)
+                    sources.stop()
+                    val corrupt = JsonArray(listOf(JsonObject(legacy.single().jsonObject - "definition"))).toString()
+                    file.writeText(corrupt)
+                    sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
+                    assertTrue(sources.installedSources().isEmpty())
+                    assertEquals(corrupt, file.readText())
+                } finally { sources.stop(); host.root.deleteRecursively() }
+            }
+        }
+    }
+
     @Test fun missingHomepagePermissionReportsTheSiteAndAdditionalGrantsSurviveRestart() = runBlocking {
         val host = Host()
         RuleSourceFixture().use { fixture ->
@@ -117,9 +155,7 @@ class SourceRevisionUpdatesTest {
                 sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
                 assertEquals(edited, sources.installedSources().single())
                 val restoredUpdates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
-                restoredUpdates.rollback(id, originalGrants)
-                assertEquals(first, sources.installedSources().single().definition)
-                restoredUpdates.edit(id, sources.installedSources().single(), draft, grants)
+                restoredUpdates.edit(id, sources.installedSources().single(), JsonObject(Json.parseToJsonElement(draft).jsonObject + ("bookSourceName" to JsonPrimitive("Edited again"))).toString(), grants)
                 assertTrue(sources.installedSources().single().definition.revision > edited.definition.revision)
             } finally { sources.stop(); host.root.deleteRecursively() }
         }
@@ -224,7 +260,7 @@ class SourceRevisionUpdatesTest {
         } }
     }
 
-    @Test fun updateAndRollbackPreserveIdentityRetireOldRuntimeAndRestoreFromOneSnapshot() = runBlocking {
+    @Test fun updatePreservesIdentityRetiresOldRuntimeAndRestoresFromOneSnapshot() = runBlocking {
         val host = Host()
         RuleSourceFixture().use { fixture ->
             val accounts = SourceSessionManager(fixture.authority)
@@ -245,15 +281,11 @@ class SourceRevisionUpdatesTest {
                 assertEquals(first.sourceId, next.sourceId)
                 assertEquals(next.contentDigest, changed.metadata.revision)
                 assertEquals(book, changed.getBookInformation(book).get()!!.id)
-                updates.rollback(id, grants)
-                assertFalse(changed.isAvailable)
-                assertEquals(first.contentDigest, sources.installedSources().single().definition.contentDigest)
                 sources.stop()
                 registry = WebSourceRegistry(fixture.authority)
                 sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
                 sources.restore()
-                assertEquals(first.contentDigest, (registry.resolve(id) as SourceResolution.Ready).runtime.metadata.revision)
-                assertEquals(next.contentDigest, sources.installedSources().single().previous!!.contentDigest)
+                assertEquals(next.contentDigest, (registry.resolve(id) as SourceResolution.Ready).runtime.metadata.revision)
             } finally { sources.stop(); host.root.deleteRecursively() }
         }
     }

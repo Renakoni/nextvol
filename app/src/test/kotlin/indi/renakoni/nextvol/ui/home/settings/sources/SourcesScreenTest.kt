@@ -68,7 +68,7 @@ class SourcesScreenTest {
     fun permissionFailureStaysVisibleBesideSaveAndTheSourceEditorIsSeparate() {
         val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
             "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
-        val installed = InstalledRuleSource(definition, listOf(hnovel.network.NetworkGrant("https://old.example:443")), null)
+        val installed = InstalledRuleSource(definition, listOf(hnovel.network.NetworkGrant("https://old.example:443")))
         val id = ImportedRuleSources.id(definition)
         var state by mutableStateOf(SourceManagementState(installed = listOf(installed), selected = id))
         every { model.savePermissions(id, any()) } answers {
@@ -89,7 +89,7 @@ class SourcesScreenTest {
     fun editorKeepsSaveErrorsVisibleAndBackRequiresDiscardingAnUnsavedDraft() {
         val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
             "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
-        val installed = InstalledRuleSource(definition, emptyList(), null)
+        val installed = InstalledRuleSource(definition, emptyList())
         val draft = SourceEditorState(installed, "{", originalJson = "{}",
             error = SourceSaveError(indi.renakoni.nextvol.R.string.sources_editor_invalid, "JSON"))
         val state = SourceManagementState(installed = listOf(installed), selected = ImportedRuleSources.id(definition), editor = draft)
@@ -108,7 +108,7 @@ class SourcesScreenTest {
     fun jsonEditorIsImmediatelyEditableAndFindReplaceChangesOnlyTheDraft() {
         val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
             "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
-        val installed = InstalledRuleSource(definition, emptyList(), null)
+        val installed = InstalledRuleSource(definition, emptyList())
         val raw = """{"url":"old.example","script":"old.example"}"""
         var state by mutableStateOf(SourceManagementState(installed = listOf(installed), selected = ImportedRuleSources.id(definition),
             editor = SourceEditorState(installed, raw)))
@@ -120,25 +120,70 @@ class SourcesScreenTest {
         compose.onNodeWithText("Replace domain").assertDoesNotExist()
         compose.onNodeWithText("Find").assertDoesNotExist()
         compose.onNodeWithContentDescription("Find and replace").performClick()
+        compose.onNodeWithText("Replace with").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Show replace").performClick()
         compose.onNodeWithText("Replace all").assertIsNotEnabled()
         compose.onNodeWithText("Find").performTextInput("old.example")
         compose.onNodeWithText("Replace with").performTextInput("new")
-        compose.onNodeWithText("Next").performClick()
+        compose.onNodeWithContentDescription("Next").performClick()
         val first = androidx.compose.ui.text.TextRange(raw.indexOf("old.example"), raw.indexOf("old.example") + "old.example".length)
         editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, first))
-        compose.onNodeWithText("Next").performClick()
-        compose.onNodeWithText("Next").performClick()
+        compose.onNodeWithContentDescription("Previous").performClick()
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange,
+            androidx.compose.ui.text.TextRange(raw.lastIndexOf("old.example"), raw.lastIndexOf("old.example") + "old.example".length)))
+        compose.onNodeWithContentDescription("Next").performClick()
+        compose.onNodeWithContentDescription("Next").performClick()
+        compose.onNodeWithContentDescription("Next").performClick()
         editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, first))
-        compose.onNodeWithText("Replace").performClick()
+        compose.onAllNodesWithText("Replace").onFirst().performClick()
         org.junit.Assert.assertEquals(raw.replaceFirst("old.example", "new"), state.editor!!.rawJson)
         compose.onNodeWithText("Replace all").performClick()
         org.junit.Assert.assertEquals(raw.replace("old.example", "new"), state.editor!!.rawJson)
-        compose.onNodeWithText("Next").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Next").assertIsNotEnabled()
         compose.onNodeWithContentDescription("Find and replace").performClick()
         compose.onNodeWithText("Find").assertDoesNotExist()
         editor.assertTextContains(state.editor!!.rawJson)
-        compose.onNodeWithContentDescription("Format JSON").performClick()
+        compose.onNodeWithContentDescription("Editor tools").performClick()
+        compose.onNodeWithText("Validate JSON").performClick()
+        verify(exactly = 1) { model.validateEditor() }
+        compose.onNodeWithContentDescription("Editor tools").performClick()
+        compose.onNodeWithText("Format JSON").performClick()
         verify(exactly = 1) { model.formatEditor() }
+        verify(exactly = 0) { model.saveEditor() }
+    }
+
+    @Test @Config(qualifiers = "en-rUS-w320dp-h640dp")
+    fun findPanelKeepsInputsAndNavigationReachableWithLargeText() {
+        val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
+            "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
+        val draft = SourceEditorState(InstalledRuleSource(definition, emptyList()), "{}")
+        activity.get().setContent { MaterialTheme {
+            CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(1f, 1.6f)) {
+                SourceEditorScreen(draft, false, model, finding = true)
+            }
+        } }
+        compose.onNodeWithContentDescription("Show replace").performClick()
+        compose.onNodeWithContentDescription("Find").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Replace with").assertIsDisplayed()
+        compose.onNodeWithText("Replace all").assertIsDisplayed().assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Previous").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Next").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Hide replace").performClick()
+        compose.onNodeWithContentDescription("Replace with").assertDoesNotExist()
+    }
+
+    @Test @Config(qualifiers = "en-rUS-w320dp-h640dp")
+    fun jsonValidationShowsTheLocationAndSelectsItWithoutChangingTheDraft() {
+        val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
+            "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
+        val raw = "{\n  \"name\":\n}"
+        val draft = SourceEditorState(InstalledRuleSource(definition, emptyList()), raw,
+            error = SourceSaveError(indi.renakoni.nextvol.R.string.sources_editor_syntax_error, line = 3, column = 1))
+        activity.get().setContent { MaterialTheme { SourceEditorScreen(draft, false, model) } }
+        compose.onNodeWithText("Line 3, column 1", substring = true).assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Source rules (JSON)").assert(SemanticsMatcher.expectValue(
+            SemanticsProperties.TextSelectionRange, androidx.compose.ui.text.TextRange(raw.length - 1, raw.length)))
+        verify(exactly = 0) { model.editDraft(any()) }
         verify(exactly = 0) { model.saveEditor() }
     }
 
@@ -146,7 +191,7 @@ class SourcesScreenTest {
     fun newSitesAreConfirmedOnlyAtSaveWithoutASecondPermissionsForm() {
         val definition = SourceDefinition("fixture", "legado-json", hnovel.imports.LEGADO_PROFILE, "https://old.example/",
             "Source fixture", true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
-        val draft = SourceEditorState(InstalledRuleSource(definition, emptyList(), null), "{}",
+        val draft = SourceEditorState(InstalledRuleSource(definition, emptyList()), "{}",
             pendingOrigins = listOf("https://new.example:443"))
         activity.get().setContent { MaterialTheme { SourceEditorScreen(draft, false, model) } }
         compose.onNodeWithText("Allow access to new sites?").assertIsDisplayed()
@@ -331,7 +376,7 @@ class SourcesScreenTest {
         val id = ImportedRuleSources.id(definition)
         val sources = mockk<ImportedRuleSources>()
         coEvery { sources.sourceGroups() } returns emptyList()
-        coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, emptyList(), null))
+        coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, emptyList()))
         val readingSettings = CompletableDeferred<Unit>()
         val finishReading = CompletableDeferred<Unit>()
         coEvery { sources.storedSettings(id, null) } coAnswers {
@@ -341,6 +386,7 @@ class SourcesScreenTest {
         }
         val checkingUpdate = CompletableDeferred<Unit>()
         val updates = mockk<SourceRevisionUpdates>()
+        every { updates.canCheckUpdate(definition) } returns false
         coEvery { updates.check(id) } coAnswers { checkingUpdate.complete(Unit); awaitCancellation() }
         val zLibrary = mockk<ZLibrarySources>()
         every { zLibrary.state } returns MutableStateFlow(ZLibraryState())
@@ -479,7 +525,7 @@ class SourcesScreenTest {
             false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
         val id = ImportedRuleSources.id(definition)
         val state = SourceManagementState(installed = listOf(InstalledRuleSource(definition,
-            listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")), null)), selected = id,
+            listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")))), selected = id,
             registry = listOf(SourceListing(SourceMetadata(WebDataSourceItem(id, "Unchecked", "fixture"),
                 setOf(SourceCapability.Search)), SourceStatus.Ready)))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
@@ -491,6 +537,8 @@ class SourcesScreenTest {
         compose.onNodeWithText("Edit source").assertExists()
         compose.onNodeWithText("Advanced options").performScrollTo().performClick()
         compose.onNodeWithText("Check for update").assertDoesNotExist()
+        compose.onNodeWithText("Restore previous revision").assertDoesNotExist()
+        compose.onNodeWithText("Revision:", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Not checked yet").assertDoesNotExist()
         compose.onNodeWithText("Source debugging").assertDoesNotExist()
         compose.onNodeWithText("Test source and export report").assertDoesNotExist()
@@ -516,7 +564,7 @@ class SourcesScreenTest {
             false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
         val id = ImportedRuleSources.id(definition)
         val state = SourceManagementState(installed = listOf(InstalledRuleSource(definition,
-            listOf(hnovel.network.NetworkGrant("https://books.invalid/")), null,
+            listOf(hnovel.network.NetworkGrant("https://books.invalid/")),
             listOf(hnovel.network.OriginDenial("https://cdn.invalid:443", hnovel.network.ResourceKind.Image)))), selected = id,
             registry = listOf(SourceListing(SourceMetadata(WebDataSourceItem(id, "Owner", "fixture"),
                 setOf(SourceCapability.Search)), SourceStatus.Ready)))
@@ -537,7 +585,7 @@ class SourcesScreenTest {
         val id = ImportedRuleSources.id(definition)
         val entry = SourceListing(SourceMetadata(WebDataSourceItem(id, "Search only", "fixture"), setOf(SourceCapability.Search)), SourceStatus.Ready)
         var state by mutableStateOf(SourceManagementState(
-            installed = listOf(InstalledRuleSource(definition, emptyList(), null)), registry = listOf(entry), selected = id))
+            installed = listOf(InstalledRuleSource(definition, emptyList())), registry = listOf(entry), selected = id))
         var selected: Identifier? = null
         activity.get().setContent { MaterialTheme {
             SourcesScreen(state, model, onSearch = { selected = it }) {}
@@ -555,7 +603,7 @@ class SourcesScreenTest {
         val entry = SourceListing(SourceMetadata(WebDataSourceItem(id, "Loading source", "fixture"),
             setOf(SourceCapability.Search, SourceCapability.Login)), SourceStatus.Registered)
         var state by mutableStateOf(SourceManagementState(installed = listOf(InstalledRuleSource(definition,
-            listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")), null)), registry = listOf(entry)))
+            listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")))), registry = listOf(entry)))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Not initialized").assertDoesNotExist()
         compose.runOnIdle { state = state.copy(selected = id, storedSettingsAvailable = true) }
@@ -604,7 +652,7 @@ class SourcesScreenTest {
         val definition = SourceDefinition("disabled", "legado", "fixture", "https://fixture.invalid/", "Disabled", false,
             false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, """{"exploreUrl":"All::/books"}""")
         val id = ImportedRuleSources.id(definition)
-        val installed = InstalledRuleSource(definition, listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")), null)
+        val installed = InstalledRuleSource(definition, listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")))
         var state by mutableStateOf(SourceManagementState(installed = listOf(installed), selected = id))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithContentDescription("Enable source").assertIsOff()
@@ -634,7 +682,7 @@ class SourcesScreenTest {
             val id = ImportedRuleSources.id(definition)
             val preview = SourceDefinitionImporter(SourceDefinitionStore(directory.toPath())).preview(raw)
             var state by mutableStateOf(SourceManagementState(
-                installed = listOf(InstalledRuleSource(definition, emptyList(), null)), selected = id, storedSettingsAvailable = true))
+                installed = listOf(InstalledRuleSource(definition, emptyList())), selected = id, storedSettingsAvailable = true))
             every { model.canCheckUpdate(any()) } returns true
             every { model.checkUpdate(id) } answers {
                 state = state.copy(preview = preview, updateTarget = id,
@@ -743,7 +791,7 @@ class SourcesScreenTest {
         val definition = SourceDefinition("variable", "legado", "fixture", "https://fixture.invalid/", "Variable source", false,
             false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
         val id = ImportedRuleSources.id(definition)
-        val installed = InstalledRuleSource(definition, listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")), null)
+        val installed = InstalledRuleSource(definition, listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")))
         var state by mutableStateOf(SourceManagementState(installed = listOf(installed), selected = id, variable = "saved",
             storedSettingsAvailable = true, network = SourceNetworkState()))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
@@ -771,7 +819,7 @@ class SourcesScreenTest {
         val definition = SourceDefinition("declarations", "legado", "fixture", "https://fixture.invalid/", "Declaration source", true,
             false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, """{"loginCheckJs":"@js:true"}""")
         val id = ImportedRuleSources.id(definition)
-        val installed = InstalledRuleSource(definition, emptyList(), null)
+        val installed = InstalledRuleSource(definition, emptyList())
         var state by mutableStateOf(SourceManagementState(installed = listOf(installed), selected = id, network = SourceNetworkState()))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Account").assertDoesNotExist()
@@ -792,7 +840,7 @@ class SourcesScreenTest {
         val definition = SourceDefinition("native", "legado", "fixture", "https://fixture.invalid/", "Native source", false,
             false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, """{"browserRead":true}""")
         val id = ImportedRuleSources.id(definition)
-        var state by mutableStateOf(SourceManagementState(installed = listOf(InstalledRuleSource(definition, emptyList(), null)),
+        var state by mutableStateOf(SourceManagementState(installed = listOf(InstalledRuleSource(definition, emptyList())),
             selected = id, network = SourceNetworkState(limitation = indi.renakoni.nextvol.R.string.sources_network_native)))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithContentDescription("Bypass VPN").assertIsOff().assertIsNotEnabled()
@@ -809,7 +857,7 @@ class SourcesScreenTest {
         val owner = indi.renakoni.nextvol.data.web.rules.VerificationOwner(id, "digest", 2)
         val prompt = indi.renakoni.nextvol.data.web.rules.VerificationPrompt("ticket", owner, "Verification source",
             hnovel.network.BrowserChallengeKind.Cloudflare, foreground = false)
-        var state by mutableStateOf(SourceManagementState(installed = listOf(InstalledRuleSource(definition, emptyList(), null)),
+        var state by mutableStateOf(SourceManagementState(installed = listOf(InstalledRuleSource(definition, emptyList())),
             selected = id, registry = listOf(SourceListing(SourceMetadata(WebDataSourceItem(id, "Verification source", "fixture"),
                 setOf(SourceCapability.Search), revision = "digest", accountGeneration = 2), SourceStatus.Ready)),
             storedSettingsAvailable = true, loginStatus = LoginStatus.SessionSaved, verifications = listOf(prompt)))
@@ -865,7 +913,7 @@ class SourcesScreenTest {
             false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, """{"loginUi":[{"name":"user"},{"name":"Settings","type":"button","action":"configure()"}]}""")
         val id = ImportedRuleSources.id(definition)
         var state by mutableStateOf(SourceManagementState(installed = listOf(InstalledRuleSource(definition,
-            listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")), null)), selected = id,
+            listOf(hnovel.network.NetworkGrant("https://fixture.invalid/")))), selected = id,
             registry = listOf(SourceListing(SourceMetadata(WebDataSourceItem(id, "Account source", "fixture"),
                 setOf(SourceCapability.Login)), SourceStatus.Registered)), storedSettingsAvailable = true,
             loginStatus = LoginStatus.LoginSubmitted, accountName = "reader"))

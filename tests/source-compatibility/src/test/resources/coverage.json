@@ -563,7 +563,7 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "SourceRevisionUpdates validates a staged definition and grants before atomically publishing an installed snapshot/registry replacement. Stable source/book IDs survive update and rollback; failed initialization, permissions or durable writes leave the old runtime usable. Removal during validation cannot be undone, and old tickets cannot commit into the replacement.",
+      "evidence": "SourceRevisionUpdates validates a staged definition and grants before atomically publishing an installed snapshot/registry replacement. Stable source/book IDs survive updates; failed initialization, permissions or durable writes leave the old runtime usable. Removal during validation cannot be undone, and old tickets cannot commit into the replacement.",
       "productTests": [
         "indi.renakoni.nextvol.data.web.rules.SourceRevisionUpdatesTest",
         "indi.renakoni.nextvol.ui.home.settings.sources.SourcesViewModelTest",
@@ -578,7 +578,7 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "MixedSourceAcceptanceTest runs actual Wenku8 parsing and directly imported standard/extension definitions with a real WorkerRuntime/wire/broker, one file Room database and WorkManager. Same-domain/same-book rule sources complete login, discovery/search, shelf, cache, EPUB, reading statistics, updates/rollback/diagnostics, account revocation, reconstruction and removal. Both real reader controllers render retained source-owned chapters through the production decoder/injector after removal. External documents/settings are controlled fixtures; no public novel website or private account is used. Separate API 24/35 tests provide Chromium/process evidence.",
+      "evidence": "MixedSourceAcceptanceTest runs actual Wenku8 parsing and directly imported standard/extension definitions with a real WorkerRuntime/wire/broker, one file Room database and WorkManager. Same-domain/same-book rule sources complete login, discovery/search, shelf, cache, EPUB, reading statistics, updates, account revocation, reconstruction and removal. Both real reader controllers render retained source-owned chapters through the production decoder/injector after removal. External documents/settings are controlled fixtures; no public novel website or private account is used. Separate API 24/35 tests provide Chromium/process evidence.",
       "productTests": [
         "indi.renakoni.nextvol.data.web.rules.MixedSourceAcceptanceTest",
         "indi.renakoni.nextvol.data.web.HostMultiSourceIntegrationTest",

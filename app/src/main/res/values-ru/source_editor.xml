@@ -19,4 +19,19 @@
     <string name="sources_editor_replace_all">Заменить всё</string>
     <string name="sources_editor_allow_sites">Разрешить доступ к новым сайтам?</string>
     <string name="sources_editor_allow_save">Разрешить и сохранить</string>
+    <string name="sources_editor_tools">Инструменты редактора</string>
+    <string name="sources_editor_validate">Проверить JSON</string>
+    <string name="sources_editor_json_valid">Синтаксис JSON верен</string>
+    <string name="sources_editor_syntax_error">Ошибка синтаксиса JSON</string>
+    <string name="sources_editor_duplicate_field">Повторяющееся поле JSON</string>
+    <string name="sources_editor_object_required">Источник должен быть объектом JSON</string>
+    <string name="sources_editor_too_deep">Слишком глубокая вложенность JSON</string>
+    <string name="sources_editor_too_large">JSON слишком большой</string>
+    <string name="sources_editor_error_position">Строка %1$d, столбец %2$d</string>
+    <string name="sources_editor_close_find">Закрыть поиск</string>
+    <string name="sources_editor_show_replace">Показать замену</string>
+    <string name="sources_editor_hide_replace">Скрыть замену</string>
+    <string name="sources_editor_previous">Предыдущее</string>
+    <string name="sources_editor_no_matches">Нет совпадений</string>
+    <string name="sources_editor_match_count">Совпадений: %1$d</string>
 </resources>

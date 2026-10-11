@@ -2,7 +2,8 @@ package hnovel.imports
 
 import kotlinx.serialization.json.*
 
-class SourceEditException(val code: ImportCode, val field: String? = null) : Exception(code.name)
+class SourceEditException(val code: ImportCode, val field: String? = null,
+    val line: Int? = null, val column: Int? = null) : Exception(code.name)
 
 /** Local overrides retain the original import identity. Parsing never stores or executes a definition. */
 object SourceDefinitionEdits {
@@ -26,13 +27,15 @@ object SourceDefinitionEdits {
 
     fun format(text: String): String = pretty.encodeToString(JsonObject.serializer(), parse(text))
 
+    fun validateJson(text: String) { parse(text) }
+
     private fun parse(text: String): JsonObject {
         val limits = ImportLimits()
         if (text.length > limits.maxBytes || text.toByteArray(Charsets.UTF_8).size > limits.maxBytes)
             throw SourceEditException(ImportCode.TooLarge)
         return try { parseDefinitionJson(text, limits.maxDepth) as? JsonObject
             ?: throw SourceEditException(ImportCode.InvalidShape) }
-        catch (failure: ImportFailure) { throw SourceEditException(failure.code, failure.field) }
+        catch (failure: ImportFailure) { throw SourceEditException(failure.code, failure.field, failure.line, failure.column) }
         catch (failure: SourceEditException) { throw failure }
         catch (_: Exception) { throw SourceEditException(ImportCode.InvalidJson) }
     }
