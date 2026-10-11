@@ -19,26 +19,34 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Select affected checks
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          check: release
       - name: Prepare fixed Android environment
+        if: steps.scope.outputs.run == 'true'
         id: environment
         uses: ./.github/actions/android-environment
       - name: Restore Release task outputs
+        if: steps.scope.outputs.run == 'true'
         id: build-cache
         uses: ./.github/actions/gradle-build-cache
         with:
           variant: release
       - name: Build release APK
+        if: steps.scope.outputs.run == 'true'
         run: |
           # Production Vital Lint runs with full Debug Lint in the Android Lint job.
           ./gradlew --no-daemon :app:assembleRelease -x :app:lintVitalRelease --console=plain --stacktrace --max-workers=2
       - name: Save Release task outputs
-        if: steps.build-cache.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.run == 'true' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ steps.build-cache.outputs.path }}
           key: ${{ steps.build-cache.outputs.key }}
       - name: Upload release build reports
-        if: always()
+        if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-build-reports
@@ -53,43 +61,55 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Select affected checks
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          check: minified
       - name: Prepare fixed Android environment
+        if: steps.scope.outputs.run == 'true'
         id: environment
         uses: ./.github/actions/android-environment
         with:
           api: 35
       - name: Restore minified task outputs
+        if: steps.scope.outputs.run == 'true'
         id: build-cache
         uses: ./.github/actions/gradle-build-cache
         with:
           variant: benchmark
       - name: Enable KVM
+        if: steps.scope.outputs.run == 'true'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Build minified app and test APKs before starting the emulator
+        if: steps.scope.outputs.run == 'true'
         run: |
           # Production Vital Lint and full Debug Lint run in the Android Lint job.
           # Do not repeat the fatal scan for this test-only variant alongside R8.
           ./gradlew --no-daemon :app:assembleBenchmark :benchmark:assembleBenchmark -x :app:lintVitalBenchmark --console=plain --stacktrace --max-workers=2
       - name: Save minified task outputs before device tests
-        if: steps.build-cache.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.run == 'true' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ steps.build-cache.outputs.path }}
           key: ${{ steps.build-cache.outputs.key }}
       - name: Run minified tests on the fixed Android emulator
+        if: steps.scope.outputs.run == 'true'
+        env:
+          TEST_CLASSES: ${{ steps.scope.outputs.minified-classes }}
         run: >-
           bash .github/scripts/run-static-emulator.sh 35
           bash .github/scripts/emulator-tests.sh bash .github/scripts/run-prebuilt-tests.sh
           app/build/outputs/apk/benchmark tests/benchmark/build/outputs/apk/benchmark
           tests/benchmark/build/outputs/androidTest-results/connected/benchmark
-          indi.renakoni.nextvol.benchmark.explore.MinifiedSourceRuntimeTest,indi.renakoni.nextvol.benchmark.tts.ReadAloudSmokeTest
+          "$TEST_CLASSES"
           -e androidx.benchmark.suppressErrors EMULATOR,DEVICE-TRACING-MISCONFIGURED
           -e androidx.benchmark.output.enable true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        if: always() && steps.scope.outputs.run == 'true'
         with:
           name: minified-source-runtime
           path: |

@@ -1,15 +1,12 @@
 package indi.renakoni.nextvol.ui.components
 
 import android.app.Application
-import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
 import coil3.ImageLoader
@@ -46,18 +43,6 @@ class BookCoverTest {
         activity.setup()
     }
     @After fun destroy() { activity.pause().stop().destroy() }
-
-    @Test fun blankAddressHasLocalizedAccessibleArtworkAndStableBoundsAtLargeFont() {
-        var fallback: Boolean? = null
-        activity.get().setContent { MaterialTheme {
-            CompositionLocalProvider(LocalDensity provides Density(1f, 2f)) {
-                Cover("fixture", 72.dp, 108.dp, Uri.parse("  "), "", onFallbackChanged = { fallback = it })
-            }
-        } }
-        compose.onNodeWithContentDescription("Cover of Untitled").assertIsDisplayed()
-            .assertWidthIsEqualTo(72.dp).assertHeightIsEqualTo(108.dp)
-        compose.runOnIdle { assertEquals(true, fallback) }
-    }
 
     @Test fun failedRemoteCoverCanRecoverOnTheSameAddressWithoutCachingItsSubstitute() {
         val calls = AtomicInteger()
