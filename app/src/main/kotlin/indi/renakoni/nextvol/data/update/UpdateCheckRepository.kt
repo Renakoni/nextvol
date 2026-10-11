@@ -32,6 +32,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
@@ -80,15 +81,14 @@ class UpdateCheckRepository @Inject constructor(
     fun check() {
         if (checkJob != null && checkJob!!.isActive) return
         checkJob = coroutineScope.launch {
-            val updateChannelKey = userDataRepository.stringUserData(UserDataPath.Settings.App.UpdateChannel.path).get() ?: UpdateChannel.default.key
-            val distributionPlatform = userDataRepository.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path).get() ?: UpdatePlatform.default.key
-            Log.i("UpdateChecker", "Checking for updates from $distributionPlatform/$updateChannelKey")
-            _updatePhase.update { UpdatePhase(R.string.update_phase_waiting, listOf(distributionPlatform)) }
+            release = null
+            mutableAvailable.emit(false)
+            _updatePhase.update { UpdatePhase(R.string.update_phase_waiting, listOf("GitHub")) }
             try {
-                release =
-                    UpdatePlatform.fromKey(distributionPlatform)
-                        .parserFor(UpdateChannel.fromKey(updateChannelKey))
-                        .parser(_updatePhase)
+                release = GithubParser.parser(_updatePhase)
+                if (release == null) {
+                    _updatePhase.emit(UpdatePhase(R.string.update_phase_no_release))
+                }
             } catch (e: Exception) {
                 Log.e("UpdateChecker", "failed to get release")
                 e.printStackTrace()
@@ -119,10 +119,10 @@ class UpdateCheckRepository @Inject constructor(
         }
 
         val cacheDir = File(context.cacheDir, "updates").apply { mkdirs() }
-        val apkFile = cacheDir.resolve("LightNovelReader-update.apk").apply {
+        val apkFile = cacheDir.resolve("NextVol-update.apk").apply {
             if (exists()) delete()
         }
-        val tempFile = cacheDir.resolve("LightNovelReader-update.tmp").apply {
+        val tempFile = cacheDir.resolve("NextVol-update.tmp").apply {
             if (exists()) delete()
         }
 
@@ -146,10 +146,7 @@ class UpdateCheckRepository @Inject constructor(
 
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
-                        Log.e("UpdateChecker", "Failed to download update: ${response.code}")
-                        _updatePhase.emit(UpdatePhase(R.string.update_phase_download_failed, listOf("HTTP ${response.code}")))
-                        showDownloadFailedNotification("HTTP ${response.code}")
-                        return@use
+                        throw IOException("HTTP ${response.code}")
                     }
 
                     response.body.let { body ->
@@ -183,12 +180,10 @@ class UpdateCheckRepository @Inject constructor(
                     }
                 }
 
-                release.downloadFileProgress?.let { transform ->
-                    _updatePhase.emit(UpdatePhase(R.string.update_phase_processing))
-                    transform(tempFile, apkFile)
-                } ?: tempFile.renameTo(apkFile)
+                if (!tempFile.renameTo(apkFile)) throw IOException("Cannot save update APK")
 
                 if (apkFile.exists() && apkFile.length() > 0L) {
+                    validateUpdateApk(context, apkFile, release.version)
                     _downloadProgress.emit(1f)
                     _updatePhase.emit(UpdatePhase(R.string.update_phase_download_complete))
                     showDownloadCompleteNotification(apkFile)
@@ -203,13 +198,14 @@ class UpdateCheckRepository @Inject constructor(
             } catch (e: Exception) {
                 Log.e("UpdateChecker", "Download failed", e)
                 val phase = when {
-                    e is MissingUpdateApkException -> UpdatePhase(R.string.update_phase_missing_apk, listOf(e.archiveName))
                     e.localizedMessage != null -> UpdatePhase(R.string.update_phase_download_failed, listOf(e.localizedMessage!!))
                     else -> UpdatePhase(R.string.update_phase_download_failed_unknown)
                 }
                 _updatePhase.emit(phase)
                 showDownloadFailedNotification(context.getString(phase.messageId, *phase.arguments.toTypedArray()))
+                apkFile.delete()
             } finally {
+                tempFile.delete()
                 _isDownloading.emit(false)
             }
         }

@@ -275,8 +275,6 @@ dependencies {
     // RE2J
     implementation(libs.re2j)
     implementation(libs.universal.chardet)
-    // Matomo
-    implementation(libs.matomo.sdk.android)
     // Reorderable
     implementation(libs.reorderable)
     // TinyPinyin

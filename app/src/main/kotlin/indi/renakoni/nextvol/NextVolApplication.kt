@@ -14,7 +14,6 @@ import indi.renakoni.nextvol.data.web.SourceCategory
 import indi.renakoni.nextvol.data.web.SourceNetworkSettings
 import indi.renakoni.nextvol.data.web.WebBookDataSourceManager
 import indi.renakoni.nextvol.defaultplugin.wenku8.Wenku8Api
-import indi.renakoni.nextvol.utils.analytics.MatomoAnalytics
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +48,6 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
     @Inject lateinit var webBookDataSourceManager: WebBookDataSourceManager
     @Inject lateinit var sourceNetworkSettings: SourceNetworkSettings
     @Inject lateinit var wenku8SearchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search.Wenku8SearchSupport
-    @Inject lateinit var matomoAnalytics: MatomoAnalytics
 
     override val workManagerConfiguration: Configuration
         get()  =
@@ -75,7 +73,7 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
     @ExperimentalSerializationApi
     override fun onCreate() {
         // Hilt's generated super.onCreate injects host repositories. An isolated service has
-        // a different UID and must not initialize app files, WorkManager, sources or analytics.
+        // a different UID and must not initialize app files, WorkManager or sources.
         if (android.os.Process.myUid() != applicationInfo.uid) return
         val process = java.io.File("/proc/self/cmdline").inputStream().use { input ->
             input.readBytes().toString(Charsets.UTF_8).substringBefore('\u0000')
@@ -111,8 +109,6 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
         }
         bangumiSync.get().start(coroutineScope)
         coroutineScope.launch(Dispatchers.IO) {
-            matomoAnalytics.initialize()
-            matomoAnalytics.trackAppLaunch()
             loggerRepository.logLevel = LogLevel.from(userDataRepository.stringUserData(UserDataPath.Settings.Data.LogLevel.path).getOrDefault("none"))
             loggerRepository.startLogging()
         }

@@ -8,19 +8,11 @@
     <string name="update_phase_download_failed">下载失败（%1$s）</string>
     <string name="update_phase_download_failed_unknown">下载失败（未知错误）</string>
     <string name="update_phase_download_progress">正在下载… %1$d%%</string>
-    <string name="update_phase_processing">正在处理更新文件…</string>
     <string name="update_phase_download_complete">下载完成</string>
     <string name="update_phase_empty_file">下载失败（文件为空）</string>
-    <string name="update_phase_api_request">API：请求 %1$s 频道更新</string>
-    <string name="update_phase_api_parse">API：解析更新信息</string>
-    <string name="update_phase_api_download_link">API：获取下载链接</string>
-    <string name="update_phase_api_complete">API：更新信息获取完成</string>
     <string name="update_phase_github_download_link">GitHub：获取 APK 下载链接</string>
     <string name="update_phase_github_version">GitHub：获取远程版本号</string>
-    <string name="update_phase_github_parse_notes">GitHub：解析更新日志</string>
     <string name="update_phase_github_release">GitHub：获取最新版本</string>
-    <string name="update_phase_github_fetch_notes">GitHub：获取更新日志</string>
-    <string name="update_phase_github_compare">GitHub：比对版本号</string>
     <string name="update_download_empty_file">下载的文件为空</string>
     <string name="update_notification_channel">应用更新</string>
     <string name="update_notification_channel_description">应用更新下载进度</string>
@@ -29,6 +21,9 @@
     <string name="update_notification_complete">更新下载完成</string>
     <string name="update_notification_install">点按安装</string>
     <string name="update_notification_failed">更新下载失败</string>
-    <string name="update_phase_missing_apk">下载失败：%1$s 中未找到 APK</string>
-    <string name="update_ci_warning">**此版本由 GitHub Actions 构建，尚未经过充分测试。**</string>
+    <string name="update_phase_no_release">NextVol 暂无正式发布版本</string>
+    <string name="update_invalid_apk">下载的文件不是有效的 APK</string>
+    <string name="update_wrong_package">此 APK 的应用或构建类型与当前安装不一致</string>
+    <string name="update_wrong_version">APK 版本与发布信息不符，或不高于当前版本</string>
+    <string name="update_wrong_signature">APK 签名证书与当前安装的应用不一致</string>
 </resources>

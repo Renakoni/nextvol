@@ -19,23 +19,18 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import indi.renakoni.nextvol.ui.book.reader.ReaderFontLicensesEntry
 import indi.renakoni.nextvol.BuildConfig
+import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SettingsAboutInfoDialog
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
-import indi.renakoni.nextvol.ui.components.SettingsDisableStatsDialog
-import indi.renakoni.nextvol.ui.components.SettingsPrivacyPolicyDialog
-import indi.renakoni.nextvol.ui.home.settings.SettingState
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.utils.navigationBarSpacer
-import io.nightfish.lightnovelreader.api.ui.components.SettingsSwitchEntry
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun AboutSettingsScreen(
-    settingState: SettingState,
     onClickLicenses: () -> Unit,
-    onOptOut: () -> Unit,
     onBack: () -> Unit,
 ) {
     Column {
@@ -43,7 +38,7 @@ fun AboutSettingsScreen(
         LazyColumn(Modifier.fillMaxSize()) {
             item {
                 SettingsCategory {
-                    AboutSettingsList(settingState, onClickLicenses, onOptOut)
+                    AboutSettingsList(onClickLicenses)
                 }
             }
             navigationBarSpacer()
@@ -53,44 +48,13 @@ fun AboutSettingsScreen(
 
 @Composable
 private fun AboutSettingsList(
-    settingState: SettingState,
     onClickLicenses: () -> Unit,
-    onOptOut: () -> Unit
 ) {
-    val appInfo: String = buildString {
-        appendLine(BuildConfig.APPLICATION_ID)
-        append("${BuildConfig.VERSION_NAME} [${BuildConfig.VERSION_CODE}] - ")
-            .append(if (BuildConfig.DEBUG) "debug" else "release")
-    }
+    val appInfo = BuildConfig.VERSION_NAME
     var showAppInfoDialog by remember { mutableStateOf(false) }
-    var showDisableStatsDialog by remember { mutableStateOf(false) }
-    var showPrivacyPolicy by remember { mutableStateOf(false) }
 
     if (showAppInfoDialog) {
         SettingsAboutInfoDialog(onDismissRequest = { showAppInfoDialog = false })
-    }
-
-    if (showPrivacyPolicy) {
-        SettingsPrivacyPolicyDialog(
-            onDismissRequest = {
-                showPrivacyPolicy = false
-                showDisableStatsDialog = false
-            }
-        )
-    }
-
-    if (showDisableStatsDialog) {
-        SettingsDisableStatsDialog(
-            onClickConfirm = {
-                onOptOut()
-                settingState.statisticsUserData.asynchronousSet(false)
-                showDisableStatsDialog = false
-            },
-            onDismissRequest = { showDisableStatsDialog = false },
-            onClickShowPrivacyPolicy = {
-                showPrivacyPolicy = true
-            }
-        )
     }
 
     SettingsClickableEntry(
@@ -103,39 +67,10 @@ private fun AboutSettingsList(
     )
     SettingsClickableEntry(
         modifier = Modifier.background(colorScheme.surfaceContainer),
-        painter = painterResource(R.drawable.group_24px),
-        title = stringResource(R.string.settings_communication),
-        description = stringResource(R.string.settings_communication_desc),
-        openUrl = "https://qm.qq.com/q/Tp80Hf9Oms"
-    )
-    SettingsClickableEntry(
-        modifier = Modifier.background(colorScheme.surfaceContainer),
         painter = painterResource(R.drawable.archive_24px),
         title = stringResource(R.string.settings_github_repo),
         description = stringResource(R.string.settings_github_repo_desc),
-        openUrl = "https://github.com/dmzz-yyhyy/LightNovelReader"
-    )
-    SettingsClickableEntry(
-        modifier = Modifier.background(colorScheme.surfaceContainer),
-        painter = painterResource(R.drawable.volunteer_activism_24px),
-        title = stringResource(R.string.settings_support_author),
-        description = stringResource(R.string.settings_support_author_desc),
-        openUrl = "https://afdian.com/a/lightnovelreader"
-    )
-    SettingsSwitchEntry(
-        modifier = Modifier.background(colorScheme.surfaceContainer),
-        painter = painterResource(R.drawable. data_usage_24px),
-        title = stringResource(R.string.settings_statistics),
-        description = stringResource(R.string.settings_statistics_desc),
-        checked = if (BuildConfig.DEBUG) false else settingState.statistics,
-        onCheckedChange = { checked ->
-            if (!checked && settingState.statistics) {
-                showDisableStatsDialog = true
-            } else {
-                settingState.statisticsUserData.asynchronousSet(checked)
-            }
-        },
-        disabled = BuildConfig.DEBUG
+        openUrl = ProjectLinks.GITHUB
     )
     ReaderFontLicensesEntry()
     SettingsClickableEntry(

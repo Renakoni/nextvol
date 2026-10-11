@@ -5,15 +5,9 @@ import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.local.room.dao.UserDataDao
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
-import io.mockk.clearMocks
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
-import io.mockk.verify
+import io.mockk.*
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -29,105 +23,83 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30], application = Application::class)
 class UpdateCheckRepositoryTest {
-    private val platformPath = UserDataPath.Settings.App.DistributionPlatform.path
-    private val channelPath = UserDataPath.Settings.App.UpdateChannel.path
     private val preferences = mutableMapOf<String, String>()
     private val dao = mockk<UserDataDao>()
-    private val parsers = arrayOf<UpdateParser>(
-        GithubParser.ReleaseParser, GithubParser.DevelopmentParser, GithubParser.CIParser,
-        APIParser.StableParser, APIParser.BetaParser, APIParser.UnstableParser,
-    )
-    private val release = APIParser.APIRelease(
+    private val release = GithubParser.GithubRelease(
         BuildConfig.VERSION_CODE + 1, "fixture", "notes", "https://example.invalid/update.apk",
     )
 
     @Before fun prepare() {
         coEvery { dao.get(any()) } answers { preferences[firstArg<String>()] }
-        // Each test drives checks explicitly, without racing the initialization check.
         coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "false"
-        mockkObject(*parsers)
-        parsers.forEach { parser -> every { parser.parser(any()) } returns release }
+        mockkObject(GithubParser)
+        every { GithubParser.parser(any()) } returns release
     }
 
     @After fun finish() {
-        unmockkObject(*parsers)
+        unmockkObject(GithubParser)
         coVerify(exactly = 0) { dao.insert(any(), any(), any(), any()) }
     }
 
-    private suspend fun check(phaseId: Int = R.string.update_phase_available): Pair<UpdateCheckRepository, UpdatePhase> {
+    private suspend fun check(phaseId: Int): Pair<UpdateCheckRepository, UpdatePhase> {
         val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao))
         repository.check()
         val phase = withTimeout(10_000) { repository.updatePhase.first { it.messageId == phaseId } }
         return repository to phase
     }
 
-    private suspend fun assertSelection(platform: String?, channel: String?, expected: UpdateParser) {
-        parsers.forEach { clearMocks(it, answers = false) }
-        preferences.clear()
-        platform?.let { preferences[platformPath] = it }
-        channel?.let { preferences[channelPath] = it }
-        val (repository, phase) = check()
-        assertSame(release, repository.release)
-        assertEquals(listOf("fixture"), phase.arguments.drop(1))
-        assertTrue(withTimeout(10_000) { repository.availableFlow.first { it } })
-        verify(exactly = 1) { expected.parser(any()) }
-        parsers.filter { it !== expected }.forEach { parser -> verify(exactly = 0) { parser.parser(any()) } }
-    }
-
-    @Test fun savedPlatformAndChannelSelectTheExistingParser() = runBlocking {
-        listOf(
-            Triple("GitHub", "Release", GithubParser.ReleaseParser),
-            Triple("GitHub", "Development", GithubParser.DevelopmentParser),
-            Triple("GitHub", "CI", GithubParser.CIParser),
-            Triple("LnrAPI", "Release", APIParser.StableParser),
-            Triple("LnrAPI", "Development", APIParser.BetaParser),
-            Triple("LnrAPI", "CI", APIParser.UnstableParser),
-        ).forEach { (platform, channel, parser) -> assertSelection(platform, channel, parser) }
-    }
-
-    @Test fun onlyMissingPreferencesUseTheExistingDefaults() = runBlocking {
-        assertSelection(null, null, APIParser.BetaParser)
-        assertSelection("GitHub", null, GithubParser.DevelopmentParser)
-        assertSelection(null, "CI", APIParser.UnstableParser)
-    }
-
-    @Test fun invalidPreferencesFailWithoutCallingAnyParserOrRewritingValues() = runBlocking {
-        listOf(
-            Triple("", "Release", ""),
-            Triple("github", "Release", "github"),
-            Triple("LnrAPI", "", ""),
-            Triple("GitHub", "release", "release"),
-            Triple("old-platform", "old-channel", "old-platform"),
-        ).forEach { (platform, channel, invalid) ->
-            preferences[platformPath] = platform
-            preferences[channelPath] = channel
-            val (repository, phase) = check(R.string.update_phase_check_failed)
-            assertNull(repository.release)
-            assertFalse(repository.availableFlow.first())
-            assertEquals(listOf("NoSuchElementException", "OptionWithValue '$invalid' not found"), phase.arguments.drop(1))
-            assertEquals(platform, preferences[platformPath])
-            assertEquals(channel, preferences[channelPath])
+    @Test fun missingImportedAndInvalidPreferencesAllUseNextVolStableReleases() = runBlocking {
+        for ((platform, channel) in listOf(null to null, "GitHub" to "Release",
+            "LnrAPI" to "Development", "LnrAPI" to "CI", "old-platform" to "old-channel")) {
+            preferences.clear()
+            platform?.let { preferences[UserDataPath.Settings.App.DistributionPlatform.path] = it }
+            channel?.let { preferences[UserDataPath.Settings.App.UpdateChannel.path] = it }
+            val (repository, phase) = check(R.string.update_phase_available)
+            assertSame(release, repository.release)
+            assertEquals(listOf("fixture"), phase.arguments.drop(1))
+            assertTrue(withTimeout(10_000) { repository.availableFlow.first { it } })
         }
-        parsers.forEach { parser -> verify(exactly = 0) { parser.parser(any()) } }
+        verify(exactly = 5) { GithubParser.parser(any()) }
+        coVerify(exactly = 0) { dao.get(UserDataPath.Settings.App.DistributionPlatform.path) }
+        coVerify(exactly = 0) { dao.get(UserDataPath.Settings.App.UpdateChannel.path) }
     }
 
-    @Test fun parserExceptionsKeepTheExistingFailurePhase() = runBlocking {
-        every { APIParser.BetaParser.parser(any()) } throws IllegalStateException("fixture failure")
+    @Test fun repositoryWithNoReleasesReportsAnEmptyChannel() = runBlocking {
+        every { GithubParser.parser(any()) } returns null
+        val (repository, _) = check(R.string.update_phase_no_release)
+        assertNull(repository.release)
+        assertFalse(repository.availableFlow.first())
+    }
+
+    @Test fun failuresAreVisibleAndDoNotOfferAnUpdate() = runBlocking {
+        every { GithubParser.parser(any()) } throws IllegalStateException("fixture failure")
         val (repository, phase) = check(R.string.update_phase_check_failed)
         assertNull(repository.release)
         assertFalse(repository.availableFlow.first())
         assertEquals(listOf("IllegalStateException", "fixture failure"), phase.arguments.drop(1))
-        verify(exactly = 1) { APIParser.BetaParser.parser(any()) }
+    }
+
+    @Test fun aFailedRecheckClearsThePreviousRelease() = runBlocking {
+        val (repository, _) = check(R.string.update_phase_available)
+        withTimeout(10_000) { repository.availableFlow.first { it } }
+        every { GithubParser.parser(any()) } throws IllegalStateException("offline")
+        withTimeout(10_000) {
+            do {
+                repository.check()
+                delay(10)
+            } while (repository.updatePhase.first().messageId != R.string.update_phase_check_failed)
+        }
+        assertNull(repository.release)
+        assertFalse(repository.availableFlow.first())
     }
 
     @Test fun equalAndOlderReleasesRemainUpToDate() = runBlocking {
         for (version in listOf(BuildConfig.VERSION_CODE, BuildConfig.VERSION_CODE - 1)) {
-            val current = APIParser.APIRelease(version, "existing", "notes", "https://example.invalid/update.apk")
-            every { APIParser.BetaParser.parser(any()) } returns current
-            val (repository, phase) = check(R.string.update_phase_current)
+            val current = release.copy(version = version)
+            every { GithubParser.parser(any()) } returns current
+            val (repository, _) = check(R.string.update_phase_current)
             assertSame(current, repository.release)
             assertFalse(repository.availableFlow.first())
-            assertEquals(listOf("existing"), phase.arguments.drop(1))
         }
     }
 }

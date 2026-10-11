@@ -118,9 +118,9 @@ class SettingsHierarchyTest {
         compose.onNodeWithText(label(R.string.debug_settings)).assertDoesNotExist()
         compose.onNodeWithText(label(R.string.settings_debug_tools)).assertDoesNotExist()
         for (id in listOf(R.string.settings_app_log_level, R.string.settings_auto_check_updates,
-            R.string.settings_update_channel, R.string.settings_distribution_platform, R.string.settings_get_updates,
-            R.string.settings_communication, R.string.settings_github_repo, R.string.settings_support_author,
-            R.string.settings_statistics, R.string.settings_open_source_licenses)) {
+            R.string.settings_distribution_platform, R.string.settings_get_updates,
+            R.string.settings_github_repo,
+            R.string.settings_open_source_licenses)) {
             compose.onNodeWithText(label(id)).assertDoesNotExist()
         }
         assertEquals(listOf("storage", "logs", "updates", "about"), opened)
@@ -198,93 +198,50 @@ class SettingsHierarchyTest {
         assertEquals(1, deletions)
     }
 
-    @Test fun updatesPageKeepsPreferencesAndExplicitCheckAction() {
+    @Test fun updatesPageUsesGitHubDespiteImportedLegacySettings() {
+        runBlocking {
+            data.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path).set("LnrAPI")
+            data.stringUserData(UserDataPath.Settings.App.UpdateChannel.path).set("CI")
+        }
         val state = SettingState(data, scope)
         var checks = 0
         var backs = 0
         show { UpdatesSettingsScreen("Not checked", state, { checks++ }, { backs++ }) }
-        assertEquals("LnrAPI", state.distributionPlatformKey)
-        assertEquals("Development", state.updateChannelKey)
         assertEquals(0, checks)
         entry(R.string.settings_auto_check_updates).performClick()
         compose.waitUntil { !state.checkUpdate }
-        entry(R.string.settings_update_channel).performClick()
-        compose.onNodeWithText(label(R.string.key_update_channel_release)).performClick()
-        compose.waitUntil { state.updateChannelKey == "Release" }
         entry(R.string.settings_distribution_platform).assertIsDisplayed()
+        compose.onNodeWithText("Renakoni/nextvol", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("GitHub", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("LightNovelReader API").assertDoesNotExist()
+        compose.onNodeWithText("Test Update Channel").assertDoesNotExist()
+        entry(R.string.settings_distribution_platform).performClick()
+        assertEquals("https://github.com/Renakoni/nextvol/releases",
+            org.robolectric.Shadows.shadowOf(activity.get()).nextStartedActivity.data.toString())
         entry(R.string.settings_get_updates).performClick()
         compose.onNodeWithContentDescription(label(R.string.sources_back)).performClick()
         assertEquals(1, checks)
         assertEquals(1, backs)
         assertEquals(false, runBlocking { state.checkUpdateUserData.get() })
-        assertEquals("Release", runBlocking { state.updateChannelKeyUserData.get() })
     }
 
-    @Test fun updateMenusKeepOrderLabelsAndSavedKeysAcrossPlatformChanges() {
-        runBlocking {
-            data.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path).set("GitHub")
-            data.stringUserData(UserDataPath.Settings.App.UpdateChannel.path).set("CI")
-        }
-        val state = SettingState(data, scope)
-        show { UpdatesSettingsScreen("Not checked", state, {}, {}) }
-        compose.waitUntil { state.distributionPlatformKey == "GitHub" && state.updateChannelKey == "CI" }
-        entry(R.string.settings_distribution_platform).performClick()
-        val platforms = listOf(R.string.key_platform_github, R.string.key_platform_lnr_api).map {
-            compose.onAllNodesWithText(label(it)).onLast().fetchSemanticsNode().boundsInRoot.top
-        }
-        assertTrue(platforms[0] < platforms[1])
-        compose.onNodeWithText(label(R.string.key_platform_lnr_api)).performClick()
-        compose.waitUntil { state.distributionPlatformKey == "LnrAPI" }
-        assertEquals("CI", runBlocking { state.updateChannelKeyUserData.get() })
-        entry(R.string.settings_update_channel).performClick()
-        val channels = listOf(R.string.key_update_channel_release, R.string.key_update_channel_development,
-            R.string.key_update_channel_ci).map {
-            compose.onAllNodesWithText(label(it)).onLast().fetchSemanticsNode().boundsInRoot.top
-        }
-        assertTrue(channels.zipWithNext().all { (first, second) -> first < second })
-        compose.onNodeWithText(label(R.string.key_update_channel_development)).performClick()
-        compose.waitUntil { state.updateChannelKey == "Development" }
-        assertEquals("LnrAPI", runBlocking { state.distributionPlatformKeyUserData.get() })
-        assertEquals("Development", runBlocking { state.updateChannelKeyUserData.get() })
-    }
-
-    @Test fun openingUpdateMenusDoesNotRewriteUnknownSavedValues() {
-        runBlocking {
-            data.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path).set("old-platform")
-            data.stringUserData(UserDataPath.Settings.App.UpdateChannel.path).set("old-channel")
-        }
-        val state = SettingState(data, scope)
-        show { UpdatesSettingsScreen("Not checked", state, {}, {}) }
-        compose.waitUntil { state.distributionPlatformKey == "old-platform" && state.updateChannelKey == "old-channel" }
-        entry(R.string.settings_update_channel).performClick()
-        listOf(R.string.key_update_channel_release, R.string.key_update_channel_development,
-            R.string.key_update_channel_ci).forEach { compose.onNodeWithText(label(it)).assertIsDisplayed() }
-        assertEquals("old-platform", runBlocking { state.distributionPlatformKeyUserData.get() })
-        assertEquals("old-channel", runBlocking { state.updateChannelKeyUserData.get() })
-        compose.onNodeWithText(label(R.string.key_update_channel_release)).performClick()
-        compose.waitUntil { state.updateChannelKey == "Release" }
-        assertEquals("old-platform", runBlocking { state.distributionPlatformKeyUserData.get() })
-        entry(R.string.settings_distribution_platform).performClick()
-        compose.onNodeWithText(label(R.string.key_platform_github)).performClick()
-        compose.waitUntil { state.distributionPlatformKey == "GitHub" }
-        assertEquals("Release", runBlocking { state.updateChannelKeyUserData.get() })
-    }
-
-    @Test fun aboutPageKeepsExistingInformationAndLicenseEntry() {
-        val state = SettingState(data, scope)
+    @Test fun aboutPageKeepsAppInformationAndLicensesWithoutUpstreamServices() {
         var licenses = 0
         var backs = 0
-        show { AboutSettingsScreen(state, { licenses++ }, {}, { backs++ }) }
-        for (id in listOf(R.string.app_name, R.string.settings_communication, R.string.settings_github_repo,
-            R.string.settings_support_author, R.string.settings_statistics)) {
-            entry(id).assertIsDisplayed()
+        show { AboutSettingsScreen({ licenses++ }, { backs++ }) }
+        entry(R.string.app_name).assertIsDisplayed()
+        compose.onNodeWithText(indi.renakoni.nextvol.BuildConfig.APPLICATION_ID).assertDoesNotExist()
+        entry(R.string.settings_github_repo).assertIsDisplayed().performClick()
+        assertEquals("https://github.com/Renakoni/nextvol",
+            org.robolectric.Shadows.shadowOf(activity.get()).nextStartedActivity.data.toString())
+        for (removed in listOf("Communication", "Buy the Author a Tea", "Statistics")) {
+            compose.onNodeWithText(removed).assertDoesNotExist()
         }
         entry(R.string.settings_open_source_licenses).performClick()
         compose.onNodeWithContentDescription(label(R.string.sources_back)).performClick()
         assertEquals(1, licenses)
         assertEquals(1, backs)
     }
-
 
     @Test fun storageCleanupRequiresMeasuredContentAndExplicitConfirmation() {
         val state = MutableStorageManagerUiState()

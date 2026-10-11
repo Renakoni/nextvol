@@ -83,7 +83,7 @@ internal const val WENKU8_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64
 
 @WebDataSource(
     "Wenku8",
-    "LightNovelReader from wenku8.net"
+    "NextVol from wenku8.net"
 )
 class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search.Wenku8SearchSupport? = null,
     routes: (Identifier) -> SourceNetworkRoute) : WebBookDataSource, SourceImageProvider, AutoCloseable {

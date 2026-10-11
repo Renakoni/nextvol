@@ -126,7 +126,7 @@ class Wenku8SearchCatalog @Inject constructor(@param:ApplicationContext private 
 
     private suspend fun download(): String = suspendCancellableCoroutine { continuation ->
         val call = client.newCall(Request.Builder().url("https://wenku.mojimoon.top/")
-            .header("User-Agent", "Renakoni/NextVol (https://github.com/Renakoni/hnovel)").build())
+            .header("User-Agent", "Renakoni/NextVol (${indi.renakoni.nextvol.ProjectLinks.GITHUB})").build())
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) { continuation.resumeWithException(e) }
