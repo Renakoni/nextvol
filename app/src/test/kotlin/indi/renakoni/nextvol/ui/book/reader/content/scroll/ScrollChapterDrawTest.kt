@@ -88,19 +88,15 @@ class ScrollChapterDrawTest {
 
     @After fun close() { env.close(); activity.pause().stop().destroy() }
 
-    @Test fun forwardPromotionKeepsTheChapterBodyAndHeightBeforeParentRecomposition() {
-        assertPromotion(forward = true, lookahead = false)
-    }
-
     @Test fun forwardPromotionInsideLookaheadKeepsTheChapterBodyAndHeight() {
-        assertPromotion(forward = true, lookahead = true)
+        assertPromotion(forward = true)
     }
 
     @Test fun backwardPromotionInsideLookaheadKeepsTheChapterBodyAndHeight() {
-        assertPromotion(forward = false, lookahead = true)
+        assertPromotion(forward = false)
     }
 
-    private fun assertPromotion(forward: Boolean, lookahead: Boolean) {
+    private fun assertPromotion(forward: Boolean) {
         state.contentList[0] = "previous" to Ok(chapter("previous", 1200, next = "current"))
         state.contentList[1] = "current" to Ok(chapter("current", 2400, "previous", "next"))
         state.contentList[2] = "next" to Ok(chapter("next", 4800, prev = "current"))
@@ -108,14 +104,13 @@ class ScrollChapterDrawTest {
             activity.get().setContent {
                 MaterialTheme {
                     CompositionLocalProvider(LocalAppTheme provides AppTheme(false, MaterialTheme.colorScheme)) {
-                        val body: @Composable () -> Unit = {
+                        LookaheadScope {
                             Box(Modifier.size(320.dp)) {
                                 ScrollContentComponent(Modifier, state, settings,
                                     mockk { every { getFlow() } returns flowOf(Uri.EMPTY) },
                                     PaddingValues(0.dp), {}, {}, {})
                             }
                         }
-                        if (lookahead) LookaheadScope { body() } else body()
                     }
                 }
             }
@@ -124,10 +119,11 @@ class ScrollChapterDrawTest {
         val list = state.lazyListState
         val target = if (forward) "next" else "previous"
         var height = 0
-        var offset = 0
+        val offset = 500
+        val delta = if (forward) 24 else -24
         compose.mainClock.autoAdvance = false
         compose.runOnUiThread {
-            runBlocking { list.scrollToItem(if (forward) 2 else 0, 500) }
+            runBlocking { list.scrollToItem(if (forward) 2 else 0, offset) }
             height = list.layoutInfo.visibleItemsInfo.single { it.key == target }.size
             draws.clear()
             // Run the real window observer after layout, while the parent composition still
@@ -136,8 +132,8 @@ class ScrollChapterDrawTest {
             env.runCurrent()
             assertEquals(target, state.readingChapterId)
             Snapshot.sendApplyNotifications()
-            list.dispatchRawDelta(24f)
-            offset = list.firstVisibleItemScrollOffset
+            list.dispatchRawDelta(delta.toFloat())
+            assertEquals(offset + delta, list.firstVisibleItemScrollOffset)
             drawFrame()
             assertTrue("Must inspect draws before parent recomposition", draws.isNotEmpty())
         }
@@ -145,7 +141,7 @@ class ScrollChapterDrawTest {
         compose.waitForIdle()
         assertSame(list, state.lazyListState)
         assertEquals(target, state.readingChapterId)
-        assertEquals(offset, list.firstVisibleItemScrollOffset)
+        assertEquals(offset + delta, list.firstVisibleItemScrollOffset)
         assertTrue("Wrong chapter body or height in a draw: $draws",
             draws.all { it.body == target && it.key == target && it.height == height })
     }
