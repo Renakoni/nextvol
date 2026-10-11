@@ -256,9 +256,11 @@ class ReaderPerformanceActivity : ComponentActivity() {
             if (sequence != expectedSequence || traceCookie == null) return@post
             val drawn = pendingDraw ?: return@post
             val components = model.uiState.contentUiState?.readingChapterContent?.get()?.content
-            val sourceText = (components?.firstOrNull() as? SimpleTextComponent)?.data?.text
-            ReaderPerformanceStats.contentVerified = sourceText == originalText[drawn.chapter] &&
-                components?.size == if (ReaderPerformanceFixture.profile(this) == "mixed") 3 else 1
+            val profile = ReaderPerformanceFixture.profile(this)
+            val expected = ReaderPerformanceFixture.textComponents(drawn.chapter, profile)
+            ReaderPerformanceStats.contentVerified = components?.take(expected.size)?.map {
+                (it as? SimpleTextComponent)?.data?.text
+            } == expected && components?.size == expected.size + if (profile == "mixed") 2 else 0
             if (!ReaderPerformanceStats.contentVerified) {
                 ReaderPerformanceStats.error = "Prepared chapter differs from complete fixture content"
                 return@post

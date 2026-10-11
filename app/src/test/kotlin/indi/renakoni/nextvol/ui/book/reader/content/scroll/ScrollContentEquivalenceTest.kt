@@ -122,7 +122,7 @@ class ScrollContentEquivalenceTest {
         compose.runOnIdle { locales = LocaleList("ja-JP") }; awaitPreparation(8)
         assertEquals(4, publications)
         assertEquals(4, decodeNanos.size)
-        assertTrue(prepared!!.text.isNotEmpty())
+        assertTrue(prepared!!.blocks.any { it.text != null })
         println("Host-only measurement: publications=$publications, decodes=${decodeNanos.size}, preparations=$preparations, decodeNanos=$decodeNanos")
     }
 

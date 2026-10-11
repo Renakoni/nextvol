@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsDisplayed
@@ -68,6 +69,7 @@ class ScrollTextWindowTest {
     private var speech by mutableStateOf<SpeechPosition?>(null)
     private var following by mutableStateOf(true)
     private var active by mutableStateOf(true)
+    private var componentMeasurements = 0
     private var fontSize by mutableStateOf(15f)
     private val chapterText = (1..200).joinToString("\n") { "PARAGRAPH_%03d".format(it) }
     private val settings = mockk<ReaderSettings>(relaxed = true) {
@@ -231,6 +233,57 @@ class ScrollTextWindowTest {
         assertBoundedText()
     }
 
+    @Test fun thousandIndependentComponentsBoundLayoutWorkAndRestoreTheirOriginalBookmark() {
+        following = false
+        val text = (1..1097).joinToString("\n") { "PARAGRAPH_%04d".format(it) }
+        mount(0.5f, text, splitComponents = true)
+        awaitBody()
+        assertBoundedText()
+        assertTrue("Initial component measurements must be bounded: $componentMeasurements",
+            componentMeasurements < 80)
+        val saved = compose.runOnIdle { bookmarks.capture!!.invoke()!!.bookmark() }
+        assertTrue("Retain the source component, not a merged-text index", saved.componentIndex > 400)
+        val height = state.lazyListState.layoutInfo.visibleItemsInfo.single { it.key == "chapter" }.size
+        val measured = componentMeasurements
+        repeat(10) {
+            compose.runOnIdle { state.lazyListState.dispatchRawDelta(1f) }
+            compose.waitForIdle()
+        }
+        assertTrue("Steady scrolling must not measure every source component",
+            componentMeasurements - measured < 40)
+        compose.runOnIdle { scope.launch { state.lazyListState.scrollToItem(1, height) } }
+        compose.waitForIdle()
+        compose.onNodeWithText("PARAGRAPH_1097", useUnmergedTree = true).assertIsDisplayed()
+        compose.runOnIdle {
+            scope.launch { state.lazyListState.scrollToItem(1, 0) }
+            fontSize = 24f
+        }
+        compose.waitForIdle()
+        compose.runOnIdle { bookmarks.pending = saved }
+        compose.waitUntil(10_000) { compose.waitForIdle(); bookmarks.pending == null }
+        compose.onNodeWithText(saved.preview, useUnmergedTree = true).assertIsDisplayed()
+        val actual = compose.runOnIdle { bookmarks.capture!!.invoke()!!.bookmark() }
+        assertEquals(saved.componentIndex, actual.componentIndex)
+        assertEquals(saved.offset, actual.offset)
+        assertBoundedText()
+    }
+
+    @Test fun speechCanFollowAndReflowANonzeroSourceComponent() {
+        speech = position(100)
+        mount(0f, splitComponents = true)
+        awaitBody()
+        compose.onNodeWithText("PARAGRAPH_100", useUnmergedTree = true).assertIsDisplayed()
+        compose.runOnIdle { fontSize = 24f }
+        compose.waitForIdle()
+        compose.runOnIdle { speech = position(180) }
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasText("PARAGRAPH_180"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("PARAGRAPH_180", useUnmergedTree = true).assertIsDisplayed()
+        assertTrue(following)
+        assertBoundedText()
+    }
+
     private fun assertBoundedText() {
         val count = compose.onAllNodes(hasText("PARAGRAPH_", substring = true), useUnmergedTree = true).fetchSemanticsNodes().size
         assertTrue("Only the viewport and nearby text should be composed, found $count", count in 1..65)
@@ -269,8 +322,11 @@ class ScrollTextWindowTest {
         assertEquals(indi.renakoni.nextvol.R.string.reader_bookmarks_changed, bookmarks.notice)
     }
 
-    private fun mount(progress: Float, text: String = chapterText, previousText: String? = null) {
-        val component = SimpleTextComponent(SimpleTextComponentData(text), mockk(relaxed = true), activity.get())
+    private fun mount(progress: Float, text: String = chapterText, previousText: String? = null,
+        splitComponents: Boolean = false) {
+        val components = (if (splitComponents) text.split('\n') else listOf(text)).map {
+            SimpleTextComponent(SimpleTextComponentData(it), mockk(relaxed = true), activity.get())
+        }
         state.bookId = "book"
         state.readingChapterId = "chapter"
         state.readingProgress = progress
@@ -279,7 +335,7 @@ class ScrollTextWindowTest {
             val previous = SimpleTextComponent(SimpleTextComponentData(previousText), mockk(relaxed = true), activity.get())
             state.contentList[0] = "previous" to Ok(ChapterContentUiState("previous", "Previous", listOf(previous), null, "chapter"))
         }
-        state.contentList[1] = "chapter" to Ok(ChapterContentUiState("chapter", "Chapter", listOf(component),
+        state.contentList[1] = "chapter" to Ok(ChapterContentUiState("chapter", "Chapter", components,
             if (previousText == null) null else "previous", null))
         compose.runOnUiThread {
             activity.get().setContent {
@@ -289,7 +345,11 @@ class ScrollTextWindowTest {
                         LocalReaderSpeechFollow provides ReaderSpeechFollow(speech, following, { following = false }, active),
                         LocalReaderTextLayout provides rememberReaderTextLayout(settings)) {
                         Box(Modifier.width(320.dp).height(320.dp)) {
-                            ScrollContentComponent(Modifier, state, settings,
+                            ScrollContentComponent(Modifier.layout { measurable, constraints ->
+                                componentMeasurements++
+                                val child = measurable.measure(constraints)
+                                layout(child.width, child.height) { child.placeRelative(0, 0) }
+                            }, state, settings,
                                 mockk { every { getFlow() } returns flowOf(Uri.EMPTY) }, PaddingValues(0.dp), {}, {}, {})
                         }
                     }

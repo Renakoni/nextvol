@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -45,7 +45,14 @@ internal class ScrollTextLayout(val fragments: List<ReaderTextFragment>, val sty
     val height: Int get() = offsets.last()
 
     fun offsetFor(anchor: ReaderContentAnchor): Int? {
-        val index = fragments.indexOfFirst { it.componentIndex == anchor.componentIndex && anchor.offset in it.start until it.end }
+        val index = fragments.binarySearch { fragment ->
+            when {
+                fragment.componentIndex != anchor.componentIndex -> fragment.componentIndex.compareTo(anchor.componentIndex)
+                anchor.offset < fragment.start -> 1
+                anchor.offset >= fragment.end -> -1
+                else -> 0
+            }
+        }
         if (index < 0) return null
         val fragment = fragments[index]
         val line = fragment.lineStarts.indexOfLast { it <= anchor.offset }.coerceAtLeast(0)
@@ -73,24 +80,72 @@ internal class ScrollTextLayout(val fragments: List<ReaderTextFragment>, val sty
     }
 }
 
+/** Adjacent text shares one viewport; images and extension components retain their own layout. */
+internal class ScrollContentBlock(val componentIndex: Int, val text: ScrollTextLayout?) {
+    // Chapter-local geometry must not become a per-frame, whole-chapter SnapshotStateMap write.
+    var top by mutableIntStateOf(-1)
+}
+
 internal class PreparedScrollChapter(
     val content: ChapterContentUiState,
-    val text: Map<Int, ScrollTextLayout>,
+    text: Map<Int, ScrollTextLayout>,
     val layout: ReaderTextLayoutInput? = null,
     val size: IntSize = IntSize.Zero,
 ) {
-    // Positions inside the chapter include its title, images and component spacing.
-    val componentOffsets = mutableStateMapOf<Int, Int>()
+    val blocks = buildList {
+        val components = content.content.withIndex()
+            .filterNot { (it.value as? SimpleTextComponent)?.data?.text?.isEmpty() == true }
+        var cursor = 0
+        while (cursor < components.size) {
+            val first = components[cursor].index
+            val firstText = text[first]
+            if (firstText == null) {
+                add(ScrollContentBlock(first, null))
+                cursor++
+                continue
+            }
+            val fragments = mutableListOf<ReaderTextFragment>()
+            while (cursor < components.size) {
+                val next = text[components[cursor].index] ?: break
+                next.fragments.forEachIndexed { index, fragment ->
+                    // Preserve the existing per-component line cuts and inter-component Spacer.
+                    fragments += if (index == 0 && fragments.isNotEmpty())
+                        fragment.copy(spacingBefore = layout?.paragraphSpacingPx ?: 0) else fragment
+                }
+                cursor++
+            }
+            add(ScrollContentBlock(first, ScrollTextLayout(fragments, firstText.style)))
+        }
+    }
+    private val blockByComponent = IntArray(content.content.size) { -1 }.also { indices ->
+        blocks.forEachIndexed { index, block ->
+            indices[block.componentIndex] = index
+            block.text?.fragments?.forEach { indices[it.componentIndex] = index }
+        }
+    }
+
+    private fun blockFor(componentIndex: Int): ScrollContentBlock? =
+        blockByComponent.getOrNull(componentIndex)?.let { blocks.getOrNull(it) }
+
+    fun isPositioned(componentIndex: Int): Boolean = blockFor(componentIndex)?.top?.let { it >= 0 } == true
+
     fun offsetFor(anchor: ReaderContentAnchor): Int? {
-        val top = componentOffsets[anchor.componentIndex] ?: return null
-        return text[anchor.componentIndex]?.offsetFor(anchor)?.plus(top)
-            ?: top.takeIf { content.content.getOrNull(anchor.componentIndex) !is SimpleTextComponent }
+        val block = blockFor(anchor.componentIndex)?.takeIf { it.top >= 0 } ?: return null
+        return block.text?.offsetFor(anchor)?.plus(block.top)
+            ?: block.top.takeIf { content.content.getOrNull(anchor.componentIndex) !is SimpleTextComponent }
     }
 
     fun anchorAt(y: Int): ReaderContentAnchor? {
-        val component = componentOffsets.entries.filter { it.value <= y }.maxByOrNull { it.value }
-            ?: componentOffsets.entries.minByOrNull { it.value } ?: return null
-        return text[component.key]?.anchorAt(y - component.value) ?: ReaderContentAnchor(component.key, 0)
+        // Blocks are ordered by chapter position; pure text chapters have just one block.
+        var current: ScrollContentBlock? = null
+        for (block in blocks) {
+            if (block.top < 0) continue
+            if (block.top > y && current != null) break
+            current = block
+            if (block.top > y) break
+        }
+        val block = current ?: return null
+        return block.text?.anchorAt(y - block.top) ?: ReaderContentAnchor(block.componentIndex, 0)
     }
 }
 

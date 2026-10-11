@@ -66,7 +66,13 @@ is not a performance budget. The actual elapsed readiness time remains measured.
 
 All content has unique `R<chapter>_P<paragraph>` markers, Chinese and surrogate-pair
 characters. Ordinary/mixed fixtures have 30 paragraphs; long and single-paragraph
-fixtures contain 2,000 units. The mixed fixture adds a generated local PNG and
+fixtures contain 2,000 units. The `components` fixture has 1,097 independent
+`simple_text` components; `components-short` has 29. These exercise chapter-wide
+layout work that a single component containing many paragraphs cannot detect.
+`thousandComponentsFirstTextAndFrames` checks all original components at entry
+and performs eight swipes. Its frame distribution includes entry and scrolling;
+use separate trace windows when comparing initial mounting with steady scrolling.
+The mixed fixture adds a generated local PNG and
 an after-image marker; the test scrolls to that marker. Native chapter requests
 take approximately 350 ms, background work 1.2 seconds, with cancellation checks
 between bounded chunks. These are input conditions, **not** regression thresholds.
