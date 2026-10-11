@@ -42,7 +42,7 @@ theme/settings and the data layer retain full checks. These are reviewed path
 boundaries, not automatic dependency analysis; update the selection when sharing
 code across them. Resource files and Markdown fixtures under source directories
 are not assumed to be documentation. Mixed changes take the union; any unknown
-path selects full checks. No existing test is deleted by this selection.
+path selects full checks. Full selection runs the maintained suite described below.
 
 PR and merge-group comparisons use the event's base SHA and the checked-out merge
 tree. A missing base is fetched shallowly by SHA. Git lists all changed paths
@@ -65,6 +65,20 @@ still compile together. Release assembly and Lint remain necessary for productio
 UI changes. Selection reduces unrelated work; it does not promise a fixed runtime.
 The JVM job always runs the lightweight selector regression tests, including
 documentation-only changes. Emulator/environment script checks run for full scope.
+
+## JVM test coverage
+
+UI tests retain representative navigation, source ownership, selection, paging,
+retry, download, and account interactions. Narrow copy, formatting, layout, and
+empty-state variants are not all tested individually. Reader and speech suites,
+download recovery, backup transactions, and source isolation remain covered.
+
+Browser back tests use API 24 and 35 for the legacy and modern callback paths.
+Source browsing tests retain cache eviction and cancellation boundaries without
+traversing 1000 sources. Catalogue tests retain 69-page pagination, 7501 JSON
+chapter objects crossing the worker boundary, and partial-directory recovery;
+the separate 12001-chapter reopen stress test is omitted. These are deliberate
+coverage tradeoffs, not equivalent replacements for every removed regression.
 
 ## Fixed tools and reusable caches
 
