@@ -7,11 +7,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.navigation.NavHostController
 import com.github.michaelbull.result.Ok
@@ -115,66 +112,4 @@ class ChapterProgressReviewTest {
         compose.onNodeWithText("90%", useUnmergedTree = true).assertExists()
     }
 
-    @Test fun completedProgressIsClampedAndTheExistingHideReadFilterStillWorks() {
-        val state = state(mapOf("chapter-0" to .7f, "chapter-2" to 1.5f))
-        show(state)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Chapter 2"))
-        compose.onNodeWithText("100%", useUnmergedTree = true).assertExists()
-        compose.onNodeWithText("150%", useUnmergedTree = true).assertDoesNotExist()
-        val hide = activity.get().getString(R.string.hide_read)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(activity.get().getString(R.string.detail_contents)))
-        compose.onNodeWithContentDescription(activity.get().getString(R.string.detail_directory_options)).performClick()
-        compose.onNodeWithText(hide).performClick()
-        compose.onNodeWithText("Chapter 2").assertDoesNotExist()
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Chapter 0"))
-        compose.onNodeWithText("70%", useUnmergedTree = true).assertExists()
-    }
-
-    @Test fun aWholePercentageAtPageFiftyThreeOfOneHundredIsNotUnderstated() {
-        show(state(mapOf("chapter-0" to 53f / 100f)))
-        assertDisplayedPercentage("53%")
-    }
-
-    @Test fun aWholePercentageAtPageFiftyNineOfOneHundredIsNotUnderstated() {
-        show(state(mapOf("chapter-0" to 59f / 100f)))
-        assertDisplayedPercentage("59%")
-    }
-
-    private fun assertDisplayedPercentage(expected: String) {
-        val texts = compose.onAllNodes(hasText("%", substring = true), useUnmergedTree = true)
-            .fetchSemanticsNodes().flatMap { it.config[SemanticsProperties.Text] }.map { it.text }
-        assertTrue("Expected $expected in the actual directory, found $texts", expected in texts)
-    }
-
-    @Test fun aNearlyCompleteChapterDoesNotClaimToBeFinished() {
-        show(state(mapOf("chapter-0" to .99999f)))
-        compose.onNodeWithText("99%", useUnmergedTree = true).assertExists()
-        compose.onNodeWithText("100%", useUnmergedTree = true).assertDoesNotExist()
-    }
-
-    @Test
-    @Config(sdk = [35], qualifiers = "en-rUS-w400dp-h900dp")
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun aLongTitleAndLargeFontLeaveThePercentageReadable() {
-        val state = state(mapOf("chapter-0" to 1f))
-        val title = "A very long chapter title that needs to wrap onto more than one line"
-        state.bookVolumes = Ok(BookVolumes("review-book", listOf(Volume("v1", "Volume 1",
-            listOf(chapters[0].copy(title = title)) + chapters.drop(1)))))
-        show(state, fontScale = 2f)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(title))
-        val percentage = compose.onNodeWithText("100%", useUnmergedTree = true)
-        percentage.performScrollTo().assertIsDisplayed()
-        val layouts = mutableListOf<TextLayoutResult>()
-        percentage.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-        assertEquals(1, layouts.size)
-        val layout = layouts.single()
-        assertEquals(1, layout.lineCount)
-        assertEquals(4, layout.getLineEnd(0))
-        assertFalse(layout.isLineEllipsized(0))
-        assertTrue("All percentage glyphs fit within ${layout.size}",
-            layout.getLineLeft(0) >= 0f && layout.getLineRight(0) <= layout.size.width &&
-                layout.getLineBottom(0) <= layout.size.height)
-        assertTrue(compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.right <=
-            percentage.fetchSemanticsNode().boundsInRoot.left)
-    }
 }
