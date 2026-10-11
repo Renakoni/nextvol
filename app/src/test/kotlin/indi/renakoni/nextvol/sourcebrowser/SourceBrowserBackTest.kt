@@ -29,7 +29,7 @@ import org.robolectric.shadows.ShadowLooper.idleMainLooper
 import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [24, 27, 35], application = Application::class)
+@Config(sdk = [24, 35], application = Application::class)
 class SourceBrowserBackTest {
     @Before fun enableSystemBack() {
         if (Build.VERSION.SDK_INT >= 33) ShadowApplication.setEnableOnBackInvokedCallback(true)

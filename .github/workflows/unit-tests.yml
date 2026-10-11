@@ -19,23 +19,38 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Select affected checks
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          check: jvm
+      - name: Check CI task selection
+        run: python3 .github/scripts/test_ci_scope.py
       - name: Prepare fixed Android environment
+        if: steps.scope.outputs.run == 'true'
         id: environment
         uses: ./.github/actions/android-environment
       - name: Cache Robolectric SDKs
+        if: steps.scope.outputs.run == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.m2/repository/org/robolectric
           key: robolectric-linux-4.16.1-i7-v1
       - name: Check emulator preparation and failure handling
+        if: steps.scope.outputs.scopes == 'full'
         run: |
           python3 .github/scripts/test_emulator_tests.py
           python3 .github/scripts/test_ci_emulator.py
           python3 .github/scripts/test_prepare_android_sdk.py
       - name: Run JVM unit tests
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :epub:test :source-rules:test :source-network:test :source-import:test :source-execution:test :source-compatibility:test :source-rhino:test :source-content:test :source-speech:test --console=plain --stacktrace --max-workers=2
+        if: steps.scope.outputs.run == 'true'
+        env:
+          GRADLE_TASKS: ${{ steps.scope.outputs.gradle-args }}
+        run: |
+          read -r -a tasks <<< "$GRADLE_TASKS"
+          ./gradlew --no-daemon "${tasks[@]}" --console=plain --stacktrace --max-workers=2
       - name: Upload test reports
-        if: always()
+        if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: unit-test-reports

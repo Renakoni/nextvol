@@ -1,0 +1,28 @@
+name: Select affected checks
+description: Conservative path selection while preserving every required check result
+inputs:
+  check:
+    description: jvm, device-24, device-35, release, lint, or minified
+    required: true
+outputs:
+  run:
+    description: Whether this check needs its Android environment and tasks
+    value: ${{ steps.select.outputs.run }}
+  scopes:
+    description: Selected test scopes
+    value: ${{ steps.select.outputs.scopes }}
+  gradle-args:
+    description: Selected JVM tasks and scope property
+    value: ${{ steps.select.outputs.gradle-args }}
+  minified-classes:
+    description: Selected minified instrumentation classes
+    value: ${{ steps.select.outputs.minified-classes }}
+runs:
+  using: composite
+  steps:
+    - name: Select checks from the tested tree
+      id: select
+      shell: bash
+      env:
+        CHECK_KIND: ${{ inputs.check }}
+      run: python3 .github/scripts/ci_scope.py --check "$CHECK_KIND"
