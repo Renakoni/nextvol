@@ -27,8 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.get
-import com.valentinilk.shimmer.Shimmer
 import com.valentinilk.shimmer.shimmer
+import com.valentinilk.shimmer.Shimmer
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.home.bookshelf.BookshelfBookItem
@@ -41,7 +41,7 @@ internal fun BookshelfGridCard(
     result: Result<BookshelfBookItem, WebRequestError>?,
     selected: Boolean,
     selectMode: Boolean,
-    shimmer: Shimmer,
+    shimmer: Shimmer?,
     onClick: () -> Unit,
     onLongPress: () -> Unit
 ) {
@@ -70,7 +70,7 @@ internal fun BookshelfGridCard(
                 } else {
                     Box(
                         Modifier.fillMaxSize()
-                            .then(if (result == null) Modifier.shimmer(shimmer) else Modifier)
+                            .then(if (result == null && shimmer != null) Modifier.shimmer(shimmer) else Modifier)
                             .background(colors.surfaceContainerHighest),
                         contentAlignment = Alignment.Center
                     ) {
