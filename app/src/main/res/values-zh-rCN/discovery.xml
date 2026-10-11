@@ -15,13 +15,13 @@
     <string name="discovery_unsupported">此书源不提供这项浏览能力。</string>
     <string name="discovery_login_required">请在书源管理中登录此书源后重试。</string>
     <string name="discovery_permission">此书源缺少网络权限，请在书源管理中检查允许访问的网站。</string>
-    <string name="discovery_invalid_rules">书源规则不兼容，请查看书源诊断或更新书源。</string>
-    <string name="discovery_limit">书源超出处理限制，请查看书源诊断或更新书源。</string>
+    <string name="discovery_invalid_rules">书源规则不兼容，请更新书源规则后重试。</string>
+    <string name="discovery_limit">书源超出处理限制，请更新书源规则后重试。</string>
     <string name="discovery_network">加载此书源失败，请检查网络后重试。</string>
     <string name="discovery_http_denied">站点拒绝了请求（HTTP %1$d），请检查登录状态或账号访问权限。</string>
     <string name="discovery_http_error">站点返回错误（HTTP %1$d），请稍后重试或检查站点状态。</string>
     <string name="discovery_invalid_target">此分类或筛选条件已失效，请返回分类目录。</string>
-    <string name="discovery_invalid_response">书源返回的数据无效，请重试或查看书源诊断。</string>
+    <string name="discovery_invalid_response">书源返回的数据无效，请重试或更新书源规则。</string>
     <string name="discovery_unavailable">此书源已移除、停用或替换，请返回目录或打开书源管理。</string>
     <string name="discovery_rule_field">书源规则：%1$s</string>
 </resources>

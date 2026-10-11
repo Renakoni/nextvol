@@ -63,7 +63,7 @@ class DiscoveryFailureTest {
         activity.get().setContent { MaterialTheme {
             DiscoveryFailure(DiscoveryError.InvalidRules, {}, {}, back = null, field = "header")
         } }
-        compose.onNodeWithText("The source rules are incompatible. Check source diagnostics or update the source.").assertIsDisplayed()
+        compose.onNodeWithText(activity.get().getString(R.string.discovery_invalid_rules)).assertIsDisplayed()
         compose.onNodeWithText("Source rule: header").assertDoesNotExist()
         compose.onNodeWithText("Error type: InvalidRules").assertDoesNotExist()
         compose.onNodeWithText("Error details").performClick()

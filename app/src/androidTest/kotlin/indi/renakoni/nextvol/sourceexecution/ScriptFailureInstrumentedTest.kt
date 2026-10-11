@@ -12,7 +12,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class SourceDiagnosticsInstrumentedTest {
+class ScriptFailureInstrumentedTest {
     @Test fun binderRetainsCallShapeWithoutPrivateArgumentsAndRecoversForTheNextTask() = runBlocking {
         val authority = ExecutionAuthority()
         val identity = authority.issue("fixture", LEGADO_PROFILE, "1")

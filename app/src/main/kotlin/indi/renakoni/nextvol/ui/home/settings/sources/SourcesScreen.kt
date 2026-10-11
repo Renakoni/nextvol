@@ -49,7 +49,6 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import indi.renakoni.nextvol.R
-import hnovel.imports.EXTENSION_PROFILE
 import hnovel.imports.AUTO_PROFILE
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.data.web.SourceCapability
@@ -78,7 +77,6 @@ fun NavGraphBuilder.settingsSourcesDestination() {
             model.openImportLink(route.url)
         }
         SourcesScreen(state, model,
-            onDiagnostics = { id -> nav.navigate(Route.Main.Settings.SourceDiagnostic(id.namespace, id.id)) },
             onSearch = { id -> nav.navigate(Route.Main.Explore.Search(id.namespace, id.id)) }) { nav.popBackStack() }
     }
     composable<Route.Main.Settings.Sources> { entry ->
@@ -87,7 +85,6 @@ fun NavGraphBuilder.settingsSourcesDestination() {
         SourceSettingsLifecycle(model, entry, nav)
         val state by model.state.collectAsStateWithLifecycle()
         SourcesScreen(state, model,
-            onDiagnostics = { id -> nav.navigate(Route.Main.Settings.SourceDiagnostic(id.namespace, id.id)) },
             onSearch = { id -> nav.navigate(Route.Main.Explore.Search(id.namespace, id.id)) }) { nav.popBackStack() }
     }
     composable<Route.Main.Settings.SourceDetail> { entry ->
@@ -101,7 +98,6 @@ fun NavGraphBuilder.settingsSourcesDestination() {
             model.openFromDiscovery(Identifier(route.namespace, route.sourceId), route.login)
         }
         SourcesScreen(state, model,
-            onDiagnostics = { id -> nav.navigate(Route.Main.Settings.SourceDiagnostic(id.namespace, id.id)) },
             onSearch = { id -> nav.navigate(Route.Main.Explore.Search(id.namespace, id.id)) }) { nav.popBackStack() }
     }
 }
@@ -120,6 +116,7 @@ private fun SourceSettingsLifecycle(model: SourcesViewModel, entry: NavBackStack
 private data class SourcesPage(val state: SourceManagementState, val adding: Boolean, val category: SourceCategory?,
     val listState: LazyListState, val managingGroups: Boolean, val group: String?, val addingGroupSources: Boolean) {
     val key get() = when {
+        state.editor != null -> "editor:${state.selected}"
         state.preview != null -> "preview"
         state.selected != null -> "source:${state.selected}"
         managingGroups && addingGroupSources -> "group-add:$group"
@@ -129,6 +126,7 @@ private data class SourcesPage(val state: SourceManagementState, val adding: Boo
         else -> "list"
     }
     val depth get() = when {
+        state.editor != null -> 2
         state.preview != null -> 3
         state.selected != null -> 1
         managingGroups && addingGroupSources -> 3
@@ -143,7 +141,7 @@ private data class SourcesPage(val state: SourceManagementState, val adding: Boo
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
-    onDiagnostics: (Identifier) -> Unit, onSearch: (Identifier) -> Unit = {}, onBack: () -> Unit) {
+    onSearch: (Identifier) -> Unit = {}, onBack: () -> Unit) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     var sourceToast by remember { mutableStateOf<Toast?>(null) }
@@ -173,8 +171,11 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
     var chosen by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var url by rememberSaveable { mutableStateOf("") }
     val addStates = rememberSaveableStateHolder()
+    val settingsStates = rememberSaveableStateHolder()
     var deleting by remember { mutableStateOf(false) }
-    var rollback by remember { mutableStateOf(false) }
+    var editorMenu by remember { mutableStateOf(false) }
+    var discardEditor by remember { mutableStateOf(false) }
+    var findingInEditor by rememberSaveable(state.editor?.installed?.definition?.sourceId) { mutableStateOf(false) }
     val managementListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val listState = if (state.selected == null) managementListState
         else rememberSaveable(state.selected, saver = LazyListState.Saver) { LazyListState() }
@@ -222,6 +223,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         when {
             state.loginForm != null -> model.cancelLogin()
             state.busy -> model.cancel()
+            state.editor != null -> if (state.editor.dirty) discardEditor = true else model.closeEditor()
             state.preview != null -> model.dismissPreview()
             state.selected != null -> model.select(null)
             adding && category != null -> category = null
@@ -237,6 +239,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
     BackHandler { back() }
     Scaffold(topBar = {
         TopAppBar(title = { Text(when {
+            state.editor != null -> stringResource(R.string.sources_editor_title)
             state.preview != null -> stringResource(R.string.sources_preview)
             state.selected == ZLibrarySources.ID -> "Z-Library"
             installed != null -> state.catalog.find { it.key == installed.definition.importKey }?.name ?: installed.definition.displayName
@@ -251,6 +254,23 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
             navigationIcon = { IconButton(onClick = { back() }) {
                 Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back))
             } }, actions = {
+                if (state.editor != null) {
+                    IconButton(onClick = { findingInEditor = !findingInEditor }, enabled = !state.busy) {
+                        Icon(painterResource(R.drawable.find_replace_24px), stringResource(R.string.sources_editor_find_replace))
+                    }
+                    Box {
+                        IconButton(onClick = { editorMenu = true }, enabled = !state.busy) {
+                            Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.sources_editor_tools))
+                        }
+                        DropdownMenu(editorMenu, onDismissRequest = { editorMenu = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.sources_editor_validate)) },
+                                onClick = { editorMenu = false; model.validateEditor() })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.sources_editor_format)) },
+                                onClick = { editorMenu = false; model.formatEditor() })
+                        }
+                    }
+                    TextButton(onClick = model::saveEditor, enabled = !state.busy) { Text(stringResource(R.string.sources_editor_save)) }
+                }
                 if (managingGroups && openedGroup != null && !addingGroupSources && !selectingGroupSources && state.selected == null) {
                     Box {
                         IconButton(onClick = { groupMenu = true }, enabled = !state.busy) {
@@ -295,7 +315,10 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         val state = page.state
         val installed = state.installed.find { ImportedRuleSources.id(it.definition) == state.selected }
         val selectedEntry = state.registry.find { it.metadata.id == state.selected }
-        if (state.preview != null) {
+        if (state.editor != null) {
+            SourceEditorScreen(state.editor, state.busy, model, Modifier.padding(padding).consumeWindowInsets(padding), findingInEditor,
+                onCloseFind = { findingInEditor = false })
+        } else if (state.preview != null) {
             SourceImportPreview(state, model, Modifier.padding(padding))
         } else if (page.adding && state.selected == null) {
             val selectedCategory = page.category
@@ -317,7 +340,8 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                     onAdd = { selectedGroupSources = emptyList(); selectingGroupSources = false; addingGroupSources = true },
                     modifier = Modifier.padding(padding))
             }
-        } else LazyColumn(Modifier.fillMaxSize().padding(padding), state = page.listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        } else settingsStates.SaveableStateProvider(page.key) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), state = page.listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (state.busy && state.showProgress) item { LinearProgressIndicator(Modifier.fillMaxWidth()); TextButton(onClick = model::cancel) { Text(stringResource(android.R.string.cancel)) } }
             inlineMessage?.takeUnless { it == R.string.sources_saved || it == R.string.source_groups_saved }?.let { message ->
                 item { Text(stringResource(message), color = MaterialTheme.colorScheme.primary) }
@@ -331,14 +355,33 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                     val definition = installed.definition
                     val settings = checkNotNull(state.ruleSettings)
                     var configuration by rememberSaveable(definition.sourceId, state.variable) { mutableStateOf(state.variable) }
-                    var permissions by rememberSaveable(definition.sourceId, installed.origins) { mutableStateOf(installed.origins.joinToString("\n") { it.origin }) }
+                    val grantedPermissions = installed.origins.joinToString("\n") { it.origin }
+                    var permissionBaseline by rememberSaveable(definition.sourceId) { mutableStateOf(grantedPermissions) }
+                    var permissions by rememberSaveable(definition.sourceId) { mutableStateOf(grantedPermissions) }
+                    // SaveableStateProvider restores values without rechecking rememberSaveable inputs.
+                    if (permissionBaseline != grantedPermissions) {
+                        permissionBaseline = grantedPermissions
+                        permissions = grantedPermissions
+                    }
                     var showDetails by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
+                    var editPermissions by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
                     var editVariable by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
+                    var manualVariable by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
                     val entry = state.registry.find { it.metadata.id == state.selected }
                     val capabilities = entry.actionCapabilities()
-                    val active = entry?.status == SourceStatus.Ready && capabilities.isNotEmpty()
-                    val check = state.checks[definition.sourceId]
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val hasVariable = !manualVariable && (settings.variableDescription.isNotBlank() || state.variable.isNotBlank())
+                    val variableEditor: @Composable () -> Unit = {
+                        if (editVariable) Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (settings.variableDescription.isNotBlank()) Text(settings.variableDescription,
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            OutlinedTextField(configuration, { configuration = it; model.clearVariableError() }, Modifier.fillMaxWidth(),
+                                label = { Text(stringResource(R.string.sources_variable)) }, minLines = 2, maxLines = 6,
+                                enabled = !state.busy && state.storedSettingsAvailable)
+                            SourceSaveActions(state.variableError, state.busy || !state.storedSettingsAvailable, R.string.sources_save_variable,
+                                onSave = { model.saveVariable(state.selected!!, configuration) })
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SectionHeader(text = stringResource(R.string.sources_basic_section))
                         if (entry?.status == SourceStatus.Failed) Text(stringResource(R.string.sources_action_failed), color = MaterialTheme.colorScheme.error)
                         if (installed.preferences.enabled && installed.origins.isEmpty()) Text(stringResource(R.string.sources_awaiting_permissions))
@@ -347,16 +390,31 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                             trailingContent = { Switch(installed.preferences.enabled,
                                 { model.setEnabled(state.selected!!, it) }, enabled = !state.busy,
                                 modifier = Modifier.semantics { contentDescription = enabledLabel }) })
-                        if (SourceCapability.Search in capabilities) {
-                            Button(onClick = { onSearch(state.selected!!) }, enabled = !state.busy) { Text(stringResource(R.string.explore_search)) }
+                        Column {
+                            if (SourceCapability.Search in capabilities) SourceSettingsRow(stringResource(R.string.explore_search), !state.busy) {
+                                onSearch(state.selected!!)
+                            }
+                            SourceSettingsRow(stringResource(R.string.sources_editor_title), !state.busy) { model.beginEditor(state.selected!!) }
                         }
-                        state.network?.let {
-                            SectionHeader(text = stringResource(R.string.sources_network_section))
-                            SourceNetworkSection(it, state.busy, model::setBypassVpn, model::revokeCertificate)
+                        SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(R.string.sources_network_section))
+                        Column {
+                            state.network?.let { SourceNetworkSection(it, state.busy, model::setBypassVpn, model::revokeCertificate) }
+                            SourceSettingsRow(stringResource(R.string.sources_permissions_title), !state.busy, editPermissions,
+                                installed.deniedOrigins.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.sources_denied_count, it.size) }) {
+                                editPermissions = !editPermissions
+                            }
+                        }
+                        if (editPermissions) Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            installed.deniedOrigins.forEach { request ->
+                                SourcePermissionCandidate(request.origin, request.kind.name, permissions, state.busy) { permissions = it }
+                            }
+                            SourcePermissionsField(permissions, state.busy) { permissions = it; model.clearConfigurationError() }
+                            SourceSaveActions(state.configurationError, state.busy, R.string.sources_save_permissions,
+                                onSave = { model.savePermissions(state.selected!!, permissions) })
                         }
                         val savedAccount = state.storedSettingsAvailable && state.loginStatus != LoginStatus.LoggedOut
                         if (settings.loginDeclared || settings.loginErrorField != null || savedAccount || state.verification != null) {
-                            SectionHeader(text = stringResource(if (settings.loginDeclared || settings.loginErrorField != null || savedAccount)
+                            SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(if (settings.loginDeclared || settings.loginErrorField != null || savedAccount)
                                 R.string.sources_account_section else R.string.sources_verification_section))
                             if (settings.loginErrorField != null) {
                                 Text(stringResource(R.string.sources_login_definition_error, settings.loginErrorField), color = MaterialTheme.colorScheme.error)
@@ -371,51 +429,39 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                                     onRetry = { model.select(state.selected) }, onVerify = model::verifyPending)
                             }
                         }
-                        if (settings.configurationDeclared || settings.variableDescription.isNotBlank()) {
-                            SectionHeader(text = stringResource(R.string.sources_configuration))
-                            if (settings.configurationDeclared && settings.loginErrorField == null) {
-                                OutlinedButton(onClick = { model.beginConfiguration(state.selected!!) }, enabled = !state.busy &&
-                                    entry?.status in setOf(SourceStatus.Registered, SourceStatus.Ready) && SourceCapability.Login in capabilities) {
-                                    Text(stringResource(R.string.sources_open_panel))
+                        if (settings.configurationDeclared || hasVariable) {
+                            SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(R.string.sources_configuration))
+                            Column {
+                                if (settings.configurationDeclared && settings.loginErrorField == null) {
+                                    SourceSettingsRow(stringResource(R.string.sources_open_panel), !state.busy &&
+                                        entry?.status in setOf(SourceStatus.Registered, SourceStatus.Ready) && SourceCapability.Login in capabilities) {
+                                        model.beginConfiguration(state.selected!!)
+                                    }
                                 }
+                                if (hasVariable) SourceSettingsRow(stringResource(R.string.sources_edit_variable),
+                                    !state.busy && state.storedSettingsAvailable, editVariable) { editVariable = !editVariable }
                             }
-                            if (settings.variableDescription.isNotBlank()) Text(settings.variableDescription)
                         }
-                        TextButton(onClick = { showDetails = !showDetails }) { Text(stringResource(R.string.sources_advanced)) }
-                        if (showDetails) {
-                            TextButton(onClick = { editVariable = !editVariable }, enabled = !state.busy && state.storedSettingsAvailable) {
-                                Text(stringResource(R.string.sources_edit_variable))
-                            }
-                            if (editVariable) OutlinedTextField(configuration, { configuration = it }, Modifier.fillMaxWidth(),
-                                label = { Text(stringResource(R.string.sources_variable)) }, enabled = !state.busy && state.storedSettingsAvailable)
-                            SourceCheckStatus(check, check?.revision == definition.contentDigest && check.accountGeneration == entry?.metadata?.accountGeneration, details = true)
-                            if (installed.deniedOrigins.isNotEmpty()) {
-                                Text(stringResource(R.string.sources_denied_origins), style = MaterialTheme.typography.titleMedium)
-                                Text(stringResource(R.string.sources_origin_candidates_help))
-                                installed.deniedOrigins.forEach { request ->
-                                    SourcePermissionCandidate(request.origin, request.kind.name, permissions, state.busy) { permissions = it }
+                        if (hasVariable) variableEditor()
+                        val canCheckUpdate = model.canCheckUpdate(definition)
+                        if (!hasVariable || canCheckUpdate) Column {
+                            HorizontalDivider(Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                            SourceSettingsRow(stringResource(R.string.sources_advanced), expanded = showDetails) { showDetails = !showDetails }
+                            if (showDetails) {
+                                if (canCheckUpdate) SourceSettingsRow(stringResource(R.string.sources_check_update), !state.busy) {
+                                    model.checkUpdate(state.selected!!)
                                 }
+                                // An undeclared variable can still be used by dynamically loaded scripts.
+                                if (!hasVariable) SourceSettingsRow(stringResource(R.string.sources_edit_variable),
+                                    !state.busy && state.storedSettingsAvailable, editVariable) { manualVariable = true; editVariable = !editVariable }
+                                if (!hasVariable) variableEditor()
                             }
-                            OutlinedTextField(permissions, { permissions = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.sources_permissions)) }, enabled = !state.busy)
-                            Button(onClick = { model.saveConfiguration(state.selected!!, configuration.takeIf { editVariable && state.storedSettingsAvailable }, permissions) }, enabled = !state.busy) {
-                                Text(stringResource(if (editVariable && state.storedSettingsAvailable) R.string.sources_save else R.string.sources_save_permissions))
-                            }
-                            OutlinedButton(onClick = { model.checkUpdate(state.selected!!) }, enabled = !state.busy) { Text(stringResource(R.string.sources_check_update)) }
-                            OutlinedButton(onClick = { onDiagnostics(state.selected!!) }, enabled = !state.busy && active) { Text(stringResource(R.string.sources_diagnostics)) }
-                            Text(stringResource(R.string.sources_format, definition.format), style = MaterialTheme.typography.bodySmall)
-                            Text(stringResource(if (definition.profile == EXTENSION_PROFILE) R.string.sources_profile_extension else R.string.sources_profile_standard),
-                                style = MaterialTheme.typography.bodySmall)
-                            Text(stringResource(R.string.sources_revision, definition.revision.toString()), style = MaterialTheme.typography.bodySmall)
-                            if (installed.previous != null) OutlinedButton(onClick = { rollback = true }, enabled = !state.busy) { Text(stringResource(R.string.sources_rollback)) }
                         }
                         TextButton(onClick = { deleting = true }, enabled = !state.busy) { Text(stringResource(R.string.sources_delete), color = MaterialTheme.colorScheme.error) }
                     }
                     if (deleting) AlertDialog(onDismissRequest = { deleting = false }, title = { Text(stringResource(R.string.sources_delete)) },
                         text = { Text(stringResource(R.string.sources_delete_help)) }, confirmButton = { TextButton(onClick = { deleting = false; model.remove(state.selected!!) }) { Text(stringResource(R.string.sources_delete)) } },
                         dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(android.R.string.cancel)) } })
-                    if (rollback) AlertDialog(onDismissRequest = { rollback = false }, title = { Text(stringResource(R.string.sources_rollback)) },
-                        text = { Text(stringResource(R.string.sources_rollback_help)) }, confirmButton = { TextButton(onClick = { rollback = false; model.rollback(state.selected!!, permissions) }) { Text(stringResource(R.string.sources_rollback)) } },
-                        dismissButton = { TextButton(onClick = { rollback = false }) { Text(stringResource(android.R.string.cancel)) } })
                 }
             } else if (state.selected != null) {
                 item(key = "registered-settings") {
@@ -519,7 +565,14 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                 }
             }
         }
+        }
     } }
+    if (discardEditor) AlertDialog(onDismissRequest = { discardEditor = false },
+        title = { Text(stringResource(R.string.sources_editor_discard)) },
+        text = { Text(stringResource(R.string.sources_editor_discard_help)) },
+        confirmButton = { TextButton(onClick = { discardEditor = false; model.closeEditor() }) {
+            Text(stringResource(R.string.sources_editor_discard))
+        } }, dismissButton = { TextButton(onClick = { discardEditor = false }) { Text(stringResource(android.R.string.cancel)) } })
     if (groupingSources != null) {
         val members = groupingSources.orEmpty().map { Identifier("rules", it) }.toSet()
         SourceGroupsDialog(state.groups, state.installed, state.busy, state.message, state.groupRevision, groupingSources.orEmpty().toSet(),

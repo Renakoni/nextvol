@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sources_permissions_title">Network permissions</string>
+    <string name="sources_missing_origin">The source still requires access to %1$s. Keep this permission, or change the rules in Edit source before removing it.</string>
+    <string name="sources_editor_title">Edit source</string>
+    <string name="sources_editor_json">Source rules (JSON)</string>
+    <string name="sources_editor_save">Save</string>
+    <string name="sources_editor_invalid">Invalid source rules: %1$s. Check the JSON format and the required chapter list and content rules.</string>
+    <string name="sources_editor_stale">This source changed while you were editing. Copy any changes you need, then reopen the editor.</string>
+    <string name="sources_editor_initialization_failed">Source initialization failed. The saved rules and permissions have not changed. Check the scripts and required sites.</string>
+    <string name="sources_editor_discard">Discard changes</string>
+    <string name="sources_editor_discard_help">Discard unsaved changes?</string>
+    <string name="sources_editor_find_replace">Find and replace</string>
+    <string name="sources_editor_format">Format JSON</string>
+    <string name="sources_editor_find">Find</string>
+    <string name="sources_editor_replace_with">Replace with</string>
+    <string name="sources_editor_next">Next</string>
+    <string name="sources_editor_replace">Replace</string>
+    <string name="sources_editor_replace_all">Replace all</string>
+    <string name="sources_editor_allow_sites">Allow access to new sites?</string>
+    <string name="sources_editor_allow_save">Allow and save</string>
+    <string name="sources_editor_tools">Editor tools</string>
+    <string name="sources_editor_validate">Validate JSON</string>
+    <string name="sources_editor_json_valid">JSON syntax is valid</string>
+    <string name="sources_editor_syntax_error">Invalid JSON syntax</string>
+    <string name="sources_editor_duplicate_field">Duplicate JSON field</string>
+    <string name="sources_editor_object_required">The source must be a JSON object</string>
+    <string name="sources_editor_too_deep">JSON nesting is too deep</string>
+    <string name="sources_editor_too_large">JSON is too large</string>
+    <string name="sources_editor_error_position">Line %1$d, column %2$d</string>
+    <string name="sources_editor_close_find">Close find</string>
+    <string name="sources_editor_show_replace">Show replace</string>
+    <string name="sources_editor_hide_replace">Hide replace</string>
+    <string name="sources_editor_previous">Previous</string>
+    <string name="sources_editor_no_matches">No matches</string>
+    <string name="sources_editor_match_count">%1$d matches</string>
+</resources>
