@@ -26,6 +26,7 @@ import indi.renakoni.nextvol.data.work.ExportBookToEPUBWork
 import indi.renakoni.nextvol.data.book.observeSubmittedUniqueWork
 import io.nightfish.lightnovelreader.api.web.WebDataSourcePriority
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +50,7 @@ class DetailViewModel @Inject constructor(
     var exportSettings = ExportSettings()
     private var book: indi.renakoni.nextvol.data.book.SourceBookId? = null
     private var informationJob: Job? = null
+    private val informationReady = CompletableDeferred<Unit>()
     private val directoryRetry = MutableStateFlow(0)
     private val foreground = indi.renakoni.nextvol.data.web.ForegroundSourceRequest()
     fun setActive(value: Boolean, retainBrowser: Boolean = false) = foreground.setActive(value, retainBrowser)
@@ -69,8 +71,13 @@ class DetailViewModel @Inject constructor(
                 _uiState.canCache = availability.online
                 _uiState.metadataOnly = availability.metadataOnly
                 _uiState.bookVolumes = null
-                if (availability.available) bookRepository.getBookVolumesFlow(bookId, WebDataSourcePriority.High).collect {
-                    _uiState.bookVolumes = it
+                if (availability.available) {
+                    // Rule sources may have one permit for the entire request. Publish metadata before
+                    // admitting the long directory refresh, even when there is no host cache yet.
+                    if (availability.online) informationReady.await()
+                    bookRepository.getBookVolumesFlow(bookId, WebDataSourcePriority.High).collect {
+                        _uiState.bookVolumes = it
+                    }
                 }
             }
         }
@@ -120,6 +127,7 @@ class DetailViewModel @Inject constructor(
                         bookshelfRepository.updateBookshelfBookMetadataLastUpdateTime(bookId, it.lastUpdated)
                 }
                 _uiState.bookInformation = result.map { bookRepository.bookInformationForDisplay(it) }
+                informationReady.complete(Unit)
             }
         }
     }

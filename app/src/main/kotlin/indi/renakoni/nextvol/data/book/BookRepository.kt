@@ -336,10 +336,10 @@ class BookRepository @Inject constructor(
         downloads.state(book, localBookDataSource.getBookVolumes(book.storageKey), active)
     }
 
-    /** Download refresh must report remote failures even when the reader can keep showing local content. */
-    internal suspend fun downloadDirectory(book: SourceBookId): Result<BookVolumes, WebRequestError> =
+    /** Reuse the recent complete UI directory; otherwise refresh and report remote failures. */
+    internal suspend fun downloadDirectory(book: SourceBookId, fresh: Boolean = false): Result<BookVolumes, WebRequestError> =
         if (LocalBookStore.isLocal(book)) localBooks.readVolumes(book)
-        else chapterRepository.refreshBookVolumes(book, WebDataSourcePriority.Low, fresh = true)
+        else chapterRepository.refreshBookVolumes(book, WebDataSourcePriority.Low, fresh = true, reuseRecent = !fresh)
 
     internal suspend fun downloadChapter(book: SourceBookId, chapterId: String): Result<ChapterContent, WebRequestError> {
         val chapter = BookIdentity.chapter(chapterId, book)

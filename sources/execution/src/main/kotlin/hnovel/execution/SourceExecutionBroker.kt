@@ -14,12 +14,14 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
     private val speakSpeed: Int = 10, private val sourceName: String = "", private val sourceLastUpdateTime: Long = 0,
     private val requestUserAgent: String? = null, currentRequest: BrokerRequest? = null,
     private val memory: ScriptMemory = ScriptMemory(), private val onMessage: ((String) -> Unit)? = null,
-    private val retryContext: RequestRetryContext? = null) : AutoCloseable {
+    private val retryContext: RequestRetryContext? = null, private val directoryFields: Int = 0) : AutoCloseable {
     private val currentRequest = currentRequest?.let { it.copy(headers = it.headers.toMap()) }
     // Waiting for a person must not increase a single HTTP request's network budget.
-    private val requestTimeoutMillis = limits.timeoutMillis.coerceAtMost(60000)
+    private val requestTimeoutMillis = limits.timeoutMillis.coerceAtMost(if (directoryFields > 0) 30000 else 60000)
     private val lifetime = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var requests = 0
+    private var libraryRequests = 0
+    private var directoryField = -1
     private val storageReads = mutableSetOf<Pair<StorageArea, String>>()
     private var closed = false
     var interactionRequired = false
@@ -36,6 +38,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
         private set
 
     init {
+        require(directoryFields in 0..ExecutionTask.DirectoryRows.MAX_ROWS * ExecutionTask.DirectoryRows.FIELDS.size)
         require(identity.namespace == session.scope.namespace && identity.sourceId == session.scope.sourceId &&
             identity.profile == session.scope.profile && identity.accountGeneration == session.scope.accountGeneration)
         check(authority.accepts(identity) && !session.closed)
@@ -47,6 +50,8 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
         is ExecutionTask.Script -> baseUrl == task.baseUrl && keyword == task.key && page == task.page &&
             speakText == task.speakText && speakSpeed == task.speakSpeed
         is ExecutionTask.Rule -> speakText == null && baseUrl == task.baseUrl && keyword == task.key && page == task.page
+        is ExecutionTask.DirectoryRows -> directoryFields == task.inputs.size * task.rules.values.count { it.isNotBlank() } &&
+            matchesTaskContext(task.context)
         is ExecutionTask.BookOverviews -> speakText == null && baseUrl == task.baseUrl
         is ExecutionTask.SearchBooks -> speakText == null && baseUrl == task.baseUrl
         else -> true
@@ -60,6 +65,25 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
     }
 
     suspend fun call(name: String, args: List<JsonElement>): JsonElement {
+        if (directoryFields > 0) {
+            // Only the worker's batch loop supplies this envelope. Script host calls are always
+            // wrapped, so a script cannot reset its own budget or impersonate a later field.
+            authorized {
+                require(name == "directory.call" && args.size == 3)
+                val field = args[0].jsonPrimitive.int
+                require(field in 0 until directoryFields && field >= directoryField)
+                if (field != directoryField) {
+                    directoryField = field
+                    requests = libraryRequests
+                    storageReads.clear()
+                }
+            }
+            return callField(args[1].jsonPrimitive.content, args[2].jsonArray)
+        }
+        return callField(name, args)
+    }
+
+    private suspend fun callField(name: String, args: List<JsonElement>): JsonElement {
         requestFailure = null
         requestLimitExceeded = false
         responseLimitExceeded = false
@@ -487,6 +511,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
         var size = 0L
         SourceLibraryDefinition.urls(definition).map { url ->
             val requestNumber = reserveRequest()
+            authorized { libraryRequests++ }
             checkPermission(url, ResourceKind.Script)
             val digest = java.security.MessageDigest.getInstance("SHA-256").digest(url.toByteArray(Charsets.UTF_8))
                 .joinToString("") { "%02x".format(it.toInt() and 255) }

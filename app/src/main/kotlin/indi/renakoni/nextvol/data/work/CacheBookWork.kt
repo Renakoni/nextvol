@@ -44,6 +44,7 @@ import indi.renakoni.nextvol.data.download.downloadChapterSignature
 import indi.renakoni.nextvol.data.image.SourceImage
 import indi.renakoni.nextvol.data.web.SourceRequestVersion
 import indi.renakoni.nextvol.data.web.BackgroundSourceRequest
+import indi.renakoni.nextvol.data.web.DownloadSourceRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -146,7 +147,7 @@ class CacheBookWork @AssistedInject constructor(
                 Log.w(TAG, "Foreground download unavailable: ${failure.javaClass.simpleName}")
                 return bookWorkFailure("background_restricted", initial)
             }
-            return withContext((retry ?: kotlin.coroutines.EmptyCoroutineContext) +
+            return withContext(DownloadSourceRequest() + (retry ?: kotlin.coroutines.EmptyCoroutineContext) +
                 (version ?: kotlin.coroutines.EmptyCoroutineContext) + (verification ?: kotlin.coroutines.EmptyCoroutineContext)) {
                 // Record the task before details; identity promotion transfers it without owning files yet.
                 val information = NativeDownloadBudget.document(concurrent) {
@@ -201,7 +202,7 @@ class CacheBookWork @AssistedInject constructor(
         information: io.nightfish.lightnovelreader.api.book.BookInformation, task: BookDownloadStore.Task,
         concurrent: Boolean): Result {
         val item = MutableDownloadItem(DownloadType.CACHE, book.storageKey,
-            bookRepository.getBookInformationFlow(book.storageKey))
+            bookRepository.downloadInformationFlow(book.storageKey))
         downloadProgressRepository.addExportItem(item)
         var attempt: BookDownloadStore.Attempt? = null
         var complete = false
