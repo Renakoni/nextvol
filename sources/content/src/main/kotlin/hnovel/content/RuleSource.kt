@@ -855,7 +855,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             latestChapter = latest, updateTime = time, state = context.book).preservingValidMetadata(seed)
     }
 
-    private suspend fun directory(initial: BookRecord): BookRecord {
+    private suspend fun directory(initial: BookRecord): BookRecord = coroutineScope {
         // A web-novel catalogue may contain tens of thousands of rows. Its budget is
         // independent of a single chapter's pagination and includes all per-row rules.
         val context = evaluation(initial.book, maxRuleCalls = DIRECTORY_MAX_CHAPTERS * 8 + DIRECTORY_MAX_PAGES * 4)
@@ -869,45 +869,56 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         val rowRules = ExecutionTask.DirectoryRows.FIELDS.associateWith(spec.toc::string)
         var completePageList = false
         var interrupted: SourceContentException? = null
-        while (queue.isNotEmpty()) {
-            val url = queue.removeFirst()
-            if (url in visited) continue
-            visit(visited, url, "ruleToc.nextTocUrl", DIRECTORY_MAX_PAGES)
-            val document = try {
-                initial.document?.takeIf { visited.size == 1 && it.url == url }
-                    ?: fetch(context, url, "ruleToc.chapterList")
-            } catch (failure: SourceContentException) {
-                if (failure.code != ContentError.Network || chapters.none { !it.isVolume }) throw failure
-                interrupted = failure
-                break
-            }
-            context.baseUrl = document.ruleUrl
-            if (!document.inline && document.url != url && !visited.add(document.url)) continue
-            val items = context.value(rule.removePrefix("-").removePrefix("+"), document.input(), "ruleToc.chapterList", OutputKind.Elements).items()
-            if (items.size + chapters.size > DIRECTORY_MAX_CHAPTERS) throw SourceContentException(ContentError.Limit, "ruleToc.chapterList")
-            var index = 0
-            while (index < items.size) {
-                // Keep both large JSON rows and ordinary HTML pages within one bounded wire envelope.
-                var end = index
-                var chars = 0
-                while (end < items.size && end - index < ExecutionTask.DirectoryRows.MAX_ROWS) {
-                    val size = items[end].toString().length
-                    if (end > index && chars + size > 256 * 1024) break
-                    chars += size
-                    end++
+        var prefetch: DirectoryPrefetch? = null
+        try {
+            while (queue.isNotEmpty()) {
+                val url = queue.removeFirst()
+                if (url in visited) continue
+                visit(visited, url, "ruleToc.nextTocUrl", DIRECTORY_MAX_PAGES)
+                val document = try {
+                    initial.document?.takeIf { visited.size == 1 && it.url == url }
+                        ?: prefetch?.read(url)?.let { page ->
+                            context.requestUserAgent = session.requestUserAgent(page.response.finalUrl, page.request.headers)
+                            responseDocument(context, url, "ruleToc.chapterList", page.request, page.response, false)
+                        } ?: fetch(context, url, "ruleToc.chapterList")
+                } catch (failure: SourceContentException) {
+                    if (failure.code != ContentError.Network || chapters.none { !it.isVolume }) throw failure
+                    interrupted = failure
+                    break
                 }
-                chapters += context.directoryRows(items.subList(index, end), rowRules, document.url, url, index)
-                index = end
+                context.baseUrl = document.ruleUrl
+                if (!document.inline && document.url != url && !visited.add(document.url)) continue
+                val items = context.value(rule.removePrefix("-").removePrefix("+"), document.input(), "ruleToc.chapterList", OutputKind.Elements).items()
+                if (items.size + chapters.size > DIRECTORY_MAX_CHAPTERS) throw SourceContentException(ContentError.Limit, "ruleToc.chapterList")
+                var index = 0
+                while (index < items.size) {
+                    // Keep both large JSON rows and ordinary HTML pages within one bounded wire envelope.
+                    var end = index
+                    var chars = 0
+                    while (end < items.size && end - index < ExecutionTask.DirectoryRows.MAX_ROWS) {
+                        val size = items[end].toString().length
+                        if (end > index && chars + size > 256 * 1024) break
+                        chars += size
+                        end++
+                    }
+                    chapters += context.directoryRows(items.subList(index, end), rowRules, document.url, url, index)
+                    index = end
+                }
+                if (!completePageList) {
+                    val next = links(context, spec.toc.string("nextTocUrl"), document, "ruleToc.nextTocUrl")
+                        .filter { it != document.url }
+                    // Legado expands an initial page list once; a single link follows the next-page chain.
+                    completePageList = context.page == 1 && next.size > 1
+                    (if (completePageList) next else next.take(1)).forEach(queue::addLast)
+                    if (context.page == 1 && next.isNotEmpty()) {
+                        prefetch = directoryPrefetch(this, context, document, next,
+                            listOf(rule.removePrefix("-").removePrefix("+"), spec.toc.string("nextTocUrl")) + rowRules.values)
+                        prefetch?.start()
+                    }
+                }
+                context.page++
             }
-            if (!completePageList) {
-                val next = links(context, spec.toc.string("nextTocUrl"), document, "ruleToc.nextTocUrl")
-                    .filter { it != document.url }
-                // Legado expands an initial page list once; a single link follows the next-page chain.
-                completePageList = context.page == 1 && next.size > 1
-                (if (completePageList) next else next.take(1)).forEach(queue::addLast)
-            }
-            context.page++
-        }
+        } finally { withContext(NonCancellable) { prefetch?.stop() } }
         // The pinned default keeps the last occurrence, then restores the requested source order.
         val reverse = (context.book.metadata["readConfig"] as? JsonObject)?.get("reverseToc")?.jsonPrimitive?.booleanOrNull == true
         val ordered = (if (rule.startsWith('-')) chapters else chapters.reversed()).distinctBy { it.id }
@@ -939,7 +950,38 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             context.book = row.book
         }
         interrupted?.let { throw PartialDirectoryException(DirectorySnapshot(formatted, context.book), it) }
-        return initial.copy(book = initial.book.copy(state = context.book), chapters = formatted, document = null, partialDirectory = null)
+        initial.copy(book = initial.book.copy(state = context.book), chapters = formatted, document = null, partialDirectory = null)
+    }
+
+    private suspend fun directoryPrefetch(scope: CoroutineScope, context: RuleEvaluation, document: PageDocument,
+        next: List<String>, rules: List<String>): DirectoryPrefetch? {
+        // Static GET requests plus read-only selectors can run ahead of ordered parsing. Library,
+        // login, browser and stateful rule code retain the original next-page execution contract.
+        if (spec.library != null || spec.browserRead || spec.loginCheck.isNotBlank() || document.inline ||
+            !(next + spec.header).all(ExecutionTask.BookOverviews::supports)) return null
+        val urls = try { context.directoryPages(document, next, rules) }
+        catch (failure: SourceContentException) {
+            if (failure.code !in setOf(ContentError.Limit, ContentError.InvalidRule)) throw failure
+            return null
+        }
+        if (urls.isEmpty()) return null
+        val headers = context.headers()
+        val requests = urls.map { url ->
+            if (!ExecutionTask.BookOverviews.supports(url)) return null
+            val request = (RequestCompiler().compile("directory", url, document.url, headers = headers)
+                as? CompiledRequest.Ready)?.request ?: return null
+            if (request.url != url || !url.startsWith("http") || request.method != "GET" || request.body != null ||
+                request.browser != null || request.responseAsHex || request.cache != CacheMode.Disabled ||
+                session.permissionFailureDetail(url) != null) return null
+            request.copy(maxResponseBytes = DirectoryPrefetch.MAX_RESPONSE_BYTES)
+        }
+        val route = session.responseRoute() ?: return null
+        trace.record(ContentTraceEvent("concurrency", "ruleToc", 0, requests.size, result = "Prefetch${BrokerLimits.DEFAULT_CONCURRENCY}"))
+        return DirectoryPrefetch(scope, requests) { request ->
+            val cookies = session.responseCookies(request.url)
+            val response = executeRequest(request, "ruleToc.chapterList", route = route)
+            DirectoryPrefetch.Page(request, response, cookies == session.responseCookies(request.url))
+        }
     }
 
     private suspend fun record(id: String, reuseInformation: Boolean = false): BookRecord {

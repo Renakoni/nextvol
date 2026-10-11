@@ -101,6 +101,10 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         execute(ExecutionTask.DiscoveryReadPlan(urls, header, rules), field,
             (urls + rules + header).sumOf { it.length }).value.text() == "true"
 
+    suspend fun directoryPages(document: PageDocument, next: List<String>, rules: List<String>): List<String> =
+        execute(ExecutionTask.DirectoryPages(document.body, document.url, next, rules), "ruleToc.pagePlan",
+            document.body.length).value.items().map { it.text() }
+
     suspend fun directoryRows(inputs: List<RuleValue>, rules: Map<String, String>, documentUrl: String,
         requestUrl: String, startIndex: Int): List<RuleChapter> {
         val count = inputs.size * rules.values.count { it.isNotBlank() }
