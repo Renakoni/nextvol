@@ -185,12 +185,14 @@ class BookDownloadTest {
             var body = "old body"
             val bodyCalls = java.util.concurrent.atomic.AtomicInteger()
             val imageCalls = java.util.concurrent.atomic.AtomicInteger()
+            val informationCalls = java.util.concurrent.atomic.AtomicInteger()
+            val directoryCalls = java.util.concurrent.atomic.AtomicInteger()
             fixture.server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
                 override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): okhttp3.mockwebserver.MockResponse {
                     val response = okhttp3.mockwebserver.MockResponse()
                     return when (request.path) {
-                        "/book/one" -> response.setBody("<h1>Book</h1><a class='toc' href='/toc/1'>toc</a>")
-                        "/toc/1" -> response.setBody("<li><a href='/c/1'>One</a></li>")
+                        "/book/one" -> { informationCalls.incrementAndGet(); response.setBody("<h1>Book</h1><a class='toc' href='/toc/1'>toc</a>") }
+                        "/toc/1" -> { directoryCalls.incrementAndGet(); response.setBody("<li><a href='/c/1'>One</a></li>") }
                         "/c/1" -> { bodyCalls.incrementAndGet(); response.setBody("<article><p>$body</p><img src='/image.png'></article>") }
                         "/image.png" -> { imageCalls.incrementAndGet(); response.setBody(okio.Buffer().write(png)) }
                         else -> response.setResponseCode(404)
@@ -214,7 +216,11 @@ class BookDownloadTest {
             val book = SourceBookId(a.sourceId, fixture.server.url("/book/one").toString())
             val id = SourceChapterId(book, fixture.server.url("/c/1").toString()).storageKey
             val image = SourceImage(book, fixture.server.url("/image.png").toString(), chapterId = id)
+            withContext(ForegroundSourceRequest()) { books.getBookInformationFlow(book.storageKey).toList() }
             books.getBookVolumesFlow(book.storageKey).toList()
+            assertTrue(books.downloadDirectory(book).isOk) // Selection uses the complete detail snapshot.
+            assertEquals(1, informationCalls.get())
+            assertEquals(1, directoryCalls.get())
             books.preloadChapterContent(id, book.storageKey)
             val afterPreload = fixture.server.requestCount
             assertEquals(1, bodyCalls.get())
@@ -223,10 +229,19 @@ class BookDownloadTest {
             assertEquals(ListenableWorker.Result.success(), submittedDownload(book))
             assertEquals(1, bodyCalls.get()) // Promote validated reading content; only fetch its image.
             assertEquals(1, imageCalls.get())
+            assertEquals(1, informationCalls.get())
+            assertEquals(1, directoryCalls.get()) // Worker consumes the same snapshot without any rules/network.
+            val beforeProgress = fixture.server.requestCount
+            val item = mutableListOf<MutableDownloadItem>()
+            io.mockk.verify { progress.addExportItem(capture(item)) }
+            item.single().bookInformationFlow.first()
+            assertEquals(beforeProgress, fixture.server.requestCount)
             body = "new body"
             assertEquals(ListenableWorker.Result.success(), submittedDownload(book))
             assertEquals(1, bodyCalls.get()) // Downloaded chapters are final; a later run fetches nothing.
             assertEquals(1, imageCalls.get())
+            assertEquals(2, informationCalls.get())
+            assertEquals(2, directoryCalls.get()) // A later task refreshes after the handoff was consumed.
             assertArrayEquals(png, downloads.image(image)!!.readBytes())
             registry.unregister(book.sourceId)
             val beforeOffline = fixture.server.requestCount
@@ -469,6 +484,29 @@ class BookDownloadTest {
         assertEquals(3, local.getBookVolumes(a.storageKey)!!.volumes.single().chapters.size)
     }
 
+    @Test fun directoryHandoffExpiresAndCannotHideRefreshFailuresOrSourceChanges() = runBlocking {
+        val source = register(a)
+        assertTrue(books.downloadDirectory(a).isOk)
+        source.directoryFailed = true
+        assertTrue(books.downloadDirectory(a).isOk)
+        assertEquals(1, source.directoryCalls)
+        assertTrue(books.downloadDirectory(a, fresh = true).isErr)
+        assertTrue(books.downloadDirectory(a).isErr)
+        source.directoryFailed = false
+        assertTrue(books.downloadDirectory(a).isOk)
+        org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofMinutes(2))
+        source.directoryFailed = true
+        assertTrue(books.downloadDirectory(a).isErr)
+        for ((revision, account) in listOf("1" to 1L, "2" to 1L)) {
+            source.directoryFailed = false
+            assertTrue(books.downloadDirectory(a).isOk)
+            registry.unregister(a.sourceId)
+            register(a, revision, source, account)
+            source.directoryFailed = true
+            assertTrue(books.downloadDirectory(a).isErr)
+        }
+    }
+
     @Test fun failedIdentityPreflightRetainsOfflineDataButMarksTheUpdateFailed() = runBlocking {
         val source = register(a)
         assertEquals(ListenableWorker.Result.success(), download())
@@ -538,7 +576,7 @@ class BookDownloadTest {
         assertEquals(ListenableWorker.Result.success(), download())
         assertEquals(mapOf("1" to 1, "2" to 1, "3" to 1), source.chapterCalls)
         source.chapters = source.chapters + ChapterInformation("4", "New")
-        books.downloadDirectory(a)
+        books.downloadDirectory(a, fresh = true)
         assertEquals(BookDownloadState(BookDownloadPhase.Partial, 3, 4), state())
         assertEquals(ListenableWorker.Result.success(), download())
         // Chapter 3 gained a next chapter; it is still not fetched again.
@@ -546,7 +584,7 @@ class BookDownloadTest {
         assertEquals(BookDownloadState(BookDownloadPhase.Complete, 4, 4), state())
         source.volumeId = "replacement"
         source.chapters = listOf(ChapterInformation("4", "Only new chapter"))
-        books.downloadDirectory(a)
+        books.downloadDirectory(a, fresh = true)
         assertEquals(1, local.getBookVolumes(a.storageKey)!!.volumes.size)
         assertEquals(BookDownloadState(BookDownloadPhase.Complete, 1, 1), state())
         assertNotNull("Removed remote chapters remain available until download cleanup", chapter(a, "1"))

@@ -3,7 +3,6 @@ package hnovel.content
 import hnovel.imports.SourceDefinition
 import hnovel.network.LocalStorageRetention
 import kotlinx.serialization.json.*
-import java.net.URL
 import java.security.MessageDigest
 
 /** Parsed definition data. Nothing here grants network access or executes source expressions. */
@@ -54,16 +53,6 @@ internal fun digest(value: String) = MessageDigest.getInstance("SHA-256").digest
 
 /** Keep request options with their logical URL; their scripts are evaluated only before dispatch. */
 internal fun sourceLink(base: String, value: String): String {
-    val option = Regex(",\\s*(?=\\{)").find(value)?.range?.first ?: value.length
-    val address = value.substring(0, option).trim()
-    if (address.startsWith("data:")) return address + value.substring(option)
-    val baseEnd = Regex(",\\s*(?=\\{)").find(base)?.range?.first ?: base.length
-    // Keep the logical URL (including unencoded chapter titles) until request charset expansion.
-    val resolved = try { if (address.startsWith("http://", true) || address.startsWith("https://", true)) URL(address)
-        else URL(URL(base.substring(0, baseEnd).trim()), address) }
-        catch (_: Exception) { throw SourceContentException(ContentError.InvalidRule, "url") }
-    val scheme = resolved.protocol?.lowercase()
-    if (scheme !in setOf("http", "https") || resolved.host.isNullOrBlank() || resolved.userInfo != null)
-        throw SourceContentException(ContentError.InvalidRule, "url")
-    return resolved.toString().replaceFirst(Regex("^[A-Za-z][A-Za-z0-9+.-]*:"), "$scheme:") + value.substring(option)
+    return try { hnovel.execution.resolveSourceLink(base, value) }
+        catch (_: IllegalArgumentException) { throw SourceContentException(ContentError.InvalidRule, "url") }
 }

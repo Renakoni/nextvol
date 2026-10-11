@@ -496,7 +496,7 @@ class RuleSourceTest {
         }
         RuleSourceFixture(browser).use { fixture ->
             val normal = fixture.server.dispatcher
-            val pages = mutableListOf<String>()
+            val pages = java.util.Collections.synchronizedList(mutableListOf<String>())
             var expansions = 0
             fixture.afterRun = { task ->
                 if (task is ExecutionTask.Rule && task.location.field == "ruleToc.nextTocUrl") expansions++
@@ -528,7 +528,7 @@ class RuleSourceTest {
                 assertEquals(listOf("One", "Two words", "Three"), chapters.map { it.title })
                 assertEquals(chapters.mapIndexed { index, chapter -> fixture.server.url("/c/${index + 1}").toString() +
                     "?cName=${chapter.title},{'webView':true}" }, chapters.map { it.id })
-                assertEquals(listOf("/toc/1", "/toc/2", "/toc/3", "/toc/4"), pages)
+                assertEquals(listOf("/toc/1", "/toc/2", "/toc/3", "/toc/4"), pages.sorted())
                 assertEquals(1, expansions)
                 source.content(id, chapters.first().id)
                 assertEquals(listOf("/c/1"), rendered)

@@ -39,6 +39,14 @@ internal val ExecutionLimits.scriptDataLimit: Int get() = maxDataBytes ?: maxOut
  @Serializable data class ContentMarkup(val html: String,
   val location: RuleLocation = RuleLocation("ruleContent.parts"), val formatted: Boolean = false) : ExecutionTask
  @Serializable data class DiscoveryReadPlan(val urls: List<String>, val header: String, val rules: List<String>) : ExecutionTask
+ @Serializable data class DirectoryPages(val html: String, val url: String, val next: List<String>, val rules: List<String>) : ExecutionTask
+ @Serializable data class DirectoryRows(val inputs: List<RuleValue>, val rules: Map<String, String>, val context: Rule,
+  val documentUrl: String, val requestUrl: String, val startIndex: Int = 0) : ExecutionTask {
+  companion object {
+   const val MAX_ROWS = 64
+   val FIELDS = listOf("chapterName", "chapterUrl", "updateTime", "isVolume", "isVip", "isPay")
+  }
+ }
  @Serializable data class SearchBooks(val inputs: List<RuleValue>, val rules: Map<String, String>, val baseUrl: String,
   val fallbackTitle: String = "") : ExecutionTask {
   companion object {
@@ -75,6 +83,7 @@ internal val ExecutionLimits.scriptDataLimit: Int get() = maxDataBytes ?: maxOut
 fun ExecutionTask.libraryCode(): String? = when (this) {
  is ExecutionTask.Script -> libraryCode
  is ExecutionTask.Rule -> libraryCode
+ is ExecutionTask.DirectoryRows -> context.libraryCode
  else -> null
 }
 @Serializable sealed interface ExecutionResult {
@@ -249,8 +258,11 @@ class WorkerRuntime(private val archives: hnovel.rhino.ArchiveDecoder = hnovel.r
   val result = when (val task = wire.task) {
    is ExecutionTask.ContentMarkup -> WorkerContentMarkup.evaluate(task, wire.limits)
    is ExecutionTask.DiscoveryReadPlan -> WorkerDiscoveryReadPlan.evaluate(task, wire.limits)
+   is ExecutionTask.DirectoryPages -> WorkerDirectoryPages.evaluate(task, wire.limits)
    is ExecutionTask.BookOverviews -> WorkerBookOverviews.evaluate(task, wire.identity, wire.limits)
    is ExecutionTask.SearchBooks -> WorkerSearchBooks.evaluate(task, wire.identity, wire.limits)
+   is ExecutionTask.DirectoryRows -> WorkerDirectoryRows.evaluate(task, wire.identity, wire.limits, bridge,
+    library(wire.identity, task.context.libraryCode, wire.libraryScripts), archives)
    is ExecutionTask.Rule -> WorkerRuleEvaluator.evaluate(task, wire.identity, wire.limits, bridge,
     library(wire.identity, task.libraryCode, wire.libraryScripts), archives)
    is ExecutionTask.Echo -> if (task.value.toByteArray().size > wire.limits.maxOutputBytes) ExecutionResult.Failure(FailureCode.OutputLimit) else ExecutionResult.Success(task.value)

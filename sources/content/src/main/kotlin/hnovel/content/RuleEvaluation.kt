@@ -101,6 +101,38 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         execute(ExecutionTask.DiscoveryReadPlan(urls, header, rules), field,
             (urls + rules + header).sumOf { it.length }).value.text() == "true"
 
+    suspend fun directoryPages(document: PageDocument, next: List<String>, rules: List<String>): List<String> =
+        execute(ExecutionTask.DirectoryPages(document.body, document.url, next, rules), "ruleToc.pagePlan",
+            document.body.length).value.items().map { it.text() }
+
+    suspend fun directoryRows(inputs: List<RuleValue>, rules: Map<String, String>, documentUrl: String,
+        requestUrl: String, startIndex: Int): List<RuleChapter> {
+        val count = inputs.size * rules.values.count { it.isNotBlank() }
+        if (count > 1 && calls.addAndGet(count - 1) >= maxRuleCalls)
+            throw SourceContentException(ContentError.Limit, "ruleToc.rows")
+        val chapters = mutableListOf<RuleChapter>()
+        var offset = 0
+        while (offset < inputs.size) {
+            val context = ExecutionTask.Rule("", RuleValue.Empty, OutputKind.Text, RuleLocation("ruleToc.rows"),
+                bookId = bookId, key = keyword, page = page, baseUrl = baseUrl, libraryCode = library,
+                sourceVariables = book.inherited, bookVariables = book.variables, book = book.metadata,
+                bookBigVariables = book.bigVariables, sourceHeaderRule = headerRule,
+                sourceLoginUrl = sourceLoginUrl, sourceComment = sourceComment)
+            val pending = inputs.subList(offset, inputs.size)
+            val executed = execute(ExecutionTask.DirectoryRows(pending, rules, context, documentUrl, requestUrl, startIndex + offset),
+                "ruleToc.rows", pending.sumOf { it.toString().length })
+            if (executed.directoryInputs !in 1..pending.size)
+                throw SourceContentException(ContentError.InvalidRule, "ruleToc.rows")
+            offset += executed.directoryInputs
+            book = book.copy(metadata = executed.book ?: book.metadata,
+                variables = applyWrites(book.variables, executed.bookWrites),
+                bigVariables = applyWrites(book.bigVariables, executed.bookBigWrites))
+            chapters += executed.directoryRows.map { row -> RuleChapter(row.id, row.title, row.isVolume, row.isVip, row.isPay,
+                row.updateTime, ScriptState(row.metadata, row.variables, row.bigVariables, row.inherited)) }
+        }
+        return chapters
+    }
+
     private suspend fun execute(task: ExecutionTask, field: String, inputChars: Int): ExecutedRule {
         currentCoroutineContext().ensureActive()
         if (!authority.accepts(identity)) throw SourceContentException(ContentError.Unavailable, field)
@@ -113,6 +145,8 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
             // A single JSON response can contain thousands of complete chapter objects.
             // Retain their fields until per-chapter rules run, within the existing wire bound.
             "ruleToc.chapterList" -> this.limits.copy(maxOutputBytes = 16 * 1024 * 1024, maxDataBytes = BridgeWire.MAX_REPLY_BYTES)
+            // The worker yields between rows; each field retains its original 30-second budget.
+            "ruleToc.rows" -> this.limits.copy(timeoutMillis = 300000, maxOutputBytes = 4 * 1024 * 1024)
             "ruleSearch.bookList", "ruleExplore.bookList" ->
                 this.limits.copy(maxOutputBytes = 2 * 1024 * 1024, maxDataBytes = BridgeWire.MAX_REPLY_BYTES)
             "ruleExplore.overviews", "ruleSearch.books" -> this.limits.copy(maxOutputBytes = 4 * 1024 * 1024)
@@ -127,7 +161,8 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         val result = SourceExecutionBroker(identity, authority, session, limits, baseUrl, keyword, page,
             allowInteraction = interactive, sourceName = sourceName, sourceLastUpdateTime = sourceLastUpdateTime,
             requestUserAgent = requestUserAgent.takeUnless { field == "header" }, currentRequest = currentRequest, memory = memory,
-            onMessage = onMessage, retryContext = currentCoroutineContext()[hnovel.network.RequestRetryContext]).use {
+            onMessage = onMessage, retryContext = currentCoroutineContext()[hnovel.network.RequestRetryContext],
+            directoryFields = if (task is ExecutionTask.DirectoryRows) task.inputs.size * task.rules.values.count { it.isNotBlank() } else 0).use {
             val executed = try { runner.execute(identity, task, limits, it) }
             catch (cancelled: java.util.concurrent.CancellationException) { throw cancelled }
             catch (failure: Exception) {
@@ -146,7 +181,8 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         val failure = result as? ExecutionResult.Failure
         val dependency = failure?.takeIf { it.code == FailureCode.UnsupportedDependency }?.dependency
         val failureField = if (dependency != null && failure.ruleError?.location?.field == "jsLib") "jsLib"
-            else if (task is ExecutionTask.BookOverviews || task is ExecutionTask.SearchBooks) failure?.ruleError?.location?.field ?: field else field
+            else if (task is ExecutionTask.BookOverviews || task is ExecutionTask.SearchBooks || task is ExecutionTask.DirectoryRows)
+                failure?.ruleError?.location?.field ?: field else field
         trace.record(ContentTraceEvent("rule", failureField, (System.nanoTime() - started) / 1_000_000,
             inputChars, (result as? ExecutionResult.Success)?.output?.length ?: 0,
             if (result is ExecutionResult.Failure && result.code == FailureCode.BridgeDenied)
