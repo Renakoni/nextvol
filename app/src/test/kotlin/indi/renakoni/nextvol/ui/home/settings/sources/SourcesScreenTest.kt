@@ -137,6 +137,10 @@ class SourcesScreenTest {
         editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, first))
         compose.onAllNodesWithText("Replace").onFirst().performClick()
         org.junit.Assert.assertEquals(raw.replaceFirst("old.example", "new"), state.editor!!.rawJson)
+        val remaining = state.editor!!.rawJson.indexOf("old.example")
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange,
+            androidx.compose.ui.text.TextRange(remaining, remaining + "old.example".length)))
+        compose.onNodeWithText("1/1").assertExists()
         compose.onNodeWithText("Replace all").performClick()
         org.junit.Assert.assertEquals(raw.replace("old.example", "new"), state.editor!!.rawJson)
         compose.onNodeWithContentDescription("Next").assertIsNotEnabled()
@@ -149,6 +153,72 @@ class SourcesScreenTest {
         compose.onNodeWithContentDescription("Editor tools").performClick()
         compose.onNodeWithText("Format JSON").performClick()
         verify(exactly = 1) { model.formatEditor() }
+        verify(exactly = 0) { model.saveEditor() }
+    }
+
+    @Test fun restoredPermissionDraftTracksAuthorizationsSavedInEditor() {
+        val definition = SourceDefinition("fixture", "legado", "fixture", "https://old.example/",
+            "Source fixture", false, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
+        val installed = InstalledRuleSource(definition, listOf(hnovel.network.NetworkGrant("https://old.example:443")))
+        val id = ImportedRuleSources.id(definition)
+        var state by mutableStateOf(SourceManagementState(installed = listOf(installed), selected = id))
+        every { model.beginEditor(id) } answers { state = state.copy(editor = SourceEditorState(installed, "{}")) }
+        every { model.closeEditor() } answers { state = state.copy(editor = null) }
+        activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
+        compose.onNodeWithText("Network permissions").performScrollTo().performClick()
+        val permissions = compose.onNodeWithText("Allowed site origins, one per line")
+        val unsaved = "https://old.example:443\nhttps://draft.example:443"
+        permissions.performScrollTo().performTextReplacement(unsaved)
+        compose.onNodeWithText("Edit source").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Source rules (JSON)").assertExists()
+        compose.onNodeWithContentDescription("Back").performClick()
+        permissions.performScrollTo().assertTextContains(unsaved)
+        compose.onNodeWithText("Edit source").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Source rules (JSON)").assertExists()
+        val updated = installed.copy(definition = definition.copy(revision = 2),
+            origins = installed.origins + hnovel.network.NetworkGrant("https://new.example:443"))
+        compose.runOnIdle {
+            state = state.copy(installed = listOf(updated), editor = SourceEditorState(updated, "{}", saved = true))
+        }
+        compose.onNodeWithContentDescription("Back").performClick()
+        val granted = "https://old.example:443\nhttps://new.example:443"
+        permissions.performScrollTo().assertTextContains(granted)
+        compose.onNodeWithText("Save permissions").performScrollTo().performClick()
+        verify(exactly = 1) { model.savePermissions(id, granted) }
+    }
+
+    @Test fun findNavigationAndReplacementUseOnlyCountedMatches() {
+        val definition = SourceDefinition("fixture", "legado", "fixture", "https://old.example/",
+            "Source fixture", false, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
+        val raw = """{"value":"aaaaa"}"""
+        var draft by mutableStateOf(SourceEditorState(InstalledRuleSource(definition, emptyList()), raw))
+        every { model.editDraft(any()) } answers { draft = draft.copy(rawJson = firstArg()) }
+        activity.get().setContent { MaterialTheme { SourceEditorScreen(draft, false, model, finding = true) } }
+        val editor = compose.onNodeWithContentDescription("Source rules (JSON)")
+        val start = raw.indexOf("aaaaa")
+        compose.onNodeWithContentDescription("Find").performTextInput("aa")
+        compose.onNodeWithContentDescription("Next").performClick()
+        compose.onNodeWithText("1/2").assertExists()
+        compose.onNodeWithContentDescription("Previous").performClick()
+        compose.onNodeWithText("2/2").assertExists()
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange,
+            androidx.compose.ui.text.TextRange(start + 2, start + 4)))
+        compose.onNodeWithContentDescription("Next").performClick()
+        compose.onNodeWithText("1/2").assertExists()
+        editor.performTextInputSelection(androidx.compose.ui.text.TextRange(start + 1, start + 3))
+        compose.onNodeWithText("2 matches").assertExists()
+        compose.onNodeWithContentDescription("Show replace").performClick()
+        compose.onNodeWithContentDescription("Replace with").performTextInput("x")
+        compose.onNodeWithText("Replace").performClick()
+        org.junit.Assert.assertEquals("""{"value":"xaaa"}""", draft.rawJson)
+        compose.onNodeWithText("1/1").assertExists()
+        editor.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange,
+            androidx.compose.ui.text.TextRange(start + 1, start + 3)))
+        compose.onNodeWithContentDescription("Previous").performClick()
+        compose.onNodeWithText("1/1").assertExists()
+        compose.onNodeWithText("Replace all").performClick()
+        org.junit.Assert.assertEquals("""{"value":"xxa"}""", draft.rawJson)
+        compose.onNodeWithContentDescription("Next").assertIsNotEnabled()
         verify(exactly = 0) { model.saveEditor() }
     }
 

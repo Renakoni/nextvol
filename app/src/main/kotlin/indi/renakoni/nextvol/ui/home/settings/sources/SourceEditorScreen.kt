@@ -52,27 +52,19 @@ internal fun SourceEditorScreen(draft: SourceEditorState, busy: Boolean, model: 
         if (value.text != draft.rawJson) value = TextFieldValue(draft.rawJson,
             TextRange(value.selection.start.coerceAtMost(draft.rawJson.length)))
     }
-    val matches = remember(value.text, query) {
-        if (query.isEmpty()) emptyList() else buildList {
-            var index = value.text.indexOf(query)
-            while (index >= 0) { add(index); index = value.text.indexOf(query, index + query.length) }
-        }
-    }
+    val matches = remember(value.text, query) { editorMatches(value.text, query) }
     fun change(next: TextFieldValue) {
         value = next
         if (next.text != draft.rawJson) model.editDraft(next.text)
     }
-    fun find(backwards: Boolean = false) {
-        if (query.isEmpty()) return
-        val index = if (backwards) value.text.lastIndexOf(query, value.selection.min - 1).takeIf { it >= 0 }
-            ?: value.text.lastIndexOf(query) else value.text.indexOf(query, value.selection.max).takeIf { it >= 0 }
-            ?: value.text.indexOf(query)
-        if (index < 0) return
+    fun find(backwards: Boolean = false, positions: List<Int> = matches) {
+        if (positions.isEmpty()) return
+        val index = if (backwards) positions.lastOrNull { it < value.selection.min } ?: positions.last()
+            else positions.firstOrNull { it >= value.selection.max } ?: positions.first()
         value = value.copy(selection = TextRange(index, index + query.length))
         editorFocus.requestFocus()
     }
-    val selectedMatch = query.isNotEmpty() && !value.selection.collapsed &&
-        value.text.substring(value.selection.min, value.selection.max) == query
+    val selectedMatch = if (value.selection.length == query.length) matches.indexOf(value.selection.min) else -1
     Column(modifier.fillMaxSize().imePadding()) {
         if (finding) Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
             Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp)) {
@@ -88,11 +80,11 @@ internal fun SourceEditorScreen(draft: SourceEditorState, busy: Boolean, model: 
                         if (largeText) Modifier.fillMaxWidth() else Modifier.weight(1f),
                         onValueChange = { replacement = it })
                     TextButton(onClick = {
-                        val start = if (selectedMatch) value.selection.min else
-                            value.text.indexOf(query, value.selection.max).takeIf { it >= 0 } ?: value.text.indexOf(query)
-                        if (start >= 0) change(TextFieldValue(value.text.replaceRange(start, start + query.length, replacement),
+                        val start = if (selectedMatch >= 0) matches[selectedMatch] else
+                            matches.firstOrNull { it >= value.selection.max } ?: matches.first()
+                        change(TextFieldValue(value.text.replaceRange(start, start + query.length, replacement),
                             TextRange(start + replacement.length)))
-                        find()
+                        find(positions = editorMatches(value.text, query))
                     }, enabled = !busy && matches.isNotEmpty()) { Text(stringResource(R.string.sources_editor_replace)) }
                     TextButton(onClick = {
                         change(TextFieldValue(value.text.replace(query, replacement)))
@@ -108,7 +100,7 @@ internal fun SourceEditorScreen(draft: SourceEditorState, busy: Boolean, model: 
                     Spacer(Modifier.weight(1f))
                     if (query.isNotEmpty()) Text(when {
                         matches.isEmpty() -> stringResource(R.string.sources_editor_no_matches)
-                        selectedMatch -> "${matches.indexOf(value.selection.min) + 1}/${matches.size}"
+                        selectedMatch >= 0 -> "${selectedMatch + 1}/${matches.size}"
                         else -> stringResource(R.string.sources_editor_match_count, matches.size)
                     }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     IconButton(onClick = { find(true) }, enabled = !busy && matches.isNotEmpty()) {
@@ -156,6 +148,12 @@ internal fun SourceEditorScreen(draft: SourceEditorState, busy: Boolean, model: 
         } },
         dismissButton = { TextButton(onClick = model::dismissEditorOrigins, enabled = !busy) { Text(stringResource(android.R.string.cancel)) } })
 }
+
+private fun editorMatches(text: String, query: String): List<Int> =
+    if (query.isEmpty()) emptyList() else buildList {
+        var index = text.indexOf(query)
+        while (index >= 0) { add(index); index = text.indexOf(query, index + query.length) }
+    }
 
 @Composable
 private fun EditorSearchField(value: String, label: String, enabled: Boolean, modifier: Modifier,

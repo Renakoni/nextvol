@@ -355,7 +355,14 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                     val definition = installed.definition
                     val settings = checkNotNull(state.ruleSettings)
                     var configuration by rememberSaveable(definition.sourceId, state.variable) { mutableStateOf(state.variable) }
-                    var permissions by rememberSaveable(definition.sourceId, installed.origins) { mutableStateOf(installed.origins.joinToString("\n") { it.origin }) }
+                    val grantedPermissions = installed.origins.joinToString("\n") { it.origin }
+                    var permissionBaseline by rememberSaveable(definition.sourceId) { mutableStateOf(grantedPermissions) }
+                    var permissions by rememberSaveable(definition.sourceId) { mutableStateOf(grantedPermissions) }
+                    // SaveableStateProvider restores values without rechecking rememberSaveable inputs.
+                    if (permissionBaseline != grantedPermissions) {
+                        permissionBaseline = grantedPermissions
+                        permissions = grantedPermissions
+                    }
                     var showDetails by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
                     var editPermissions by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
                     var editVariable by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
