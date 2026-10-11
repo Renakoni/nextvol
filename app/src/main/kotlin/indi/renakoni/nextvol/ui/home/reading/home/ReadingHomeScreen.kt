@@ -97,7 +97,7 @@ import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.UserReadingData
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
 import java.time.format.DateTimeFormatter
@@ -106,7 +106,7 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun ReadingScreen(
-    recentReadingBooks: List<Pair<String, Flow<Result<RecentReadingBook, WebRequestError>>>>,
+    recentReadingBooks: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>>,
     onClickBook: (String) -> Unit,
     onClickContinueReading: (String, String) -> Unit,
     onClickDownloadManager: () -> Unit,
@@ -158,7 +158,7 @@ private fun ReadingContent(
     onClickContinueReading: (String, String) -> Unit,
     onAddBook: (String) -> Unit,
     onRemoveBook: (String) -> Unit,
-    recentReadingBooks: List<Pair<String, Flow<Result<RecentReadingBook, WebRequestError>>>>,
+    recentReadingBooks: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>>,
     onClickOpenChapters: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -264,7 +264,7 @@ private fun ReadingContent(
                     .padding(horizontal = 12.dp)
                     .height(146.dp)
             ) {
-                val result by pair.second.collectAsStateWithLifecycle(null)
+                val result by pair.second.collectAsStateWithLifecycle()
                 result?.onOk {
                     ReadingBookCard(
                         bookInformation = it.bookInformation,
@@ -498,7 +498,7 @@ private fun ReadingBookCard(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ReadingHeaderCardPager(
-    items: List<Pair<String, Flow<Result<RecentReadingBook, WebRequestError>>>>,
+    items: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>>,
     modifier: Modifier = Modifier,
     onClickContinueReading: (String, String) -> Unit,
     onClickOpenChapters: (String) -> Unit,
@@ -554,7 +554,7 @@ fun ReadingHeaderCardPager(
                     .background(colorScheme.surfaceVariant.copy(alpha = 0.14f))
                     .padding(8.dp)
             ) {
-                val recentReadingBookResult by recentReadingBookFlow.collectAsStateWithLifecycle(null)
+                val recentReadingBookResult by recentReadingBookFlow.collectAsStateWithLifecycle()
                 recentReadingBookResult?.onOk {
                     ReadingHeaderCardPage(
                         info = it.bookInformation,
