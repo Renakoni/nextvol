@@ -53,6 +53,8 @@ class ReaderJourneyBenchmark {
     @Test fun longChapterFirstTextAndFrames() = startup(StartupMode.COLD, "long")
     @Test fun oversizedParagraphFirstTextAndFrames() = startup(StartupMode.COLD, "paragraph")
     @Test fun mixedContentFirstTextAndFrames() = startup(StartupMode.COLD, "mixed")
+    @Test fun thousandComponentsFirstTextAndFrames() = startup(StartupMode.COLD, "components")
+    @Test fun shortComponentsFirstTextAndFrames() = startup(StartupMode.COLD, "components-short")
 
     private fun startup(mode: StartupMode, profile: String = "short") = measure(
         profile = profile, startup = mode,
@@ -65,8 +67,14 @@ class ReaderJourneyBenchmark {
         assertEquals("Wrong original starting character", "1:0:0", state.getString("anchor"))
         assertEquals("Trusted cache must not request remote text", 0, state.getInt("requests"))
         // The controls are live independently of readiness. The acknowledgement is not TTFD.
-        device.swipe(device.displayWidth / 2, device.displayHeight * 4 / 5,
-            device.displayWidth / 2, device.displayHeight / 3, 24)
+        repeat(if (profile.startsWith("components")) 8 else 1) {
+            device.swipe(device.displayWidth / 2, device.displayHeight * 4 / 5,
+                device.displayWidth / 2, device.displayHeight / 3, 24)
+        }
+        if (profile == "components") {
+            assertTrue("Scrolled source components must remain visible", device.hasObject(By.textContains("R1_P")))
+            assertFalse("The chapter must advance beyond its first component", device.hasObject(By.textContains("R1_P0000")))
+        }
         if (profile == "mixed") {
             var scrolls = 0
             while (!device.hasObject(By.textContains("R1_AFTER_IMAGE")) && scrolls++ < 20) {
@@ -110,9 +118,16 @@ class ReaderJourneyBenchmark {
         report(after)
     }
 
-    @Test fun fontModeAndActivityRecreationReportOriginalAnchor() = measure {
+    @Test fun fontModeAndActivityRecreationReportOriginalAnchor() = measure(profile = "components") {
+        repeat(3) {
+            device.swipe(device.displayWidth / 2, device.displayHeight * 4 / 5,
+                device.displayWidth / 2, device.displayHeight / 3, 24)
+        }
+        assertFalse(device.hasObject(By.textContains("R1_P0000")))
         click("Bigger")
         readable("1", "font")
+        assertTrue("Font reflow must report the visible source component",
+            state().getString("anchor").split(':')[1].toInt() > 0)
         report(state())
         click("Mode")
         readable("1", "mode")

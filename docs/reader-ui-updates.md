@@ -59,6 +59,8 @@ flowchart TD
 | 列表与显示 | `LazyColumn.itemsIndexed` → `TextContent` → `ScrollTextContent` / 非文字组件 `Content` | Lazy 条目 key 为章节 ID，准备任务外层 key 为列表身份和章节 ID；每次实际放置只组合、测量附近文字片段。共享选择容器保留跨段选择。 |
 | 首次定位 | `ScrollContentTextComponent` 内恢复 effect → `scrollToItem` → `onProgressRestored` | 列表可先在加载层后布局。当前章几何、位置和组件坐标准备好后才显示正文；`entryReady` 使后续重排不重新盖上整页加载层。 |
 
+滚动渲染器在父组合中捕获一次章节窗口快照，排版准备、Lazy 条目、`contentType` 和邻章显示判断共同消费这份快照。自然跨章会移动槽位；Lazy 条目可能先于父组件重组，因此不能让条目读取实时可变窗口，同时按下标读取旧组合的排版数组。窗口仍负责章节晋升，渲染器负责同一轮绘制输入的一致性；位置捕获和恢复仍按最新正文身份拦截过期请求。
+
 `reader.prepare` 是 JSON/组件准备切片，`reader.layout` 是文字几何计算切片；它们不是网络等待，也不是 `AndroidOwner:measureAndLayout`。将章节加载、后台排版与主线程布局混称“排版”，会把三种不同成本归给同一层。
 
 ### 四层身份不能混为一谈
@@ -69,6 +71,24 @@ flowchart TD
 | 处理后正文 | `ChapterContentUiState.source = bookId to processedChapter` | 完整数据相等才保留组件和几何输入；同 ID 不足以证明标题、相邻章关系或正文不变。 |
 | 章节 UI / 准备任务 | Lazy key 为章节 ID；准备 key 含 `listState` 和章节 ID | 连续窗口移动可保留重叠章节；章节离开 Lazy 可见范围后，UI 节点仍可能销毁，再进入需要重新创建。 |
 | 可见文字片段 | `subcompose(layout to index, content)` | 同几何同片段保留节点；新布局不能套用旧正文或缓存的 Placeable。lookahead 与实际 placement 可有不同可见范围。 |
+
+## 多组件正文的布局与重绘
+
+`PreparedScrollChapter` 在后台把连续文本组件的已测量片段合并为渲染块，
+图片和扩展组件保留独立边界。合并保留原组件编号、UTF-16 偏移、逐组件行切片，
+并将原组件间的 Spacer 段距记入下一片段的几何。正文数据和书签格式不变。
+累计高度索引只在合并后的块上构建，避免为每个源组件分配随后丢弃的索引数组。
+因此千个独立文本组件也只需要一个外层文本窗口，实际文字节点由视口范围决定。
+
+每块通过 `onPlaced` 记录章节内部的起点，以独立 Int 状态替代逐段的
+`SnapshotStateMap`。父布局滚动且局部起点不变时不发布坐标变化，也不比较全章映射。
+原组件到块的索引及片段二分查找用于书签、重排和听书定位；图片高度改变时，
+后续块仍根据实际放置坐标更新。循环背景图也只在 offset lambda 中读取滚动位置，
+避免像素位移使正文宿主在组合阶段失效。
+
+初始全章文字测量仍与文字量有关；大量交替图片/扩展组件仍有各自布局。
+本优化不改变三章窗口、进度保存节奏或图片加载策略。
+验收须包含独立多组件样本，不能仅用一个长文本组件推断全章挂载成本。
 
 ## 章内滚动、自然跨章与显式跳章
 
@@ -225,7 +245,7 @@ adb -s <serial> shell pm art dump <package>
 | 要保护的契约 | 定向入口 |
 | --- | --- |
 | 阅读页状态归属、菜单/沉浸式标题、视口更新、模式/翻页章节失效、书签失败 | [ReaderScreenUpdatesTest](../app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/ReaderScreenUpdatesTest.kt) |
-| 当前帧文字、lookahead、重叠片段身份与跨段选择 | [ScrollTextFirstDrawTest](../app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/content/scroll/ScrollTextFirstDrawTest.kt)、`ScrollTextWindowTest` |
+| 当前帧文字、跨章正文/高度一致性、lookahead、重叠片段身份与跨段选择 | [ScrollTextFirstDrawTest](../app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/content/scroll/ScrollTextFirstDrawTest.kt)、`ScrollChapterDrawTest`、`ScrollTextWindowTest` |
 | 过期请求/槽位、失败邻章、自然晋升 | [ScrollChapterWindowTest](../app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/content/scroll/ScrollChapterWindowTest.kt)、`ScrollModeContractTest` |
 | 完整源数据去重、重订阅复用、错误恢复 | [ReaderChapterLoaderTest](../app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/mode/ReaderChapterLoaderTest.kt) |
 | 进度尾值、恢复屏障、正文入口 | [ScrollProgressTimingTest](../app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/content/scroll/ScrollProgressTimingTest.kt)、`ScrollRestorationTest`、`ScrollEntryLoadingTest` |

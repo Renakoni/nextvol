@@ -55,6 +55,8 @@ about a normal user's installed baseline profile.
 The shared text-fragment observer is absent by default. The test host opts in,
 checks original UTF-16 ranges and the glyph's actual clipped window bounds after
 drawing, and checks the complete prepared chapter text and component count. It
+tracks each fragment's original component index and UTF-16 offset, including text
+after an image; moving beyond component zero must not suppress readiness reports. It
 does not mistake a composed but off-screen/overscanned fragment, a placeholder,
 or an activity window for readable text. Font changes wait for matching new text
 geometry. The observer and correctness checks have their own overhead: compare
@@ -66,7 +68,13 @@ is not a performance budget. The actual elapsed readiness time remains measured.
 
 All content has unique `R<chapter>_P<paragraph>` markers, Chinese and surrogate-pair
 characters. Ordinary/mixed fixtures have 30 paragraphs; long and single-paragraph
-fixtures contain 2,000 units. The mixed fixture adds a generated local PNG and
+fixtures contain 2,000 units. The `components` fixture has 1,097 independent
+`simple_text` components; `components-short` has 29. These exercise chapter-wide
+layout work that a single component containing many paragraphs cannot detect.
+`thousandComponentsFirstTextAndFrames` checks all original components at entry
+and performs eight swipes. Its frame distribution includes entry and scrolling;
+use separate trace windows when comparing initial mounting with steady scrolling.
+The mixed fixture adds a generated local PNG and
 an after-image marker; the test scrolls to that marker. Native chapter requests
 take approximately 350 ms, background work 1.2 seconds, with cancellation checks
 between bounded chunks. These are input conditions, **not** regression thresholds.
@@ -81,7 +89,7 @@ detached/coalesced plain preload. Durable WorkManager execution is not simulated
 | Cancellation | Cancel active native work, observe a cancellation and active count returning to zero, then read the trusted neighbor. Reports response time without imposing an arbitrary latency budget. |
 | Legacy fallback + explicit refresh | Empty source revision; observe actual native requests and directory refresh, then an additional explicit fresh request while current text remains visible. No benchmark early return. |
 | Long / oversized paragraph / mixed | Real VM, chapter repository, preparation, scroll/flip renderers; original content checks, first-readable and frame/memory metrics. Mixed content must retain text after the image. |
-| Font / mode / recreate | Reports component/UTF-16 anchor and `anchorPreserved`, rather than substituting equal percentages. Activity recreate and no-state startup are separate actions. |
+| Font / mode / recreate | Scrolls beyond the first component of the 1,097-component fixture, then reports component/UTF-16 anchor and `anchorPreserved`. Font reflow must report a nonzero component. Activity recreate and no-state startup are separate actions. |
 
 Inspect per-iteration data and failures before comparing aggregate timings.
 The framework can also emit `READER_SAMPLE` diagnostics during warm-up. Use the
