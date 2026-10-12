@@ -1,4 +1,4 @@
-[简体中文](README.md) | **繁體中文** | [English](README_US.md) | [Русский](README_RU.md)
+[简体中文](../README.md) | **繁體中文** | [English](README_US.md) | [Русский](README_RU.md)
 
 <div align="center">
     <h1>NextVol</h1>
@@ -9,7 +9,7 @@
     <a href="https://discord.gg/pnf4ABmDJt"><img alt="Discord" src="https://img.shields.io/badge/Discord-JOIN-4285F4.svg?logo=discord&logoColor=white&style=for-the-badge"></a>
     <a href="https://t.me/lightnoble"><img alt="Discord" src="https://img.shields.io/badge/Telegram-JOIN-188FCA.svg?logo=telegram&logoColor=white&style=for-the-badge"></a>
     <p>輕小說閱讀軟體，使用 Jetpack Compose 框架開發</p>
-    <img src="assets/header.png" alt="drawing" width="80%"/>
+    <img src="../assets/header.png" alt="drawing" width="80%"/>
 </div>
 
 ## 介紹
@@ -32,7 +32,7 @@ NextVol <sup>*重構版*</sup> 是一款開源的輕小說閱讀軟體，使用 
 ## 自訂書源
 
 在設定的書源管理中，可透過連結、本機檔案或貼上文字匯入 JSON 規則書源。
-支援範圍請見[書源匯入說明](sources/import/README.md)。
+支援範圍請見[書源匯入說明](../sources/import/README.md)。
 
 歡迎各位開發者進行開發!
 
@@ -55,13 +55,13 @@ NextVol <sup>*重構版*</sup> 是一款開源的輕小說閱讀軟體，使用 
 
 |                             |
 |-----------------------------|
-| ![image](assets/light1.png) |
-| ![image](assets/light2.png) |
-| ![image](assets/light3.png) |
+| ![image](../assets/light1.png) |
+| ![image](../assets/light2.png) |
+| ![image](../assets/light3.png) |
 
 ### 關於 EpubLib
 
-為了處理 epub 的匯出問題，我們單獨建立了一個 epub 處理模組，如果您感興趣，可以看[**這裡**](https://github.com/dmzz-yyhyy/LightNovelReader/blob/refactoring/epub.md)
+為了處理 epub 的匯出問題，我們單獨建立了一個 epub 處理模組，如果您感興趣，可以看[**這裡**](epub.md)
 
 ## 貢獻
 

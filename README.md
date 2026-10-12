@@ -1,4 +1,4 @@
-**简体中文** | [繁體中文](README_TW.md) | [English](README_US.md) | [Русский](README_RU.md)
+**简体中文** | [繁體中文](docs/README_TW.md) | [English](docs/README_US.md) | [Русский](docs/README_RU.md)
 
 <div align="center">
     <h1>NextVol</h1>
@@ -62,7 +62,7 @@ NextVol <sup>*重构版*</sup> 是一款开源的轻小说阅读软件，使用 
 
 ### 关于 EpubLib
 
-为了处理epub的导出问题，我们单独创建了一个epub处理模块，如果您感兴趣，可以看[**这里**](https://github.com/dmzz-yyhyy/LightNovelReader/blob/refactoring/epub.md)
+为了处理epub的导出问题，我们单独创建了一个epub处理模块，如果您感兴趣，可以看[**这里**](docs/epub.md)
 
 ## 贡献
 
