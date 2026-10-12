@@ -34,6 +34,7 @@ import indi.renakoni.nextvol.ui.book.reader.content.componet.measureReaderText
 import indi.renakoni.nextvol.ui.book.reader.content.componet.splitReaderText
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -168,6 +169,7 @@ internal fun rememberPreparedScrollChapter(
     layout: ReaderTextLayoutInput?,
     width: Int,
     viewportHeight: Int,
+    measurementDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ): PreparedScrollChapter? {
     if (content == null) return null
     if (layout == null) return remember(content) { PreparedScrollChapter(content, emptyMap()) }
@@ -185,10 +187,10 @@ internal fun rememberPreparedScrollChapter(
         mutableStateOf<Pair<ScrollMeasurementInput, Map<Int, List<MeasuredReaderParagraph>>>?>(null)
     }
     var prepared by remember(content.id) { mutableStateOf<PreparedScrollChapter?>(null) }
-    LaunchedEffect(content, layout, density, direction, width, viewportHeight) {
+    LaunchedEffect(content, layout, density, direction, width, viewportHeight, measurementDispatcher) {
         if (width <= 0 || viewportHeight <= 0) return@LaunchedEffect
         val reusable = measured?.takeIf { it.first == input }?.second
-        val result = withContext(Dispatchers.Default) {
+        val result = withContext(measurementDispatcher) {
             val cancellation = currentCoroutineContext()
             val paragraphs = reusable ?: run {
                 val measurer = TextMeasurer(createFontFamilyResolver(context), density, direction, cacheSize = 0)

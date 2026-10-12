@@ -36,6 +36,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
@@ -118,6 +121,53 @@ class ScrollTextMeasurementTest {
             assertEquals(13, shapes.get())
             assertEquals("Changed body", result!!.blocks.single().text!!.fragments.joinToString("") { it.text })
         } finally {
+            activity.pause().stop().destroy()
+        }
+    }
+
+    @Test fun cancelledQueuedChapterSkipsMeasurementAndNeverPublishesOldContent() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        val dispatcher = Dispatchers.Default.limitedParallelism(1)
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val shapes = AtomicInteger()
+        fun chapter(id: String, text: String) = ChapterContentUiState(id, id,
+            listOf(SimpleTextComponent(SimpleTextComponentData(text), mockk(relaxed = true), activity.get())), null, null)
+        val current = chapter("current", "Current chapter")
+        var adjacent by mutableStateOf(chapter("adjacent", "Stale queued content"))
+        var result: PreparedScrollChapter? = null
+        val settings = mockk<ReaderSettings>(relaxed = true) {
+            every { fontFamilyUri } returns Uri.EMPTY
+            every { fontSize } returns 15f
+            every { fontLineHeight } returns 7f
+            every { fontWeigh } returns 500f
+        }
+        try {
+            activity.get().setContent {
+                CompositionLocalProvider(LocalReaderTextWorkObserver provides { phase ->
+                    if (phase == "shape" && shapes.incrementAndGet() == 1) {
+                        entered.countDown()
+                        check(release.await(10, TimeUnit.SECONDS))
+                    }
+                }) {
+                    val layout = rememberReaderTextLayout(settings)
+                    rememberPreparedScrollChapter(current, layout, 300, 200, dispatcher)
+                    result = rememberPreparedScrollChapter(adjacent, layout, 300, 200, dispatcher)
+                }
+            }
+            compose.waitForIdle()
+            assertTrue(entered.await(10, TimeUnit.SECONDS))
+            compose.runOnIdle { adjacent = chapter("adjacent", "Updated content") }
+            compose.waitForIdle()
+            assertNull(result)
+            assertEquals(1, shapes.get())
+            release.countDown()
+            compose.waitUntil(10_000) { compose.waitForIdle(); result != null }
+            assertSame(adjacent, result!!.content)
+            assertEquals(2, shapes.get())
+            assertEquals("Updated content", result!!.blocks.single().text!!.fragments.joinToString("") { it.text })
+        } finally {
+            release.countDown()
             activity.pause().stop().destroy()
         }
     }
