@@ -49,7 +49,7 @@ grep -Fx 'Signer #1 certificate SHA-256 digest: 87b61dcf3eecca2b93acb8aae035ce01
 
 "$tools/aapt2" dump badging "$apk" > "$temporary/badging.txt"
 grep -F "package: name='indi.renakoni.nextvol' versionCode='$APP_VERSION_CODE' versionName='$APP_VERSION'" "$temporary/badging.txt"
-grep -Fx "sdkVersion:'24'" "$temporary/badging.txt"
+grep -Fx "minSdkVersion:'24'" "$temporary/badging.txt"
 if grep -q '^application-debuggable' "$temporary/badging.txt"; then
   echo '::error::Release APK is debuggable'
   exit 1
