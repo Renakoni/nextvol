@@ -24,7 +24,7 @@ internal fun resolveReaderBodyLayout(
     hostSize: IntSize,
     padding: PaddingValues,
     mode: ReaderMode,
-    preference: String = "auto",
+    preference: String = ReaderPageLayoutPreference.Auto,
     supportsDoublePage: Boolean = false,
 ): ReaderLayoutResult {
     val density = LocalDensity.current

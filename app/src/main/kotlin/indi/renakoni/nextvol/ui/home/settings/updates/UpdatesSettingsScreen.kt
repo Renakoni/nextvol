@@ -16,7 +16,7 @@ import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingState
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.components.SettingsSwitchEntry
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.home.settings.data.SettingsMenuOptions
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.utils.navigationBarSpacer
@@ -61,7 +61,7 @@ private fun UpdatesSettingsList(
         painter = painterResource(R.drawable.alt_route_24px),
         title = stringResource(R.string.settings_update_channel),
         description = stringResource(R.string.settings_update_channel_desc),
-        options = MenuOptions.UpdateChannelOptions,
+        options = SettingsMenuOptions.UpdateChannelOptions,
         selectedOptionKey = settingState.updateChannelKey,
         onOptionChange = settingState.updateChannelKeyUserData::asynchronousSet
     )
@@ -69,7 +69,7 @@ private fun UpdatesSettingsList(
         modifier = Modifier.background(colorScheme.surfaceContainer),
         painter = painterResource(R.drawable.outline_explore_24px),
         title = stringResource(R.string.settings_distribution_platform),
-        options = MenuOptions.UpdatePlatformOptions,
+        options = SettingsMenuOptions.UpdatePlatformOptions,
         selectedOptionKey = settingState.distributionPlatformKey,
         onOptionChange = settingState.distributionPlatformKeyUserData::asynchronousSet
     )

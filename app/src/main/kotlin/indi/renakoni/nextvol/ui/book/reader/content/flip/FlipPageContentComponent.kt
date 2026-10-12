@@ -76,7 +76,7 @@ import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechFollow
 import indi.renakoni.nextvol.ui.book.reader.content.PrepareReaderSpeechIndex
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechRanges
 import indi.renakoni.nextvol.ui.book.reader.content.readerSpeechManualScroll
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.book.reader.ReaderBackgroundImageMode
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.ui.book.reader.rememberReaderBackgroundPainter
 import indi.renakoni.nextvol.ui.book.reader.usesBackgroundImage
@@ -422,7 +422,7 @@ private fun SimpleFlipPageTextComponent(
     // 无条件调用会导致未开启背景时也去联网加载内置牛皮纸，失败时误报「加载失败」(见 issue #444)。
     val bgPainter = if (
         settingState.usesBackgroundImage &&
-        settingState.backgroundImageDisplayMode == MenuOptions.ReaderBgImageDisplayModeOptions.Loop
+        settingState.backgroundImageDisplayMode == ReaderBackgroundImageMode.Loop
     ) {
         rememberReaderBackgroundPainter(settingState)
     } else null
@@ -589,7 +589,7 @@ private fun SimpleFlipPageTextComponent(
                     },
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    if (settingState.usesBackgroundImage && settingState.backgroundImageDisplayMode == MenuOptions.ReaderBgImageDisplayModeOptions.Loop) {
+                    if (settingState.usesBackgroundImage && settingState.backgroundImageDisplayMode == ReaderBackgroundImageMode.Loop) {
                         Image(
                             modifier = Modifier.fillMaxSize(),
                             painter = rememberReaderBackgroundPainter(settingState),
@@ -609,4 +609,3 @@ private fun SimpleFlipPageTextComponent(
         }
     }
 }
-

@@ -13,7 +13,6 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.unit.IntSize
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -65,7 +64,7 @@ class ReaderPageLayoutSettingsTest {
     @Test fun menuExposesThreeIndependentPersistedChoices() {
         for (key in listOf("single", "double", "auto")) {
             compose.onNodeWithTag("reader-page-layout").assertHasClickAction().performClick()
-            val option = MenuOptions.ReaderPageLayoutOptions.optionList.single { it.key == key }
+            val option = ReaderPageLayoutOptions.optionList.single { it.key == key }
             compose.onNodeWithText(activity.get().getString(option.nameId)).performClick()
             compose.runOnIdle { assertEquals(key, selected) }
             verify(exactly = 1) { userData.asynchronousSet(key) }
@@ -102,13 +101,13 @@ class ReaderPageLayoutSettingsTest {
             val config = Configuration(activity.get().resources.configuration).apply { setLocale(Locale.forLanguageTag(locale)) }
             val context = activity.get().createConfigurationContext(config)
             assertEquals(title, context.getString(R.string.reader_page_layout_title))
-            val labels = MenuOptions.ReaderPageLayoutOptions.optionList.map { context.getString(it.nameId) }
+            val labels = ReaderPageLayoutOptions.optionList.map { context.getString(it.nameId) }
             assertEquals(3, labels.distinct().size)
             assertTrue(labels.all { it.isNotBlank() })
             ReaderLayoutReason.entries.forEach { reason ->
                 assertTrue(context.getString(readerPageLayoutDescription(true, ReaderLayoutResult(geometry, reason))).isNotBlank())
             }
         }
-        assertEquals(listOf("auto", "single", "double"), MenuOptions.ReaderPageLayoutOptions.optionList.map { it.key })
+        assertEquals(listOf("auto", "single", "double"), ReaderPageLayoutOptions.optionList.map { it.key })
     }
 }

@@ -18,7 +18,7 @@ import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
 import indi.renakoni.nextvol.ui.book.reader.mode.ModeTestEnvironment
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.book.reader.ReaderFlipAnimation
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import io.mockk.every
 import io.mockk.mockk
@@ -68,7 +68,7 @@ class FlipPreparedChapterTest {
     private val gates = mutableListOf<CompletableDeferred<Unit>>()
     private var viewportHeight by mutableStateOf(320.dp)
     private val settings = mockk<ReaderSettings>(relaxed = true) {
-        every { flipAnime } returns MenuOptions.FlipAnimationOptions.ScrollWithoutShadow
+        every { flipAnime } returns ReaderFlipAnimation.ScrollWithoutShadow
         every { fastChapterChange } returns true
         every { isUsingFlipPage } returns true
         every { isUsingClickFlipPage } returns true

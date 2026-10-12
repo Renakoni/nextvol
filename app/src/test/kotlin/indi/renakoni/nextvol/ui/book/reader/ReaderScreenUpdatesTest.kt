@@ -33,7 +33,6 @@ import indi.renakoni.nextvol.ui.book.reader.bookmark.LocalReaderBookmarks
 import indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarkSession
 import indi.renakoni.nextvol.ui.book.reader.content.flip.MutableFlipPageContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.scroll.MutableScrollContentUiSate
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import io.mockk.every
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
@@ -161,9 +160,9 @@ class ReaderScreenUpdatesTest {
             every { enableChapterTitleIndicator } returns true
             every { enableReadingChapterProgressIndicator } returns true
             every { isUsingFlipPage } answers { reader.contentUiState is MutableFlipPageContentUiState }
-            every { flipAnime } returns MenuOptions.FlipAnimationOptions.ScrollWithoutShadow
+            every { flipAnime } returns ReaderFlipAnimation.ScrollWithoutShadow
             every { bottomPadding } answers { this@ReaderScreenUpdatesTest.bottomPadding }
-            every { backBlockMode } answers { screenReads++; MenuOptions.ReaderBackBlockMode.None }
+            every { backBlockMode } answers { screenReads++; ReaderBackBlockMode.None }
         }
         val fonts = mockk<ReaderFontFamilySettings> { every { getFlow() } returns flowOf(Uri.EMPTY) }
         compose.runOnUiThread {

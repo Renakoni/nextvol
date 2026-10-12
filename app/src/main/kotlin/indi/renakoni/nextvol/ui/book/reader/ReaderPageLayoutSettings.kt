@@ -8,7 +8,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 
 @Composable
 internal fun ReaderPageLayoutEntry(settings: ReaderSettingsEditor, modifier: Modifier = Modifier) {
@@ -17,7 +16,7 @@ internal fun ReaderPageLayoutEntry(settings: ReaderSettingsEditor, modifier: Mod
         painter = painterResource(R.drawable.menu_book_24px),
         title = stringResource(R.string.reader_page_layout_title),
         description = stringResource(readerPageLayoutDescription(settings.isUsingFlipPage, LocalReaderLayoutResult.current?.value)),
-        options = MenuOptions.ReaderPageLayoutOptions,
+        options = ReaderPageLayoutOptions,
         selectedOptionKey = settings.pageLayout,
         stringUserData = settings.pageLayoutUserData,
     )

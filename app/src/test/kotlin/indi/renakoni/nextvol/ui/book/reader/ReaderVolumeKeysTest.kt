@@ -50,7 +50,6 @@ import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import indi.renakoni.nextvol.ui.book.reader.content.flip.MutableFlipPageContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.scroll.MutableScrollContentUiSate
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import io.mockk.every
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
@@ -131,7 +130,7 @@ class ReaderVolumeKeysTest {
         every { settings.fontFamilyUri } returns Uri.EMPTY
         every { settings.fastChapterChange } answers { fastChapterChange.value }
         every { settings.flipAnime } answers {
-            if (animated.value) MenuOptions.FlipAnimationOptions.ScrollWithoutShadow else MenuOptions.FlipAnimationOptions.None
+            if (animated.value) ReaderFlipAnimation.ScrollWithoutShadow else ReaderFlipAnimation.None
         }
         every { fonts.getFlow() } returns flowOf(Uri.EMPTY)
         activity.get().setContent {

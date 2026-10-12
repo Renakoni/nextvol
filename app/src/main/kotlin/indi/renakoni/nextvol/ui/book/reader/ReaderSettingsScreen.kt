@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.components.SettingsSliderEntry
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
 import io.nightfish.lightnovelreader.api.ui.components.SettingsSwitchEntry
 import kotlin.math.roundToInt
@@ -245,7 +244,7 @@ fun LazyListScope.AppearancePage(
             painter = painterResource(R.drawable.battery_android_full_24px),
             title = stringResource(R.string.settings_reader_battery_indicator),
             description = stringResource(R.string.settings_reader_battery_indicator_desc),
-            options = MenuOptions.ReaderIndicatorBatteryDisplayMode,
+            options = ReaderIndicatorBatteryDisplayModeOptions,
             selectedOptionKey = settingState.batteryIndicatorDisplayMode,
             stringUserData = settingState.batteryIndicatorDisplayModeUserData
         )
@@ -303,7 +302,7 @@ fun LazyListScope.ActionPage(settingState: ReaderSettingsEditor) {
             painter = painterResource(R.drawable.block_24px),
             title = stringResource(R.string.settings_reader_back_block_mode),
             description = stringResource(R.string.settings_reader_back_block_mode_desc),
-            options = MenuOptions.ReaderBackBlockMode,
+            options = ReaderBackBlockModeOptions,
             selectedOptionKey = settingState.backBlockMode,
             stringUserData = settingState.backBlockModeUserData
         )
@@ -370,7 +369,7 @@ fun LazyListScope.ActionPage(settingState: ReaderSettingsEditor) {
                 painter = painterResource(R.drawable.transition_chop_24px),
                 title = stringResource(R.string.settings_reader_page_turn_anim),
                 description = stringResource(R.string.settings_reader_page_turn_anim_desc),
-                options = MenuOptions.FlipAnimationOptions,
+                options = FlipAnimationOptions,
                 disabled = settingState.reduceMotion,
                 selectedOptionKey = settingState.flipAnime,
                 stringUserData = settingState.flipAnimeUserData
