@@ -82,9 +82,9 @@ class ReaderLayoutPreviewTest {
         compose.runOnIdle { layout = layout.copy(end = 40f) }
         assertEquals(initial.right - 24, viewport().right, 1f)
         compose.runOnIdle { layout = layout.copy(top = 52f) }
-        assertEquals(initial.top + 40f * 148 / 640, viewport().top, 1f)
+        assertEquals(initial.top + 40f * 142 / 640, viewport().top, 1f)
         compose.runOnIdle { layout = layout.copy(bottom = 60f) }
-        assertEquals(initial.bottom - 48f * 148 / 640, viewport().bottom, 1f)
+        assertEquals(initial.bottom - 48f * 142 / 640, viewport().bottom, 1f)
     }
 
     @Test fun welcomeIsCenteredInsideTheReadingViewportAcrossWindowSizes() {
@@ -110,15 +110,15 @@ class ReaderLayoutPreviewTest {
         showPreview()
         compose.runOnIdle { layout = layout.copy(autoPadding = true) }
         val automatic = viewport()
-        assertEquals(bodyPadding.calculateTopPadding().value * 148 / 640, automatic.top, 1f)
-        assertEquals(148 - bodyPadding.calculateBottomPadding().value * 148 / 640, automatic.bottom, 1f)
+        assertEquals(6 + bodyPadding.calculateTopPadding().value * 142 / 640, automatic.top, 1f)
+        assertEquals(148 - bodyPadding.calculateBottomPadding().value * 142 / 640, automatic.bottom, 1f)
         compose.runOnIdle { layout = layout.copy(top = 100f, bottom = 100f, start = 100f, end = 100f) }
         assertEquals(automatic, viewport())
         compose.runOnIdle { indicator = true }
-        assertEquals(automatic.bottom - 40f * 148 / 640, viewport().bottom, 1f)
+        assertEquals(automatic.bottom - 40f * 142 / 640, viewport().bottom, 1f)
         compose.runOnIdle { layout = layout.copy(autoPadding = false) }
         assertEquals(100f, viewport().left, 1f)
-        assertEquals(100f * 148 / 640, viewport().top, 1f)
+        assertEquals(6 + 100f * 142 / 640, viewport().top, 1f)
     }
 
     @Test fun largeMarginsAndTypeKeepTheSampleScrollableAcrossWindowSizes() {
