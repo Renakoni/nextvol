@@ -1,0 +1,80 @@
+name: Release signing verification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/release-signing.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-signing-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify release signing secrets
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '22.0.2+9'
+      - name: Verify keystore identity and sign a probe
+        shell: bash
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          # Pins the original encrypted keystore; only public verification results are uploaded.
+          EXPECTED_KEYSTORE_SHA256: eedb3008a103511b8e4d0f629bb2c23c5a1d6778ef4bb86cb0194835df47f910
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in ANDROID_RELEASE_KEYSTORE_BASE64 ANDROID_RELEASE_STORE_PASSWORD ANDROID_RELEASE_KEY_ALIAS ANDROID_RELEASE_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::$name is missing"
+              exit 1
+            fi
+          done
+          [[ "$ANDROID_RELEASE_KEY_ALIAS" == 'nextvol-release' ]]
+          signing_dir="$(mktemp -d "$RUNNER_TEMP/nextvol-signing.XXXXXX")"
+          trap 'rm -rf "$signing_dir"' EXIT
+          printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$signing_dir/release.jks"
+          printf '%s  %s\n' "$EXPECTED_KEYSTORE_SHA256" "$signing_dir/release.jks" | sha256sum --check --status
+
+          keytool -exportcert -keystore "$signing_dir/release.jks" \
+            -storepass:env ANDROID_RELEASE_STORE_PASSWORD \
+            -alias "$ANDROID_RELEASE_KEY_ALIAS" -file "$signing_dir/certificate.der"
+          openssl x509 -inform DER -in "$signing_dir/certificate.der" -checkend 0 -noout
+          openssl x509 -inform DER -in "$signing_dir/certificate.der" -pubkey -noout \
+            | openssl pkey -pubin -text -noout | grep -Fx 'Public-Key: (4096 bit)'
+
+          printf 'NextVol release signing verification\n' > "$signing_dir/probe.txt"
+          jar --create --file "$signing_dir/probe.jar" -C "$signing_dir" probe.txt
+          jarsigner -keystore "$signing_dir/release.jks" \
+            -storepass:env ANDROID_RELEASE_STORE_PASSWORD \
+            -keypass:env ANDROID_RELEASE_KEY_PASSWORD \
+            -digestalg SHA-256 -sigalg SHA256withRSA \
+            "$signing_dir/probe.jar" "$ANDROID_RELEASE_KEY_ALIAS"
+          jarsigner -verify -strict -keystore "$signing_dir/release.jks" \
+            -storepass:env ANDROID_RELEASE_STORE_PASSWORD "$signing_dir/probe.jar"
+
+          mkdir -p "$RUNNER_TEMP/nextvol-signing-public"
+          openssl x509 -inform DER -in "$signing_dir/certificate.der" \
+            -out "$RUNNER_TEMP/nextvol-signing-public/nextvol-release-certificate.pem"
+          {
+            echo 'Keystore matches the original local file; both passwords and the alias passed signing verification.'
+            openssl x509 -inform DER -in "$signing_dir/certificate.der" -noout -subject -dates -fingerprint -sha256
+          } | tee "$RUNNER_TEMP/nextvol-signing-public/verification.txt"
+      - name: Upload public certificate and verification result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nextvol-release-signing-verification
+          path: ${{ runner.temp }}/nextvol-signing-public/
+          if-no-files-found: error
