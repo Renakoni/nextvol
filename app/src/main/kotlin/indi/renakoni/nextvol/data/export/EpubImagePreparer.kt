@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.utils.network
+package indi.renakoni.nextvol.data.export
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -21,7 +21,7 @@ import java.io.File
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 
-class ImageDownloader(
+class EpubImagePreparer(
     private val context: Context,
     private val book: SourceBookId,
     private val tasks: List<Task>,
@@ -37,7 +37,7 @@ class ImageDownloader(
         val sourceFile: File? = null)
 
     suspend fun run(): Boolean = withContext(Dispatchers.IO) {
-        Log.i("ImageDownloader", "total tasks: ${tasks.size}")
+        Log.i("EpubImagePreparer", "total tasks: ${tasks.size}")
         tasks.forEach { task ->
             currentCoroutineContext().ensureActive()
             onTask(task)
@@ -55,7 +55,7 @@ class ImageDownloader(
                         throw cancelled
                     } catch (e: Exception) {
                         Log.e(
-                            "ImageDownloader",
+                            "EpubImagePreparer",
                             "task $count: file write failed, file=${task.file}",
                             e
                         )
@@ -64,7 +64,7 @@ class ImageDownloader(
                 }
                 .onErr { t ->
                     Log.e(
-                        "ImageDownloader",
+                        "EpubImagePreparer",
                         "task $count failed for ${book.fileKey}: ${t.javaClass.simpleName}"
                     )
                     task.defaultCover?.let { text ->
@@ -80,7 +80,7 @@ class ImageDownloader(
                 }
             count++
             onProgress(count, tasks.size)
-            Log.i("ImageDownloader", "tasks: $count/${tasks.size}")
+            Log.i("EpubImagePreparer", "tasks: $count/${tasks.size}")
         }
         return@withContext true
     }
@@ -108,7 +108,7 @@ class ImageDownloader(
                     if (error is SocketTimeoutException || error is ConnectException) {
                         shouldRetry = true
                         Log.w(
-                            "ImageDownloader",
+                            "EpubImagePreparer",
                             "retry ${attempt + 1}/$maxRetry for ${book.fileKey}"
                         )
                     } else {
