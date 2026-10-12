@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.ui.dialog
+package indi.renakoni.nextvol.ui.home.settings.textformatting
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
