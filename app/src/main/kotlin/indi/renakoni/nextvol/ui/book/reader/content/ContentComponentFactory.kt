@@ -1,9 +1,9 @@
-package indi.renakoni.nextvol.data.content
+package indi.renakoni.nextvol.ui.book.reader.content
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
-import indi.renakoni.nextvol.data.content.component.ImageComponent
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ImageComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponentData

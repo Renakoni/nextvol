@@ -89,10 +89,10 @@ import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechRanges
 import indi.renakoni.nextvol.ui.book.reader.content.readerSpeechManualScroll
 import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
-import indi.renakoni.nextvol.utils.readerTextColor
-import indi.renakoni.nextvol.utils.rememberReaderBackgroundPainter
+import indi.renakoni.nextvol.ui.book.reader.readerTextColor
+import indi.renakoni.nextvol.ui.book.reader.rememberReaderBackgroundPainter
 import indi.renakoni.nextvol.ui.book.reader.usesBackgroundImage
-import indi.renakoni.nextvol.utils.rememberReaderFontFamily
+import indi.renakoni.nextvol.ui.book.reader.rememberReaderFontFamily
 import indi.renakoni.nextvol.utils.showSnackbar
 import indi.renakoni.nextvol.ui.book.reader.bookmark.LocalReaderBookmarks
 import indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarkPosition

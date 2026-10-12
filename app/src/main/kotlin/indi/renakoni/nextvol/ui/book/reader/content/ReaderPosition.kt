@@ -1,6 +1,6 @@
 package indi.renakoni.nextvol.ui.book.reader.content
 
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
 
 /** Session coordinates refer to source content, never a page, split part or pixel. */
