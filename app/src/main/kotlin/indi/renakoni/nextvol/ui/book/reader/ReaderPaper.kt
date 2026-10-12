@@ -20,8 +20,6 @@ import androidx.core.view.WindowCompat
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.theme.AppTheme
 import indi.renakoni.nextvol.ui.LocalAppTheme
-import indi.renakoni.nextvol.utils.readerBackgroundColor
-import indi.renakoni.nextvol.utils.readerTextColor
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
 
 internal data class ReaderPaperColors(

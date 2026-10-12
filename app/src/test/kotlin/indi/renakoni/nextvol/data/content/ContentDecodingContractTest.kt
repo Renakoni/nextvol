@@ -1,9 +1,9 @@
 package indi.renakoni.nextvol.data.content
 
 import android.app.Application
-import indi.renakoni.nextvol.data.content.component.ErrorContentComponent
-import indi.renakoni.nextvol.data.content.component.ImageComponent
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ErrorContentComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ImageComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponentData
 import io.nightfish.lightnovelreader.api.content.component.ImageComponentData
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData

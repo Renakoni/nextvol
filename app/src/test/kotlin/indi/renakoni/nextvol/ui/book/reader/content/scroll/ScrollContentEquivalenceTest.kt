@@ -19,7 +19,7 @@ import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Density
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.get
-import indi.renakoni.nextvol.data.content.ContentComponentFactory
+import indi.renakoni.nextvol.ui.book.reader.content.ContentComponentFactory
 import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings

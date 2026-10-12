@@ -104,8 +104,6 @@ import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import indi.renakoni.nextvol.ui.tts.ReadAloudSheet
 import indi.renakoni.nextvol.utils.LocalClaimSnackbarHost
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
-import indi.renakoni.nextvol.utils.readerBackgroundColor
-import indi.renakoni.nextvol.utils.rememberReaderBackgroundPainter
 import indi.renakoni.nextvol.utils.showSnackbar
 import kotlinx.coroutines.launch
 import indi.renakoni.nextvol.data.bookmark.ReadingBookmark

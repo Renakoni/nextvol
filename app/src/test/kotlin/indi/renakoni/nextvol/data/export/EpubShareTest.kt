@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.data.work
+package indi.renakoni.nextvol.data.export
 
 import android.app.Application
 import android.content.Intent
@@ -6,7 +6,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.core.content.FileProvider
 import io.mockk.*
-import indi.renakoni.nextvol.ui.book.detail.EpubShareActivity
+import indi.renakoni.nextvol.ui.book.detail.EpubShareActivity as LegacyEpubShareActivity
+import indi.renakoni.nextvol.ui.export.EpubShareActivity
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.Before
@@ -84,27 +85,30 @@ class EpubShareTest {
 
     @Test fun closingShareActivityKeepsArchivesReadableAndAutomaticDeliveryIsConsumed() {
         val id = publication()
-        val first = Robolectric.buildActivity(EpubShareActivity::class.java,
-            EpubShareActivity.intent(context, id, automatic = true)).create()
+        val automaticIntent = EpubShareActivity.intent(context, id, automatic = true)
+        assertEquals(LegacyEpubShareActivity::class.java.name, automaticIntent.component!!.className)
+        assertEquals("nextvol-epub:$id", automaticIntent.dataString)
+        val first = Robolectric.buildActivity(LegacyEpubShareActivity::class.java,
+            automaticIntent).create()
         assertEquals(Intent.ACTION_CHOOSER, shadowOf(first.get()).nextStartedActivity.action)
         assertTrue(first.get().isFinishing)
         first.destroy()
         assertTrue(EpubShareFiles.wasShared(context, id))
         assertEquals("epub-0", EpubShareFiles.files(context, id).single().readText())
 
-        val duplicate = Robolectric.buildActivity(EpubShareActivity::class.java,
+        val duplicate = Robolectric.buildActivity(LegacyEpubShareActivity::class.java,
             EpubShareActivity.intent(context, id, automatic = true)).create()
         assertNull(shadowOf(duplicate.get()).nextStartedActivity)
-        val manual = Robolectric.buildActivity(EpubShareActivity::class.java,
+        val manual = Robolectric.buildActivity(LegacyEpubShareActivity::class.java,
             EpubShareActivity.intent(context, id)).create()
         assertEquals(Intent.ACTION_CHOOSER, shadowOf(manual.get()).nextStartedActivity.action)
     }
 
     @Test fun recreationAndMissingArtifactsDoNotCrashOrOpenASecondChooser() {
-        val recreated = Robolectric.buildActivity(EpubShareActivity::class.java,
+        val recreated = Robolectric.buildActivity(LegacyEpubShareActivity::class.java,
             EpubShareActivity.intent(context, publication())).create(Bundle())
         assertNull(shadowOf(recreated.get()).nextStartedActivity)
-        val expired = Robolectric.buildActivity(EpubShareActivity::class.java,
+        val expired = Robolectric.buildActivity(LegacyEpubShareActivity::class.java,
             EpubShareActivity.intent(context, UUID.randomUUID())).create()
         assertTrue(expired.get().isFinishing)
         assertNull(shadowOf(expired.get()).nextStartedActivity)

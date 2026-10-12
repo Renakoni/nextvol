@@ -9,7 +9,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.bookmark.ReadingBookmark
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
 import io.nightfish.lightnovelreader.api.content.component.ImageComponentData

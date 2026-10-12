@@ -53,8 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.utils.loadReaderFontFamilySafe
-import indi.renakoni.nextvol.utils.loadReaderTypeface
 import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
 import java.io.File
 import java.util.UUID

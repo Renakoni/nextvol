@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.utils
+package indi.renakoni.nextvol.ui.book.reader
 
 import android.net.Uri
 import android.graphics.Typeface
@@ -26,10 +26,7 @@ import coil3.request.ImageRequest
 import coil3.size.Scale
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.LocalAppTheme
-import indi.renakoni.nextvol.ui.book.reader.ReaderFontFamilySettings
-import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
-import indi.renakoni.nextvol.ui.book.reader.ReaderPaper
-import indi.renakoni.nextvol.ui.book.reader.ReaderFont
+import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import io.nightfish.lightnovelreader.api.userdata.UriUserData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

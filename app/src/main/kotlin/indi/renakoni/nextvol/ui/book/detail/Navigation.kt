@@ -27,6 +27,7 @@ import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.export.EpubShareActivity
 import indi.renakoni.nextvol.ui.book.reader.navigateToBookReaderDestination
 import indi.renakoni.nextvol.ui.book.reader.navigateToImageViewerDialog
 import indi.renakoni.nextvol.ui.book.download.navigateToBookDownload

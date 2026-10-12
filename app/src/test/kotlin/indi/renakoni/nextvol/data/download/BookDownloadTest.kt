@@ -947,8 +947,8 @@ class BookDownloadTest {
 
     private suspend fun export(images: Boolean = true, selected: List<String>? = null,
                                beforeWrite: () -> Unit = {}, book: SourceBookId = a): ListenableWorker.Result {
-        io.mockk.mockkObject(indi.renakoni.nextvol.data.work.EpubShareFiles)
-        every { indi.renakoni.nextvol.data.work.EpubShareFiles.publish(context, any(), any(), any()) } answers {
+        io.mockk.mockkObject(indi.renakoni.nextvol.data.export.EpubShareFiles)
+        every { indi.renakoni.nextvol.data.export.EpubShareFiles.publish(context, any(), any(), any()) } answers {
             beforeWrite()
             callOriginal()
         }
@@ -959,7 +959,7 @@ class BookDownloadTest {
                     "downloadGeneration" to downloads.generation())),
                 ExportBookToEpubUseCase(context, books, progress, decoder, downloads)).doWork()
         } finally {
-            io.mockk.unmockkObject(indi.renakoni.nextvol.data.work.EpubShareFiles)
+            io.mockk.unmockkObject(indi.renakoni.nextvol.data.export.EpubShareFiles)
         }
     }
 

@@ -32,7 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import com.github.michaelbull.result.get
 import dagger.hilt.android.AndroidEntryPoint
 import indi.renakoni.nextvol.data.book.ChapterRepository
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.web.BackgroundSourceRequest
 import indi.renakoni.nextvol.data.web.SourceRegistration
