@@ -240,13 +240,13 @@ class ReaderLayoutInstrumentedTest {
         compose.onNodeWithTag("reader-paper-sage").performScrollTo().performClick()
         compose.waitUntil(5_000) { settings.paperId == "sage" }
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-        compose.onNodeWithText(context.getString(R.string.reader_settings)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.appearance_settings)).assertIsDisplayed()
         assertFalse(dismissed)
         compose.onNodeWithTag("reader-paper-sage").assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.paper_settings)).performClick()
         compose.onNodeWithTag("reader-paper-sage").assertIsSelected()
         compose.onNodeWithContentDescription(context.getString(R.string.sources_back)).performClick()
-        compose.onNodeWithText(context.getString(R.string.reader_settings)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.appearance_settings)).assertIsDisplayed()
     }
 
     @Test fun externalPaperSubpagePreservesSelectionAndParentScrollPosition() {

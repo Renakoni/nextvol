@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.unit.Density
@@ -62,6 +63,7 @@ internal fun ReaderSettingsSheet(
         Unit
     }
     val closeLabel = stringResource(R.string.close)
+    val sheetTitle = stringResource(R.string.reader_settings)
     val scrim = BottomSheetDefaults.ScrimColor
     val alpha by animateFloatAsState(
         if (state.targetValue == SheetValue.Hidden) 0f else 1f,
@@ -91,6 +93,7 @@ internal fun ReaderSettingsSheet(
         BottomSheet(
             state = state,
             modifier = Modifier.align(Alignment.TopCenter).consumeWindowInsets(offsetInsets)
+                .semantics { paneTitle = sheetTitle }
                 .focusRequester(focus)
                 .focusProperties { onExit = { cancelFocusChange() } }
                 .focusGroup(),

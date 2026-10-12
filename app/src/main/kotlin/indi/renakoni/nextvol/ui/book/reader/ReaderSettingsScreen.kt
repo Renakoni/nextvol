@@ -50,7 +50,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -86,12 +85,6 @@ fun SettingsBottomSheet(
                     .fillMaxWidth()
                     .fillMaxHeight()
             ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    style = typography.displayMedium,
-                    text = stringResource(R.string.reader_settings),
-                    fontWeight = FontWeight.W600
-                )
                 ContentSettings(
                     settingState = settingState,
                     selectedTabIndex = selectedTabIndex,

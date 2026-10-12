@@ -69,15 +69,14 @@ internal fun ReaderLayoutSettingsPage(settings: ReaderSettingsEditor) {
             val previewHeight = minOf(148.dp, maxHeight * 0.3f)
             Column(Modifier.fillMaxSize()) {
                 // Keep the sample visible while the independent controls scroll beneath it.
-                Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp).clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainer)) {
-                    Text(stringResource(R.string.reader_layout_preview_scaled),
+                Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                    Text(stringResource(R.string.reader_layout_preview),
                         modifier = Modifier.padding(start = 16.dp, top = 12.dp),
                         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     ReaderLayoutPreview(previewSettings, Modifier.fillMaxWidth().height(previewHeight))
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    SettingsCategory(title = stringResource(R.string.settings_theme_text_font)) { ReaderFontEntry(settings) }
+                    SettingsCategory { ReaderFontEntry(settings) }
                     SettingsCategory(title = stringResource(R.string.reader_layout_typography)) {
                         ReaderTypographyControls(settings, draft) { draft = it }
                     }
@@ -154,14 +153,16 @@ internal fun ReaderLayoutPreview(settings: ReaderSettingsEditor, modifier: Modif
         settings.enableChapterTitleIndicator) 40.dp else 0.dp
     val pagePadding = readerPadding(layout.settings, indicatorHeight)
     BoxWithConstraints(modifier.clip(RoundedCornerShape(16.dp)).background(readerBackgroundColor(settings))) {
-        // Preserve the fraction of each page edge occupied by margins, system bars and the footer.
+        // Leave breathing room above the frame, then scale the reading margins into the remaining height.
         // Text stays at the chosen size and scrolls inside that viewport, even at maximum margins.
+        val topInset = 6.dp
         val widthScale = (constraints.maxWidth.toFloat() / windowSize.width.coerceAtLeast(1)).coerceAtMost(1f)
-        val heightScale = (constraints.maxHeight.toFloat() / windowSize.height.coerceAtLeast(1)).coerceAtMost(1f)
+        val heightScale = ((constraints.maxHeight - with(density) { topInset.toPx() }).coerceAtLeast(0f) /
+            windowSize.height.coerceAtLeast(1)).coerceAtMost(1f)
         val previewPadding = PaddingValues(
             start = pagePadding.calculateStartPadding(direction) * widthScale,
             end = pagePadding.calculateEndPadding(direction) * widthScale,
-            top = pagePadding.calculateTopPadding() * heightScale,
+            top = topInset + pagePadding.calculateTopPadding() * heightScale,
             bottom = pagePadding.calculateBottomPadding() * heightScale,
         )
         if (settings.usesBackgroundImage) Image(
