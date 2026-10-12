@@ -1,6 +1,6 @@
 # NextVol 发布指南
 
-NextVol 使用 [Renakoni/nextvol Releases](https://github.com/Renakoni/nextvol/releases) 分发版本。`v0.1.0` 的占位发布说明草案见 [0.1.0 发布说明](releases/0.1.0.md)。发布前必须按实际附件确认正文和发布类型。
+NextVol 使用 [Renakoni/nextvol Releases](https://github.com/Renakoni/nextvol/releases) 分发签名的通用 APK。首个发布基线见 [0.1.0 发布说明](releases/0.1.0.md)。发布流程先生成草稿和附件，核验后再公开。
 
 ## 版本与标签
 
@@ -9,13 +9,13 @@ NextVol 使用 [Renakoni/nextvol Releases](https://github.com/Renakoni/nextvol/r
 - 标签必须指向实际发布的源码提交，APK 必须从该提交构建。标签下的版本名称、版本码与 APK 内的信息必须一致。
 - 已发布的标签和附件不覆盖重用；后续改动发布新版本。
 
-## 占位发布
+## 发布入口
 
-没有 APK 的版本标记为 **Pre-release**，不设为 latest。附件仅包含发布说明与 `SHA256SUMS`；GitHub 另行提供源码压缩包。
+正式发布必须提供 APK，并标记为非预发布及 latest，才能通过 `/releases/latest` API 获取。GitHub 的正式发布标记决定更新接口是否可见，不表示早期版本的所有功能均已稳定。
 
-GitHub 的 `/releases/latest` API 排除预发布。只有占位预发布时，该接口返回 404，这是尚无正式版本的正常状态；不能将无 APK 的占位版本提升为正式更新。
+草稿和预发布不会进入该接口；无 APK 的版本不能作为正式更新发布。
 
-可通过以下入口读取占位发布的标签、正文和附件，不需要新增自定义更新清单：
+通过以下入口读取标签、正文和附件，不需要新增自定义更新清单：
 
 ```text
 https://github.com/Renakoni/nextvol/releases/tag/v0.1.0
@@ -33,9 +33,9 @@ NextVol 更新接入的发布约定为：读取本仓库最新正式 Release，�
 | `SHA256SUMS` | 上述两个附件的 SHA-256 值和精确文件名 |
 
 1. 在对应 issue 的独立分支和 PR 中更新版本与发布说明，完成相关验证和代码审查；正式 APK 应从已合入主分支的提交构建。
-2. 从该提交执行 `:app:assembleRelease`，完成发布签名，并使用 Android SDK 的 `apksigner verify --verbose --print-certs` 检查签名、`aapt2 dump badging` 核对包名和版本。
-3. 首次正式发布时确定并备份专用签名密钥。后续升级沿用同一签名；私钥和密码保存在仓库外，不作为发布附件。
-4. 准备以上附件及哈希，先创建草稿并上传全部文件。不要把 Debug、Snapshot、未签名 APK 或多个 ABI APK 放入正式 Release。
+2. 在 Actions 中手动运行 `Prepare signed release`，选择 `main`。工作流固定本次提交，校验版本与发布说明，并拒绝已存在的版本标签；复用固定 Android 构建环境及缓存。
+3. 工作流构建 Release APK，用 GitHub Secrets 签名，核对证书指纹、包名、版本、最低 Android 版本、非调试标记和 16 KiB ZIP 对齐。它不向 PR 构建注入正式签名。
+4. 工作流生成以上三个附件及 Release 草稿；R8 混淆映射单独保存在 Actions artifact，不作为下载附件。下载草稿附件核对哈希、签名，并完成安装与启动检查。
 5. 检查附件后，将 Release 发布为非草稿、非预发布，并设为 latest。发布后下载附件，核对哈希和签名。
 6. 验证正式更新入口、版本比较、下载和安装；存在旧正式版时，验证同包名、同签名、递增版本码的覆盖升级。
 
@@ -47,7 +47,9 @@ https://api.github.com/repos/Renakoni/nextvol/releases/latest
 
 正式版包名、签名和版本码共同决定 Android 能否覆盖安装。Debug/Snapshot 使用不同应用 ID，上游 LightNovelReader 也是另一应用，不能作为正式版的原地升级来源。修改版本名称本身不能解决签名不一致。
 
-仓库现有 Release 检查工作流只验证构建，不会自动完成 APK 正式签名、上传或发布。
+普通 PR 的 `Android checks 3/4 - Release` 继续检查未签名构建，生产 Vital Lint 由合入前必须通过的 Android Lint 检查承担。`Prepare signed release` 只创建草稿，不会自动公开版本或覆盖已发布的标签、附件。
+
+`0.1.0` 先建立真实 Release，应用内更新源的迁移另行完成；发布基础不依赖该迁移提前合入。
 
 ## 签名配置与验证
 

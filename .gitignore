@@ -20,6 +20,7 @@ captures/
 .kotlin/
 /app/snapshot/
 /artifacts/
+/release-artifacts/
 /.codex-logs/
 
 # Local research, handoff notes and browser captures are never project sources.

@@ -1,0 +1,83 @@
+name: Prepare signed release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-signed-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build signed APK and draft release
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Read and validate release version
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          gradle = Path('app/build.gradle.kts').read_text()
+          version = re.search(r'^\s*versionName\s*=\s*"([^"]+)"', gradle, re.M)[1]
+          code = int(re.search(r'^\s*versionCode\s*=\s*([0-9_]+)', gradle, re.M)[1].replace('_', ''))
+          assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Expected x.y.z release version'
+          assert 0 < code <= 2100000000, 'Invalid Android version code'
+          assert Path(f'docs/releases/{version}.md').read_text().strip(), 'Missing release notes'
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'APP_VERSION={version}\nAPP_VERSION_CODE={code}\n')
+          PY
+      - name: Require an unused release tag
+        run: |
+          status=0
+          git ls-remote --exit-code --tags origin "refs/tags/v$APP_VERSION" > /dev/null || status=$?
+          if [[ "$status" != 2 ]]; then
+            echo '::error::Release tag already exists, or tag lookup failed. Do not overwrite a published version.'
+            exit 1
+          fi
+      - name: Prepare fixed Android environment
+        uses: ./.github/actions/android-environment
+      - name: Restore Release task outputs
+        uses: ./.github/actions/gradle-build-cache
+        with:
+          variant: release
+      - name: Build release APK
+        run: |
+          # The required Android Lint check covers production Vital Lint before merge.
+          ./gradlew --no-daemon :app:assembleRelease -x :app:lintVitalRelease --console=plain --stacktrace --max-workers=2
+      - name: Sign APK and prepare release attachments
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: bash .github/scripts/sign-release-apk.sh
+      - name: Upload signed release attachments
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NextVol-${{ env.APP_VERSION }}-release
+          path: release-artifacts/
+          if-no-files-found: error
+      - name: Retain obfuscation mapping
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NextVol-${{ env.APP_VERSION }}-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+      - name: Create draft release from this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$APP_VERSION" release-artifacts/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
+            --title "NextVol $APP_VERSION" --notes-file "docs/releases/$APP_VERSION.md"
