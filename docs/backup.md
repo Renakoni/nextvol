@@ -48,3 +48,11 @@ NextVolData.nvbackup
 Android 文档提供器不统一保证原子替换：目标写入阶段失败仍可能留下不完整文件，界面会提示重新导出；不会擅自删除用户选择的目标文档。进程被强制终止时，缓存临时文件可能留待系统回收。
 
 CBOR 编解码仍然整块进行。上述限额不是整个恢复过程的堆内存上限，也没有消除序列化阶段的内存分配；本次不引入分块协议、数据库实体重构或额外的加密、签名机制。ZIP/CRC 不提供加密或来源认证，请妥善保存备份。
+
+## 实现归属
+
+`data/backup/BackupDataManager` 负责备份快照、校验与恢复，`BackupDataCollector` 按导出选项收集记录；载荷 `AppLocalData`、`LocalData` 与身份校验位于 `data/backup/model`。`BackupArchive` 负责清单、CBOR 编解码和归档，`BackupFiles` 负责受限文件读写与临时文件清理。
+
+用户数据导入／导出和书架分享仍由 `data/work` 中的 `ImportDataWork`、`ExportDataWork`、`SaveBookshelfWork` 接入同一套备份实现。Room、DAO、entity 和一般本地读写保留在 `data/local`。
+
+CBOR 使用具体载荷类型的序列化器，字段名与默认值决定本协议的数据形状，不写入 Kotlin 包名或多态类型标记。此归属调整保持载荷字段、协议版本、Worker 类名及任务输入输出不变。

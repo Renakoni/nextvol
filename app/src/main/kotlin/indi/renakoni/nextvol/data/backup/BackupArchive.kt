@@ -1,6 +1,6 @@
 package indi.renakoni.nextvol.data.backup
 
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

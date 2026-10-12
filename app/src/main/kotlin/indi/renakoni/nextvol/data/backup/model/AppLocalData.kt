@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.data.local.cbor
+package indi.renakoni.nextvol.data.backup.model
 
 import kotlinx.serialization.Serializable
 

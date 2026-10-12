@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.data.local.cbor
+package indi.renakoni.nextvol.data.backup.model
 
 import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.book.SourceBookId

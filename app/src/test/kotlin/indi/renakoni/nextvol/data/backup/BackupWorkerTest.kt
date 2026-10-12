@@ -6,9 +6,8 @@ import androidx.work.ListenableWorker
 import androidx.work.workDataOf
 import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.data.ExternalFiles
-import indi.renakoni.nextvol.data.local.LocalDataManager
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
-import indi.renakoni.nextvol.data.local.cbor.LocalData
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.LocalData
 import indi.renakoni.nextvol.data.work.ExportDataWork
 import indi.renakoni.nextvol.data.work.ImportDataWork
 import indi.renakoni.nextvol.data.work.workerParameters
@@ -38,7 +37,7 @@ class BackupWorkerTest {
     private val data = AppLocalData(localDataList = listOf(LocalData.empty()), globalLocalData = LocalData.empty())
 
     @Test fun stagedExternalBackupRestoresWithoutTheSenderPermissionAndIsCleanedOnSuccessOrFailure() = runBlocking {
-        val manager = mockk<LocalDataManager>(relaxed = true)
+        val manager = mockk<BackupDataManager>(relaxed = true)
         every { manager.currentAppDataVersion } returns 1
         coEvery { manager.importAppLocalData(any(), any()) } returns Ok(Unit)
         for (valid in listOf(true, false)) {
@@ -57,7 +56,7 @@ class BackupWorkerTest {
     }
 
     @Test fun interruptedRestoreRetainsTheStagedBackupForWorkManagerToRestart() = runBlocking {
-        val manager = mockk<LocalDataManager>(relaxed = true)
+        val manager = mockk<BackupDataManager>(relaxed = true)
         every { manager.currentAppDataVersion } returns 1
         val staged = ExternalFiles.backupFile(context, "${java.util.UUID.randomUUID()}.nvbackup")
         staged.parentFile!!.mkdirs()
@@ -85,7 +84,7 @@ class BackupWorkerTest {
             }
         }.toByteArray()
         for ((reason, bytes) in listOf(BackupFailure.INVALID to byteArrayOf(), BackupFailure.UNSUPPORTED_VERSION to future)) {
-            val manager = mockk<LocalDataManager>(relaxed = true)
+            val manager = mockk<BackupDataManager>(relaxed = true)
             val uri = Uri.parse("content://backup-test/$reason")
             shadowOf(context.contentResolver).registerInputStream(uri, bytes.inputStream())
             val worker = ImportDataWork(context, workerParameters(workDataOf("uri" to uri.toString(), "overwrite" to true)), manager)
@@ -107,7 +106,7 @@ class BackupWorkerTest {
                 zip.closeEntry()
             }
         }.toByteArray()
-        val manager = mockk<LocalDataManager>(relaxed = true)
+        val manager = mockk<BackupDataManager>(relaxed = true)
         val uri = Uri.parse("content://backup-test/deep-manifest")
         shadowOf(context.contentResolver).registerInputStream(uri, bytes.inputStream())
         val cachedFiles = context.cacheDir.listFiles()!!.toSet()
@@ -119,7 +118,7 @@ class BackupWorkerTest {
     }
 
     @Test fun businessDataVersionRemainsCheckedIndependentlyOfEnvelopeVersion() = runBlocking {
-        val manager = mockk<LocalDataManager>(relaxed = true)
+        val manager = mockk<BackupDataManager>(relaxed = true)
         every { manager.currentAppDataVersion } returns 1
         val file = context.cacheDir.resolve("future-payload.nvbackup")
         try {
@@ -133,7 +132,7 @@ class BackupWorkerTest {
     }
 
     @Test fun exporterRecordsSelectedContentsAndItsArchiveImportsThroughTheWorker() = runBlocking {
-        val manager = mockk<LocalDataManager>(relaxed = true)
+        val manager = mockk<BackupDataManager>(relaxed = true)
         every { manager.currentAppDataVersion } returns 1
         coEvery { manager.exportAppLocalData(any(), any(), any(), any(), any()) } returns Ok(data)
         coEvery { manager.importAppLocalData(any(), any()) } returns Ok(Unit)
