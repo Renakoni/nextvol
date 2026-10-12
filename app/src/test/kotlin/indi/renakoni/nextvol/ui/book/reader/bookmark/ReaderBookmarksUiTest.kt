@@ -1,6 +1,9 @@
 package indi.renakoni.nextvol.ui.book.reader.bookmark
 
 import android.app.Application
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.activity.ComponentActivity
@@ -17,6 +20,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.unit.Density
+import androidx.core.content.FileProvider
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.rememberNavController
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
+import dagger.hilt.android.internal.lifecycle.HiltViewModelFactory
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.book.SourceChapterId
@@ -26,10 +37,15 @@ import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderBottomBar
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
-import io.mockk.mockk
+import indi.renakoni.nextvol.ui.home.settings.ExportUserDataDialogViewModel
+import indi.renakoni.nextvol.ui.home.settings.settingsDestination
+import io.mockk.*
+import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.content.component.ImageComponentData
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import io.nightfish.lightnovelreader.api.identifier.Identifier
+import io.nightfish.lightnovelreader.api.ui.LocalNavController
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -38,10 +54,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.util.Locale
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class, qualifiers = "en-rUS-w360dp-h800dp")
@@ -112,13 +130,45 @@ class ReaderBookmarksUiTest {
     }
 
     @Test fun exportDialogLetsTheUserExcludeBookmarks() {
-        var included: Boolean? = null
-        activity.get().setContent { MaterialTheme {
-            indi.renakoni.nextvol.ui.home.settings.ExportUserDataDialog({}, {}, { included = it.bookmark })
-        } }
-        compose.onNodeWithText("Bookmarks").performScrollTo().performClick()
-        compose.onNodeWithText(activity.get().getString(R.string.export_to_file)).performClick()
-        assertEquals(false, included)
+        val work = mockk<WorkManager>(relaxed = true)
+        val model = ExportUserDataDialogViewModel(work)
+        val factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = model as T
+        }
+        val request = slot<OneTimeWorkRequest>()
+        mockkObject(WorkManager.Companion)
+        mockkStatic(HiltViewModelFactory::class, FileProvider::class)
+        try {
+            every { WorkManager.getInstance(any<Context>()) } returns work
+            every { HiltViewModelFactory.createInternal(any(), any<ViewModelProvider.Factory>()) } returns factory
+            every { FileProvider.getUriForFile(any(), any(), any<File>()) } returns Uri.parse("content://backup/export.zip")
+            every { work.getWorkInfoByIdFlow(any()) } returns MutableStateFlow(null)
+            every { work.enqueueUniqueWork(any(), any(), capture(request)) } returns mockk()
+            activity.get().setContent { MaterialTheme {
+                val nav = rememberNavController()
+                CompositionLocalProvider(LocalNavController provides nav) {
+                    NavHost(nav, startDestination = Route.Main.ExportUserDataDialog) { settingsDestination() }
+                }
+            } }
+            compose.onNodeWithText("Bookmarks").performScrollTo().performClick()
+            compose.onNodeWithText(activity.get().getString(R.string.export_and_share)).performClick()
+            val input = request.captured.workSpec.input
+            assertFalse(input.getBoolean("exportBookmark", true))
+            assertTrue(input.getBoolean("exportSetting", false))
+            request.clear()
+            compose.onNodeWithText(activity.get().getString(R.string.export_to_file)).performClick()
+            val picker = shadowOf(activity.get()).nextStartedActivityForResult
+            compose.runOnIdle {
+                shadowOf(activity.get()).receiveResult(picker.intent, Activity.RESULT_OK,
+                    Intent().setData(Uri.parse("content://backup/saved.zip")))
+            }
+            compose.waitForIdle()
+            assertFalse(request.captured.workSpec.input.getBoolean("exportBookmark", true))
+        } finally {
+            unmockkStatic(HiltViewModelFactory::class, FileProvider::class)
+            unmockkObject(WorkManager.Companion)
+        }
     }
 
     @Test fun resourcesFormatInFourLanguagesAndRegionalRussian() {
