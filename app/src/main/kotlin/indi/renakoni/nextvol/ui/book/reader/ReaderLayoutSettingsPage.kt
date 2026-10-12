@@ -69,8 +69,7 @@ internal fun ReaderLayoutSettingsPage(settings: ReaderSettingsEditor) {
             val previewHeight = minOf(148.dp, maxHeight * 0.3f)
             Column(Modifier.fillMaxSize()) {
                 // Keep the sample visible while the independent controls scroll beneath it.
-                Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp).clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                     Text(stringResource(R.string.reader_layout_preview),
                         modifier = Modifier.padding(start = 16.dp, top = 12.dp),
                         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
