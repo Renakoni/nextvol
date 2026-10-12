@@ -120,6 +120,29 @@ class BookshelfHomeLifecycleTest {
             tab(R.string.nav_bookshelf)
             assertEquals("Renamed", model.uiState.selectedBookshelf?.name)
             assertEquals(1, starts.get())
+
+            val second = Bookshelf(id = 2, name = "Second shelf")
+            shelves.value = shelves.value + second
+            await { model.uiState.bookshelfList.size == 2 }
+            compose.runOnIdle { model.changePage(second.id) }
+            shelves.value = listOf(second, shelves.value.first())
+            await { model.uiState.bookshelfList.first().id == second.id }
+            assertEquals(second.id, model.uiState.selectedBookshelfId)
+            tab(R.string.nav_reading)
+            shelves.value = shelves.value.filterNot { it.id == second.id }
+            await { model.uiState.bookshelfList.size == 1 }
+            assertEquals(1, model.uiState.selectedBookshelf?.id)
+            tab(R.string.nav_bookshelf)
+            assertEquals("Renamed", model.uiState.selectedBookshelf?.name)
+
+            shelves.value = emptyList()
+            await { model.uiState.bookshelfList.isEmpty() }
+            assertEquals(-1, model.uiState.selectedBookshelfId)
+            shelves.value = listOf(second)
+            await { model.uiState.bookshelfList.isNotEmpty() }
+            assertEquals(second.id, model.uiState.selectedBookshelf?.id)
+            assertEquals(1, starts.get())
+            assertEquals(1, active.get())
             compose.runOnIdle { store.clear() }
             await { active.get() == 0 }
         } finally {

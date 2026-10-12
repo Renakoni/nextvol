@@ -13,6 +13,7 @@ import io.nightfish.lightnovelreader.api.userdata.UserDataPath
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -64,7 +65,7 @@ class BookshelfHomeViewModel @Inject constructor(
     fun load() {
         // The main-graph model survives tab changes and already observes shelf updates.
         if (loadJob?.isActive == true) return
-        loadJob = viewModelScope.launch(Dispatchers.IO) {
+        loadJob = viewModelScope.launch {
             val bookshelfIdsFlow = bookshelfRepository.getAllBookshelvesFlow()
             val savedOrderFlow = bookshelfOrderUserData.getFlowWithDefault(emptyList())
             combine(bookshelfIdsFlow, savedOrderFlow) { bookshelves, savedOrder ->
@@ -76,12 +77,11 @@ class BookshelfHomeViewModel @Inject constructor(
                 list.map {
                     it.toBookshelfUiState(bookRepository, bookshelfRepository)
                 }
-            }.collect { bookshelfUiStates ->
-                if (_uiState.selectedBookshelf == null)
-                    bookshelfUiStates.getOrNull(0)?.let {
-                        changePage(it.id)
-                    }
+            }.flowOn(Dispatchers.IO).collect { bookshelfUiStates ->
                 _uiState.bookshelfList = bookshelfUiStates
+                if (bookshelfUiStates.none { it.id == _uiState.selectedBookshelfId }) {
+                    changePage(bookshelfUiStates.firstOrNull()?.id ?: -1)
+                }
             }
         }
     }
