@@ -55,9 +55,8 @@ if grep -q '^application-debuggable' "$temporary/badging.txt"; then
   exit 1
 fi
 
-cp "docs/releases/$APP_VERSION.md" "release-artifacts/NextVol-$APP_VERSION-release-notes.md"
 (
   cd release-artifacts
-  sha256sum "NextVol-$APP_VERSION-release.apk" "NextVol-$APP_VERSION-release-notes.md" > SHA256SUMS
+  sha256sum "NextVol-$APP_VERSION-release.apk" > SHA256SUMS
   sha256sum --check SHA256SUMS
 )
