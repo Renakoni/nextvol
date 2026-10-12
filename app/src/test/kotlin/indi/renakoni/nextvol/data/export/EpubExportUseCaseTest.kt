@@ -11,7 +11,6 @@ import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.download.BookDownloadStore
 import indi.renakoni.nextvol.data.download.DownloadItem
 import indi.renakoni.nextvol.data.download.DownloadProgressRepository
-import indi.renakoni.nextvol.data.work.EpubShareFiles
 import indi.renakoni.nextvol.data.work.exportDownloads
 import indi.renakoni.nextvol.data.work.stubExportRepository
 import indi.renakoni.nextvol.utils.ImageUtils

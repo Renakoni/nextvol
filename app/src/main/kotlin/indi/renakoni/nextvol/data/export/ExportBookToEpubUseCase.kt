@@ -19,7 +19,6 @@ import indi.renakoni.nextvol.data.download.downloadChapterSignature
 import indi.renakoni.nextvol.data.download.downloadHash
 import indi.renakoni.nextvol.data.image.SourceImage
 import indi.renakoni.nextvol.data.localbook.LocalBookStore
-import indi.renakoni.nextvol.data.work.EpubShareFiles
 import indi.renakoni.nextvol.utils.DefaultBookCoverRenderer
 import indi.renakoni.nextvol.utils.network.ImageDownloader
 import io.nightfish.lightnovelreader.api.book.BookInformation

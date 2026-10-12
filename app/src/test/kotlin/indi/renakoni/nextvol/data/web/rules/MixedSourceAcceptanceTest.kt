@@ -212,7 +212,7 @@ class MixedSourceAcceptanceTest {
                     val exported = awaitWork(OneTimeWorkRequestBuilder<ExportBookToEPUBWork>().setInputData(workDataOf(
                         "bookId" to book.storageKey, "exportType" to "BOOK")).build())
                     assertEquals(exported.outputData.toString(), WorkInfo.State.SUCCEEDED, exported.state)
-                    ZipFile(indi.renakoni.nextvol.data.work.EpubShareFiles.files(context.applicationContext, exported.id).single()).use { zip ->
+                    ZipFile(indi.renakoni.nextvol.data.export.EpubShareFiles.files(context.applicationContext, exported.id).single()).use { zip ->
                         val text = zip.entries().asSequence().filter { it.name.endsWith(".xhtml") }
                             .joinToString { zip.getInputStream(it).bufferedReader().use { reader -> reader.readText() } }
                         assertTrue(text.contains(listOf("Wenku8 first", "A first", "B first")[index]))

@@ -211,7 +211,7 @@ class HostMultiSourceIntegrationTest {
             val exportedWork = awaitWork(request)
             assertEquals("${exportedWork.outputData}: ${org.robolectric.shadows.ShadowLog.getLogsForTag("ExportEPUB")}",
                 WorkInfo.State.SUCCEEDED, exportedWork.state)
-            ZipFile(indi.renakoni.nextvol.data.work.EpubShareFiles.files(context, exportedWork.id).single()).use { zip ->
+            ZipFile(indi.renakoni.nextvol.data.export.EpubShareFiles.files(context, exportedWork.id).single()).use { zip ->
                 val text = zip.entries().asSequence().filter { it.name.endsWith(".xhtml") }
                     .joinToString { zip.getInputStream(it).bufferedReader().use { reader -> reader.readText() } }
                 assertTrue(text.contains("${book.sourceId.id}:body:1"))
