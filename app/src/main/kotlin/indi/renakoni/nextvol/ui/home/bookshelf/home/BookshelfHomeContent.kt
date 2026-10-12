@@ -41,9 +41,12 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -51,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -67,10 +71,10 @@ import com.github.michaelbull.result.get
 import com.github.michaelbull.result.getOrElse
 import com.github.michaelbull.result.map
 import com.github.michaelbull.result.onOk
+import com.valentinilk.shimmer.shimmer
 import com.valentinilk.shimmer.Shimmer
 import com.valentinilk.shimmer.ShimmerBounds
 import com.valentinilk.shimmer.rememberShimmer
-import com.valentinilk.shimmer.shimmer
 import com.valentinilk.shimmer.unclippedBoundsInWindow
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.EmptyPage
@@ -248,7 +252,13 @@ internal fun BookshelfHomeContent(
             }
 
             val selectedBookIdSet = uiState.selectedBookIds.toHashSet()
-            val shimmerInstance = rememberShimmer(ShimmerBounds.Custom)
+            var loadingCards by remember { mutableIntStateOf(0) }
+            val onLoadingChanged: (Boolean) -> Unit = remember {
+                { loading -> loadingCards += if (loading) 1 else -1 }
+            }
+            val shimmerBounds = remember { mutableStateOf<Rect?>(null) }
+            val shimmerInstance = if (loadingCards > 0) rememberShimmer(ShimmerBounds.Custom) else null
+            SideEffect { shimmerInstance?.updateBounds(shimmerBounds.value) }
             val density = LocalDensity.current
             val lineHeight = MaterialTheme.typography.titleMedium.lineHeight
             val titleHeight = with(density) { (lineHeight * 2.2f).toDp() }
@@ -261,6 +271,7 @@ internal fun BookshelfHomeContent(
                     layout = uiState.layout,
                     titleHeight = titleHeight,
                     shimmer = shimmerInstance,
+                    onLoadingChanged = onLoadingChanged,
                     onBookClick = uiState.onBookClick,
                     onBookSelect = uiState.changeBookSelectState,
                     onLongPress = { bookId ->
@@ -286,8 +297,9 @@ internal fun BookshelfHomeContent(
             val contentModifier = Modifier
                 .fillMaxWidth()
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .onGloballyPositioned { layoutCoordinates ->
-                    shimmerInstance.updateBounds(layoutCoordinates.unclippedBoundsInWindow())
+                .onGloballyPositioned {
+                    shimmerBounds.value = it.unclippedBoundsInWindow()
+                    shimmerInstance?.updateBounds(shimmerBounds.value)
                 }
             if (uiState.layout == BookshelfLayout.List) {
                 LazyColumn(modifier = contentModifier, state = listState) {
@@ -363,7 +375,8 @@ private fun BookshelfBookCard(
     selectMode: Boolean,
     layout: BookshelfLayout,
     titleHeight: Dp,
-    shimmer: Shimmer,
+    shimmer: Shimmer?,
+    onLoadingChanged: (Boolean) -> Unit,
     onBookClick: (String) -> Unit,
     onBookSelect: (String) -> Unit,
     onLongPress: (String) -> Unit,
@@ -372,6 +385,11 @@ private fun BookshelfBookCard(
         targetState = bookshelfBookItem,
         label = "BookCardCrossfade"
     ) { result ->
+        // Include an outgoing placeholder until its existing Crossfade has finished.
+        if (result == null) DisposableEffect(onLoadingChanged) {
+            onLoadingChanged(true)
+            onDispose { onLoadingChanged(false) }
+        }
         val onClick = { if (selectMode) onBookSelect(id) else onBookClick(id) }
         if (layout == BookshelfLayout.Grid) {
             BookshelfGridCard(
@@ -398,7 +416,8 @@ private fun BookshelfBookCard(
                     titleHeight = titleHeight
                 )
             } ?: BookCardContentSkeleton(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).shimmer(shimmer)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
+                    .then(if (shimmer != null) Modifier.shimmer(shimmer) else Modifier)
             )
         }
     }

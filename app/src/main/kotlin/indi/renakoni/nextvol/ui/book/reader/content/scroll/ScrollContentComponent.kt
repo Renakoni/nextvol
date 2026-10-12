@@ -170,13 +170,18 @@ fun ScrollContentTextComponent(
     val chapterEntries = uiState.contentList.toList()
     val showAdjacentChapters = settingState.isUsingContinuousScrolling &&
         chapterEntries.getOrNull(1)?.second?.isErr != true
-    val preparedChapters = chapterEntries.mapIndexed { index, entry ->
+    // Native font/layout work contends across chapters. Share one worker within this reader,
+    // submitting the current chapter first; keyed neighbours keep their geometry as slots move.
+    val measurementDispatcher = remember { Dispatchers.Default.limitedParallelism(1) }
+    val preparedBySlot = chapterEntries.indices.sortedBy { if (it == 1) 0 else 1 }.associateWith { index ->
+        val entry = chapterEntries[index]
         key(listState, entry?.first ?: "placeholder-$index") {
             PrepareReaderSpeechIndex(entry?.second?.get())
             rememberPreparedScrollChapter(entry?.second?.get(), textLayout,
-                lazyColumnSize.width, lazyColumnSize.height)
+                lazyColumnSize.width, lazyColumnSize.height, measurementDispatcher)
         }
     }
+    val preparedChapters = chapterEntries.indices.map { preparedBySlot[it] }
     val bookmarks = LocalReaderBookmarks.current
     val positions = LocalReaderPositionSession.current
     var bookmarkReady by remember(listState) { mutableStateOf(false) }
