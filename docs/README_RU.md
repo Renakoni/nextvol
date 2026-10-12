@@ -1,4 +1,4 @@
-[简体中文](README.md) | [繁體中文](README_TW.md) | [English](README_US.md) | **Русский**
+[简体中文](../README.md) | [繁體中文](README_TW.md) | [English](README_US.md) | **Русский**
 
 <div align="center">
     <h1>NextVol</h1>
@@ -9,7 +9,7 @@
     <a href="https://discord.gg/pnf4ABmDJt"><img alt="Discord" src="https://img.shields.io/badge/Discord-JOIN-4285F4.svg?logo=discord&logoColor=white&style=for-the-badge"></a>
     <a href="https://t.me/lightnoble"><img alt="Discord" src="https://img.shields.io/badge/Telegram-JOIN-188FCA.svg?logo=telegram&logoColor=white&style=for-the-badge"></a>
     <p>Приложение для чтения ранобэ, созданное с использованием Jetpack Compose</p>
-    <img src="assets/header.png" alt="drawing" width="80%"/>
+    <img src="../assets/header.png" alt="drawing" width="80%"/>
 </div>
 
 ## Введение
@@ -49,13 +49,13 @@ NextVol <sup>*Переработанная версия*</sup> — это при
 
 |                             |
 |-----------------------------|
-| ![image](assets/light1.png) |
-| ![image](assets/light2.png) |
-| ![image](assets/light3.png) |
+| ![image](../assets/light1.png) |
+| ![image](../assets/light2.png) |
+| ![image](../assets/light3.png) |
 
 ### О EpubLib
 
-Мы разработали отдельный модуль для более эффективного экспорта EPUB. Заинтересованы? Смотрите [**здесь**](https://github.com/dmzz-yyhyy/LightNovelReader/blob/refactoring/epub.md)
+Мы разработали отдельный модуль для более эффективного экспорта EPUB. Заинтересованы? Смотрите [**здесь**](epub_ru.md)
 
 ## Вклад
 
