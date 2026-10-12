@@ -8,6 +8,14 @@ import okhttp3.mockwebserver.MockWebServer
 import java.nio.file.Files
 
 class WebsiteChallengeTest {
+    @Test fun aliyunWafDocumentRequiresVerificationButAHiddenSliderDoesNot() {
+        val html = "<meta name='aliyun_waf_aa' content='fixture'><script name='aliyunwaf_fixture'></script>"
+        assertEquals(BrowserChallengeKind.SiteVerification, websiteChallenge(response("/book", html)))
+        assertNull(websiteChallenge(response("/book", "<meta name='aliyun_waf_aa' content='fixture'>")))
+        assertNull(websiteChallenge(response("/book", "<script name='aliyunwaf_fixture'></script>")))
+        assertNull(websiteChallenge(response("/book", "<div hidden id='aliyunCaptcha-sliding-wrapper'></div><p>Chapter</p>")))
+    }
+
     @Test fun wafScriptAndCookieBootstrapAreVerificationButQuotedChapterTextIsNot() {
         val script = "<title>loading fixture.example</title><script src='/@wafjs?fixture'></script>"
         for (status in listOf(200, 401, 403)) {

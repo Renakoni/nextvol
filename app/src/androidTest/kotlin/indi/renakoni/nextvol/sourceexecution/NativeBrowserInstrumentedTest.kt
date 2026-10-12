@@ -425,6 +425,22 @@ class NativeBrowserInstrumentedTest {
         }
     } }
 
+    @Test fun onlyVisibleAliyunSliderRequiresVerification(): Unit = runBlocking { fixture { broker, server ->
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = MockResponse().setHeader("Content-Type", "text/html")
+                .setBody("""<html><head><title>Reading fixture</title><link rel='icon' href='data:,'></head><body>
+                    <div ${if (request.path == "/hidden") "style='display:none'" else ""}>
+                    <div id='aliyunCaptcha-sliding-wrapper'>Slide to verify</div></div><p>Chapter fixture</p></body></html>""")
+        }
+        val account = session(broker, server)
+        assertEquals("Reading fixture", render(account, server.url("/hidden").toString()).text())
+        val target = server.url("/visible").toString()
+        val blocked = account.execute(BrokerRequest("slider", target)) as BrokerResult.Failure
+        assertEquals(FailureCode.BrowserRequired, blocked.code)
+        assertEquals(BrowserChallengeKind.SiteVerification, blocked.challenge)
+        assertEquals(target, blocked.verificationRequest?.url)
+    } }
+
     @Test fun suppliedHtmlUsesTheSyntheticBrowserWithoutNetwork(): Unit = runBlocking { fixture { broker, server ->
         val result = session(broker, server).execute(BrokerRequest("html", server.url("/").toString(),
             browser = BrowserOptions(html = "<html><head><link rel='icon' href='data:,'></head><body>synthetic</body></html>",

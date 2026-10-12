@@ -19,5 +19,9 @@ dependencies {
 tasks.test {
     useJUnit()
     inputs.file("../../app/src/main/assets/source-catalog/Adult.json")
+    inputs.file("../../app/src/main/assets/source-catalog/Platforms.json")
+    inputs.file("../../app/src/main/assets/source-catalog/Anime.json")
+    inputs.file("../../app/src/main/assets/source-catalog/Female.json")
+    inputs.file("../../app/src/main/assets/source-catalog/Literature.json")
 }
 sourceSets.test { resources.srcDir("../../tests/source-compatibility/browser") }

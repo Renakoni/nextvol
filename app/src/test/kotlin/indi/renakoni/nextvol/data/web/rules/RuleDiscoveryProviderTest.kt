@@ -37,6 +37,25 @@ import org.robolectric.annotation.Config
 class RuleDiscoveryProviderTest {
     @get:Rule val directory = TemporaryFolder()
 
+    @Test fun declaredRankingsKeepBooksAndMoreLinksWithoutBecomingCategories() = runBlocking {
+        RuleSourceFixture().use { fixture ->
+            fixture.source { raw -> JsonObject(raw + mapOf(
+                "exploreUrl" to JsonPrimitive("""[{"title":"玄幻","url":"/search?genre=fantasy"},
+                    {"title":"月榜","url":"/search?rank=month","showInCategories":false}]"""),
+                "homepageModules" to JsonPrimitive("""[{"key":"month","type":"ranking","title":"月榜","kindTitle":"月榜"}]"""),
+                "ruleExplore" to raw.getValue("ruleSearch")
+            )) }.use { source ->
+                val provider = RuleDiscoveryProvider(source)
+                assertEquals(listOf("玄幻"), provider.catalog().get()!!.categories.map { it.title })
+                val section = provider.feed().get()!!.single()
+                assertEquals("月榜", section.title)
+                assertEquals(1, section.books.size)
+                assertEquals("/search?rank=month", section.more)
+                assertEquals(1, provider.page(DiscoveryRequest(section.more!!)).get()!!.books.size)
+            }
+        }
+    }
+
     @Test fun feedAndResultPagesRetainCoversForBothBatchedAndDynamicRules() = runBlocking {
         for (dynamic in listOf(false, true)) RuleSourceFixture().use { fixture ->
             fixture.server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {

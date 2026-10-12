@@ -49,8 +49,8 @@ class SourceCatalogTest {
     }
 
     @Test fun catalogEntriesUseTheirBundledDefinitionsAndPassTheProductionImporter() {
-        assertEquals(listOf(18, 15, 9, 15, 9, 8), SourceCategory.entries.map { category -> catalog.entries.count { it.category == category } })
-        assertEquals(74, catalog.entries.map { it.key }.toSet().size)
+        assertEquals(listOf(18, 15, 9, 12, 9, 8), SourceCategory.entries.map { category -> catalog.entries.count { it.category == category } })
+        assertEquals(71, catalog.entries.map { it.key }.toSet().size)
         val store = SourceDefinitionStore(folder.newFolder().toPath())
         val importer = SourceDefinitionImporter(store)
         val preview = importer.preview(catalog.definitions(catalog.entries.map { it.key }.toSet()), AUTO_PROFILE)
@@ -112,6 +112,7 @@ class SourceCatalogTest {
                     assertTrue(entry.name, resolution is SourceResolution.Ready)
                     val runtime = (resolution as SourceResolution.Ready).runtime
                     assertEquals(entry.category, runtime.metadata.category)
+                    assertTrue("${entry.name} must offer a discovery homepage", SourceCapability.Explore in runtime.metadata.capabilities)
                     assertEquals("https://catalog-fixture.invalid/book", runtime.canonicalBookId("https://catalog-fixture.invalid/book"))
                 }
                 if (it == 0) {
@@ -125,7 +126,7 @@ class SourceCatalogTest {
 
     @Test fun withdrawnSourcesRetainInstalledClassificationButCannotBeAddedFromTheCatalog() {
         val entries = allEntries()
-        assertEquals(92, entries.size)
+        assertEquals(95, entries.size)
         val importer = SourceDefinitionImporter(SourceDefinitionStore(folder.newFolder().toPath()))
         val preview = importer.preview(JsonArray(entries.map(::raw)).toString(), AUTO_PROFILE)
         assertTrue(preview.issues.toString(), preview.issues.isEmpty())
@@ -138,6 +139,10 @@ class SourceCatalogTest {
         assertTrue(entries.filter { it.name in setOf("轻小说机翻", "连城读书", "ESJ Zone", "鲸云轻说", "疯情书库", "八一中文", "全本小说（quanben5）", "趣书网（qubook）", "掌阅") }
             .all { !it.available })
         assertTrue(entries.filter { raw(it)["exploreUrl"]?.jsonPrimitive?.content.isNullOrBlank() }.all { !it.available })
+        for (key in listOf("https://www.17bxwx.com/", "http://www.qudushu.com", "https://bbs.yamibo.com", "https://www.xstt5.com")) {
+            val old = entries.single { it.key == key }
+            assertFalse(old.name, old.available)
+        }
     }
 
     @Test fun formerOfficialSitesSitInTheirOriginalCategoriesAndDeadSitesAreGone() {
@@ -168,21 +173,12 @@ class SourceCatalogTest {
     }
 
     @Test fun metadataRepairsRecognizeThePreviouslyBundledDefinitions() {
-        val oldKinds = mapOf(
-            "https://www.biqusa.com/#" to "id.info@tag.p.2@text##最后更新：",
-            "https://m.shuhaige.net/" to "tag.p.2@tag.a@text&&\ntag.p.2@tag.span.0@text&&\ntag.p.4@text##最后更新：",
-            "https://m.x33yq.org/" to ".layui-btn-radius@text&&\n.new + p@text##最后更新："
-        )
-        for ((key, oldKind) in oldKinds) {
+        // Keep historical definitions fixed: rebuilding them from current discovery rules
+        // would produce digests that were never shipped.
+        val previous = javaClass.getResource("/source-catalog/previous-metadata.json")!!.readText()
+        for (old in Json.parseToJsonElement(previous).jsonArray) {
+            val key = old.jsonObject.getValue("bookSourceUrl").jsonPrimitive.content
             val entry = catalog.entries.single { it.key == key }
-            val current = raw(entry)
-            val oldFields = buildJsonObject {
-                for ((name, value) in current.getValue("ruleBookInfo").jsonObject) when {
-                    name == "kind" || name == "updateTime" && key.contains("biqusa") -> put("kind", oldKind)
-                    name != "updateTime" -> put(name, value)
-                }
-            }
-            val old = JsonObject(current + ("ruleBookInfo" to oldFields))
             val store = SourceDefinitionStore(folder.newFolder().toPath())
             val importer = SourceDefinitionImporter(store)
             val preview = importer.preview(old.toString(), AUTO_PROFILE)
