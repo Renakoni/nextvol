@@ -53,6 +53,14 @@ https://api.github.com/repos/Renakoni/nextvol/releases/latest
 
 NextVol 使用独立的 RSA 4096 位签名，别名为 `nextvol-release`。密钥放在仓库外，密码和别名存入密码管理器，并保留可恢复的独立密钥备份。
 
+发布证书的 SHA-256 指纹为：
+
+```text
+87:B6:1D:CF:3E:EC:CA:2B:93:AC:B8:AA:E0:35:CE:01:62:60:50:8E:09:E2:05:26:69:12:70:35:23:EF:AC:FC
+```
+
+证书主题为 `CN=NextVol`，有效期至 2054-02-27。正式 APK 签名验证应与此证书指纹一致。
+
 GitHub Actions 需要四个仓库 Secrets：
 
 ```text
