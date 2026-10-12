@@ -5,12 +5,14 @@ import android.os.Trace
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -41,6 +43,7 @@ import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout
 import indi.renakoni.nextvol.ui.book.reader.ReaderViewModel
 import indi.renakoni.nextvol.ui.book.reader.rememberReaderTextLayout
 import indi.renakoni.nextvol.ui.book.reader.content.ContentComponent
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderPositionSession
 import indi.renakoni.nextvol.ui.book.reader.content.flip.FlipPageContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
 import indi.renakoni.nextvol.ui.book.reader.content.componet.LocalReaderTextDrawObserver
@@ -113,12 +116,13 @@ class ReaderPerformanceActivity : ComponentActivity() {
                 CompositionLocalProvider(
                     LocalNavController provides rememberNavController(),
                     LocalReaderBookId provides ReaderPerformanceFixture.book.storageKey,
+                    LocalReaderPositionSession provides model.positions,
                     LocalReaderTextLayout provides layout,
                     LocalReaderStyle provides ReaderStyle(settings.fontSize, settings.fontLineHeight,
                         settings.fontWeigh, settings.textColor, settings.textDarkColor),
                     LocalReaderTextDrawObserver provides ::drawn,
                 ) {
-                    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
                         Row {
                             TextButton(onClick = { navigate("1") }) { Text("Previous") }
                             TextButton(onClick = { navigate("2") }) { Text("Next") }
