@@ -62,13 +62,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -149,6 +154,12 @@ fun ReaderScreen(
     val backBlockMode = settingState.backBlockMode
     var lastBackPressTime: Long by remember { mutableLongStateOf(0) }
     var showSettingsBottomSheet by remember { mutableStateOf(false) }
+    val settingsButtonFocus = remember { FocusRequester() }
+    val inputMode = LocalInputModeManager.current
+    LaunchedEffect(showSettingsBottomSheet) {
+        if (!showSettingsBottomSheet && !isImmersive && inputMode.inputMode == InputMode.Keyboard)
+            settingsButtonFocus.requestFocus()
+    }
     val contentState = readingScreenUiState.contentUiState
     // Scroll geometry depends on the viewport, not the chapter. Flip capability still does.
     val layoutResult = remember(contentState,
@@ -201,7 +212,6 @@ fun ReaderScreen(
             }
         }
     }
-    val settingsBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val chaptersBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
 
     val claim = LocalClaimSnackbarHost.current
@@ -211,7 +221,7 @@ fun ReaderScreen(
         onDispose { claim(false) }
     }
 
-    BackHandler {
+    BackHandler(enabled = !showSettingsBottomSheet) {
         when (backBlockMode) {
             MenuOptions.ReaderBackBlockMode.None -> {
                 isImmersive = false
@@ -241,7 +251,9 @@ fun ReaderScreen(
         }
     }
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+            .focusProperties { canFocus = !showSettingsBottomSheet }
+            .then(if (showSettingsBottomSheet) Modifier.clearAndSetSemantics {} else Modifier),
         snackbarHost = {
             SnackbarHost(LocalSnackbarHost.current) { data ->
                 LnrSnackbar(
@@ -325,6 +337,7 @@ fun ReaderScreen(
                 onClickPrevChapter = previousChapter,
                 onClickNextChapter = nextChapter,
                 onClickSettings = { showSettingsBottomSheet = true },
+                settingsButtonModifier = Modifier.focusRequester(settingsButtonFocus),
                 onClickChapterSelector = { showChapterSelectionBottomSheet = true },
                 onClickBookmarks = {
                     bookmarkPosition = bookmarkSession.capture?.invoke()
@@ -385,22 +398,15 @@ fun ReaderScreen(
         )
     }
     if (showSettingsBottomSheet) {
+        val settingsBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
         CompositionLocalProvider(LocalReaderLayoutResult provides layoutResult) {
         SettingsBottomSheet(
             sheetState = settingsBottomSheetState,
-            onDismissRequest = {
-                coroutineScope.launch { settingsBottomSheetState.hide() }.invokeOnCompletion {
-                    if (!settingsBottomSheetState.isVisible) {
-                        showSettingsBottomSheet = false
-                    }
-                }
-                showSettingsBottomSheet = false
-            },
+            onDismissRequest = { showSettingsBottomSheet = false },
             settingState = settingState,
             onClickThemeSettings = {
                 // Unmount the reader sheet before the destination transition starts.
                 showSettingsBottomSheet = false
-                coroutineScope.launch { settingsBottomSheetState.hide() }
                 onClickThemeSettings()
             }
         )
@@ -591,6 +597,7 @@ internal fun ReaderBottomBar(
     onClickSettings: () -> Unit,
     onClickChapterSelector: () -> Unit,
     onClickBookmarks: () -> Unit = {},
+    settingsButtonModifier: Modifier = Modifier,
 ) {
     BottomAppBar(
         windowInsets = WindowInsets.navigationBarsIgnoringVisibility
@@ -644,7 +651,7 @@ internal fun ReaderBottomBar(
                     )
                 }
 
-                IconButton(onClick = onClickSettings) {
+                IconButton(onClick = onClickSettings, modifier = settingsButtonModifier) {
                     Icon(
                         painter = painterResource(R.drawable.outline_settings_24px),
                         contentDescription = stringResource(R.string.settings)

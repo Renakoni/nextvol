@@ -1,8 +1,6 @@
 package indi.renakoni.nextvol.ui.home.reading.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -44,9 +42,12 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -54,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -97,23 +99,22 @@ import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.UserReadingData
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
 import java.time.format.DateTimeFormatter
 import kotlin.time.Duration.Companion.seconds
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReadingScreen(
-    recentReadingBooks: List<Pair<String, Flow<Result<RecentReadingBook, WebRequestError>>>>,
+    recentReadingBooks: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>>,
     onClickBook: (String) -> Unit,
     onClickContinueReading: (String, String) -> Unit,
     onClickDownloadManager: () -> Unit,
     onClickStats: () -> Unit,
     onRemoveBook: (String) -> Unit,
     onAddBook: (String) -> Unit,
-    @Suppress("unused") sharedTransitionScope: SharedTransitionScope,
     onClickOpenChapters: (String) -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -150,7 +151,7 @@ fun ReadingScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReadingContent(
     modifier: Modifier,
@@ -158,7 +159,7 @@ private fun ReadingContent(
     onClickContinueReading: (String, String) -> Unit,
     onAddBook: (String) -> Unit,
     onRemoveBook: (String) -> Unit,
-    recentReadingBooks: List<Pair<String, Flow<Result<RecentReadingBook, WebRequestError>>>>,
+    recentReadingBooks: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>>,
     onClickOpenChapters: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -172,10 +173,14 @@ private fun ReadingContent(
         started = true
     }
 
-    val shimmerInstance = rememberSkeletonShimmer(
+    // Share the original list-wide wave, but stop its frame clock when no placeholders remain.
+    var loadingCards by remember { mutableIntStateOf(0) }
+    val shimmerBounds = remember { mutableStateOf<Rect?>(null) }
+    val shimmerInstance = if (loadingCards > 0) rememberSkeletonShimmer(
         baseColor = colorScheme.surfaceContainerLow,
         highlightColor = colorScheme.surfaceContainerHigh
-    )
+    ) else null
+    SideEffect { shimmerInstance?.updateBounds(shimmerBounds.value) }
 
     val removedItemString = stringResource(R.string.removed_item)
     val undoString = stringResource(R.string.undo)
@@ -214,11 +219,10 @@ private fun ReadingContent(
     }
 
     LazyColumn(
-        modifier = modifier
-            .onGloballyPositioned { layoutCoordinates ->
-                val position = layoutCoordinates.unclippedBoundsInWindow()
-                shimmerInstance.updateBounds(position)
-            },
+        modifier = modifier.onGloballyPositioned {
+            shimmerBounds.value = it.unclippedBoundsInWindow()
+            shimmerInstance?.updateBounds(shimmerBounds.value)
+        },
         verticalArrangement = Arrangement.spacedBy(12.dp),
         state = listState
     ) {
@@ -264,7 +268,7 @@ private fun ReadingContent(
                     .padding(horizontal = 12.dp)
                     .height(146.dp)
             ) {
-                val result by pair.second.collectAsStateWithLifecycle(null)
+                val result by pair.second.collectAsStateWithLifecycle()
                 result?.onOk {
                     ReadingBookCard(
                         bookInformation = it.bookInformation,
@@ -278,11 +282,16 @@ private fun ReadingContent(
                     )
                 }?.onErr {
                     print("")
-                } ?: ReadingBookCardSkeleton(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(if (started) Modifier.shimmer(shimmerInstance) else Modifier)
-                )
+                } ?: run {
+                    DisposableEffect(Unit) {
+                        loadingCards++
+                        onDispose { loadingCards-- }
+                    }
+                    ReadingBookCardSkeleton(
+                        modifier = Modifier.fillMaxSize()
+                            .then(if (started && shimmerInstance != null) Modifier.shimmer(shimmerInstance) else Modifier)
+                    )
+                }
             }
         }
         navigationBarSpacer()
@@ -498,7 +507,7 @@ private fun ReadingBookCard(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ReadingHeaderCardPager(
-    items: List<Pair<String, Flow<Result<RecentReadingBook, WebRequestError>>>>,
+    items: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>>,
     modifier: Modifier = Modifier,
     onClickContinueReading: (String, String) -> Unit,
     onClickOpenChapters: (String) -> Unit,
@@ -554,7 +563,7 @@ fun ReadingHeaderCardPager(
                     .background(colorScheme.surfaceVariant.copy(alpha = 0.14f))
                     .padding(8.dp)
             ) {
-                val recentReadingBookResult by recentReadingBookFlow.collectAsStateWithLifecycle(null)
+                val recentReadingBookResult by recentReadingBookFlow.collectAsStateWithLifecycle()
                 recentReadingBookResult?.onOk {
                     ReadingHeaderCardPage(
                         info = it.bookInformation,

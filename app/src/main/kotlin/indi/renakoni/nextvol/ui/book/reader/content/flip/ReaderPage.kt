@@ -50,7 +50,7 @@ internal suspend fun paginateReaderComponents(
             val cancellation = currentCoroutineContext()
             val textPages = layoutReaderText(sources, width, height, layout.paragraphSpacingPx) { text, maxWidth ->
                 cancellation.ensureActive()
-                layout.measurer.measure(text, layout.style, constraints = Constraints(maxWidth = maxWidth))
+                layout.measurer.measure(text, layout.style, constraints = Constraints.fixedWidth(maxWidth))
             }
             for (fragments in textPages) {
                 currentCoroutineContext().ensureActive()
