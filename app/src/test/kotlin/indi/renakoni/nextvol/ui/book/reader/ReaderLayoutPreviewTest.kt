@@ -143,7 +143,7 @@ class ReaderLayoutPreviewTest {
         showPreview(fullPage = true)
         val initial = viewport()
         val slider = compose.onNodeWithContentDescription("Top Margin").performScrollTo()
-        compose.onNodeWithText("Page preview · margins shown to scale").assertIsDisplayed()
+        compose.onNodeWithText("Page preview").assertIsDisplayed()
         slider.performTouchInput {
             down(Offset(width * 0.1f, centerY))
             moveTo(Offset(width * 0.7f, centerY), delayMillis = 100)

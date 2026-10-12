@@ -71,13 +71,13 @@ internal fun ReaderLayoutSettingsPage(settings: ReaderSettingsEditor) {
                 // Keep the sample visible while the independent controls scroll beneath it.
                 Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp).clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainer)) {
-                    Text(stringResource(R.string.reader_layout_preview_scaled),
+                    Text(stringResource(R.string.reader_layout_preview),
                         modifier = Modifier.padding(start = 16.dp, top = 12.dp),
                         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     ReaderLayoutPreview(previewSettings, Modifier.fillMaxWidth().height(previewHeight))
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    SettingsCategory(title = stringResource(R.string.settings_theme_text_font)) { ReaderFontEntry(settings) }
+                    SettingsCategory { ReaderFontEntry(settings) }
                     SettingsCategory(title = stringResource(R.string.reader_layout_typography)) {
                         ReaderTypographyControls(settings, draft) { draft = it }
                     }
