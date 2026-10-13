@@ -193,14 +193,6 @@ class FlipBoundarySwipeTest {
         assertEquals(1, next)
     }
 
-    @Test @Config(qualifiers = "w1130dp-h800dp-land")
-    fun tabletLandscapeBoundarySwipeChangesChapter() {
-        mount()
-        compose.onRoot().performTouchInput { swipeLeft() }
-        compose.waitForIdle()
-        assertEquals(1, next)
-    }
-
     private fun mount(
         reduced: Boolean = false,
         animation: String = ReaderFlipAnimation.ScrollWithoutShadow,

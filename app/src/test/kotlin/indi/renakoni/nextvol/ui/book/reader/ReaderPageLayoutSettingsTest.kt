@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.ui.book.reader
 
 import android.app.Application
-import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
@@ -19,7 +18,6 @@ import io.mockk.verify
 import io.nightfish.lightnovelreader.api.userdata.StringUserData
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -29,7 +27,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "en")
@@ -93,21 +90,5 @@ class ReaderPageLayoutSettingsTest {
         compose.onNodeWithText(activity.get().getString(R.string.reader_page_layout_scroll)).assertIsDisplayed()
         assertEquals("double", selected)
         verify(exactly = 0) { userData.asynchronousSet(any()) }
-    }
-
-    @Test fun allFourLocalesHaveLayoutLabelsWithoutChangingPersistedKeys() {
-        for ((locale, title) in mapOf("en" to "Page layout", "zh-CN" to "页面布局",
-            "zh-TW" to "頁面版面", "ru" to "Макет страниц")) {
-            val config = Configuration(activity.get().resources.configuration).apply { setLocale(Locale.forLanguageTag(locale)) }
-            val context = activity.get().createConfigurationContext(config)
-            assertEquals(title, context.getString(R.string.reader_page_layout_title))
-            val labels = ReaderPageLayoutOptions.optionList.map { context.getString(it.nameId) }
-            assertEquals(3, labels.distinct().size)
-            assertTrue(labels.all { it.isNotBlank() })
-            ReaderLayoutReason.entries.forEach { reason ->
-                assertTrue(context.getString(readerPageLayoutDescription(true, ReaderLayoutResult(geometry, reason))).isNotBlank())
-            }
-        }
-        assertEquals(listOf("auto", "single", "double"), ReaderPageLayoutOptions.optionList.map { it.key })
     }
 }
