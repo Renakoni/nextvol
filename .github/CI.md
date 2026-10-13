@@ -73,6 +73,33 @@ documentation-only changes. Emulator/environment script checks run for full scop
 
 ## JVM test coverage
 
+### Test-only inputs
+
+Production paths retain the policy above. Known test-only paths independently
+select their execution environments and keep Lint, without a production Release
+APK. App JVM tests/resources select the App owner (using a reviewed feature scope
+where available); JVM modules select their complete owning test task. Test code
+changes also select `:source-compatibility:test`, whose product-test file inputs
+invalidate its cache when a referenced class is deleted or moved.
+
+App Android tests select their device scope plus compatibility integrity. The two
+known benchmark smoke classes select their minified check, which still assembles
+both the benchmark App and instrumentation APK. Other benchmark paths remain
+full until their execution contract is reviewed.
+
+Shared inputs have explicit consumers: content testFixtures select content/App
+JVM and the existing Debug devices (including the reading panel); Rhino test
+resources select Rhino/compatibility JVM and Debug devices; compatibility browser
+fixtures select content/compatibility JVM and Debug devices; native-routing site
+fixtures select Debug devices. Live browser tests remain opt-in. Compatibility
+reference files select its JVM task and are declared Gradle inputs.
+
+`device-scopes` is separate from the summary `scopes`: adding a JVM-only test to a
+reader production change must not widen devices to all source tests. Mixed paths
+union tasks, App filters, device scopes, and minified classes independently. Unknown
+production/shared configuration still selects full checks. No discovered-test or
+filter failure is suppressed; a deliberately empty plan skips environment setup.
+
 UI tests retain representative navigation, source ownership, selection, paging,
 retry, download, and account interactions. Narrow copy, formatting, layout, and
 empty-state variants are not all tested individually. Reader and speech suites,

@@ -48,7 +48,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         env:
           API_LEVEL: ${{ matrix.api }}
-          CI_TEST_SCOPES: ${{ steps.scope.outputs.scopes }}
+          CI_TEST_SCOPES: ${{ steps.scope.outputs.device-scopes }}
         run: |
           bash .github/scripts/run-static-emulator.sh "$API_LEVEL" \
             bash .github/scripts/emulator-tests.sh bash .github/scripts/connected-tests.sh
