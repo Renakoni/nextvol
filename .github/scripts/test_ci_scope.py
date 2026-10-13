@@ -265,7 +265,7 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(plan['jvm'])
 
     def test_mixed_test_and_production_changes_union_without_widening_devices(self):
-        plan = self.select('app/src/test/resources/backups/README.md', MAIN + 'ui/book/reader/ReaderScreen.kt')
+        plan = self.select('app/src/test/resources/source-updates/README.md', MAIN + 'ui/book/reader/ReaderScreen.kt')
         self.assertTrue(plan['release'])
         self.assertNotIn('-PciTestScope', plan['gradle-args'])
         self.assertEqual('reader', plan['device-scopes'])
