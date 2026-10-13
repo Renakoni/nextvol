@@ -21,6 +21,9 @@ JVM_TASKS = [':app:testDebugUnitTest', ':epub:test', ':source-rules:test',
              ':source-network:test', ':source-import:test', ':source-execution:test',
              ':source-compatibility:test', ':source-rhino:test', ':source-content:test',
              ':source-speech:test']
+JVM_MODULES = {'epub': 'epub', 'tests/source-compatibility': 'source-compatibility',
+               **{f'sources/{name}': f'source-{name}' for name in
+                  ('rules', 'network', 'import', 'execution', 'rhino', 'content', 'speech')}}
 SOURCE_24 = [f'sourceexecution.{name}InstrumentedTest' for name in (
     'IsolatedExecution', 'SourceAccount', 'SourceBrowser', 'SourceVpn',
     'SourceCompatibility', 'PixivLifecycle', 'IsolatedConcurrency')]
@@ -117,6 +120,7 @@ def plan(scopes):
         minified.append(MINIFIED_SPEECH)
     return {
         'scopes': ','.join(sorted(scopes)) or 'docs',
+        'device-scopes': ','.join(sorted(scopes)) or 'docs',
         'jvm': active,
         'gradle-args': ' '.join(tasks),
         'device-24': any(device_classes(scopes, 24)),
@@ -126,6 +130,73 @@ def plan(scopes):
         'minified': bool(minified),
         'minified-classes': ','.join(minified),
     }
+
+
+def plan_for_paths(paths):
+    if not paths:
+        return plan({'full'})
+    production = []
+    test_scopes, device_scopes, modules, minified = set(), set(), set(), set()
+    test_inputs = False
+    for path in paths:
+        module = next((name for root, name in JVM_MODULES.items()
+                       if path.startswith(root + '/src/test/')), None)
+        if path.startswith('app/src/test/'):
+            test_scopes.update(scopes_for_paths([path]))
+            modules.add('source-compatibility')
+        elif path.startswith('app/src/androidTest/'):
+            device_scopes.update(scopes_for_paths([path]))
+            modules.add('source-compatibility')
+        elif path.startswith('sources/content/src/testFixtures/'):
+            test_scopes.add('full')
+            modules.add('source-content')
+            device_scopes.add('full')
+        elif path.startswith('tests/source-compatibility/browser/'):
+            modules.update(('source-content', 'source-compatibility'))
+            device_scopes.add('full')
+        elif path.startswith('tests/source-compatibility/fixtures/native-routing/site/'):
+            device_scopes.add('full')
+        elif path.startswith('tests/source-compatibility/reference/'):
+            modules.add('source-compatibility')
+        elif module:
+            # The compatibility manifest references tests across module roots.
+            # Selecting the entire owner also covers shared test helpers/deletions.
+            modules.update((module, 'source-compatibility'))
+            if path.startswith('sources/rhino/src/test/resources/'):
+                device_scopes.add('full')
+        elif path in (
+                'tests/benchmark/src/main/kotlin/' + MINIFIED_SOURCE.replace('.', '/') + '.kt',
+                'tests/benchmark/src/main/kotlin/' + MINIFIED_SPEECH.replace('.', '/') + '.kt'):
+            minified.add(path[len('tests/benchmark/src/main/kotlin/'):-3].replace('/', '.'))
+        else:
+            production.append(path)
+            continue
+        test_inputs = True
+
+    scopes = scopes_for_paths(production) if production else set()
+    result = plan(scopes)
+    tasks = {arg for arg in result['gradle-args'].split() if arg.startswith(':')}
+    tasks.update(f':{module}:test' for module in modules)
+    app_scopes = set(scopes) if ':app:testDebugUnitTest' in tasks else set()
+    app_scopes.update(test_scopes)
+    if app_scopes:
+        tasks.add(':app:testDebugUnitTest')
+    ordered_tasks = [task for task in JVM_TASKS if task in tasks]
+    if app_scopes and 'full' not in app_scopes:
+        ordered_tasks.append('-PciTestScope=' + ','.join(sorted(app_scopes - {'catalog'})))
+    result['jvm'] = bool(tasks)
+    result['gradle-args'] = ' '.join(ordered_tasks)
+    device_scopes.update(scopes)
+    result['device-scopes'] = ','.join(sorted(device_scopes)) or 'docs'
+    for api in (24, 35):
+        result[f'device-{api}'] = any(device_classes(device_scopes, api))
+    minified.update(filter(None, result['minified-classes'].split(',')))
+    result['minified-classes'] = ','.join(sorted(minified))
+    result['minified'] = bool(minified)
+    result['lint'] = result['lint'] or test_inputs
+    labels = scopes | test_scopes | device_scopes
+    result['scopes'] = 'full' if 'full' in labels else ','.join(sorted(labels)) or ('tests' if test_inputs else 'docs')
+    return result
 
 
 def changed_paths(event_name, event):
@@ -155,7 +226,7 @@ def github_plan():
     try:
         event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
         paths = changed_paths(os.environ['GITHUB_EVENT_NAME'], event)
-        return plan(scopes_for_paths(paths)), f'{len(paths)} changed paths compared with the event base'
+        return plan_for_paths(paths), f'{len(paths)} changed paths compared with the event base'
     except (KeyError, ValueError, OSError, subprocess.SubprocessError) as error:
         return plan({'full'}), f'Full checks: {error}'
 
@@ -174,7 +245,7 @@ def main():
         print('\n'.join(device_classes(scopes, args.device_api)))
         return
     if args.paths is not None:
-        result, reason = plan(scopes_for_paths(args.paths)), 'Explicit paths'
+        result, reason = plan_for_paths(args.paths), 'Explicit paths'
     else:
         result, reason = github_plan()
     print(json.dumps(dict(result, reason=reason), indent=2))

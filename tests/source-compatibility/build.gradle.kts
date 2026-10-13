@@ -27,7 +27,12 @@ tasks.test {
     maxHeapSize = "512m"
     systemProperty("compatibility.reportDir", layout.buildDirectory.dir("reports/source-compatibility").get().asFile.absolutePath)
     systemProperty("compatibility.projectDir", projectDir.absolutePath)
-    systemProperty("compatibility.testRoots", rootProject.subprojects.flatMap { module ->
+    val productTestRoots = rootProject.subprojects.flatMap { module ->
         listOf(module.file("src/test/kotlin"), module.file("src/androidTest/kotlin"))
-    }.joinToString(File.pathSeparator))
+    }
+    systemProperty("compatibility.testRoots", productTestRoots.joinToString(File.pathSeparator))
+    inputs.files(productTestRoots.map { root -> fileTree(root) { include("**/*.kt") } })
+        .withPropertyName("productTests").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(fileTree("reference"))
+        .withPropertyName("referenceSnapshot").withPathSensitivity(PathSensitivity.RELATIVE)
 }

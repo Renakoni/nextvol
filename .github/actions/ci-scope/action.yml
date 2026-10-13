@@ -11,6 +11,15 @@ outputs:
   scopes:
     description: Selected test scopes
     value: ${{ steps.select.outputs.scopes }}
+  device-scopes:
+    description: Device scopes independent of JVM-only test changes
+    value: ${{ steps.select.outputs.device-scopes }}
+  device-24:
+    description: Whether API 24 has selected device work
+    value: ${{ steps.select.outputs.device-24 }}
+  device-35:
+    description: Whether API 35 has selected device work
+    value: ${{ steps.select.outputs.device-35 }}
   gradle-args:
     description: Selected JVM tasks and scope property
     value: ${{ steps.select.outputs.gradle-args }}
