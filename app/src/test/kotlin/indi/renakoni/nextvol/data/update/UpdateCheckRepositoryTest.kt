@@ -55,7 +55,7 @@ class UpdateCheckRepositoryTest {
     }
 
     private suspend fun check(phaseId: Int = R.string.update_phase_available): Pair<UpdateCheckRepository, UpdatePhase> {
-        val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao))
+        val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao), mockk(), mockk())
         repository.check()
         val phase = withTimeout(10_000) { repository.updatePhase.first { it.messageId == phaseId } }
         return repository to phase
