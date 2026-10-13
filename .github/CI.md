@@ -32,8 +32,8 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 | --- | --- | --- | --- | --- |
 | Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens | Corresponding feature and reviewed consumers | Skip | Skip | Run |
 | Discovery and categories UI | Discovery/categories, explore, navigation and discovery routing consumers | Skip | Source runtime smoke (uses categories/discovery) | Run |
-| Reader UI and reader tests | Reader, content, directory/detail, settings/font and speech-control consumers | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
-| Speech implementation/UI/tests | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
+| Reader UI | Reader, content, directory/detail, settings/font and speech-control consumers | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
+| Speech implementation/UI | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
 | App updates: `data/update`, dedicated update settings and available-update dialog | App update tests and `SettingsHierarchyTest` | Skip | Skip | Run |
 | EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
 | Backup implementation, dedicated import/export dialogs and backup Workers | App backup, persistence and shared-file consumers | Skip | Skip | Run |
