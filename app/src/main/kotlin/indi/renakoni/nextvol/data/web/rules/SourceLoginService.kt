@@ -37,14 +37,15 @@ class SourceLoginService @Inject constructor(private val sources: ImportedRuleSo
         val target = if (intent == LoginIntent.Relogin) sources.rotateAccount(source) else sources.loginTarget(source)
         return LoginAttempt(source, target.generation, target.revision, target.rules.openLoginSession(reading), reading)
     }
-    suspend fun submit(attempt: LoginAttempt, values: Map<String, String>, action: String? = null, formId: String? = null): LoginActionResult {
+    suspend fun submit(attempt: LoginAttempt, values: Map<String, String>, action: String? = null, formId: String? = null,
+        longClick: Boolean = false): LoginActionResult {
         val target = target(attempt)
         if (!attempt.submission.tryLock()) throw SourceContentException(ContentError.Unavailable, "login.busy")
         try {
             // A source button can have remote side effects before a later request fails.
             // Consent/recovery must never replay the entire user action.
             return recover(attempt, retry = false) {
-                target(attempt).rules.login(values.toMap(), action, formId).also { result ->
+                target(attempt).rules.login(values.toMap(), action, formId, longClick).also { result ->
                     target(attempt)
                     if (result.refreshDiscovery) sources.refreshDiscovery(attempt.source)
                     indi.renakoni.nextvol.data.image.SourceImageRetryEvents.request(attempt.source)

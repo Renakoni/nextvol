@@ -484,7 +484,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         return "https://pixivsource.pages.dev/Pixiv".takeIf { updates.manages(definition) }
     }
 
-    fun submitLogin(values: Map<String, String>, action: String? = null, formId: String? = null) = launch {
+    fun submitLogin(values: Map<String, String>, action: String? = null, formId: String? = null, longClick: Boolean = false) = launch {
         val active = checkNotNull(attempt)
         val submittedForm = state.value.loginForm
         try {
@@ -505,7 +505,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
                 showUpdate(checked, active.source)
                 return@launch
             }
-            login.submit(active, values, action, formId)
+            login.submit(active, values, action, formId, longClick)
             val form = if (action == null) null else login.form(active)
             if (action == null) { login.cancel(active); attempt = null }
             mutable.update { it.copy(loginForm = form, configurationPanel = it.configurationPanel && form != null) }

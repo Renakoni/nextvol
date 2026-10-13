@@ -174,7 +174,7 @@ class SourcesViewModelTest {
                     "loginUrl" to JsonPrimitive("function login(){cache.put('authenticated','yes');java.toast('Signed in');}"),
                     "loginUi" to JsonPrimitive("""@js:JSON.stringify([
                         {name:'Account',type:'button',action:'login()'},
-                        {name:'Debug',type:'button',action:"cache.put('configured','yes');java.longToast('  Debug enabled  ');"}
+                        {name:'Debug',type:'button',action:"cache.put('configured',String(isLongClick));java.longToast('  Debug enabled  ');"}
                     ])""")))
                 model.previewText(raw.toString(), EXTENSION_PROFILE)
                 val committed = sources.importer.commit(idle().preview!!, listOf(ImportSelection(0, ImportDecision.Add)))
@@ -188,9 +188,12 @@ class SourcesViewModelTest {
                 val session = sources.loginTarget(id).session
                 fun stored(key: String) = (session.read(StorageRequest(StorageArea.Cache, "value:$key")) as hnovel.network.StorageResult.Value).value
                 assertNull(stored("authenticated"))
+                model.submitLogin(form.values, form.fields.last().id, form.id, longClick = true)
+                idle()
+                assertEquals("true", stored("configured"))
                 model.submitLogin(form.values, form.fields.last().id, form.id)
                 idle()
-                assertEquals("yes", stored("configured"))
+                assertEquals("false", stored("configured"))
                 assertNull(stored("authenticated"))
                 model.cancelLogin(); idle()
                 model.beginLogin(id)

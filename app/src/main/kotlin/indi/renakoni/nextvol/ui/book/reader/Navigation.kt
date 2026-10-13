@@ -97,7 +97,7 @@ fun NavGraphBuilder.bookReaderDestination(onReaderActiveChanged: (Boolean) -> Un
             val form = panelModel.form
             if (form != null) indi.renakoni.nextvol.ui.home.settings.sources.SourceLoginDialog(
                 form, panelModel.busy,
-                onSubmit = { values, action, formId -> panelModel.submit(values, action, formId, viewModel::applySourcePanelRefresh) },
+                onSubmit = { values, action, formId, longClick -> panelModel.submit(values, action, formId, longClick, viewModel::applySourcePanelRefresh) },
                 onCancel = { panelModel.dismiss() }, title = stringResource(R.string.reader_source_panel),
                 message = stringResource(R.string.reader_source_panel_boundary),
                 showLoginAction = false,

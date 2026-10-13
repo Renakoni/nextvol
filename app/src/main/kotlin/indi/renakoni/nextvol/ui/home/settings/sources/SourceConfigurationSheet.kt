@@ -12,11 +12,11 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +29,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -52,7 +54,7 @@ private data class ConfigurationPage(
 @Composable
 internal fun SourceConfigurationSheet(
     form: LoginForm?, busy: Boolean,
-    onSubmit: (Map<String, String>, String?, String) -> Unit, onCancel: () -> Unit,
+    onSubmit: (Map<String, String>, String?, String, Boolean) -> Unit, onCancel: () -> Unit,
     pageTitle: String? = null, onPageBack: () -> Unit = {}, pageContent: (@Composable () -> Unit)? = null,
 ) {
     val values = remember(form) { mutableStateMapOf<String, String>().apply { putAll(form?.values.orEmpty()) } }
@@ -125,7 +127,7 @@ internal fun SourceConfigurationSheet(
                     items(fields.filter { it.section == page.section && it !in managerFields }, key = { it.id }) { field ->
                         SourceConfigurationField(field, values[field.name].orEmpty(), !busy && field.enabled,
                             onChange = { values[field.name] = it },
-                            onAction = { form?.let { onSubmit(values.toMap(), field.id, it.id) } })
+                            onAction = { longClick -> form?.let { onSubmit(values.toMap(), field.id, it.id, longClick) } })
                     }
                     if (page.section == null && sections.isNotEmpty()) {
                         item { HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
@@ -140,7 +142,7 @@ internal fun SourceConfigurationSheet(
                     if (page.section == null) items(managerFields, key = { it.id }) { field ->
                         SourceConfigurationField(field, values[field.name].orEmpty(), !busy && field.enabled,
                             onChange = { values[field.name] = it },
-                            onAction = { form?.let { onSubmit(values.toMap(), field.id, it.id) } }, navigates = true)
+                            onAction = { longClick -> form?.let { onSubmit(values.toMap(), field.id, it.id, longClick) } }, navigates = true)
                     }
                 }
             }
@@ -150,38 +152,42 @@ internal fun SourceConfigurationSheet(
 
 @Composable
 private fun SourceConfigurationField(field: LoginField, value: String, enabled: Boolean,
-    onChange: (String) -> Unit, onAction: () -> Unit, navigates: Boolean = false) {
+    onChange: (String) -> Unit, onAction: (Boolean) -> Unit, navigates: Boolean = false) {
     // Decorative emoji are removed from display only, never from input bindings.
     val label = field.label.dropWhile { !it.isLetterOrDigit() }.ifBlank { field.label }
     val supporting: (@Composable () -> Unit)? = field.description?.let { { Text(it) } }
     val row = Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.38f)
     val colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
     val checked = field.checked
+    val onLongClick: (() -> Unit)? = if (field.action == null) null else { { onAction(true) } }
     when (field.type) {
         "button" -> if (checked != null) {
             ListItem(headlineContent = { Text(label) }, supportingContent = supporting,
                 trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
-                colors = colors, modifier = row.toggleable(checked, enabled = enabled, role = Role.Switch,
-                    onValueChange = { onAction() }).padding(horizontal = 8.dp))
+                colors = colors, modifier = row.semantics { toggleableState = ToggleableState(checked) }
+                    .combinedClickable(enabled = enabled, role = Role.Switch,
+                        onClick = { onAction(false) }, onLongClick = onLongClick).padding(horizontal = 8.dp))
         } else {
             ListItem(headlineContent = { Text(label) }, supportingContent = if (navigates) null else supporting, colors = colors,
                 trailingContent = if (navigates) { {
                     Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp))
                 } } else null,
-                modifier = row.clickable(enabled = enabled, role = Role.Button, onClick = onAction).padding(horizontal = 8.dp))
+                modifier = row.combinedClickable(enabled = enabled, role = Role.Button,
+                    onClick = { onAction(false) }, onLongClick = onLongClick).padding(horizontal = 8.dp))
         }
         "toggle", "select" -> {
             var expanded by remember(field.id) { mutableStateOf(false) }
             Box {
                 ListItem(headlineContent = { Text(label) }, supportingContent = supporting,
                     trailingContent = { Text(value, color = MaterialTheme.colorScheme.primary) }, colors = colors,
-                    modifier = row.clickable(enabled = enabled) { expanded = true }.padding(horizontal = 8.dp))
+                    modifier = row.combinedClickable(enabled = enabled,
+                        onClick = { expanded = true }, onLongClick = onLongClick).padding(horizontal = 8.dp))
                 DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
                     field.choices.forEach { choice ->
                         DropdownMenuItem(text = { Text(choice) }, enabled = enabled, onClick = {
                             expanded = false
                             onChange(choice)
-                            if (field.action != null) onAction()
+                            if (field.action != null) onAction(false)
                         })
                     }
                 }
@@ -192,7 +198,7 @@ private fun SourceConfigurationField(field: LoginField, value: String, enabled: 
                 supportingText = supporting, enabled = enabled, modifier = Modifier.fillMaxWidth(),
                 visualTransformation = if (field.type == "password") PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(keyboardType = if (field.type == "password") KeyboardType.Password else KeyboardType.Text))
-            if (field.action != null) TextButton(onClick = onAction, enabled = enabled) {
+            if (field.action != null) TextButton(onClick = { onAction(false) }, enabled = enabled) {
                 Text(stringResource(R.string.sources_apply_field))
             }
         }
