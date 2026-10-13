@@ -62,9 +62,10 @@ def classify(path):
     for root in KOTLIN_ROOTS:
         if path.startswith(root):
             relative = path[len(root):]
-            if relative.startswith(('data/update/', 'ui/home/settings/updates/')) or relative in {
-                    'ui/dialog/UpdatesAvailableDialog.kt',
-                    'ui/dialog/UpdatesAvailableDialogViewModel.kt'}:
+            if relative.startswith('data/update/') or (root == KOTLIN_ROOTS[0] and (
+                    relative.startswith('ui/home/settings/updates/') or relative in {
+                        'ui/dialog/UpdatesAvailableDialog.kt',
+                        'ui/dialog/UpdatesAvailableDialogViewModel.kt'})):
                 return 'update'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
