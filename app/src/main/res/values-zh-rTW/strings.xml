@@ -237,6 +237,7 @@
     <string name="book_manager_clear_orphaned_content">要刪除已無法連結到本地書本的章節資料嗎？</string>
     <string name="book_manager_group_index_only">未快取內容的書本（%1$d）</string>
     <string name="book_manager_cleared_items">刪除了 %1$d 個內容</string>
+    <string name="book_manager_delete_failed">未能完成所選書籍的刪除，請重試。</string>
     <string name="storage_manager_title">儲存與清理</string>
     <string name="storage_manager_empty_description">無可分析的快取。</string>
     <string name="storage_manager_used">已使用</string>
