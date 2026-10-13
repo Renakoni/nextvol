@@ -9,12 +9,14 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.binding
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
+import indi.renakoni.nextvol.data.book.bookReadingProgress
 import indi.renakoni.nextvol.data.statistics.StatsRepository
 import io.nightfish.lightnovelreader.api.book.BookVolumes
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import javax.inject.Inject
 
@@ -30,72 +32,62 @@ class MarkAllChaptersAsReadDialogViewModel @Inject constructor(
         private set
 
     private var volumesJob: Job? = null
+    private var volumesRequest = 0L
 
     fun load(bookId: String) {
         if (bookId == this.bookId) return
         this.bookId = bookId
         volumesJob?.cancel()
+        val request = ++volumesRequest
+        bookVolumeResult = null
         volumesJob = viewModelScope.launch(Dispatchers.IO) {
             bookRepository.getBookVolumesFlow(bookId).collect { result ->
-                bookVolumeResult = result
+                withContext(Dispatchers.Main.immediate) {
+                    if (request == volumesRequest) bookVolumeResult = result
+                }
             }
         }
     }
 
-    fun markAllChaptersAsRead() = binding {
-        if (bookId.isBlank()) return@binding Unit
+    fun markAllChaptersAsRead() = markAsRead(null)
+
+    fun markChaptersAsRead(chapterIds: List<String>) = markAsRead(chapterIds)
+
+    private fun markAsRead(chapterIds: List<String>?) = binding {
+        val targetBookId = bookId
+        if (targetBookId.isBlank()) return@binding Unit
 
         val allChapterIds = bookVolumeResult
             ?.bind()
             ?.volumes
             ?.flatMap { it.chapters }
-            ?.map { it.id } ?: return@binding Unit
+            ?.map { it.id }?.toSet() ?: return@binding Unit
+        val selected = chapterIds?.toSet()?.intersect(allChapterIds) ?: allChapterIds
+        if (chapterIds != null && selected.isEmpty()) return@binding Unit
 
         viewModelScope.launch(Dispatchers.IO) {
-            bookRepository.updateUserReadingData(bookId) { userReadingData ->
+            var finished = false
+            bookRepository.updateUserReadingData(targetBookId) { userReadingData ->
                 val newProgress = userReadingData.maxChapterReadingProgressMap.toMutableMap()
-                for (id in allChapterIds) {
+                for (id in selected) {
                     newProgress[id] = 1f
                 }
+                val progress = bookReadingProgress(allChapterIds, newProgress)
+                finished = allChapterIds.isNotEmpty() && progress >= 1f
                 userReadingData.copy(
                     lastReadTime = LocalDateTime.now(),
-                    readingProgress = if (allChapterIds.isEmpty()) 0f else 1f,
+                    readingProgress = progress,
                     maxChapterReadingProgressMap = newProgress
                 )
             }
-            statsRepository.markBookFinished(bookId)
+            if (finished) {
+                statsRepository.markBookFinished(targetBookId)
+            }
         }
     }
 
-    fun markChaptersAsRead(chapterIds: List<String>) = binding {
-        if (bookId.isBlank()) return@binding Unit
-
-        val allChapterIds = bookVolumeResult
-            ?.bind()
-            ?.volumes
-            ?.flatMap { it.chapters }
-            ?.map { it.id } ?: return@binding Unit
-
-        viewModelScope.launch(Dispatchers.IO) {
-            bookRepository.updateUserReadingData(bookId) { userReadingData ->
-                val newProgress = userReadingData.maxChapterReadingProgressMap.toMutableMap()
-                for (id in chapterIds) {
-                    newProgress[id] = 1f
-                }
-                userReadingData.copy(
-                    lastReadTime = LocalDateTime.now(),
-                    readingProgress =
-                        if (allChapterIds.isEmpty())
-                            0f
-                        else
-                            (newProgress.values.sum() / allChapterIds.size).coerceIn(0f, 1f),
-                    maxChapterReadingProgressMap = newProgress
-                )
-            }
-            val readingData = bookRepository.getUserReadingData(bookId)
-            if (readingData.readingProgress >= 1f) {
-                statsRepository.markBookFinished(bookId)
-            }
-        }
+    override fun onCleared() {
+        volumesRequest++
+        super.onCleared()
     }
 }
