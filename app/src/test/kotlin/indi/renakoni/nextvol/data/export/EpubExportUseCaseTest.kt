@@ -217,7 +217,12 @@ class EpubExportUseCaseTest {
         assertTrue(useCase.execute(request) is EpubExportResult.Success)
         coVerify(exactly = 0) { ImageUtils.uriToBitmap(any(), any(), any(), any(), any(), any()) }
         coVerify { downloads.saveChapter(any(), any(), any(), any(), requireImages = false) }
-        EpubShareFiles.files(context, request.id).forEach { assertFalse(archiveText(it).contains("body.jpg")) }
+        EpubShareFiles.files(context, request.id).forEach { file ->
+            assertFalse(archiveText(file).contains("body.jpg"))
+            ZipFile(file).use { zip ->
+                assertFalse(zip.entries().asSequence().any { it.name.startsWith("EPUB/image/") })
+            }
+        }
     }
 
     @Test fun duplicateIllustrationsAreFetchedOnceAndBadOptionalCoverFallsBack() = runTest {
@@ -233,6 +238,7 @@ class EpubExportUseCaseTest {
         assertTrue(updates.any { it.phase == EpubExportProgress.Phase.IMAGES })
         EpubShareFiles.files(context, request.id).forEach { file -> ZipFile(file).use { zip ->
             assertTrue(zip.entries().asSequence().any { it.name.endsWith(".jpg") && it.size > 0 })
+            assertEquals(1, zip.entries().asSequence().count { it.name.startsWith("EPUB/image/") })
         } }
     }
 
