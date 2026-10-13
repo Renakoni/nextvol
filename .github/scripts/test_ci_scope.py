@@ -34,6 +34,10 @@ class ScopeTests(unittest.TestCase):
         tests = self.select(ci_scope.KOTLIN_ROOTS[1] + 'data/update/UpdateDownloadRepositoryTest.kt')
         self.assertIn('-PciTestScope=update', tests['gradle-args'])
         self.assertFalse(tests['release'])
+        unknown_ui_test = self.select(ci_scope.KOTLIN_ROOTS[1] +
+                                      'ui/home/settings/updates/NewUpdateUiTest.kt')
+        self.assertNotIn('-PciTestScope=', unknown_ui_test['gradle-args'])
+        self.assertFalse(unknown_ui_test['release'])
 
     def test_update_mixes_by_union_and_shared_entries_remain_full(self):
         self.assertIn('-PciTestScope=reader,update', self.select(
