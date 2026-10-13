@@ -266,13 +266,74 @@ Caches are disposable acceleration: misses fall back to normal dependency or
 fixed tool downloads. AboutLibraries uses local license texts instead of making
 per-library license/funding requests during APK builds.
 
-`gradle-cache.yml` populates main's caches after build/environment configuration
-changes or a manual main run. It compiles Debug/test APKs and unit-test sources,
-and assembles the benchmark instrumentation APK. It does not run R8, boot a
-device, or execute tests. Separate API image jobs only prepare SDK files. This
-main population matters because caches written by one PR are not shared with
-other PRs. Source edits can still miss older compiled outputs; manually warming
-main refreshes them without introducing extra checks on every PR.
+`gradle-cache.yml` refreshes main's compilation caches after build/environment
+configuration changes or a manual main run. Ordinary source, test, documentation
+and template changes do not trigger it. A lightweight selector compares the
+push's `before` SHA with the checked-out commit and reuses the ordinary scope
+plan; manual runs select all compilation. App JVM checks map to
+`:app:compileDebugUnitTestKotlin`; selected source/EPUB/compatibility JVM checks
+map to `:testClasses`, including their Gradle compilation/resource dependencies.
+App's existing dependency supplies source-content test fixtures. Selected Debug
+devices add the App/test APK assembly tasks. Minified coverage only adds
+`:benchmark:assembleBenchmark`, the instrumentation APK; it does not assemble
+the shrunk App. No prewarming task runs tests, R8, or an emulator.
+
+Separate API image jobs run only for fixed SDK action/script/package metadata
+changes or a manual main run. An unavailable push diff conservatively selects
+all compilation and SDK/image preparation. Main remains the only shared Gradle
+cache writer, and PRs remain read-only consumers. Existing Release/benchmark
+variant cache ownership is unchanged; no additional build-directory or Gradle
+home snapshot is introduced. Misses, failed prewarming, or cancellation leave
+ordinary PR checks able to build normally using Gradle's input validation.
+
+The main cache concurrency group preserves its running writer and retains at
+most the newest pending update. Completion allows setup-gradle to save its cache;
+manual cancellation does not guarantee a save. Replaced pending updates do not
+accumulate. A later configuration change or manual full prewarm can refresh cold
+outputs. This affects reuse, not which code PR checks compile or validate.
+
+### Source prewarming evaluation (#721)
+
+Source-triggered warming was withdrawn after a controlled remote replay, before
+deployment to main. The [seed job](https://github.com/Renakoni/nextvol/actions/runs/38410742275/job/115342092865)
+warmed main `7124552a` using its actual update scope: App unit-test compilation
+and compatibility `testClasses`. This took 223.965 seconds plus 38 seconds for
+the fixed environment. The [consumer run](https://github.com/Renakoni/nextvol/actions/runs/38412019549)
+replayed real PR heads #709 (`dad00d23`) and #710 (`711f8d6c`) on fresh runners,
+using isolated snapshots of the same original main task cache, before and after
+that warming. Shared main caches remained read-only throughout the experiment.
+
+| Compilation workload | Original cache (seconds) | Source-warmed cache (seconds) |
+| --- | ---: | ---: |
+| #709 JVM | 211.717 | 160.698 |
+| #710 JVM | 234.068 | 216.808 |
+| #710 shared Debug APK build | 161.644 | 238.921 |
+| Total for two PRs | 607.428 | 616.427 |
+
+Both JVM pairs gained only a compatibility test compilation hit; changed App
+production/test inputs still compiled. The Debug pair had identical task states,
+so its slower warmed run is not evidence of a cache regression. Even ignoring
+that slowdown entirely and crediting both JVM improvements, 68.279 seconds saved
+does not repay 261.965 seconds of warming: an extra 193.686 seconds remains.
+Consumer jobs including setup/transfers totalled 776 versus 752 runner seconds;
+adding the warming lower bound gives 1,013.965 versus 776 seconds. Queue time is
+not runner time. These are compilation-path comparisons, not full CI runtimes:
+tests and emulators were not repeated, and Release/benchmark caches were separate.
+Historical Lint already hit the relevant production outputs and does not consume
+these newly warmed test classes.
+
+This single paired sample does not establish a universal performance ratio.
+The estimate deliberately excludes selection, cache cleanup/publication and any
+superseded running writer. Artifact transfer is an experimental proxy; snapshots
+also retain old outputs that setup-gradle's production cleanup could discard.
+These limits do not establish a net benefit, so ordinary source triggers remain
+disabled. The temporary experiment jobs and script are removed.
+
+The retained full prewarm capability was checked separately: all nine JVM
+`compileTestKotlin` tasks restored `FROM-CACHE` on another clean runner. Adding a
+source-content test input forced recompilation and produced its new class. The
+136.476-second supplemental full warm and contract checks are excluded from the
+source-policy comparison. See #721 for the complete experiment cost and evidence.
 
 ## Emulator scope and failure handling
 
