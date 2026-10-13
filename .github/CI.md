@@ -36,10 +36,11 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 | Speech implementation/UI/tests | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
 | App updates: `data/update`, dedicated update settings and available-update dialog | App update tests and `SettingsHierarchyTest` | Skip | Skip | Run |
 | EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
+| Backup implementation, dedicated import/export dialogs and backup Workers | App backup, persistence and shared-file consumers | Skip | Skip | Run |
 | Shared/unknown code, resources, source/EPUB modules, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
 | Only root / `.github/*.md` / `docs/**/*.md` documentation, the three existing Issue templates, or `.github/FUNDING.yml` | Skip | Skip | Skip | Skip |
 
-The exact allowlist is in the selector. In particular, `ui/components`, navigation,
+The exact allowlist is in the selector. In particular, shared `ui/components`, navigation,
 shared theme/settings and unreviewed data paths retain full checks. These are reviewed path
 boundaries, not automatic dependency analysis; update the selection when sharing
 code across them. Resource files and Markdown fixtures under source directories
@@ -69,6 +70,18 @@ identity and WorkManager handoff outside the export directory. API 24 retains
 image loading, Room, book repositories, detail navigation/ViewModel and Manifest
 remain broader; EPUB local import is a separate responsibility. Module-only EPUB
 test changes retain the test-input policy instead of launching App/device work.
+
+Backup selects `data.backup.*` plus `SourceIdentityRoomTest`, `ReadingBookmarkTest`,
+`BookDownloadTest`, `HostMultiSourceIntegrationTest`, `LocalBookRelinkTest`,
+`ExternalFilesTest`, `ExternalFileViewModelTest` and `ReaderBookmarksUiTest`.
+These retain restore transactions, pre-NextVol archives, cross-source associations,
+download/local-file ownership, bookmark selection and Worker file handoff.
+`ExportDataWork`, `ImportDataWork`, `SaveBookshelfWork` and the dedicated backup
+dialogs/error message are allowed production entries. Shared external-file
+dispatch, settings/navigation, database schemas/DAOs and UserData remain broad.
+All `app/src/test/resources/backups/**` files, including README and legacy `.lnr`
+archives, are test inputs: they select backup consumers and Lint without Release.
+No separate backup device group is introduced.
 
 PR and merge-group comparisons use the event's base SHA and the checked-out merge
 tree. A missing base is fetched shallowly by SHA. Git lists all changed paths
