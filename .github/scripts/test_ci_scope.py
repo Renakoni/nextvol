@@ -95,6 +95,37 @@ class ScopeTests(unittest.TestCase):
                          'data/work/BookWorkIdentityTest.kt'):
             self.assertNotIn('-PciTestScope=', self.select(ci_scope.KOTLIN_ROOTS[1] + relative)['gradle-args'])
 
+    def test_backup_production_and_legacy_resources_keep_their_consumers(self):
+        plan = self.select(MAIN + 'data/backup/BackupDataManager.kt',
+                           MAIN + 'data/work/SaveBookshelfWork.kt',
+                           MAIN + 'ui/home/settings/ExportUserDataDialogViewModel.kt')
+        self.assertEqual('backup', plan['scopes'])
+        self.assertEqual(':app:testDebugUnitTest -PciTestScope=backup', plan['gradle-args'])
+        self.assertTrue(plan['release'])
+        self.assertTrue(plan['lint'])
+        self.assertFalse(any(plan[check] for check in ('device-24', 'device-35', 'minified')))
+        for resource in ('README.md', 'before-nextvol.lnr'):
+            tests = self.select('app/src/test/resources/backups/' + resource)
+            self.assertIn('-PciTestScope=backup', tests['gradle-args'])
+            self.assertTrue(tests['lint'])
+            self.assertFalse(tests['release'])
+            self.assertFalse(tests['device-24'])
+
+    def test_backup_unions_export_and_keeps_shared_persistence_and_entries_broad(self):
+        plan = self.select(MAIN + 'data/backup/BackupArchive.kt', MAIN + 'data/export/EpubShareFiles.kt')
+        self.assertIn('-PciTestScope=backup,export', plan['gradle-args'])
+        self.assertEqual((ci_scope.PACKAGE + 'EpubShareInstrumentedTest', ''),
+                         ci_scope.device_classes(set(plan['device-scopes'].split(',')), 24))
+        for path in ('data/local/room/NextVolDatabase.kt', 'data/userdata/UserDataRepository.kt',
+                     'data/ExternalFiles.kt', 'ui/ExternalFileViewModel.kt',
+                     'ui/home/settings/SettingsViewModel.kt', 'ui/home/settings/Navigation.kt'):
+            self.assertEqual(ci_scope.plan({'full'}), self.select(
+                MAIN + 'data/backup/BackupArchive.kt', MAIN + path))
+        for relative in ('data/local/SourceIdentityRoomTest.kt', 'data/localbook/LocalBookRelinkTest.kt'):
+            tests = self.select(ci_scope.KOTLIN_ROOTS[1] + relative)
+            self.assertNotIn('-PciTestScope=', tests['gradle-args'])
+            self.assertFalse(tests['device-24'])
+
     def test_independent_layouts_skip_reader_devices_and_library_tasks(self):
         for path in ('ui/home/bookshelf/home/BookshelfScreen.kt',
                      'ui/home/reading/stats/StatsOverviewScreen.kt',
@@ -234,7 +265,7 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(plan['jvm'])
 
     def test_mixed_test_and_production_changes_union_without_widening_devices(self):
-        plan = self.select('app/src/test/resources/backups/README.md', MAIN + 'ui/book/reader/ReaderScreen.kt')
+        plan = self.select('app/src/test/resources/source-updates/README.md', MAIN + 'ui/book/reader/ReaderScreen.kt')
         self.assertTrue(plan['release'])
         self.assertNotIn('-PciTestScope', plan['gradle-args'])
         self.assertEqual('reader', plan['device-scopes'])

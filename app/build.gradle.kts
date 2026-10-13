@@ -186,6 +186,12 @@ tasks.withType<Test>().configureEach {
             "data.web.HostMultiSourceIntegrationTest", "data.web.rules.MixedSourceAcceptanceTest",
             "ui.book.detail.DetailExportTest",
         ),
+        "backup" to listOf(
+            "data.backup.*", "data.local.SourceIdentityRoomTest", "data.bookmark.ReadingBookmarkTest",
+            "data.download.BookDownloadTest", "data.web.HostMultiSourceIntegrationTest",
+            "data.localbook.LocalBookRelinkTest", "data.ExternalFilesTest", "ui.ExternalFileViewModelTest",
+            "ui.book.reader.bookmark.ReaderBookmarksUiTest",
+        ),
     )
     require(scopes.all { it == "full" || it in scopeTests }) { "Unknown ciTestScope: $scopes" }
     if ("full" !in scopes) {
