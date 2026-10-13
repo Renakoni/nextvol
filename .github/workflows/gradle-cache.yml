@@ -4,18 +4,23 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      study:
+        description: Run the isolated issue 721 cost experiment
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-cache-main
+  group: android-cache-${{ inputs.study && github.ref || 'main' }}
   # Finish the running writer; GitHub keeps only the latest pending update.
   cancel-in-progress: false
 
 jobs:
   selection:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && !inputs.study
     name: Select main cache compilation
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -59,3 +64,74 @@ jobs:
       - uses: ./.github/actions/android-sdk
         with:
           api: ${{ matrix.api }}
+
+  study-seed:
+    if: github.event_name == 'workflow_dispatch' && inputs.study && github.ref == 'refs/heads/ci/721-source-cache-warm'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      artifact: ${{ steps.snapshot.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Preserve reviewed experiment tools
+        run: |
+          mkdir -p "$RUNNER_TEMP/cache-study/tools"
+          cp .github/scripts/{cache_study,ci_cache,ci_scope}.py "$RUNNER_TEMP/cache-study/tools/"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: 7124552a26a0212c4f7e7f5212f3001471d85c11
+      - uses: ./.github/actions/android-environment
+      - name: Measure actual source plan and separate full capability
+        run: python3 "$RUNNER_TEMP/cache-study/tools/cache_study.py" seed
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: snapshot
+        with:
+          name: issue-721-isolated-task-outputs
+          path: ${{ runner.temp }}/cache-study/*.tar
+          retention-days: 3
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: issue-721-seed-measurements
+          path: ${{ runner.temp }}/cache-study/reports
+
+  study-consumer:
+    needs: study-seed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [baseline, automatic]
+        sample:
+          - {name: pr709-jvm, sha: dad00d23a10c02cc8d877ad336c230e7d8086420, workload: jvm}
+          - {name: pr710-jvm, sha: 711f8d6c0e845dbe4076d3ad73878c1a7a8fcd98, workload: jvm}
+          - {name: pr710-debug, sha: 711f8d6c0e845dbe4076d3ad73878c1a7a8fcd98, workload: debug}
+        include:
+          - mode: full
+            sample: {name: cache-contract, sha: 7124552a26a0212c4f7e7f5212f3001471d85c11, workload: capability}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Preserve reviewed experiment tools
+        run: |
+          mkdir -p "$RUNNER_TEMP/cache-study/tools"
+          cp .github/scripts/{cache_study,ci_cache,ci_scope}.py "$RUNNER_TEMP/cache-study/tools/"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ matrix.sample.sha }}
+      - uses: ./.github/actions/android-environment
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.study-seed.outputs.artifact }}
+          path: ${{ runner.temp }}/cache-study
+      - name: Measure clean consumer compilation
+        env:
+          MODE: ${{ matrix.mode }}
+          WORKLOAD: ${{ matrix.sample.workload }}
+        run: python3 "$RUNNER_TEMP/cache-study/tools/cache_study.py" consumer "$MODE" "$WORKLOAD"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: issue-721-${{ matrix.mode }}-${{ matrix.sample.name }}-measurements
+          path: ${{ runner.temp }}/cache-study/reports
