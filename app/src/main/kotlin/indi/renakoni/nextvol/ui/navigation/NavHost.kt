@@ -1,8 +1,8 @@
 package indi.renakoni.nextvol.ui.navigation
 
 import android.annotation.SuppressLint
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import indi.renakoni.nextvol.ui.LocalBottomBarController
@@ -51,7 +52,7 @@ import io.nightfish.lightnovelreader.api.ui.LocalNavController
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
 import io.nightfish.lightnovelreader.api.ui.ReaderStyle
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun NextVolNavHost(
@@ -96,26 +97,24 @@ fun NextVolNavHost(
             contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { _ ->
             Box(Modifier.fillMaxSize()) {
-                SharedTransitionLayout {
-                    NavHost(
-                        modifier = Modifier.fillMaxSize(),
-                        navController = navController,
-                        startDestination = Route.Main,
-                        enterTransition = { expandEnter() },
-                        exitTransition = { expandExit() },
-                        popEnterTransition = { expandPopEnter() },
-                        popExitTransition = { expandPopExit() }
-                    ) {
-                        homeNavigation(this@SharedTransitionLayout)
-                        bookNavigation(onReaderActiveChanged)
-                        bangumiDestination()
-                        updatesAvailableDialog()
-                        addBookToBookshelfDialog()
-                        bookManager()
-                        bookDownload()
-                        storageManager()
-                        markAllChaptersAsReadDialog()
-                    }
+                NavHost(
+                    modifier = Modifier.fillMaxSize(),
+                    navController = navController,
+                    startDestination = Route.Main,
+                    enterTransition = { destinationEnter() },
+                    exitTransition = { expandExit() },
+                    popEnterTransition = { destinationEnter(pop = true) },
+                    popExitTransition = { expandPopExit() }
+                ) {
+                    homeNavigation()
+                    bookNavigation(onReaderActiveChanged)
+                    bangumiDestination()
+                    updatesAvailableDialog()
+                    addBookToBookshelfDialog()
+                    bookManager()
+                    bookDownload()
+                    storageManager()
+                    markAllChaptersAsReadDialog()
                 }
 
                 LnrNavigationBar(
@@ -127,3 +126,11 @@ fun NextVolNavHost(
         }
     }
 }
+
+// Root tabs are peers. Fade them together so neither transition leaves an empty content frame.
+private val AnimatedContentTransitionScope<NavBackStackEntry>.isMainTabChange: Boolean
+    get() = initialState.destination.currentMainRoute() != null &&
+        targetState.destination.currentMainRoute() != null
+
+internal fun AnimatedContentTransitionScope<NavBackStackEntry>.destinationEnter(pop: Boolean = false): EnterTransition =
+    if (pop) expandPopEnter(fadeThrough = !isMainTabChange) else expandEnter(fadeThrough = !isMainTabChange)

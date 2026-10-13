@@ -27,8 +27,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Slider
@@ -48,19 +46,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.components.SettingsSliderEntry
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
 import io.nightfish.lightnovelreader.api.ui.components.SettingsSwitchEntry
 import kotlin.math.roundToInt
@@ -74,17 +69,10 @@ fun SettingsBottomSheet(
     onClickThemeSettings: () -> Unit
 ) {
     var showPaper by rememberSaveable { mutableStateOf(false) }
-    ModalBottomSheet(
+    ReaderSettingsSheet(
         onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        properties = ModalBottomSheetProperties(
-            shouldDismissOnBackPress = !showPaper,
-            isAppearanceLightStatusBars = colorScheme.surface.luminance() > 0.5f,
-            isAppearanceLightNavigationBars = colorScheme.surface.luminance() > 0.5f,
-        ),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        containerColor = colorScheme.surfaceContainerHigh,
-        tonalElevation = 16.dp
+        state = sheetState,
+        backHandlerEnabled = !showPaper,
     ) {
         BackHandler(enabled = showPaper) { showPaper = false }
         var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -96,12 +84,6 @@ fun SettingsBottomSheet(
                     .fillMaxWidth()
                     .fillMaxHeight()
             ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    style = typography.displayMedium,
-                    text = stringResource(R.string.reader_settings),
-                    fontWeight = FontWeight.W600
-                )
                 ContentSettings(
                     settingState = settingState,
                     selectedTabIndex = selectedTabIndex,
@@ -262,7 +244,7 @@ fun LazyListScope.AppearancePage(
             painter = painterResource(R.drawable.battery_android_full_24px),
             title = stringResource(R.string.settings_reader_battery_indicator),
             description = stringResource(R.string.settings_reader_battery_indicator_desc),
-            options = MenuOptions.ReaderIndicatorBatteryDisplayMode,
+            options = ReaderIndicatorBatteryDisplayModeOptions,
             selectedOptionKey = settingState.batteryIndicatorDisplayMode,
             stringUserData = settingState.batteryIndicatorDisplayModeUserData
         )
@@ -320,7 +302,7 @@ fun LazyListScope.ActionPage(settingState: ReaderSettingsEditor) {
             painter = painterResource(R.drawable.block_24px),
             title = stringResource(R.string.settings_reader_back_block_mode),
             description = stringResource(R.string.settings_reader_back_block_mode_desc),
-            options = MenuOptions.ReaderBackBlockMode,
+            options = ReaderBackBlockModeOptions,
             selectedOptionKey = settingState.backBlockMode,
             stringUserData = settingState.backBlockModeUserData
         )
@@ -387,7 +369,7 @@ fun LazyListScope.ActionPage(settingState: ReaderSettingsEditor) {
                 painter = painterResource(R.drawable.transition_chop_24px),
                 title = stringResource(R.string.settings_reader_page_turn_anim),
                 description = stringResource(R.string.settings_reader_page_turn_anim_desc),
-                options = MenuOptions.FlipAnimationOptions,
+                options = FlipAnimationOptions,
                 disabled = settingState.reduceMotion,
                 selectedOptionKey = settingState.flipAnime,
                 stringUserData = settingState.flipAnimeUserData

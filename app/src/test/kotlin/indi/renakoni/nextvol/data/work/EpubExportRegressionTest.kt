@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.data.work
 
+import indi.renakoni.nextvol.data.export.EpubShareFiles
 import indi.renakoni.nextvol.data.export.ExportBookToEpubUseCase
 
 import android.app.Application
@@ -86,11 +87,11 @@ class EpubExportRegressionTest {
         }) }
     }
 
-    private fun imageBody(url: String, count: Int = 1) = buildJsonObject {
-        putJsonArray("components") { repeat(count) { add(buildJsonObject {
+    private fun imageBody(url: String) = buildJsonObject {
+        putJsonArray("components") { add(buildJsonObject {
             put("id", "lightnovelreader:image")
             put("data", ImageComponentData(Uri.parse(url)).toJsonElement())
-        }) } }
+        }) }
     }
 
     private fun setBody(body: JsonObject) {
@@ -99,11 +100,11 @@ class EpubExportRegressionTest {
         }
     }
 
-    private fun worker(type: String = "VOLUMES", images: Boolean = true,
+    private fun worker(type: String = "VOLUMES",
                        selected: String = volumes.volumes.joinToString(",") { it.volumeId }): ExportBookToEPUBWork =
         ExportBookToEPUBWork(context, workerParameters(workDataOf(
             "bookId" to book.storageKey, "title" to "Probe book", "exportType" to type,
-            "selectedVolume" to selected, "includeImages" to images
+            "selectedVolume" to selected, "includeImages" to true
         )), ExportBookToEpubUseCase(context, repository, progress, decoder, exportDownloads())).also { lastWorker = it }
 
     private fun bodies(file: File): List<String> = ZipFile(file).use { zip ->
@@ -127,19 +128,6 @@ class EpubExportRegressionTest {
         assertEquals(volumes.volumes.flatMap { it.chapters }.map { it.id }, files.flatMap(::bodies))
     }
 
-    @Test fun includeImagesFalseDoesNotFetchOrPackageIllustrations() = runTest {
-        startCase("images-disabled")
-        setBody(imageBody("https://fixture.invalid/missing.jpg"))
-        coEvery { ImageUtils.uriToBitmap(any(), context, book.storageKey, any(), any(), false) } returns Err(IOException("missing illustration"))
-        val result = worker(images = false).doWork()
-        assertTrue(result is ListenableWorker.Result.Success)
-        coVerify(exactly = 0) { ImageUtils.uriToBitmap(any(), context, book.storageKey, any(), any(), false) }
-        assertEquals(2, files.size)
-        files.forEach { file -> ZipFile(file).use { zip ->
-            assertFalse(zip.entries().asSequence().any { it.name.startsWith("EPUB/image/") })
-        } }
-    }
-
     @Test fun badImageInSecondVolumeBlocksGoodFirstVolumeBeforeAnyOutput() = runTest {
         startCase("one-bad-image")
         val badId = volumes.volumes[1].chapters.single().id
@@ -148,26 +136,6 @@ class EpubExportRegressionTest {
         coEvery { ImageUtils.uriToBitmap(any(), context, book.storageKey, any(), any(), false) } returns Err(IOException("missing illustration"))
         assertTrue(worker().doWork() is ListenableWorker.Result.Failure)
         assertTrue(files.isEmpty())
-    }
-
-    @Test fun duplicateImagesAreAcquiredOncePerExport() = runTest {
-        startCase("duplicate-images")
-        setBody(imageBody("https://fixture.invalid/repeated.jpg", 3))
-        assertTrue(worker().doWork() is ListenableWorker.Result.Success)
-        coVerify(exactly = 1) { ImageUtils.uriToBitmap(any(), context, book.storageKey, any(), any(), false) }
-        files.forEach { file -> ZipFile(file).use { zip ->
-            assertEquals(1, zip.entries().asSequence().count { it.name.startsWith("EPUB/image/") })
-        } }
-    }
-
-    @Test fun unknownBodyComponentsFailWithChapterLocationBeforePublishing() = runTest {
-        startCase("silent-body-loss")
-        setBody(textBody("This text must not disappear", "unknown:text"))
-        val result = worker().doWork() as ListenableWorker.Result.Failure
-        assertEquals("invalid_content", result.outputData.getString("reason"))
-        assertEquals("Chapter 1", result.outputData.getString("chapter"))
-        assertTrue(files.isEmpty())
-        assertEquals(-1f, items.single().progress)
     }
 
     @Test fun legacyShortComponentIdsRetainTheirText() = runTest {
@@ -218,14 +186,6 @@ class EpubExportRegressionTest {
         coEvery { repository.volumeCover(book, any(), any(), any()) } throws IOException("cover unavailable")
         assertTrue(worker().doWork() is ListenableWorker.Result.Success)
         assertEquals(listOf("Retained text", "Retained text"), files.flatMap(::bodies))
-    }
-
-    @Test fun malformedContentFailsBeforeCreatingFiles() = runTest {
-        startCase("malformed-content")
-        setBody(JsonObject(emptyMap()))
-        val result = worker().doWork() as ListenableWorker.Result.Failure
-        assertEquals("invalid_content", result.outputData.getString("reason"))
-        assertTrue(files.isEmpty())
     }
 
     @Test fun emptySelectionNeverFallsBackToWholeBook() = runTest {

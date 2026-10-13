@@ -20,7 +20,7 @@ import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.ui.book.reader.navigateToImageViewerDialog
 import indi.renakoni.nextvol.ui.components.ZoomableImage
-import indi.renakoni.nextvol.utils.rememberReaderFontFamily
+import indi.renakoni.nextvol.ui.book.reader.rememberReaderFontFamily
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
 import io.nightfish.lightnovelreader.api.userdata.UriUserData

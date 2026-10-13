@@ -19,9 +19,7 @@ import indi.renakoni.nextvol.data.download.downloadChapterSignature
 import indi.renakoni.nextvol.data.download.downloadHash
 import indi.renakoni.nextvol.data.image.SourceImage
 import indi.renakoni.nextvol.data.localbook.LocalBookStore
-import indi.renakoni.nextvol.data.work.EpubShareFiles
 import indi.renakoni.nextvol.utils.DefaultBookCoverRenderer
-import indi.renakoni.nextvol.utils.network.ImageDownloader
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.ChapterInformation
 import io.nightfish.lightnovelreader.api.book.Volume
@@ -228,7 +226,7 @@ class ExportBookToEpubUseCase @Inject constructor(
                 val missingImageVersions = mutableMapOf<String, MutableSet<String>>()
                 val checkpointImages = mutableMapOf<String, File>()
                 val freshImages = mutableSetOf<String>()
-                val tasks = linkedMapOf<Pair<String, Boolean>, ImageDownloader.Task>()
+                val tasks = linkedMapOf<Pair<String, Boolean>, EpubImagePreparer.Task>()
                 val locations = mutableMapOf<File, Pair<String, String>>()
                 fun imageTask(uri: Uri, cover: Boolean = false, optional: Boolean = false): File {
                     val key = uri.toString() to cover
@@ -236,7 +234,7 @@ class ExportBookToEpubUseCase @Inject constructor(
                         val hash = downloadHash("$cover:${uri}")
                         val file = directory.resolve("image_$hash.jpg")
                         locations[file] = currentVolumeTitle to currentChapterTitle
-                        ImageDownloader.Task(file, uri, cover,
+                        EpubImagePreparer.Task(file, uri, cover,
                             if (optional) DefaultBookCoverRenderer.Text(book.storageKey, information.title, information.author) else null,
                             fresh = refreshImages)
                     }.file
@@ -303,7 +301,7 @@ class ExportBookToEpubUseCase @Inject constructor(
                 val cover = if (information.coverUri.toString().isBlank()) directory.resolve("cover.jpg").also {
                     DefaultBookCoverRenderer.writeTo(appContext, it, information.title, book.storageKey, information.author)
                 } else imageTask(information.coverUri, cover = true, optional = true)
-                suspend fun acquire(pending: List<ImageDownloader.Task>) {
+                suspend fun acquire(pending: List<EpubImagePreparer.Task>) {
                     stage = "images"
                     failureReason = "image_failed"
                     val tasks = pending.map { task ->
@@ -312,7 +310,7 @@ class ExportBookToEpubUseCase @Inject constructor(
                             fresh = task.fresh || (!task.cover && uri in freshImages) ||
                                 (attempt?.let { downloads.isImageStale(it, uri, task.cover) } == true))
                     }
-                    val result = ImageDownloader(appContext, book, tasks,
+                    val result = EpubImagePreparer(appContext, book, tasks,
                         onTask = { task ->
                             val location = locations[task.file]
                             currentVolumeTitle = location?.first.orEmpty()

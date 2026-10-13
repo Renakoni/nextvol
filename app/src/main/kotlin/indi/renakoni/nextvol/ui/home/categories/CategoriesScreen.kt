@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
@@ -98,13 +99,18 @@ fun CategoriesScreen(
                                         Text(category.title, style = MaterialTheme.typography.titleMedium,
                                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).semantics { heading() })
                                     } else {
-                                        SuggestionChip(onClick = { onCategory(category) }, shape = RoundedCornerShape(50),
-                                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                                        Surface(onClick = { onCategory(category) }, shape = RoundedCornerShape(50),
+                                            modifier = Modifier.semantics { role = Role.Button },
+                                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                                            label = { Text(category.title.ifBlank { stringResource(R.string.discovery_unnamed_entry) },
-                                                style = MaterialTheme.typography.bodyMedium) })
+                                        ) {
+                                            Box(Modifier.heightIn(min = 32.dp).padding(horizontal = 16.dp),
+                                                contentAlignment = Alignment.Center) {
+                                                Text(category.title.ifBlank { stringResource(R.string.discovery_unnamed_entry) },
+                                                    style = MaterialTheme.typography.bodyMedium)
+                                            }
+                                        }
                                     }
                                 } }
                             }

@@ -9,7 +9,6 @@ import indi.renakoni.nextvol.ui.book.reader.content.DefaultVolumeKeyScrollFracti
 import indi.renakoni.nextvol.ui.book.reader.content.volumeKeyScrollFraction
 import indi.renakoni.nextvol.ui.book.reader.content.scroll.ContinuousScrollSettings
 import indi.renakoni.nextvol.ui.book.reader.content.scroll.UserDataContinuousScrollSettings
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath
 import kotlinx.coroutines.CoroutineScope
 
@@ -78,7 +77,7 @@ class SettingState(
     override val keepScreenOn by keepScreenOnUserData.safeAsState(false)
     override val enableHideStatusBar by enableHideStatusBarUserData.safeAsState(true)
     override val enableBackgroundImage by enableBackgroundImageUserData.safeAsState(false)
-    override val backgroundImageDisplayMode by backgroundImageDisplayModeUserData.safeAsState("fixed")
+    override val backgroundImageDisplayMode by backgroundImageDisplayModeUserData.safeAsState(ReaderBackgroundImageMode.Fixed)
     override val isUsingFlipPage by isUsingFlipPageUserData.safeAsState(false)
     override val isUsingClickFlipPage by isUsingClickFlipPageUserData.safeAsState(false)
     override val isUsingContinuousScrolling by isUsingContinuousScrollingUserData.safeAsState(true)
@@ -86,14 +85,14 @@ class SettingState(
     override val volumeKeyContinuousFlipInterval by volumeKeyContinuousFlipIntervalUserData.safeAsState(-1f)
     private val storedVolumeKeyScrollFraction by volumeKeyScrollFractionUserData.safeAsState(DefaultVolumeKeyScrollFraction)
     override val volumeKeyScrollFraction get() = volumeKeyScrollFraction(storedVolumeKeyScrollFraction)
-    override val flipAnime by flipAnimeUserData.safeAsState(MenuOptions.FlipAnimationOptions.ScrollWithoutShadow)
-    private val storedPageLayout by pageLayoutUserData.safeAsState("auto")
+    override val flipAnime by flipAnimeUserData.safeAsState(ReaderFlipAnimation.ScrollWithoutShadow)
+    private val storedPageLayout by pageLayoutUserData.safeAsState(ReaderPageLayoutPreference.Auto)
     override val pageLayout get() = when (storedPageLayout) {
-        "single", "double" -> storedPageLayout
-        else -> "auto"
+        ReaderPageLayoutPreference.Single, ReaderPageLayoutPreference.Double -> storedPageLayout
+        else -> ReaderPageLayoutPreference.Auto
     }
     override val fastChapterChange by fastChapterChangeUserData.safeAsState(false)
-    override val batteryIndicatorDisplayMode by batteryIndicatorDisplayModeUserData.safeAsState("classic")
+    override val batteryIndicatorDisplayMode by batteryIndicatorDisplayModeUserData.safeAsState(ReaderBatteryDisplayMode.Classic)
     override val enableTimeIndicator by enableTimeIndicatorUserData.safeAsState(true)
     override val enableChapterTitleIndicator by enableChapterTitleIndicatorUserData.safeAsState(true)
     override val enableReadingChapterProgressIndicator by enableReadingChapterProgressIndicatorUserData.safeAsState(true)
@@ -117,5 +116,5 @@ class SettingState(
     override val dynamicColorsKey by dynamicColorsKeyUserData.safeAsState(false)
     override val lightThemeName by lightThemeNameUserData.safeAsState("light_default")
     override val darkThemeName by darkThemeNameUserData.safeAsState("dark_default")
-    override val backBlockMode by backBlockModeUserData.safeAsState("none")
+    override val backBlockMode by backBlockModeUserData.safeAsState(ReaderBackBlockMode.None)
 }

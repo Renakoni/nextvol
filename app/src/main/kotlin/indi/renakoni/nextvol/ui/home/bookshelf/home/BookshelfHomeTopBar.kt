@@ -40,7 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.home.HomeSettingsAction
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions.BookshelfSortTypeOptions
+import indi.renakoni.nextvol.ui.home.bookshelf.BookshelfSortTypeOptions
 import io.nightfish.lightnovelreader.api.bookshelf.BookshelfSortType
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationGraphicsApi::class)

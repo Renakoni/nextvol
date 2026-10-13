@@ -18,7 +18,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.unit.dp
 import com.github.michaelbull.result.Ok
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.theme.AppTheme
 import indi.renakoni.nextvol.tts.SpeechChapter
 import indi.renakoni.nextvol.tts.SpeechPosition

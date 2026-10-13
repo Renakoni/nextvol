@@ -46,11 +46,10 @@ import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.bookmark.LocalReaderBookmarks
 import indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarkSession
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import indi.renakoni.nextvol.ui.book.reader.content.flip.MutableFlipPageContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.scroll.MutableScrollContentUiSate
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import io.mockk.every
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
@@ -131,7 +130,7 @@ class ReaderVolumeKeysTest {
         every { settings.fontFamilyUri } returns Uri.EMPTY
         every { settings.fastChapterChange } answers { fastChapterChange.value }
         every { settings.flipAnime } answers {
-            if (animated.value) MenuOptions.FlipAnimationOptions.ScrollWithoutShadow else MenuOptions.FlipAnimationOptions.None
+            if (animated.value) ReaderFlipAnimation.ScrollWithoutShadow else ReaderFlipAnimation.None
         }
         every { fonts.getFlow() } returns flowOf(Uri.EMPTY)
         activity.get().setContent {
@@ -165,10 +164,14 @@ class ReaderVolumeKeysTest {
                 }
             }
         }
+        waitForScrollInput()
+    }
+
+    private fun waitForScrollInput() {
         compose.waitForIdle()
         // Compose can be idle while the chapter is prepared on Dispatchers.Default.
         // Restoration can report from a cancelled placement's finally block. Wait for the
-        // reader's focused input node too, before a test freezes the animation clock.
+        // reader's focused input node too, including when the reader re-enters composition.
         compose.waitUntil(5_000) {
             compose.waitForIdle()
             scrollProgressRestored && compose.onAllNodes(
@@ -327,7 +330,7 @@ class ReaderVolumeKeysTest {
             assertFalse(dispatch(KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.ACTION_DOWN))
             assertFalse(dispatch(KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.ACTION_UP))
             compose.runOnIdle(restore)
-            compose.waitForIdle()
+            waitForScrollInput()
             tap(KeyEvent.KEYCODE_VOLUME_DOWN)
         }
     }

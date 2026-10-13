@@ -58,8 +58,8 @@ import indi.renakoni.nextvol.ui.book.reader.resolveReaderBodyLayout
 import indi.renakoni.nextvol.ui.book.reader.LocalReaderLayoutResult
 import indi.renakoni.nextvol.ui.book.reader.ReaderLayoutResult
 import indi.renakoni.nextvol.ui.book.reader.ReaderLayoutReason
-import indi.renakoni.nextvol.data.content.component.ImageComponent
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ImageComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderMode
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentError
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentLoading
@@ -76,9 +76,9 @@ import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechFollow
 import indi.renakoni.nextvol.ui.book.reader.content.PrepareReaderSpeechIndex
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechRanges
 import indi.renakoni.nextvol.ui.book.reader.content.readerSpeechManualScroll
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.book.reader.ReaderBackgroundImageMode
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
-import indi.renakoni.nextvol.utils.rememberReaderBackgroundPainter
+import indi.renakoni.nextvol.ui.book.reader.rememberReaderBackgroundPainter
 import indi.renakoni.nextvol.ui.book.reader.usesBackgroundImage
 import indi.renakoni.nextvol.utils.showSnackbar
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
@@ -248,7 +248,7 @@ private fun SimpleFlipPageTextComponent(
         if (anchor == null || visiblePage == null || uiState.pagerState.isScrollInProgress ||
             uiState.readingChapterContent?.get() !== chapterContent || bookmarks?.pending != null) null
         else ReaderBookmarkPosition(uiState.bookId, chapterContent,
-            if (chapterContent.content.getOrNull(anchor.componentIndex) is indi.renakoni.nextvol.data.content.component.SimpleTextComponent)
+            if (chapterContent.content.getOrNull(anchor.componentIndex) is indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent)
                 anchor else anchor.copy(offset = 0), uiState.readingProgress)
     }
     val bookmark = bookmarks?.pending
@@ -422,7 +422,7 @@ private fun SimpleFlipPageTextComponent(
     // 无条件调用会导致未开启背景时也去联网加载内置牛皮纸，失败时误报「加载失败」(见 issue #444)。
     val bgPainter = if (
         settingState.usesBackgroundImage &&
-        settingState.backgroundImageDisplayMode == MenuOptions.ReaderBgImageDisplayModeOptions.Loop
+        settingState.backgroundImageDisplayMode == ReaderBackgroundImageMode.Loop
     ) {
         rememberReaderBackgroundPainter(settingState)
     } else null
@@ -589,7 +589,7 @@ private fun SimpleFlipPageTextComponent(
                     },
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    if (settingState.usesBackgroundImage && settingState.backgroundImageDisplayMode == MenuOptions.ReaderBgImageDisplayModeOptions.Loop) {
+                    if (settingState.usesBackgroundImage && settingState.backgroundImageDisplayMode == ReaderBackgroundImageMode.Loop) {
                         Image(
                             modifier = Modifier.fillMaxSize(),
                             painter = rememberReaderBackgroundPainter(settingState),
@@ -609,4 +609,3 @@ private fun SimpleFlipPageTextComponent(
         }
     }
 }
-

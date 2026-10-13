@@ -6,7 +6,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.get
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderSpeechFollow
 import io.mockk.every
 import io.mockk.mockk

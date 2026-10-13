@@ -88,7 +88,7 @@ class MarkAllChaptersAsReadDialogViewModel @Inject constructor(
                         if (allChapterIds.isEmpty())
                             0f
                         else
-                            userReadingData.currentChapterReadingProgressMap.values.sum() / allChapterIds.size,
+                            (newProgress.values.sum() / allChapterIds.size).coerceIn(0f, 1f),
                     maxChapterReadingProgressMap = newProgress
                 )
             }

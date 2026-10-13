@@ -1,0 +1,58 @@
+# NextVol Backup
+
+NextVol 的用户数据备份与书架分享统一使用 `.nvbackup`，文件内格式标识为 `nextvol-backup`。旧 `.lnr` 仅保留受限读取能力，不提供旧格式导出，也不保证原版应用能够读取新备份。插件格式不在本协议范围内。
+
+## 文件结构
+
+备份是一个 ZIP，必须恰好包含两个不重复的普通文件：
+
+```text
+NextVolData.nvbackup
+├── manifest.json
+└── data.cbor
+```
+
+导出固定先写清单，导入不依赖扩展名或 ZIP 条目顺序。清单示例：
+
+```json
+{
+  "format": "nextvol-backup",
+  "version": 1,
+  "kind": "user-data",
+  "contents": ["bookshelf", "reading-data", "settings", "bookmarks"]
+}
+```
+
+- `format`、`version`、`kind`、`contents` 均为必填字段。
+- `version` 是外层文件协议版本，当前为 `1`；现有 `AppLocalData.version` 仍由业务数据恢复层检查，两者不替代。
+- `kind` 为 `user-data` 或 `bookshelf`。
+- `contents` 记录导出时选择的内容，可选值为 `chapter-cache`、`bookshelf`、`reading-data`、`settings`、`bookmarks`。书架分享仅允许 `bookshelf`。
+- 清单描述导出范围，不代替业务数据校验，也不作为过滤导入数据的权限依据。恢复所需的书籍引用等辅助元数据可能随所选内容一起保存。
+- `data.cbor` 沿用现有 CBOR 数据结构，不改变数据库恢复事务或历史书籍标识。
+- 用户数据默认文件名为 `NextVolData.nvbackup`，书架分享为 `NextVolBookshelfData.nvbackup`。
+
+## 范围与限制
+
+- 备份不包含原始 EPUB/TXT 文件。请单独保存原文件，并在换设备后重新关联。
+- 文件大小上限为 65 MiB，清单解压后不超过 8 KiB，CBOR 数据解压后不超过 64 MiB。超限时应尝试不包含章节缓存的备份。
+- 清单在 JSON 树解析前以非递归扫描限制对象和数组最多嵌套 16 层（包含根对象；v1 正常清单仅需 2 层），字符串内的括号和转义不计入深度。超过深度限制按损坏备份拒绝，不进入版本或业务数据解析。
+- 导入要求完整的 ZIP 中央目录，并检查条目集合、重复条目、声明大小、实际解压字节数和 CRC。不会把 ZIP 条目解压成用户指定路径上的文件。
+- 先检查清单格式与版本，再读取业务数据。不支持的新版或损坏的新格式不会回退到旧格式解析。
+- 旧格式必须是仅有一个 `data` 普通文件的 ZIP，同样受大小、CRC 和业务版本校验约束。
+- 旧格式支持以已有测试样本和数据结构为边界，不承诺兼容原版全部历史版本。
+
+## 写入与失败处理
+
+导入首先将来源复制到受大小限制的应用缓存临时文件；导出先在缓存中完成编码和 ZIP 封装，成功后才打开目标文档。正常完成、异常和取消均清理本次临时文件。取消不会被转换为普通失败。
+
+Android 文档提供器不统一保证原子替换：目标写入阶段失败仍可能留下不完整文件，界面会提示重新导出；不会擅自删除用户选择的目标文档。进程被强制终止时，缓存临时文件可能留待系统回收。
+
+CBOR 编解码仍然整块进行。上述限额不是整个恢复过程的堆内存上限，也没有消除序列化阶段的内存分配；本次不引入分块协议、数据库实体重构或额外的加密、签名机制。ZIP/CRC 不提供加密或来源认证，请妥善保存备份。
+
+## 实现归属
+
+`data/backup/BackupDataManager` 负责备份快照、校验与恢复，`BackupDataCollector` 按导出选项收集记录；载荷 `AppLocalData`、`LocalData` 与身份校验位于 `data/backup/model`。`BackupArchive` 负责清单、CBOR 编解码和归档，`BackupFiles` 负责受限文件读写与临时文件清理。
+
+用户数据导入／导出和书架分享仍由 `data/work` 中的 `ImportDataWork`、`ExportDataWork`、`SaveBookshelfWork` 接入同一套备份实现。Room、DAO、entity 和一般本地读写保留在 `data/local`。
+
+CBOR 使用具体载荷类型的序列化器，字段名与默认值决定本协议的数据形状，不写入 Kotlin 包名或多态类型标记。此归属调整保持载荷字段、协议版本、Worker 类名及任务输入输出不变。

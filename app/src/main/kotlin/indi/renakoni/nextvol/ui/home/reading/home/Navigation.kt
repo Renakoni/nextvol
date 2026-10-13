@@ -1,7 +1,5 @@
 package indi.renakoni.nextvol.ui.home.reading.home
 
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberBottomSheetState
@@ -23,8 +21,8 @@ import indi.renakoni.nextvol.ui.home.settings.navigateToSettingsDestination
 import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
 
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class)
-fun NavGraphBuilder.readingHomeDestination(sharedTransitionScope: SharedTransitionScope) {
+@OptIn(ExperimentalMaterial3Api::class)
+fun NavGraphBuilder.readingHomeDestination() {
     composable<Route.Main.Reading.Home> { entry ->
         val navController = LocalNavController.current
         val context = LocalContext.current
@@ -39,7 +37,6 @@ fun NavGraphBuilder.readingHomeDestination(sharedTransitionScope: SharedTransiti
             onClickContinueReading = { bookId, chapterId ->
                 navController.navigateToBookReaderDestination(bookId, chapterId, context, includeDetail = true)
             },
-            sharedTransitionScope = sharedTransitionScope,
             onClickStats = navController::navigateToReadingStatsDestination,
             onRemoveBook = viewModel::removeFromReadingList,
             onClickOpenChapters = viewModel::openChapters,

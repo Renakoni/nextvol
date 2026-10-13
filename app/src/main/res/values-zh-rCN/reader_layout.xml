@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reader_layout_settings">布局</string>
-    <string name="reader_layout_preview">页面预览</string>
+    <string name="reader_layout_preview">页面阅览</string>
     <string name="reader_layout_typography">文字与间距</string>
     <string name="reader_font_system">跟随系统</string>
     <string name="reader_font_serif">思源宋体</string>

@@ -19,16 +19,22 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderTextLayoutInput
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragment
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragmentContent
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextSelection
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextSource
-import indi.renakoni.nextvol.ui.book.reader.content.componet.layoutReaderText
+import indi.renakoni.nextvol.ui.book.reader.content.componet.MeasuredReaderParagraph
+import indi.renakoni.nextvol.ui.book.reader.content.componet.LocalReaderTextWorkObserver
+import indi.renakoni.nextvol.ui.book.reader.content.componet.measureReaderText
+import indi.renakoni.nextvol.ui.book.reader.content.componet.splitReaderText
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -148,41 +154,63 @@ internal class PreparedScrollChapter(
     }
 }
 
-/** Each job has its own measurer/cache. Cancellation never publishes a previous chapter's layout. */
+private data class ScrollMeasurementInput(
+    val sources: List<ReaderTextSource>,
+    val style: TextStyle,
+    val density: Density,
+    val direction: LayoutDirection,
+    val width: Int,
+)
+
+/** Each chapter owns only its latest line geometry. Cancellation never publishes stale work. */
 @Composable
 internal fun rememberPreparedScrollChapter(
     content: ChapterContentUiState?,
     layout: ReaderTextLayoutInput?,
     width: Int,
     viewportHeight: Int,
+    measurementDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ): PreparedScrollChapter? {
     if (content == null) return null
     if (layout == null) return remember(content) { PreparedScrollChapter(content, emptyMap()) }
     val context = LocalContext.current
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    var prepared by remember(content.id) { mutableStateOf<PreparedScrollChapter?>(null) }
-    LaunchedEffect(content, layout.settings, layout.style, density, direction, width, viewportHeight) {
-        if (width <= 0 || viewportHeight <= 0) return@LaunchedEffect
-        val result = withContext(Dispatchers.Default) {
-            val measurer = TextMeasurer(createFontFamilyResolver(context), density, direction, cacheSize = 0)
-            val cancellation = currentCoroutineContext()
-            val text = content.content.mapIndexedNotNull { index, component ->
-                if (component !is SimpleTextComponent) return@mapIndexedNotNull null
-                cancellation.ensureActive()
-                val fragments = layoutReaderText(
-                    listOf(ReaderTextSource(index, component.data.text)), width, viewportHeight,
-                    layout.paragraphSpacingPx, keepParagraphSpacingAtPageBreaks = true,
-                ) { paragraph, maxWidth ->
-                    cancellation.ensureActive()
-                    measurer.measure(paragraph, layout.style, constraints = Constraints(maxWidth = maxWidth))
-                }.flatten()
-                // Build cumulative offsets once per merged block, not once per source component.
-                index to fragments
-            }.toMap()
-            PreparedScrollChapter(content, text, layout, IntSize(width, viewportHeight))
+    val workObserver = LocalReaderTextWorkObserver.current
+    val sources = remember(content.content) {
+        content.content.mapIndexedNotNull { index, component ->
+            (component as? SimpleTextComponent)?.let { ReaderTextSource(index, it.data.text) }
         }
-        prepared = result
+    }
+    val input = ScrollMeasurementInput(sources, layout.style, density, direction, width)
+    var measured by remember(content.id) {
+        mutableStateOf<Pair<ScrollMeasurementInput, Map<Int, List<MeasuredReaderParagraph>>>?>(null)
+    }
+    var prepared by remember(content.id) { mutableStateOf<PreparedScrollChapter?>(null) }
+    LaunchedEffect(content, layout, density, direction, width, viewportHeight, measurementDispatcher) {
+        if (width <= 0 || viewportHeight <= 0) return@LaunchedEffect
+        val reusable = measured?.takeIf { it.first == input }?.second
+        val result = withContext(measurementDispatcher) {
+            val cancellation = currentCoroutineContext()
+            val paragraphs = reusable ?: run {
+                val measurer = TextMeasurer(createFontFamilyResolver(context), density, direction, cacheSize = 0)
+                measureReaderText(sources, width) { paragraph, maxWidth ->
+                    cancellation.ensureActive()
+                    workObserver?.invoke("shape")
+                    measurer.measure(paragraph, layout.style, constraints = Constraints.fixedWidth(maxWidth))
+                }.groupBy { it.componentIndex }
+            }
+            val text = paragraphs.mapValues { (_, paragraphs) ->
+                cancellation.ensureActive()
+                splitReaderText(
+                    paragraphs, viewportHeight,
+                    layout.paragraphSpacingPx, keepParagraphSpacingAtPageBreaks = true,
+                ).flatten()
+            }
+            paragraphs to PreparedScrollChapter(content, text, layout, IntSize(width, viewportHeight))
+        }
+        measured = input to result.first
+        prepared = result.second
     }
     // Keep the old geometry visible while settings/content are being prepared. The chapter item
     // keeps its identity and offset; first entry remains a loading item until geometry is available.

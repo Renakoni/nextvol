@@ -3,8 +3,8 @@ package indi.renakoni.nextvol.ui.book.reader.content.scroll
 import android.app.Application
 import android.net.Uri
 import androidx.compose.ui.text.TextStyle
-import indi.renakoni.nextvol.data.content.component.ImageComponent
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ImageComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderTextLayoutInput
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragment

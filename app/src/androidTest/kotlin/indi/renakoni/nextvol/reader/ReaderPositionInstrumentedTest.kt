@@ -32,10 +32,10 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.data.book.BookReadingDataAccess
 import indi.renakoni.nextvol.data.book.ChapterSource
-import indi.renakoni.nextvol.data.content.ContentComponentFactory
+import indi.renakoni.nextvol.ui.book.reader.content.ContentComponentFactory
 import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository

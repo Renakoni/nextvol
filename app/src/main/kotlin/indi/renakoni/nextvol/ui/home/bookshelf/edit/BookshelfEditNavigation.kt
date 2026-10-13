@@ -6,7 +6,6 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.dialog
 import androidx.navigation.toRoute
-import indi.renakoni.nextvol.ui.components.DeleteBookshelfDialog
 import indi.renakoni.nextvol.utils.isResumed
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
 import io.nightfish.lightnovelreader.api.Route

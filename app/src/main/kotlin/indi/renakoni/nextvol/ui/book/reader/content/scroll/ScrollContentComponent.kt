@@ -87,12 +87,12 @@ import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechFollow
 import indi.renakoni.nextvol.ui.book.reader.content.PrepareReaderSpeechIndex
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechRanges
 import indi.renakoni.nextvol.ui.book.reader.content.readerSpeechManualScroll
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.book.reader.ReaderBackgroundImageMode
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
-import indi.renakoni.nextvol.utils.readerTextColor
-import indi.renakoni.nextvol.utils.rememberReaderBackgroundPainter
+import indi.renakoni.nextvol.ui.book.reader.readerTextColor
+import indi.renakoni.nextvol.ui.book.reader.rememberReaderBackgroundPainter
 import indi.renakoni.nextvol.ui.book.reader.usesBackgroundImage
-import indi.renakoni.nextvol.utils.rememberReaderFontFamily
+import indi.renakoni.nextvol.ui.book.reader.rememberReaderFontFamily
 import indi.renakoni.nextvol.utils.showSnackbar
 import indi.renakoni.nextvol.ui.book.reader.bookmark.LocalReaderBookmarks
 import indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarkPosition
@@ -170,13 +170,18 @@ fun ScrollContentTextComponent(
     val chapterEntries = uiState.contentList.toList()
     val showAdjacentChapters = settingState.isUsingContinuousScrolling &&
         chapterEntries.getOrNull(1)?.second?.isErr != true
-    val preparedChapters = chapterEntries.mapIndexed { index, entry ->
+    // Native font/layout work contends across chapters. Share one worker within this reader,
+    // submitting the current chapter first; keyed neighbours keep their geometry as slots move.
+    val measurementDispatcher = remember { Dispatchers.Default.limitedParallelism(1) }
+    val preparedBySlot = chapterEntries.indices.sortedBy { if (it == 1) 0 else 1 }.associateWith { index ->
+        val entry = chapterEntries[index]
         key(listState, entry?.first ?: "placeholder-$index") {
             PrepareReaderSpeechIndex(entry?.second?.get())
             rememberPreparedScrollChapter(entry?.second?.get(), textLayout,
-                lazyColumnSize.width, lazyColumnSize.height)
+                lazyColumnSize.width, lazyColumnSize.height, measurementDispatcher)
         }
     }
+    val preparedChapters = chapterEntries.indices.map { preparedBySlot[it] }
     val bookmarks = LocalReaderBookmarks.current
     val positions = LocalReaderPositionSession.current
     var bookmarkReady by remember(listState) { mutableStateOf(false) }
@@ -444,7 +449,7 @@ fun ScrollContentTextComponent(
             }
     }
 
-    if (settingState.usesBackgroundImage && settingState.backgroundImageDisplayMode == MenuOptions.ReaderBgImageDisplayModeOptions.Loop) {
+    if (settingState.usesBackgroundImage && settingState.backgroundImageDisplayMode == ReaderBackgroundImageMode.Loop) {
         Image(
             modifier = Modifier
                 .fillMaxWidth()

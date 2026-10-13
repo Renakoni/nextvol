@@ -1,7 +1,7 @@
 package indi.renakoni.nextvol.ui.book.reader.content
 
 import android.app.Application
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.tts.SpeechPosition
 import indi.renakoni.nextvol.tts.SpeechTextIndex
 import io.mockk.every

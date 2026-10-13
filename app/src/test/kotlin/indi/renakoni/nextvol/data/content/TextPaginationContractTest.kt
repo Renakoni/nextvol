@@ -9,7 +9,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.sp
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import io.mockk.*
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import io.nightfish.lightnovelreader.api.userdata.UserDataRepositoryApi

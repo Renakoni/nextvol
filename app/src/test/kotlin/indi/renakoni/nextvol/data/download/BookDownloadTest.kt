@@ -24,7 +24,7 @@ import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.image.*
 import indi.renakoni.nextvol.data.local.LocalBookDataSource
-import indi.renakoni.nextvol.data.local.LocalDataManager
+import indi.renakoni.nextvol.data.backup.BackupDataManager
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
@@ -595,7 +595,7 @@ class BookDownloadTest {
         assertEquals(ListenableWorker.Result.success(), download())
         val attempt = downloads.begin(a, downloads.generation(), "active-before-backup")
         val coordinator = StatisticsWriteCoordinator()
-        val backup = LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
+        val backup = BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
             db.bookshelfDao(), db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(), db.userReadingDataDao(),
             db.userDataDao(), mockk(relaxed = true), coordinator,
             StatsRepository(db.bookRecordDao(), db.dailyCountDao(), books, coordinator), downloads)
@@ -947,8 +947,8 @@ class BookDownloadTest {
 
     private suspend fun export(images: Boolean = true, selected: List<String>? = null,
                                beforeWrite: () -> Unit = {}, book: SourceBookId = a): ListenableWorker.Result {
-        io.mockk.mockkObject(indi.renakoni.nextvol.data.work.EpubShareFiles)
-        every { indi.renakoni.nextvol.data.work.EpubShareFiles.publish(context, any(), any(), any()) } answers {
+        io.mockk.mockkObject(indi.renakoni.nextvol.data.export.EpubShareFiles)
+        every { indi.renakoni.nextvol.data.export.EpubShareFiles.publish(context, any(), any(), any()) } answers {
             beforeWrite()
             callOriginal()
         }
@@ -959,7 +959,7 @@ class BookDownloadTest {
                     "downloadGeneration" to downloads.generation())),
                 ExportBookToEpubUseCase(context, books, progress, decoder, downloads)).doWork()
         } finally {
-            io.mockk.unmockkObject(indi.renakoni.nextvol.data.work.EpubShareFiles)
+            io.mockk.unmockkObject(indi.renakoni.nextvol.data.export.EpubShareFiles)
         }
     }
 
