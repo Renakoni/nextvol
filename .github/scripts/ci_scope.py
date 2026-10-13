@@ -35,7 +35,7 @@ READER_WIDE = ['reader.ReaderPositionInstrumentedTest', 'reader.ReaderSpreadInst
 # Keep the existing full-suite class order while selecting individual scopes.
 EXTRA_24 = [
     ('reader', 'sourceexecution.ReadingPanelInstrumentedTest'),
-    ('full', 'EpubShareInstrumentedTest'),
+    ('export', 'EpubShareInstrumentedTest'),
     ('reader', 'reader.ReaderSpacingInstrumentedTest'),
     ('reader', 'reader.ReaderLayoutInstrumentedTest'),
     ('full', 'data.download.DownloadPersistenceInstrumentedTest'),
@@ -67,6 +67,20 @@ def classify(path):
                         'ui/dialog/UpdatesAvailableDialog.kt',
                         'ui/dialog/UpdatesAvailableDialogViewModel.kt'})):
                 return 'update'
+            if relative.startswith('data/export/') or (root == KOTLIN_ROOTS[0] and (
+                    relative.startswith('ui/export/') or relative in {
+                        'data/work/ExportBookToEPUBWork.kt',
+                        'ui/book/detail/ExportBottomSheet.kt',
+                        'ui/book/detail/ExportSettings.kt',
+                        'ui/book/detail/EpubShareActivity.kt'})):
+                return 'export'
+            if root == KOTLIN_ROOTS[1] and relative in {
+                    'data/work/EpubExportWorkerAdapterTest.kt',
+                    'data/work/EpubExportRegressionTest.kt',
+                    'data/work/EpubXhtmlWorkerTest.kt',
+                    'data/work/SourceExportWorkerTest.kt',
+                    'ui/book/detail/DetailExportTest.kt'}:
+                return 'export'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
             if relative.startswith(('tts/', 'ui/tts/')):
@@ -79,6 +93,9 @@ def classify(path):
         return 'reader'
     if path.startswith('app/src/androidTest/kotlin/indi/renakoni/nextvol/tts/'):
         return 'speech'
+    if path.startswith('epub/src/main/') or path == (
+            'app/src/androidTest/kotlin/indi/renakoni/nextvol/EpubShareInstrumentedTest.kt'):
+        return 'export'
     return 'full'
 
 
@@ -116,6 +133,8 @@ def plan(scopes):
     tasks = list(tasks)
     if 'speech' in scopes:
         tasks.append(':source-speech:test')
+    if 'export' in scopes:
+        tasks.append(':epub:test')
     if active and not full:
         tasks.append('-PciTestScope=' + ','.join(sorted(scopes - {'catalog'})))
     minified = []
@@ -245,7 +264,7 @@ def main():
     args = parser.parse_args()
     if args.device_api:
         scopes = set(args.scopes.split(','))
-        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'update', 'docs'}:
+        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'update', 'export', 'docs'}:
             parser.error('unknown test scope')
         print('\n'.join(device_classes(scopes, args.device_api)))
         return

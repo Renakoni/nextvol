@@ -35,6 +35,7 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 | Reader UI and reader tests | App UI tests plus content and mixed-source reader consumers, excluding speech UI | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
 | Speech implementation/UI/tests | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
 | App updates: `data/update`, dedicated update settings and available-update dialog | App update tests and `SettingsHierarchyTest` | Skip | Skip | Run |
+| EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
 | Shared/unknown code, resources, source/EPUB modules, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
 | Only root / `.github/*.md` / `docs/**/*.md` documentation, the three existing Issue templates, or `.github/FUNDING.yml` | Skip | Skip | Skip | Skip |
 
@@ -58,6 +59,16 @@ MainActivity, global settings, shared navigation, resources and Manifest changes
 still select full checks. App filters use positive unions, preserving existing
 UI/reader/speech coverage when combined with the new update scope. The property
 reduces test execution; App and test compilation still cover the whole App.
+
+Export selects `data.export.*`, the four dedicated export Worker regression
+classes, `BookWorkIdentityTest`, `BookDownloadTest`, `BookRepositoryOperationsTest`,
+`HostMultiSourceIntegrationTest`, `MixedSourceAcceptanceTest` and `DetailExportTest`.
+These consumers cover actual publication, download reuse/cancellation, source
+identity and WorkManager handoff outside the export directory. API 24 retains
+`EpubShareInstrumentedTest`, including the legacy share Activity entry. Shared
+image loading, Room, book repositories, detail navigation/ViewModel and Manifest
+remain broader; EPUB local import is a separate responsibility. Module-only EPUB
+test changes retain the test-input policy instead of launching App/device work.
 
 PR and merge-group comparisons use the event's base SHA and the checked-out merge
 tree. A missing base is fetched shallowly by SHA. Git lists all changed paths
