@@ -179,6 +179,13 @@ tasks.withType<Test>().configureEach {
         "reader" to readerTests,
         "speech" to readerTests + listOf("tts.*", "ui.tts.*"),
         "update" to listOf("data.update.*", "ui.home.settings.SettingsHierarchyTest"),
+        "export" to listOf(
+            "data.export.*", "data.work.EpubExportWorkerAdapterTest", "data.work.EpubExportRegressionTest",
+            "data.work.EpubXhtmlWorkerTest", "data.work.SourceExportWorkerTest", "data.work.BookWorkIdentityTest",
+            "data.download.BookDownloadTest", "data.book.BookRepositoryOperationsTest",
+            "data.web.HostMultiSourceIntegrationTest", "data.web.rules.MixedSourceAcceptanceTest",
+            "ui.book.detail.DetailExportTest",
+        ),
     )
     require(scopes.all { it == "full" || it in scopeTests }) { "Unknown ciTestScope: $scopes" }
     if ("full" !in scopes) {
