@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.utils.network
+package indi.renakoni.nextvol.data.export
 
 import android.app.Application
 import android.net.Uri
@@ -22,7 +22,7 @@ import java.io.IOException
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 @GraphicsMode(GraphicsMode.Mode.LEGACY)
-class ImageDownloaderCoverTest {
+class EpubImagePreparerCoverTest {
     @After fun cleanup() { unmockkAll() }
     @Test fun onlyCoverFailuresHaveAnExportSubstituteAndCancellationStillPropagates() = runTest {
         val context = RuntimeEnvironment.getApplication()
@@ -35,20 +35,20 @@ class ImageDownloaderCoverTest {
         mockkObject(ImageUtils)
         coEvery { ImageUtils.uriToBitmap(any(), any(), any(), any(), any(), false) } returns Err(IOException("fixture"))
         val fallback = DefaultBookCoverRenderer.Text(book.storageKey, "A book", "An author")
-        assertTrue(ImageDownloader(context, book,
-            listOf(ImageDownloader.Task(cover, uri, true, fallback))) { _, _ -> }.run())
+        assertTrue(EpubImagePreparer(context, book,
+            listOf(EpubImagePreparer.Task(cover, uri, true, fallback))) { _, _ -> }.run())
         assertTrue(cover.length() > 0)
-        assertFalse(ImageDownloader(context, book,
-            listOf(ImageDownloader.Task(body, uri))) { _, _ -> }.run())
+        assertFalse(EpubImagePreparer(context, book,
+            listOf(EpubImagePreparer.Task(body, uri))) { _, _ -> }.run())
         assertFalse(body.exists())
         coEvery { ImageUtils.uriToBitmap(any(), any(), any(), any(), any(), false) } returns Err(CancellationException("cancelled result"))
         try {
-            ImageDownloader(context, book, listOf(ImageDownloader.Task(cancelled, uri, true, fallback))) { _, _ -> }.run()
+            EpubImagePreparer(context, book, listOf(EpubImagePreparer.Task(cancelled, uri, true, fallback))) { _, _ -> }.run()
             fail("A cancelled result must not turn into a fallback cover")
         } catch (_: CancellationException) { assertFalse(cancelled.exists()) }
         coEvery { ImageUtils.uriToBitmap(any(), any(), any(), any(), any(), false) } throws CancellationException("cancel")
         try {
-            ImageDownloader(context, book, listOf(ImageDownloader.Task(cancelled, uri, true, fallback))) { _, _ -> }.run()
+            EpubImagePreparer(context, book, listOf(EpubImagePreparer.Task(cancelled, uri, true, fallback))) { _, _ -> }.run()
             fail("Cancellation must propagate")
         } catch (_: CancellationException) { assertFalse(cancelled.exists()) }
     }
