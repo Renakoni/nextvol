@@ -18,9 +18,11 @@ import hnovel.network.BrowserChallengeKind
 
 private const val MAX_DISPLAY_ACCOUNT_NAME = 16
 
-private fun displayAccountName(value: String): String =
-    if (value.length <= MAX_DISPLAY_ACCOUNT_NAME) value
-    else value.take(MAX_DISPLAY_ACCOUNT_NAME - 1) + "…"
+private fun displayAccountName(value: String): String {
+    if (value.codePointCount(0, value.length) <= MAX_DISPLAY_ACCOUNT_NAME) return value
+    val end = value.offsetByCodePoints(0, MAX_DISPLAY_ACCOUNT_NAME - 1)
+    return value.substring(0, end) + "…"
+}
 
 /** Presents the saved status; neither cookies nor account labels establish authentication. */
 @Composable
