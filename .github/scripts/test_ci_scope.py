@@ -1,5 +1,7 @@
+import fnmatch
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -18,6 +20,47 @@ MAIN = ci_scope.KOTLIN_ROOTS[0]
 class ScopeTests(unittest.TestCase):
     def select(self, *paths):
         return ci_scope.plan_for_paths(paths)
+
+    def test_app_update_keeps_its_regressions_without_source_or_device_work(self):
+        plan = self.select(MAIN + 'data/update/UpdateCheckRepository.kt',
+                           MAIN + 'data/update/UpdateArtifactDownloader.kt',
+                           MAIN + 'ui/home/settings/updates/UpdatesSettingsScreen.kt',
+                           MAIN + 'ui/dialog/UpdatesAvailableDialogViewModel.kt')
+        self.assertEqual('update', plan['scopes'])
+        self.assertEqual(':app:testDebugUnitTest -PciTestScope=update', plan['gradle-args'])
+        self.assertTrue(plan['release'])
+        self.assertTrue(plan['lint'])
+        self.assertFalse(any(plan[check] for check in ('device-24', 'device-35', 'minified')))
+        tests = self.select(ci_scope.KOTLIN_ROOTS[1] + 'data/update/UpdateDownloadRepositoryTest.kt')
+        self.assertIn('-PciTestScope=update', tests['gradle-args'])
+        self.assertFalse(tests['release'])
+        unknown_ui_test = self.select(ci_scope.KOTLIN_ROOTS[1] +
+                                      'ui/home/settings/updates/NewUpdateUiTest.kt')
+        self.assertNotIn('-PciTestScope=', unknown_ui_test['gradle-args'])
+        self.assertFalse(unknown_ui_test['release'])
+
+    def test_update_mixes_by_union_and_shared_entries_remain_full(self):
+        self.assertIn('-PciTestScope=reader,update', self.select(
+            MAIN + 'data/update/UpdateSource.kt', MAIN + 'ui/book/reader/ReaderScreen.kt')['gradle-args'])
+        for path in ('MainActivity.kt', 'ui/NextVolApp.kt', 'ui/home/settings/SettingStates.kt',
+                     'ui/home/settings/Navigation.kt', 'data/web/rules/SourceRevisionUpdates.kt',
+                     'data/work/CheckUpdateWork.kt'):
+            with self.subTest(path=path):
+                self.assertEqual(ci_scope.plan({'full'}), self.select(
+                    MAIN + 'data/update/UpdateSource.kt', MAIN + path))
+
+    def test_positive_app_filters_have_existing_test_classes(self):
+        build = (ROOT / 'app/build.gradle.kts').read_text(encoding='utf-8')
+        filters = build.split('val uiTests =', 1)[1].split('require(scopes.all', 1)[0]
+        patterns = re.findall(r'"((?:ui|data|tts)\.[A-Za-z0-9.*]+)"', filters)
+        classes = [ci_scope.PACKAGE + path.relative_to(ROOT / 'app/src/test/kotlin/indi/renakoni/nextvol')
+                   .with_suffix('').as_posix().replace('/', '.')
+                   for path in (ROOT / 'app/src/test/kotlin/indi/renakoni/nextvol').rglob('*.kt')
+                   if '@Test' in path.read_text(encoding='utf-8')]
+        self.assertTrue(patterns)
+        for pattern in patterns:
+            self.assertTrue(any(fnmatch.fnmatchcase(name, ci_scope.PACKAGE + pattern) for name in classes), pattern)
+        self.assertNotIn('excludeTestsMatching', build)
 
     def test_independent_layouts_skip_reader_devices_and_library_tasks(self):
         for path in ('ui/home/bookshelf/home/BookshelfScreen.kt',
