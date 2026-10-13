@@ -134,13 +134,6 @@ class UpdateDownloadRepositoryTest {
         assertEquals(1, server.requestCount)
         verify(exactly = 1) { system.showDownloadCompleteNotification(any()) }
         verify(exactly = 0) { system.showDownloadFailedNotification(any()) }
-
-        server.enqueue(MockResponse().setBody("retry apk"))
-        repository.downloadUpdate()
-        finished()
-        assertEquals(2, server.requestCount)
-        assertEquals("retry apk", files.apk.readText())
-        verify(exactly = 2) { downloader.prepare(); system.installApk(any()) }
     }
 
     @Test fun preparationFailureReportsAnErrorAndAllowsRetryWithoutStartingARequest() = runBlocking {
@@ -164,31 +157,53 @@ class UpdateDownloadRepositoryTest {
         verify(exactly = 1) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
     }
 
-    @Test fun cancellationReleasesAdmissionWithoutFailureOrCompletionAndAllowsRetry() = runBlocking {
-        checked()
+    @Test fun cancellationDuringBlockingConversionKeepsAdmissionUntilExitWithoutReportingCompletion() = runBlocking {
         val downloading = CompletableDeferred<Job>()
+        val processing = CompletableDeferred<Unit>()
+        val finishConversion = CountDownLatch(1)
+        checked { source, target ->
+            processing.complete(Unit)
+            check(finishConversion.await(5, TimeUnit.SECONDS))
+            target.writeBytes(source.readBytes())
+        }
+        val actualDownloader = UpdateArtifactDownloader(context)
         coEvery { downloader.download(any(), any(), any(), any()) } coAnswers {
             downloading.complete(currentCoroutineContext().job)
-            awaitCancellation()
+            actualDownloader.download(firstArg(), secondArg(), thirdArg(), arg(3))
         }
+        server.enqueue(MockResponse().setBody("archive"))
         repository.downloadUpdate()
         val job = withTimeout(5000) { downloading.await() }
-        assertTrue(repository.isDownloading.value)
-        withTimeout(5000) { job.cancelAndJoin() }
-        assertTrue(job.isCancelled)
+        try {
+            withTimeout(5000) { processing.await() }
+            assertTrue(repository.isDownloading.value)
+            assertEquals(R.string.update_phase_processing, repository.updatePhase.first().messageId)
+            verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
+            job.cancel()
+            assertTrue(repository.isDownloading.value)
+            repository.downloadUpdate()
+            verify(exactly = 1) { downloader.prepare() }
+        } finally {
+            finishConversion.countDown()
+        }
+        withTimeout(5000) { job.join() }
         assertFalse(repository.isDownloading.value)
+        assertEquals(R.string.update_phase_processing, repository.updatePhase.first().messageId)
+        assertEquals(1, server.requestCount)
         verify(exactly = 0) {
             system.showDownloadFailedNotification(any())
             system.showDownloadCompleteNotification(any())
             system.installApk(any())
         }
 
-        clearMocks(downloader)
-        server.enqueue(MockResponse().setBody("apk"))
+        server.enqueue(MockResponse().setBody("retry archive"))
         repository.downloadUpdate()
         finished()
-        assertEquals(1, server.requestCount)
-        verify(exactly = 1) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
+        assertEquals(2, server.requestCount)
+        assertEquals(R.string.update_phase_download_complete, repository.updatePhase.first().messageId)
+        assertEquals("retry archive", directory.root.resolve("updates/LightNovelReader-update.apk").readText())
+        assertEquals(listOf("complete", "install"), events.takeLast(2))
+        verify(exactly = 1) { system.showDownloadCompleteNotification(any()); system.installApk(any()) }
     }
 
     @Test fun realDownloadKeepsBusyProgressCompletionAndInstallationOrder() = runBlocking {
@@ -218,28 +233,6 @@ class UpdateDownloadRepositoryTest {
         assertEquals(1f, repository.downloadProgress.value)
         assertEquals(R.string.update_phase_download_complete, repository.updatePhase.first().messageId)
         assertEquals("apk", directory.root.resolve("updates/LightNovelReader-update.apk").readText())
-    }
-
-    @Test fun conversionKeepsTheProcessingPhaseUntilTheArtifactIsReady() = runBlocking {
-        val processing = CompletableDeferred<Unit>()
-        val finishConversion = CountDownLatch(1)
-        checked { source, target ->
-            processing.complete(Unit)
-            check(finishConversion.await(5, TimeUnit.SECONDS))
-            target.writeText("converted ${source.readText()}")
-        }
-        server.enqueue(MockResponse().setBody("archive"))
-        try {
-            repository.downloadUpdate()
-            withTimeout(5000) { processing.await() }
-            assertTrue(repository.isDownloading.value)
-            assertEquals(R.string.update_phase_processing, repository.updatePhase.first().messageId)
-            verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
-        } finally { finishConversion.countDown() }
-        finished()
-        assertEquals("converted archive", directory.root.resolve("updates/LightNovelReader-update.apk").readText())
-        assertEquals(listOf("complete", "install"), events.takeLast(2))
-        verify(exactly = 1) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
     }
 
     @Test fun emptyDownloadResetsBusyAndDoesNotInstall() = runBlocking {

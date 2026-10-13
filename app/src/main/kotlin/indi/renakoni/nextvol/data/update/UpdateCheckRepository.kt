@@ -11,6 +11,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -106,6 +108,7 @@ class UpdateCheckRepository @Inject constructor(
                 _updatePhase.emit(UpdatePhase(R.string.update_phase_downloading))
                 systemInteraction.createNotificationChannel()
                 val files = downloader.prepare()
+                currentCoroutineContext().ensureActive()
                 systemInteraction.showDownloadNotification(0, release.versionName)
 
                 var lastNotificationUpdate = 0L
@@ -124,6 +127,8 @@ class UpdateCheckRepository @Inject constructor(
                     },
                     onProcessing = { _updatePhase.emit(UpdatePhase(R.string.update_phase_processing)) },
                 )
+                // Blocking HTTP/file work can return normally after cancellation.
+                currentCoroutineContext().ensureActive()
 
                 if (apkFile != null) {
                     _downloadProgress.emit(1f)
@@ -140,6 +145,7 @@ class UpdateCheckRepository @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
                 Log.e("UpdateChecker", "Download failed", e)
                 val phase = when {
                     e is MissingUpdateApkException -> UpdatePhase(R.string.update_phase_missing_apk, listOf(e.archiveName))
