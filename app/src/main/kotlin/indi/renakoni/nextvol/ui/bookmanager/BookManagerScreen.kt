@@ -67,7 +67,6 @@ import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.ui.components.downloadStatusText
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.components.EmptyPage
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import indi.renakoni.nextvol.utils.formTime
 import indi.renakoni.nextvol.utils.navigationBarSpacer
 
@@ -239,7 +238,7 @@ private fun AppBar(
                         expanded = sortMenuExpanded,
                         onDismissRequest = { onSortMenuExpandedChange(false) }
                     ) {
-                        MenuOptions.LocalBookSortMenuOptions.optionList.forEach { option ->
+                        LocalBookSortMenuOptions.optionList.forEach { option ->
                             val sort = LocalBookSort.valueOf(option.key)
 
                             DropdownMenuItem(

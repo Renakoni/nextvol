@@ -100,7 +100,6 @@ import indi.renakoni.nextvol.ui.book.reader.content.ReaderSpeechFollow
 import indi.renakoni.nextvol.ui.components.AnimatedText
 import indi.renakoni.nextvol.ui.components.AnimatedTextLine
 import indi.renakoni.nextvol.ui.components.LnrSnackbar
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import indi.renakoni.nextvol.ui.tts.ReadAloudSheet
 import indi.renakoni.nextvol.utils.LocalClaimSnackbarHost
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
@@ -223,11 +222,11 @@ fun ReaderScreen(
 
     BackHandler(enabled = !showSettingsBottomSheet) {
         when (backBlockMode) {
-            MenuOptions.ReaderBackBlockMode.None -> {
+            ReaderBackBlockMode.None -> {
                 isImmersive = false
                 onClickBackButton()
             }
-            MenuOptions.ReaderBackBlockMode.DoublePress -> {
+            ReaderBackBlockMode.DoublePress -> {
                 val now = System.currentTimeMillis()
                 if (!isImmersive || now - lastBackPressTime < 1500) {
                     onClickBackButton()
@@ -242,7 +241,7 @@ fun ReaderScreen(
                 }
             }
 
-            MenuOptions.ReaderBackBlockMode.FullyBlocked -> {}
+            ReaderBackBlockMode.FullyBlocked -> {}
         }
     }
     DisposableEffect(Unit) {
@@ -529,7 +528,7 @@ fun Content(
                                 end = settingState.rightPadding.dp
                             )
                         ),
-                    enableBatteryIndicator = settingState.batteryIndicatorDisplayMode == "classic",
+                    enableBatteryIndicator = settingState.batteryIndicatorDisplayMode == ReaderBatteryDisplayMode.Classic,
                     enableTimeIndicator = settingState.enableTimeIndicator,
                     enableChapterTitle = settingState.enableChapterTitleIndicator,
                     chapterTitle = readingScreenUiState.chapterTitle(readingScreenUiState.contentUiState?.readingChapterId)

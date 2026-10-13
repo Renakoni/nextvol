@@ -25,7 +25,7 @@ import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.components.SettingsSwitchEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingState
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.home.settings.data.SettingsMenuOptions
 import indi.renakoni.nextvol.utils.DateFormat
 import indi.renakoni.nextvol.utils.DateOrder
 import indi.renakoni.nextvol.utils.dateFormatter
@@ -65,7 +65,7 @@ fun SettingsList(settingState: SettingState) {
             modifier = Modifier.background(colorScheme.surfaceContainer),
             title = stringResource(R.string.settings_formats_date_format),
             description = dateDescription,
-            options = MenuOptions.DateFormatOptions,
+            options = SettingsMenuOptions.DateFormatOptions,
             selectedOptionKey = settingState.dateFormat,
             stringUserData = settingState.dateFormatUserData
         )
@@ -80,7 +80,7 @@ fun SettingsList(settingState: SettingState) {
             modifier = Modifier.background(colorScheme.surfaceContainer),
             title = stringResource(R.string.settings_formats_date_order),
             description = stringResource(R.string.settings_formats_date_order_desc),
-            options = MenuOptions.DateOrderOptions,
+            options = SettingsMenuOptions.DateOrderOptions,
             selectedOptionKey = settingState.dateOrder,
             stringUserData = settingState.dateOrderUserData,
             disabled = dateFormat == DateFormat.WRITTEN
@@ -102,7 +102,7 @@ fun SettingsList(settingState: SettingState) {
             painter = painterResource(R.drawable.translate_24px),
             title = stringResource(R.string.settings_characters_variant),
             description = stringResource(R.string.settings_characters_variant_desc),
-            options = MenuOptions.AppLocaleOptions,
+            options = SettingsMenuOptions.AppLocaleOptions,
             selectedOptionKey = settingState.appLocaleKey,
             onOptionChange = settingState.appLocaleKeyUserData::asynchronousSet
         )

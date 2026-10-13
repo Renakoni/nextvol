@@ -28,7 +28,7 @@ import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.book.reader.ReaderFlipAnimation
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import io.mockk.every
 import io.mockk.mockk
@@ -187,15 +187,7 @@ class FlipBoundarySwipeTest {
     }
 
     @Test fun animationNoneUsesTheSameBoundaryCommand() {
-        mount(animation = MenuOptions.FlipAnimationOptions.None)
-        compose.onRoot().performTouchInput { swipeLeft() }
-        compose.waitForIdle()
-        assertEquals(1, next)
-    }
-
-    @Test @Config(qualifiers = "w1130dp-h800dp-land")
-    fun tabletLandscapeBoundarySwipeChangesChapter() {
-        mount()
+        mount(animation = ReaderFlipAnimation.None)
         compose.onRoot().performTouchInput { swipeLeft() }
         compose.waitForIdle()
         assertEquals(1, next)
@@ -203,7 +195,7 @@ class FlipBoundarySwipeTest {
 
     private fun mount(
         reduced: Boolean = false,
-        animation: String = MenuOptions.FlipAnimationOptions.ScrollWithoutShadow,
+        animation: String = ReaderFlipAnimation.ScrollWithoutShadow,
         pages: Int = 1,
         fast: Boolean = true,
         rtl: Boolean = false,

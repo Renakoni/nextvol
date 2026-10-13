@@ -57,7 +57,7 @@ import indi.renakoni.nextvol.data.logging.LogLevel
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.home.settings.data.SettingsMenuOptions
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.utils.showSnackbar
 import java.time.LocalDateTime
@@ -101,7 +101,7 @@ fun LogcatScreen(
                 painter = painterResource(R.drawable.bug_report_24px),
                 title = stringResource(R.string.settings_app_log_level),
                 description = stringResource(R.string.settings_app_log_level_desc),
-                options = MenuOptions.LogLevelOptions,
+                options = SettingsMenuOptions.LogLevelOptions,
                 selectedOptionKey = logLevelKey,
                 onOptionChange = { option ->
                     onLogLevelChange(option)

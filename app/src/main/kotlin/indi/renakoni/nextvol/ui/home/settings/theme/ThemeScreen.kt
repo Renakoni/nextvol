@@ -84,7 +84,8 @@ import indi.renakoni.nextvol.ui.book.reader.ThemeSettingsEditor
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.book.reader.ReaderBgImageDisplayModeOptions
+import indi.renakoni.nextvol.ui.home.settings.data.SettingsMenuOptions
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.utils.navigationBarSpacer
 import indi.renakoni.nextvol.ui.book.reader.readerBackgroundColor
@@ -271,7 +272,7 @@ fun ThemeSettingsList(
                 painter = painterResource(R.drawable.light_mode_24px),
                 title = stringResource(R.string.settings_theme_light_theme),
                 description = stringResource(R.string.settings_theme_light_theme_desc),
-                options = MenuOptions.LightThemeNameOptions,
+                options = SettingsMenuOptions.LightThemeNameOptions,
                 selectedOptionKey = settingState.lightThemeName,
                 onOptionChange = settingState.lightThemeNameUserData::asynchronousSet
             )
@@ -280,7 +281,7 @@ fun ThemeSettingsList(
                 painter = painterResource(R.drawable.dark_mode_24px),
                 title = stringResource(R.string.settings_theme_dark_theme),
                 description = stringResource(R.string.settings_theme_dark_theme_desc),
-                options = MenuOptions.DarkThemeNameOptions,
+                options = SettingsMenuOptions.DarkThemeNameOptions,
                 selectedOptionKey = settingState.darkThemeName,
                 onOptionChange = settingState.darkThemeNameUserData::asynchronousSet
             )
@@ -349,7 +350,7 @@ fun ReaderThemeSettingsList(
                 title = stringResource(R.string.settings_theme_bg_display_mode),
                 painter = painterResource(R.drawable.insert_page_break_24px),
                 description = stringResource(R.string.settings_theme_bg_display_mode_desc),
-                options = MenuOptions.ReaderBgImageDisplayModeOptions,
+                options = ReaderBgImageDisplayModeOptions,
                 selectedOptionKey = settingState.backgroundImageDisplayMode,
                 stringUserData = settingState.backgroundImageDisplayModeUserData
             )
