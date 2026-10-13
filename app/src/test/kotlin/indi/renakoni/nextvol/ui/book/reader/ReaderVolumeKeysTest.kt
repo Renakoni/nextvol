@@ -164,10 +164,14 @@ class ReaderVolumeKeysTest {
                 }
             }
         }
+        waitForScrollInput()
+    }
+
+    private fun waitForScrollInput() {
         compose.waitForIdle()
         // Compose can be idle while the chapter is prepared on Dispatchers.Default.
         // Restoration can report from a cancelled placement's finally block. Wait for the
-        // reader's focused input node too, before a test freezes the animation clock.
+        // reader's focused input node too, including when the reader re-enters composition.
         compose.waitUntil(5_000) {
             compose.waitForIdle()
             scrollProgressRestored && compose.onAllNodes(
@@ -326,7 +330,7 @@ class ReaderVolumeKeysTest {
             assertFalse(dispatch(KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.ACTION_DOWN))
             assertFalse(dispatch(KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.ACTION_UP))
             compose.runOnIdle(restore)
-            compose.waitForIdle()
+            waitForScrollInput()
             tap(KeyEvent.KEYCODE_VOLUME_DOWN)
         }
     }
