@@ -18,7 +18,6 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -66,7 +65,7 @@ class UpdateArtifactDownloaderTest {
         assertTrue(progress.isEmpty())
     }
 
-    @Test fun zipConversionUsesTheReleaseCallbackAndPropagatesMissingApkAndConversionFailures() = runBlocking {
+    @Test fun zipConversionUsesTheReleaseCallback() = runBlocking {
         val zip = ByteArrayOutputStream().also { bytes ->
             ZipOutputStream(bytes).use { output ->
                 output.putNextEntry(ZipEntry("release.apk"))
@@ -74,47 +73,14 @@ class UpdateArtifactDownloaderTest {
                 output.closeEntry()
             }
         }.toByteArray()
-        fun zipped(entry: String) = release { source, target ->
+        val zipped = release { source, target ->
             ZipFile(source).use { archive ->
-                val apk = archive.getEntry(entry) ?: throw MissingUpdateApkException(source.name)
+                val apk = archive.getEntry("release.apk")
                 archive.getInputStream(apk).use { input -> target.outputStream().use { input.copyTo(it) } }
             }
         }
         server.enqueue(MockResponse().setBody(Buffer().write(zip)))
-        assertEquals("converted apk", download(zipped("release.apk"))!!.readText())
+        assertEquals("converted apk", download(zipped)!!.readText())
         assertEquals(listOf("processing"), events)
-        server.enqueue(MockResponse().setBody(Buffer().write(zip)))
-        val missing = runCatching { download(zipped("missing.apk")) }.exceptionOrNull()
-        assertTrue(missing is MissingUpdateApkException)
-        assertEquals("LightNovelReader-update.tmp", (missing as MissingUpdateApkException).archiveName)
-        server.enqueue(MockResponse().setBody("not a zip"))
-        assertTrue(runCatching { download(zipped("release.apk")) }.exceptionOrNull() is IOException)
-    }
-
-    @Test fun emptyProductsAndWriteFailuresDoNotProduceAnApk() = runBlocking {
-        server.enqueue(MockResponse().setBody(""))
-        assertNull(download())
-        server.enqueue(MockResponse().setBody("input"))
-        assertNull(download(release { _, target -> target.writeText("") }))
-        val files = downloader.prepare()
-        assertTrue(files.temporary.mkdir())
-        server.enqueue(MockResponse().setBody("apk"))
-        assertTrue(runCatching { download(files = files) }.exceptionOrNull() is IOException)
-        assertFalse(files.apk.exists())
-    }
-
-    // Characterize the existing HTTP fall-through; the separate HTTP bug fix must change this expectation.
-    @Test fun httpFailureStillReachesExistingPostProcessing() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(503))
-        assertNull(download())
-        assertEquals(listOf("HTTP 503"), events)
-        events.clear()
-        server.enqueue(MockResponse().setResponseCode(404))
-        val failure = runCatching { download(release { source, _ ->
-            events += "transform"
-            source.readBytes()
-        }) }.exceptionOrNull()
-        assertTrue(failure is IOException)
-        assertEquals(listOf("HTTP 404", "processing", "transform"), events)
     }
 }

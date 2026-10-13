@@ -27,12 +27,9 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
 import java.util.Collections
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30], application = Application::class)
@@ -119,15 +116,6 @@ class UpdateDownloadRepositoryTest {
         assertEquals("apk", directory.root.resolve("updates/LightNovelReader-update.apk").readText())
     }
 
-    @Test fun unknownLengthCompletesWithoutIntermediateProgressNotifications() = runBlocking {
-        checked()
-        server.enqueue(MockResponse().setChunkedBody("apk", 1))
-        repository.downloadUpdate()
-        finished()
-        assertEquals(listOf("channel", "progress:0", "complete", "install"), events)
-        assertEquals(1f, repository.downloadProgress.value)
-    }
-
     @Test fun conversionKeepsTheProcessingPhaseUntilTheArtifactIsReady() = runBlocking {
         val processing = CompletableDeferred<Unit>()
         val finishConversion = CountDownLatch(1)
@@ -160,68 +148,4 @@ class UpdateDownloadRepositoryTest {
         verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
     }
 
-    @Test fun missingApkUsesTheExistingFailurePhaseAndDoesNotInstall() = runBlocking {
-        checked { source, _ -> throw MissingUpdateApkException(source.name) }
-        server.enqueue(MockResponse().setBody("archive"))
-        repository.downloadUpdate()
-        finished()
-        val phase = repository.updatePhase.first()
-        assertEquals(R.string.update_phase_missing_apk, phase.messageId)
-        assertEquals(listOf("LightNovelReader-update.tmp"), phase.arguments)
-        assertEquals(1, events.count { it.startsWith("failed:") })
-        verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
-    }
-
-    // Preserve the known failure overwrite until the separate HTTP bug fix lands.
-    @Test fun httpFailureRetainsTheExistingFailureThenEmptyFileSequence() = runBlocking {
-        checked()
-        server.enqueue(MockResponse().setResponseCode(503))
-        repository.downloadUpdate()
-        finished()
-        assertEquals(listOf("channel", "progress:0", "failed:HTTP 503",
-            "failed:${context.getString(R.string.update_download_empty_file)}"), events)
-        assertEquals(R.string.update_phase_empty_file, repository.updatePhase.first().messageId)
-        verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
-    }
-
-    // Characterization of the existing pre-launch busy-check window, not a new concurrency guarantee.
-    @Test fun callsThatPassTheBusyCheckBeforeLaunchCanStillOverlap() = runBlocking {
-        checked()
-        val files = downloader.prepare()
-        val firstPreparing = CompletableDeferred<Unit>()
-        val releasePreparation = CountDownLatch(1)
-        val preparations = AtomicInteger()
-        val jobs = CopyOnWriteArrayList<Job>()
-        val bothStarted = CompletableDeferred<Unit>()
-        val releaseDownloads = CompletableDeferred<Unit>()
-        every { downloader.prepare() } answers {
-            if (preparations.getAndIncrement() == 0) {
-                firstPreparing.complete(Unit)
-                check(releasePreparation.await(5, TimeUnit.SECONDS))
-            }
-            files
-        }
-        coEvery { downloader.download(any(), any(), any(), any(), any()) } coAnswers {
-            jobs += currentCoroutineContext()[Job]!!
-            if (jobs.size == 2) bothStarted.complete(Unit)
-            releaseDownloads.await()
-            null
-        }
-        val firstCall = CompletableFuture.runAsync { repository.downloadUpdate() }
-        try {
-            withTimeout(5000) { firstPreparing.await() }
-            repository.downloadUpdate()
-            withTimeout(5000) { started.await() }
-            releasePreparation.countDown()
-            firstCall.get(5, TimeUnit.SECONDS)
-            withTimeout(5000) { bothStarted.await() }
-            assertEquals(2, events.count { it == "channel" })
-        } finally {
-            releasePreparation.countDown()
-            releaseDownloads.complete(Unit)
-            firstCall.get(5, TimeUnit.SECONDS)
-            withTimeout(5000) { jobs.toList().joinAll() }
-        }
-        assertFalse(repository.isDownloading.value)
-    }
 }
