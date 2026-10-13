@@ -15,7 +15,7 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.download.*
-import indi.renakoni.nextvol.data.storage.StorageUsageRepository
+import indi.renakoni.nextvol.data.storage.StorageBookQuery
 import indi.renakoni.nextvol.utils.LocalClaimSnackbarHost
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import io.mockk.coEvery
@@ -104,9 +104,9 @@ class DownloadManagerScreenTest {
         val repository = mockk<BookRepository>()
         coEvery { repository.submitDownload(any(), any()) } returns
             indi.renakoni.nextvol.data.download.DownloadSubmission.Rejected(indi.renakoni.nextvol.data.download.DownloadFailure.Scheduling)
-        val usage = mockk<StorageUsageRepository>()
-        coEvery { usage.getCachedSnapshot() } coAnswers { awaitCancellation() }
-        val model = BookManagerViewModel(repository, mockk(), mockk(), usage, mockk(), mockk(), mockk())
+        val query = mockk<StorageBookQuery>()
+        coEvery { query.getCachedBooks() } coAnswers { awaitCancellation() }
+        val model = BookManagerViewModel(repository, mockk(), mockk(), mockk(), mockk(), mockk(), mockk(), query)
         try {
             val status = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Complete, 3, 3),
                 DownloadTaskState(DownloadTaskStatus.Complete, DownloadStage.Body))
