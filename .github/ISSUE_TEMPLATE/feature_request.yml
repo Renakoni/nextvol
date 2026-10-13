@@ -1,5 +1,5 @@
-name: Feature request - 功能请求
-description: Suggest an idea for this project - 为这个项目推荐一个新想法
+name: 功能请求
+description: 说明使用中遇到的困难，以及希望 NextVol 提供的能力。
 title: "[Feature] "
 labels:
   - enhancement
@@ -8,22 +8,40 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filling in this `issue`, please make sure that there are no similar or duplicate `issues` that have been opened.
-        填写此 `issue` 前，请先确认已经开启的 `issue` 没有类似或重复的 `issue`。
+        请先搜索[已有 issue](https://github.com/Renakoni/nextvol/issues)，相同需求请补充到原 issue。
+        标题概括希望获得的能力，例如“查看整本书的离线下载完成情况”。
 
   - type: textarea
+    id: problem
     attributes:
-      label: What new features do you want? - 你想要什么新功能？
-      description: |
-        What new feature or change you want? How it improves? Please tell us the requirements is with a clear and detailed description, put your screenshots if possible.
-        你想要什么新功能或者什么改变？这会带来什么提升？请清晰而详细地描述你的需求，如果可以的话最好附带截图。
+      label: 使用场景与问题
+      description: 在什么场景需要这个功能？目前哪里受阻，为什么现有能力不能满足需要？
+      placeholder: 离线前想确认整本书是否已下载完成，目前需要逐卷检查。
     validations:
       required: true
 
-  - type: checkboxes
-    id: know
+  - type: textarea
+    id: goal
     attributes:
-      label: This issue is unique - 这个issue是唯一的
-      options:
-        - label: I have searched the issue tracker and did not find an issue describing my bug. - 我已经搜索问题追踪器并且没有发现相同的 issue。
-          required: true
+      label: 期望能力
+      description: 希望用户最终能完成什么操作、获得什么结果？可以只描述目标，不必提供界面设计或实现方案。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案（可选）
+      description: 描述设想的入口、交互或处理方式；尚未确定的选择可作为待讨论问题提出。
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: 场景示例／完成表现（可选）
+      description: 给一个具体使用例子，说明怎样才满足需求。维护者可据此整理验收标准。
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 替代方式与相关资料（可选）
+      description: 可补充当前绕行方式、类似产品参考、截图，以及相关 issue。

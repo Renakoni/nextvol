@@ -60,9 +60,7 @@ class BookReadingDataRepository @Inject constructor(
                     data.copy(
                         currentChapterReadingProgressMap = data.currentChapterReadingProgressMap - selected,
                         maxChapterReadingProgressMap = maximum,
-                        readingProgress = catalog.sumOf { id ->
-                            (maximum[id] ?: 0f).takeIf { it.isFinite() }?.coerceIn(0f, 1f)?.toDouble() ?: 0.0
-                        }.div(catalog.size).toFloat(),
+                        readingProgress = bookReadingProgress(catalog, maximum),
                     )
                 }
                 // Only selected chapters reject old queued saves; unrelated resume updates remain valid.

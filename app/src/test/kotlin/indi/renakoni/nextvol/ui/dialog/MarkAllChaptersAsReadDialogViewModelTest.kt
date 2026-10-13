@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.data.book.BookRepository
+import indi.renakoni.nextvol.data.reading.ReaderRecordStore
 import indi.renakoni.nextvol.data.statistics.StatsRepository
+import indi.renakoni.nextvol.ui.book.reader.ReaderReadingRecords
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -61,8 +63,7 @@ class MarkAllChaptersAsReadDialogViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private suspend fun loadChapters() {
-        val ids = listOf("first", "second")
+    private suspend fun loadChapters(ids: List<String> = listOf("first", "second")) {
         val volumes = BookVolumes("book", listOf(Volume("volume", "Volume", ids.map { ChapterInformation(it, it) })))
         every { bookRepository.getBookVolumesFlow("book", any()) } returns flowOf(Ok(volumes))
         model.load("book")
@@ -109,5 +110,46 @@ class MarkAllChaptersAsReadDialogViewModelTest {
         assertEquals(previous.lastReadChapterId, data.lastReadChapterId)
         assertEquals(previous.lastReadChapterTitle, data.lastReadChapterTitle)
         coVerify(exactly = 0) { statsRepository.markBookFinished(any()) }
+    }
+
+    @Test fun manualAndReaderWritesUseTheSameCatalogAndHistory() = runTest(dispatcher) {
+        loadChapters(listOf("first", "second", "first"))
+        val recordStore = mockk<ReaderRecordStore>(relaxed = true)
+        coEvery { recordStore.updateChapterProgress("book", any(), any(), any()) } answers {
+            data = arg<(UserReadingData) -> UserReadingData>(3)(data)
+            true
+        }
+        val records = ReaderReadingRecords(recordStore, backgroundScope, backgroundScope,
+            { "book" }, { "First" }, { setOf("first", "second") }, ioDispatcher = dispatcher)
+        val original = UserReadingData("book",
+            maxChapterReadingProgressMap = mapOf("second" to 0f, "removed" to 1f))
+        data = original
+        model.markChaptersAsRead(listOf("first"))
+        awaitUpdates()
+        val manual = data
+        data = original
+        records.saveProgress("first", 1f)
+        records.awaitProgress()
+
+        assertEquals(.5f, manual.readingProgress, 0f)
+        assertEquals(manual.readingProgress, data.readingProgress, 0f)
+        assertEquals(manual.maxChapterReadingProgressMap, data.maxChapterReadingProgressMap)
+        assertEquals(1f, data.maxChapterReadingProgressMap["removed"])
+        coVerify(exactly = 0) { statsRepository.markBookFinished(any()) }
+    }
+
+    @Test fun markingAllUsesTheCatalogWithoutChangingResumeOrRemovedHistory() = runTest(dispatcher) {
+        loadChapters(listOf("first", "second", "first"))
+        val original = UserReadingData("book", lastReadChapterId = "second",
+            currentChapterReadingProgressMap = mapOf("second" to .2f),
+            maxChapterReadingProgressMap = mapOf("removed" to .7f))
+        data = original
+        model.markAllChaptersAsRead()
+        awaitUpdates()
+        assertEquals(1f, data.readingProgress, 0f)
+        assertEquals(mapOf("first" to 1f, "second" to 1f, "removed" to .7f), data.maxChapterReadingProgressMap)
+        assertEquals(original.currentChapterReadingProgressMap, data.currentChapterReadingProgressMap)
+        assertEquals(original.lastReadChapterId, data.lastReadChapterId)
+        coVerify(exactly = 1) { statsRepository.markBookFinished("book") }
     }
 }
