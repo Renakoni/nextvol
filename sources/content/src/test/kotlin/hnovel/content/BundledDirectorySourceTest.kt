@@ -79,22 +79,21 @@ class BundledDirectorySourceTest {
         }
     }
 
-    @Test fun mirrorLegacyBookUsesTheNewDirectoryWithoutChangingItsIdentity() = runBlocking {
+    @Test fun mirrorReadsTheCurrentDirectoryAndPaidChapterFlags() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.server.dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest) = MockResponse().setBody(
                     if (request.requestUrl!!.encodedPath == "/api/books/42") """{"data":{
                         "id":42,"name":"测试书","user":{"nickname":"作者"},"intro":"简介",
                         "chapters":{"data":[{"id":71,"name":"第一章","points":0},{"id":72,"name":"第二章","points":10}]}
-                    }}""" else "<html><title>Legacy redirect</title></html>")
+                    }}""" else "<html><title>Book page</title></html>")
             }
             fixture.source {
                 val raw = definition(fixture, "Literature", "https://mirrorfiction.com")
                 Json.parseToJsonElement(raw.toString().replace("https://www.mirrorfiction.com",
                     fixture.server.url("/").toString().removeSuffix("/"))).jsonObject
             }.use { source ->
-                val id = fixture.server.url("/zh-Hant/book/42").toString()
-                assertEquals(id, source.information(id, false).id)
+                val id = fixture.server.url("/book/42").toString()
                 val chapters = source.directory(id)
                 assertEquals(listOf("第一章", "第二章"), chapters.map { it.title })
                 assertFalse(chapters.first().isVip)

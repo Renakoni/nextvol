@@ -367,10 +367,10 @@
       "tocUrl": "+<js>\nvar str = baseUrl; \nvar id = str.replace(/(.*)bookid=(.*?)&(.*)/, '$2');\nvar body = \"ebookid=\" + id + \"&pages=1&showbooklisttype=1\";\nvar option = {\n         \"method\": \"POST\",\n         \"body\": String(body)\n     }; \"/showbooklist.php,\" + JSON.stringify(option)\n </js>"
     },
     "ruleContent": {
-      "content": "<js>\npaperid=baseUrl.match(/paperid=(\\d+)/)[1];\ncode=result.match(/vercodechk.*?'[^']+'/)?result.match(/vercodechk.*?'([^']+)'/)[1]:'';\nurl=book.origin+'/showpapercolor.php,';\nbody='paperid='+paperid+'&vercodechk='+code;\noption={\n\"method\":\"POST\",\n\"body\":String(body)\n}\nresult=java.ajax(url+JSON.stringify(option));\n\neggs=java.getString('@@class.uk-placeholder.-1@html');\nif(!eggs.match(/【作家想說的話：】|加載中.../) && eggs!=\"\"){\neggs=\"【彩蛋内容：】\"+eggs\n}else{eggs=''}\nwrite=java.getString('@@id.colorpanelwritersay@html');\nresult=result+write+eggs;\nif(!String(result).match(/[\\u4e00-\\u9fa5]/) && !(String(result).match(/login\\.php/))){\nresult=\"此章节需要购买\\n💰\"+java.getString('@@class.uk-card.0@class.uk-list.0@tag.li.10@text&&class.uk-alert-danger@html')\n}else{result=result}\nString(result).match(/login.php/)?'请登录后刷新正文阅读':result\n</js>\n##<.*?mages/fullcolor.png.*?>",
+      "content": "<js>\npaperid=baseUrl.match(/paperid=(\\d+)/)[1];\ncode=result.match(/vercodechk.*?'[^']+'/)?result.match(/vercodechk.*?'([^']+)'/)[1]:'';\nurl=book.origin+'/showpapercolor.php,';\nbody='paperid='+paperid+'&vercodechk='+code;\noption={\n\"method\":\"POST\",\n\"body\":String(body)\n}\nresult=java.ajax(url+JSON.stringify(option));\n\neggs=java.getString('@@class.uk-placeholder.-1@html');\nif(!eggs.match(/【作家想說的話：】|加載中.../) && eggs!=\"\"){\neggs=\"【彩蛋内容：】\"+eggs\n}else{eggs=''}\nwrite=java.getString('@@id.colorpanelwritersay@html');\nif (/login\\.php/.test(String(result)) || !/[\\u4e00-\\u9fa5]/.test(String(result))) {\nresult='';\n} else {\nresult=result+write+eggs;\n}\nresult\n</js>\n##<.*?mages/fullcolor.png.*?>",
       "imageStyle": "",
       "nextContentUrl": "",
-      "replaceRegex": "##此章节需要购买[\\s\\S]+?💰[\\s\\S]+?此章节需要购买[\\s\\S]+?💰##请刷新正文看彩蛋",
+      "replaceRegex": "",
       "sourceRegex": "",
       "webJs": ""
     },
@@ -432,7 +432,7 @@
       "tocUrl": "text.章回列表@href"
     },
     "ruleContent": {
-      "content": "@js:var doc=org.jsoup.Jsoup.parse(result);doc.select(\"blockquote\").remove();doc.select(\"p\").html();",
+      "content": "@js:var doc=org.jsoup.Jsoup.parse(result);doc.select(\"blockquote\").remove();doc.select(\"#header-search-form, input[type=password]\").isEmpty() ? doc.select(\"p\").html() : \"\";",
       "nextContentUrl": "",
       "replaceRegex": "",
       "sourceRegex": "",

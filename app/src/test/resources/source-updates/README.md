@@ -8,13 +8,8 @@ collection hash was `c89c54142352d6298fa49cfccb35c8a6428381fdfd1825d5757a9810257
 The selected entry, recursively sorted by object key and serialized as compact
 UTF-8 JSON, hashes to `7e2acfc99886fa084433dc67a3f7f050cedae94a7135ba8564664e3708a2faf9`.
 
-`pixiv-adapted-previous.json` is the previously shipped adaptation from commit
-`0cd73347`. It exercises real update boundaries without fabricating
-content digests. Its canonical digest is
-`04651074a09090be288ece1fae4e67081143696e00473d98a19def8ad7884a6e`.
-
-These fixtures contain legacy features intentionally. They are test resources,
-not release assets, and must never be installed directly by the update path.
+This fixture contains legacy features intentionally. It is a test resource,
+not a release asset, and must never be installed directly by the update path.
 Tests perform no live upstream requests.
 
 The first adapter supports this reviewed upstream snapshot only. It maps the

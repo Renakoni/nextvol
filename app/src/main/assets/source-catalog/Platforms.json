@@ -1,6 +1,6 @@
 [
   {
-    "bookSourceComment": "搜索、榜单、分类、详情和目录来自番茄官方。正文接口参考 https://github.com/ying-ck/fanqienovel-downloader ，由第三方公共服务提供；可用性受该服务影响。保留旧书籍和章节地址以兼容已有阅读记录。",
+    "bookSourceComment": "搜索、榜单、分类、详情和目录来自番茄官方。正文接口参考 https://github.com/ying-ck/fanqienovel-downloader ，由第三方公共服务提供；可用性受该服务影响。",
     "bookSourceGroup": "番茄小说",
     "bookSourceName": "番茄小说",
     "bookSourceType": 0,
@@ -20,16 +20,15 @@
       "author": ".author-name-text@text",
       "intro": ".page-abstract-content@text",
       "coverUrl": ".book-cover-img@src",
-      "tocUrl": "@js:'https://fanqienovel.com/api/reader/directory/detail?bookId='+String(book.bookUrl).match(/[?&]book_id=(\\d+)/)[1]",
-      "init": "@js:var id=String(book.bookUrl).match(/[?&]book_id=(\\d+)/);if(!id)throw new Error('Missing book ID');java.ajax('https://fanqienovel.com/page/'+id[1]);"
+      "tocUrl": "@js:'https://fanqienovel.com/api/reader/directory/detail?bookId='+String(book.bookUrl).match(/\\/page\\/(\\d+)/)[1]"
     },
     "ruleContent": {
-      "content": "@js:var id=String(baseUrl).match(/[?&]item_id=(\\d+)/);if(!id)throw new Error('Missing chapter ID');var response=JSON.parse(java.ajax('http://101.35.133.34:5000/api/raw_full?item_id='+id[1]));if(response.code!==200||!response.data||!response.data.content)throw new Error('Chapter response has no content');var data=response.data;if(!data.novel_data||String(data.novel_data.item_id)!==id[1])throw new Error('Chapter ID mismatch');var doc=org.jsoup.Jsoup.parse(data.content);doc.select('header,footer,.novel-fm-asr').remove();if(!String(doc.body().text()).trim())throw new Error('Empty chapter');doc.body().html();"
+      "content": "@js:var id=String(baseUrl).match(/[?&]item_id=(\\d+)/);if(!id)throw new Error('Missing chapter ID');var response=JSON.parse(result);if(response.code!==200||!response.data||!response.data.content)throw new Error('Chapter response has no content');var data=response.data;if(!data.novel_data||String(data.novel_data.item_id)!==id[1])throw new Error('Chapter ID mismatch');var doc=org.jsoup.Jsoup.parse(data.content);doc.select('header,footer,.novel-fm-asr').remove();if(!String(doc.body().text()).trim())throw new Error('Empty chapter');doc.body().html();"
     },
     "ruleExplore": {
       "author": "author##</?em>",
       "bookList": "$.data.result[*]||$.data.data.*",
-      "bookUrl": "https://novel.snssdk.com/api/novel/book/directory/list/v1?device_platform=android&parent_enterfrom=novel_channel_search.tab.&aid=1967&platform_id=1&book_id={{$.book_id}}",
+      "bookUrl": "https://fanqienovel.com/page/{{$.book_id}}",
       "coverUrl": "http://p6-novel.byteimg.com/large/{$.thumb_uri}||$.thumb_url",
       "intro": "abstract",
       "kind": "category&&source",
@@ -42,7 +41,7 @@
       "bookList": "$.data.ret_data[*]||$..book_info[*]",
       "name": "$.book_name||$.title##<em>|</em>|《|》",
       "author": "$.author##</?em>",
-      "bookUrl": "https://novel.snssdk.com/api/novel/book/directory/list/v1?device_platform=android&parent_enterfrom=novel_channel_search.tab.&aid=1967&book_id={{$.book_id}}",
+      "bookUrl": "https://fanqienovel.com/page/{{$.book_id}}",
       "coverUrl": "$.thumb_url",
       "intro": "$.abstract@js:org.jsoup.Jsoup.parse(result).text()",
       "lastChapter": "$.last_chapter_title"
@@ -50,7 +49,7 @@
     "ruleToc": {
       "chapterList": "$.data.chapterListWithVolume[*][*]",
       "chapterName": "$.title",
-      "chapterUrl": "https://novel.snssdk.com/api/novel/book/reader/full/v1/?device_platform=android&parent_enterfrom=novel_channel_search.tab.&aid=2329&platform_id=1&group_id={{$.itemId}}&item_id={{$.itemId}}"
+      "chapterUrl": "http://101.35.133.34:5000/api/raw_full?item_id={{$.itemId}}"
     },
     "searchUrl": "https://novel.snssdk.com/api/novel/channel/homepage/search/search/v1/?device_platform=android&parent_enterfrom=novel_channel_search.tab.&offset={{(page-1)*10}}&aid=1967&q={{key}}",
     "weight": 76,
@@ -873,7 +872,7 @@
     "eventListener": false,
     "exploreUrl": "原创书库::https://b.faloo.com/y/0/0/0/0/0/9/{{page}}.html\n玄幻奇幻::https://b.faloo.com/y/1/0/0/0/0/9/{{page}}.html\n武侠仙侠::https://b.faloo.com/y/6/0/0/0/0/9/{{page}}.html\n同人小说::https://b.faloo.com/y/44/0/0/0/0/9/{{page}}.html\n都市言情::https://b.faloo.com/y/4/0/0/0/0/9/{{page}}.html\n军事历史::https://b.faloo.com/y/3/0/0/0/0/9/{{page}}.html\n科幻网游::https://b.faloo.com/y/2/0/0/0/0/9/{{page}}.html\n恐怖灵异::https://b.faloo.com/y/5/0/0/0/0/9/{{page}}.html\n青春校园::https://b.faloo.com/y/7/0/0/0/0/9/{{page}}.html\n女生小说::https://b.faloo.com/y/54/0/0/0/0/9/{{page}}.html\n短篇其他::https://b.faloo.com/y/9/0/0/0/0/9/{{page}}.html\n轻の小说::https://b.faloo.com/y/97/0/0/0/0/9/{{page}}.html",
     "lastUpdateTime": 1785042263757,
-    "loginUrl": "{\n  \"url\": \"https://u.faloo.com/regist/Login.aspx\"\n}",
+    "loginUrl": "https://u.faloo.com/regist/Login.aspx",
     "respondTime": 1317,
     "ruleBookInfo": {
       "author": "class.rentouOne@text",

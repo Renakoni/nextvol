@@ -355,7 +355,7 @@
     "exploreUrl": "[{\"title\":\"玄幻奇幻\",\"url\":\"/bsort1/\"},{\"title\":\"武侠仙侠\",\"url\":\"/bsort2/\"},{\"title\":\"都市生活\",\"url\":\"/bsort3/\"},{\"title\":\"历史军事\",\"url\":\"/bsort4/\"},{\"title\":\"游戏竞技\",\"url\":\"/bsort5/\"},{\"title\":\"科幻未来\",\"url\":\"/bsort6/\"},{\"title\":\"恐怖悬疑\",\"url\":\"/bsort7/\"},{\"title\":\"其他类型（男生）\",\"url\":\"/bsort8/\"},{\"title\":\"古代言情\",\"url\":\"/bsort9/\"},{\"title\":\"现代言情\",\"url\":\"/bsort10/\"},{\"title\":\"幻想奇缘\",\"url\":\"/bsort11/\"},{\"title\":\"游戏情缘\",\"url\":\"/bsort12/\"},{\"title\":\"浪漫青春\",\"url\":\"/bsort13/\"},{\"title\":\"言情美文\",\"url\":\"/bsort14/\"},{\"title\":\"科幻灵异\",\"url\":\"/bsort15/\"},{\"title\":\"其他类型（女生）\",\"url\":\"/bsort16/\"}]",
     "header": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.13 (KHTML, like Gecko) Chrome/0.2.149.29 Safari/525.13",
     "lastUpdateTime": 1771745813447,
-    "loginUrl": "/",
+    "loginUrl": "https://www.bxwx.co/login.html",
     "respondTime": 4329,
     "ruleBookInfo": {
       "author": "[property$=author]@content",

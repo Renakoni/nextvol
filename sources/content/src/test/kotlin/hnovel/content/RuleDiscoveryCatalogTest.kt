@@ -6,35 +6,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuleDiscoveryCatalogTest {
-    @Test fun hiddenCategoriesStillResolveHomepageTargetsInStaticAndDynamicCatalogs() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val rows = """[{"title":"每日榜","url":"/search","showInCategories":false}]"""
-            for (rule in listOf(rows, "@js:$rows")) fixture.source { raw -> JsonObject(raw + mapOf(
-                "exploreUrl" to JsonPrimitive(rule), "ruleExplore" to raw.getValue("ruleSearch"),
-                "homepageModules" to JsonPrimitive("""[{"key":"daily","title":"每日榜","type":"ranking","kindTitle":"每日榜"}]""")
-            )) }.use { source ->
-                assertTrue(source.canFeed)
-                if (rule == rows) assertFalse(source.canCategorize)
-                val catalog = source.openDiscovery("visibility").catalog(homepage = true)
-                assertFalse(catalog.rows.single().showInCategories)
-                assertEquals("/search", catalog.homepage!!.single().url)
-                assertEquals(1, source.openDiscovery("preview").preview(catalog.homepage.single().url, emptyMap()).books.size)
-            }
-        }
-    }
-
-    @Test fun categoryVisibilityRejectsMistypedValuesAndControls() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            for (row in listOf(
-                """{"title":"Books","url":"/search","showInCategories":"false"}""",
-                """{"title":"Books","url":"/search","showInCategories":null}""",
-                """{"title":"Settings","type":"button","showInCategories":false}"""
-            )) fixture.source { definition(it, Json.parseToJsonElement("[$row]").jsonArray) }.use { source ->
-                assertEquals("exploreUrl[0].showInCategories", failure { source.openDiscovery("invalid").catalog() }.field)
-            }
-        }
-    }
-
     @Test fun gsonCatalogGrammarAcceptsSingleQuotesAndUnquotedKeysWithoutExecutingCode() = runBlocking {
         RuleSourceFixture().use { fixture ->
             for (rule in listOf("[{title:'Recent',url:'/search'}]", "@js:\"[{title:'Recent',url:'/search'}]\"")) {

@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.data.web
 
 import android.app.Application
 import android.content.ContextWrapper
+import hnovel.content.LoginForm
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
 import hnovel.imports.*
@@ -136,6 +137,18 @@ class SourceCatalogTest {
         }
         assertTrue(allEntries().none { it.key in setOf("https://www.17bxwx.com/", "http://www.qudushu.com",
             "https://bbs.yamibo.com", "https://www.xstt5.com", "https://lcread.com") })
+    }
+
+    @Test fun loginEntriesWithoutScriptControlsOpenAnAbsoluteWebsiteUrl() {
+        for (entry in catalog.entries) {
+            val definition = raw(entry)
+            val login = definition["loginUrl"]?.jsonPrimitive?.content.orEmpty()
+            val controls = definition["loginUi"]?.jsonPrimitive?.content.orEmpty()
+            if (login.isBlank() || controls.isNotBlank()) continue
+            val form = LoginForm.parse("", login)
+            assertEquals(entry.name, login, form.browserUrl)
+            assertTrue(entry.name, java.net.URI(checkNotNull(form.browserUrl)).host.orEmpty().isNotBlank())
+        }
     }
 
     @Test fun formerOfficialSitesSitInTheirOriginalCategoriesAndDeadSitesAreGone() {
