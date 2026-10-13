@@ -16,6 +16,12 @@ import indi.renakoni.nextvol.data.web.rules.LoginStatus
 import indi.renakoni.nextvol.data.web.rules.VerificationPrompt
 import hnovel.network.BrowserChallengeKind
 
+private const val MAX_DISPLAY_ACCOUNT_NAME = 16
+
+private fun displayAccountName(value: String): String =
+    if (value.length <= MAX_DISPLAY_ACCOUNT_NAME) value
+    else value.take(MAX_DISPLAY_ACCOUNT_NAME - 1) + "…"
+
 /** Presents the saved status; neither cookies nor account labels establish authentication. */
 @Composable
 internal fun SourceAccountSection(status: LoginStatus?, accountName: String?, available: Boolean, loginAvailable: Boolean, busy: Boolean,
@@ -41,7 +47,7 @@ internal fun SourceAccountSection(status: LoginStatus?, accountName: String?, av
         Column(Modifier.weight(1f).widthIn(min = 128.dp).semantics { liveRegion = LiveRegionMode.Polite },
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
-            if (hasSession && accountName != null) Text(stringResource(R.string.sources_account_name, accountName),
+            if (hasSession && accountName != null) Text(stringResource(R.string.sources_account_name, displayAccountName(accountName)),
                 style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (verification == null && status != null && !available) {

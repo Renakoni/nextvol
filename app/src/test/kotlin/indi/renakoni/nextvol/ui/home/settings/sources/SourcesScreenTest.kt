@@ -989,7 +989,7 @@ class SourcesScreenTest {
             loginStatus = LoginStatus.LoginSubmitted, accountName = "reader"))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
         compose.onNodeWithText("Sign-in submitted").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Account: reader").assertExists()
+        compose.onNodeWithText("reader").assertExists()
         compose.onNodeWithText("Sign in").assertDoesNotExist()
         compose.onNodeWithText("Sign out").performScrollTo().performClick()
         verify(exactly = 1) { model.logout(id) }
@@ -1005,7 +1005,7 @@ class SourcesScreenTest {
         compose.runOnIdle { state = state.copy(busy = false, loginStatus = LoginStatus.SessionSaved, accountName = null) }
         compose.onNodeWithText("Session saved").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Sign-in submitted").assertDoesNotExist()
-        compose.onNodeWithText("Account: reader").assertDoesNotExist()
+        compose.onNodeWithText("reader").assertDoesNotExist()
         compose.runOnIdle { state = state.copy(loginStatus = LoginStatus.Required) }
         compose.onNodeWithText("Sign-in required").assertExists()
         compose.onNodeWithText("Sign in again").performScrollTo().assertIsEnabled()
@@ -1023,8 +1023,11 @@ class SourcesScreenTest {
         verify(exactly = 1) { model.select(id) }
         compose.runOnIdle { state = state.copy(storedSettingsAvailable = true, loginStatus = LoginStatus.LoginSubmitted,
             accountName = "reader", registry = emptyList()) }
-        compose.onNodeWithText("Account: reader").assertExists()
+        compose.onNodeWithText("reader").assertExists()
         compose.onNodeWithText("Sign out").assertDoesNotExist()
         compose.onNodeWithText("Sign in again").assertDoesNotExist()
+        compose.runOnIdle { state = state.copy(accountName = "reader-with-a-very-long-account-name@example.com") }
+        compose.onNodeWithText("reader-with-a-v…").assertExists()
+        compose.onNodeWithText("reader-with-a-very-long-account-name@example.com").assertDoesNotExist()
     }
 }

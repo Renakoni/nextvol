@@ -2,7 +2,7 @@
     <string name="sources_basic_section">基础设置</string>
     <string name="sources_network_section">网络</string>
     <string name="sources_account_section">账户</string>
-    <string name="sources_account_name">账户：%1$s</string>
+    <string name="sources_account_name">%1$s</string>
     <string name="sources_login_again">重新登录</string>
     <string name="sources_open_panel">打开书源面板</string>
     <string name="sources_account_required">需要重新登录</string>
