@@ -59,7 +59,7 @@ than recording it as a baseline exception.
 - Cleartext base configuration is intentional for user-supplied HTTP sources;
   requests still pass source permission/address policy, and Release trusts only
   system CAs. It is not a reason to expand fixture trust.
-- DefaultUncaughtExceptionDelegation is a real retained limitation: LogUtils
+- DefaultUncaughtExceptionDelegation is a real retained limitation: CrashLogHandler
   writes a panic report and exits directly instead of delegating to the previous
   handler. It is not suppressed or claimed fixed here. Scheduler fixed-rate
   behavior in the isolated execution service also remains a visible warning for

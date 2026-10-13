@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.logging.LogEntry
+import indi.renakoni.nextvol.data.logging.LogFileSharer
 import indi.renakoni.nextvol.data.logging.LoggerRepository
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath
@@ -15,6 +16,7 @@ import javax.inject.Inject
 class LogcatViewModel @Inject constructor (
     private val loggerRepository: LoggerRepository,
     userDataRepository: UserDataRepository,
+    private val logFileSharer: LogFileSharer,
 ): ViewModel() {
     val logLevelUserData = userDataRepository.stringUserData(UserDataPath.Settings.Data.LogLevel.path)
 
@@ -35,11 +37,12 @@ class LogcatViewModel @Inject constructor (
     }
 
     fun shareLogs() {
-        if (_uiState.isFileMode) {
-            loggerRepository.shareLogs(_uiState.selectedLogFile)
+        val logFile = if (_uiState.isFileMode) {
+            loggerRepository.prepareLogFile(_uiState.selectedLogFile)
         } else {
-            loggerRepository.shareLogs()
+            loggerRepository.prepareLogFile()
         }
+        if (logFile != null) logFileSharer.share(logFile)
         refreshLogFiles()
     }
 
