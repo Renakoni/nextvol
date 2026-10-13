@@ -36,7 +36,7 @@ class LoginFormDataTest {
         }
     }
 
-    @Test fun lenientRowsStillEnforceSemanticAndProfileBoundaries() {
+    @Test fun lenientRowsSupportStandardControlsAndEnforceTheirValues() {
         for ((ui, field) in listOf(
             "[{name:'a',unknown:true}]" to "loginUi[0].unknown",
             "[{name:'a',type:'webview'}]" to "loginUi[0].type",
@@ -50,9 +50,7 @@ class LoginFormDataTest {
             assertEquals(ContentError.InvalidRule, failure.code)
             assertEquals(field, failure.field)
         }
-        val extension = "[{name:'region',type:'select',chars:['east','west'],default:'west',viewName:'label()'}]"
-        assertTrue(runCatching { LoginForm.parse(extension, "") }.exceptionOrNull() is SourceContentException)
-        val form = LoginForm.parse(extension, "", extended = true)
+        val form = LoginForm.parse("[{name:'region',type:'select',chars:['east','west'],default:'west',viewName:'label()'}]", "")
         assertEquals("west", form.values["region"])
         assertEquals("label()", form.fields.single().viewName)
         assertTrue(runCatching { form.validate(mapOf("region" to "outside")) }.isFailure)

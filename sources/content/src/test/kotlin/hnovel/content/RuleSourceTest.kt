@@ -622,6 +622,7 @@ class RuleSourceTest {
                     "header" to JsonPrimitive(if (dynamic)
                         "@js:JSON.stringify({Authorization:java.ajax('/token'),'User-Agent':'source-agent',Cookie:'source=login'})"
                         else """{"Authorization":"static","User-Agent":"source-agent","Cookie":"source=login"}"""),
+                    "loginUi" to JsonPrimitive("[]"),
                     "loginUrl" to JsonPrimitive("""
                         function login(){
                             if(java.webView(null,'${url}view','')!=='accepted')throw 'view header';
