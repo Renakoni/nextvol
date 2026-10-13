@@ -43,6 +43,7 @@ jobs:
           python3 .github/scripts/test_ci_emulator.py
           python3 .github/scripts/test_prepare_android_sdk.py
           python3 .github/scripts/test_ci_debug_apks.py
+          python3 .github/scripts/test_ci_cache.py
       - name: Run JVM unit tests
         if: steps.scope.outputs.run == 'true'
         env:

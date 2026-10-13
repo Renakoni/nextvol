@@ -266,13 +266,40 @@ Caches are disposable acceleration: misses fall back to normal dependency or
 fixed tool downloads. AboutLibraries uses local license texts instead of making
 per-library license/funding requests during APK builds.
 
-`gradle-cache.yml` populates main's caches after build/environment configuration
-changes or a manual main run. It compiles Debug/test APKs and unit-test sources,
-and assembles the benchmark instrumentation APK. It does not run R8, boot a
-device, or execute tests. Separate API image jobs only prepare SDK files. This
-main population matters because caches written by one PR are not shared with
-other PRs. Source edits can still miss older compiled outputs; manually warming
-main refreshes them without introducing extra checks on every PR.
+`gradle-cache.yml` automatically refreshes compilation caches after main pushes
+as a reversible experiment. A lightweight selector compares the push's `before`
+SHA with the checked-out commit and reuses the ordinary change-scope plan. Docs
+and repository templates select no Android work. App JVM checks map to
+`:app:compileDebugUnitTestKotlin`; selected source/EPUB/compatibility JVM checks
+map to `:testClasses`, including their Gradle compilation/resource dependencies.
+App's existing dependency supplies source-content test fixtures. Selected Debug
+devices add the App/test APK assembly tasks. Minified coverage only adds
+`:benchmark:assembleBenchmark`, the instrumentation APK; it does not assemble
+the shrunk App. No prewarming task runs tests, R8, or an emulator.
+
+Separate API image jobs run only for fixed SDK action/script/package metadata
+changes or a manual main run. An unavailable push diff conservatively selects
+all compilation and SDK/image preparation. Main remains the only shared Gradle
+cache writer, and PRs remain read-only consumers. Existing Release/benchmark
+variant cache ownership is unchanged; no additional build-directory or Gradle
+home snapshot is introduced. Misses, failed prewarming, or cancellation leave
+ordinary PR checks able to build normally using Gradle's input validation.
+
+The main cache concurrency group preserves its running writer and retains at
+most the newest pending update. Completion allows setup-gradle to save its cache;
+manual cancellation does not guarantee a save. Replaced pending updates do not
+accumulate. Their distinct module outputs can remain cold if the latest push does
+not select them; a later relevant change or a manual full prewarm refreshes them.
+This affects reuse, not which production code PR checks compile or validate.
+
+Evaluate this experiment using completed runs: record task cache hits/misses,
+compilation and queue durations, and total runner time for prewarming plus the
+following PR checks with comparable changes and cache conditions. Historical JVM
+run `38393554090` restored the shared cache but still compiled test Kotlin in EPUB,
+the seven source modules, and compatibility; this establishes missing prewarming,
+not a measured speedup. If aggregate runner cost does not improve, restore the
+previous build/environment-only `push.paths` filter. Keep the manual entry and
+task selector so ordinary environment prewarming remains available.
 
 ## Emulator scope and failure handling
 
