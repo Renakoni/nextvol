@@ -11,8 +11,8 @@ import subprocess
 PACKAGE = 'indi.renakoni.nextvol.'
 KOTLIN_ROOTS = tuple(f'app/src/{source}/kotlin/indi/renakoni/nextvol/'
                      for source in ('main', 'test'))
-# Shared UI, navigation, resources, and all data/runtime code intentionally
-# fall through to full coverage.
+# Shared UI, navigation, resources, and unreviewed data/runtime code
+# intentionally fall through to full coverage.
 UI_ROOTS = ('ui/home/bookshelf/', 'ui/home/explore/',
             'ui/home/reading/stats/', 'ui/bangumi/',
             'ui/home/settings/about/', 'ui/home/settings/licenses/',
@@ -62,6 +62,10 @@ def classify(path):
     for root in KOTLIN_ROOTS:
         if path.startswith(root):
             relative = path[len(root):]
+            if relative.startswith(('data/update/', 'ui/home/settings/updates/')) or relative in {
+                    'ui/dialog/UpdatesAvailableDialog.kt',
+                    'ui/dialog/UpdatesAvailableDialogViewModel.kt'}:
+                return 'update'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
             if relative.startswith(('tts/', 'ui/tts/')):
@@ -240,7 +244,7 @@ def main():
     args = parser.parse_args()
     if args.device_api:
         scopes = set(args.scopes.split(','))
-        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'docs'}:
+        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'update', 'docs'}:
             parser.error('unknown test scope')
         print('\n'.join(device_classes(scopes, args.device_api)))
         return
