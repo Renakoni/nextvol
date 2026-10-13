@@ -34,7 +34,9 @@ import indi.renakoni.nextvol.data.work.CacheBookWork
 import indi.renakoni.nextvol.data.work.workerParameters
 import io.mockk.every
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.spyk
 import io.nightfish.lightnovelreader.api.book.*
 import io.nightfish.lightnovelreader.api.content.builder.ContentBuilder
 import io.nightfish.lightnovelreader.api.content.builder.image
@@ -633,22 +635,75 @@ class BookDownloadTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test fun orphanCleanupRetainsDownloadedChaptersRemovedFromRemoteCatalog() = runBlocking {
-        register(a)
+        register(a).withImages = true
         assertEquals(ListenableWorker.Result.success(), download())
         local.updateBookVolumes(a.bind(BookVolumes(a.remoteId, listOf(Volume("new", "New",
             listOf(ChapterInformation("4", "Next")))))))
-        local.updateChapterContent(SourceChapterId(b, "orphan").bind(ChapterContent("orphan", "Temporary",
+        local.updateChapterContent(SourceChapterId(a, "4").bind(ChapterContent("4", "Next",
+            ContentBuilder().simpleText("current catalog").build())))
+        // Same remote chapter as the downloaded one, but without ownership in this source.
+        val orphanId = SourceChapterId(b, "1").storageKey
+        db.bookVolumesDao().insertChapterInformation(
+            indi.renakoni.nextvol.data.local.room.entity.ChapterInformationEntity(orphanId, "Temporary"))
+        local.updateChapterContent(SourceChapterId(b, "1").bind(ChapterContent("1", "Temporary",
             ContentBuilder().simpleText("temporary").build())))
+        val measuredContext = object : ContextWrapper(context) {
+            override fun getDataDir() = directory.root
+            override fun getCacheDir() = directory.root.resolve("coil")
+            override fun getDatabasePath(name: String) = directory.root.resolve("library.db")
+        }
+        val usage = spyk(indi.renakoni.nextvol.data.storage.StorageUsageRepository(measuredContext, db,
+            indi.renakoni.nextvol.data.userdata.UserDataRepository(db.userDataDao())))
+        val before = usage.refreshSnapshot()
+        val contentBytes = db.storageStatsDao().getChapterContentBytes().associate { it.id to it.bytes }
+        val infoBytes = db.storageStatsDao().getChapterInformationBytes().associate { it.id to it.bytes }
+        assertEquals(infoBytes.getValue(orphanId), before.orphanChapterInfoBytes)
+        assertEquals(contentBytes.getValue(orphanId), before.orphanChapterContentBytes)
+        assertTrue(before.orphanChapterInfoBytes > 0)
+        assertTrue(before.orphanChapterContentBytes > 0)
+        val saved = before.books.single { it.bookId == a.storageKey }
+        assertEquals(contentBytes.filterKeys { it != orphanId }.values.sum(), saved.chapterContentBytes)
+        assertEquals(infoBytes.filterKeys { it != orphanId }.values.sum(), saved.chapterInformationBytes)
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val models = androidx.lifecycle.ViewModelStore()
         val model = indi.renakoni.nextvol.ui.bookmanager.BookManagerViewModel(
-            books, progress, db, mockk(relaxed = true), mockk(relaxed = true), downloads, mockk(relaxed = true))
+            books, progress, db, usage, mockk(relaxed = true), downloads, mockk(relaxed = true))
         models.put("manager", model)
         val job = model.viewModelScope.coroutineContext[Job]
         try {
-            model.clearOrphanedDataItems()
-            assertNotNull(chapter(a, "1"))
-            assertNull(chapter(b, "orphan"))
+            withTimeout(5000) { job!!.children.toList().joinAll() }
+            assertEquals(2, model.clearOrphanedDataItems())
+            for (id in listOf("1", "2", "3", "4")) assertNotNull(chapter(a, id))
+            assertNull(chapter(b, "1"))
+            assertNull(db.bookVolumesDao().getChapterInformationEntity(orphanId))
+            val after = usage.getCachedSnapshot()!!
+            assertEquals(0L, after.orphanChapterInfoBytes)
+            assertEquals(0L, after.orphanChapterContentBytes)
+            assertEquals(before.downloadBytes, after.downloadBytes)
+            assertEquals(3, after.downloadedChapterCount)
+            assertEquals(saved, after.books.single { it.bookId == a.storageKey })
+            assertEquals(before.readingContentBytes - before.orphanChapterContentBytes, after.readingContentBytes)
+            assertEquals(before.allBookMetadataBytes - before.orphanChapterInfoBytes, after.allBookMetadataBytes)
+            coVerify(exactly = 1) { usage.invalidateSnapshot() }
+            assertFalse(model.localBookManagerUiState.isLoading)
+            assertEquals(saved.chapterContentBytes,
+                model.localBookManagerUiState.bookList.single { it.id == a.storageKey }.chapterContentBytes)
+
+            // Change ownership after the cached measurement. Cleanup must read the live rows.
+            local.updateBookVolumes(a.bind(BookVolumes(a.remoteId, emptyList())))
+            local.updateBookVolumes(b.bind(BookVolumes(b.remoteId, listOf(Volume("v", "", listOf(ChapterInformation("1", "New")))))))
+            local.updateChapterContent(SourceChapterId(b, "1").bind(ChapterContent("1", "New",
+                ContentBuilder().simpleText("new ownership").build())))
+            assertEquals(after, usage.getCachedSnapshot())
+            assertEquals(2, model.clearOrphanedDataItems())
+            assertNull(chapter(a, "4"))
+            assertNotNull(chapter(b, "1"))
+            for (id in listOf("1", "2", "3")) assertNotNull(chapter(a, id))
+            val refreshed = usage.getCachedSnapshot()!!
+            assertEquals(0L, refreshed.orphanChapterContentBytes)
+            assertEquals(0L, refreshed.orphanChapterInfoBytes)
+            assertEquals(before.downloadBytes, refreshed.downloadBytes)
+            assertTrue(refreshed.books.single { it.bookId == b.storageKey }.chapterContentBytes > 0)
         } finally {
             models.clear()
             withTimeout(5000) { job?.join() }
