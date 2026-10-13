@@ -90,11 +90,28 @@ class ScopeTests(unittest.TestCase):
                 self.assertEqual(ci_scope.plan({'full'}), plan)
 
     def test_documentation_only_skips_android_work(self):
-        plan = self.select('README.md', 'AGENTS.md', '.github/CI.md')
+        plan = self.select('README.md', 'AGENTS.md', '.github/CI.md',
+                           'docs/backup.md', 'docs/releases/0.1.0.md',
+                           '.github/PULL_REQUEST_TEMPLATE.md', '.github/FUNDING.yml',
+                           '.github/ISSUE_TEMPLATE/bug_report.yml',
+                           '.github/ISSUE_TEMPLATE/feature_request.yml',
+                           '.github/ISSUE_TEMPLATE/maintenance_task.yml')
         self.assertEqual('docs', plan['scopes'])
         self.assertEqual('', plan['gradle-args'])
         for check in ('jvm', 'device-24', 'device-35', 'release', 'lint', 'minified'):
             self.assertFalse(plan[check])
+
+    def test_non_runtime_allowlist_does_not_hide_inputs_or_moved_documents(self):
+        for path in ('app/src/test/resources/backups/README.md',
+                     'app/src/main/assets/source-catalog/README.md',
+                     'docs/build.py', '.github/unknown.yml',
+                     '.github/ISSUE_TEMPLATE/unknown.yml',
+                     '.github/workflows/lint.yml'):
+            with self.subTest(path=path):
+                self.assertEqual(ci_scope.plan({'full'}), self.select('docs/backup.md', path))
+        self.assertEqual('reader', self.select(
+            '.github/ISSUE_TEMPLATE/bug_report.yml',
+            MAIN + 'ui/book/reader/ReaderScreen.kt')['scopes'])
 
     def test_test_changes_select_their_scope(self):
         self.assertEqual('reader', self.select(
