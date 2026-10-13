@@ -62,9 +62,4 @@ class BundledBookMetadataTest {
         <div class='new'><a href='/chapter'>Two</a></div><p>最后更新：2026-09-14 08:00:00</p>
     """, 12345)
 
-    @Test fun biqusaShowsItsDateWithoutInventingAWordCount() = verify("https://www.biqusa.com/#", """
-        <div id='bookdetail'><div id='info'><h1>Fixture</h1><p><a>Author</a></p><p>连载</p>
-        <p>最后更新：2026-09-14 08:00:00</p><p><a href='/chapter'>Two</a></p></div></div>
-        <div id='intro'>Description</div>
-    """, 0)
 }

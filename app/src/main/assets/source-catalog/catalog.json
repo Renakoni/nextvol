@@ -5,17 +5,15 @@
     "name": "QQ阅读",
     "subtitle": "平台网文 · 官方站点，部分作品可能需付费",
     "index": 7,
-    "host": "book.qq.com",
-    "available": true
+    "host": "book.qq.com"
   },
   {
     "key": "https://novel.snssdk.com苏念",
     "category": "Platforms",
     "name": "番茄小说",
-    "subtitle": "免费网文",
+    "subtitle": "免费网文 · 正文由第三方接口提供",
     "index": 0,
-    "host": "novel.snssdk.com",
-    "available": true
+    "host": "novel.snssdk.com"
   },
   {
     "key": "https://api-bc.wtzw.com#md",
@@ -23,44 +21,31 @@
     "name": "七猫小说",
     "subtitle": "免费网文",
     "index": 1,
-    "host": "api-bc.wtzw.com",
-    "available": true
-  },
-  {
-    "key": "http://m.zhangyue.com",
-    "category": "Platforms",
-    "name": "掌阅",
-    "subtitle": "原规则正文串章或返回应用提示，暂不推荐",
-    "index": 8,
-    "host": "m.zhangyue.com",
-    "available": false
+    "host": "api-bc.wtzw.com"
   },
   {
     "key": "https://wap.cmread.com/",
     "category": "Platforms",
     "name": "咪咕阅读",
     "subtitle": "网文、出版 · 官方站点，部分作品可能需付费",
-    "index": 9,
-    "host": "wap.cmread.com",
-    "available": true
+    "index": 8,
+    "host": "wap.cmread.com"
   },
   {
     "key": "https://m.yuedu.163.com/",
     "category": "Platforms",
     "name": "网易阅读",
     "subtitle": "网文、出版 · 官方站点，部分作品可能需付费",
-    "index": 10,
-    "host": "m.yuedu.163.com",
-    "available": true
+    "index": 9,
+    "host": "m.yuedu.163.com"
   },
   {
     "key": "https://www.shuqi.com/",
     "category": "Platforms",
     "name": "书旗小说",
     "subtitle": "免费网文 · 官方站点，部分作品可能需付费",
-    "index": 11,
-    "host": "shuqi.com",
-    "available": true
+    "index": 10,
+    "host": "shuqi.com"
   },
   {
     "key": "https://www.idejian.com",
@@ -68,8 +53,7 @@
     "name": "得间小说",
     "subtitle": "男频、女频、出版",
     "index": 2,
-    "host": "idejian.com",
-    "available": true
+    "host": "idejian.com"
   },
   {
     "key": "https://fiction.fengduxiaoshuo.com",
@@ -77,8 +61,7 @@
     "name": "疯读小说",
     "subtitle": "免费网文",
     "index": 3,
-    "host": "fiction.fengduxiaoshuo.com",
-    "available": true
+    "host": "fiction.fengduxiaoshuo.com"
   },
   {
     "key": "http://m.yueyouxs.com",
@@ -86,287 +69,191 @@
     "name": "阅友小说",
     "subtitle": "免费网文",
     "index": 4,
-    "host": "m.yueyouxs.com",
-    "available": true
+    "host": "m.yueyouxs.com"
   },
   {
     "key": "https://www.qidian.com",
     "category": "Platforms",
     "name": "起点中文网",
     "subtitle": "官方榜单前20 · 部分章节需登录订阅",
-    "index": 12,
-    "host": "qidian.com",
-    "replaces": [
-      "36e9f5df9d628f261ba45d85ca6bbe6573b56685c4995bbb48fdac5d851d11c8"
-    ],
-    "available": true
+    "index": 11,
+    "host": "qidian.com"
   },
   {
     "key": "https://www.zongheng.com",
     "category": "Platforms",
     "name": "纵横中文网",
     "subtitle": "官方平台 · 含付费章节，当前规则无登录入口",
-    "index": 13,
-    "host": "zongheng.com",
-    "available": true
+    "index": 12,
+    "host": "zongheng.com"
   },
   {
     "key": "https://www.17k.com",
     "category": "Platforms",
     "name": "17K小说网",
     "subtitle": "玄幻、都市、历史 · 官方站点，部分作品可能需付费",
-    "index": 14,
-    "host": "17k.com",
-    "available": true
+    "index": 13,
+    "host": "17k.com"
   },
   {
     "key": "https://b.faloo.com#温暖满怀",
     "category": "Platforms",
     "name": "飞卢小说",
-    "subtitle": "同人、都市、玄幻 · 官方站点，部分作品可能需付费",
-    "index": 15,
-    "host": "b.faloo.com",
-    "available": true
+    "subtitle": "同人、都市、玄幻 · VIP章节需要登录并订阅",
+    "index": 14,
+    "host": "b.faloo.com"
   },
   {
     "key": "https://www.heiyan.com#玄奇21.0202",
     "category": "Platforms",
     "name": "黑岩阅读",
     "subtitle": "都市、悬疑 · 官方站点，部分作品可能需付费",
-    "index": 16,
-    "host": "heiyan.com",
-    "available": true
-  },
-  {
-    "key": "https://www.zhulang.com",
-    "category": "Platforms",
-    "name": "逐浪小说",
-    "subtitle": "玄幻、都市 · 官方站点，部分作品可能需付费",
-    "index": 17,
-    "host": "zhulang.com",
-    "available": false
+    "index": 15,
+    "host": "heiyan.com"
   },
   {
     "key": "http://app2.motie.com",
     "category": "Platforms",
     "name": "磨铁中文",
     "subtitle": "官方平台 · 含付费章节，当前规则无登录入口",
-    "index": 18,
-    "host": "app2.motie.com",
-    "replaces": [
-      "f19b487e19bbd5a578a0131b3a1fa01bb608aae75cc0f03239aa4c7d30174723"
-    ],
-    "available": true
+    "index": 16,
+    "host": "app2.motie.com"
   },
   {
     "key": "https://www.tadu.com#yc1101",
     "category": "Platforms",
     "name": "塔读文学",
-    "subtitle": "玄幻、都市、历史",
+    "subtitle": "玄幻、都市、历史 · 后续全文需要登录",
     "index": 5,
-    "host": "tadu.com",
-    "available": true
+    "host": "tadu.com"
   },
   {
     "key": "http://www.azycjd.com",
     "category": "Platforms",
     "name": "安之原创",
     "subtitle": "原创网文 · 官方站点，部分作品可能需付费",
-    "index": 19,
-    "host": "azycjd.com",
-    "available": true
+    "index": 17,
+    "host": "azycjd.com"
   },
   {
     "key": "https://m.jjwxc.net/channel/",
     "category": "Female",
     "name": "晋江文学城",
     "subtitle": "言情、耽美、百合、无CP · 官方站点，部分作品可能需付费",
-    "index": 4,
-    "host": "m.jjwxc.net",
-    "available": true
+    "index": 3,
+    "host": "m.jjwxc.net"
   },
   {
     "key": "https://www.hongxiu.com",
     "category": "Female",
     "name": "红袖添香",
     "subtitle": "官方女频 · 部分章节需登录订阅",
-    "index": 5,
-    "host": "hongxiu.com",
-    "replaces": [
-      "04e4c842a3f060543925b22c6b492e3b20d8e772bccbf28f8f5f1710d5f34855"
-    ],
-    "available": true
+    "index": 4,
+    "host": "hongxiu.com"
   },
   {
     "key": "https://www.xxsy.net/",
     "category": "Female",
     "name": "潇湘书院",
     "subtitle": "官方女频 · 部分章节需登录订阅",
-    "index": 6,
-    "host": "xxsy.net",
-    "replaces": [
-      "28f2528eb1921c8ceed03355e23b4c58b13ac2c0e3cf18ad11c1c5bc8bc8415f"
-    ],
-    "available": true
-  },
-  {
-    "key": "https://yunqi.qq.com",
-    "category": "Female",
-    "name": "云起书院",
-    "subtitle": "现言、古言、穿越 · 官方站点，部分作品可能需付费",
-    "index": 7,
-    "host": "yunqi.qq.com",
-    "available": false
+    "index": 5,
+    "host": "xxsy.net"
   },
   {
     "key": "https://www.qdmm.com",
     "category": "Female",
     "name": "起点女生网",
     "subtitle": "女频原创、穿越、重生 · 官方站点，部分作品可能需付费",
-    "index": 8,
-    "host": "qdmm.com",
-    "available": true
+    "index": 6,
+    "host": "qdmm.com"
   },
   {
     "key": "http://search.ruochu.com",
     "category": "Female",
     "name": "若初文学",
     "subtitle": "言情、悬疑 · 官方站点，部分作品可能需付费",
-    "index": 9,
-    "host": "search.ruochu.com",
-    "available": true
+    "index": 7,
+    "host": "search.ruochu.com"
   },
   {
     "key": "http://www.xiang5.com/",
     "category": "Female",
     "name": "香网",
     "subtitle": "现言、古言 · 官方站点，部分作品可能需付费",
-    "index": 10,
-    "host": "xiang5.com",
-    "available": true
-  },
-  {
-    "key": "https://www.xluochen.com/",
-    "category": "Female",
-    "name": "落尘小说",
-    "subtitle": "言情网文 · 官方站点，部分作品可能需付费",
-    "index": 11,
-    "host": "xluochen.com",
-    "available": false
+    "index": 8,
+    "host": "xiang5.com"
   },
   {
     "key": "https://w.huaxi.net",
     "category": "Female",
     "name": "花溪小说",
     "subtitle": "官方平台 · 含付费章节，当前规则无登录入口",
-    "index": 12,
-    "host": "w.huaxi.net",
-    "replaces": [
-      "4b5bba69c57a23951ed3356d437b5e790e3b1d324dbcf5ef2ce5554f1ca72440"
-    ],
-    "available": true
-  },
-  {
-    "key": "https://lcread.com",
-    "category": "Female",
-    "name": "连城读书",
-    "subtitle": "言情、耽美、原创 · 官方站点，部分作品可能需付费",
-    "index": 13,
-    "host": "lcread.com",
-    "available": false,
-    "replaces": [
-      "020853da8eed5d8fb67fe35eb01f722d34aa65c7fb3d47005921537879bc156f"
-    ]
+    "index": 9,
+    "host": "w.huaxi.net"
   },
   {
     "key": "https://g.hongshu.com/",
     "category": "Female",
     "name": "红薯阅读",
     "subtitle": "言情、多题材 · 官方站点，部分作品可能需付费",
-    "index": 14,
-    "host": "g.hongshu.com",
-    "available": true
+    "index": 10,
+    "host": "g.hongshu.com"
   },
   {
     "key": "https://www.popo.tw",
     "category": "Female",
     "name": "POPO原创",
     "subtitle": "繁体原创、言情 · 官方站点，部分作品可能需付费",
-    "index": 15,
-    "host": "popo.tw",
-    "available": true
+    "index": 11,
+    "host": "popo.tw"
   },
   {
     "key": "https://www.gongzicp.com",
     "category": "Female",
     "name": "长佩文学",
-    "subtitle": "原创、耽美 · 官方站点，部分作品可能需付费",
-    "index": 16,
-    "host": "gongzicp.com",
-    "available": true
+    "subtitle": "官方站点 · 正文需登录，付费章节需已购买",
+    "index": 12,
+    "host": "gongzicp.com"
   },
   {
     "key": "https://app.shubl.com",
     "category": "Female",
     "name": "书耽",
     "subtitle": "原创、耽美 · 官方站点，部分作品可能需付费",
-    "index": 17,
-    "host": "app.shubl.com",
-    "available": true
-  },
-  {
-    "key": "http://api.doufu.me/",
-    "category": "Female",
-    "name": "豆腐阅读",
-    "subtitle": "耽美、同人、原创 · 官方站点，部分作品可能需付费",
-    "index": 18,
-    "host": "api.doufu.me",
-    "available": false
-  },
-  {
-    "key": "https://www.sosadfun.org",
-    "category": "Female",
-    "name": "废文网",
-    "subtitle": "原创、耽美、同人",
-    "index": 0,
-    "host": "sosadfun.org",
-    "available": false
+    "index": 13,
+    "host": "app.shubl.com"
   },
   {
     "key": "https://allcp.net",
     "category": "Female",
     "name": "青花鱼",
-    "subtitle": "原创、社区",
-    "index": 1,
-    "host": "allcp.net",
-    "available": true
+    "subtitle": "论坛小说 · 阅读受限版块需要登录",
+    "index": 0,
+    "host": "allcp.net"
   },
   {
     "key": "https://www.myrics.com",
     "category": "Female",
     "name": "米国度",
     "subtitle": "官方平台 · 搜索需登录，部分章节付费",
-    "index": 19,
-    "host": "myrics.com",
-    "available": true
+    "index": 14,
+    "host": "myrics.com"
   },
   {
     "key": "https://www.dmxs.org",
     "category": "Female",
     "name": "耽美小说（dmxs）",
     "subtitle": "耽美、完本",
-    "index": 2,
-    "host": "dmxs.org",
-    "available": true
+    "index": 1,
+    "host": "dmxs.org"
   },
   {
     "key": "https://book.sfacg.com",
     "category": "Anime",
     "name": "SF轻小说／菠萝包",
     "subtitle": "原创轻小说、二次元 · 官方站点，部分作品可能需付费",
-    "index": 9,
-    "host": "book.sfacg.com",
-    "available": true
+    "index": 5,
+    "host": "book.sfacg.com"
   },
   {
     "key": "https://www.linovel.net",
@@ -374,128 +261,55 @@
     "name": "轻之文库",
     "subtitle": "原创轻小说",
     "index": 0,
-    "host": "linovel.net",
-    "available": true
+    "host": "linovel.net"
   },
   {
     "key": "https://www.ciweimao.com/",
     "category": "Anime",
     "name": "刺猬猫",
     "subtitle": "官方轻小说 · 部分章节付费，可能需网页验证",
-    "index": 10,
-    "host": "ciweimao.com",
-    "replaces": [
-      "107bbb2e13d38305e7b0e134c972da0fdfa601883fa978b04fcddc173487c7f9"
-    ],
-    "available": true
+    "index": 6,
+    "host": "ciweimao.com"
   },
   {
     "key": "https://www.ciyuanji.com/",
     "category": "Anime",
     "name": "次元姬",
     "subtitle": "官方二次元 · 部分章节需登录订阅",
-    "index": 11,
-    "host": "ciyuanji.com",
-    "replaces": [
-      "087da5733df8dfc7f97e354a44e2365a16b0817056c00408986476af6b2c6ab4"
-    ],
-    "available": true
-  },
-  {
-    "key": "https://wenxue.bkneng.com/wap",
-    "category": "Anime",
-    "name": "不可能的世界",
-    "subtitle": "幻想、悬疑、轻小说 · 官方站点，部分作品可能需付费",
-    "index": 12,
-    "host": "wenxue.bkneng.com",
-    "available": false
-  },
-  {
-    "key": "https://www.kadokado.com.tw/",
-    "category": "Anime",
-    "name": "角角者 KadoKado",
-    "subtitle": "繁体原创、轻小说 · 官方站点，部分作品可能需付费",
-    "index": 13,
-    "host": "kadokado.com.tw",
-    "available": false
-  },
-  {
-    "key": "https://www.esjzone.me",
-    "category": "Anime",
-    "name": "ESJ Zone",
-    "subtitle": "日轻译文、轻小说",
-    "index": 1,
-    "host": "esjzone.me",
-    "available": false
+    "index": 7,
+    "host": "ciyuanji.com"
   },
   {
     "key": "https://lnovel.org",
     "category": "Anime",
     "name": "轻小说百科",
     "subtitle": "轻小说 · 更新与分类",
-    "index": 2,
-    "host": "lnovel.org",
-    "replaces": [
-      "1755d0190432ce1ba12d2fe55a8223417f495d40aac3469012d1837d98c2234e"
-    ],
-    "available": true
-  },
-  {
-    "key": "https://n.novelia.cc",
-    "category": "Anime",
-    "name": "轻小说机翻",
-    "subtitle": "日轻、机翻",
-    "index": 3,
-    "host": "n.novelia.cc",
-    "available": false
-  },
-  {
-    "key": "https://jyapi.jyacg.com#yc11",
-    "category": "Anime",
-    "name": "鲸云轻说",
-    "subtitle": "轻小说",
-    "index": 4,
-    "host": "jyapi.jyacg.com",
-    "available": false
+    "index": 1,
+    "host": "lnovel.org"
   },
   {
     "key": "http://api.lestory.cn",
     "category": "Anime",
     "name": "悸花乐读",
     "subtitle": "百合、原创",
-    "index": 5,
-    "host": "api.lestory.cn",
-    "available": true
-  },
-  {
-    "key": "https://bbs.yamibo.com",
-    "category": "Anime",
-    "name": "百合会论坛",
-    "subtitle": "百合、同人、社区",
-    "index": 6,
-    "host": "bbs.yamibo.com",
-    "available": true
+    "index": 2,
+    "host": "api.lestory.cn"
   },
   {
     "key": "https://qbtr.cc#",
     "category": "Anime",
     "name": "全本同人",
     "subtitle": "同人完本 · 推荐与分类",
-    "index": 7,
-    "host": "www.qbtr.org",
-    "replaces": [
-      "05082e22a61bec04cce3bdea841810ab6d6437a3b2bc31bd9c39c3078ee9654b"
-    ],
-    "available": true
+    "index": 3,
+    "host": "www.qbtr.org"
   },
   {
     "key": "http://www.trxs.cc",
     "category": "Anime",
     "name": "同人小说（trxs）",
     "subtitle": "同人",
-    "index": 8,
-    "host": "trxs.cc",
-    "available": true
+    "index": 4,
+    "host": "trxs.cc"
   },
   {
     "key": "https://www.99csw.com",
@@ -503,8 +317,7 @@
     "name": "九九藏书",
     "subtitle": "出版、名著",
     "index": 0,
-    "host": "99csw.com",
-    "available": true
+    "host": "99csw.com"
   },
   {
     "key": "https://www.hetushu.com/",
@@ -512,8 +325,7 @@
     "name": "和图书",
     "subtitle": "出版、长篇",
     "index": 1,
-    "host": "hetushu.com",
-    "available": true
+    "host": "hetushu.com"
   },
   {
     "key": "https://www.kanunu8.com/",
@@ -521,8 +333,7 @@
     "name": "努努书坊",
     "subtitle": "出版、经典",
     "index": 2,
-    "host": "kanunu8.com",
-    "available": true
+    "host": "kanunu8.com"
   },
   {
     "key": "https://www.jingdianbook.com/",
@@ -530,239 +341,119 @@
     "name": "经典书库",
     "subtitle": "经典文学 · 部分正文使用图片文字",
     "index": 3,
-    "host": "jingdianbook.com",
-    "available": true
-  },
-  {
-    "key": "http://t.icesmall.cn/",
-    "category": "Literature",
-    "name": "世界名著",
-    "subtitle": "世界文学、译作",
-    "index": 4,
-    "host": "t.icesmall.cn",
-    "available": false
-  },
-  {
-    "key": "https://www.xstt5.com",
-    "category": "Literature",
-    "name": "小说天堂",
-    "subtitle": "出版、文学",
-    "index": 5,
-    "host": "xstt5.com",
-    "available": true
+    "host": "jingdianbook.com"
   },
   {
     "key": "https://read.douban.com",
     "category": "Literature",
     "name": "豆瓣阅读",
     "subtitle": "原创、文学、悬疑 · 官方站点，部分作品可能需付费",
-    "index": 15,
-    "host": "read.douban.com",
-    "available": true
+    "index": 11,
+    "host": "read.douban.com"
   },
   {
     "key": "https://mirrorfiction.com",
     "category": "Literature",
     "name": "镜文学",
-    "subtitle": "繁体原创、文学、悬疑",
-    "index": 6,
-    "host": "mirrorfiction.com",
-    "available": true
-  },
-  {
-    "key": "http://www.kehuan.net.cn",
-    "category": "Literature",
-    "name": "科幻小说网",
-    "subtitle": "中国科幻、外国科幻",
-    "index": 7,
-    "host": "kehuan.net.cn",
-    "available": true
-  },
-  {
-    "key": "http://www.wuxia.net.cn",
-    "category": "Literature",
-    "name": "武侠小说网",
-    "subtitle": "传统武侠",
-    "index": 8,
-    "host": "wuxia.net.cn",
-    "available": true
+    "subtitle": "原创小说 · 阅读章节需要登录",
+    "index": 4,
+    "host": "mirrorfiction.com"
   },
   {
     "key": "https://m.gushiwen.cn",
     "category": "Literature",
     "name": "古诗文网",
     "subtitle": "诗词、文言、注释",
-    "index": 9,
-    "host": "m.gushiwen.cn",
-    "available": true
+    "index": 5,
+    "host": "m.gushiwen.cn"
   },
   {
     "key": "https://gj.zdic.net",
     "category": "Literature",
     "name": "汉典古籍",
     "subtitle": "经史子集、古籍",
-    "index": 10,
-    "host": "gj.zdic.net",
-    "available": true
+    "index": 6,
+    "host": "gj.zdic.net"
   },
   {
     "key": "http://ab.newdu.com",
     "category": "Literature",
     "name": "国学典籍（新都）",
     "subtitle": "国学典籍 · 经典原文与更新",
-    "index": 11,
-    "host": "ab.newdu.com",
-    "replaces": [
-      "9748b8cad672643bd34afcf1961342df215a3f5d971811554cc88f6aee2b2cec"
-    ],
-    "available": true
+    "index": 7,
+    "host": "ab.newdu.com"
   },
   {
     "key": "https://www.zggdwx.com/",
     "category": "Literature",
     "name": "古典文学",
     "subtitle": "经史子集、古典文学",
-    "index": 12,
-    "host": "zggdwx.com",
-    "available": true
+    "index": 8,
+    "host": "zggdwx.com"
   },
   {
     "key": "https://m.gushici.net",
     "category": "Literature",
     "name": "古诗词网",
     "subtitle": "诗词",
-    "index": 13,
-    "host": "m.gushici.net",
-    "available": true
+    "index": 9,
+    "host": "m.gushici.net"
   },
   {
     "key": "https://m.zhonghuashici.com/",
     "category": "Literature",
     "name": "中华诗词",
     "subtitle": "诗词",
-    "index": 14,
-    "host": "m.zhonghuashici.com",
-    "available": true
-  },
-  {
-    "key": "https://www.biqusa.com/#",
-    "category": "General",
-    "name": "笔趣阁 · biqusa",
-    "subtitle": "综合网文",
-    "index": 0,
-    "host": "biqusa.com",
-    "available": true,
-    "replaces": [
-      "27c7313d06f8a50749961efe8441ab5671c71fb13c7a723e726daa80af4b8ca5"
-    ]
-  },
-  {
-    "key": "https://www.xbiquge.la",
-    "category": "General",
-    "name": "笔趣阁 · xbiquge",
-    "subtitle": "综合网文",
-    "index": 1,
-    "host": "xbiquge.la",
-    "available": false
+    "index": 10,
+    "host": "m.zhonghuashici.com"
   },
   {
     "key": "https://m.biquge365.net/",
     "category": "General",
     "name": "笔趣阁 · 365",
     "subtitle": "综合网文",
-    "index": 2,
-    "host": "m.biquge365.net",
-    "available": true
+    "index": 0,
+    "host": "m.biquge365.net"
   },
   {
-    "key": "https://www.69shu.com/",
+    "key": "https://www.69shuba.com/",
     "category": "General",
     "name": "69书吧",
     "subtitle": "网文、完本",
-    "index": 3,
-    "host": "69shu.com",
-    "available": true
+    "index": 1,
+    "host": "69shuba.com"
   },
   {
     "key": "https://www.23us.tw/#pb1101",
     "category": "General",
     "name": "顶点小说（23us）",
     "subtitle": "综合网文",
-    "index": 4,
-    "host": "23us.tw",
-    "available": true
-  },
-  {
-    "key": "https://www.17bxwx.com/",
-    "category": "General",
-    "name": "笔下文学",
-    "subtitle": "综合网文",
-    "index": 5,
-    "host": "17bxwx.com",
-    "available": true
-  },
-  {
-    "key": "http://www.zwduxs.com/",
-    "category": "General",
-    "name": "八一中文",
-    "subtitle": "综合网文",
-    "index": 6,
-    "host": "zwduxs.com",
-    "available": false
-  },
-  {
-    "key": "https://www.quanben5.com#🎃",
-    "category": "General",
-    "name": "全本小说（quanben5）",
-    "subtitle": "完本、长篇",
-    "index": 7,
-    "host": "quanben5.com",
-    "available": false
+    "index": 2,
+    "host": "23us.tw"
   },
   {
     "key": "https://ixdzs.tw/",
     "category": "General",
     "name": "爱下电子书（在线阅读）",
     "subtitle": "网文、长篇",
-    "index": 8,
-    "host": "ixdzs.tw",
-    "available": true
-  },
-  {
-    "key": "https://qubook.org",
-    "category": "General",
-    "name": "趣书网（qubook）",
-    "subtitle": "网文、完本",
-    "index": 9,
-    "host": "qubook.org",
-    "available": false
-  },
-  {
-    "key": "http://www.qudushu.com",
-    "category": "General",
-    "name": "去读书",
-    "subtitle": "综合网文",
-    "index": 10,
-    "host": "qudushu.com",
-    "available": true
+    "index": 3,
+    "host": "ixdzs.tw"
   },
   {
     "key": "https://www.yeban360.com/",
     "category": "General",
     "name": "夜伴书屋",
     "subtitle": "网文、长篇",
-    "index": 11,
-    "host": "yeban360.com",
-    "available": true
+    "index": 4,
+    "host": "yeban360.com"
   },
   {
-    "key": "https://api.uaa.com##旅途",
+    "key": "https://www.uaa.com/",
     "category": "Adult",
     "name": "UAA小说",
-    "subtitle": "成人向文字",
+    "subtitle": "官网小说 · 会员章节需要登录",
     "index": 0,
-    "host": "api.uaa.com",
-    "available": true
+    "host": "uaa.com"
   },
   {
     "key": "https://www.alicesw.com",
@@ -770,80 +461,55 @@
     "name": "爱丽丝书屋",
     "subtitle": "成人向文字",
     "index": 1,
-    "host": "alicesw.com",
-    "available": true
-  },
-  {
-    "key": "https://aastory.space",
-    "category": "Adult",
-    "name": "疯情书库",
-    "subtitle": "成人向文字",
-    "index": 2,
-    "host": "aastory.space",
-    "available": false
+    "host": "alicesw.com"
   },
   {
     "key": "https://bcshuku.com/",
     "category": "Adult",
     "name": "八叉书库",
     "subtitle": "成人向文字",
-    "index": 3,
-    "host": "bcshuku.com",
-    "replaces": [
-      "fe69c1a83eed3cffea1354cb8bb93378a650d272aefc47f870267269767cc24c"
-    ],
-    "available": true
+    "index": 2,
+    "host": "bcshuku.com"
   },
   {
     "key": "http://m.diyibanzhu.buzz",
     "category": "Adult",
     "name": "第一版主",
     "subtitle": "成人向文字",
-    "index": 4,
-    "host": "www.diyibanzi.com",
-    "available": true,
-    "replaces": [
-      "2359149f392914afe8ddbb317d37d584734a5535acf734206fd41e6d0a27368a"
-    ]
+    "index": 3,
+    "host": "www.diyibanzi.com"
   },
   {
     "key": "https://www.htlvbooks.com",
     "category": "Adult",
     "name": "海棠文学",
-    "subtitle": "成人向、耽美、百合 · 官方站点，部分作品可能需付费",
-    "index": 7,
-    "host": "htlvbooks.com",
-    "available": true
+    "subtitle": "官网榜单与完结分类 · 搜索和阅读需登录",
+    "index": 6,
+    "host": "htlvbooks.com"
   },
   {
     "key": "https://www.po18.tw",
     "category": "Adult",
     "name": "PO18",
-    "subtitle": "成人向、言情 · 官方站点，部分作品可能需付费",
-    "index": 8,
-    "host": "po18.tw",
-    "available": true
+    "subtitle": "原创言情 · 阅读需要登录",
+    "index": 7,
+    "host": "po18.tw"
   },
   {
     "key": "https://hlib.cc",
     "category": "Adult",
     "name": "hlib",
     "subtitle": "成人向文字、系列、单篇",
-    "index": 5,
-    "host": "hlib.cc",
-    "available": true
+    "index": 4,
+    "host": "hlib.cc"
   },
   {
     "key": "https://m.shuhaige.net/",
     "category": "General",
     "name": "书海阁",
     "subtitle": "榜单与分类阅读",
-    "index": 12,
-    "host": "m.shuhaige.net",
-    "available": true,
-    "replaces": [
-      "e92cc17827b6cd79448678b3481bc1d3b434076850d59a6f09f9f168fd299fad"
-    ]
+    "index": 5,
+    "host": "m.shuhaige.net"
   },
   {
     "key": "https://m.x33yq.org/",
@@ -851,41 +517,54 @@
     "name": "33言情",
     "subtitle": "人气榜单 · 都市、玄幻、多题材",
     "index": 6,
-    "host": "m.x33yq.org",
-    "available": true,
-    "replaces": [
-      "b5bfe01dcd9dc77018a9e0d7f0ab25a48d428868311b24ede006c6dc0cacc009"
-    ]
+    "host": "m.x33yq.org"
   },
   {
     "key": "http://m.bgnovel.com",
     "category": "Female",
     "name": "言情书吧",
     "subtitle": "言情完本 · 热门榜单与分类",
-    "index": 3,
-    "host": "m.bgnovel.com",
-    "available": true
+    "index": 2,
+    "host": "m.bgnovel.com"
   },
   {
     "key": "https://www.pixiv.net/novel",
     "category": "Adult",
     "name": "Pixiv 小说",
     "subtitle": "小说与同人 · 需登录 Pixiv，内容以账号权限为准",
+    "index": 5,
+    "host": "www.pixiv.net"
+  },
+  {
+    "key": "https://www.yamibo.com/site/novel",
+    "category": "Anime",
+    "name": "百合会小说",
+    "subtitle": "独立小说站 · 搜索需要登录",
+    "index": 8,
+    "host": "www.yamibo.com"
+  },
+  {
+    "key": "https://www.bilinovel.com",
+    "category": "Anime",
+    "name": "哔哩轻小说",
+    "subtitle": "日轻、华文、Web轻小说",
+    "index": 9,
+    "host": "bilinovel.com"
+  },
+  {
+    "key": "https://www.bxwx.co/",
+    "category": "General",
+    "name": "笔下文学",
+    "subtitle": "新版站点 · 发现与在线阅读",
     "index": 6,
-    "host": "www.pixiv.net",
-    "available": true,
-    "replaces": [
-      "0267df1bae9b850f7f40439759aa71886e08254613bea17da79ff2240af7f1a5",
-      "959a0fea5be929f7184ede19cabc60d889325641f57da69d78d24d262619e998",
-      "f3e57a7dda53f3321e35cafdb0b9aaa80e598d6085caa2185fad3f623438a655",
-      "e01883693c61c9f300383f0622e0465455679c451ef418a1c258183d1b8aa7ca",
-      "79b31333cd43ba7174e6709b6435ef7efaa192d9976bce94e9661819a6755fd1",
-      "a902998b9a14df41e6eddfccee27e444843b7978a5f68c195255b9b924a7f819",
-      "04651074a09090be288ece1fae4e67081143696e00473d98a19def8ad7884a6e",
-      "945bce7af32b45f270da16996275184365d72e6d2a82061833ee0733304c8250",
-      "6fc715f6665ae3f1ae462168c31e47a83233a6e1862f2c68f178cb61318ef83b",
-      "17b1f676201e9b1bfac50564c33ee974d2ff0abcac2610307c91e08fc2adf493",
-      "3dd10741252609b4a3ce842067d4cede0f526cf459a112f7e9a54fe571849727"
-    ]
+    "host": "www.bxwx.co"
+  },
+  {
+    "key": "http://www.quduwx.net/",
+    "category": "General",
+    "name": "去读书",
+    "subtitle": "新版站点 · 发现与在线阅读",
+    "index": 7,
+    "host": "www.quduwx.net"
   }
 ]

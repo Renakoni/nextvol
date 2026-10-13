@@ -14,6 +14,8 @@ internal fun websiteChallenge(response: BrokerResponse): BrowserChallengeKind? {
     val title = document.title().trim()
     val path = response.finalUrl.toHttpUrlOrNull()?.encodedPath.orEmpty()
     return when {
+        document.selectFirst("meta[name=aliyun_waf_aa]") != null &&
+            document.selectFirst("script[name^=aliyunwaf_]") != null -> BrowserChallengeKind.SiteVerification
         document.select("script[src]").any {
             val script = it.absUrl("src").toHttpUrlOrNull()
             script?.encodedPath == "/@wafjs" && sourceOrigin(script.toString()) == sourceOrigin(response.finalUrl)

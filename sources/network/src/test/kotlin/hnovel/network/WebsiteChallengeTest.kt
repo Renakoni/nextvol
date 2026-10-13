@@ -8,6 +8,11 @@ import okhttp3.mockwebserver.MockWebServer
 import java.nio.file.Files
 
 class WebsiteChallengeTest {
+    @Test fun aliyunWafDocumentRequiresVerification() {
+        val html = "<meta name='aliyun_waf_aa' content='fixture'><script name='aliyunwaf_fixture'></script>"
+        assertEquals(BrowserChallengeKind.SiteVerification, websiteChallenge(response("/book", html)))
+    }
+
     @Test fun wafScriptAndCookieBootstrapAreVerificationButQuotedChapterTextIsNot() {
         val script = "<title>loading fixture.example</title><script src='/@wafjs?fixture'></script>"
         for (status in listOf(200, 401, 403)) {
