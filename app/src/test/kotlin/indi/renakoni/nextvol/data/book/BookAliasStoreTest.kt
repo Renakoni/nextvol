@@ -94,6 +94,24 @@ class BookAliasStoreTest {
         assertEquals(series, aliases.resolve(series))
     }
 
+    @Test fun aliasCompletionClampsFiniteMaximaAndIgnoresNonFiniteContributions() = runBlocking {
+        save(first, 2f, now)
+        val extra = listOf("negative", "nan", "positive-infinity", "negative-infinity")
+            .map { SourceBookId(source, it) }
+        val values = listOf(-.2f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)
+        val reading = database.userReadingDataDao()
+        val previous = reading.getEntity(first.storageKey)!!
+        reading.insert(previous.copy(maxChapterReadingProgressMap = previous.maxChapterReadingProgressMap +
+            extra.zip(values).associate { (book, value) -> SourceChapterId(first, book.remoteId).storageKey to value }))
+
+        aliases.merge(first, series, info(series), volumes(series, listOf(first, first) + extra))
+
+        val merged = reading.getEntity(series.storageKey)!!
+        assertEquals(.2f, merged.readingProgress, 0f)
+        assertEquals(2f, merged.maxChapterReadingProgressMap[SourceChapterId(series, first.remoteId).storageKey])
+        assertEquals(series, aliases.resolve(first))
+    }
+
     @Test fun anotherCanonicalUrlChangeKeepsEarlierAliasesDirectAndPreservesProgress() = runBlocking {
         save(first, 0.7f, now)
         aliases.merge(first, series, info(series), volumes(series, listOf(first, second)))

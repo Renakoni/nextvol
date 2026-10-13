@@ -67,7 +67,7 @@ class BookAliasStore @Inject constructor(private val database: NextVolDatabase) 
                     currentChapterReadingProgressMap = (older?.currentChapterReadingProgressMap.orEmpty() +
                         newer.currentChapterReadingProgressMap).filterKeys { it in chapterIds },
                     maxChapterReadingProgressMap = maximum,
-                    readingProgress = chapterIds.sumOf { (maximum[it] ?: 0f).toDouble() }.div(chapterIds.size).toFloat()))
+                    readingProgress = bookReadingProgress(chapterIds, maximum)))
                 reading.deleteByIds(listOf(from.storageKey))
             }
 
