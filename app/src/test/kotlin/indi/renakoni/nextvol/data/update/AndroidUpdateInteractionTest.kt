@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = Application::class)
 class AndroidUpdateInteractionTest {
-    private val context = RuntimeEnvironment.getApplication<Application>()
+    private val context = RuntimeEnvironment.getApplication()
     private val interaction = AndroidUpdateInteraction(context)
     private val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     private val notifications = shadowOf(manager)
