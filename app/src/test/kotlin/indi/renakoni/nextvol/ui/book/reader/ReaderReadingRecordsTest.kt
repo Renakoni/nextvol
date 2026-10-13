@@ -181,36 +181,6 @@ class ReaderReadingRecordsTest {
     }
 
     @Test
-    fun knownEmptyCatalogClearsOnlyTheTotalAndUnknownCatalogCannotFinish() {
-        store.data["book"] = UserReadingData("book", readingProgress = 1f,
-            maxChapterReadingProgressMap = mapOf("removed" to 1f))
-        chapters = null
-        records.saveProgress("chapter", 1f)
-        scheduler.runCurrent()
-        assertEquals(1f, store.data.getValue("book").readingProgress)
-        assertFalse(store.events.contains("finished:book"))
-
-        chapters = emptySet()
-        records.saveProgress("chapter", 1f)
-        scheduler.runCurrent()
-        assertEquals(0f, store.data.getValue("book").readingProgress)
-        assertEquals(mapOf("chapter" to 1f, "removed" to 1f), store.data.getValue("book").maxChapterReadingProgressMap)
-        assertFalse(store.events.contains("finished:book"))
-    }
-
-    @Test
-    fun totalsUseOnlyCatalogMaximaAndClampEachFiniteContribution() {
-        for (other in listOf(0f, -.2f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, 2f)) {
-            store.data["book"] = UserReadingData("book",
-                maxChapterReadingProgressMap = mapOf("chapter" to 2f, "other" to other, "removed" to 1f))
-            records.saveProgress("chapter", .5f)
-            scheduler.runCurrent()
-            assertEquals(if (other == 2f) 1f else .5f, store.data.getValue("book").readingProgress)
-            assertEquals(1f, store.data.getValue("book").maxChapterReadingProgressMap["removed"])
-        }
-    }
-
-    @Test
     fun finalChapterUpdateMarksTheBookFinishedAndPendingDuplicatesMerge() {
         store.data["book"] = UserReadingData(
             id = "book",

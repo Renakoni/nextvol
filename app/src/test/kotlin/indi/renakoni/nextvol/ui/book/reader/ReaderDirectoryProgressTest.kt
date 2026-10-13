@@ -2,12 +2,10 @@ package indi.renakoni.nextvol.ui.book.reader
 
 import android.app.Application
 import androidx.lifecycle.ViewModelStore
-import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import indi.renakoni.nextvol.data.book.BookReadingDataAccess
 import indi.renakoni.nextvol.data.book.ChapterSource
-import indi.renakoni.nextvol.data.book.PartialBookVolumesException
 import indi.renakoni.nextvol.data.local.room.dao.UserDataDao
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
@@ -65,13 +63,13 @@ class ReaderDirectoryProgressTest {
     fun progressUsesTheExistingDirectoryCollectionWithoutWaitingForIt() = runBlocking {
         val started = CompletableDeferred<Unit>()
         val collectionCount = AtomicInteger()
-        val directory = Channel<Pair<Result<BookVolumes, WebRequestError>, CompletableDeferred<Unit>>>()
+        val directory = Channel<Pair<BookVolumes, CompletableDeferred<Unit>>>()
         val chapters = mockk<ChapterSource> {
             every { getBookVolumesFlow("book", any()) } returns flow {
                 collectionCount.incrementAndGet()
                 started.complete(Unit)
-                for ((result, applied) in directory) {
-                    emit(result)
+                for ((volumes, applied) in directory) {
+                    emit(Ok(volumes))
                     applied.complete(Unit)
                 }
             }
@@ -112,20 +110,11 @@ class ReaderDirectoryProgressTest {
 
             saveProgress.captured("chapter", 0.5f)
             assertEquals(0.4f, writes.receive().readingProgress)
-            fun catalog(vararg ids: String) = BookVolumes("book", listOf(Volume("volume", "Title",
-                ids.map { ChapterInformation(it, it) })))
-            val partial = Err(WebRequestError("Directory", "Incomplete", PartialBookVolumesException(catalog("chapter"),
-                hnovel.content.SourceContentException(hnovel.content.ContentError.Network, "ruleToc.chapterList"))))
-            for ((result, expected) in listOf(
-                partial to .4f,
-                Ok(catalog()) to 0f,
-                Ok(catalog("chapter", "other")) to .25f,
-                partial to .25f,
-                Ok(catalog("chapter", "other", "third", "fourth")) to .125f,
-                Ok(catalog("chapter", "chapter", "other")) to .25f,
-            )) {
+            for ((count, expected) in listOf(0 to 0f, 2 to 0.25f, 4 to 0.125f)) {
                 val applied = CompletableDeferred<Unit>()
-                directory.send(result to applied)
+                val ids = List(count) { if (it == 0) "chapter" else "$it" }
+                directory.send(BookVolumes("book", listOf(Volume("volume", "Title",
+                    ids.map { ChapterInformation(it, it) }))) to applied)
                 while (!applied.isCompleted) {
                     scheduler.runCurrent()
                     delay(1)

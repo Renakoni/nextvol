@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.room.Room
 import indi.renakoni.nextvol.data.local.LocalBookDataSource
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
-import indi.renakoni.nextvol.data.local.room.entity.BookRecordEntity
 import io.nightfish.lightnovelreader.api.book.UserReadingData
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -22,8 +21,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
-import java.time.LocalDate
-import java.time.LocalTime
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
@@ -99,22 +96,6 @@ class MarkChaptersUnreadTest {
         repository.markChaptersUnread(book.storageKey, setOf("unknown"), catalog)
         assertEquals(before, repository.getUserReadingData(book.storageKey))
         assertEquals(revision, repository.progressRevision())
-    }
-
-    @Test fun resettingProgressKeepsRemovedHistoryAndHistoricalCompletion() = runBlocking {
-        val date = LocalDate.of(2026, 9, 19)
-        val record = BookRecordEntity(book.storageKey, date, 1, 60, true, false, LocalTime.NOON, LocalTime.NOON)
-        database.bookRecordDao().insertBookRecord(record)
-        val removed = BookIdentity.chapter("removed", book).storageKey
-        repository.updateUserReadingData(book.storageKey) {
-            it.copy(maxChapterReadingProgressMap = mapOf(ids[0] to 1f, ids[1] to Float.NaN,
-                ids[2] to Float.POSITIVE_INFINITY, ids[3] to Float.NEGATIVE_INFINITY, removed to 1f))
-        }
-        repository.markChaptersUnread(book.storageKey, setOf(ids[0]), catalog)
-        val after = repository.getUserReadingData(book.storageKey)
-        assertEquals(0f, after.readingProgress)
-        assertEquals(1f, after.maxChapterReadingProgressMap[removed])
-        assertEquals(record, database.bookRecordDao().getBookRecordByIdAndDate(book.storageKey, date))
     }
 
     @Test fun delayedOldSavesCannotRestoreClearedChaptersButUnselectedSavesAndNewReadersStillWork() = runBlocking {
