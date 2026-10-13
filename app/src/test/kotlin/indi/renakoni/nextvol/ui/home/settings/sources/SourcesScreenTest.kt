@@ -279,7 +279,7 @@ class SourcesScreenTest {
         var submitted = false
         var closed = false
         activity.get().setContent { MaterialTheme {
-            SourceConfigurationSheet(form, false, { _, _, _ -> submitted = true }, { closed = true })
+            SourceConfigurationSheet(form, false, { _, _, _, _ -> submitted = true }, { closed = true })
         } }
         compose.onNodeWithText("Source configuration").assertIsDisplayed()
         compose.onNodeWithText("Sign in").assertDoesNotExist()
@@ -293,10 +293,11 @@ class SourcesScreenTest {
     @Test @Config(qualifiers = "en-rUS-w360dp-h800dp")
     fun configurationHidesAccountActionsAndSubmitsOriginalFieldAndFormIds() {
         val update = LoginField("Update source", "button", action = "updateSource()")
+        val preference = LoginField("Preference", "toggle", action = "configure()", choices = listOf("saved", "changed"))
         val form = LoginForm(listOf(
             LoginField("Source sign in", "button", action = " login(); "),
             LoginField("Source sign out", "button", action = "logout()"),
-            LoginField("Preference", "toggle", choices = listOf("saved", "changed")),
+            preference,
             LoginField("Login settings", "button", action = "configureAccount()"),
             update), null, mapOf("Preference" to "saved"))
         activity.get().setContent { MaterialTheme {
@@ -306,8 +307,15 @@ class SourcesScreenTest {
         compose.onNodeWithText("Source sign out").assertDoesNotExist()
         compose.onNodeWithText("Login settings").assertIsDisplayed()
         compose.onNodeWithText("saved").assertIsDisplayed()
-        compose.onNodeWithText("Update source").performClick()
+        compose.onNodeWithText("Preference").performTouchInput { longClick() }
+        compose.onNodeWithText("saved").assertIsDisplayed()
+        compose.onNodeWithText("changed").assertDoesNotExist()
+        verify(exactly = 1) { model.submitLogin(form.values, preference.id, form.id, true) }
+        compose.onNodeWithText("Update source").performTouchInput { click() }
+        compose.onNodeWithText("Update source").performTouchInput { longClick() }
         verify(exactly = 1) { model.submitLogin(form.values, update.id, form.id) }
+        verify(exactly = 1) { model.submitLogin(form.values, update.id, form.id, true) }
+        verify(exactly = 3) { model.submitLogin(any(), any(), any(), any()) }
     }
 
     @Test @Config(qualifiers = "en-rUS-w360dp-h800dp")
@@ -319,12 +327,16 @@ class SourcesScreenTest {
             SourceConfigurationSheet(form, false, model::submitLogin, model::cancelLogin)
         } }
         compose.onNodeWithText("Account settings").assertIsNotEnabled().performClick()
+        compose.onNodeWithText("Account settings").performTouchInput { longClick() }
         compose.onNodeWithText("General novels").assertDoesNotExist()
         compose.onNodeWithText("Discovery").performClick()
         compose.onNodeWithText("General novels").assertIsOn()
-        verify(exactly = 0) { model.submitLogin(any(), any(), any()) }
+        verify(exactly = 0) { model.submitLogin(any(), any(), any(), any()) }
         compose.onNodeWithText("General novels").performClick()
+        compose.onNodeWithText("General novels").performTouchInput { longClick() }
         verify(exactly = 1) { model.submitLogin(form.values, setting.id, form.id) }
+        verify(exactly = 1) { model.submitLogin(form.values, setting.id, form.id, true) }
+        verify(exactly = 2) { model.submitLogin(any(), any(), any(), any()) }
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithText("Account settings").assertIsDisplayed()
         compose.onNodeWithText("General novels").assertDoesNotExist()
@@ -338,7 +350,7 @@ class SourcesScreenTest {
         var form by mutableStateOf(original)
         var submitted: Pair<String?, String>? = null
         activity.get().setContent { MaterialTheme {
-            SourceConfigurationSheet(form, false, { _, action, formId ->
+            SourceConfigurationSheet(form, false, { _, action, formId, _ ->
                 submitted = action to formId
                 form = form.copy(fields = listOf(field.copy(checked = false)), id = form.id + "-refreshed")
             }, {})
@@ -355,13 +367,17 @@ class SourcesScreenTest {
     fun loginDialogKeepsDeclaredAccountActions() {
         val login = LoginField("Source sign in", "button", action = "login()")
         val form = LoginForm(listOf(login, LoginField("Source sign out", "button", action = "logout()")), null)
-        var submitted: Pair<String?, String>? = null
+        val submitted = mutableListOf<Triple<String?, String, Boolean>>()
+        var busy by mutableStateOf(false)
         activity.get().setContent { MaterialTheme {
-            SourceLoginDialog(form, false, { _, action, formId -> submitted = action to formId }, {})
+            SourceLoginDialog(form, busy, { _, action, formId, longClick -> submitted += Triple(action, formId, longClick) }, {})
         } }
-        compose.onNodeWithText("Source sign in").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Source sign in").assertIsDisplayed().performTouchInput { click() }
+        compose.onNodeWithText("Source sign in").performTouchInput { longClick() }
         compose.onNodeWithText("Source sign out").assertIsDisplayed()
-        org.junit.Assert.assertEquals(login.id to form.id, submitted)
+        compose.runOnIdle { busy = true }
+        compose.onNodeWithText("Source sign in").assertIsNotEnabled().performTouchInput { longClick() }
+        org.junit.Assert.assertEquals(listOf(Triple(login.id, form.id, false), Triple(login.id, form.id, true)), submitted)
     }
 
     @Test @Config(qualifiers = "en-rUS-w360dp-h800dp")
@@ -812,19 +828,32 @@ class SourcesScreenTest {
 
     @Test fun loginControlsSubmitDefaultsAndTheCurrentSourceFormValues() {
         val form = LoginForm(listOf(LoginField("user", "text", label = "Account"), LoginField("password", "password"),
-            LoginField("region", "select", choices = listOf("east", "west"), label = "Region"),
-            LoginField("remember", "toggle", choices = listOf("no", "yes"), label = "Remember")), null,
+            LoginField("region", "select", action = "configure()", choices = listOf("east", "west"), label = "Region"),
+            LoginField("remember", "toggle", action = "configure()", choices = listOf("no", "yes"), label = "Remember")), null,
             mapOf("user" to "alice", "password" to "", "region" to "east", "remember" to "no"))
         var submitted: Map<String, String>? = null
-        activity.get().setContent { MaterialTheme { SourceLoginDialog(form, false, { values, action, formId ->
-            org.junit.Assert.assertNull(action); org.junit.Assert.assertEquals(form.id, formId); submitted = values
+        val actions = mutableListOf<Pair<String, Boolean>>()
+        activity.get().setContent { MaterialTheme { SourceLoginDialog(form, false, { values, action, formId, longClick ->
+            org.junit.Assert.assertEquals(form.id, formId)
+            if (action == null) {
+                org.junit.Assert.assertFalse(longClick); submitted = values
+            } else {
+                actions += action to longClick
+                if (longClick) org.junit.Assert.assertEquals(form.values, values)
+            }
         }, {}) } }
-        compose.onNodeWithText("Account").performTextReplacement("carol")
+        compose.onNodeWithText("Region: east").performScrollTo().performTouchInput { longClick() }
+        compose.onNodeWithText("west").assertDoesNotExist()
+        compose.onNodeWithText("Remember: no").performScrollTo().performTouchInput { longClick() }
+        compose.onNodeWithText("Remember: no").assertExists()
+        compose.onNodeWithText("Account").performScrollTo().performTextReplacement("carol")
         compose.onNodeWithText("Region: east").performScrollTo().performClick()
         compose.onNodeWithText("west").performClick()
         compose.onNodeWithText("Remember: no").performScrollTo().performClick()
         compose.onAllNodesWithText("Sign in").filter(hasClickAction()).onFirst().performClick()
         org.junit.Assert.assertEquals(mapOf("user" to "carol", "password" to "", "region" to "west", "remember" to "yes"), submitted)
+        val ids = form.fields.takeLast(2).map { it.id }
+        org.junit.Assert.assertEquals(listOf(ids[0] to true, ids[1] to true, ids[0] to false, ids[1] to false), actions)
     }
 
     @Test fun largePanelDisplaysItsLastRowAndDispatchesBothSameNamedButtonsById() {
@@ -832,7 +861,7 @@ class SourcesScreenTest {
             "{name:'same',type:'button',action:'one()'}", "{name:'same',type:'button',action:'two()'}")
         val form = LoginForm.parse(rows.joinToString(",", "[", "]"), "")
         val actions = mutableListOf<String?>()
-        activity.get().setContent { MaterialTheme { SourceLoginDialog(form, false, { values, action, formId ->
+        activity.get().setContent { MaterialTheme { SourceLoginDialog(form, false, { values, action, formId, _ ->
             org.junit.Assert.assertEquals(form.id, formId)
             org.junit.Assert.assertEquals(59, values.size)
             actions += action

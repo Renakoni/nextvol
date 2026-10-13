@@ -603,7 +603,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
     }
     val configurationScope = rememberCoroutineScope()
     LaunchedEffect(state.configurationPanel, state.loginForm?.id) { blockingSource = null }
-    if (state.configurationPanel) SourceConfigurationSheet(state.loginForm, state.busy, { values, action, formId ->
+    if (state.configurationPanel) SourceConfigurationSheet(state.loginForm, state.busy, { values, action, formId, longClick ->
         configurationScope.launch {
             if (configurationActionPending) return@launch
             configurationActionPending = true
@@ -614,7 +614,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                     val current = model.state.value
                     if (current.configurationPanel && current.loginForm?.id == formId) blockingSource = manager
                 }
-                else if (link == null) model.submitLogin(values, action, formId) else uriHandler.openUri(link)
+                else if (link == null) model.submitLogin(values, action, formId, longClick) else uriHandler.openUri(link)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
