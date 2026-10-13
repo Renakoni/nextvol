@@ -135,7 +135,10 @@ exit "$TEST_EXIT"
     def test_viewport_timeout_restarts_before_running_tests_once(self):
         result = self.run_case('prepare-recovers')
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(2, len((self.root / 'launches').read_text().splitlines()))
+        # The first emulator process can be killed before its background mock
+        # records the launch. Both attempts still synchronously start ADB; the
+        # successful command proves the second preparation completed.
+        self.assertEqual(2, (self.root / 'adb-calls').read_text().splitlines().count('start-server'))
         self.assertEqual(['one argument'], (self.root / 'ran').read_text().splitlines())
 
     def test_persistent_viewport_timeout_never_runs_tests_or_later_setup(self):

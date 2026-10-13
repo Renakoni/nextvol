@@ -24,6 +24,19 @@ JVM_TASKS = [':app:testDebugUnitTest', ':epub:test', ':source-rules:test',
 JVM_MODULES = {'epub': 'epub', 'tests/source-compatibility': 'source-compatibility',
                **{f'sources/{name}': f'source-{name}' for name in
                   ('rules', 'network', 'import', 'execution', 'rhino', 'content', 'speech')}}
+# Reverse dependency closure, including test-only consumers. Every source change
+# also retains compatibility integrity and the complete App JVM suite.
+SOURCE_CONSUMERS = {
+    'rules': ('rules', 'network', 'import', 'rhino', 'execution', 'content', 'speech'),
+    'network': ('network', 'import', 'execution', 'content', 'speech'),
+    'import': ('import', 'content'),
+    'rhino': ('rhino', 'execution', 'content', 'speech'),
+    'execution': ('execution', 'content', 'speech'),
+    'content': ('content',),
+    'speech': ('speech',),
+}
+SOURCE_CATALOG_FILES = {f'app/src/main/assets/source-catalog/{name}.json' for name in
+                        ('catalog', 'Adult', 'Anime', 'Female', 'General', 'Literature', 'Platforms')}
 SOURCE_24 = [f'sourceexecution.{name}InstrumentedTest' for name in (
     'IsolatedExecution', 'SourceAccount', 'SourceBrowser', 'SourceVpn',
     'SourceCompatibility', 'PixivLifecycle', 'IsolatedConcurrency')]
@@ -49,6 +62,11 @@ MINIFIED_SOURCE = PACKAGE + 'benchmark.explore.MinifiedSourceRuntimeTest'
 MINIFIED_SPEECH = PACKAGE + 'benchmark.tts.ReadAloudSmokeTest'
 
 
+def source_module_for_path(path):
+    return next((name for name in SOURCE_CONSUMERS
+                 if path.startswith(f'sources/{name}/src/main/kotlin/') and path.endswith('.kt')), None)
+
+
 def classify(path):
     parts = Path(path).parts
     if path.endswith('.md') and (len(parts) == 1 or
@@ -61,6 +79,11 @@ def classify(path):
         return 'docs'
     if path.startswith('app/src/test/resources/backups/'):
         return 'backup'
+    source_module = source_module_for_path(path)
+    if source_module:
+        return 'speech' if source_module == 'speech' else 'source'
+    if path in SOURCE_CATALOG_FILES:
+        return 'source'
     for root in KOTLIN_ROOTS:
         if path.startswith(root):
             relative = path[len(root):]
@@ -119,6 +142,8 @@ def scopes_for_paths(paths):
     scopes = {classify(path) for path in paths} - {'docs'}
     if not paths or 'full' in scopes:
         return {'full'}
+    if any('speech' in SOURCE_CONSUMERS.get(source_module_for_path(path), ()) for path in paths):
+        scopes.add('speech')
     # Speech follows reader position and owns controls inside the reader.
     if 'speech' in scopes:
         scopes.add('reader')
@@ -134,7 +159,9 @@ def qualified(classes):
 def device_classes(scopes, api):
     if 'speech' in scopes:
         scopes = scopes | {'reader'}
-    full = 'full' in scopes
+    # App readers/downloads also consume source modules. Keep the existing Debug
+    # coverage until those device boundaries have been independently reviewed.
+    full = bool(scopes & {'full', 'source'})
     main = list(SOURCE_35 if api == 35 else SOURCE_24) if full else []
     reader = full or 'reader' in scopes
     if api == 24:
@@ -151,10 +178,10 @@ def plan(scopes):
         tasks.append(':source-speech:test')
     if 'export' in scopes:
         tasks.append(':epub:test')
-    if active and not full:
+    if active and not full and 'source' not in scopes:
         tasks.append('-PciTestScope=' + ','.join(sorted(scopes - {'catalog'})))
     minified = []
-    if full or 'catalog' in scopes:
+    if full or scopes & {'catalog', 'source'}:
         minified.append(MINIFIED_SOURCE)
     if full or 'speech' in scopes:
         minified.append(MINIFIED_SPEECH)
@@ -178,7 +205,16 @@ def plan_for_paths(paths):
     production = []
     test_scopes, device_scopes, modules, minified = set(), set(), set(), set()
     test_inputs = False
+    source_production = False
     for path in paths:
+        source_module = source_module_for_path(path)
+        if source_module or path in SOURCE_CATALOG_FILES:
+            consumers = SOURCE_CONSUMERS[source_module] if source_module else ('content',)
+            modules.update(f'source-{name}' for name in consumers)
+            modules.add('source-compatibility')
+            source_production = True
+            production.append(path)
+            continue
         module = next((name for root, name in JVM_MODULES.items()
                        if path.startswith(root + '/src/test/')), None)
         if path.startswith('app/src/test/'):
@@ -219,6 +255,8 @@ def plan_for_paths(paths):
     tasks.update(f':{module}:test' for module in modules)
     app_scopes = set(scopes) if ':app:testDebugUnitTest' in tasks else set()
     app_scopes.update(test_scopes)
+    if source_production:
+        app_scopes.add('full')
     if app_scopes:
         tasks.add(':app:testDebugUnitTest')
     ordered_tasks = [task for task in JVM_TASKS if task in tasks]
@@ -280,7 +318,7 @@ def main():
     args = parser.parse_args()
     if args.device_api:
         scopes = set(args.scopes.split(','))
-        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'update', 'export', 'backup', 'storage', 'docs'}:
+        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'source', 'update', 'export', 'backup', 'storage', 'docs'}:
             parser.error('unknown test scope')
         print('\n'.join(device_classes(scopes, args.device_api)))
         return
