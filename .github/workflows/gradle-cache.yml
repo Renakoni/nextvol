@@ -9,9 +9,18 @@ on:
         description: Run the isolated issue 721 cost experiment
         type: boolean
         default: false
+      seed-run:
+        description: Reuse a completed experiment seed run
+        type: string
+        default: ''
+      seed-artifact:
+        description: Immutable task-output artifact from that seed run
+        type: string
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: android-cache-${{ inputs.study && github.ref || 'main' }}
@@ -66,7 +75,7 @@ jobs:
           api: ${{ matrix.api }}
 
   study-seed:
-    if: github.event_name == 'workflow_dispatch' && inputs.study && github.ref == 'refs/heads/ci/721-source-cache-warm'
+    if: github.event_name == 'workflow_dispatch' && inputs.study && github.ref == 'refs/heads/ci/721-source-cache-warm' && inputs.seed-run == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
@@ -98,6 +107,7 @@ jobs:
 
   study-consumer:
     needs: study-seed
+    if: always() && !cancelled() && inputs.study && github.ref == 'refs/heads/ci/721-source-cache-warm' && (needs.study-seed.result == 'success' || inputs.seed-run != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -123,7 +133,10 @@ jobs:
       - uses: ./.github/actions/android-environment
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          artifact-ids: ${{ needs.study-seed.outputs.artifact }}
+          artifact-ids: ${{ inputs.seed-artifact || needs.study-seed.outputs.artifact }}
+          run-id: ${{ inputs.seed-run || github.run_id }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
           path: ${{ runner.temp }}/cache-study
       - name: Measure clean consumer compilation
         env:
