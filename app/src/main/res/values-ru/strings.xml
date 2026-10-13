@@ -237,6 +237,7 @@
     <string name="book_manager_clear_orphaned_content">Удалить данные глав, которые больше не связаны ни с одной локальной книгой?</string>
     <string name="book_manager_group_index_only">Книги без кэша содержимого (%1$d)</string>
     <string name="book_manager_cleared_items">Удалено элементов: %1$d</string>
+    <string name="book_manager_delete_failed">Не удалось завершить удаление выбранных книг. Повторите попытку.</string>
     <string name="storage_manager_title">Хранилище и очистка</string>
     <string name="storage_manager_empty_description">Нет локального кэша для анализа.</string>
     <string name="storage_manager_used">занято</string>

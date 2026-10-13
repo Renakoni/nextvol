@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.ui.bookmanager
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
@@ -14,7 +15,9 @@ import indi.renakoni.nextvol.data.storage.StorageBookCleanup
 import indi.renakoni.nextvol.data.storage.StorageBookQuery
 import indi.renakoni.nextvol.data.work.CacheBookWork
 import indi.renakoni.nextvol.data.work.ExportBookToEPUBWork
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -32,6 +35,8 @@ class BookManagerViewModel @Inject constructor(
     val downloadItemIdList get() = downloadProgressRepository.downloadItemIdList
     private val _clearedItemsFlow = MutableSharedFlow<Int>()
     val clearedItemsFlow = _clearedItemsFlow.asSharedFlow()
+    private val _deleteFailures = MutableSharedFlow<Unit>()
+    val deleteFailures = _deleteFailures.asSharedFlow()
     private val _downloadSubmissions = MutableSharedFlow<DownloadSubmission>()
     val downloadSubmissions = _downloadSubmissions.asSharedFlow()
     val localBookManagerUiState = MutableLocalBookManagerUiState(
@@ -119,8 +124,15 @@ class BookManagerViewModel @Inject constructor(
 
     fun deleteSelected() {
         viewModelScope.launch(Dispatchers.IO) {
-            val count = deleteSelectedLocalBooks()
-            if (count > 0) _clearedItemsFlow.emit(count)
+            try {
+                val count = deleteSelectedLocalBooks()
+                if (count > 0) _clearedItemsFlow.emit(count)
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                Log.e("BookManager", "Failed to delete selected books", failure)
+                _deleteFailures.emit(Unit)
+            }
         }
     }
 
@@ -142,14 +154,29 @@ class BookManagerViewModel @Inject constructor(
         val ids = localBookManagerUiState.selectedIds.toList()
         if (ids.isEmpty()) return 0
         localBookManagerUiState.isDeleting = true
-        val count = cleanup.deleteBooks(ids)
-        withContext(Dispatchers.Main) {
-            localBookManagerUiState.isDeleting = false
-            localBookManagerUiState.isSelecting = false
-            localBookManagerUiState.selectedIds = emptySet()
+        try {
+            val count = cleanup.deleteBooks(ids)
+            refreshLocalBooks()
+            withContext(Dispatchers.Main) {
+                exitLocalBookSelection()
+            }
+            return count
+        } catch (failure: Exception) {
+            // Earlier books may already be gone, even when the operation was cancelled.
+            withContext(NonCancellable) {
+                try {
+                    refreshLocalBooks()
+                } catch (refreshFailure: Exception) {
+                    Log.e("BookManager", "Failed to refresh books after deletion", refreshFailure)
+                }
+            }
+            throw failure
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) {
+                localBookManagerUiState.isDeleting = false
+                localBookManagerUiState.isLoading = false
+            }
         }
-        refreshLocalBooks()
-        return count
     }
 
     suspend fun clearOrphanedDataItems(): Int {

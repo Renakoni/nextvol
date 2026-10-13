@@ -237,6 +237,7 @@
     <string name="book_manager_clear_orphaned_content">删除未关联到任何本地书本的章节数据？</string>
     <string name="book_manager_group_index_only">书本内容未缓存（ %1$d ）</string>
     <string name="book_manager_cleared_items">已删除 %1$d 个项目</string>
+    <string name="book_manager_delete_failed">未能完成所选书籍的删除，请重试。</string>
     <string name="storage_manager_title">存储与清理</string>
     <string name="storage_manager_empty_description">没有可分析的本地缓存。</string>
     <string name="storage_manager_used">已使用</string>
