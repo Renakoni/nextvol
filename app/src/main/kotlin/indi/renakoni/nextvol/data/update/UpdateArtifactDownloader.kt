@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -30,7 +31,6 @@ class UpdateArtifactDownloader @Inject constructor(
         files: Files,
         onProgress: suspend (copied: Long, total: Long) -> Unit,
         onProcessing: suspend () -> Unit,
-        onHttpFailure: suspend (Int) -> Unit,
     ): File? {
         val client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -43,8 +43,7 @@ class UpdateArtifactDownloader @Inject constructor(
 
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                onHttpFailure(response.code)
-                return@use
+                throw IOException("HTTP ${response.code}")
             }
             response.body.let { body ->
                 val total = body.contentLength()

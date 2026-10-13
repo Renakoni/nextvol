@@ -42,8 +42,7 @@ class UpdateArtifactDownloaderTest {
     private suspend fun download(release: Release = release(), files: UpdateArtifactDownloader.Files = downloader.prepare()) =
         downloader.download(release, files,
             onProgress = { copied, total -> progress += copied to total },
-            onProcessing = { events += "processing" },
-            onHttpFailure = { events += "HTTP $it" })
+            onProcessing = { events += "processing" })
 
     @Test fun directApkReplacesOldFilesAndReportsBytesWhileUnknownLengthSkipsProgress() = runBlocking {
         val stale = downloader.prepare()
