@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.data.local
+package indi.renakoni.nextvol.data.backup
 
 import indi.renakoni.nextvol.data.local.room.dao.BookInformationDao
 import indi.renakoni.nextvol.data.local.room.dao.BookDownloadDao
@@ -24,7 +24,7 @@ import indi.renakoni.nextvol.data.local.room.entity.UserDataEntity
 import indi.renakoni.nextvol.data.local.room.entity.UserReadingDataEntity
 import indi.renakoni.nextvol.data.local.room.entity.VolumeEntity
 
-class ExportOptionLocalData(
+class BackupDataCollector(
     private val bookBookInformationDao: BookInformationDao,
     private val bookDownloadDao: BookDownloadDao,
     private val bookRecordDao: BookRecordDao,

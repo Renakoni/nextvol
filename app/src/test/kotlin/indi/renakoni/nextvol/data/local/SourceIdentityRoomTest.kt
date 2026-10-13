@@ -11,7 +11,8 @@ import indi.renakoni.nextvol.data.bookshelf.BookshelfRepository
 import indi.renakoni.nextvol.data.download.BookDownloadStore
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.content.ContentComponentRegistry
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
+import indi.renakoni.nextvol.data.backup.BackupDataManager
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
@@ -62,7 +63,7 @@ class SourceIdentityRoomTest {
     private lateinit var local: LocalBookDataSource
     private lateinit var shelves: BookshelfRepository
     private lateinit var stats: StatsRepository
-    private lateinit var backup: LocalDataManager
+    private lateinit var backup: BackupDataManager
     private lateinit var downloads: BookDownloadStore
     private val a = SourceBookId(Identifier("site", "a"), "123")
     private val b = SourceBookId(Identifier("site", "b"), "123")
@@ -78,7 +79,7 @@ class SourceIdentityRoomTest {
         shelves = BookshelfRepository(db.bookshelfDao(), scheduler, indi.renakoni.nextvol.data.web.WebSourceRegistry(), local.aliases)
         val coordinator = StatisticsWriteCoordinator()
         stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), mockk(), coordinator)
-        backup = LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
+        backup = BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
             db.bookshelfDao(), db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(),
             db.userReadingDataDao(), db.userDataDao(), mockk(relaxed = true), coordinator, stats, downloads)
     }

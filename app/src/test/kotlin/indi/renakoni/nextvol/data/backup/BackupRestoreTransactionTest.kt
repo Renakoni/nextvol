@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.data.local
+package indi.renakoni.nextvol.data.backup
 
 import android.app.Application
 import android.content.ContextWrapper
@@ -12,8 +12,8 @@ import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.download.BookDownloadStore
 import indi.renakoni.nextvol.data.image.SourceImage
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
-import indi.renakoni.nextvol.data.local.cbor.LocalData
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.LocalData
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.room.entity.*
 import indi.renakoni.nextvol.data.statistics.ReadingStatsUpdate
@@ -63,7 +63,7 @@ class BackupRestoreTransactionTest {
     private lateinit var db: NextVolDatabase
     private lateinit var downloads: BookDownloadStore
     private lateinit var stats: StatsRepository
-    private lateinit var backup: LocalDataManager
+    private lateinit var backup: BackupDataManager
     private lateinit var oldFile: File
     private lateinit var attempt: BookDownloadStore.Attempt
 
@@ -73,7 +73,7 @@ class BackupRestoreTransactionTest {
         val coordinator = StatisticsWriteCoordinator()
         stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), mockk(), coordinator)
         downloads = BookDownloadStore(context, db, ContentJsonDecoder(ContentComponentRegistry()))
-        backup = LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
+        backup = BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
             db.bookshelfDao(), db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(),
             db.userReadingDataDao(), db.userDataDao(), storage, coordinator, stats, downloads)
     }

@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.data.local
+package indi.renakoni.nextvol.data.backup
 
 import android.app.Application
 import android.content.ContentProvider
@@ -15,9 +15,8 @@ import indi.renakoni.nextvol.data.book.bind
 import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.download.BookDownloadStore
-import indi.renakoni.nextvol.data.local.LocalDataManager
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
-import indi.renakoni.nextvol.data.local.cbor.LocalData
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.LocalData
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
@@ -52,7 +51,7 @@ class BackupRestoreTest {
             val coordinator = StatisticsWriteCoordinator()
             val stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), mockk(), coordinator)
             val downloads = BookDownloadStore(context, db, ContentJsonDecoder(ContentComponentRegistry()))
-            val backup = LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
+            val backup = BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
                 db.bookshelfDao(), db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(),
                 db.userReadingDataDao(), db.userDataDao(), mockk(relaxed = true), coordinator, stats, downloads)
             val old = SourceBookId(Identifier("review", "fixture"), "old-book")

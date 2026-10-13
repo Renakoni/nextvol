@@ -1,8 +1,8 @@
 package indi.renakoni.nextvol.data.backup
 
 import android.app.Application
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
-import indi.renakoni.nextvol.data.local.cbor.LocalData
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.LocalData
 import indi.renakoni.nextvol.data.local.room.entity.UserDataEntity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel

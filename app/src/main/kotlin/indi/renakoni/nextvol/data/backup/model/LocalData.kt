@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.data.local.cbor
+package indi.renakoni.nextvol.data.backup.model
 
 import indi.renakoni.nextvol.data.local.room.entity.BookInformationEntity
 import indi.renakoni.nextvol.data.local.room.entity.BookDownloadEntity

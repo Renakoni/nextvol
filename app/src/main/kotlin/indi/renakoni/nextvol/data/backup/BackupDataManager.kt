@@ -1,8 +1,8 @@
-package indi.renakoni.nextvol.data.local
+package indi.renakoni.nextvol.data.backup
 
 import androidx.room.withTransaction
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
-import indi.renakoni.nextvol.data.local.cbor.validateIdentities
+import indi.renakoni.nextvol.data.backup.model.validateIdentities
 import indi.renakoni.nextvol.data.download.BookDownloadStore
 import android.util.Log
 import com.github.michaelbull.result.Err
@@ -11,8 +11,8 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.andThen
 import com.github.michaelbull.result.asErr
 import com.github.michaelbull.result.runCatching
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
-import indi.renakoni.nextvol.data.local.cbor.LocalData
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.LocalData
 import indi.renakoni.nextvol.data.local.room.dao.BookInformationDao
 import indi.renakoni.nextvol.data.local.room.dao.BookRecordDao
 import indi.renakoni.nextvol.data.local.room.dao.BookVolumesDao
@@ -35,7 +35,7 @@ import javax.inject.Singleton
 
 @Suppress("OPT_IN_USAGE")
 @Singleton
-class LocalDataManager @Inject constructor(
+class BackupDataManager @Inject constructor(
     private val database: NextVolDatabase,
     private val bookBookInformationDao: BookInformationDao,
     private val bookRecordDao: BookRecordDao,
@@ -52,7 +52,7 @@ class LocalDataManager @Inject constructor(
     private val downloads: BookDownloadStore,
 ) {
     companion object {
-        const val TAG = "LocalDataManager"
+        const val TAG = "BackupDataManager"
     }
 
     val currentAppDataVersion = 1
@@ -97,7 +97,7 @@ class LocalDataManager @Inject constructor(
         bookmark: Boolean = true,
     ): Result<LocalData, Throwable> {
         downloads.prepare()
-        val exportOptionLocalData = ExportOptionLocalData(
+        val backupDataCollector = BackupDataCollector(
             bookBookInformationDao = bookBookInformationDao,
             bookDownloadDao = database.bookDownloadDao(),
             bookRecordDao = bookRecordDao,
@@ -121,24 +121,24 @@ class LocalDataManager @Inject constructor(
         var bookAliases = emptyList<indi.renakoni.nextvol.data.local.room.entity.BookAliasEntity>()
         return runCatching {
             statisticsWriteCoordinator.withLock { database.withTransaction {
-                exportOptionLocalData.solve()
+                backupDataCollector.solve()
                 if (bookmark) readingBookmarks = database.readingBookmarkDao().all()
                 val localIds = buildSet {
-                    addAll(exportOptionLocalData.bookInformationEntities.map { it.id })
-                    addAll(exportOptionLocalData.bookshelfEntities.flatMap { it.allBookIds })
-                    addAll(exportOptionLocalData.userReadingDataEntities.map { it.id })
-                    addAll(exportOptionLocalData.bookRecordEntities.map { it.bookId })
+                    addAll(backupDataCollector.bookInformationEntities.map { it.id })
+                    addAll(backupDataCollector.bookshelfEntities.flatMap { it.allBookIds })
+                    addAll(backupDataCollector.userReadingDataEntities.map { it.id })
+                    addAll(backupDataCollector.bookRecordEntities.map { it.bookId })
                     addAll(readingBookmarks.map { it.bookId })
                 }
                 val references = localFileReferences(localIds, includeLegacyDirectory = !localBookCache)
                 bookAliases = database.bookAliasDao().all().filter { it.canonicalId in localIds || it.id in localIds }
                 localBookFiles = references.localBookFiles
-                exportOptionLocalData.bookInformationEntities.addAll(references.bookInformationEntities.filter { info ->
-                    exportOptionLocalData.bookInformationEntities.none { it.id == info.id }
+                backupDataCollector.bookInformationEntities.addAll(references.bookInformationEntities.filter { info ->
+                    backupDataCollector.bookInformationEntities.none { it.id == info.id }
                 })
                 if (!localBookCache) {
-                    exportOptionLocalData.volumeEntities.addAll(references.volumeEntities)
-                    exportOptionLocalData.chapterInformationEntities.addAll(references.chapterInformationEntities)
+                    backupDataCollector.volumeEntities.addAll(references.volumeEntities)
+                    backupDataCollector.chapterInformationEntities.addAll(references.chapterInformationEntities)
                 }
             } }
         }.andThen {
@@ -147,19 +147,19 @@ class LocalDataManager @Inject constructor(
                     bookAliases = bookAliases,
                     localBookFiles = localBookFiles,
                     readingBookmarks = readingBookmarks,
-                    bookInformationEntities = exportOptionLocalData.bookInformationEntities,
-                    bookRecordEntities = exportOptionLocalData.bookRecordEntities,
-                    dailyCountEntities = exportOptionLocalData.dailyCountEntities,
-                    bookshelfEntities = exportOptionLocalData.bookshelfEntities,
-                    bookshelfBookMetadataEntities = exportOptionLocalData.bookshelfBookMetadataEntities,
-                    chapterContentEntities = exportOptionLocalData.chapterContentEntities,
-                    chapterInformationEntities = exportOptionLocalData.chapterInformationEntities,
-                    formattingRuleEntities = exportOptionLocalData.formattingRuleEntities,
-                    userReadingDataEntities = exportOptionLocalData.userReadingDataEntities,
-                    volumeEntities = exportOptionLocalData.volumeEntities,
-                    userDataEntities = exportOptionLocalData.userDataEntities,
-                    bookDownloadEntities = exportOptionLocalData.bookDownloadEntities,
-                    downloadedChapterEntities = exportOptionLocalData.downloadedChapterEntities,
+                    bookInformationEntities = backupDataCollector.bookInformationEntities,
+                    bookRecordEntities = backupDataCollector.bookRecordEntities,
+                    dailyCountEntities = backupDataCollector.dailyCountEntities,
+                    bookshelfEntities = backupDataCollector.bookshelfEntities,
+                    bookshelfBookMetadataEntities = backupDataCollector.bookshelfBookMetadataEntities,
+                    chapterContentEntities = backupDataCollector.chapterContentEntities,
+                    chapterInformationEntities = backupDataCollector.chapterInformationEntities,
+                    formattingRuleEntities = backupDataCollector.formattingRuleEntities,
+                    userReadingDataEntities = backupDataCollector.userReadingDataEntities,
+                    volumeEntities = backupDataCollector.volumeEntities,
+                    userDataEntities = backupDataCollector.userDataEntities,
+                    bookDownloadEntities = backupDataCollector.bookDownloadEntities,
+                    downloadedChapterEntities = backupDataCollector.downloadedChapterEntities,
                 )
             )
         }

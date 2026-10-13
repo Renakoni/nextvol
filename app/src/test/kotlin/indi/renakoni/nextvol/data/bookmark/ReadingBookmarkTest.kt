@@ -12,9 +12,9 @@ import indi.renakoni.nextvol.data.book.SourceChapterId
 import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.download.BookDownloadStore
-import indi.renakoni.nextvol.data.local.LocalDataManager
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
-import indi.renakoni.nextvol.data.local.cbor.LocalData
+import indi.renakoni.nextvol.data.backup.BackupDataManager
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.LocalData
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
@@ -55,10 +55,10 @@ class ReadingBookmarkTest {
         fingerprint = "a".repeat(64), preview = "Recognizable text", progress = .4f)
     private fun open() = Room.databaseBuilder(context, NextVolDatabase::class.java, name)
         .allowMainThreadQueries().addMigrations(NextVolDatabase.MIGRATION_21_22, NextVolDatabase.MIGRATION_22_23, NextVolDatabase.MIGRATION_23_24, NextVolDatabase.MIGRATION_24_25, NextVolDatabase.MIGRATION_25_26, NextVolDatabase.MIGRATION_26_27, NextVolDatabase.MIGRATION_27_28, NextVolDatabase.MIGRATION_28_29).build()
-    private fun backup(): LocalDataManager {
+    private fun backup(): BackupDataManager {
         val coordinator = StatisticsWriteCoordinator()
         val stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), mockk(), coordinator)
-        return LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
+        return BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
             db.bookshelfDao(), db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(),
             db.userReadingDataDao(), db.userDataDao(), mockk(relaxed = true), coordinator, stats,
             BookDownloadStore(context, db, ContentJsonDecoder(ContentComponentRegistry())))

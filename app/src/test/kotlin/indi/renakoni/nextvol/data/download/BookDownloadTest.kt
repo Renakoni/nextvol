@@ -24,7 +24,7 @@ import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.image.*
 import indi.renakoni.nextvol.data.local.LocalBookDataSource
-import indi.renakoni.nextvol.data.local.LocalDataManager
+import indi.renakoni.nextvol.data.backup.BackupDataManager
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
@@ -595,7 +595,7 @@ class BookDownloadTest {
         assertEquals(ListenableWorker.Result.success(), download())
         val attempt = downloads.begin(a, downloads.generation(), "active-before-backup")
         val coordinator = StatisticsWriteCoordinator()
-        val backup = LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
+        val backup = BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
             db.bookshelfDao(), db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(), db.userReadingDataDao(),
             db.userDataDao(), mockk(relaxed = true), coordinator,
             StatsRepository(db.bookRecordDao(), db.dailyCountDao(), books, coordinator), downloads)
