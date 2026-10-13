@@ -106,7 +106,7 @@ class DownloadManagerScreenTest {
             indi.renakoni.nextvol.data.download.DownloadSubmission.Rejected(indi.renakoni.nextvol.data.download.DownloadFailure.Scheduling)
         val query = mockk<StorageBookQuery>()
         coEvery { query.getCachedBooks() } coAnswers { awaitCancellation() }
-        val model = BookManagerViewModel(repository, mockk(), mockk(), mockk(), mockk(), mockk(), mockk(), query)
+        val model = BookManagerViewModel(repository, mockk(), mockk(), query, mockk())
         try {
             val status = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Complete, 3, 3),
                 DownloadTaskState(DownloadTaskStatus.Complete, DownloadStage.Body))

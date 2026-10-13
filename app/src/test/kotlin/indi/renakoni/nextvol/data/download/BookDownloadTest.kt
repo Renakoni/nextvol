@@ -26,6 +26,11 @@ import indi.renakoni.nextvol.data.image.*
 import indi.renakoni.nextvol.data.local.LocalBookDataSource
 import indi.renakoni.nextvol.data.backup.BackupDataManager
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
+import indi.renakoni.nextvol.data.localbook.LocalBookStore
+import indi.renakoni.nextvol.data.storage.BookClearTarget
+import indi.renakoni.nextvol.data.storage.StorageBookCleanup
+import indi.renakoni.nextvol.data.storage.StorageUsageRepository
+import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
 import indi.renakoni.nextvol.data.text.TextProcessingRepository
@@ -663,8 +668,9 @@ class BookDownloadTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val models = androidx.lifecycle.ViewModelStore()
         val model = indi.renakoni.nextvol.ui.bookmanager.BookManagerViewModel(
-            books, progress, db, usage, mockk(relaxed = true), downloads, mockk(relaxed = true),
-            indi.renakoni.nextvol.data.storage.StorageBookQuery(db, usage, mockk(relaxed = true)))
+            books, progress, mockk(relaxed = true),
+            indi.renakoni.nextvol.data.storage.StorageBookQuery(db, usage, mockk(relaxed = true)),
+            indi.renakoni.nextvol.data.storage.StorageBookCleanup(db, usage, mockk(), downloads, progress, mockk()))
         models.put("manager", model)
         val job = model.viewModelScope.coroutineContext[Job]
         try {
@@ -700,6 +706,141 @@ class BookDownloadTest {
             models.clear()
             withTimeout(5000) { job?.join() }
             Dispatchers.resetMain()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun mixedBookCleanupDeletesOnlyTheSelectedImportAndRemoteCache() = runBlocking {
+        for (book in listOf(a, b)) {
+            register(book).withImages = true
+            assertEquals(ListenableWorker.Result.success(), download(book))
+            local.updateUserReadingData(book.storageKey) { it.copy(totalReadTime = 42) }
+        }
+        val imports = LocalBookStore(context, db)
+        val original = directory.newFile("import.txt").apply { writeText("第一章 开始\n正文") }
+        suspend fun importCopy(shelf: Int? = null): Pair<SourceBookId, Int> {
+            val draft = imports.stage(Uri.fromFile(original))
+            return imports.publish(draft, imports.preview(draft), "Import", shelf)
+        }
+        val (selected, shelfId) = importCopy()
+        val (kept, _) = importCopy(shelfId)
+        val shelf = db.bookshelfDao().getBookshelf(shelfId)!!
+        db.bookshelfDao().insertBookshelf(shelf.copy(allBookIds = shelf.allBookIds + listOf(a.storageKey, b.storageKey)))
+        local.updateUserReadingData(selected.storageKey) { it.copy(totalReadTime = 9) }
+        val usage = StorageUsageRepository(context, db, UserDataRepository(db.userDataDao()))
+        val cleanup = StorageBookCleanup(db, usage, workManager, downloads, progress, imports)
+        val completed = androidx.concurrent.futures.ResolvableFuture.create<androidx.work.Operation.State.SUCCESS>()
+            .apply { set(androidx.work.Operation.SUCCESS) }
+        every { workManager.cancelUniqueWork(any()) } returns mockk { every { result } returns completed }
+        usage.refreshSnapshot()
+        assertEquals(2, cleanup.deleteBooks(listOf(selected.storageKey, a.storageKey)))
+        assertNull(usage.getCachedSnapshot())
+        assertEquals(0L, imports.storedBytes(selected))
+        assertNull(db.userReadingDataDao().getEntity(selected.storageKey))
+        assertFalse(selected.storageKey in db.bookshelfDao().getBookshelf(shelfId)!!.allBookIds)
+        assertTrue(imports.contains(kept))
+        assertTrue(imports.storedBytes(kept) > 0)
+        assertNull(db.bookInformationDao().get(a.storageKey))
+        assertNull(chapter(a, "1"))
+        assertNull(downloads.image(SourceImage(a, IMAGE)))
+        assertEquals(42, db.userReadingDataDao().getEntity(a.storageKey)!!.totalReadTime)
+        assertTrue(a.storageKey in db.bookshelfDao().getBookshelf(shelfId)!!.allBookIds)
+        assertEquals(BookDownloadPhase.Complete, state(b).phase)
+        assertNotNull(chapter(b, "1"))
+        assertNotNull(downloads.image(SourceImage(b, IMAGE)))
+        io.mockk.verify(exactly = 0) { workManager.cancelUniqueWork(CacheBookWork.ofId(b.storageKey)) }
+
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        val model = indi.renakoni.nextvol.ui.bookmanager.BookManagerViewModel(books, progress, workManager,
+            indi.renakoni.nextvol.data.storage.StorageBookQuery(db, usage, imports), cleanup)
+        try {
+            withTimeout(5000) { model.viewModelScope.coroutineContext[Job]!!.children.toList().joinAll() }
+            assertEquals(1, model.clearBookDataItems(b.storageKey,
+                listOf(indi.renakoni.nextvol.ui.bookmanager.LocalBookClearTarget.ReadingRecord)))
+            assertEquals(0L, model.localBookManagerUiState.bookList.single { it.id == b.storageKey }.readingRecordBytes)
+            model.enterLocalBookSelection(b.storageKey)
+            assertEquals(1, model.deleteSelectedLocalBooks())
+            assertNull(db.bookInformationDao().get(b.storageKey))
+            assertTrue(model.localBookManagerUiState.selectedIds.isEmpty())
+            assertFalse(model.localBookManagerUiState.isSelecting)
+            assertFalse(model.localBookManagerUiState.isDeleting)
+            assertEquals(0, model.deleteSelectedLocalBooks())
+            assertTrue(model.localBookManagerUiState.bookList.any { it.id == kept.storageKey })
+        } finally {
+            model.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun clearingIndexAndContentKeepsTheReadingRecordAndBookInformation() = runBlocking {
+        val source = Remote(a)
+        local.updateBookInformation(a.bind(source.information()))
+        local.updateBookVolumes(a.bind(source.directory()))
+        local.updateChapterContent(SourceChapterId(a, "1").bind(source.body("1")))
+        local.updateUserReadingData(a.storageKey) { it.copy(totalReadTime = 9) }
+        val usage = StorageUsageRepository(context, db, UserDataRepository(db.userDataDao()))
+        val cleanup = StorageBookCleanup(db, usage, workManager, downloads, progress, LocalBookStore(context, db))
+        val completed = androidx.concurrent.futures.ResolvableFuture.create<androidx.work.Operation.State.SUCCESS>()
+            .apply { set(androidx.work.Operation.SUCCESS) }
+        every { workManager.cancelUniqueWork(any()) } returns mockk { every { result } returns completed }
+        usage.refreshSnapshot()
+        assertEquals(5, cleanup.clearBookData(a.storageKey,
+            listOf(BookClearTarget.VolumeAndChapterIndex, BookClearTarget.ChapterContent)))
+        assertTrue(db.bookVolumesDao().getVolumeEntitiesByBookId(a.storageKey).isEmpty())
+        assertNull(db.bookVolumesDao().getChapterInformationEntity(SourceChapterId(a, "1").storageKey))
+        assertNull(chapter(a, "1"))
+        assertEquals(9, db.userReadingDataDao().getEntity(a.storageKey)!!.totalReadTime)
+        assertNotNull(db.bookInformationDao().get(a.storageKey))
+        assertNull(usage.getCachedSnapshot())
+    }
+
+    @Test fun cleanupWaitsForBothCancellationsAndDoesNotDeleteAfterFailureOrCancellation() = runBlocking {
+        register(a).withImages = true
+        assertEquals(ListenableWorker.Result.success(), download())
+        val usage = StorageUsageRepository(context, db, UserDataRepository(db.userDataDao()))
+        val cleanup = StorageBookCleanup(db, usage, workManager, downloads, progress, LocalBookStore(context, db))
+        for (outcome in listOf("failure", "cancel", "success")) {
+            val cacheCancellation = androidx.concurrent.futures.ResolvableFuture.create<androidx.work.Operation.State.SUCCESS>()
+            val exportCancellation = androidx.concurrent.futures.ResolvableFuture.create<androidx.work.Operation.State.SUCCESS>()
+            val exportEntered = CompletableDeferred<Unit>()
+            every { workManager.cancelUniqueWork(CacheBookWork.ofId(a.storageKey)) } returns
+                mockk { every { result } returns cacheCancellation }
+            every { workManager.cancelUniqueWork(indi.renakoni.nextvol.data.work.ExportBookToEPUBWork.ofId(a.storageKey)) } answers {
+                exportEntered.complete(Unit)
+                mockk { every { result } returns exportCancellation }
+            }
+            val before = usage.refreshSnapshot()
+            val operation = async(start = CoroutineStart.UNDISPATCHED) { runCatching { cleanup.deleteBooks(listOf(a.storageKey)) } }
+            try {
+                assertFalse(exportEntered.isCompleted)
+                assertNotNull(chapter(a, "1"))
+                assertNotNull(downloads.image(SourceImage(a, IMAGE)))
+                if (outcome == "failure") {
+                    cacheCancellation.setException(IllegalStateException("cancellation failed"))
+                    assertTrue(withTimeout(5000) { operation.await() }.isFailure)
+                    assertFalse(exportEntered.isCompleted)
+                } else {
+                    cacheCancellation.set(androidx.work.Operation.SUCCESS)
+                    withTimeout(5000) { exportEntered.await() }
+                    assertNotNull(chapter(a, "1"))
+                    assertNotNull(downloads.image(SourceImage(a, IMAGE)))
+                    if (outcome == "cancel") operation.cancelAndJoin() else {
+                        exportCancellation.set(androidx.work.Operation.SUCCESS)
+                        assertEquals(1, withTimeout(5000) { operation.await() }.getOrThrow())
+                    }
+                }
+                if (outcome == "success") {
+                    assertNull(chapter(a, "1"))
+                    assertNull(downloads.image(SourceImage(a, IMAGE)))
+                    assertNull(db.bookInformationDao().get(a.storageKey))
+                    assertNull(usage.getCachedSnapshot())
+                } else {
+                    assertNotNull(chapter(a, "1"))
+                    assertNotNull(db.bookInformationDao().get(a.storageKey))
+                    assertEquals(before, usage.getCachedSnapshot())
+                    io.mockk.verify(exactly = 0) { progress.clearCachedItems(any()) }
+                }
+            } finally { operation.cancelAndJoin() }
         }
     }
 
