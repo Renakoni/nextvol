@@ -7,6 +7,7 @@ import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -94,19 +95,17 @@ class UpdateCheckRepository @Inject constructor(
             Log.e("UpdateChecker", "Didn't find the release because release is null!")
             return
         }
-        if (_isDownloading.value) {
+        if (!_isDownloading.compareAndSet(false, true)) {
             Log.w("UpdateChecker", "Download already in progress")
             return
         }
 
-        val files = downloader.prepare()
-
         coroutineScope.launch {
-            _isDownloading.emit(true)
-            _downloadProgress.emit(0f)
             try {
+                _downloadProgress.emit(0f)
                 _updatePhase.emit(UpdatePhase(R.string.update_phase_downloading))
                 systemInteraction.createNotificationChannel()
+                val files = downloader.prepare()
                 systemInteraction.showDownloadNotification(0, release.versionName)
 
                 var lastNotificationUpdate = 0L
@@ -138,6 +137,8 @@ class UpdateCheckRepository @Inject constructor(
                     _updatePhase.emit(UpdatePhase(R.string.update_phase_empty_file))
                     systemInteraction.showDownloadFailedNotification(context.getString(R.string.update_download_empty_file))
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("UpdateChecker", "Download failed", e)
                 val phase = when {
@@ -147,9 +148,10 @@ class UpdateCheckRepository @Inject constructor(
                 }
                 _updatePhase.emit(phase)
                 systemInteraction.showDownloadFailedNotification(context.getString(phase.messageId, *phase.arguments.toTypedArray()))
-            } finally {
-                _isDownloading.emit(false)
             }
+        }.invokeOnCompletion {
+            // Also release admission if cancellation prevents the coroutine body from starting.
+            _isDownloading.value = false
         }
     }
 }

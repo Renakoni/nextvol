@@ -26,6 +26,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.io.IOException
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -85,6 +86,109 @@ class UpdateDownloadRepositoryTest {
             started.await()
             repository.isDownloading.first { !it }
         }
+    }
+
+    @Test fun concurrentCallsAreRejectedBeforePreparationAndUntilInstallationFinishes() = runBlocking {
+        checked()
+        val files = downloader.prepare()
+        files.apk.writeText("previous apk")
+        files.temporary.writeText("previous temporary file")
+        clearMocks(downloader, answers = false)
+        val preparing = CompletableDeferred<Unit>()
+        val prepareFiles = CountDownLatch(1)
+        val installing = CompletableDeferred<Unit>()
+        val finishInstallation = CountDownLatch(1)
+        every { downloader.prepare() } answers {
+            preparing.complete(Unit)
+            check(prepareFiles.await(5, TimeUnit.SECONDS))
+            callOriginal()
+        }
+        every { system.installApk(any()) } answers {
+            installing.complete(Unit)
+            check(finishInstallation.await(5, TimeUnit.SECONDS))
+        }
+        server.enqueue(MockResponse().setBody("apk"))
+        val firstCall = async(Dispatchers.Default) { repository.downloadUpdate() }
+        try {
+            withTimeout(5000) { preparing.await() }
+            val secondCall = async(Dispatchers.Default) { repository.downloadUpdate() }
+            withTimeout(5000) { secondCall.await() }
+            assertTrue(repository.isDownloading.value)
+            verify(exactly = 1) { downloader.prepare() }
+            assertEquals(0, server.requestCount)
+            assertEquals("previous apk", files.apk.readText())
+            assertEquals("previous temporary file", files.temporary.readText())
+
+            prepareFiles.countDown()
+            withTimeout(5000) { installing.await() }
+            assertTrue(repository.isDownloading.value)
+            repository.downloadUpdate()
+            verify(exactly = 1) { downloader.prepare(); system.installApk(any()) }
+            assertEquals("apk", files.apk.readText())
+        } finally {
+            prepareFiles.countDown()
+            finishInstallation.countDown()
+        }
+        withTimeout(5000) { firstCall.await() }
+        finished()
+        assertEquals(1, server.requestCount)
+        verify(exactly = 1) { system.showDownloadCompleteNotification(any()) }
+        verify(exactly = 0) { system.showDownloadFailedNotification(any()) }
+
+        server.enqueue(MockResponse().setBody("retry apk"))
+        repository.downloadUpdate()
+        finished()
+        assertEquals(2, server.requestCount)
+        assertEquals("retry apk", files.apk.readText())
+        verify(exactly = 2) { downloader.prepare(); system.installApk(any()) }
+    }
+
+    @Test fun preparationFailureReportsAnErrorAndAllowsRetryWithoutStartingARequest() = runBlocking {
+        checked()
+        every { downloader.prepare() } throws IOException("storage unavailable")
+        repository.downloadUpdate()
+        finished()
+        assertEquals(0, server.requestCount)
+        assertEquals(R.string.update_phase_download_failed, repository.updatePhase.first().messageId)
+        assertEquals(listOf("storage unavailable"), repository.updatePhase.first().arguments)
+        verify(exactly = 1) { system.showDownloadFailedNotification(any()) }
+        verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
+        coVerify(exactly = 0) { downloader.download(any(), any(), any(), any()) }
+
+        every { downloader.prepare() } answers { callOriginal() }
+        server.enqueue(MockResponse().setBody("apk"))
+        repository.downloadUpdate()
+        finished()
+        assertEquals(1, server.requestCount)
+        verify(exactly = 2) { downloader.prepare() }
+        verify(exactly = 1) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
+    }
+
+    @Test fun cancellationReleasesAdmissionWithoutFailureOrCompletionAndAllowsRetry() = runBlocking {
+        checked()
+        val downloading = CompletableDeferred<Job>()
+        coEvery { downloader.download(any(), any(), any(), any()) } coAnswers {
+            downloading.complete(currentCoroutineContext().job)
+            awaitCancellation()
+        }
+        repository.downloadUpdate()
+        val job = withTimeout(5000) { downloading.await() }
+        assertTrue(repository.isDownloading.value)
+        withTimeout(5000) { job.cancelAndJoin() }
+        assertTrue(job.isCancelled)
+        assertFalse(repository.isDownloading.value)
+        verify(exactly = 0) {
+            system.showDownloadFailedNotification(any())
+            system.showDownloadCompleteNotification(any())
+            system.installApk(any())
+        }
+
+        clearMocks(downloader)
+        server.enqueue(MockResponse().setBody("apk"))
+        repository.downloadUpdate()
+        finished()
+        assertEquals(1, server.requestCount)
+        verify(exactly = 1) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
     }
 
     @Test fun realDownloadKeepsBusyProgressCompletionAndInstallationOrder() = runBlocking {
