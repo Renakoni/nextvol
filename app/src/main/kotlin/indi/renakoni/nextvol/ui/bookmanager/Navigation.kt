@@ -47,9 +47,10 @@ private fun BookManagerDestination(localContent: Boolean) {
             snackbarHostState.showSnackbar(context.downloadSubmissionText(result), withDismissAction = true)
         }
     }
-    LaunchedEffect(viewModel.deleteFailures) {
+    val deleteFailedText = stringResource(R.string.book_manager_delete_failed)
+    LaunchedEffect(viewModel.deleteFailures, deleteFailedText) {
         viewModel.deleteFailures.collect {
-            snackbarHostState.showSnackbar(context.getString(R.string.book_manager_delete_failed), withDismissAction = true)
+            snackbarHostState.showSnackbar(deleteFailedText, withDismissAction = true)
         }
     }
     uiState.openStorageOverview = {
