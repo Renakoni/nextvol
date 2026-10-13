@@ -622,6 +622,7 @@ class RuleSourceTest {
                     "header" to JsonPrimitive(if (dynamic)
                         "@js:JSON.stringify({Authorization:java.ajax('/token'),'User-Agent':'source-agent',Cookie:'source=login'})"
                         else """{"Authorization":"static","User-Agent":"source-agent","Cookie":"source=login"}"""),
+                    "loginUi" to JsonPrimitive("[]"),
                     "loginUrl" to JsonPrimitive("""
                         function login(){
                             if(java.webView(null,'${url}view','')!=='accepted')throw 'view header';
@@ -662,11 +663,11 @@ class RuleSourceTest {
                 val header = """{"User-Agent":"source-agent","Authorization":"Bearer alice","Cookie":"source=login"}"""
                 fixture.source(customize = { raw -> JsonObject(raw + mapOf(
                     "loginUrl" to JsonPrimitive(fixture.server.url("/login").toString()),
-                    "loginUi" to JsonPrimitive("""[{"name":"user"}]"""),
                     "header" to JsonPrimitive(if (dynamic) """@js:JSON.stringify({
                         'User-Agent':'source-agent',Authorization:'Bearer '+source.getLoginInfoMap().get('user'),Cookie:'source=login'})""" else header)
                 )) }).use { source ->
-                    source.login(mapOf("user" to "alice"))
+                    source.evaluation().script("""source.putLoginInfo('{"user":"alice"}')""", hnovel.rules.RuleValue.Empty, "fixture")
+                    source.login(emptyMap())
                     assertEquals(1, navigations)
                     assertEquals(1, fixture.server.requestCount)
                 }

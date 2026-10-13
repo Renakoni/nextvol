@@ -1,8 +1,10 @@
 package hnovel.content
 
+import hnovel.execution.resolveSourceLink
 import hnovel.rules.RequestOptionsException
 import hnovel.rules.RequestOptionsJson
 import kotlinx.serialization.json.*
+import java.net.URI
 import java.util.UUID
 
 data class LoginField(val name: String, val type: String, val action: String? = null,
@@ -28,7 +30,7 @@ data class LoginForm(val fields: List<LoginField>, val browserUrl: String?, val 
     }
 
     companion object {
-        fun parse(ui: String, loginUrl: String, extended: Boolean = false): LoginForm {
+        fun parse(ui: String, loginUrl: String, extended: Boolean = false, baseUrl: String = ""): LoginForm {
             val rows = if (ui.isBlank() && ui.length <= 65536) JsonArray(emptyList()) else try {
                 RequestOptionsJson.parse(ui) as? JsonArray
             } catch (failure: RequestOptionsException) {
@@ -43,8 +45,8 @@ data class LoginForm(val fields: List<LoginField>, val browserUrl: String?, val 
                 val row = value as? JsonObject ?: invalid("row")
                 // Like RuleDiscoverySession.rows in RuleDiscovery.kt, accept style while the host owns
                 // layout. Keep this compatibility decision aligned when tightening either row schema.
-                val allowed = setOf("name", "type", "action", "style") + if (extended)
-                    setOf("default", "chars", "viewName", "enabled", "section", "checked", "description") else emptySet()
+                val allowed = setOf("name", "type", "action", "style", "default", "chars", "viewName") + if (extended)
+                    setOf("enabled", "section", "checked", "description") else emptySet()
                 row.keys.firstOrNull { it !in allowed }?.let { invalid(it) }
                 fun string(key: String): String? = row[key]?.takeUnless { it == JsonNull }?.let {
                     if (it !is JsonPrimitive || !it.isString) invalid(key)
@@ -56,7 +58,7 @@ data class LoginForm(val fields: List<LoginField>, val browserUrl: String?, val 
                 }
                 val name = string("name")?.takeIf { it.isNotBlank() && it.length <= 128 } ?: invalid("name")
                 val type = string("type") ?: "text"
-                if (type !in setOf("text", "password", "button") && (!extended || type !in setOf("toggle", "select"))) invalid("type")
+                if (type !in setOf("text", "password", "button", "toggle", "select")) invalid("type")
                 val section = string("section")?.also { if (it.isBlank() || it.length > 128) invalid("section") }
                 val description = string("description")?.also { if (it.length > 512) invalid("description") }
                 val checked = boolean("checked")
@@ -87,7 +89,13 @@ data class LoginForm(val fields: List<LoginField>, val browserUrl: String?, val 
                 if (bindings.map { Triple(it.type, it.default, it.choices) }.distinct().size != 1)
                     throw SourceContentException(ContentError.InvalidRule, "loginUi.name")
             }
-            val browser = loginUrl.trim().takeIf { it.startsWith("http://", true) || it.startsWith("https://", true) }
+            // Without a loginUi, Legado opens a website relative to the source key.
+            val browser = loginUrl.trim().takeIf { ui.isBlank() && it.isNotEmpty() }?.let { url ->
+                try {
+                    URI(url) // A website target is URL data, never a script or a JSON object.
+                    resolveSourceLink(baseUrl, url)
+                } catch (_: Exception) { throw SourceContentException(ContentError.InvalidRule, "loginUrl") }
+            }
             return LoginForm(fields, browser).withValues(emptyMap()).also { it.validate(it.values) }
         }
     }
