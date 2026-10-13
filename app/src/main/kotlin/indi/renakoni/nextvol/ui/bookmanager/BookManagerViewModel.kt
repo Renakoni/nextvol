@@ -18,6 +18,7 @@ import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.storage.StorageUsageRepository
 import indi.renakoni.nextvol.data.storage.StorageBook
 import indi.renakoni.nextvol.data.storage.StorageBookQuery
+import indi.renakoni.nextvol.data.storage.chapterOwners
 import indi.renakoni.nextvol.data.work.CacheBookWork
 import indi.renakoni.nextvol.data.work.ExportBookToEPUBWork
 import kotlinx.coroutines.Dispatchers
@@ -176,18 +177,20 @@ class BookManagerViewModel @Inject constructor(
 
     suspend fun clearOrphanedDataItems(): Int {
         val count = database.withTransaction {
-            val linkedChapterIds = database.bookVolumesDao()
-                .getAllVolumeEntities()
-                .flatMap { it.chapterIds }
-                .toSet() + database.bookDownloadDao().allChapters().map { it.id }
+            val chapterToBookMap = chapterOwners(
+                catalogChapters = database.bookVolumesDao().getAllVolumeEntities().asSequence().flatMap { volume ->
+                    volume.chapterIds.asSequence().map { it to volume.bookId }
+                },
+                downloadedChapters = database.bookDownloadDao().allChapters().asSequence().map { it.id to it.bookId },
+            )
             val orphanChapterInfoIds = database.bookVolumesDao()
                 .getAllChapterInformationEntities()
                 .map { it.id }
-                .filterNot(linkedChapterIds::contains)
+                .filterNot(chapterToBookMap::containsKey)
             val orphanChapterContentIds = database.chapterContentDao()
                 .getAllEntities()
                 .map { it.id }
-                .filterNot(linkedChapterIds::contains)
+                .filterNot(chapterToBookMap::containsKey)
 
             if (orphanChapterInfoIds.isNotEmpty()) {
                 database.bookVolumesDao().deleteChapterInformationByIds(orphanChapterInfoIds)
