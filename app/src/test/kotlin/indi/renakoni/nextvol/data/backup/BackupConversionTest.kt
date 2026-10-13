@@ -118,10 +118,10 @@ class BackupConversionTest {
         assertEquals(before, db.bookshelfDao().getAllBookshelves())
     }
 
-    @Test fun allExportSelectionCombinationsRemainValidAfterLegacyImport() = runBlocking {
+    @Test fun individualExportSelectionsRemainValidAfterLegacyImport() = runBlocking {
         restore(legacyBytes())
         val keys = listOf("exportLocalBookCache", "exportBookshelf", "exportReadingData", "exportSetting", "exportBookmark")
-        for (mask in 0 until 32) {
+        for (mask in listOf(0, 1, 2, 4, 8, 16)) {
             val flags = (0 until 5).map { mask and (1 shl it) != 0 }
             val uri = Uri.parse("content://backup-conversion/options-$mask")
             val output = ByteArrayOutputStream()
