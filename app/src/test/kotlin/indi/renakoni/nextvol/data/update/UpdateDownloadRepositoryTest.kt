@@ -46,7 +46,7 @@ class UpdateDownloadRepositoryTest {
     private val events = Collections.synchronizedList(mutableListOf<String>())
     private val started = CompletableDeferred<Unit>()
     private val main = Executors.newSingleThreadExecutor { Thread(it, "update-install-test") }.asCoroutineDispatcher()
-    private var installationThread: String? = null
+    private var installationThread: Thread? = null
     private lateinit var repository: UpdateCheckRepository
 
     @Before fun prepare() {
@@ -61,7 +61,7 @@ class UpdateDownloadRepositoryTest {
         every { system.showDownloadFailedNotification(any()) } answers { events += "failed:${firstArg<String>()}"; Unit }
         every { system.installApk(any()) } answers {
             events += "install"
-            installationThread = Thread.currentThread().name
+            installationThread = Thread.currentThread()
         }
     }
 
@@ -110,7 +110,7 @@ class UpdateDownloadRepositoryTest {
         finished()
         assertEquals(1, server.requestCount)
         assertEquals(listOf("channel", "progress:0", "progress:100", "complete", "install"), events)
-        assertEquals("update-install-test", installationThread)
+        assertSame(withContext(main) { Thread.currentThread() }, installationThread)
         assertEquals(1f, repository.downloadProgress.value)
         assertEquals(R.string.update_phase_download_complete, repository.updatePhase.first().messageId)
         assertEquals("apk", directory.root.resolve("updates/LightNovelReader-update.apk").readText())

@@ -10,6 +10,7 @@ import android.content.Intent
 import androidx.core.content.FileProvider
 import indi.renakoni.nextvol.R
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -28,6 +29,12 @@ class AndroidUpdateInteractionTest {
         parentFile!!.mkdirs()
         writeText("apk")
     } }
+
+    @Before fun providerPaths() {
+        // Each Robolectric test has a new cache directory; reset FileProvider's cached roots.
+        val info = context.packageManager.resolveContentProvider("${context.packageName}.provider", 0)!!
+        FileProvider().attachInfo(context, info)
+    }
 
     @Test fun notificationPermissionDoesNotPreventDirectInstallation() {
         shadowOf(context).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
