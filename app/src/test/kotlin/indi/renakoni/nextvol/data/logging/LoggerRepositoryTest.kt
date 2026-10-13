@@ -72,14 +72,6 @@ class LoggerRepositoryTest {
         assertTrue(repository.fileLogEntries.any { it.text == line && it.logLevel == LogLevel.ERROR })
     }
 
-    @Test fun deletingSavedLogsRemovesTheFilesAndTheirDisplayedContent() {
-        val archive = loadArchive()
-        repository.deleteLogs()
-        assertFalse(archive.exists())
-        assertTrue(repository.fileLogEntries.isEmpty())
-        assertTrue(repository.getAvailableLogFiles().isEmpty())
-    }
-
     @Test fun deletingAllLogsAlsoClearsTheCurrentRunAndLoadedContent() {
         val archive = loadArchive()
         repository.realTimeLogEntries.add(LogEntry("current run", LogLevel.INFO))
@@ -87,6 +79,7 @@ class LoggerRepositoryTest {
         assertFalse(archive.exists())
         assertTrue(repository.realTimeLogEntries.isEmpty())
         assertTrue(repository.fileLogEntries.isEmpty())
+        assertTrue(repository.getAvailableLogFiles().isEmpty())
     }
 
     @Test fun sharingAnArchiveGrantsReadAccessToItsActualContent() {
