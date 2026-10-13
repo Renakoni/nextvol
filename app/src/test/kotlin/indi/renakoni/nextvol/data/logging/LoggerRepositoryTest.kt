@@ -6,10 +6,15 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.test.core.app.ApplicationProvider
+import indi.renakoni.nextvol.BuildConfig
+import indi.renakoni.nextvol.ui.home.settings.logcat.LIVE_LOG_OPTION
+import indi.renakoni.nextvol.ui.home.settings.logcat.LogcatViewModel
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkStatic
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -102,18 +107,56 @@ class LoggerRepositoryTest {
                 val info = context.packageManager.resolveContentProvider("${context.packageName}.provider", 0)!!
                 FileProvider().attachInfo(context, info)
             }
-            LoggerRepository(context).shareLogs(archive.name)
+            repository = LoggerRepository(context)
+            val viewModel = LogcatViewModel(repository, mockk(relaxed = true), LogFileSharer(context))
+            viewModel.onSelectLogFile(archive.name)
+            viewModel.shareLogs()
             val intent = shadowOf(context).nextStartedActivity
             assertEquals(Intent.ACTION_SEND, intent.action)
             assertEquals("text/plain", intent.type)
             assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
             assertTrue(intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
             val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)!!
+            assertEquals("${context.packageName}.provider", uri.authority)
             assertEquals(uri, intent.clipData!!.getItemAt(0).uri)
             assertEquals(line, context.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() })
+
+            // A selected archive may be cleared before the next share attempt.
+            assertTrue(repository.deleteLogs())
+            viewModel.shareLogs()
+            assertNull(shadowOf(context).nextStartedActivity)
+            assertEquals(listOf(LIVE_LOG_OPTION), viewModel.logFilenameList)
         } finally {
             if (File.separatorChar == '\\') unmockkStatic(FileProvider::class)
+            repository.deleteLogs()
             archive.delete()
         }
+    }
+
+    @Test fun sharingLiveLogsWritesTheReportAndRefreshesTheFileList() {
+        val currentLine = "09-20 12:00:01.000  123  456 I Reader: current run"
+        repository.realTimeLogEntries.addAll(listOf(
+            LogEntry(line, LogLevel.ERROR),
+            LogEntry(currentLine, LogLevel.INFO),
+        ))
+        repository.fileLogEntries.add(LogEntry("previous archive", LogLevel.SYSTEM))
+        val sharer = mockk<LogFileSharer>(relaxed = true)
+        val viewModel = LogcatViewModel(repository, mockk(relaxed = true), sharer)
+
+        viewModel.shareLogs()
+
+        val sharedFile = slot<File>()
+        verify(exactly = 1) { sharer.share(capture(sharedFile)) }
+        val export = sharedFile.captured
+        assertEquals(logsDir, export.parentFile)
+        assertTrue(export.name.matches(Regex("lnr_export_\\d{8}_\\d{6}\\.log")))
+        assertEquals(listOf(export.name, LIVE_LOG_OPTION), viewModel.logFilenameList)
+        val report = export.readText()
+        assertTrue(report.startsWith("NextVol ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"))
+        assertTrue(report.contains("\nDate: "))
+        assertTrue(report.contains("\nSDK_INT: 30\n"))
+        assertTrue(report.contains("\nSUPPORTED_ABIS: "))
+        assertTrue(report.endsWith("\n\n----- beginning of logs\n\n$line\n$currentLine\n----- end of logcat"))
+        assertFalse(report.contains("previous archive"))
     }
 }
