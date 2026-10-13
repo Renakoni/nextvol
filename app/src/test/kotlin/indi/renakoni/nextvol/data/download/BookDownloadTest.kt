@@ -642,7 +642,7 @@ class BookDownloadTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val models = androidx.lifecycle.ViewModelStore()
         val model = indi.renakoni.nextvol.ui.bookmanager.BookManagerViewModel(
-            books, progress, db, mockk(relaxed = true), mockk(relaxed = true), downloads, mockk(relaxed = true))
+            books, progress, db, mockk(relaxed = true), mockk(relaxed = true), downloads, mockk(relaxed = true), mockk(relaxed = true))
         models.put("manager", model)
         val job = model.viewModelScope.coroutineContext[Job]
         try {
@@ -1196,6 +1196,21 @@ class BookDownloadTest {
         assertEquals(png.size.toLong() * 3, saved.downloadImageBytes)
         assertEquals(before.downloadedContentBytes, saved.chapterContentBytes)
         assertEquals(before.preparationBytes, before.books.single { it.bookId == b.storageKey }.preparationBytes)
+        val lastRead = LocalDateTime.of(2026, 10, 13, 12, 0)
+        local.updateUserReadingData(a.storageKey) { it.copy(lastReadTime = lastRead) }
+        val query = indi.renakoni.nextvol.data.storage.StorageBookQuery(db, usage,
+            indi.renakoni.nextvol.data.localbook.LocalBookStore(measuredContext, db))
+        val listed = query.getCachedBooks()!!.associateBy { it.id }
+        assertEquals(before.books.map { it.bookId }.toSet(), listed.keys)
+        val cachedBook = listed.getValue(a.storageKey)
+        val readingBytes = db.storageStatsDao().getUserReadingBytes().single { it.id == a.storageKey }.bytes
+        assertEquals(saved, cachedBook.usage)
+        assertEquals(readingBytes, cachedBook.readingRecordBytes)
+        assertEquals(saved.totalBytes + readingBytes, cachedBook.size)
+        assertEquals(1, cachedBook.volumeCount)
+        assertEquals(1, cachedBook.chapterCount)
+        assertEquals(lastRead, cachedBook.lastReadTime)
+        assertEquals(before.preparationBytes, listed.getValue(b.storageKey).usage.preparationBytes)
         assertTrue(downloads.clearReadingCache())
         val after = usage.refreshSnapshot()
         assertEquals(0L, after.readingContentBytes)

@@ -16,7 +16,8 @@ import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.localbook.LocalBookStore
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.storage.StorageUsageRepository
-import indi.renakoni.nextvol.data.storage.StorageUsageSnapshot
+import indi.renakoni.nextvol.data.storage.StorageBook
+import indi.renakoni.nextvol.data.storage.StorageBookQuery
 import indi.renakoni.nextvol.data.work.CacheBookWork
 import indi.renakoni.nextvol.data.work.ExportBookToEPUBWork
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,7 @@ class BookManagerViewModel @Inject constructor(
     val workManager: WorkManager,
     private val downloads: BookDownloadStore,
     private val localBooks: LocalBookStore,
+    private val storageBooks: StorageBookQuery,
 ) : ViewModel() {
     val downloadItemIdList get() = downloadProgressRepository.downloadItemIdList
     private val _clearedItemsFlow = MutableSharedFlow<Int>()
@@ -58,7 +60,7 @@ class BookManagerViewModel @Inject constructor(
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            storageUsageRepository.getCachedSnapshot()?.let { updateLocalBooks(it, false) }
+            storageBooks.getCachedBooks()?.let { updateLocalBooks(it) }
             refreshLocalBooks()
         }
     }
@@ -258,45 +260,32 @@ class BookManagerViewModel @Inject constructor(
         withContext(Dispatchers.Main) {
             localBookManagerUiState.isLoading = true
         }
-        localBooks.restoreMetadata()
-        updateLocalBooks(storageUsageRepository.refreshSnapshot(), loading = false)
+        updateLocalBooks(storageBooks.refreshBooks())
     }
 
-    private suspend fun updateLocalBooks(snapshot: StorageUsageSnapshot, loading: Boolean) {
-        val volumes = database.bookVolumesDao().getAllVolumeEntities()
-        val readingData = database.userReadingDataDao().getAll()
-        val bookReadingBytesMap = database.storageStatsDao()
-            .getUserReadingBytes()
-            .associate { it.id to it.bytes }
-        val bookChapterCountMap = volumes.groupBy { it.bookId }
-            .mapValues { (_, list) -> list.sumOf { it.chapterIds.size } }
-        val bookVolumeCountMap = volumes.groupBy { it.bookId }
-            .mapValues { (_, list) -> list.size }
-        val bookLastReadTimeMap = readingData.associate { it.id to it.lastReadTime }
-
-        val bookList = snapshot.books.map { usage ->
-            val readingRecordBytes = bookReadingBytesMap[usage.bookId] ?: 0L
-            val importedFileBytes = localBooks.storedBytes(BookIdentity.book(usage.bookId))
+    private fun updateLocalBooks(books: List<StorageBook>) {
+        val bookList = books.map { book ->
+            val usage = book.usage
             LocalBookItem(
                 id = usage.bookId,
                 bookInformationFlow = bookRepository.getBookInformationFlow(usage.bookId),
-                size = usage.totalBytes + readingRecordBytes + importedFileBytes,
-                chapterCount = bookChapterCountMap[usage.bookId] ?: 0,
-                volumeCount = bookVolumeCountMap[usage.bookId] ?: 0,
-                lastReadTime = bookLastReadTimeMap[usage.bookId],
+                size = book.size,
+                chapterCount = book.chapterCount,
+                volumeCount = book.volumeCount,
+                lastReadTime = book.lastReadTime,
                 bookInformationBytes = usage.bookInformationBytes,
                 volumeBytes = usage.volumeBytes,
                 chapterInformationBytes = usage.chapterInformationBytes,
                 chapterContentBytes = usage.chapterContentBytes,
-                readingRecordBytes = readingRecordBytes,
-                importedFileBytes = importedFileBytes,
+                readingRecordBytes = book.readingRecordBytes,
+                importedFileBytes = book.importedFileBytes,
                 downloadImageBytes = usage.downloadImageBytes,
                 preparationBytes = usage.preparationBytes,
             )
-        }.filter { it.size > 0L }
+        }
         val retainedSelectedIds = localBookManagerUiState.selectedIds.intersect(bookList.map { it.id }.toSet())
 
-        localBookManagerUiState.isLoading = loading
+        localBookManagerUiState.isLoading = false
         localBookManagerUiState.bookList = bookList
         localBookManagerUiState.selectedIds = retainedSelectedIds
         localBookManagerUiState.isSelecting = localBookManagerUiState.isSelecting && retainedSelectedIds.isNotEmpty()
