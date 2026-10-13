@@ -86,7 +86,7 @@ class PixivSourceUpdatesTest {
             server.start()
             val host = Host(context, fixture, server)
             try {
-                // Restore before installing an old snapshot so startup repair cannot preempt the test.
+                // Install the current maintained definition before exercising update requests.
                 host.sources.restore()
                 host.id = host.sources.activate(host.commit(raw).reference(), host.grants)
                 host.action()
@@ -116,35 +116,6 @@ class PixivSourceUpdatesTest {
             assertNull(request.getHeader("Cookie"))
             assertNull(request.getHeader("Authorization"))
             assertTrue(File(context.cacheDir, "source-update-downloads").listFiles()!!.isEmpty())
-        }
-    }
-
-    @Test fun adaptedUpdatePreservesAccountGroupsAndPreferences(): Unit = runBlocking {
-        withSource(pixivUpdateFixture("pixiv-adapted-previous.json")) {
-            sources.setPreferences(id, enabled = true, discoveryVisible = false)
-            sources.createGroup("Novels", setOf(id))
-            val session = sources.rotateAccount(id).session
-            session.write(StorageRequest(StorageArea.Account, StorageRequestKey.LOGIN_INFO, "saved-account"))
-            session.write(StorageRequest(StorageArea.Config, "variable", "saved-preference"))
-            session.write(StorageRequest(StorageArea.Cache, "value:pixivSettings", "{\"FAST\":true}"))
-            assertTrue(accounts.setCookies(accounts.current(id), mapOf("session" to "private")))
-            val account = accounts.current(id)
-            val before = installed()
-            val groups = sources.sourceGroups()
-            reply()
-            val check = updates.check(id)
-            assertFalse(check.unchanged)
-            assertEquals(before, installed())
-            assertEquals(adapted(), Json.parseToJsonElement(check.preview.candidates.single().rawJson))
-            val next = commit(Json.parseToJsonElement(check.preview.candidates.single().rawJson).jsonObject)
-            updates.apply(id, next.reference(), grants)
-            assertEquals(next, installed().definition)
-            assertEquals(before.preferences, installed().preferences)
-            assertEquals(groups, sources.sourceGroups())
-            assertEquals(account, accounts.current(id))
-            assertEquals(StorageResult.Value("saved-account"), stored(StorageArea.Account, StorageRequestKey.LOGIN_INFO))
-            assertEquals(StorageResult.Value("saved-preference"), stored(StorageArea.Config, "variable"))
-            assertEquals(StorageResult.Value("{\"FAST\":true}"), stored(StorageArea.Cache, "value:pixivSettings"))
         }
     }
 
@@ -182,16 +153,12 @@ class PixivSourceUpdatesTest {
         }
     }
 
-    @Test fun staleChecksCannotReplaceANewerInstalledRevision(): Unit = runBlocking {
-        withSource(pixivUpdateFixture("pixiv-adapted-previous.json")) {
+    @Test fun staleChecksAreRejectedBeforeDownloading(): Unit = runBlocking {
+        withSource {
             val before = installed().definition
             rejects(RevisionError.Stale) { updates.check(id, expected = before.reference().copy(revision = -1)) }
             assertTrue(download.addresses.isEmpty())
-            val next = commit(adapted())
-            download.beforeDownload = { updates.apply(id, next.reference(), grants) }
-            reply()
-            rejects(RevisionError.Stale) { updates.check(id, expected = before.reference()) }
-            assertEquals(next, installed().definition)
+            assertEquals(before, installed().definition)
         }
     }
 
@@ -227,31 +194,6 @@ class PixivSourceUpdatesTest {
                 assertEquals(List(3) { PixivUpdateAdapter.UPDATE_URL }, download.addresses)
                 assertEquals(before, installed())
                 assertEquals(account, accounts.current(id))
-            } finally { model.cancel() }
-        } } finally { Dispatchers.resetMain() }
-    }
-
-    @Test fun oldPanelOffersOnlyTheCompleteAdaptedUpdateForConfirmation(): Unit = runBlocking {
-        Dispatchers.setMain(Dispatchers.Unconfined)
-        try { withSource(pixivUpdateFixture("pixiv-adapted-previous.json")) {
-            val model = SourcesViewModel(context, sources, updates, SourceLoginService(sources, accounts), registry,
-                ZLibrarySources(context, registry, StorageCipher.Plain))
-            suspend fun idle() = withTimeout(10000) { model.state.first { !it.busy } }
-            try {
-                idle(); model.select(id); idle(); model.beginConfiguration(id)
-                val form = idle().loginForm!!
-                val before = installed()
-                reply()
-                model.submitLogin(form.values, form.fields.single { it.action == "updateSource()" }.id, form.id)
-                val state = idle()
-                assertEquals(id, state.updateTarget)
-                assertNull(state.loginForm)
-                assertEquals(adapted(), Json.parseToJsonElement(state.preview!!.candidates.single().rawJson))
-                assertEquals(before, installed())
-                model.commit(setOf(0), mapOf(0 to "https://www.pixiv.net/"), false)
-                assertEquals(R.string.sources_saved, idle().message)
-                assertEquals(adapted(), Json.parseToJsonElement(installed().definition.rawJson))
-                assertEquals(before.preferences, installed().preferences)
             } finally { model.cancel() }
         } } finally { Dispatchers.resetMain() }
     }

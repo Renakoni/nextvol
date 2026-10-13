@@ -20,7 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 
-/** Opt-in device diagnostic. Input/grants are supplied locally; reports omit URLs, cookies and book text. */
+/** Opt-in device diagnostic. Input/grants are local; sample text and URLs require explicit case flags. */
 @RunWith(AndroidJUnit4::class)
 class DiscoveryLiveInstrumentedTest {
     @Test fun compareSearchCatalogAndHomepageInInstalledApp(): Unit = runBlocking {
@@ -99,6 +99,24 @@ class DiscoveryLiveInstrumentedTest {
                 val id = identity ?: continue
                 if (args.getString("discoveryAction") == "install") continue
                 val source = sources.loginTarget(id).rules
+                case["verifyUrl"]?.jsonPrimitive?.content?.let { url ->
+                    check(entry.registry().resolve(id) is indi.renakoni.nextvol.data.web.SourceResolution.Ready)
+                    val coordinator = entry.coordinator()
+                    val metadata = entry.registry().sources.value.single { it.metadata.id == id }.metadata
+                    val owner = indi.renakoni.nextvol.data.web.rules.VerificationOwner(id, metadata.revision, metadata.accountGeneration)
+                    indi.renakoni.nextvol.sourcebrowser.VerificationTestHostActivity.coordinator = coordinator
+                    try {
+                        androidx.test.core.app.ActivityScenario.launch(
+                            indi.renakoni.nextvol.sourcebrowser.VerificationTestHostActivity::class.java).use {
+                            measure("verification") {
+                                val books = withContext(indi.renakoni.nextvol.data.web.ForegroundSourceRequest()) {
+                                    coordinator.execute(owner, name) { source.discovery(url, 1) }
+                                }
+                                buildJsonObject { put("books", books.size) }
+                            }
+                        }
+                    } finally { indi.renakoni.nextvol.sourcebrowser.VerificationTestHostActivity.coordinator = null }
+                }
                 case["loginValues"]?.jsonObject?.let { values ->
                     measure("login") {
                         source.loginForm()
@@ -119,6 +137,23 @@ class DiscoveryLiveInstrumentedTest {
                     val content = source.content(bookId, chapterId)
                     val text = content.parts.mapNotNull { it.text }.joinToString("\n")
                     put("chars", text.length); put("images", content.parts.count { it.image != null })
+                    if (case["checkImages"] == JsonPrimitive(true)) {
+                        val images = content.parts.mapNotNull { it.image }.distinct()
+                        var decoded = 0
+                        for (url in images) {
+                            val bytes = source.image(bookId, url, false)
+                            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                            check(bounds.outWidth > 0 && bounds.outHeight > 0) { "Image did not decode" }
+                            decoded++
+                        }
+                        put("decodedImages", decoded)
+                    }
+                    if (case["sampleText"] == JsonPrimitive(true)) put("sampleText", text.take(200))
+                    if (case["recordSampleUrls"] == JsonPrimitive(true)) put("chapterUrl", chapterId.substringBefore(",{"))
+                    case["expectedContent"]?.jsonObject?.get(chapterId)?.jsonPrimitive?.content?.let {
+                        put("expectedTextPresent", text.contains(it))
+                    }
                     put("privateUseChars", text.count { it in '\uE000'..'\uF8FF' }); put("vip", vip)
                     put("textDigest", java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray())
                         .joinToString("") { "%02x".format(it) })
@@ -218,12 +253,24 @@ class DiscoveryLiveInstrumentedTest {
                     else {
                         measure("information") {
                             val book = source.information(bookId, inferUpdate = false)
-                            buildJsonObject { put("titlePresent", book.title.isNotBlank()); put("identityPreserved", book.id == bookId) }
+                            buildJsonObject {
+                                put("titlePresent", book.title.isNotBlank()); put("identityPreserved", book.id == bookId)
+                                if (case["recordSampleUrls"] == JsonPrimitive(true)) put("bookUrl", bookId.substringBefore(",{"))
+                            }
                         }
                         var chapters = emptyList<hnovel.content.RuleChapter>()
                         measure("directory") {
                             chapters = source.directory(bookId).filterNot { it.isVolume }
-                            buildJsonObject { put("chapters", chapters.size); put("vipChapters", chapters.count { it.isVip || it.isPay }) }
+                            buildJsonObject {
+                                put("chapters", chapters.size); put("vipChapters", chapters.count { it.isVip || it.isPay })
+                                if (case["recordSampleUrls"] == JsonPrimitive(true)) put("sampleChapters", JsonArray(
+                                    listOf(0, chapters.size / 2, chapters.lastIndex).distinct().filter { it in chapters.indices }.map { index ->
+                                        buildJsonObject {
+                                            put("index", index); put("url", chapters[index].id.substringBefore(",{"))
+                                            put("title", chapters[index].title); put("vip", chapters[index].isVip || chapters[index].isPay)
+                                        }
+                                    }))
+                            }
                         }
                         val firstFree = chapters.indexOfFirst { !it.isVip && !it.isPay }.coerceAtLeast(0)
                         for (index in listOf(firstFree, chapters.size / 2, chapters.lastIndex).distinct().filter { it in chapters.indices }) {

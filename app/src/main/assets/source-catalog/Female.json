@@ -1,44 +1,5 @@
 [
   {
-    "bookSourceComment": "",
-    "bookSourceGroup": "校验可用",
-    "bookSourceName": "废文网",
-    "bookSourceType": 0,
-    "bookSourceUrl": "https://www.sosadfun.org",
-    "customOrder": 392,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "lastUpdateTime": 7952313600000,
-    "respondTime": 3624,
-    "ruleBookInfo": {
-      "author": "[property=og:novel:author]@content",
-      "init": "meta",
-      "intro": "[property=og:description]@content##《{{book.name}}》是由.*一本.*书籍。",
-      "kind": "[property=og:novel:category],[property=og:novel:status]@content",
-      "lastChapter": "[property=og:novel:latest_chapter_name]@content",
-      "tocUrl": "{{baseUrl}}catalog/"
-    },
-    "ruleContent": {
-      "content": "@js:\nfunction d(a,b){\n\tb=java.md5Encode(b);\n\tvar d=b.substring(0,16);\n\tvar e=b.substring(16);\n\treturn java.aesBase64DecodeToString(a,e,\"AES/CBC/PKCS5Padding\",d)\n}\neval(result.match(/(d\\(\"[\\s\\S]+\"\\))\\)/)[1])"
-    },
-    "ruleSearch": {
-      "author": "a[-1]@text",
-      "bookList": ".SHsectionThree-middle>p",
-      "bookUrl": "a[1]@href",
-      "kind": "a[0]@text",
-      "name": "a[1]@text"
-    },
-    "ruleToc": {
-      "chapterList": "ol a",
-      "chapterName": "text",
-      "chapterUrl": "href",
-      "nextTocUrl": "#end@href\n@js:\nn=parseInt(result[0].match(/\\/(\\d+)\\.html/)[1]);\nlist=[];\nfor (i=2;i<=n;i++)\nlist.push(i+\".html\");\nlist"
-    },
-    "searchUrl": "/search/{{key}}/{{page}}/",
-    "weight": 0
-  },
-  {
     "bookSourceComment": "阅读论坛帖子需要登录；未登录时不能访问受限版块。\n◎只看楼主：\n在设置源变量（该源所有书应用）或者设置书籍变量（只有本书应用）里填上『只看楼主』则只会显示楼主内容\n❗️注意：楼主如果是『匿名青花鱼』改规则会导致无正文内容，请删除设置变量里的《只看楼主》\n做完更改后都需要刷新，正文如果缓存了也需要刷新，或者清除缓存",
     "bookSourceGroup": "③📖  论坛",
     "bookSourceName": "📖青花鱼",
@@ -442,51 +403,6 @@
     "homepageModules": "[{\"key\":\"list-1\",\"title\":\"💮                  排行榜                  💮 · 潇湘票榜\",\"type\":\"ranking\",\"url\":\"/rank/xxyuepiao\"},{\"key\":\"list-2\",\"title\":\"畅销榜\",\"type\":\"ranking\",\"url\":\"/rank/bestsales\"},{\"key\":\"list-3\",\"title\":\"完结榜\",\"type\":\"ranking\",\"url\":\"/rank/finish\"}]"
   },
   {
-    "bookSourceComment": "只有搜索，可以换源",
-    "bookSourceGroup": "校验可用",
-    "bookSourceName": "☘️云起书院☘️",
-    "bookSourceType": 0,
-    "bookSourceUrl": "https://yunqi.qq.com",
-    "customOrder": 178,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "lastUpdateTime": 1678926011814,
-    "respondTime": 2711,
-    "ruleBookInfo": {
-      "author": "class.au_name@tag.p.-1@text",
-      "coverUrl": "",
-      "init": "",
-      "intro": "class.info@html",
-      "kind": "class.tags@text##作品标签：",
-      "lastChapter": "class.chaptername@b@text",
-      "name": "class.title@i@img@title",
-      "tocUrl": "text.目录@href"
-    },
-    "ruleContent": {
-      "content": "class.bookreadercontent@html"
-    },
-    "ruleExplore": {
-      "bookList": ""
-    },
-    "ruleSearch": {
-      "author": "class.auth@a@em@text",
-      "bookList": "class.book",
-      "bookUrl": "a@href",
-      "coverUrl": "class.book@a@img@src",
-      "intro": "class.book_intro@html",
-      "kind": "class.w_auth@a@text##\\[|\\]",
-      "name": "tag.h3@tag.a.-1@text"
-    },
-    "ruleToc": {
-      "chapterList": "class.block_ul@li",
-      "chapterName": "tag.a@text",
-      "chapterUrl": "tag.a@href##$##,{'webView': true}"
-    },
-    "searchUrl": "https://yunqi.qq.com/search/searchindex/type/all/wd/{{key}}.html",
-    "weight": 0
-  },
-  {
     "bookSourceGroup": "合集0905",
     "bookSourceName": "起点女生网",
     "bookSourceType": 0,
@@ -656,72 +572,6 @@
   {
     "bookSourceComment": "",
     "bookSourceGroup": "优选书源",
-    "bookSourceName": "落尘小说",
-    "bookSourceType": 0,
-    "bookSourceUrl": "https://www.xluochen.com/",
-    "bookUrlPattern": "https://www.xluochen.com/\\d+/\\d+/",
-    "customOrder": 5086,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "exploreUrl": "",
-    "header": "",
-    "lastUpdateTime": 1727951153838,
-    "loginUrl": "",
-    "respondTime": 1961,
-    "ruleBookInfo": {
-      "author": "class.info@h3@tag.a@text",
-      "coverUrl": "class.img@img@src",
-      "init": "class.content",
-      "intro": "id.intro@tag.p.0@text",
-      "kind": "class.info@tag.p.0@text&&\nclass.info@tag.p.1@text&&\nclass.info@tag.p.2@text##所属类型：|更新时间：|连载完成：",
-      "lastChapter": "class.info@tag.span@tag.a@text##百度搜索.*|免费章节 |正文卷 |正文 |VIP章节|章节目录",
-      "name": "class.info@h1@text",
-      "tocUrl": "",
-      "wordCount": ""
-    },
-    "ruleContent": {
-      "content": "id.book_text@html##记住本站网址(.*|\\n)本站",
-      "nextContentUrl": "text.下一页@href",
-      "sourceRegex": "",
-      "webJs": ""
-    },
-    "ruleExplore": {
-      "author": "",
-      "bookList": "",
-      "bookUrl": "",
-      "coverUrl": "",
-      "intro": "",
-      "kind": "",
-      "lastChapter": "",
-      "name": "",
-      "wordCount": ""
-    },
-    "ruleSearch": {
-      "author": "tag.td.2@text",
-      "bookList": "class.grid@tr!0",
-      "bookUrl": "tag.td.0@tag.a@href",
-      "coverUrl": "tag.td.0@tag.a@href<js>\nvar id = result.match(/(\\d+)\\/?$/)[1];\nvar iid = parseInt(id/1000);\n'https://www.xluochen.com/files/article/image/'+iid+'/'+id+'/'+id+'s.jpg';\n</js>",
-      "intro": "",
-      "kind": "tag.td.4@text&&\ntag.td.5@text",
-      "lastChapter": "tag.td.1@tag.a@text##百度搜索.*|免费章节 |正文卷 |正文 |VIP章节|章节目录",
-      "name": "tag.td.0@tag.a@text",
-      "wordCount": "tag.td.3@text"
-    },
-    "ruleToc": {
-      "chapterList": "class.article_texttitleb@li",
-      "chapterName": "tag.a@text",
-      "chapterUrl": "tag.a@href",
-      "isVip": "",
-      "nextTocUrl": "",
-      "updateTime": ""
-    },
-    "searchUrl": "https://www.xluochen.com/modules/article/search.php?searchtype=articlename&searchkey={{key}}&action=login&submit=%26%23160%3B%CB%D1%26%23160%3B%26%23160%3B%CB%F7%26%23160%3B&page={{page}},{\n  \"charset\": \"gbk\"\n}",
-    "weight": 0
-  },
-  {
-    "bookSourceComment": "",
-    "bookSourceGroup": "优选书源",
     "bookSourceName": "🌸花溪小说",
     "bookSourceType": 0,
     "bookSourceUrl": "https://w.huaxi.net",
@@ -772,69 +622,6 @@
     "searchUrl": "https://www.huaxi.net/index_search?wd={{key}}&page={{page}}",
     "weight": 0,
     "homepageModules": "[{\"key\":\"list-1\",\"title\":\"首页推荐\",\"type\":\"ranking\",\"url\":\"https://w.huaxi.net/\"},{\"key\":\"list-2\",\"title\":\"重磅推荐\",\"type\":\"ranking\",\"url\":\"https://w.huaxi.net/novel_recommand?g_gender=2\"}]"
-  },
-  {
-    "bookSourceComment": "/*\n\t作者：明月照大江\n\t提醒：此书源为免费制作并分享，禁止任何形式的倒卖行为\n\t更新地址：https://skybook.pages.dev\n*/",
-    "bookSourceGroup": "优选书源",
-    "bookSourceName": "连城读书",
-    "bookSourceType": 0,
-    "bookSourceUrl": "https://lcread.com",
-    "customButton": false,
-    "customOrder": 1525,
-    "enabled": true,
-    "enabledCookieJar": false,
-    "enabledExplore": true,
-    "eventListener": false,
-    "exploreUrl": "@js:\nvip = cache.get(\"lcread\") == 0 ? \"0\" : \"10\"\nconst categoryMap1 = {\n  \"玄幻\": 17,\n  \"同人\": 15,\n  \"短篇\": 22,\n  \"都市\": 7,\n  \"灵异\": 9,\n  \"奇幻\": 18,\n  \"青春\": 4,\n  \"武侠\": 5,\n  \"仙侠\": 6,\n  \"历史\": 12,\n  \"科幻\": 10,\n  \"现实\": 19,\n  \"悬疑\": 11,\n  \"游戏\": 14,\n  \"军事\": 8,\n  \"明月\":0\n};\nconst categoryMap2 = {\n  \"幻言\": 1,\n  \"青春\": 4,\n  \"古言\": 3,\n  \"现言\": 2,\n  \"短篇\": 22,\n  \"同人\": 15,\n  \"武侠\": 5,\n  \"玄幻\": 17,\n  \"灵异\": 9,\n  \"仙侠\": 6,\n  \"悬疑\": 11,\n  \"游戏\": 14\n};\nconst categoryMap3 = {\n  \"幻耽\": 24,\n  \"现耽\": 25,\n  \"古耽\": 26,\n  \"青春\": 4,\n  \"同人\": 15,\n  \"短篇\": 22,\n  \"奇幻\": 18,\n  \"仙侠\": 6,\n  \"灵异\": 9,\n  \"百合\": 20,\n  \"游戏\": 14,\n  \"悬疑\": 11\n};\nlet push = (list, title, url, type) => list.push({\n    title: title,\n    url: url,\n    style: {\n        layout_flexBasisPercent: type\n    }\n});\nlet group = new Array;\npush(group, \"▱▱▱▱　男生　▱▱▱▱\", null, 1)\nfor (let key in categoryMap1) {\n  let extraParams = {\n  \"prefer\": \"10\",\n  \"uID\": \"0\",\n  \"bt\": categoryMap1[key],\n  \"vip\": vip,\n  \"state\": \"0\",\n  \"rank\": \"0\",\n  \"pn\": \"0\"\n}\nlet u = bookRequest(\"list/commbooks\", null, extraParams)\n push(group, key, u, 0.21)\n}\npush(group, \"▱▱▱▱　女生　▱▱▱▱\", null, 1)\nfor (let key in categoryMap2) {\n  let extraParams = {\n  \"prefer\": \"20\",\n  \"uID\": \"0\",\n  \"bt\": categoryMap2[key],\n  \"vip\": vip,\n  \"state\": \"0\",\n  \"rank\": \"0\",\n  \"pn\": \"0\"\n}\nlet u = bookRequest(\"list/commbooks\", null, extraParams)\n push(group, key, u, 0.21)\n}\npush(group, \"▱▱▱▱　耽美　▱▱▱▱\", null, 1)\nfor (let key in categoryMap3) {\n  let extraParams = {\n  \"prefer\": \"50\",\n  \"uID\": \"0\",\n  \"bt\": categoryMap3[key],\n  \"vip\": vip,\n  \"state\": \"0\",\n  \"rank\": \"0\",\n  \"pn\": \"0\"\n}\nlet u = bookRequest(\"list/commbooks\", null, extraParams)\n push(group, key, u, 0.21)\n}\nJSON.stringify(group)",
-    "header": "{\n\t\"Referer\":\"https://my.lc1001.com/\"\n}",
-    "jsLib": "function generateRequest(path, signParams, bodyParams, baseUrl, secretKey) {\n  const { java } = this;\n  baseUrl = baseUrl || \"http://a.lc1001.com\";\n  secretKey = secretKey || \"XKrqBSeeEwgDy2pT\";\n  bodyParams = bodyParams || {};\n  \n  var timestamp = Date.now().toString();\n  signParams.timestamp = timestamp;\n  signParams.consumerKey = \"LCREAD_ANDROID\";\n  \n  var keys = Object.keys(signParams).sort();\n  var queryString = \"\";\n  for (var i = 0; i < keys.length; i++) {\n    queryString += keys[i] + \"%3D\" + signParams[keys[i]];\n  }\n  \n  var signData = \"GET\" + encodeURIComponent(baseUrl + path) + queryString + secretKey;\n  var sign = java.md5Encode(signData);\n  \n  var allParams = {};\n  \n  for (var key in signParams) {\n    if (signParams.hasOwnProperty(key)) {\n      allParams[key] = signParams[key];\n    }\n  }\n  \n  allParams.sign = sign;\n  \n  for (var key in bodyParams) {\n    if (bodyParams.hasOwnProperty(key)) {\n      allParams[key] = bodyParams[key];\n    }\n  }\n  \n  var body = \"\";\n  for (var key in allParams) {\n    if (allParams.hasOwnProperty(key)) {\n      if (body) body += \"&\";\n      body += key + \"=\" + allParams[key];\n    }\n  }\n  \n  return baseUrl + path + \",{\\n  \\\"body\\\": \\\"\" + body + \"\\\",\\n  \\\"method\\\": \\\"POST\\\"\\n}\";\n}\n\nfunction bookRequest(apiPath, bid, extraParams, bodyParams, uid) {\n  extraParams = extraParams || {};\n  bodyParams = bodyParams || {};\n  uid = uid || \"0\";\n  \n  var signParams = {\n    uID: uid,\n  };\n  if (/^info|^book/.test(apiPath)) {\n  \tsignParams.bID = bid\n  }\n  \n  for (var key in extraParams) {\n    if (extraParams.hasOwnProperty(key)) {\n      signParams[key] = extraParams[key];\n    }\n  }\n  \n  return this.generateRequest(\"/app/\" + apiPath, signParams, bodyParams);\n}",
-    "lastUpdateTime": 1769593047518,
-    "loginUi": "\n[\n    {\n        name: \"账号\",\n        type: \"text\"\n    },\n    {\n        name: \"密码\",\n        type: \"password\"\n    },\n    {\n        name: \"切换发现类型\",\n        type: \"button\",\n        action: \"set()\"\n    }\n]",
-    "loginUrl": "function login() {\n  const loginInfo = source.getLoginInfoMap();\n  const username = loginInfo.get(\"账号\");\n  const password = loginInfo.get(\"密码\");\n  const timestamp = Date.now().toString();\n  const aid = String(Packages.java.util.UUID.randomUUID())\n    .replace(/-/g, \"\")\n    .slice(0, 16);\n\n  try {\n    java.toast(\"正在登录...请稍候\");\n    const consumerKey = \"LCREAD_ANDROID\";\n    const url = \"http://a.lc1001.com/app/sso/pwdMdLogOn\";\n    const method = \"GET\";\n    const secret = \"XKrqBSeeEwgDy2pT\";\n    const md5Pwd = java.md5Encode(password).toLowerCase();\n    const plain = `consumerKey=${consumerKey}` + `mdPwd=${md5Pwd}` + `pcd=${username}` + `timestamp=${timestamp}`;\n    const sign = java.md5Encode(method + encodeURIComponent(url + plain) + secret).toLowerCase();\n    const loginUrl = `${url}?consumerKey=${consumerKey}&timestamp=${timestamp}&sign=${sign}&pcd=${username}&mdPwd=${md5Pwd}&mType=XIAOMI-23049RAD8C&PACKINGCHANNEL=WANDOUJIA&imei=${aid}&androidID=${aid}`;\n    java.log(loginUrl)\n    const response = java.get(loginUrl, {});\n    const responseBody = java.log(response.body());\n\n    if (responseBody.includes(\"UNAME\")) {\n      java.log(\"登录成功\");\n      source.setVariable(responseBody);\n      java.toast(\"✅登录成功\");\n    } else {\n      java.log(\"❌登录失败，服务器返回: \" + responseBody);\n    }\n  } catch (error) {\n    java.log(\"❌登录失败: \" + error.message);\n  }\n}\n\nfunction set() {\n  free = cache.get(\"lcread\")\n  if (free == 0) {\n    cache.put(\"lcread\", \"1\")\n  } else {\n    cache.put(\"lcread\", \"0\")\n  }\n  msg = cache.get(\"lcread\") == 0 ? \"全部\" : \"免费\"\n  java.toast(\"切换成功！\\n当前发现类型：\" + msg)\n}",
-    "respondTime": 12349,
-    "ruleBookInfo": {
-      "author": "ANAME",
-      "coverUrl": "COVERURL",
-      "init": "DATA",
-      "intro": "CONTENT",
-      "kind": "BTNAME",
-      "lastChapter": "NEWCHAPTER",
-      "name": "BNAME",
-      "tocUrl": "@js:\njava.put(\"bid\", bid = \"{{$.BID}}\");\nvar extraParams = {isUpdate: \"0\"};\nu = \"data:;base64,\"+java.base64Encode([\"info/bookcata\", bid, JSON.stringify(extraParams)].join(\"-\"))+ ',{\"type\":\"LCReadm\"}';"
-    },
-    "ruleContent": {
-      "content": "@js:;for(var \\u0076\\u0061\\u006c\\u0069\\u0064\\u0048\\u006d\\u0061\\u0063,\\u0063\\u0064\\u0061\\u0074\\u0061,\\u0075\\u0069\\u0064,dT‍‌,BF‍‌,uy‍‌,df‍‌=1,lb‍‌,\\u0074\\u006f\\u006b\\u0065\\u006e,\\u0063\\u006f\\u006d\\u006d\\u0065\\u006e\\u0074,\\u0065\\u0072\\u0072\\u006f\\u0072\\u004d\\u0073\\u0067;df‍‌;){if(2>df‍‌){try{for(var df‍‌=1,Dz‍‌=2;df‍‌;)10<df‍‌--&&(df‍‌<11&&(df‍‌-=7,uy‍‌+='\\x73',{})||df‍‌>11&&(df‍‌-=8,dT‍‌+='\\x72',1)||(df‍‌-=3,dT‍‌+='\\x56\\x61\\x72\\x69\\x61'),true)||(++df‍‌<5||((df‍‌>7||((6>df‍‌++||((7<df‍‌||(dT‍‌='\\x67\\x65\\x74\\x56\\x61',df‍‌+=6,\"\"))&&(df‍‌=0,\\u0074\\u006f\\u006b\\u0065\\u006e=\\u004a\\u0053\\u004f\\u004e[uy‍‌+='\\x65'](\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065[dT‍‌+='\\x62\\x6C\\x65']())[BF‍‌+='\\x41'][lb‍‌+='\\x4E']),!{}))&&(df‍‌+=4,uy‍‌='\\x70\\x61\\x72\\x73'),![]))&&(9<df‍‌||(9>df‍‌&&(df‍‌-=6,BF‍‌='\\x44\\x41\\x54',!false)||(uy‍‌='\\x70\\x61\\x72',df‍‌+=2),![]))&&(df‍‌=12,dT‍‌='\\x67\\x65\\x74'),false))&&(3<df‍‌||(df‍‌>2&&(df‍‌+=3,BF‍‌='\\x44\\x41\\x54',1)||(2>df‍‌||(lb‍‌='\\x54\\x4F\\x4B\\x45',df‍‌+=5,!true))&&(df‍‌=9,lb‍‌='\\x55\\x49'),null))&&(\\u0075\\u0069\\u0064=\\u004a\\u0053\\u004f\\u004e[uy‍‌+='\\x65'](\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065[dT‍‌+='\\x69\\x61\\x62\\x6C\\x65']())[BF‍‌+='\\x41'][lb‍‌+='\\x44'],++df‍‌);}catch(eb){for(var df‍‌=2;df‍‌;){df‍‌>1&&(df‍‌=1,\\u0075\\u0069\\u0064=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,!false)||(df‍‌=0,\\u0074\\u006f\\u006b\\u0065\\u006e=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064);}}df‍‌=Dz‍‌;}else{try{for(var df‍‌=7,Dz‍‌=0;df‍‌;)(df‍‌>40||(df‍‌<15&&(df‍‌<5&&(3>df‍‌&&((2>df‍‌||(df‍‌+=47,dT‍‌='\\x31',!1))&&(df‍‌+=10,\\u0076\\u0061\\u006c\\u0069\\u0064\\u0048\\u006d\\u0061\\u0063=uy‍‌+='\\x32\\x5A\\x67\\x6D\\x46\\x45\\x47\\x59\\x4E\\x6C\\x51\\x65\\x67\\x2B\\x6D\\x66\\x4F\\x4E\\x38\\x6D\\x33\\x68\\x76\\x51\\x70\\x6F\\x3D'),!0)||4>df‍‌&&(df‍‌+=27,dT‍‌='\\x01\\x02\\x03\\x04\\x05',!undefined)||(df‍‌=5,\\u0075\\u0073\\u0065\\u0072\\u0054\\u006f\\u006b\\u0065\\u006e[uy‍‌+='\\x6E']=\\u0074\\u006f\\u006b\\u0065\\u006e),!null)||8>df‍‌&&((df‍‌>6||(6>df‍‌&&(df‍‌+=16,dT‍‌='\\x70\\x61',[])||(\\u006b\\u0065\\u0079=\\u006a\\u0061\\u0076\\u0061[uy‍‌+='\\x42\\x79\\x74\\x65\\x73'](dT‍‌+='\\x31\\x39\\x6B'),df‍‌=33),false))&&(df‍‌=9,\\u0063\\u0064\\u0061\\u0074\\u0061=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064),!false)||10>--df‍‌&&(8>df‍‌&&(uy‍‌='\\x61\\x6A',df‍‌+=16,{})||(df‍‌>8||(df‍‌+=8,uy‍‌='\\x68',![]))&&(df‍‌+=23,\\u0076\\u0061\\u006c\\u0069\\u0064\\u0048\\u006d\\u0061\\u0063=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064),!null)||(df‍‌<12||((12<df‍‌||(df‍‌=52,lb‍‌='\\x43\\x54\\x58',!1))&&(df‍‌+=13,\\u0063\\u006f\\u006d\\u006d\\u0065\\u006e\\u0074=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064),undefined))&&(9<--df‍‌&&(df‍‌=50,uy‍‌='\\x74\\x6F\\x6B',[])||(df‍‌=\\u0053\\u0074\\u0072\\u0069\\u006e\\u0067(\\u006a\\u0061\\u0076\\u0061['\\x48\\x4D\\x61\\x63\\x42\\x61\\x73\\x65\\x36\\x34'](\\u0063\\u006f\\u006d\\u006d\\u0065\\u006e\\u0074,'\\x48\\x6D\\x61\\x63\\x53\\x48\\x41\\x32\\x35\\x36','\\x73\\x6B\\x79\\x62\\x6F\\x6F\\x6B'))!==\\u0076\\u0061\\u006c\\u0069\\u0064\\u0048\\u006d\\u0061\\u0063?43:13)),1)||df‍‌>27&&((32>df‍‌||((df‍‌>37||(df‍‌-->34&&(df‍‌>35&&(\\u0072\\u0065\\u0073\\u0075\\u006c\\u0074=\\u006a\\u0061\\u0076\\u0061[uy‍‌+='\\x78'](\\u0062\\u006f\\u006f\\u006b\\u0052\\u0065\\u0071\\u0075\\u0065\\u0073\\u0074(\\u0063\\u0064\\u0061\\u0074\\u0061[(df‍‌=14)-14],\\u0063\\u0064\\u0061\\u0074\\u0061[1],\\u004a\\u0053\\u004f\\u004e[dT‍‌+='\\x65'](\\u0063\\u0064\\u0061\\u0074\\u0061[2]),\\u0075\\u0073\\u0065\\u0072\\u0054\\u006f\\u006b\\u0065\\u006e,\\u0063\\u0064\\u0061\\u0074\\u0061[4])),true)||34<df‍‌&&(df‍‌-=17,BF‍‌='\\x64\\x65\\x63\\x72\\x79',!undefined)||(df‍‌=6,uy‍‌+='\\x72\\x54\\x6F'),true)||(df‍‌<32||(33>df‍‌&&(df‍‌-=17,uy‍‌='\\x73\\x74\\x72\\x54\\x6F\\x42',!false)||(uy‍‌='\\x70',df‍‌=51),void 0))&&(df‍‌+=7,uy‍‌='\\x30\\x4C\\x36\\x64\\x76\\x77\\x52\\x50\\x2F\\x33\\x6F'),!{}))&&(39<df‍‌||((df‍‌<39||(df‍‌+=8,uy‍‌='\\x62\\x61\\x73\\x65\\x36\\x34\\x44\\x65\\x63\\x6F\\x64\\x65\\x54\\x6F\\x42',0))&&(uy‍‌+='\\x79\\x66\\x32\\x37\\x77\\x75',df‍‌-=37),void 0))&&(df‍‌=\\u0063\\u0068\\u0061\\u0070\\u0074\\u0065\\u0072['\\x69\\x73\\x56\\x69\\x70']()?12:5),!1))&&(30>df‍‌||(30<df‍‌&&(function(){throw new \\u0045\\u0072\\u0072\\u006f\\u0072(\\u0065\\u0072\\u0072\\u006f\\u0072\\u004d\\u0073\\u0067);}(),df‍‌=13,!\"\")||(df‍‌=36,\\u0069\\u0076=\\u006a\\u0061\\u0076\\u0061[uy‍‌+='\\x74\\x65\\x73'](dT‍‌+='\\x06\\x07\\x08')),0))&&(28<df‍‌&&(df‍‌=25,uy‍‌='\\x63\\x72\\x65\\x61\\x74',!\"\")||(uy‍‌='\\x73\\x74',df‍‌+=7)),{})||(19>df‍‌||((24<df‍‌--||((df‍‌>20||(19>df‍‌&&(uy‍‌='\\x6C\\x6F\\x6E\\x67\\x54\\x6F\\x61',df‍‌=27,!0)||df‍‌>19&&(dT‍‌+='\\x72\\x73',df‍‌=8,{})||(df‍‌=24,dT‍‌='\\x73\\x70\\x6C'),false))&&(df‍‌<22||(df‍‌>22&&(\\u0063\\u0064\\u0061\\u0074\\u0061=\\u006a\\u0061\\u0076\\u0061[uy‍‌+='\\x53\\x74\\x72\\x69\\x6E\\x67'](\\u0072\\u0065\\u0073\\u0075\\u006c\\u0074)[dT‍‌+='\\x69\\x74']('\\x2D'),df‍‌+=11,!null)||(df‍‌=37,uy‍‌+='\\x61'),!{}))&&(df‍‌-=2,\\u0065\\u0072\\u0072\\u006f\\u0072\\u004d\\u0073\\u0067=uy‍‌+='\\x76\\x3C\\x62\\x72\\x3E'),undefined))&&(df‍‌<25||((27>++df‍‌||(df‍‌+=4,\\u006a\\u0061\\u0076\\u0061[uy‍‌+='\\x73\\x74'](\\u0065\\u0072\\u0072\\u006f\\u0072\\u004d\\u0073\\u0067),undefined))&&(df‍‌+=22,uy‍‌='\\x62\\x6F\\x6F\\x6B\\x53\\x6F\\x75\\x72\\x63\\x65\\x43\\x6F\\x6D\\x6D\\x65\\x6E'),!1))&&(uy‍‌+='\\x65\\x53\\x79\\x6D\\x6D\\x65\\x74\\x72\\x69\\x63\\x43\\x72\\x79',df‍‌+=18),0))&&(17<df‍‌&&(dT‍‌='\\x44',df‍‌=17,[])||16<df‍‌&&(df‍‌+=12,dT‍‌+='\\x45\\x53\\x2F\\x43\\x42\\x43\\x2F\\x50\\x4B',!null)||15<df‍‌&&(df‍‌=20,uy‍‌+='\\x65\\x78\\x44\\x65\\x63\\x6F\\x64\\x65\\x54\\x6F',!null)||(uy‍‌+='\\x79',df‍‌-=12)),0))&&(df‍‌>50||(df‍‌>47&&((df‍‌>49||((df‍‌<49||(df‍‌=28,dT‍‌+='\\x37\\x30\\x31\\x30',false))&&(\\u0063\\u006f\\u006d\\u006d\\u0065\\u006e\\u0074=\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065[uy‍‌+='\\x74'],df‍‌-=38),void 0))&&(uy‍‌+='\\x65',df‍‌-=46),!null)||(43<--df‍‌||(42<df‍‌&&(df‍‌=45,uy‍‌='\\u26a0\\ufe0f\\u4e66\\u6e90\\u5b89\\u5168\\u8b66\\u544a\\x0A\\u68c0\\u6d4b\\u5230\\u975e\\u6cd5\\u7be1\\u6539\\uff01\\u672c\\u4e66\\u6e90\\u514d\\u8d39\\u5206\\u4eab\\u4e25\\u7981\\u4e8c\\u6b21\\u552e\\u5356\\u53ca\\u5546\\u4e1a\\u7528\\u9014\\x0A\\u8bf7\\u524d\\u5f80\\u66f4\\u65b0',!null)||(++df‍‌>42||((df‍‌++<42||(\\u0072\\u0065\\u0073\\u0075\\u006c\\u0074=\\u006a\\u0061\\u0076\\u0061[uy‍‌+='\\x70\\x74\\x6F'](dT‍‌+='\\x43\\x53\\x35\\x50\\x61\\x64\\x64\\x69\\x6E\\x67',\\u006b\\u0065\\u0079,\\u0069\\u0076)[BF‍‌+='\\x70\\x74\\x53\\x74\\x72'](\\u0064\\u0061\\u0074\\u0061),df‍‌-=43,![]))&&(\\u0075\\u0073\\u0065\\u0072\\u0054\\u006f\\u006b\\u0065\\u006e=\\u004a\\u0053\\u004f\\u004e[uy‍‌+='\\x73\\x65'](\\u0063\\u0064\\u0061\\u0074\\u0061[(df‍‌-=2)-37])),\"\"))&&(\\u0065\\u0072\\u0072\\u006f\\u0072\\u004d\\u0073\\u0067=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,++df‍‌),!{}))&&(df‍‌>45&&(uy‍‌+='\\x79\\x74\\x65',true)||df‍‌++>44&&(dT‍‌='\\x70\\x61\\x72',df‍‌+=7,1)||(df‍‌-=23,uy‍‌+='\\uff1a\\x68\\x74\\x74\\x70\\x73\\x3A\\x2F\\x2F\\x73\\x6B\\x79\\x62\\x6F\\x6F\\x6B\\x2E\\x70\\x61\\x67\\x65\\x73\\x2E\\x64\\x65')),\"\"))&&(df‍‌>52&&(df‍‌-=51,\\u0064\\u0061\\u0074\\u0061=\\u006a\\u0061\\u0076\\u0061[uy‍‌+='\\x41\\x72\\x72\\x61\\x79'](\\u004a\\u0053\\u004f\\u004e[dT‍‌+='\\x73\\x65'](\\u0072\\u0065\\u0073\\u0075\\u006c\\u0074)[BF‍‌+='\\x41\\x54\\x41'][lb‍‌+='\\x54']),[])||(51<df‍‌||(uy‍‌+='\\x61\\x72',df‍‌=41,null))&&(df‍‌-=13,BF‍‌='\\x44'));}catch(eb){for(var df‍‌=2;df‍‌;)df‍‌>4&&(--df‍‌>5&&(df‍‌=4,uy‍‌='\\x70\\x61\\x72',{})||4<df‍‌--&&(df‍‌=3,dT‍‌+='\\x53',!undefined)||(\\u004a\\u0053\\u004f\\u004e[uy‍‌+='\\x65'](\\u0072\\u0065\\u0073\\u0075\\u006c\\u0074)[dT‍‌+='\\x47'],df‍‌-=3),!\"\")||3<df‍‌&&(dT‍‌='\\x4D',df‍‌+=2,!null)||(++df‍‌<4||(uy‍‌+='\\x73',df‍‌++,!1))&&(df‍‌>2||(\\u006a\\u0061\\u0076\\u0061[uy‍‌+='\\x67'](eb),df‍‌+=5,![]))&&(uy‍‌='\\x6C\\x6F',df‍‌-=2);}df‍‌=Dz‍‌;}};result;",
-      "payAction": ";for(var \\u0072\\u0065\\u0073\\u0070\\u006f\\u006e\\u0073\\u0065,\\u0062\\u0075\\u0079\\u0075\\u0072\\u006c,\\u0073\\u0064,\\u0073\\u0065\\u0063\\u0072\\u0065\\u0074,\\u006d\\u0065\\u0074\\u0068\\u006f\\u0064,\\u0063\\u006f\\u006e\\u0073\\u0075\\u006d\\u0065\\u0072\\u004b\\u0065\\u0079,\\u0074\\u0069\\u006d\\u0065\\u0073\\u0074\\u0061\\u006d\\u0070,\\u0061\\u0069\\u0064,\\u005f\\u0062\\u0070,\\u005f\\u0073\\u0070,\\u0073\\u0070,\\u0062\\u0069\\u0064,\\u005f\\u0061\\u0072\\u0072\\u0061\\u0079\\u0057\\u0069\\u0074\\u0068\\u0048\\u006f\\u006c\\u0065\\u0073,\\u005f\\u0069\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079\\u004c\\u0069\\u006d\\u0069\\u0074,\\u005f\\u0061\\u0072\\u0072\\u0061\\u0079\\u004c\\u0069\\u006b\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079,\\u005f\\u0075\\u006e\\u0073\\u0075\\u0070\\u0070\\u006f\\u0072\\u0074\\u0065\\u0064\\u0049\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079,\\u005f\\u0073\\u006c\\u0069\\u0063\\u0065\\u0064\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079,Aw‍‌,jJ‍‌,tf‍‌,ZS‍‌,wl‍‌,JZ‍‌,lt‍‌,RA‍‌,Gf‍‌,jS‍‌=99,tt‍‌,HG‍‌,HA‍‌,jG‍‌,ef‍‌,jo‍‌,eo‍‌,oo‍‌,jA‍‌,lD‍‌,eD‍‌,\\u005f\\u006e\\u006f\\u006e\\u0049\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0052\\u0065\\u0073\\u0074,\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065\\u0044\\u0061\\u0074\\u0061,\\u0075\\u0069\\u0064,\\u0074\\u006f\\u006b\\u0065\\u006e,\\u0063\\u0064\\u0061\\u0074\\u0061,\\u005f\\u0063\\u0064\\u0061\\u0074\\u0061,\\u0070\\u0061\\u0074\\u0068,\\u0062\\u0070,\\u0063\\u0069\\u0064,\\u0075\\u0072\\u006c,\\u0070\\u006c\\u0061\\u0069\\u006e,\\u0073\\u0069\\u0067\\u006e;jS‍‌;)if(36>jS‍‌++)(11>jS‍‌||((jS‍‌>26||(18<jS‍‌&&(jS‍‌<22&&(20>jS‍‌&&(jS‍‌=55,jG‍‌='\\x63\\x6F\\x73\\x74\\x3D\\x30\\x74\\x69\\x6D\\x65\\x73\\x74',true)||(21>jS‍‌||(RA‍‌='\\x63\\x6F\\x73',jS‍‌=93,\"\"))&&(jS‍‌=24,jA‍‌='\\x26\\x61\\x6E\\x64\\x72'),!false)||(jS‍‌>25||(24>jS‍‌&&((jS‍‌++<23||(Gf‍‌='\\x3F\\x63\\x6F\\x6E\\x73\\x75',jS‍‌=50,!1))&&(jS‍‌+=92,tt‍‌='\\x55\\x55\\x49'),!false)||24<jS‍‌&&(jS‍‌=71,wl‍‌='\\x63\\x6F\\x6E\\x63',1)||(RA‍‌='\\x58\\x4B\\x72\\x71',jS‍‌=46),\"\"))&&(jJ‍‌+='\\x6F\\x6E',jS‍‌=87),!false)||(14>jS‍‌||((jS‍‌>17||((16>jS‍‌||((jS‍‌<17||(jS‍‌+=107,\\u0070\\u0061\\u0074\\u0068=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,void 0))&&(\\u005f\\u006e\\u006f\\u006e\\u0049\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0052\\u0065\\u0073\\u0074=function(){for(var RA‍‌,jS‍‌=1;jS‍‌;){(1<jS‍‌||(RA‍‌='\\x49\\x6E\\x76\\x61\\x6C\\x69\\x64\\x20\\x61\\x74\\x74\\x65\\x6D\\x70\\x74\\x20\\x74\\x6F\\x20\\x64\\x65\\x73\\x74\\x72\\x75\\x63\\x74\\x75\\x72\\x65\\x20\\x6E\\x6F\\x6E\\x2D\\x69\\x74\\x65\\x72\\x61\\x62\\x6C\\x65\\x20\\x69\\x6E\\x73\\x74\\x61\\x6E\\x63\\x65\\x2E\\x0A\\x49\\x6E\\x20\\x6F\\x72\\x64\\x65\\x72\\x20\\x74\\x6F\\x20\\x62\\x65\\x20\\x69\\x74\\x65\\x72\\x61\\x62\\x6C\\x65\\x2C\\x20\\x6E\\x6F\\x6E\\x2D\\x61\\x72\\x72\\x61\\x79\\x20\\x6F\\x62\\x6A\\x65\\x63\\x74\\x73\\x20\\x6D\\x75\\x73\\x74\\x20\\x68\\x61\\x76\\x65\\x20\\x61\\x20\\x5B\\x53\\x79\\x6D\\x62\\x6F\\x6C\\x2E\\x69\\x74\\x65\\x72\\x61\\x74\\x6F',jS‍‌++,false))&&(jS‍‌=0,function(){throw new \\u0054\\u0079\\u0070\\u0065\\u0045\\u0072\\u0072\\u006f\\u0072(RA‍‌+='\\x72\\x5D\\x28\\x29\\x20\\x6D\\x65\\x74\\x68\\x6F\\x64\\x2E');}());}},jS‍‌-=15),![]))&&(jS‍‌<15&&(jS‍‌-=6,\\u005f\\u0062\\u0070=\\u004a\\u0053\\u004f\\u004e[RA‍‌+='\\x73\\x65'](\\u0062\\u0070),{})||(jS‍‌=68,\\u0072\\u0065\\u0073\\u0070\\u006f\\u006e\\u0073\\u0065=\\u006a\\u0061\\u0076\\u0061[RA‍‌+='\\x78'](\\u0062\\u0075\\u0079\\u0075\\u0072\\u006c))),0))&&(jS‍‌+=57,HA‍‌='\\x26\\x74\\x69\\x6D\\x65\\x73\\x74\\x61'),0))&&(jS‍‌<12&&(jS‍‌-=8,\\u005f\\u0063\\u0064\\u0061\\u0074\\u0061=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,!undefined)||jS‍‌<13&&(jS‍‌+=57,RA‍‌='\\x6E',!\"\")||(\\u005f\\u0073\\u0070[RA‍‌+='\\x74']=(jS‍‌=20)-20)),!1))&&(30>jS‍‌||((32>jS‍‌++||((36>++jS‍‌||((jS‍‌<37||(38<++jS‍‌&&(jS‍‌=19,tt‍‌='\\x63',!null)||(\\u0061\\u0069\\u0064=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌=96),false))&&(jS‍‌=113,\\u005f\\u0069\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079\\u004c\\u0069\\u006d\\u0069\\u0074=function(oH,Rf){for(var Zv,jt,fw,tJ,RA‍‌,jS‍‌=7,tt‍‌,Gf‍‌,fZ,lv,Sl,oJ;jS‍‌;)if(6<--jS‍‌){if(8>jS‍‌){try{for(var jS‍‌=6,Hw‍‌=4;jS‍‌;)if(jS‍‌<4)(jS‍‌>2||(jS‍‌>1&&(jt=!((jS‍‌=7)-6),!undefined)||(jt=!0,jS‍‌+=2),null))&&(jS‍‌=4);else if(6>jS‍‌){if(++jS‍‌>5)return;else jS‍‌=!(jt=(tJ=fw['\\x63\\x61\\x6C\\x6C'](fZ))['\\x64\\x6F\\x6E\\x65'])&&(oJ['\\x70\\x75\\x73\\x68'](tJ['\\x76\\x61\\x6C\\x75\\x65']),oJ['\\x6C\\x65\\x6E\\x67\\x74\\x68']!==Rf)?1:0;}else(jS‍‌--<8||(jS‍‌+=\\u004f\\u0062\\u006a\\u0065\\u0063\\u0074(fZ)!==fZ?-2:-5,!true))&&(jS‍‌>5&&(jS‍‌=0,[])||(jS‍‌+=(fw=(fZ=fZ['\\x63\\x61\\x6C\\x6C'](oH))['\\x6E\\x65\\x78\\x74'],0===Rf)?3:-1));}catch(oH){for(var jS‍‌=1;jS‍‌;){(jS‍‌>1||(Zv=!((jS‍‌=2)-2),0))&&(jS‍‌-=2,lv=oH);}}finally{for(var jS‍‌=1;jS‍‌;){try{for(var jS‍‌=2,SD‍‌=0;jS‍‌;){if(jS‍‌>1)jS‍‌-=!jt&&null!=fZ['\\x72\\x65\\x74\\x75\\x72\\x6E']&&(Sl=fZ['\\x72\\x65\\x74\\x75\\x72\\x6E'](),\\u004f\\u0062\\u006a\\u0065\\u0063\\u0074(Sl)!==Sl)?1:2;else return;}}finally{for(var jS‍‌=1;jS‍‌;){(1<jS‍‌||(jS‍‌+=Zv?1:-1,0))&&(function(){throw lv;}(),jS‍‌-=2);}}jS‍‌=SD‍‌;}}jS‍‌=Hw‍‌;}else fZ=null==oH?null:(RA‍‌+='\\x6E\\x64\\x65\\x66\\x69\\x6E\\x65\\x64')!=typeof \\u0053\\u0079\\u006d\\u0062\\u006f\\u006c&&oH[\\u0053\\u0079\\u006d\\u0062\\u006f\\u006c[Gf‍‌+='\\x72\\x61\\x74\\x6F\\x72']]||oH[tt‍‌+='\\x65\\x72\\x61\\x74\\x6F\\x72'],jS‍‌=5;}else if(jS‍‌<3)(1<jS‍‌||((jS‍‌>0||(oJ=[],jt=!0,Zv=!1,jS‍‌+=8,void 0))&&(tt‍‌+='\\x69\\x74',jS‍‌=6),!true))&&(RA‍‌='\\x75');else if(4<jS‍‌)jS‍‌++>5&&(jS‍‌=3,tt‍‌='\\x40\\x40',!false)||(Gf‍‌='\\x69\\x74\\x65',jS‍‌+=3);else if(4>jS‍‌)return oJ;else jS‍‌-=null!=fZ?3:4;}),void 0))&&(jS‍‌>34||(lt‍‌='\\x73\\x6C',jS‍‌+=70,!true))&&(jS‍‌+=13,RA‍‌='\\x4C\\x43\\x52\\x45\\x41\\x44\\x5F'),false))&&(jS‍‌<32||(\\u0073\\u0070=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌+=85,null))&&(jS‍‌=51,\\u0070\\u006c\\u0061\\u0069\\u006e=(RA‍‌+='\\x3D')[Gf‍‌+='\\x61\\x74'](\\u0062\\u0069\\u0064,tt‍‌+='\\x3D')[HA‍‌+='\\x74'](\\u005f\\u0073\\u0070[HG‍‌+='\\x44'],lt‍‌+='\\x6E\\x73\\x75\\x6D\\x65\\x72\\x4B\\x65\\x79\\x3D')[JZ‍‌+='\\x74'](\\u0063\\u006f\\u006e\\u0073\\u0075\\u006d\\u0065\\u0072\\u004b\\u0065\\u0079,jG‍‌+='\\x61\\x6D\\x70\\x3D')[wl‍‌+='\\x61\\x74'](\\u0074\\u0069\\u006d\\u0065\\u0073\\u0074\\u0061\\u006d\\u0070,jo‍‌+='\\x3D')[ef‍‌+='\\x6F\\x6E\\x63\\x61\\x74'](\\u0075\\u0069\\u0064)),\"\"))&&(28<jS‍‌||((27<jS‍‌||(Gf‍‌+='\\x69',jS‍‌=110,void 0))&&(jS‍‌=18,wl‍‌='\\x63\\x6F\\x6E\\x63'),!{}))&&(\\u006a\\u0061\\u0076\\u0061[RA‍‌+='\\x73\\x74']((Gf‍‌+='\\u8d2d\\u4e70\\u5931\\u8d25\\uff1a')+\\u004a\\u0053\\u004f\\u004e[tt‍‌+='\\x65'](\\u0072\\u0065\\u0073\\u0070\\u006f\\u006e\\u0073\\u0065)[HA‍‌+='\\x47']),jS‍‌=135),undefined))&&(8<jS‍‌||(jS‍‌>6&&((jS‍‌--<8||(\\u0062\\u0070=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌=63,!1))&&(jS‍‌+=37,tt‍‌='\\x73\\x70\\x6C'),!false)||(jS‍‌++>4||((jS‍‌>4||((jS‍‌<4||(jS‍‌+=11,\\u005f\\u0075\\u006e\\u0073\\u0075\\u0070\\u0070\\u006f\\u0072\\u0074\\u0065\\u0064\\u0049\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079=function(oH,oJ){for(var RA‍‌,jS‍‌=13,tt‍‌,Gf‍‌,fZ,HA‍‌,HG‍‌;jS‍‌;)if(jS‍‌<8){if(jS‍‌>4){if(jS‍‌<6)jS‍‌=17,HG‍‌='\\x74\\x65';else if(jS‍‌>6)jS‍‌+=16,(RA‍‌+='\\x62\\x6A\\x65\\x63\\x74')===fZ&&oH[Gf‍‌+='\\x6F\\x72']&&(fZ=oH[tt‍‌+='\\x6F\\x72'][HA‍‌+='\\x65']);else return(RA‍‌+='\\x70')===fZ||(Gf‍‌+='\\x65\\x74')===fZ?\\u0041\\u0072\\u0072\\u0061\\u0079[tt‍‌+='\\x6F\\x6D'](oH):(HA‍‌+='\\x6E\\x74\\x73')===fZ||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/[HG‍‌+='\\x74'](fZ)?\\u005f\\u0061\\u0072\\u0072\\u0061\\u0079\\u004c\\u0069\\u006b\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079(oH,oJ):void 0;}else if(3<jS‍‌--)return \\u005f\\u0061\\u0072\\u0072\\u0061\\u0079\\u004c\\u0069\\u006b\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079(oH,oJ);else 1<jS‍‌&&(jS‍‌=12,tt‍‌='\\x73\\x6C\\x69',!false)||(0<jS‍‌||(jS‍‌+=19,tt‍‌='\\x63\\x6F\\x6E\\x73\\x74\\x72\\x75\\x63',0))&&(RA‍‌='\\x4F');}else++jS‍‌>20&&((24<jS‍‌++||(jS‍‌>24&&(tt‍‌='\\x66\\x72',jS‍‌=11,1)||(24>jS‍‌||(RA‍‌+='\\x53\\x74\\x72\\x69\\x6E',jS‍‌=21,0))&&(jS‍‌<23&&(Gf‍‌+='\\x6C',!null)||(jS‍‌-=21,fZ={}[RA‍‌+='\\x67'][Gf‍‌+='\\x6C'](oH)[tt‍‌+='\\x65'](8,-1))),\"\"))&&(jS‍‌-=6,tt‍‌+='\\x63'),1)||(14<jS‍‌||((12<jS‍‌||((11>jS‍‌||(11<jS‍‌--&&(jS‍‌=5,HA‍‌='\\x41\\x72\\x67\\x75\\x6D\\x65',1)||(jS‍‌-=4,RA‍‌='\\x4D\\x61'),undefined))&&(10>jS‍‌&&(Gf‍‌+='\\x6F\\x6E\\x73\\x74\\x72\\x75\\x63\\x74',jS‍‌+=5,[])||(jS‍‌=8,Gf‍‌='\\x63')),0))&&(13<jS‍‌||(Gf‍‌='\\x63\\x61',jS‍‌+=3,\"\"))&&(jS‍‌=oH?18:0),!{}))&&(jS‍‌>18||(jS‍‌>17&&(jS‍‌-=3,HG‍‌+='\\x73',!false)||jS‍‌<17&&(16>jS‍‌&&(jS‍‌=7,HA‍‌='\\x6E\\x61\\x6D',!false)||(Gf‍‌='\\x53',jS‍‌=10),!undefined)||(jS‍‌=24,RA‍‌='\\x74\\x6F'),false))&&(20>jS‍‌||(tt‍‌+='\\x74',jS‍‌=9,null))&&(jS‍‌='\\x73\\x74\\x72\\x69\\x6E\\x67'==typeof oH?4:3);},!{}))&&(\\u005f\\u0073\\u006c\\u0069\\u0063\\u0065\\u0064\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079=function(oH,tJ){for(var jS‍‌=1;jS‍‌;){return \\u005f\\u0061\\u0072\\u0072\\u0061\\u0079\\u0057\\u0069\\u0074\\u0068\\u0048\\u006f\\u006c\\u0065\\u0073(oH)||\\u005f\\u0069\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079\\u004c\\u0069\\u006d\\u0069\\u0074(oH,tJ)||\\u005f\\u0075\\u006e\\u0073\\u0075\\u0070\\u0070\\u006f\\u0072\\u0074\\u0065\\u0064\\u0049\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079(oH,tJ)||\\u005f\\u006e\\u006f\\u006e\\u0049\\u0074\\u0065\\u0072\\u0061\\u0062\\u006c\\u0065\\u0052\\u0065\\u0073\\u0074();}},jS‍‌=74),\"\"))&&(\\u005f\\u0063\\u0064\\u0061\\u0074\\u0061=\\u005f\\u0073\\u006c\\u0069\\u0063\\u0065\\u0064\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079(\\u0063\\u0064\\u0061\\u0074\\u0061,(jS‍‌=16)-11)),false))&&(jS‍‌<7||(jS‍‌=82,oo‍‌+='\\x6E',!true))&&(jS‍‌+=112,RA‍‌='\\x74'),!1))&&(jS‍‌>9||(jS‍‌=12,RA‍‌='\\x63\\x4E\\x65\\x78',null))&&(jS‍‌=42,\\u0073\\u0064=\\u006d\\u0065\\u0074\\u0068\\u006f\\u0064+\\u0065\\u006e\\u0063\\u006f\\u0064\\u0065\\u0055\\u0052\\u0049\\u0043\\u006f\\u006d\\u0070\\u006f\\u006e\\u0065\\u006e\\u0074(\\u0075\\u0072\\u006c+\\u0070\\u006c\\u0061\\u0069\\u006e)+\\u0073\\u0065\\u0063\\u0072\\u0065\\u0074);else if(++jS‍‌>105)(jS‍‌<115||((123>jS‍‌||(jS‍‌<131&&((130<++jS‍‌||(jS‍‌>128&&(129<jS‍‌&&(jS‍‌=26,HG‍‌+='\\x63',!\"\")||(Gf‍‌='\\x75\\x74',jS‍‌=31),!undefined)||126<jS‍‌++&&((129>jS‍‌||(jS‍‌=56,RA‍‌='\\x62\\x49\\x44',\"\"))&&(\\u0070\\u0061\\u0074\\u0068=\\u005f\\u0063\\u0064\\u0061\\u0074\\u0061[(jS‍‌-=--jS‍‌-51)-52]),1)||126>jS‍‌&&(jS‍‌=37,lt‍‌='\\x63\\x4E\\x65\\x78\\x74\\x3D\\x30\\x63\\x6F',!0)||jS‍‌>126&&(jS‍‌-=86,jo‍‌='\\x75\\x49\\x44',!null)||(jS‍‌=13,RA‍‌+='\\x72'),![]))&&(RA‍‌='\\x74',jS‍‌=132),1)||jS‍‌<134&&((132<jS‍‌||(jS‍‌<132&&(jS‍‌=\\u004a\\u0053\\u004f\\u004e['\\x70\\x61\\x72\\x73\\x65'](\\u0072\\u0065\\u0073\\u0070\\u006f\\u006e\\u0073\\u0065)['\\x4D\\x53\\x47']=='\\x53\\x55\\x43\\x43\\x45\\x53\\x53'?81:70,!undefined)||(jS‍‌-=44,RA‍‌='\\x74\\x6F'),\"\"))&&(\\u0072\\u0065\\u0073\\u0070\\u006f\\u006e\\u0073\\u0065=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌-=54),!\"\")||137<jS‍‌&&((138<jS‍‌||(jo‍‌='\\x26\\x63\\x49\\x44',jS‍‌-=93,!1))&&(\\u0063\\u0064\\u0061\\u0074\\u0061=\\u006a\\u0061\\u0076\\u0061[RA‍‌+='\\x65'](\\u0062\\u0061\\u0073\\u0065\\u0055\\u0072\\u006c[Gf‍‌+='\\x74']('\\x2C')[(jS‍‌-=jS‍‌-- -10)-9])[tt‍‌+='\\x69\\x74']('\\x2D')),!false)||(++jS‍‌<137||((138>jS‍‌||(false,jS‍‌-=138,undefined))&&(jS‍‌=23,\\u0073\\u0065\\u0063\\u0072\\u0065\\u0074=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064),!true))&&(136>jS‍‌++||(jS‍‌-=84,tf‍‌='\\x63\\x49',null))&&(\\u005f\\u0062\\u0070[RA‍‌+='\\x6F\\x6B\\x65\\x6E']=\\u0074\\u006f\\u006b\\u0065\\u006e,jS‍‌=34),void 0))&&(118>jS‍‌||(jS‍‌++>121&&(\\u0075\\u0072\\u006c=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌=44,!\"\")||(120<jS‍‌||((120>jS‍‌||(\\u0073\\u0070=\\u005f\\u0063\\u0064\\u0061\\u0074\\u0061[(jS‍‌=7)-5],void 0))&&(jS‍‌=111,\\u0062\\u0075\\u0079\\u0075\\u0072\\u006c=''[RA‍‌+='\\x74'](\\u0075\\u0072\\u006c,Gf‍‌+='\\x6D\\x65\\x72\\x4B\\x65\\x79\\x3D')[tt‍‌+='\\x6F\\x6E\\x63\\x61\\x74'](\\u0063\\u006f\\u006e\\u0073\\u0075\\u006d\\u0065\\u0072\\u004b\\u0065\\u0079,HA‍‌+='\\x6D\\x70\\x3D')[HG‍‌+='\\x74'](\\u0074\\u0069\\u006d\\u0065\\u0073\\u0074\\u0061\\u006d\\u0070,lt‍‌+='\\x69\\x67\\x6E\\x3D')[JZ‍‌+='\\x63\\x61\\x74'](\\u0073\\u0069\\u0067\\u006e,jG‍‌+='\\x49\\x44\\x3D')[wl‍‌+='\\x74'](\\u0062\\u0069\\u0064,jo‍‌+='\\x3D')[ef‍‌+='\\x61\\x74'](\\u005f\\u0073\\u0070[tf‍‌+='\\x44'],eD‍‌+='\\x4C\\x3D\\x57\\x41\\x4E\\x44\\x4F\\x55\\x4A\\x49\\x41\\x26\\x69\\x6D\\x65\\x69\\x3D')[eo‍‌+='\\x74'](\\u0061\\u0069\\u0064,jA‍‌+='\\x6F\\x69\\x64\\x49\\x44\\x3D')[jJ‍‌+='\\x63\\x61\\x74'](\\u0061\\u0069\\u0064,oo‍‌+='\\x3D')[ZS‍‌+='\\x74'](\\u0074\\u006f\\u006b\\u0065\\u006e,lD‍‌+='\\x3D')[Aw‍‌+='\\x74'](\\u0075\\u0069\\u0064)),!1))&&(jS‍‌<122&&(jS‍‌-=30,\\u006a\\u0061\\u0076\\u0061[RA‍‌+='\\x6F\\x61\\x73\\x74'](Gf‍‌+='\\u529f'),!undefined)||(ef‍‌='\\x63',jS‍‌=39)),!true))&&(115>--jS‍‌&&(\\u005f\\u0061\\u0072\\u0072\\u0061\\u0079\\u004c\\u0069\\u006b\\u0065\\u0054\\u006f\\u0041\\u0072\\u0072\\u0061\\u0079=function(oH,oJ){for(var lv,RA‍‌,jS‍‌=11,Gf‍‌,tJ;jS‍‌;)if(--jS‍‌>6){if(8>--jS‍‌)jS‍‌<7&&(jS‍‌=4,!null)||(RA‍‌+='\\x6E\\x67',jS‍‌=5);else if(9>jS‍‌)return lv;else Gf‍‌='\\x6C',jS‍‌=7;}else jS‍‌<3&&((1<jS‍‌||((0<jS‍‌||(jS‍‌=6,(null==oJ||oJ>oH[RA‍‌+='\\x74\\x68'])&&(oJ=oH[Gf‍‌+='\\x68']),!{}))&&(lv[tJ]=oH[tJ],jS‍‌=3),\"\"))&&(tJ++,jS‍‌+=6),!\"\")||jS‍‌<5&&((4>jS‍‌||(Gf‍‌+='\\x65\\x6E\\x67\\x74',jS‍‌-=3,!true))&&(jS‍‌=tJ<oJ?2:10),!false)||(5<jS‍‌||(--jS‍‌,tJ=0,lv=\\u0041\\u0072\\u0072\\u0061\\u0079(oJ),!true))&&(RA‍‌='\\x6C\\x65',jS‍‌+=3);},jS‍‌-=112,!undefined)||(jS‍‌>115||(jS‍‌=107,oo‍‌='\\x26\\x74\\x6F\\x6B\\x65',void 0))&&(\\u0061\\u0069\\u0064=\\u0053\\u0074\\u0072\\u0069\\u006e\\u0067(\\u0050\\u0061\\u0063\\u006b\\u0061\\u0067\\u0065\\u0073[RA‍‌+='\\x76\\x61'][Gf‍‌+='\\x6C'][tt‍‌+='\\x44'][HA‍‌+='\\x44']())[HG‍‌+='\\x65'](/-/g,'')[lt‍‌+='\\x69\\x63\\x65']((jS‍‌-=18)-98,16))),null))&&(++jS‍‌>113||(jS‍‌<110&&((jS‍‌>108||((107<jS‍‌||(RA‍‌+='\\x61',jS‍‌=127,false))&&(jS‍‌=137,Gf‍‌='\\x73\\x70\\x6C\\x69'),!1))&&(Gf‍‌+='\\u4e70\\u6210',jS‍‌-=105),[])||(111<jS‍‌||((110<jS‍‌--||(lt‍‌='\\x26\\x73',jS‍‌-=69,void 0))&&(ZS‍‌='\\x63\\x6F\\x6E\\x63\\x61',jS‍‌-=37),null))&&(jS‍‌>112||(jS‍‌=6,\\u0063\\u0064\\u0061\\u0074\\u0061=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,!1))&&(jS‍‌=21,HA‍‌='\\x72\\x61\\x6E\\x64\\x6F\\x6D\\x55\\x55\\x49'),!{}))&&(++jS‍‌<116&&(jS‍‌-=25,RA‍‌='\\x6C\\x6F',1)||(jS‍‌=47,RA‍‌='\\x6D\\x64'));else if(73>++jS‍‌){if(jS‍‌-->63){if(jS‍‌>69)70<jS‍‌&&(jS‍‌+=32,\\u0074\\u0069\\u006d\\u0065\\u0073\\u0074\\u0061\\u006d\\u0070=\\u0044\\u0061\\u0074\\u0065[RA‍‌+='\\x6F\\x77']()[Gf‍‌+='\\x72\\x69\\x6E\\x67'](),!0)||(RA‍‌='\\x6C\\x6F',jS‍‌-=10);else if(jS‍‌>67)jS‍‌<69&&(eD‍‌='\\x26\\x63\\x4E\\x65\\x78\\x74\\x3D\\x30\\x26\\x63\\x6F\\x73\\x74\\x3D\\x30\\x26\\x6D\\x54\\x79\\x70\\x65\\x3D\\x58\\x49\\x41\\x4F\\x4D\\x49\\x2D\\x32\\x33\\x30\\x34\\x39\\x52\\x41\\x44\\x38\\x43\\x26\\x50\\x41\\x43\\x4B\\x49\\x4E\\x47\\x43\\x48\\x41\\x4E\\x4E',jS‍‌+=15,[])||(jS‍‌+=11,\\u005f\\u0073\\u0070=\\u004a\\u0053\\u004f\\u004e[RA‍‌+='\\x73\\x65'](\\u0073\\u0070));else if(jS‍‌<66)64<jS‍‌&&(\\u0062\\u0070=\\u005f\\u0063\\u0064\\u0061\\u0074\\u0061[(jS‍‌+=29)-91],!\"\")||jS‍‌>63&&(HA‍‌='\\x4D',jS‍‌=130,!0)||(HA‍‌+='\\x53',jS‍‌-=35);else if(++jS‍‌<68)RA‍‌='\\x6A',jS‍‌=126;else{try{for(var jS‍‌=2,Hw‍‌=109;jS‍‌;)7<jS‍‌&&(9>jS‍‌&&(RA‍‌+='\\x4B\\x45',jS‍‌-=7,true)||10>jS‍‌&&(RA‍‌='\\x54\\x4F',jS‍‌=8,!false)||(jS‍‌=6,tt‍‌='\\x44\\x41'),!undefined)||5<jS‍‌&&(jS‍‌>6&&(RA‍‌='\\x70\\x61',jS‍‌=10,!false)||(jS‍‌-=3,RA‍‌+='\\x72'),!0)||(4>jS‍‌||((jS‍‌--<5||(RA‍‌='\\x55',void 0))&&(jS‍‌+=6,\\u0075\\u0069\\u0064=\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065\\u0044\\u0061\\u0074\\u0061[RA‍‌+='\\x49\\x44']),null))&&(++jS‍‌>3&&(\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065\\u0044\\u0061\\u0074\\u0061=\\u004a\\u0053\\u004f\\u004e[RA‍‌+='\\x73\\x65'](\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065[Gf‍‌+='\\x65']())[tt‍‌+='\\x54\\x41'],jS‍‌=5,!0)||jS‍‌>2&&(jS‍‌=7,Gf‍‌='\\x67\\x65\\x74\\x56\\x61\\x72\\x69\\x61\\x62\\x6C',[])||(\\u0074\\u006f\\u006b\\u0065\\u006e=\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065\\u0044\\u0061\\u0074\\u0061[RA‍‌+='\\x4E'],jS‍‌=0));}catch(tJ){for(var jS‍‌=2;jS‍‌;){(1<jS‍‌||(\\u006a\\u0061\\u0076\\u0061[RA‍‌+='\\x67'](tJ),jS‍‌=0,void 0))&&(jS‍‌--,RA‍‌='\\x6C\\x6F');}}jS‍‌=Hw‍‌;}}else(jS‍‌<47||(jS‍‌<55&&((52<--jS‍‌||(49>jS‍‌&&(47<jS‍‌--&&(\\u0073\\u0069\\u0067\\u006e=\\u006a\\u0061\\u0076\\u0061[RA‍‌+='\\x35\\x45\\x6E\\x63\\x6F\\x64\\x65'](\\u0073\\u0064),jS‍‌=59,!false)||46>jS‍‌--&&(RA‍‌='\\x63\\x6F\\x6E',jS‍‌=38,!0)||(jS‍‌=58,\\u0073\\u0065\\u0063\\u0072\\u0065\\u0074=RA‍‌+='\\x42\\x53\\x65\\x65\\x45\\x77\\x67\\x44\\x79\\x32\\x70\\x54'),{})||(51>jS‍‌||(jS‍‌<52&&(jS‍‌+=34,eo‍‌='\\x63\\x6F\\x6E\\x63',!false)||(\\u0073\\u0064=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌-=43),!1))&&(50>jS‍‌||(RA‍‌='\\x47\\x45',jS‍‌=92,!1))&&(RA‍‌+='\\x41\\x4E\\x44',jS‍‌=84),false))&&(jS‍‌=95,\\u0062\\u0069\\u0064=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064),!0)||(61<jS‍‌||((jS‍‌>59||(58>jS‍‌&&((jS‍‌>56||((55<jS‍‌||(jS‍‌=22,ef‍‌='\\x63\\x6F\\x6E\\x63',undefined))&&(\\u006d\\u0065\\u0074\\u0068\\u006f\\u0064=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌-=7),!{}))&&(jS‍‌+=62,Gf‍‌='\\x63\\x6F\\x6E\\x63'),{})||jS‍‌<59&&(jS‍‌=27,JZ‍‌='\\x63\\x6F\\x6E\\x63\\x61',!\"\")||(HG‍‌='\\x63\\x49',jS‍‌=29),void 0))&&(jS‍‌<61&&(jS‍‌=125,\\u0070\\u006c\\u0061\\u0069\\u006e=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,1)||(jS‍‌=108,\\u0062\\u0075\\u0079\\u0075\\u0072\\u006c=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064)),![]))&&(jS‍‌+=67,\\u006a\\u0061\\u0076\\u0061[RA‍‌+='\\x67'](\\u0072\\u0065\\u0073\\u0070\\u006f\\u006e\\u0073\\u0065)),!1))&&(44<jS‍‌++&&(47>jS‍‌&&(jS‍‌+=59,RA‍‌='\\x62\\x61\\x73\\x65\\x36\\x34\\x44\\x65\\x63\\x6F\\x64',!\"\")||(jS‍‌+=31,RA‍‌='\\x68\\x74\\x74\\x70\\x3A\\x2F\\x2F\\x61\\x2E\\x6C\\x63\\x31\\x30\\x30\\x31\\x2E\\x63\\x6F\\x6D\\x2F\\x61'),!undefined)||(42>jS‍‌||((43<jS‍‌--||(42>jS‍‌&&(HA‍‌='\\x63',jS‍‌+=82,!0)||(JZ‍‌='\\x63\\x6F\\x6E',jS‍‌=35),undefined))&&(jS‍‌<44&&(jS‍‌=121,tt‍‌='\\x63\\x49\\x44',true)||(\\u0073\\u0069\\u0067\\u006e=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌=112)),!true))&&(jS‍‌<40&&(jS‍‌=11,Gf‍‌='\\x74\\x6F\\x53\\x74',!0)||(42>++jS‍‌||(jS‍‌=89,RA‍‌+='\\x63\\x61',undefined))&&(jS‍‌+=16,HA‍‌+='\\x6F\\x6E\\x63\\x61')));}else 97<jS‍‌&&(101>jS‍‌&&(99>jS‍‌&&(\\u0062\\u0069\\u0064=\\u005f\\u0063\\u0064\\u0061\\u0074\\u0061[(jS‍‌-=68)-29],1)||(100>jS‍‌||(\\u0075\\u0069\\u0064=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌=72,\"\"))&&(HG‍‌='\\x72\\x65\\x70\\x6C\\x61',jS‍‌-=35),!undefined)||jS‍‌>104&&((107>++jS‍‌||(\\u0063\\u006f\\u006e\\u0073\\u0075\\u006d\\u0065\\u0072\\u004b\\u0065\\u0079=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌=32,void 0))&&(jS‍‌=76,\\u005f\\u0073\\u0070=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064),true)||(103>jS‍‌||(103<jS‍‌&&(jS‍‌=122,RA‍‌='\\x70\\x61',[])||(\\u0063\\u0069\\u0064=\\u005f\\u0063\\u0064\\u0061\\u0074\\u0061[(jS‍‌=102)-98]),undefined))&&(jS‍‌>101&&(\\u005f\\u0061\\u0072\\u0072\\u0061\\u0079\\u0057\\u0069\\u0074\\u0068\\u0048\\u006f\\u006c\\u0065\\u0073=function(oH){for(var jS‍‌=2;jS‍‌;){if(2>jS‍‌)return oH;else jS‍‌+=\\u0041\\u0072\\u0072\\u0061\\u0079['\\x69\\x73\\x41\\x72\\x72\\x61\\x79'](oH)?-1:-2;}},jS‍‌-=69,true)||(jS‍‌=36,\\u0074\\u0069\\u006d\\u0065\\u0073\\u0074\\u0061\\u006d\\u0070=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064)),!false)||(82>jS‍‌||((89<jS‍‌++||(jS‍‌>89&&(jS‍‌=62,Gf‍‌='\\u274c',!0)||jS‍‌<86&&((84<jS‍‌||(83<jS‍‌&&(jS‍‌=101,\\u005f\\u0062\\u0070=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,{})||(RA‍‌='\\x61\\x6A',jS‍‌-=6),!true))&&(Gf‍‌='\\u2705\\u8d2d',jS‍‌=106),!false)||87<jS‍‌&&((88<jS‍‌||(\\u0063\\u006f\\u006e\\u0073\\u0075\\u006d\\u0065\\u0072\\u004b\\u0065\\u0079=RA‍‌+='\\x52\\x4F\\x49\\x44',jS‍‌+=32,![]))&&(jJ‍‌='\\x63',jS‍‌=25),true)||--jS‍‌>85&&(eD‍‌+='\\x45',jS‍‌=5,{})||(jS‍‌=116,eo‍‌+='\\x61'),void 0))&&(jS‍‌>97||(95<jS‍‌&&(97>jS‍‌&&(jS‍‌=134,\\u006d\\u0065\\u0074\\u0068\\u006f\\u0064=RA‍‌+='\\x54',1)||(\\u005f\\u0073\\u0070[RA‍‌+='\\x74']=(jS‍‌+=31)-128),true)||(94>jS‍‌||((95>jS‍‌||(jS‍‌+=40,null))&&(jS‍‌+=37,\\u006a\\u0061\\u0076\\u0061[RA‍‌+='\\x67'](\\u0062\\u0075\\u0079\\u0075\\u0072\\u006c)),null))&&(jS‍‌>92||((91<jS‍‌||(jS‍‌+=45,jG‍‌='\\x26\\x62',false))&&(RA‍‌+='\\x61',jS‍‌-=31),void 0))&&(jS‍‌+=21,Aw‍‌='\\x63\\x6F\\x6E\\x63\\x61'),undefined))&&(\\u0063\\u0069\\u0064=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌=100),void 0))&&(79<jS‍‌&&(81>jS‍‌&&(jS‍‌=14,RA‍‌+='\\x61',!0)||(jS‍‌-=27,\\u0075\\u0072\\u006c=RA‍‌+='\\x70\\x70\\x2F\\x73\\x75\\x62\\x73\\x63\\x72\\x69\\x62\\x65\\x2F\\x62\\x75\\x79\\x63\\x68\\x61\\x70\\x74\\x65\\x72'),!false)||(jS‍‌>77||((75<jS‍‌||(jS‍‌>74&&(\\u0074\\u006f\\u006b\\u0065\\u006e=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,jS‍‌=65,!null)||73<jS‍‌&&(jS‍‌-=57,lD‍‌='\\x26\\x75\\x49\\x44',{})||(tt‍‌='\\x70\\x61\\x72\\x73',jS‍‌+=13),false))&&(77>jS‍‌||(jS‍‌+=20,\\u0073\\u006f\\u0075\\u0072\\u0063\\u0065\\u0044\\u0061\\u0074\\u0061=\\u0075\\u006e\\u0064\\u0065\\u0066\\u0069\\u006e\\u0065\\u0064,!1))&&(HG‍‌='\\x63\\x6F\\x6E\\x63\\x61',jS‍‌+=57),void 0))&&(78<jS‍‌&&(jS‍‌=67,RA‍‌='\\x70\\x61\\x72',[])||(jS‍‌-=12,wl‍‌+='\\x61')));",
-      "replaceRegex": "##本书由连城读书独家发表，请勿转载！公众号搜索连城读书，赠会员，领福利"
-    },
-    "ruleExplore": {
-      "author": "AUTHORNAME",
-      "bookList": "DATA.KEYLIST",
-      "bookUrl": "@js:\nvar extraParams = {lmID: \"6002330\"};\nu = bookRequest(\"info/bookindex\", {{$.KEYID}}, extraParams);",
-      "coverUrl": "COVERURL",
-      "intro": "CONTENT",
-      "kind": "KEYTYPE",
-      "name": "KEYNAME",
-      "wordCount": "WORDNUM"
-    },
-    "ruleSearch": {
-      "author": "a:nth-child(3)@text",
-      "bookList": ".tb_con[1:]",
-      "bookUrl": ".txt_100_t > a:nth-child(1)@href\n@js:\nbid = result.match(/\\/(\\d+)\\//)[1];\nvar extraParams = {lmID: \"6002330\"};\nu = bookRequest(\"info/bookindex\", bid, extraParams);",
-      "coverUrl": "img@src",
-      "intro": ".txt_100_t@textNodes##著",
-      "name": ".txt_120_t2@text"
-    },
-    "ruleToc": {
-      "chapterList": "@js:\nlet cdata = java.hexDecodeToString(result).split(\"-\")\nresult = java.ajax(bookRequest(cdata[0], cdata[1],JSON.parse(cdata[2])))\ndata = JSON.parse(result).DATA.BOOKCATA;\nbid = java.get(\"bid\");\ntry {\n  uid = JSON.parse(source.getVariable()).DATA.UID;\n  token = JSON.parse(source.getVariable()).DATA.TOKEN;\n} catch(e) {\n  var uid, token\n}\n\ndata.reduce(function(arr, item) {\n  arr.push({\"text\": item.VNAME, \"isvo\": true});\n  \n  item.CHAPTERS.forEach(function(x) {\n    cid = x.CID;\n    var apiPath = x.ISVC == 0 ? \"book/pubchapter\" : \"book/vipchapter\";\n    var extraParams = {cID: cid};\n    var bodyParams = {};\n    \n    var u = \"data:;base64,\"+java.base64Encode([apiPath, bid, JSON.stringify(extraParams), JSON.stringify(bodyParams), uid].join(\"-\")) + ',{\"type\":\"LCReadc\"}';\n    arr.push({\"text\": x.CNAME, \"href\": u, \"isvi\": x.ISVC});\n  });\n  \n  return arr;\n}, []);",
-      "chapterName": "text",
-      "chapterUrl": "href",
-      "isVip": "isvi",
-      "isVolume": "isvo"
-    },
-    "searchUrl": "https://my.lc1001.com/esou/q?dowhat=query&kw={{java.encodeURI(key, 'gbk')}}&type=1000",
-    "weight": 0,
-    "homepageModules": "[]"
   },
   {
     "bookSourceGroup": "正版小说 书源",
@@ -904,7 +691,7 @@
       "wordCount": "class.book_data.0@tag.tr.-1@td@text"
     },
     "ruleContent": {
-      "content": "@css:.read-txt img,.read-txt p@html||html",
+      "content": "@css:.read-txt img,.read-txt p@html",
       "webJs": ""
     },
     "ruleExplore": {
@@ -1067,51 +854,6 @@
     "searchUrl": "@js:\n\nu=decode(decodeURIComponent(\"hYKytSMHsACWNRRED+zq8asscl2eVP6HdvA4q5ImrVI7MWRmJfl1mXV/bVjWdldyl6Jlfmf78osN25N+IMEqlZ/ISFj5ytn+hpR9jTw5PT8hFFyMLia2qgW0FSdV9O7fZhjcs9FVfNfzWxNHiQg03a8CW3WiY7wc0V3PNoja3lE4Za8ETj6pE/Nv7iXoj3ZD7Xb3E9kcfCyJYw5ftdV4uiMO7hPOdEL+vAb6C+PmksCYWb5NcLdNj8Ujircymh6sTgn9xICNQeH83g/b4U3GcdgsaTiCRU+3l9B3jg5C438=\"));\njava.log(JSON.stringify(JSON.parse(u)))\nlet jsonObj={\"app_signature_md5\":\"f73576612783f8ed8b68cdf73a56be94\",\"app_version\":\"4.1.1\",\"channel\":\"default\",\"order\":\"week_click\",\"count\":\"15\",\"category_type\":\"1\",\"page\":page-1,\"key\":key,\"login_token\":String(getToken()),\"account\":String(getA())}\nlet body = \"secret_content=\"+encode(JSON.stringify(jsonObj));\n\nlet option = {\"method\": \"POST\",\"body\": String(body)};\n\n\"https://app.shubl.com/bookcity/get_filter_search_book_list,\" + JSON.stringify(option)",
     "weight": 0,
     "homepageModules": "[{\"key\":\"list-1\",\"title\":\"付费&连载&更新时间\",\"type\":\"ranking\",\"url\":\"https://www.baidu.com/category_type=1&order=uptime&up_status=0&is_paid=1&page={{page}}\"},{\"key\":\"list-2\",\"title\":\"付费&完本&更新时间\",\"type\":\"ranking\",\"url\":\"https://www.baidu.com/category_type=1&order=uptime&up_status=1&is_paid=1&page={{page}}\"}]"
-  },
-  {
-    "bookSourceGroup": "正版小说 书源",
-    "bookSourceName": "豆腐阅读",
-    "bookSourceType": 0,
-    "bookSourceUrl": "http://api.doufu.me/",
-    "customButton": false,
-    "customOrder": 386,
-    "enabled": true,
-    "enabledCookieJar": false,
-    "enabledExplore": true,
-    "eventListener": false,
-    "header": "{}",
-    "lastUpdateTime": 1766232478473,
-    "loginUrl": "http://api.doufu.me/member/user_login",
-    "respondTime": 3685,
-    "ruleBookInfo": {
-      "author": "$.data.topic.author",
-      "coverUrl": "$.images[0].path",
-      "kind": "$.tags[0].name&&$.tags[2].name&&$.tags[1].name&&$.tags[3].name",
-      "name": "$.data.topic.title",
-      "tocUrl": "http://api.doufu.me/index.php/novel/chapter_list?novel_id={$.data.topic.id}"
-    },
-    "ruleContent": {
-      "content": "$.data.detail.des"
-    },
-    "ruleExplore": {},
-    "ruleSearch": {
-      "author": "$.author",
-      "bookList": "$.data[*]",
-      "bookUrl": "http://api.doufu.me/topic/novel?topic_id={$.id}",
-      "coverUrl": "$.images[0].path",
-      "intro": "$.des",
-      "kind": "$.tags[0].name&&$.tags[2].name&&$.tags[1].name&&$.tags[3].name",
-      "name": "$.title"
-    },
-    "ruleToc": {
-      "chapterList": "$.data.list",
-      "chapterName": "$.title",
-      "chapterUrl": "http://api.doufu.me/index.php/post/view/{$.id}?with_ids=1&type=read",
-      "isVip": "$.vip",
-      "updateTime": "$.add_time"
-    },
-    "searchUrl": "http://api.doufu.me/search/content?keyword={{key}}&start=0&rows=20&types=18&order=&is_finished=&vip=",
-    "weight": 0
   },
   {
     "bookSourceComment": "需登录",

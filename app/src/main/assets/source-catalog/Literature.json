@@ -15,15 +15,15 @@
     "loginUrl": "",
     "respondTime": 4727,
     "ruleBookInfo": {
-      "author": "",
+      "author": "#book_info h4 a.0@text",
       "coverUrl": "#book_info img@src",
       "init": "",
       "intro": ".intro@html",
       "lastChapter": "#dir a.-1@text",
-      "name": ""
+      "name": "#book_info h2@text"
     },
     "ruleContent": {
-      "content": "@css:#content > div@html",
+      "content": "@js:java.webView(null,baseUrl,\"(function(){if(document.readyState!=='complete'||!window.content||!content.childNode||!content.childNode.length)return null;if(content.index<content.childNode.length){content.showNext();return null;}var nodes=Array.from(document.querySelectorAll('#content > div')).filter(function(e){return e.getBoundingClientRect().height>0 && !e.classList.contains('mask')});return nodes.length?nodes.map(function(e){return '<p>'+e.innerText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>'}).join(''):null})()\");",
       "imageStyle": "FULL",
       "replaceRegex": "##\\s*(([ｈh].+)?([wｗ]+.)?[９9]+[ｌl][ｉi][ｂb].[ｎn][ｅe][ｔt]|九.?九.{1,5}书.?网?)\\s*"
     },
@@ -54,7 +54,9 @@
     },
     "searchUrl": "/book/search.php?type=all&q={{key}}&page=1",
     "weight": 0,
-    "homepageModules": "[{\"key\":\"list-1\",\"title\":\"排行榜单\",\"type\":\"ranking\",\"url\":\"/top/index.php\"}]"
+    "homepageModules": "[{\"key\":\"list-1\",\"title\":\"排行榜单\",\"type\":\"ranking\",\"url\":\"/top/index.php\"}]",
+    "browserRead": true,
+    "header": "@js:JSON.stringify({\"User-Agent\":java.getWebViewUA()})"
   },
   {
     "bookSourceComment": "",
@@ -68,7 +70,7 @@
     "enabledCookieJar": true,
     "enabledExplore": true,
     "exploreUrl": "全部小说::/book/index.php<,?page={{page}}>\n网游小说::/book/index.php?type=%E7%BD%91%E6%B8%B8%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n玄幻小说::/book/index.php?type=%E7%8E%84%E5%B9%BB%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n穿越小说::/book/index.php?type=%E7%A9%BF%E8%B6%8A%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n科幻小说::/book/index.php?type=%E7%A7%91%E5%B9%BB%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n仙侠小说::/book/index.php?type=%E4%BB%99%E4%BE%A0%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n都市小说::/book/index.php?type=%E9%83%BD%E5%B8%82%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n武侠小说::/book/index.php?type=%E6%AD%A6%E4%BE%A0%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n历史小说::/book/index.php?type=%E5%8E%86%E5%8F%B2%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n竞技小说::/book/index.php?type=%E7%AB%9E%E6%8A%80%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n言情小说::/book/index.php?type=%E8%A8%80%E6%83%85%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n悬疑小说::/book/index.php?type=%E6%82%AC%E7%96%91%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n军事小说::/book/index.php?type=%E5%86%9B%E4%BA%8B%E5%B0%8F%E8%AF%B4<,&page={{page}}>\n灵异小说::/book/index.php?type=%E7%81%B5%E5%BC%82%E5%B0%8F%E8%AF%B4<,&page={{page}}>",
-    "header": "@js:\nJSON.stringify({\n\t\"referer\": baseUrl,\n\t\"Accept\" :\"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9\",\n\"x-requested-with\": \"mark.via\",\n\"accept-language\": \"zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7\",\n\"user-agent\": \"Mozilla/5.0 (Linux; Android 10; PACM00 Build/QP1A.190711.020) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.79 Mobile Safari/537.36\"})",
+    "header": "@js:JSON.stringify({\"User-Agent\":java.getWebViewUA()})",
     "lastUpdateTime": 1728196021277,
     "respondTime": 4881,
     "ruleBookInfo": {
@@ -81,8 +83,7 @@
       "wordCount": "text.字数：@text##字数："
     },
     "ruleContent": {
-      "content": "<js>\nvar url=baseUrl.replace(/(\\d+).html/,\"r$1.json\"),\npath=\"#content@children!0\",\ntxt=java.getElement(path).toArray();\nvar head={\"X-Requested-With\": \"XMLHttpRequest\",\"Referer\":baseUrl};\ntoken=java.get(url,head).header(\"token\")\ndec=java.base64Decode(token);\nvar str=String(dec),\nlis=str.split(/[A-Z]+%/);\nvar x=0,y=0,c=[];\nfor(i=0;i<txt.length;i++){\n\tgo=String(txt[i])\n\tif(/h2/i.test(go)){\n\t\ty=i+1;\n\t\t}\n\t}\n\tfor(i=0;i<lis.length;i++){\n\t\tif(lis[i]<5){\n\t\t\tc[lis[i]]=txt[i+y];\n\t\t\t\tx++;\n\t\t\t}else{\n\t\t\t\tc[lis[i]-x]=txt[i+y];\n\t\t\t\t}\n\t\t}\n\t\tc.join(\"\");\n</js>\ndiv@ownText",
-      "replaceRegex": "##和-图-书|[http].*com?|m.+com?"
+      "content": "@js:java.webView(null,baseUrl,\"(function(){if(document.readyState!=='complete'||!window.section||!section.content)return null;if(!section.content.drag){if(!window.__nextvolXmlRetry && performance.getEntriesByName(new URL('r'+section.sid+'.json',location.href).href).length){window.__nextvolXmlRetry=true;ajax.startRequest({url:'r'+section.sid+'.xml',headerName:'token',doRequest:function(token){if(token)section.content.load(token)}});}return null;}var nodes=Array.from(document.querySelectorAll('#content > div')).filter(function(e){return e.getBoundingClientRect().height>0 && !e.classList.contains('mask')});return nodes.length?nodes.map(function(e){return '<p>'+e.innerText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>'}).join(''):null})()\");"
     },
     "ruleExplore": {
       "author": ".author@text",
@@ -111,7 +112,8 @@
     },
     "searchUrl": "https://www.hetushu.com/search/?keyword={{key}}",
     "weight": 0,
-    "homepageModules": "[{\"key\":\"list-1\",\"title\":\"分类 · 全部小说\",\"type\":\"card\",\"url\":\"/book/index.php<,?page={{page}}>\"},{\"key\":\"list-2\",\"title\":\"分类 · 网游小说\",\"type\":\"card\",\"url\":\"/book/index.php?type=%E7%BD%91%E6%B8%B8%E5%B0%8F%E8%AF%B4<,&page={{page}}>\"},{\"key\":\"list-3\",\"title\":\"分类 · 玄幻小说\",\"type\":\"card\",\"url\":\"/book/index.php?type=%E7%8E%84%E5%B9%BB%E5%B0%8F%E8%AF%B4<,&page={{page}}>\"}]"
+    "homepageModules": "[{\"key\":\"list-1\",\"title\":\"分类 · 全部小说\",\"type\":\"card\",\"url\":\"/book/index.php<,?page={{page}}>\"},{\"key\":\"list-2\",\"title\":\"分类 · 网游小说\",\"type\":\"card\",\"url\":\"/book/index.php?type=%E7%BD%91%E6%B8%B8%E5%B0%8F%E8%AF%B4<,&page={{page}}>\"},{\"key\":\"list-3\",\"title\":\"分类 · 玄幻小说\",\"type\":\"card\",\"url\":\"/book/index.php?type=%E7%8E%84%E5%B9%BB%E5%B0%8F%E8%AF%B4<,&page={{page}}>\"}]",
+    "browserRead": true
   },
   {
     "bookSourceComment": "",
@@ -199,113 +201,6 @@
     "homepageModules": "[{\"key\":\"list-1\",\"title\":\"分类 · 武侠小说\",\"type\":\"card\",\"url\":\"https://www.jingdianbook.com/wuxia/\"},{\"key\":\"list-2\",\"title\":\"分类 · 侦探小说\",\"type\":\"card\",\"url\":\"https://www.jingdianbook.com/zhentan/\"},{\"key\":\"list-3\",\"title\":\"分类 · 科幻小说\",\"type\":\"card\",\"url\":\"https://www.jingdianbook.com/kehuan/\"}]"
   },
   {
-    "bookSourceComment": "",
-    "bookSourceGroup": "⑦📚  出版",
-    "bookSourceName": "📚 世界名著",
-    "bookSourceType": 0,
-    "bookSourceUrl": "http://t.icesmall.cn/",
-    "bookUrlPattern": "",
-    "customOrder": -2085958944,
-    "enabled": true,
-    "enabledCookieJar": false,
-    "enabledExplore": false,
-    "enabledReview": false,
-    "lastUpdateTime": 1646662754179,
-    "loginUrl": "",
-    "respondTime": 15058,
-    "ruleBookInfo": {
-      "author": "h2.post-title.grid_6.0@text##(?:(?:.{1,8}?(?:国|[利尼西比]亚|罗斯|斯坦))|欧盟|日本|印度|意大利|加拿大|巴西|西班牙|墨西哥|荷兰|瑞士|土耳其|沙特阿拉伯|台湾|波兰|瑞典|比利时|奥地利|爱尔兰|以色列|阿根廷|埃及|挪威|菲律宾|阿联酋|丹麦|香港|新加坡|南非|芬兰|越南|智利|捷克|葡萄牙|新西兰|秘鲁|伊朗|希腊|伊拉克|乌克兰|匈牙利|卡塔尔|科威特|摩洛哥|斯洛伐克|波多黎各|古巴|厄瓜多尔|斯里兰卡|多米尼加|危地马拉|阿曼|缅甸|卢森堡|加纳|安哥拉|哥斯达黎加|科特迪瓦|克罗地亚|立陶宛|澳门|乌拉圭|塞尔维亚|巴拿马|刚果\\(金\\)|约旦|阿塞拜疆|喀麦隆|突尼斯|巴林|乌干达|玻利维亚|巴拉圭|尼泊尔|拉脱维亚|黎巴嫩|苏丹|柬埔寨|塞内加尔|萨尔瓦多|洪都拉斯|塞浦路斯|巴布亚新几内亚|也门|冰岛|特立尼达和多巴哥|阿富汗|波黑|老挝|马里|布基纳法索|津巴布韦|格鲁吉亚|博茨瓦纳|几内亚|贝宁|加蓬|马耳他|莫桑比克|牙买加|马达加斯加|尼日尔|海地|蒙古|尼加拉瓜|刚果\\(布\\)|刚果|马其顿|文莱|马拉维|摩尔多瓦|巴哈马|毛里求斯|卢旺达|乍得|赤道几内亚|多哥|马恩岛|百慕大|摩纳哥|列支敦士登|关岛|开曼群岛|圭亚那|索马里|黑山|斐济群岛|巴巴多斯|马尔代夫|斯威士兰|塞拉利昂|苏里南|吉布提|布隆迪|阿鲁巴|安道尔|法罗群岛|库拉索|格陵兰|利比里亚|不丹|中非|莱索托|东帝汶|伯利兹|佛得角|圣马力诺|所罗门群岛|几内亚比绍|安提瓜和巴布达|科摩罗|荷属圣马丁|北马里亚纳群岛|塞舌尔|格林纳达|圣基茨和尼维斯|特克斯和凯科斯群岛|瓦努阿图|圣文森特和格林纳丁斯|萨摩亚|美属萨摩亚|汤加|圣多美和普林西比|多米尼克|密克罗尼西亚联邦|帕劳|马绍尔群岛|基里巴斯|瑙鲁|图瓦卢)?(.+):《##$1###",
-      "coverUrl": "class.dirShow@tag.img@src",
-      "init": "",
-      "intro": "div.dirShow>div>h3+p@text",
-      "kind": "h2.post-title.grid_6.0@text##((?:.{1,8}?(?:国|[利尼西比]亚|罗斯|斯坦))|欧盟|日本|印度|意大利|加拿大|巴西|西班牙|墨西哥|荷兰|瑞士|土耳其|沙特阿拉伯|台湾|波兰|瑞典|比利时|奥地利|爱尔兰|以色列|阿根廷|埃及|挪威|菲律宾|阿联酋|丹麦|香港|新加坡|南非|芬兰|越南|智利|捷克|葡萄牙|新西兰|秘鲁|伊朗|希腊|伊拉克|乌克兰|匈牙利|卡塔尔|科威特|摩洛哥|斯洛伐克|波多黎各|古巴|厄瓜多尔|斯里兰卡|多米尼加|危地马拉|阿曼|缅甸|卢森堡|加纳|安哥拉|哥斯达黎加|科特迪瓦|克罗地亚|立陶宛|澳门|乌拉圭|塞尔维亚|巴拿马|刚果\\(金\\)|约旦|阿塞拜疆|喀麦隆|突尼斯|巴林|乌干达|玻利维亚|巴拉圭|尼泊尔|拉脱维亚|黎巴嫩|苏丹|柬埔寨|塞内加尔|萨尔瓦多|洪都拉斯|塞浦路斯|巴布亚新几内亚|也门|冰岛|特立尼达和多巴哥|阿富汗|波黑|老挝|马里|布基纳法索|津巴布韦|格鲁吉亚|博茨瓦纳|几内亚|贝宁|加蓬|马耳他|莫桑比克|牙买加|马达加斯加|尼日尔|海地|蒙古|尼加拉瓜|刚果\\(布\\)|刚果|马其顿|文莱|马拉维|摩尔多瓦|巴哈马|毛里求斯|卢旺达|乍得|赤道几内亚|多哥|马恩岛|百慕大|摩纳哥|列支敦士登|关岛|开曼群岛|圭亚那|索马里|黑山|斐济群岛|巴巴多斯|马尔代夫|斯威士兰|塞拉利昂|苏里南|吉布提|布隆迪|阿鲁巴|安道尔|法罗群岛|库拉索|格陵兰|利比里亚|不丹|中非|莱索托|东帝汶|伯利兹|佛得角|圣马力诺|所罗门群岛|几内亚比绍|安提瓜和巴布达|科摩罗|荷属圣马丁|北马里亚纳群岛|塞舌尔|格林纳达|圣基茨和尼维斯|特克斯和凯科斯群岛|瓦努阿图|圣文森特和格林纳丁斯|萨摩亚|美属萨摩亚|汤加|圣多美和普林西比|多米尼克|密克罗尼西亚联邦|帕劳|马绍尔群岛|基里巴斯|瑙鲁|图瓦卢)##$1###",
-      "lastChapter": "class.dirShow.0@tag.li.-1@tag.a@text",
-      "name": "h2.post-title.grid_6.0@text##:《(.*)》##$1###",
-      "wordCount": ""
-    },
-    "ruleContent": {
-      "content": "id.Content@tag.p@text"
-    },
-    "ruleExplore": {
-      "bookList": ""
-    },
-    "ruleSearch": {
-      "author": "",
-      "bookList": "div.result.f.s0:has(>h3>a[href~=/bookDir/]:has(>em))",
-      "bookUrl": "class.result f s0.0@tag.a.0@href",
-      "checkKeyWord": "堂吉诃德",
-      "coverUrl": ".c-image img@src",
-      "intro": ".c-abstract@text",
-      "name": "class.result f s0.0@tag.a.0@text##《|》.*"
-    },
-    "ruleToc": {
-      "chapterList": ".dirShow ul>li>a",
-      "chapterName": "text",
-      "chapterUrl": "href"
-    },
-    "searchUrl": "<js>if(page == 1){'http://zhannei.baidu.com/cse/search?q={{key}}+inurl:bookDir&click=1&entry=1&s=2403503600604446010&nsid='}else{'http://zhannei.baidu.com/cse/search?q={{key}}+inurl:bookDir&p={{page}}&s=2403503600604446010&nsid=&entry=1'}</js>",
-    "weight": 0
-  },
-  {
-    "bookSourceComment": "",
-    "bookSourceGroup": "📚 出版,搜索链接规则为空",
-    "bookSourceName": "📚 小说天堂",
-    "bookSourceType": 0,
-    "bookSourceUrl": "https://www.xstt5.com",
-    "bookUrlPattern": "",
-    "customOrder": 297,
-    "enabled": true,
-    "enabledCookieJar": false,
-    "enabledExplore": true,
-    "exploreUrl": "文学名著::/mingzhu/<,index_{{page}}.html>\n现代小说::/dangdai/<,index_{{page}}.html>\n世界名著::/waiwen/<,index_{{page}}.html>\n儿童文学::/ertong/<,index_{{page}}.html>\n古典名著::/gudian/<,index_{{page}}.html>\n散文随笔::/sanwen/<,index_{{page}}.html>\n青春校园::/qingchun/<,index_{{page}}.html>\n文学评论::/pinglun/<,index_{{page}}.html>\n玄幻仙侠::/xuanhuan/<,index_{{page}}.html>\n言情小说::/yanqing/<,index_{{page}}.html>\n武侠小说::/wuxia/<,index_{{page}}.html>\n穿越小说::/chuanyue/<,index_{{page}}.html>\n侦探悬疑::/xuanyi/<,index_{{page}}.html>\n科幻小说::/kehuan/<,index_{{page}}.html>\n网游小说::/wangyou/<,index_{{page}}.html>\n人文社科::/renwen/<,index_{{page}}.html>\n人物传记::/zhuanji/<,index_{{page}}.html>\n历史小说::/lishi/<,index_{{page}}.html>\n军事小说::/junshi/<,index_{{page}}.html>\n励志书籍::/lizhi/<,index_{{page}}.html>\n生活科普::/shenghuo/<,index_{{page}}.html>",
-    "lastUpdateTime": 1670858166885,
-    "loginUrl": "",
-    "respondTime": 611,
-    "ruleBookInfo": {
-      "author": "a.0@text",
-      "coverUrl": "img.0@src",
-      "init": "#zuo",
-      "intro": "p@html",
-      "kind": "a.1@text&&li.3:5@text##写作进程.|更新时间.|小说",
-      "lastChapter": "tbody a.-1@text",
-      "name": "h1@text##txt.*",
-      "wordCount": "##字数：([^<]+)##$1###"
-    },
-    "ruleContent": {
-      "content": ".zw@html",
-      "imageStyle": "0"
-    },
-    "ruleExplore": {
-      "author": "a.2@text",
-      "bookList": ".bbox",
-      "bookUrl": "a.0@href",
-      "coverUrl": "img@src",
-      "intro": "p.2@text##简介.|\\s",
-      "kind": "span.0@text",
-      "lastChapter": "a.1@text##正文.",
-      "name": "a.0@text"
-    },
-    "ruleSearch": {
-      "author": "",
-      "bookList": "",
-      "bookUrl": "",
-      "coverUrl": "",
-      "intro": "",
-      "kind": "",
-      "lastChapter": "",
-      "name": "",
-      "wordCount": ""
-    },
-    "ruleToc": {
-      "chapterList": "tbody@td.0@li%%tbody@td.1@li%%tbody@td.2@li",
-      "chapterName": "a@text##正文.",
-      "chapterUrl": "a@href"
-    },
-    "searchUrl": "",
-    "weight": 0,
-    "homepageModules": "[{\"key\":\"list-1\",\"title\":\"分类 · 文学名著\",\"type\":\"card\",\"url\":\"/mingzhu/<,index_{{page}}.html>\"},{\"key\":\"list-2\",\"title\":\"分类 · 现代小说\",\"type\":\"card\",\"url\":\"/dangdai/<,index_{{page}}.html>\"},{\"key\":\"list-3\",\"title\":\"分类 · 世界名著\",\"type\":\"card\",\"url\":\"/waiwen/<,index_{{page}}.html>\"}]"
-  },
-  {
     "bookSourceComment": "新版镜文学。搜索、发现和目录可公开访问；阅读章节需要在书源登录中登录官网，付费章节仍需购买。",
     "bookSourceGroup": "③📖  论坛",
     "bookSourceName": "📖镜文学🛫",
@@ -361,81 +256,6 @@
     "weight": 0,
     "homepageModules": "[{\"key\":\"click\",\"title\":\"热门点击\",\"type\":\"ranking\",\"url\":\"https://www.mirrorfiction.com/api/books/index?orderBy=click&sortedBy=desc&page={{page}}&r=20\"},{\"key\":\"collection\",\"title\":\"收藏榜\",\"type\":\"ranking\",\"url\":\"https://www.mirrorfiction.com/api/books/index?orderBy=collection&sortedBy=desc&page={{page}}&r=20\"}]",
     "browserRead": false
-  },
-  {
-    "bookSourceComment": "",
-    "bookSourceGroup": "校验可用",
-    "bookSourceName": "💡 科幻小说",
-    "bookSourceType": 0,
-    "bookSourceUrl": "http://www.kehuan.net.cn",
-    "customOrder": 1203,
-    "enabled": true,
-    "enabledCookieJar": false,
-    "enabledExplore": true,
-    "exploreUrl": "中国科幻::/book-china-{{page}}.html\n外国科幻::/book-foreign-{{page}}.html",
-    "lastUpdateTime": 1604774769600,
-    "respondTime": 22778,
-    "ruleBookInfo": {
-      "author": "class.book@tag.a.0@text",
-      "intro": "class.description@tag.p@text",
-      "lastChapter": "tag.dl.-1@tag.a.-1@text",
-      "name": "class.book@tag.h1@text"
-    },
-    "ruleContent": {
-      "content": "id.container@class.text.0@p@text"
-    },
-    "ruleExplore": {
-      "author": "tag.a.1@text",
-      "bookList": "class.co3@li",
-      "bookUrl": "tag.a.0@href",
-      "name": "tag.a.0@text"
-    },
-    "ruleSearch": {},
-    "ruleToc": {
-      "chapterList": "dl@dd a||class.book@tag.h1",
-      "chapterName": "text",
-      "chapterUrl": "href"
-    },
-    "weight": 0,
-    "homepageModules": "[{\"key\":\"list-1\",\"title\":\"分类 · 中国科幻\",\"type\":\"card\",\"url\":\"/book-china-{{page}}.html\"},{\"key\":\"list-2\",\"title\":\"分类 · 外国科幻\",\"type\":\"card\",\"url\":\"/book-foreign-{{page}}.html\"}]"
-  },
-  {
-    "bookSourceComment": "",
-    "bookSourceGroup": "搜索链接规则为空,🗂 聚合",
-    "bookSourceName": "📚 武侠小说🔖",
-    "bookSourceType": 0,
-    "bookSourceUrl": "http://www.wuxia.net.cn",
-    "customOrder": 68,
-    "enabled": true,
-    "enabledCookieJar": false,
-    "enabledExplore": true,
-    "exploreUrl": "当代武侠::/book-dangdai-{{page}}.html\n现代武侠::/book-xiandai-{{page}}.html\n近代武侠::/book-jindai-{{page}}.html\n古代武侠::/book-gudai-{{page}}.html",
-    "lastUpdateTime": 1673163761418,
-    "respondTime": 552,
-    "ruleBookInfo": {
-      "author": "class.book@tag.a.0@text",
-      "intro": "class.description@tag.p@text",
-      "lastChapter": "tag.dl.-1@tag.a.-1@text",
-      "name": "class.book@tag.h1@text"
-    },
-    "ruleContent": {
-      "content": "id.container@class.text.0@p@text"
-    },
-    "ruleExplore": {
-      "author": "tag.a.1@text",
-      "bookList": "class.co3@li",
-      "bookUrl": "tag.a.0@href",
-      "name": "tag.a.0@text"
-    },
-    "ruleReview": {},
-    "ruleSearch": {},
-    "ruleToc": {
-      "chapterList": "dl@dd a||class.book@tag.h1",
-      "chapterName": "text",
-      "chapterUrl": "href"
-    },
-    "weight": 0,
-    "homepageModules": "[{\"key\":\"list-1\",\"title\":\"分类 · 当代武侠\",\"type\":\"card\",\"url\":\"/book-dangdai-{{page}}.html\"},{\"key\":\"list-2\",\"title\":\"分类 · 现代武侠\",\"type\":\"card\",\"url\":\"/book-xiandai-{{page}}.html\"},{\"key\":\"list-3\",\"title\":\"分类 · 近代武侠\",\"type\":\"card\",\"url\":\"/book-jindai-{{page}}.html\"}]"
   },
   {
     "bookSourceComment": "// Error: 搜索失效",

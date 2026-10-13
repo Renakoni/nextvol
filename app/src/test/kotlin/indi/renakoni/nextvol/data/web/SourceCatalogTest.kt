@@ -49,7 +49,7 @@ class SourceCatalogTest {
     }
 
     @Test fun catalogEntriesUseTheirBundledDefinitionsAndPassTheProductionImporter() {
-        assertEquals(listOf(18, 15, 9, 12, 9, 8), SourceCategory.entries.map { category -> catalog.entries.count { it.category == category } })
+        assertEquals(listOf(18, 15, 10, 12, 8, 8), SourceCategory.entries.map { category -> catalog.entries.count { it.category == category } })
         assertEquals(71, catalog.entries.map { it.key }.toSet().size)
         val store = SourceDefinitionStore(folder.newFolder().toPath())
         val importer = SourceDefinitionImporter(store)
@@ -124,25 +124,18 @@ class SourceCatalogTest {
         } finally { sources.stop() }
     }
 
-    @Test fun withdrawnSourcesRetainInstalledClassificationButCannotBeAddedFromTheCatalog() {
-        val entries = allEntries()
-        assertEquals(95, entries.size)
-        val importer = SourceDefinitionImporter(SourceDefinitionStore(folder.newFolder().toPath()))
-        val preview = importer.preview(JsonArray(entries.map(::raw)).toString(), AUTO_PROFILE)
-        assertTrue(preview.issues.toString(), preview.issues.isEmpty())
-        for (entry in entries.filterNot { it.available }) {
-            assertTrue(runCatching { catalog.definitions(setOf(entry.key)) }.isFailure)
-            val definition = SourceDefinition("installed", "legado", LEGADO_PROFILE, entry.key, "Renamed",
-                true, true, ImportOrigin(ImportOrigin.Kind.Paste), "custom", 1, "{}")
-            assertEquals(entry.category, catalog.entry(definition)?.category)
+    @Test fun catalogContainsOnlyMaintainedDefinitions() {
+        assertEquals(71, allEntries().size)
+        for (category in SourceCategory.entries) {
+            val definitions = assets.open("source-catalog/${category.name}.json").bufferedReader().use {
+                Json.parseToJsonElement(it.readText()).jsonArray
+            }
+            val entries = catalog.entries.filter { it.category == category }
+            assertEquals(entries.size, definitions.size)
+            assertEquals(entries.indices.toList(), entries.map { it.index }.sorted())
         }
-        assertTrue(entries.filter { it.name in setOf("轻小说机翻", "连城读书", "ESJ Zone", "鲸云轻说", "疯情书库", "八一中文", "全本小说（quanben5）", "趣书网（qubook）", "掌阅") }
-            .all { !it.available })
-        assertTrue(entries.filter { raw(it)["exploreUrl"]?.jsonPrimitive?.content.isNullOrBlank() }.all { !it.available })
-        for (key in listOf("https://www.17bxwx.com/", "http://www.qudushu.com", "https://bbs.yamibo.com", "https://www.xstt5.com")) {
-            val old = entries.single { it.key == key }
-            assertFalse(old.name, old.available)
-        }
+        assertTrue(allEntries().none { it.key in setOf("https://www.17bxwx.com/", "http://www.qudushu.com",
+            "https://bbs.yamibo.com", "https://www.xstt5.com", "https://lcread.com") })
     }
 
     @Test fun formerOfficialSitesSitInTheirOriginalCategoriesAndDeadSitesAreGone() {
@@ -157,51 +150,22 @@ class SourceCatalogTest {
         assertFalse(assets.list("source-catalog")!!.contains("Official.json"))
     }
 
-    @Test fun bundledRepairsMatchOnlyTheirKnownDigests() {
-        for (entry in allEntries().filter { it.replaces.isNotEmpty() }) for (digest in entry.replaces) {
-            val original = SourceDefinition("installed", "legado", LEGADO_PROFILE, entry.key, "Renamed",
-                true, true, ImportOrigin(ImportOrigin.Kind.Paste), digest, 1, "{}")
-            assertEquals(JsonArray(listOf(raw(entry))).toString(), catalog.replacement(original))
-            assertNull(catalog.replacement(original.copy(contentDigest = "user-edited")))
-            assertNull(catalog.replacement(original.copy(importKey = "https://unrelated.invalid/")))
-        }
-        val ciweimao = raw(allEntries().single { it.key == "https://www.ciweimao.com/" })
-        assertTrue(ciweimao.getValue("browserRead").jsonPrimitive.boolean)
-        assertTrue(ciweimao.getValue("enabledCookieJar").jsonPrimitive.boolean)
-        val liancheng = raw(allEntries().single { it.name == "连城读书" })
-        assertEquals("[]", liancheng.getValue("homepageModules").jsonPrimitive.content)
-    }
-
-    @Test fun metadataRepairsRecognizeThePreviouslyBundledDefinitions() {
-        // Keep historical definitions fixed: rebuilding them from current discovery rules
-        // would produce digests that were never shipped.
-        val previous = javaClass.getResource("/source-catalog/previous-metadata.json")!!.readText()
-        for (old in Json.parseToJsonElement(previous).jsonArray) {
-            val key = old.jsonObject.getValue("bookSourceUrl").jsonPrimitive.content
-            val entry = catalog.entries.single { it.key == key }
-            val store = SourceDefinitionStore(folder.newFolder().toPath())
-            val importer = SourceDefinitionImporter(store)
-            val preview = importer.preview(old.toString(), AUTO_PROFILE)
-            assertTrue(preview.issues.toString(), preview.issues.isEmpty())
-            assertNull(importer.commit(preview, listOf(ImportSelection(0, ImportDecision.Add))).error)
-            val installed = store.list().single()
-            assertTrue(key, installed.contentDigest in entry.replaces)
-            assertEquals(catalog.definitions(setOf(key)), catalog.replacement(installed))
-            assertNull(catalog.replacement(installed.copy(contentDigest = "user-edited")))
-        }
-    }
-
     @Test fun bundledDefinitionsExcludeFixedAccountAndTrackingHeaders() {
         val entries = listOf(
-            allEntries().single { it.key.startsWith("https://api.uaa.com") } to setOf("cookie", "token"),
-            allEntries().single { it.key == "http://api.doufu.me/" } to setOf("cookie"),
+            allEntries().single { it.key == "https://www.uaa.com/" } to setOf("cookie", "token"),
             allEntries().single { it.key == "https://m.shuhaige.net/" } to setOf("cookie", "token"),
         )
-        entries.forEach { (entry, removed) ->
+        for ((entry, removed) in entries) {
             val definition = raw(entry)
-            val headers = Json.parseToJsonElement(definition.getValue("header").jsonPrimitive.content).jsonObject
+            val header = definition.getValue("header").jsonPrimitive.content
+            if (header.startsWith("@js:")) {
+                assertTrue(header.contains("java.getWebViewUA()"))
+                assertFalse(header.contains("cookie", ignoreCase = true))
+                continue
+            }
+            val headers = Json.parseToJsonElement(header).jsonObject
             assertTrue(headers.keys.none { it.lowercase() in removed })
-            if (entry.key.startsWith("https://api.uaa.com")) {
+            if (entry.key == "https://www.uaa.com/") {
                 assertTrue(headers.keys.any { it.equals("User-Agent", ignoreCase = true) })
             }
         }
