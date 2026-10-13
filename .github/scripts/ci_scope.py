@@ -59,6 +59,8 @@ def classify(path):
                 '.github/ISSUE_TEMPLATE/feature_request.yml',
                 '.github/ISSUE_TEMPLATE/maintenance_task.yml'}:
         return 'docs'
+    if path.startswith('app/src/test/resources/backups/'):
+        return 'backup'
     for root in KOTLIN_ROOTS:
         if path.startswith(root):
             relative = path[len(root):]
@@ -81,6 +83,13 @@ def classify(path):
                     'data/work/SourceExportWorkerTest.kt',
                     'ui/book/detail/DetailExportTest.kt'}:
                 return 'export'
+            if relative.startswith('data/backup/') or (root == KOTLIN_ROOTS[0] and relative in {
+                    'data/work/ExportDataWork.kt', 'data/work/ImportDataWork.kt',
+                    'data/work/SaveBookshelfWork.kt', 'ui/components/BackupFailureMessage.kt',
+                    'ui/home/settings/ExportContext.kt', 'ui/home/settings/ExportUserDataDialog.kt',
+                    'ui/home/settings/ExportUserDataDialogViewModel.kt',
+                    'ui/home/settings/ImportUserDataDialog.kt'}):
+                return 'backup'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
             if relative.startswith(('tts/', 'ui/tts/')):
@@ -264,7 +273,7 @@ def main():
     args = parser.parse_args()
     if args.device_api:
         scopes = set(args.scopes.split(','))
-        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'update', 'export', 'docs'}:
+        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'update', 'export', 'backup', 'docs'}:
             parser.error('unknown test scope')
         print('\n'.join(device_classes(scopes, args.device_api)))
         return
