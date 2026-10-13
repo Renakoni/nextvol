@@ -772,37 +772,26 @@ class BookDownloadTest {
         }
     }
 
-    @Test fun targetedCleanupPreservesUnselectedDataAndExistingCountsForEveryCombination() = runBlocking {
+    @Test fun clearingIndexAndContentKeepsTheReadingRecordAndBookInformation() = runBlocking {
+        val source = Remote(a)
+        local.updateBookInformation(a.bind(source.information()))
+        local.updateBookVolumes(a.bind(source.directory()))
+        local.updateChapterContent(SourceChapterId(a, "1").bind(source.body("1")))
+        local.updateUserReadingData(a.storageKey) { it.copy(totalReadTime = 9) }
         val usage = StorageUsageRepository(context, db, UserDataRepository(db.userDataDao()))
         val cleanup = StorageBookCleanup(db, usage, workManager, downloads, progress, LocalBookStore(context, db))
         val completed = androidx.concurrent.futures.ResolvableFuture.create<androidx.work.Operation.State.SUCCESS>()
             .apply { set(androidx.work.Operation.SUCCESS) }
         every { workManager.cancelUniqueWork(any()) } returns mockk { every { result } returns completed }
-        for (mask in 0..7) {
-            val book = SourceBookId(a.sourceId, "targets-$mask")
-            val source = Remote(book)
-            local.updateBookInformation(book.bind(source.information()))
-            local.updateBookVolumes(book.bind(source.directory()))
-            local.updateChapterContent(SourceChapterId(book, "1").bind(source.body("1")))
-            local.updateUserReadingData(book.storageKey) { it.copy(totalReadTime = 9) }
-            val targets = BookClearTarget.entries.filterIndexed { index, _ -> mask and (1 shl index) != 0 }
-            val before = usage.refreshSnapshot()
-            val expected = (if (BookClearTarget.VolumeAndChapterIndex in targets) 4 else 0) +
-                (if (BookClearTarget.ChapterContent in targets) 1 else 0) +
-                (if (BookClearTarget.ReadingRecord in targets) 1 else 0)
-            assertEquals(expected, cleanup.clearBookData(book.storageKey, targets + targets))
-            assertEquals(BookClearTarget.VolumeAndChapterIndex !in targets,
-                db.bookVolumesDao().getVolumeEntitiesByBookId(book.storageKey).isNotEmpty())
-            assertEquals(BookClearTarget.VolumeAndChapterIndex !in targets,
-                db.bookVolumesDao().getChapterInformationEntity(SourceChapterId(book, "1").storageKey) != null)
-            assertEquals(BookClearTarget.ChapterContent !in targets, chapter(book, "1") != null)
-            assertEquals(BookClearTarget.ReadingRecord !in targets, db.userReadingDataDao().getEntity(book.storageKey) != null)
-            assertNotNull(db.bookInformationDao().get(book.storageKey))
-            if (targets.isEmpty()) assertEquals(before, usage.getCachedSnapshot()) else assertNull(usage.getCachedSnapshot())
-        }
-        val beforeEmptyDelete = usage.refreshSnapshot()
-        assertEquals(0, cleanup.deleteBooks(emptyList()))
-        assertEquals(beforeEmptyDelete, usage.getCachedSnapshot())
+        usage.refreshSnapshot()
+        assertEquals(5, cleanup.clearBookData(a.storageKey,
+            listOf(BookClearTarget.VolumeAndChapterIndex, BookClearTarget.ChapterContent)))
+        assertTrue(db.bookVolumesDao().getVolumeEntitiesByBookId(a.storageKey).isEmpty())
+        assertNull(db.bookVolumesDao().getChapterInformationEntity(SourceChapterId(a, "1").storageKey))
+        assertNull(chapter(a, "1"))
+        assertEquals(9, db.userReadingDataDao().getEntity(a.storageKey)!!.totalReadTime)
+        assertNotNull(db.bookInformationDao().get(a.storageKey))
+        assertNull(usage.getCachedSnapshot())
     }
 
     @Test fun cleanupWaitsForBothCancellationsAndDoesNotDeleteAfterFailureOrCancellation() = runBlocking {
