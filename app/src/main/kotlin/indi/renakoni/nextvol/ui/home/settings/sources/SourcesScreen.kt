@@ -396,22 +396,6 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                             }
                             SourceSettingsRow(stringResource(R.string.sources_editor_title), !state.busy) { model.beginEditor(state.selected!!) }
                         }
-                        SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(R.string.sources_network_section))
-                        Column {
-                            state.network?.let { SourceNetworkSection(it, state.busy, model::setBypassVpn, model::revokeCertificate) }
-                            SourceSettingsRow(stringResource(R.string.sources_permissions_title), !state.busy, editPermissions,
-                                installed.deniedOrigins.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.sources_denied_count, it.size) }) {
-                                editPermissions = !editPermissions
-                            }
-                        }
-                        if (editPermissions) Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            installed.deniedOrigins.forEach { request ->
-                                SourcePermissionCandidate(request.origin, request.kind.name, permissions, state.busy) { permissions = it }
-                            }
-                            SourcePermissionsField(permissions, state.busy) { permissions = it; model.clearConfigurationError() }
-                            SourceSaveActions(state.configurationError, state.busy, R.string.sources_save_permissions,
-                                onSave = { model.savePermissions(state.selected!!, permissions) })
-                        }
                         val savedAccount = state.storedSettingsAvailable && state.loginStatus != LoginStatus.LoggedOut
                         if (settings.loginDeclared || settings.loginErrorField != null || savedAccount || state.verification != null) {
                             SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(if (settings.loginDeclared || settings.loginErrorField != null || savedAccount)
@@ -428,6 +412,22 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                                     onLogout = { model.logout(state.selected!!) },
                                     onRetry = { model.select(state.selected) }, onVerify = model::verifyPending)
                             }
+                        }
+                        SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(R.string.sources_network_section))
+                        Column {
+                            state.network?.let { SourceNetworkSection(it, state.busy, model::setBypassVpn, model::revokeCertificate) }
+                            SourceSettingsRow(stringResource(R.string.sources_permissions_title), !state.busy, editPermissions,
+                                installed.deniedOrigins.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.sources_denied_count, it.size) }) {
+                                editPermissions = !editPermissions
+                            }
+                        }
+                        if (editPermissions) Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            installed.deniedOrigins.forEach { request ->
+                                SourcePermissionCandidate(request.origin, request.kind.name, permissions, state.busy) { permissions = it }
+                            }
+                            SourcePermissionsField(permissions, state.busy) { permissions = it; model.clearConfigurationError() }
+                            SourceSaveActions(state.configurationError, state.busy, R.string.sources_save_permissions,
+                                onSave = { model.savePermissions(state.selected!!, permissions) })
                         }
                         if (settings.configurationDeclared || hasVariable) {
                             SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(R.string.sources_configuration))

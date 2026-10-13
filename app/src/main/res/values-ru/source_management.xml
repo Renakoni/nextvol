@@ -4,7 +4,7 @@
     <string name="sources_basic_section">Основные настройки</string>
     <string name="sources_network_section">Сеть</string>
     <string name="sources_account_section">Учётная запись</string>
-    <string name="sources_account_name">Учётная запись: %1$s</string>
+    <string name="sources_account_name">%1$s</string>
     <string name="sources_login_again">Войти снова</string>
     <string name="sources_open_panel">Открыть панель источника</string>
     <string name="sources_account_required">Нужно войти снова</string>
