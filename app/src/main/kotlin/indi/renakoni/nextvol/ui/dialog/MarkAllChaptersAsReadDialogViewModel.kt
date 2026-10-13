@@ -16,6 +16,7 @@ import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import javax.inject.Inject
 
@@ -31,15 +32,19 @@ class MarkAllChaptersAsReadDialogViewModel @Inject constructor(
         private set
 
     private var volumesJob: Job? = null
+    private var volumesRequest = 0L
 
     fun load(bookId: String) {
         if (bookId == this.bookId) return
         this.bookId = bookId
         volumesJob?.cancel()
+        val request = ++volumesRequest
         bookVolumeResult = null
         volumesJob = viewModelScope.launch(Dispatchers.IO) {
             bookRepository.getBookVolumesFlow(bookId).collect { result ->
-                bookVolumeResult = result
+                withContext(Dispatchers.Main.immediate) {
+                    if (request == volumesRequest) bookVolumeResult = result
+                }
             }
         }
     }
@@ -58,6 +63,7 @@ class MarkAllChaptersAsReadDialogViewModel @Inject constructor(
             ?.flatMap { it.chapters }
             ?.map { it.id }?.toSet() ?: return@binding Unit
         val selected = chapterIds?.toSet()?.intersect(allChapterIds) ?: allChapterIds
+        if (chapterIds != null && selected.isEmpty()) return@binding Unit
 
         viewModelScope.launch(Dispatchers.IO) {
             var finished = false
@@ -78,5 +84,10 @@ class MarkAllChaptersAsReadDialogViewModel @Inject constructor(
                 statsRepository.markBookFinished(targetBookId)
             }
         }
+    }
+
+    override fun onCleared() {
+        volumesRequest++
+        super.onCleared()
     }
 }

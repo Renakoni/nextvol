@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.book.PartialBookVolumesException
 import indi.renakoni.nextvol.data.reading.ReaderRecordStore
@@ -23,10 +24,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -159,6 +164,55 @@ class MarkAllChaptersAsReadDialogViewModelTest {
         assertEquals(original.currentChapterReadingProgressMap, data.currentChapterReadingProgressMap)
         assertEquals(original.lastReadChapterId, data.lastReadChapterId)
         coVerify(exactly = 1) { statsRepository.markBookFinished("book") }
+    }
+
+    @Test fun emptyOrRemovedSelectionsDoNotWriteOrRecordCompletion() = runTest(dispatcher) {
+        loadChapters()
+        val original = UserReadingData("book", readingProgress = 1f,
+            maxChapterReadingProgressMap = mapOf("first" to 1f, "second" to 1f))
+        data = original
+        model.markChaptersAsRead(emptyList())
+        model.markChaptersAsRead(listOf("removed"))
+        awaitUpdates()
+        assertEquals(original, data)
+        coVerify(exactly = 0) { bookRepository.updateUserReadingData(any<String>(), any()) }
+        coVerify(exactly = 0) { statsRepository.markBookFinished(any()) }
+    }
+
+    @Test fun oldDirectoryCannotReplaceTheCatalogAfterLeavingAndReturningToTheBook() = runTest(dispatcher) {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val stale = BookVolumes("book", listOf(Volume("old", "", listOf(ChapterInformation("removed", "Old")))))
+        val current = BookVolumes("book", listOf(Volume("new", "", listOf(ChapterInformation("first", "First")))))
+        val staleFlow = object : Flow<Result<BookVolumes, WebRequestError>> {
+            override suspend fun collect(collector: FlowCollector<Result<BookVolumes, WebRequestError>>) {
+                withContext(NonCancellable) {
+                    started.complete(Unit)
+                    release.await()
+                    collector.emit(Ok(stale))
+                }
+            }
+        }
+        every { bookRepository.getBookVolumesFlow("book", any()) } returnsMany listOf(staleFlow, flowOf(Ok(current)))
+        every { bookRepository.getBookVolumesFlow("other", any()) } returns emptyFlow()
+        model.load("book")
+        started.await()
+        val oldJob = model.viewModelScope.coroutineContext.job.children.single()
+        try {
+            model.load("other")
+            model.load("book")
+            model.viewModelScope.coroutineContext.job.children.filter { it !== oldJob }.toList().joinAll()
+            assertEquals(Ok(current), model.bookVolumeResult)
+            release.complete(Unit)
+            oldJob.join()
+            assertEquals(Ok(current), model.bookVolumeResult)
+            model.markAllChaptersAsRead()
+            awaitUpdates()
+            assertEquals(mapOf("first" to 1f), data.maxChapterReadingProgressMap)
+        } finally {
+            release.complete(Unit)
+            oldJob.join()
+        }
     }
 
     @Test fun emptyCatalogClearsTheTotalWithoutFinishingOrWritingOutsideChapters() = runTest(dispatcher) {
