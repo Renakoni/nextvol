@@ -192,6 +192,13 @@ tasks.withType<Test>().configureEach {
             "data.localbook.LocalBookRelinkTest", "data.ExternalFilesTest", "ui.ExternalFileViewModelTest",
             "ui.book.reader.bookmark.ReaderBookmarksUiTest",
         ),
+        "storage" to listOf(
+            "data.download.*", "data.localbook.*", "ui.bookmanager.*", "ui.book.download.*", "ui.localbook.*",
+            "data.local.SourceIdentityRoomTest", "data.local.UserReadingDataTransactionTest",
+            "data.work.BookWorkIdentityTest", "data.backup.BackupRestoreTransactionTest",
+            "ui.book.reader.ReaderReadingRecordsTest", "ui.book.reader.ReaderDirectoryProgressTest",
+            "ui.home.settings.SettingsHierarchyTest",
+        ),
     )
     require(scopes.all { it == "full" || it in scopeTests }) { "Unknown ciTestScope: $scopes" }
     if ("full" !in scopes) {

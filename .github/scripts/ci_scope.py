@@ -38,8 +38,8 @@ EXTRA_24 = [
     ('export', 'EpubShareInstrumentedTest'),
     ('reader', 'reader.ReaderSpacingInstrumentedTest'),
     ('reader', 'reader.ReaderLayoutInstrumentedTest'),
-    ('full', 'data.download.DownloadPersistenceInstrumentedTest'),
-    ('full', 'data.localbook.LocalBookImportInstrumentedTest'),
+    ('storage', 'data.download.DownloadPersistenceInstrumentedTest'),
+    ('storage', 'data.localbook.LocalBookImportInstrumentedTest'),
     ('full', 'defaultplugin.wenku8.Wenku8NetworkInstrumentedTest'),
     ('speech', 'tts.SystemSpeechInstrumentedTest'),
     ('speech', 'tts.ReadAloudBackgroundInstrumentedTest'),
@@ -90,6 +90,9 @@ def classify(path):
                     'ui/home/settings/ExportUserDataDialogViewModel.kt',
                     'ui/home/settings/ImportUserDataDialog.kt'}):
                 return 'backup'
+            if relative.startswith('ui/bookmanager/') or (root == KOTLIN_ROOTS[0] and
+                    relative.startswith(('data/storage/', 'ui/storagemanager/'))):
+                return 'storage'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
             if relative.startswith(('tts/', 'ui/tts/')):
@@ -105,6 +108,10 @@ def classify(path):
     if path.startswith('epub/src/main/') or path == (
             'app/src/androidTest/kotlin/indi/renakoni/nextvol/EpubShareInstrumentedTest.kt'):
         return 'export'
+    if path in {
+            'app/src/androidTest/kotlin/indi/renakoni/nextvol/data/download/DownloadPersistenceInstrumentedTest.kt',
+            'app/src/androidTest/kotlin/indi/renakoni/nextvol/data/localbook/LocalBookImportInstrumentedTest.kt'}:
+        return 'storage'
     return 'full'
 
 
@@ -273,7 +280,7 @@ def main():
     args = parser.parse_args()
     if args.device_api:
         scopes = set(args.scopes.split(','))
-        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'update', 'export', 'backup', 'docs'}:
+        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'update', 'export', 'backup', 'storage', 'docs'}:
             parser.error('unknown test scope')
         print('\n'.join(device_classes(scopes, args.device_api)))
         return
