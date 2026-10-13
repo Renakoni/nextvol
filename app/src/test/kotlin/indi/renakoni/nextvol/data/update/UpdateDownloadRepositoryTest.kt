@@ -148,4 +148,42 @@ class UpdateDownloadRepositoryTest {
         verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
     }
 
+    @Test fun httpFailureStopsProcessingAndAllowsASuccessfulRetry() = runBlocking {
+        var conversions = 0
+        for (code in listOf(404, 503)) {
+            checked(transform = if (code == 503) { source, target ->
+                conversions++
+                target.writeBytes(source.readBytes())
+            } else null)
+            events.clear()
+            val failed = CompletableDeferred<Unit>()
+            every { system.showDownloadFailedNotification(any()) } answers {
+                events += "failed:${firstArg<String>()}"
+                failed.complete(Unit)
+                Unit
+            }
+            server.enqueue(MockResponse().setResponseCode(code).setBody("error page"))
+            repository.downloadUpdate()
+            withTimeout(5000) { failed.await(); repository.isDownloading.first { !it } }
+            val phase = repository.updatePhase.first()
+            assertEquals(R.string.update_phase_download_failed, phase.messageId)
+            assertEquals(listOf("HTTP $code"), phase.arguments)
+            assertEquals(listOf("channel", "progress:0",
+                "failed:${context.getString(R.string.update_phase_download_failed, "HTTP $code")}"), events)
+            assertEquals(0, conversions)
+            assertFalse(directory.root.resolve("updates/LightNovelReader-update.tmp").exists())
+            assertFalse(directory.root.resolve("updates/LightNovelReader-update.apk").exists())
+            verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
+        }
+        events.clear()
+        val installed = CompletableDeferred<Unit>()
+        every { system.installApk(any()) } answers { events += "install"; installed.complete(Unit); Unit }
+        server.enqueue(MockResponse().setBody("apk"))
+        repository.downloadUpdate()
+        withTimeout(5000) { installed.await(); repository.isDownloading.first { !it } }
+        assertEquals(1, conversions)
+        assertEquals(R.string.update_phase_download_complete, repository.updatePhase.first().messageId)
+        assertEquals(listOf("complete", "install"), events.takeLast(2))
+        assertEquals("apk", directory.root.resolve("updates/LightNovelReader-update.apk").readText())
+    }
 }

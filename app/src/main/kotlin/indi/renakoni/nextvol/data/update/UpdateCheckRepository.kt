@@ -124,11 +124,6 @@ class UpdateCheckRepository @Inject constructor(
                         }
                     },
                     onProcessing = { _updatePhase.emit(UpdatePhase(R.string.update_phase_processing)) },
-                    onHttpFailure = { code ->
-                        Log.e("UpdateChecker", "Failed to download update: $code")
-                        _updatePhase.emit(UpdatePhase(R.string.update_phase_download_failed, listOf("HTTP $code")))
-                        systemInteraction.showDownloadFailedNotification("HTTP $code")
-                    },
                 )
 
                 if (apkFile != null) {
