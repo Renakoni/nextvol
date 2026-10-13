@@ -126,6 +126,43 @@ class ScopeTests(unittest.TestCase):
             self.assertNotIn('-PciTestScope=', tests['gradle-args'])
             self.assertFalse(tests['device-24'])
 
+    def test_storage_keeps_download_import_and_reading_consumers(self):
+        plan = self.select(MAIN + 'data/storage/ChapterOwnership.kt',
+                           MAIN + 'data/storage/StorageBookQuery.kt',
+                           MAIN + 'data/storage/StorageBookCleanup.kt',
+                           MAIN + 'ui/bookmanager/BookManagerViewModel.kt')
+        self.assertEqual('storage', plan['scopes'])
+        self.assertEqual(':app:testDebugUnitTest -PciTestScope=storage', plan['gradle-args'])
+        self.assertTrue(plan['release'])
+        self.assertTrue(plan['lint'])
+        main, wide = ci_scope.device_classes({'storage'}, 24)
+        self.assertEqual(ci_scope.qualified([
+            'data.download.DownloadPersistenceInstrumentedTest',
+            'data.localbook.LocalBookImportInstrumentedTest']), main)
+        self.assertEqual('', wide)
+        self.assertFalse(plan['device-35'])
+        self.assertFalse(plan['minified'])
+        mixed = self.select(MAIN + 'data/storage/StorageBookCleanup.kt',
+                            ci_scope.KOTLIN_ROOTS[1] + 'data/download/BookDownloadTest.kt',
+                            ci_scope.KOTLIN_ROOTS[1] + 'data/localbook/LocalBookStoreTest.kt')
+        self.assertNotIn('-PciTestScope=', mixed['gradle-args'])
+        self.assertEqual('storage', mixed['device-scopes'])
+        self.assertFalse(mixed['device-35'])
+
+    def test_storage_unions_backup_without_claiming_shared_contracts(self):
+        self.assertIn('-PciTestScope=backup,storage', self.select(
+            MAIN + 'data/storage/StorageBookQuery.kt', MAIN + 'data/backup/BackupArchive.kt')['gradle-args'])
+        for path in ('data/local/room/dao/StorageStatsDao.kt', 'data/book/BookIdentity.kt',
+                     'data/book/BookRepository.kt', 'data/local/UserReadingDataRepository.kt'):
+            self.assertEqual(ci_scope.plan({'full'}), self.select(
+                MAIN + 'data/storage/StorageBookQuery.kt', MAIN + path))
+        unknown_test = self.select(ci_scope.KOTLIN_ROOTS[1] + 'ui/storagemanager/NewStorageTest.kt')
+        self.assertNotIn('-PciTestScope=', unknown_test['gradle-args'])
+        device = self.select('app/src/androidTest/kotlin/indi/renakoni/nextvol/data/localbook/LocalBookImportInstrumentedTest.kt')
+        self.assertTrue(device['device-24'])
+        self.assertFalse(device['device-35'])
+        self.assertFalse(device['release'])
+
     def test_independent_layouts_skip_reader_devices_and_library_tasks(self):
         for path in ('ui/home/bookshelf/home/BookshelfScreen.kt',
                      'ui/home/reading/stats/StatsOverviewScreen.kt',

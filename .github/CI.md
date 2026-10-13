@@ -37,6 +37,7 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 | App updates: `data/update`, dedicated update settings and available-update dialog | App update tests and `SettingsHierarchyTest` | Skip | Skip | Run |
 | EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
 | Backup implementation, dedicated import/export dialogs and backup Workers | App backup, persistence and shared-file consumers | Skip | Skip | Run |
+| Storage queries/cleanup/ownership and dedicated book/storage management UI | App storage, downloads, local books and reading-record consumers | API 24 download persistence and local import | Skip | Run |
 | Shared/unknown code, resources, source/EPUB modules, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
 | Only root / `.github/*.md` / `docs/**/*.md` documentation, the three existing Issue templates, or `.github/FUNDING.yml` | Skip | Skip | Skip | Skip |
 
@@ -82,6 +83,19 @@ dispatch, settings/navigation, database schemas/DAOs and UserData remain broad.
 All `app/src/test/resources/backups/**` files, including README and legacy `.lnr`
 archives, are test inputs: they select backup consumers and Lint without Release.
 No separate backup device group is introduced.
+
+Storage selects download and local-book JVM suites, book/download/local-book UI,
+`SourceIdentityRoomTest`, `UserReadingDataTransactionTest`, `BookWorkIdentityTest`,
+`BackupRestoreTransactionTest`, `ReaderReadingRecordsTest`,
+`ReaderDirectoryProgressTest` and `SettingsHierarchyTest`. In particular,
+`BookDownloadTest` exercises orphan attribution, both Worker cancellations,
+failure/cancellation boundaries and retained reading records; `LocalBookStoreTest`
+exercises metadata recovery before storage queries and clearing imported content.
+API 24 retains download persistence and local import without browser/TTS suites.
+Shared Room/DAO, BookIdentity, book repositories and reading-record core paths
+still widen coverage. Changes to shared JVM consumers such as `BookDownloadTest`
+or `LocalBookStoreTest` conservatively run the full App JVM suite; combined with
+storage production edits they retain storage-only devices, not all devices.
 
 PR and merge-group comparisons use the event's base SHA and the checked-out merge
 tree. A missing base is fetched shallowly by SHA. Git lists all changed paths
