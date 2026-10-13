@@ -38,7 +38,7 @@ class BookManagerViewModelTest {
         }
         val repository = mockk<BookRepository>()
         every { repository.getBookInformationFlow(any<String>()) } returns emptyFlow()
-        val model = BookManagerViewModel(repository, mockk(), mockk(), mockk(), mockk(), mockk(), mockk(), query)
+        val model = BookManagerViewModel(repository, mockk(), mockk(), query, mockk())
         try {
             withTimeout(5000) { refreshing.await() }
             assertEquals(listOf("kept", "gone"), model.localBookManagerUiState.bookList.map { it.id })

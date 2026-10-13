@@ -275,6 +275,29 @@ class LocalBookStoreTest {
         assertTrue(database.importedBookDao().allIds().isEmpty())
     }
 
+    @Test fun clearingImportedContentKeepsTheOriginalFilesAndOtherCopies() = runBlocking {
+        val selected = importBook()
+        val kept = importBook()
+        val originalBytes = store.storedBytes(selected)
+        val work = mockk<androidx.work.WorkManager>()
+        val completed = androidx.concurrent.futures.ResolvableFuture.create<androidx.work.Operation.State.SUCCESS>()
+            .apply { set(androidx.work.Operation.SUCCESS) }
+        every { work.cancelUniqueWork(any()) } returns mockk { every { result } returns completed }
+        val usage = indi.renakoni.nextvol.data.storage.StorageUsageRepository(context, database,
+            indi.renakoni.nextvol.data.userdata.UserDataRepository(database.userDataDao()))
+        val cleanup = indi.renakoni.nextvol.data.storage.StorageBookCleanup(database, usage, work, downloads, mockk(relaxed = true), store)
+        val chapters = database.bookVolumesDao().getVolumeEntitiesByBookId(selected.storageKey).flatMap { it.chapterIds }
+        assertTrue(chapters.isNotEmpty())
+        assertEquals(chapters.size, cleanup.clearBookData(selected.storageKey,
+            listOf(indi.renakoni.nextvol.data.storage.BookClearTarget.ChapterContent)))
+        assertTrue(chapters.all { database.chapterContentDao().get(it) == null })
+        assertEquals(originalBytes, store.storedBytes(selected))
+        assertTrue(store.contains(selected))
+        assertTrue(store.contains(kept))
+        assertTrue(store.readChapter(SourceChapterId(selected, "0")).isOk)
+        assertTrue(store.readChapter(SourceChapterId(kept, "0")).isOk)
+    }
+
     @Test fun room18UpgradeRetainsBooksShelvesAndReadingPositions() = runBlocking {
         val imported = importBook()
         val oldBook = SourceBookId(io.nightfish.lightnovelreader.api.identifier.Identifier("fixture", "online"), "legacy")

@@ -2,23 +2,16 @@ package indi.renakoni.nextvol.ui.bookmanager
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.room.withTransaction
 import androidx.work.WorkManager
-import androidx.work.await
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.download.DownloadItem
 import indi.renakoni.nextvol.data.download.DownloadProgressRepository
 import indi.renakoni.nextvol.data.download.DownloadType
 import indi.renakoni.nextvol.data.download.DownloadSubmission
-import indi.renakoni.nextvol.data.download.BookDownloadStore
-import indi.renakoni.nextvol.data.book.BookIdentity
-import indi.renakoni.nextvol.data.localbook.LocalBookStore
-import indi.renakoni.nextvol.data.local.room.NextVolDatabase
-import indi.renakoni.nextvol.data.storage.StorageUsageRepository
 import indi.renakoni.nextvol.data.storage.StorageBook
+import indi.renakoni.nextvol.data.storage.StorageBookCleanup
 import indi.renakoni.nextvol.data.storage.StorageBookQuery
-import indi.renakoni.nextvol.data.storage.chapterOwners
 import indi.renakoni.nextvol.data.work.CacheBookWork
 import indi.renakoni.nextvol.data.work.ExportBookToEPUBWork
 import kotlinx.coroutines.Dispatchers
@@ -32,12 +25,9 @@ import javax.inject.Inject
 class BookManagerViewModel @Inject constructor(
     private val bookRepository: BookRepository,
     private val downloadProgressRepository: DownloadProgressRepository,
-    private val database: NextVolDatabase,
-    private val storageUsageRepository: StorageUsageRepository,
     val workManager: WorkManager,
-    private val downloads: BookDownloadStore,
-    private val localBooks: LocalBookStore,
     private val storageBooks: StorageBookQuery,
+    private val cleanup: StorageBookCleanup,
 ) : ViewModel() {
     val downloadItemIdList get() = downloadProgressRepository.downloadItemIdList
     private val _clearedItemsFlow = MutableSharedFlow<Int>()
@@ -152,111 +142,27 @@ class BookManagerViewModel @Inject constructor(
         val ids = localBookManagerUiState.selectedIds.toList()
         if (ids.isEmpty()) return 0
         localBookManagerUiState.isDeleting = true
-        val (imported, cached) = ids.partition { LocalBookStore.isLocal(BookIdentity.book(it)) }
-        imported.forEach { localBooks.delete(BookIdentity.book(it)) }
-        removeDownloads(cached)
-        val chapterIds = database.bookVolumesDao()
-            .getVolumeEntitiesByBookIds(cached)
-            .flatMap { it.chapterIds }
-            .distinct()
-        database.withTransaction {
-            if (chapterIds.isNotEmpty()) {
-                database.chapterContentDao().deleteByIds(chapterIds)
-            }
-            database.bookInformationDao().deleteByIds(cached)
-        }
-        storageUsageRepository.invalidateSnapshot()
+        val count = cleanup.deleteBooks(ids)
         withContext(Dispatchers.Main) {
             localBookManagerUiState.isDeleting = false
             localBookManagerUiState.isSelecting = false
             localBookManagerUiState.selectedIds = emptySet()
         }
         refreshLocalBooks()
-        return ids.size
+        return count
     }
 
     suspend fun clearOrphanedDataItems(): Int {
-        val count = database.withTransaction {
-            val chapterToBookMap = chapterOwners(
-                catalogChapters = database.bookVolumesDao().getAllVolumeEntities().asSequence().flatMap { volume ->
-                    volume.chapterIds.asSequence().map { it to volume.bookId }
-                },
-                downloadedChapters = database.bookDownloadDao().allChapters().asSequence().map { it.id to it.bookId },
-            )
-            val orphanChapterInfoIds = database.bookVolumesDao()
-                .getAllChapterInformationEntities()
-                .map { it.id }
-                .filterNot(chapterToBookMap::containsKey)
-            val orphanChapterContentIds = database.chapterContentDao()
-                .getAllEntities()
-                .map { it.id }
-                .filterNot(chapterToBookMap::containsKey)
-
-            if (orphanChapterInfoIds.isNotEmpty()) {
-                database.bookVolumesDao().deleteChapterInformationByIds(orphanChapterInfoIds)
-            }
-            if (orphanChapterContentIds.isNotEmpty()) {
-                database.chapterContentDao().deleteByIds(orphanChapterContentIds)
-            }
-            orphanChapterInfoIds.size + orphanChapterContentIds.size
-        }
-        storageUsageRepository.invalidateSnapshot()
+        val count = cleanup.clearOrphanedData()
         refreshLocalBooks()
         return count
     }
 
     suspend fun clearBookDataItems(bookId: String, targets: List<LocalBookClearTarget>): Int {
         if (targets.isEmpty()) return 0
-
-        val volumeEntities = database.bookVolumesDao().getVolumeEntitiesByBookId(bookId)
-        val chapterIds = volumeEntities
-            .flatMap { it.chapterIds }
-            .distinct()
-        val targetSet = targets.toSet()
-        val hasReadingRecord = database.userReadingDataDao().getEntity(bookId) != null
-        val chapterContentIds = if (LocalBookClearTarget.ChapterContent in targetSet && chapterIds.isNotEmpty()) {
-            chapterIds.filter { database.chapterContentDao().getId(it) != null }
-        } else {
-            emptyList()
-        }
-        if (LocalBookClearTarget.ChapterContent in targetSet) removeDownloads(listOf(bookId))
-
-        database.withTransaction {
-            if (LocalBookClearTarget.VolumeAndChapterIndex in targetSet) {
-                if (chapterIds.isNotEmpty()) {
-                    database.bookVolumesDao().deleteChapterInformationByIds(chapterIds)
-                }
-                database.bookVolumesDao().deleteByBookIds(listOf(bookId))
-            }
-            if (chapterContentIds.isNotEmpty()) {
-                database.chapterContentDao().deleteByIds(chapterContentIds)
-            }
-            if (LocalBookClearTarget.ReadingRecord in targetSet && hasReadingRecord) {
-                database.userReadingDataDao().deleteByIds(listOf(bookId))
-            }
-        }
-
-        storageUsageRepository.invalidateSnapshot()
+        val count = cleanup.clearBookData(bookId, targets.map { it.target })
         refreshLocalBooks()
-
-        var clearedCount = 0
-        if (LocalBookClearTarget.VolumeAndChapterIndex in targetSet) {
-            clearedCount += volumeEntities.size + chapterIds.size
-        }
-        clearedCount += chapterContentIds.size
-        if (LocalBookClearTarget.ReadingRecord in targetSet && hasReadingRecord) {
-            clearedCount += 1
-        }
-        return clearedCount
-    }
-
-    private suspend fun removeDownloads(bookIds: List<String>) {
-        for (bookId in bookIds) {
-            workManager.cancelUniqueWork(CacheBookWork.ofId(bookId)).await()
-            workManager.cancelUniqueWork(ExportBookToEPUBWork.ofId(bookId)).await()
-        }
-        downloads.removeBooks(bookIds.map(BookIdentity::book))
-        downloadProgressRepository.clearCachedItems(bookIds.toSet())
+        return count
     }
 
     private suspend fun refreshLocalBooks() {
