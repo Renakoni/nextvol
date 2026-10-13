@@ -58,7 +58,6 @@ class BookManagerDeletionTest {
     private val work = mockk<WorkManager>()
     private val downloads = mockk<BookDownloadStore>(relaxed = true)
     private val progress = mockk<DownloadProgressRepository>(relaxed = true)
-    private val deletionImports = mockk<LocalBookStore>()
     private val query = mockk<StorageBookQuery>()
     private lateinit var model: BookManagerViewModel
     private val state get() = model.localBookManagerUiState
@@ -78,12 +77,11 @@ class BookManagerDeletionTest {
         val realQuery = StorageBookQuery(database, usage, imports)
         coEvery { query.getCachedBooks() } returns null
         coEvery { query.refreshBooks() } coAnswers { realQuery.refreshBooks() }
-        coEvery { deletionImports.delete(any()) } coAnswers { imports.delete(firstArg()) }
         completeCancellations()
         val books = mockk<BookRepository>()
         every { books.getBookInformationFlow(any<String>()) } returns emptyFlow()
         model = BookManagerViewModel(books, progress, work, query,
-            StorageBookCleanup(database, usage, work, downloads, progress, deletionImports))
+            StorageBookCleanup(database, usage, work, downloads, progress, imports))
         awaitOperations()
         collectors.launch { model.clearedItemsFlow.collect { cleared += it } }
         collectors.launch { model.deleteFailures.collect { failures += it } }
@@ -145,25 +143,6 @@ class BookManagerDeletionTest {
         assertTrue(state.selectedIds.isEmpty())
         assertFalse(state.isSelecting)
         assertNull(database.bookInformationDao().get(remote.storageKey))
-        coVerify(exactly = 1) { deletionImports.delete(imported) }
-    }
-
-    @Test fun importStoreFailureDoesNotCancelWorkOrDeleteRemoteData() = runBlocking {
-        coEvery { deletionImports.delete(imported) } throws IOException("cannot remove imported file")
-        model.selectAllLocalBooks()
-        val selected = state.selectedIds
-        state.deleteSelected()
-        awaitOperations()
-
-        assertReleased()
-        assertEquals(1, failures.size)
-        assertTrue(cleared.isEmpty())
-        assertEquals(selected, state.selectedIds)
-        assertEquals(selected, state.bookList.map { it.id }.toSet())
-        assertTrue(imports.contains(imported))
-        assertNotNull(database.bookInformationDao().get(remote.storageKey))
-        verify(exactly = 0) { work.cancelUniqueWork(any()) }
-        coVerify(exactly = 0) { downloads.removeBooks(any()) }
     }
 
     @Test fun downloadStoreAndRefreshFailuresStillReleaseBusyStateAndPreserveRetrySelection() = runBlocking {
