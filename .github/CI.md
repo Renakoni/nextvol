@@ -30,10 +30,10 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 
 | Changed scope | JVM tasks | Debug devices | Minified runtime | Lint / Release APK |
 | --- | --- | --- | --- | --- |
-| Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens | App UI tests, excluding reader and speech UI | Skip | Skip | Run |
-| Discovery and categories UI | Same UI tests | Skip | Source runtime smoke (uses categories/discovery) | Run |
-| Reader UI and reader tests | App UI tests plus content and mixed-source reader consumers, excluding speech UI | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
-| Speech implementation/UI/tests | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
+| Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens | Corresponding feature and reviewed consumers | Skip | Skip | Run |
+| Discovery and categories UI | Discovery/categories, explore, navigation and discovery routing consumers | Skip | Source runtime smoke (uses categories/discovery) | Run |
+| Reader UI | Reader, content, directory/detail, settings/font and speech-control consumers | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
+| Speech implementation/UI | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
 | App updates: `data/update`, dedicated update settings and available-update dialog | App update tests and `SettingsHierarchyTest` | Skip | Skip | Run |
 | EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
 | Backup implementation, dedicated import/export dialogs and backup Workers | App backup, persistence and shared-file consumers | Skip | Skip | Run |
@@ -146,7 +146,7 @@ Run all four workflows manually when a complete check of a ref is needed.
 For local task selection (default remains full), use the existing Gradle task:
 
 ```sh
-./gradlew :app:testDebugUnitTest -PciTestScope=ui
+./gradlew :app:testDebugUnitTest -PciTestScope=bookshelf
 ./gradlew :app:testDebugUnitTest -PciTestScope=reader
 ./gradlew :app:testDebugUnitTest :source-speech:test -PciTestScope=reader,speech
 python3 .github/scripts/ci_scope.py --paths app/src/main/kotlin/indi/renakoni/nextvol/ui/home/reading/stats/StatsOverviewScreen.kt
@@ -159,6 +159,20 @@ The JVM job always runs the lightweight selector regression tests, including
 documentation-only changes. Emulator/environment script checks run for full scope.
 
 ## JVM test coverage
+
+UI filters select `bookshelf`, `explore`, `catalog`, `stats`, `bangumi`, `about`
+(including licenses), or `logs`. Bookshelf also includes its home lifecycle test;
+catalog includes explore, MainNavigation and DiscoveryRouting tests; about/logs
+retain SettingsHierarchy, with LoggerRepository for logs. The manual `ui` filter
+is the union of these feature sets. Shared components, navigation and theme inputs
+remain full, and new test packages without a matching group keep the App suite.
+
+Reader includes detail/directory consumers, MarkAllChaptersAsReadDialog,
+SettingsHierarchy (the font-license entry) and SpeechControls (ReaderTopBar), as
+well as reader/content/mixed-source tests. Speech unions the reader set with
+`tts.*` and `ui.tts.*`; its API 24 services and minified read-aloud smoke remain.
+All feature and business sets use positive unions; none exclude another group's
+consumers. App tasks explicitly fail on no discovered tests or unmatched filters.
 
 ### Test-only inputs
 

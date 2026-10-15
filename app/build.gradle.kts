@@ -164,18 +164,27 @@ kotlin {
 tasks.withType<Test>().configureEach {
     javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(22)) })
     val scopes = providers.gradleProperty("ciTestScope").orElse("full").get().split(",").toSet()
-    // Preserve existing UI coverage with positive filters so mixed business scopes
-    // can add consumers without another scope's exclusions cancelling them.
-    val uiTests = listOf(
-        "ui.bangumi.*", "ui.book.detail.*", "ui.book.download.*", "ui.bookmanager.*",
-        "ui.components.*", "ui.dialog.*", "ui.home.*", "ui.localbook.*",
-        "ui.ExternalFileViewModelTest", "ui.RussianQuantityResourcesTest", "ui.SourceVerificationHostTest",
+    val uiTests = mapOf(
+        "bookshelf" to listOf("ui.home.bookshelf.*", "ui.home.BookshelfHomeLifecycleTest"),
+        "explore" to listOf("ui.home.explore.*"),
+        "catalog" to listOf(
+            "ui.home.discovery.*", "ui.home.categories.*", "ui.home.explore.*",
+            "ui.home.MainNavigationTest", "data.web.rules.DiscoveryRoutingTest",
+        ),
+        "stats" to listOf("ui.home.reading.stats.*"),
+        "bangumi" to listOf("ui.bangumi.*"),
+        "about" to listOf("ui.home.settings.SettingsHierarchyTest"),
+        "logs" to listOf("ui.home.settings.SettingsHierarchyTest", "data.logging.LoggerRepositoryTest"),
     )
-    val readerTests = uiTests + listOf(
+    // Directory search, fonts, reading records and reader controls have consumers
+    // outside the reader package. Add scopes by union, without exclusions.
+    val readerTests = listOf(
         "ui.book.reader.*", "data.content.*", "data.web.rules.MixedSourceAcceptanceTest",
+        "ui.book.detail.*", "ui.dialog.MarkAllChaptersAsReadDialogViewModelTest",
+        "ui.home.settings.SettingsHierarchyTest", "ui.tts.SpeechControlsTest",
     )
-    val scopeTests = mapOf(
-        "ui" to uiTests,
+    val scopeTests = uiTests + mapOf(
+        "ui" to uiTests.values.flatten(),
         "reader" to readerTests,
         "speech" to readerTests + listOf("tts.*", "ui.tts.*"),
         "update" to listOf("data.update.*", "ui.home.settings.SettingsHierarchyTest"),
@@ -201,8 +210,10 @@ tasks.withType<Test>().configureEach {
         ),
     )
     require(scopes.all { it == "full" || it in scopeTests }) { "Unknown ciTestScope: $scopes" }
+    failOnNoDiscoveredTests.set(true)
     if ("full" !in scopes) {
         filter {
+            isFailOnNoMatchingTests = true
             scopes.flatMap { scopeTests.getValue(it) }.distinct().forEach {
                 includeTestsMatching("indi.renakoni.nextvol.$it")
             }
