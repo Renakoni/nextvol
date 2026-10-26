@@ -17,7 +17,7 @@ MAIN = ci_scope.KOTLIN_ROOTS[0]
 
 class ScopeTests(unittest.TestCase):
     def select(self, *paths):
-        return ci_scope.plan(ci_scope.scopes_for_paths(paths))
+        return ci_scope.plan_for_paths(paths)
 
     def test_independent_layouts_skip_reader_devices_and_library_tasks(self):
         for path in ('ui/home/bookshelf/home/BookshelfScreen.kt',
@@ -81,7 +81,6 @@ class ScopeTests(unittest.TestCase):
                      MAIN + 'data/local/UserReadingDataRepository.kt',
                      MAIN + 'ui/newfeature/NewScreen.kt',
                      'app/src/main/res/values/strings.xml', 'app/src/main/AndroidManifest.xml',
-                     'app/src/test/resources/source-updates/README.md',
                      'sources/content/src/main/kotlin/NewClass.kt', 'gradle/libs.versions.toml',
                      'app/build.gradle.kts', '.github/scripts/ci_scope.py',
                      '.github/workflows/device-tests.yml', '.github/actions/ci-scope/action.yml'):
@@ -102,8 +101,7 @@ class ScopeTests(unittest.TestCase):
             self.assertFalse(plan[check])
 
     def test_non_runtime_allowlist_does_not_hide_inputs_or_moved_documents(self):
-        for path in ('app/src/test/resources/backups/README.md',
-                     'app/src/main/assets/source-catalog/README.md',
+        for path in ('app/src/main/assets/source-catalog/README.md',
                      'docs/build.py', '.github/unknown.yml',
                      '.github/ISSUE_TEMPLATE/unknown.yml',
                      '.github/workflows/lint.yml'):
@@ -120,6 +118,53 @@ class ScopeTests(unittest.TestCase):
             'app/src/androidTest/kotlin/indi/renakoni/nextvol/reader/ReaderLayoutInstrumentedTest.kt')['scopes'])
         self.assertEqual('reader,speech', self.select(
             'app/src/androidTest/kotlin/indi/renakoni/nextvol/tts/SystemSpeechInstrumentedTest.kt')['scopes'])
+
+    def test_jvm_only_inputs_keep_owner_and_integrity_without_release_or_devices(self):
+        for path, owner in ((MAIN.replace('/main/', '/test/') + 'TestSupport.kt', ':app:testDebugUnitTest'),
+                            ('app/src/test/resources/backups/README.md', ':app:testDebugUnitTest'),
+                            ('sources/network/src/test/kotlin/NetworkTest.kt', ':source-network:test')):
+            with self.subTest(path=path):
+                plan = self.select(path)
+                self.assertIn(owner, plan['gradle-args'])
+                self.assertIn(':source-compatibility:test', plan['gradle-args'])
+                self.assertTrue(plan['lint'])
+                for check in ('release', 'device-24', 'device-35', 'minified'):
+                    self.assertFalse(plan[check])
+
+    def test_device_and_minified_test_inputs_keep_their_execution_environment(self):
+        plan = self.select('app/src/androidTest/kotlin/indi/renakoni/nextvol/reader/ReaderLayoutInstrumentedTest.kt')
+        self.assertTrue(plan['device-24'])
+        self.assertTrue(plan['device-35'])
+        self.assertEqual(':source-compatibility:test', plan['gradle-args'])
+        self.assertFalse(plan['release'])
+        plan = self.select('tests/benchmark/src/main/kotlin/' + ci_scope.MINIFIED_SPEECH.replace('.', '/') + '.kt')
+        self.assertEqual(ci_scope.MINIFIED_SPEECH, plan['minified-classes'])
+        self.assertTrue(plan['minified'])
+        self.assertFalse(plan['release'])
+        self.assertFalse(plan['jvm'])
+
+    def test_shared_test_inputs_include_jvm_and_android_consumers(self):
+        for path, owner in (('sources/content/src/testFixtures/kotlin/RuleSourceFixture.kt', ':app:testDebugUnitTest'),
+                            ('sources/rhino/src/test/resources/font.ttf', ':source-rhino:test'),
+                            ('tests/source-compatibility/browser/hlib-native.json', ':source-content:test')):
+            with self.subTest(path=path):
+                plan = self.select(path)
+                self.assertIn(owner, plan['gradle-args'])
+                self.assertTrue(plan['device-24'])
+                self.assertTrue(plan['device-35'])
+                self.assertFalse(plan['release'])
+        plan = self.select('tests/source-compatibility/fixtures/native-routing/site/index.html')
+        self.assertTrue(plan['device-35'])
+        self.assertFalse(plan['jvm'])
+
+    def test_mixed_test_and_production_changes_union_without_widening_devices(self):
+        plan = self.select('app/src/test/resources/backups/README.md', MAIN + 'ui/book/reader/ReaderScreen.kt')
+        self.assertTrue(plan['release'])
+        self.assertNotIn('-PciTestScope', plan['gradle-args'])
+        self.assertEqual('reader', plan['device-scopes'])
+        plan = self.select('sources/network/src/test/kotlin/DeletedTest.kt', 'docs/backup.md')
+        self.assertIn(':source-compatibility:test', plan['gradle-args'])
+        self.assertFalse(plan['release'])
 
     def test_empty_diff_runs_full_checks(self):
         self.assertEqual(ci_scope.plan({'full'}), self.select())
