@@ -1,5 +1,16 @@
 # Source execution isolation (#86)
 
+Content activation is assembled by [createRuleSource](../content/src/main/kotlin/hnovel/content/RuleSourceHost.kt).
+It checks definition/ticket/session ownership and binds the ticket before configuration,
+configures the existing session and supplies bound storage, `SourceInvocations` and
+content-only network capabilities. Network and execution never depend on content;
+content retains its `api` dependencies for public request, response and error contracts.
+`SourceSession` owns cookies, storage, transport and resource closure. `RuleSource`
+owns its queue, parsing state and previews; closing it only revokes its ticket and
+clears previews. Login panels receive new tickets through the same factory and share
+the account session. Each invocation gets a fresh broker with its own budget, while
+the host retains ownership of the session even when content construction fails.
+
 `IsolatedExecutor` creates a fresh worker JVM for each invocation and sends only a serialized, host-issued identity, task and limits. The host locates the worker classpath from actual code sources, drains stdout concurrently under a 256 KiB wire cap, bounds input before launch, includes startup/pipe work in its wall-clock deadline, watches host revocation while the worker runs, forcibly terminates late workers and rejects results after revocation. `ExecutionAuthority` issues unguessable nonces and revokes identities; forged identities are rejected.
 
 The Android app uses a non-exported `isolatedProcess` service with an AIDL request/callback protocol. The service checks the calling UID inside Binder transactions against the installed package UID, never against `onBind`'s calling UID or an Intent extra. Callbacks are checked against the worker UID. A debug-only second isolated service verifies that forwarding the worker Binder does not grant access to another UID.

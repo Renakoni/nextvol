@@ -1,7 +1,6 @@
 package hnovel.content
 
 import hnovel.execution.*
-import hnovel.imports.SourceDefinition
 import hnovel.imports.EXTENSION_PROFILE
 import hnovel.network.*
 import hnovel.rules.*
@@ -14,14 +13,19 @@ private const val DIRECTORY_TIMEOUT_MILLIS = 600_000L
 private const val MAX_SEARCH_MEMORIES = 8
 
 /** One registered revision/account. Source retirement revokes its ticket; it never chooses another source. */
-class RuleSource(val definition: SourceDefinition, private val identity: ExecutionIdentity,
-    private val authority: ExecutionAuthority, private val session: SourceSession,
-    private val runner: RuleTaskRunner, private val trace: ContentTrace = ContentTrace.None,
-    private val discoveryEnabled: Boolean = definition.enabledExplore) : AutoCloseable {
-    internal val spec = RuleSourceDefinition(definition)
+class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseable {
+    val definition = binding.definition
+    private val identity = binding.identity
+    private val authority = binding.authority
+    private val runner = binding.runner
+    private val trace = binding.trace
+    private val discoveryEnabled = binding.discoveryEnabled
+    private val network = binding.network
+    private val storage = binding.storage
+    private val invocations = binding.invocations
+    private val loginSource = binding.loginSource
+    internal val spec = binding.spec
     private val bookUrlRule = ":\\A(?:${spec.bookUrlPattern})\\z"
-    private val storage: SourceStateStorage = session
-    private val invocations = SourceInvocations(identity, authority, session)
     private val store = RuleBookStore(storage, authority, identity)
     private val previewDocuments = DiscoveryPreviewDocuments()
     internal fun clearDiscoveryPreviews() = previewDocuments.clear()
@@ -220,10 +224,10 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             request.kind != ResourceKind.Document || request.responseAsHex ||
             request.browser?.let { it.interactive || it.html != null || it.webCookie != null || it.script.isNotBlank() ||
                 it.sourceRegex.isNotBlank() || it.overrideUrl || it.verificationCode } == true ||
-            session.permissionFailureDetail(request.url) != null) return null
-        val route = session.responseRoute() ?: return null
-        val cookies = runCatching { session.responseCookies(request.url).sorted() }.getOrNull() ?: return null
-        val headers = runCatching { session.responseHeaders(request) }.getOrNull() ?: return null
+            network.permissionFailureDetail(request.url) != null) return null
+        val route = network.responseRoute() ?: return null
+        val cookies = runCatching { network.responseCookies(request.url).sorted() }.getOrNull() ?: return null
+        val headers = runCatching { network.responseHeaders(request) }.getOrNull() ?: return null
         val environment = context.discovery?.let { JsonObject(it - "sessionId") }
         return DiscoveryPreviewDocuments.Key(request.copy(headers = request.headers.toMap()), route, cookies, headers, environment)
     }
@@ -241,16 +245,6 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             val context = evaluation(interactive = true)
             request(context, url, "discovery.browser", browser = BrowserOptions(interactive = true, html = html, script = script, title = title))
         }
-    init {
-        require(identity.sourceId == definition.sourceId && identity.profile == definition.profile && identity.revision == definition.contentDigest)
-        require(session.scope.sourceId == identity.sourceId && session.scope.namespace == identity.namespace &&
-            session.scope.profile == identity.profile && session.scope.accountGeneration == identity.accountGeneration)
-        session.configureSource(spec.baseUrl, spec.cookiesEnabled, spec.browserRead, spec.concurrentRate,
-            spec.localStorageRetention, defaultUserAgent = DESKTOP_USER_AGENT, preferBrowserUserAgent = true)
-        session.traceRequests(if (trace === ContentTrace.None) hnovel.network.RequestTrace.None else hnovel.network.RequestTrace { event ->
-            trace.record(ContentTraceEvent("requestDiagnostic", "request", 0, result = event.evidence.name, requestDiagnostic = event))
-        })
-    }
 
     private var cachedLoginForm: LoginForm? = null
     private data class LoginReadingSnapshot(val book: RuleBook, val chapter: RuleChapter?)
@@ -274,7 +268,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 chapters.getOrNull(index))
         }
         val ticket = authority.issue(identity.sourceId, identity.profile, identity.revision, identity.namespace, identity.accountGeneration)
-        return RuleSource(definition, ticket, authority, session, runner, trace, discoveryEnabled).also { it.loginReading = snapshot }
+        return loginSource(ticket).also { it.loginReading = snapshot }
     }
 
     suspend fun loginForm(): LoginForm = operation("loginUi") {
@@ -372,7 +366,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         if (form.browserUrl != null && action == null) {
             val pending = if (spec.browserRead) (storage.read(StorageRequest(StorageArea.Account,
                 StorageRequestKey.BROWSER_PENDING_URL)) as? StorageResult.Value)?.value else null
-            val response = session.execute(BrokerRequest("login", pending ?: form.browserUrl, headers = context.headers(),
+            val response = network.execute(BrokerRequest("login", pending ?: form.browserUrl, headers = context.headers(),
                 timeoutMillis = 60000, browser = BrowserOptions(interactive = true)),
                 RequestCommitGuard { authority.authorized(identity, it) })
             when (response) {
@@ -882,7 +876,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 val document = try {
                     initial.document?.takeIf { visited.size == 1 && it.url == url }
                         ?: prefetch?.read(url)?.let { page ->
-                            context.requestUserAgent = session.requestUserAgent(page.response.finalUrl, page.request.headers)
+                            context.requestUserAgent = network.requestUserAgent(page.response.finalUrl, page.request.headers)
                             responseDocument(context, url, "ruleToc.chapterList", page.request, page.response, false)
                         } ?: fetch(context, url, "ruleToc.chapterList")
                 } catch (failure: SourceContentException) {
@@ -976,15 +970,15 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 as? CompiledRequest.Ready)?.request ?: return null
             if (request.url != url || !url.startsWith("http") || request.method != "GET" || request.body != null ||
                 request.browser != null || request.responseAsHex || request.cache != CacheMode.Disabled ||
-                session.permissionFailureDetail(url) != null) return null
+                network.permissionFailureDetail(url) != null) return null
             request.copy(maxResponseBytes = DirectoryPrefetch.MAX_RESPONSE_BYTES)
         }
-        val route = session.responseRoute() ?: return null
+        val route = network.responseRoute() ?: return null
         trace.record(ContentTraceEvent("concurrency", "ruleToc", 0, requests.size, result = "Prefetch${BrokerLimits.DEFAULT_CONCURRENCY}"))
         return DirectoryPrefetch(scope, requests) { request ->
-            val cookies = session.responseCookies(request.url)
+            val cookies = network.responseCookies(request.url)
             val response = executeRequest(request, "ruleToc.chapterList", route = route)
-            DirectoryPrefetch.Page(request, response, cookies == session.responseCookies(request.url))
+            DirectoryPrefetch.Page(request, response, cookies == network.responseCookies(request.url))
         }
     }
 
@@ -1017,7 +1011,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
     /** Executes a prepared rule request and records the User-Agent its response was fetched with. */
     private suspend fun send(context: RuleEvaluation, request: BrokerRequest, field: String, route: SourceRouteReference? = null): BrokerResponse {
         val response = executeRequest(request, field, route = route)
-        context.requestUserAgent = if (response.protocol == "data") null else session.requestUserAgent(response.finalUrl, request.headers)
+        context.requestUserAgent = if (response.protocol == "data") null else network.requestUserAgent(response.finalUrl, request.headers)
         return response
     }
 
@@ -1042,9 +1036,9 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         route: SourceRouteReference? = null): BrokerResponse {
         val started = System.nanoTime()
         val guard = RequestCommitGuard { authority.authorized(identity, it) }
-        val result = if (publicImage) session.loadImage(request, guard)
-            else if (route != null) session.executeOnRoute(request, guard, route)
-            else session.execute(if (request.kind == ResourceKind.Image) request.copy(cache = CacheMode.Disabled) else request, guard)
+        val result = if (publicImage) network.loadImage(request, guard)
+            else if (route != null) network.executeOnRoute(request, guard, route)
+            else network.execute(if (request.kind == ResourceKind.Image) request.copy(cache = CacheMode.Disabled) else request, guard)
         trace.record(ContentTraceEvent("network", field, (System.nanoTime() - started) / 1_000_000,
             request.body?.length ?: 0, (result as? BrokerResult.Success)?.response?.body?.size ?: 0,
             when (result) { is BrokerResult.Success -> when {
@@ -1108,7 +1102,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         if (failure.code == hnovel.network.FailureCode.Certificate && certificate != null) {
             return SourceVerification(null, certificate) {
                 operation("certificate.verification") {
-                    authority.authorized(identity) { session.approveCertificate(certificate) }
+                    authority.authorized(identity) { network.approveCertificate(certificate) }
                 }
             }
         }
@@ -1125,7 +1119,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 // Recovery opens immediately and finishes when the original extraction is ready.
                 // Ordinary account/login windows keep their explicit completion behavior.
                 val options = request.browser ?: BrowserOptions()
-                val result = session.execute(request.copy(browser = options.copy(interactive = true,
+                val result = network.execute(request.copy(browser = options.copy(interactive = true,
                     title = definition.displayName, script = options.script.ifBlank { "document.documentElement.outerHTML" })),
                     RequestCommitGuard { authority.authorized(identity, it) })
                 if (result is BrokerResult.Failure)

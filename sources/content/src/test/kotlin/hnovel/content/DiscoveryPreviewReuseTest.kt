@@ -158,7 +158,7 @@ class DiscoveryPreviewReuseTest {
                 val owner = fixture.broker.open(SourceScope("rules", definition.sourceId, definition.profile, 1),
                     listOf(NetworkGrant(fixture.server.url("/").toString(), allowPrivateAddresses = true)))
                 val identity = fixture.authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "rules", 1)
-                RuleSource(definition, identity, fixture.authority, owner, fixture.runner)
+                createRuleSource(definition, identity, fixture.authority, owner, fixture.runner)
             } else fixture.source { definition(it, mapOf("bookSourceComment" to JsonPrimitive("new revision"))) }
             next.use { it.openDiscovery("more").openPages("/search", emptyMap()).page(1) }
             assertEquals(2, fixture.server.requestCount)
