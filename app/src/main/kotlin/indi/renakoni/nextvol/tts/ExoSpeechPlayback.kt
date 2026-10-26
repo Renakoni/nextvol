@@ -106,6 +106,7 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
         }
     }
 
+    override fun setSpeed(speed: Float) = player.setPlaybackSpeed(speed)
     override fun pause() = player.pause()
     override fun resume() = player.play()
     override fun stop() {

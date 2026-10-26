@@ -20,7 +20,11 @@
     <string name="tts_local_voice">Offline</string>
     <string name="tts_voice_not_installed">Voice data needs to be installed</string>
     <string name="tts_voice_unavailable">Saved voice is unavailable</string>
-    <string name="tts_rate">Speaking rate</string>
+    <string name="tts_playback_speed">Playback speed</string>
+    <string name="tts_rate">Synthesis rate</string>
+    <string name="tts_advanced">Advanced settings</string>
+    <string name="tts_hide_advanced">Hide advanced settings</string>
+    <string name="tts_rate_description">Changes how audio is generated and regenerates the current passage. The effect depends on the voice source.</string>
     <string name="tts_pitch">Pitch</string>
     <string name="tts_factor">%1$.1f×</string>
     <string name="tts_preview">Preview voice</string>

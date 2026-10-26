@@ -125,11 +125,7 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            var previous: SpeechSettings? = null
-            settings.changes.collect { value ->
-                if (previous != null && previous != value) speech.reloadSettings()
-                previous = value
-            }
+            settings.changes.collect(speech::updateSettings)
         }
     }
 

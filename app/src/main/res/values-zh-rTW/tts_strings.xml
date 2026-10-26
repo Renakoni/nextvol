@@ -20,7 +20,11 @@
     <string name="tts_local_voice">離線</string>
     <string name="tts_voice_not_installed">需要安裝語音資料</string>
     <string name="tts_voice_unavailable">已儲存的音色無法使用</string>
-    <string name="tts_rate">朗讀語速</string>
+    <string name="tts_playback_speed">播放速度</string>
+    <string name="tts_rate">合成語速</string>
+    <string name="tts_advanced">進階設定</string>
+    <string name="tts_hide_advanced">收起進階設定</string>
+    <string name="tts_rate_description">影響音訊產生方式，修改後會重新產生目前片段。效果取決於音源。</string>
     <string name="tts_pitch">音調</string>
     <string name="tts_factor">%1$.1f×</string>
     <string name="tts_preview">試聽音色</string>
