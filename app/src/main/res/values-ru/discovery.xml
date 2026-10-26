@@ -1,4 +1,12 @@
 <resources>
+    <string name="discovery_filters">Фильтры</string>
+    <string name="discovery_reset_filters">Сбросить</string>
+    <string name="discovery_apply_filters">Применить фильтры</string>
+    <string name="discovery_filter_paging_hint">Некоторые источники фильтруют книги постранично. Загрузите ещё, чтобы найти больше совпадений.</string>
+    <string name="discovery_no_page_matches">На загруженных страницах совпадений нет. Попробуйте загрузить ещё.</string>
+    <string name="discovery_number_range">Введите число от %1$d до %2$d.</string>
+    <string name="discovery_filter_off">Выключено</string>
+    <string name="discovery_filter_blank">Не заполнено</string>
     <string name="categories_title">Категории</string>
     <string name="categories_no_sources">Нет включённых источников с категориями. Добавьте или включите источник в управлении источниками.</string>
     <string name="categories_empty">Этот источник не вернул категорий.</string>

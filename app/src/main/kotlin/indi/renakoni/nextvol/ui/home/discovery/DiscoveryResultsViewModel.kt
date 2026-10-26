@@ -112,10 +112,11 @@ class DiscoveryResultsViewModel internal constructor(
         mutableState.value = state.value.copy(loaded = false, error = null)
     }
 
-    fun filter(id: String, value: String) {
-        val next = filterValues(state.value.definitions, state.value.filters + (id to value))
+    fun filter(values: Map<String, String>) {
+        val next = filterValues(state.value.definitions, values)
         if (next == state.value.filters) return
-        mutableState.value = state.value.copy(filters = next)
+        // Old books belong to the previous query, including while a new request fails or is cancelled.
+        mutableState.value = state.value.copy(filters = next, books = emptyList())
         saveFilters(next)
         refresh()
     }

@@ -1,4 +1,12 @@
 <resources>
+    <string name="discovery_filters">Filters</string>
+    <string name="discovery_reset_filters">Reset</string>
+    <string name="discovery_apply_filters">Apply filters</string>
+    <string name="discovery_filter_paging_hint">Some sources filter one page at a time. Loading more may reveal more matches.</string>
+    <string name="discovery_no_page_matches">No matches on the pages loaded so far. Try loading more.</string>
+    <string name="discovery_number_range">Enter a number from %1$d to %2$d.</string>
+    <string name="discovery_filter_off">Off</string>
+    <string name="discovery_filter_blank">Empty</string>
     <string name="categories_title">Categories</string>
     <string name="categories_no_sources">No enabled book source provides categories. Add or enable a source in source management.</string>
     <string name="categories_empty">This source returned no categories.</string>

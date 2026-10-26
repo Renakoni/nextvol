@@ -1,4 +1,12 @@
 <resources>
+    <string name="discovery_filters">筛选</string>
+    <string name="discovery_reset_filters">重置</string>
+    <string name="discovery_apply_filters">应用筛选</string>
+    <string name="discovery_filter_paging_hint">部分书源会逐页筛选，继续加载可能出现更多匹配。</string>
+    <string name="discovery_no_page_matches">已加载页面暂无匹配，试试继续加载。</string>
+    <string name="discovery_number_range">请输入 %1$d 到 %2$d 之间的数字。</string>
+    <string name="discovery_filter_off">关闭</string>
+    <string name="discovery_filter_blank">未填写</string>
     <string name="categories_title">分类</string>
     <string name="categories_no_sources">暂无提供分类的已启用书源，请在书源管理中添加或启用书源。</string>
     <string name="categories_empty">此书源未返回分类。</string>
