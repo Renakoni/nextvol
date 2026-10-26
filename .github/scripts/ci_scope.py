@@ -13,10 +13,10 @@ KOTLIN_ROOTS = tuple(f'app/src/{source}/kotlin/indi/renakoni/nextvol/'
                      for source in ('main', 'test'))
 # Shared UI, navigation, resources, and unreviewed data/runtime code
 # intentionally fall through to full coverage.
-UI_ROOTS = ('ui/home/bookshelf/', 'ui/home/explore/',
-            'ui/home/reading/stats/', 'ui/bangumi/',
-            'ui/home/settings/about/', 'ui/home/settings/licenses/',
-            'ui/home/settings/logcat/')
+UI_ROOTS = {'ui/home/bookshelf/': 'bookshelf', 'ui/home/explore/': 'explore',
+            'ui/home/reading/stats/': 'stats', 'ui/bangumi/': 'bangumi',
+            'ui/home/settings/about/': 'about', 'ui/home/settings/licenses/': 'about',
+            'ui/home/settings/logcat/': 'logs'}
 JVM_TASKS = [':app:testDebugUnitTest', ':epub:test', ':source-rules:test',
              ':source-network:test', ':source-import:test', ':source-execution:test',
              ':source-compatibility:test', ':source-rhino:test', ':source-content:test',
@@ -122,8 +122,11 @@ def classify(path):
                 return 'speech'
             if relative.startswith(('ui/home/discovery/', 'ui/home/categories/')):
                 return 'catalog'
-            if relative.startswith(UI_ROOTS):
-                return 'ui'
+            for prefix, scope in UI_ROOTS.items():
+                if relative.startswith(prefix):
+                    # These settings screens currently have cross-directory tests.
+                    # A new test in their own package must not fall outside the filter.
+                    return 'full' if root == KOTLIN_ROOTS[1] and scope in {'about', 'logs'} else scope
     if path.startswith('app/src/androidTest/kotlin/indi/renakoni/nextvol/reader/'):
         return 'reader'
     if path.startswith('app/src/androidTest/kotlin/indi/renakoni/nextvol/tts/'):
@@ -147,8 +150,6 @@ def scopes_for_paths(paths):
     # Speech follows reader position and owns controls inside the reader.
     if 'speech' in scopes:
         scopes.add('reader')
-    if 'catalog' in scopes:
-        scopes.add('ui')
     return scopes
 
 
@@ -179,7 +180,7 @@ def plan(scopes):
     if 'export' in scopes:
         tasks.append(':epub:test')
     if active and not full and 'source' not in scopes:
-        tasks.append('-PciTestScope=' + ','.join(sorted(scopes - {'catalog'})))
+        tasks.append('-PciTestScope=' + ','.join(sorted(scopes)))
     minified = []
     if full or scopes & {'catalog', 'source'}:
         minified.append(MINIFIED_SOURCE)
@@ -261,7 +262,7 @@ def plan_for_paths(paths):
         tasks.add(':app:testDebugUnitTest')
     ordered_tasks = [task for task in JVM_TASKS if task in tasks]
     if app_scopes and 'full' not in app_scopes:
-        ordered_tasks.append('-PciTestScope=' + ','.join(sorted(app_scopes - {'catalog'})))
+        ordered_tasks.append('-PciTestScope=' + ','.join(sorted(app_scopes)))
     result['jvm'] = bool(tasks)
     result['gradle-args'] = ' '.join(ordered_tasks)
     device_scopes.update(scopes)
@@ -318,7 +319,7 @@ def main():
     args = parser.parse_args()
     if args.device_api:
         scopes = set(args.scopes.split(','))
-        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'source', 'update', 'export', 'backup', 'storage', 'docs'}:
+        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'source', 'update', 'export', 'backup', 'storage', 'docs', *UI_ROOTS.values()}:
             parser.error('unknown test scope')
         print('\n'.join(device_classes(scopes, args.device_api)))
         return
