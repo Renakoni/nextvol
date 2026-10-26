@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -24,14 +25,38 @@ import indi.renakoni.nextvol.ui.home.settings.sources.SourcePermissionLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun DiscoveryTopBar(title: String, onBack: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit) {
-    TopAppBar(title = { Text(title, style = MaterialTheme.typography.displayLarge,
-        maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
+internal fun DiscoveryTopBar(title: String, sourceName: String, onBack: () -> Unit, onRefresh: () -> Unit,
+    onSettings: () -> Unit, onFilters: (() -> Unit)?, filterCount: Int) {
+    var menu by remember { mutableStateOf(false) }
+    val typography = MaterialTheme.typography
+    val height = with(LocalDensity.current) {
+        typography.displayLarge.lineHeight.toDp() + typography.bodySmall.lineHeight.toDp() + 16.dp
+    }.coerceAtLeast(64.dp)
+    TopAppBar(title = {
+        Column {
+            Text(title, style = typography.displayLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (sourceName.isNotBlank()) Text(sourceName, style = typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }, expandedHeight = height, navigationIcon = {
         IconButton(onClick = onBack) { Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back)) }
     }, actions = {
-        TextButton(onClick = onRefresh) { Text(stringResource(R.string.discovery_refresh)) }
-        TextButton(onClick = onSettings) { Text(stringResource(R.string.nav_settings)) }
-    })
+        if (onFilters != null) IconButton(onClick = onFilters) {
+            BadgedBox(badge = { if (filterCount > 0) Badge { Text(filterCount.toString()) } }) {
+                Icon(painterResource(R.drawable.filter_list_24px), stringResource(R.string.discovery_filters),
+                    tint = if (filterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+            }
+        }
+        Box {
+            IconButton(onClick = { menu = true }) {
+                Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.action_more_options))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.discovery_refresh)) }, onClick = { menu = false; onRefresh() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.nav_settings)) }, onClick = { menu = false; onSettings() })
+            }
+        }
+    }, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
 }
 
 @Composable

@@ -1,4 +1,12 @@
 <resources>
+    <string name="discovery_filters">篩選</string>
+    <string name="discovery_reset_filters">重設</string>
+    <string name="discovery_apply_filters">套用篩選</string>
+    <string name="discovery_filter_paging_hint">部分書源會逐頁篩選，繼續載入可能出現更多符合條件的書籍。</string>
+    <string name="discovery_no_page_matches">已載入頁面暫無符合條件的書籍，試試繼續載入。</string>
+    <string name="discovery_number_range">請輸入 %1$d 到 %2$d 之間的數字。</string>
+    <string name="discovery_filter_off">關閉</string>
+    <string name="discovery_filter_blank">未填寫</string>
     <string name="categories_title">分類</string>
     <string name="categories_no_sources">目前沒有已啟用且提供分類的書源。請到書源管理新增或啟用書源。</string>
     <string name="categories_empty">此書源未傳回分類。</string>

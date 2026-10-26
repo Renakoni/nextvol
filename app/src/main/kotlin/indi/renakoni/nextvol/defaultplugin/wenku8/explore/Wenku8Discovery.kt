@@ -81,10 +81,9 @@ class Wenku8Discovery(private val host: String, private val fetch: suspend (Stri
     override fun filters(target: String): List<DiscoveryFilter> = buildList {
         add(DiscoveryFilter.Toggle("completed", "仅已完结"))
         if (target.startsWith("tag:")) add(DiscoveryFilter.Choice("sort", "排序", linkedMapOf(
-            "default" to "默认", "updated" to "按更新时间排序", "popular" to "按热度排序", "anime" to "仅动画化",
+            "default" to "默认", "popular" to "按热度排序", "anime" to "仅动画化",
         ), "default"))
         add(DiscoveryFilter.Choice("publisher", "文库", publishers.associateWith { it }, publishers.first()))
-        add(DiscoveryFilter.Number("minWords", "最少字数", 0, 2_000_000))
     }
 
     override suspend fun page(request: DiscoveryRequest): Result<DiscoveryPage, DiscoveryError> {
@@ -97,8 +96,7 @@ class Wenku8Discovery(private val host: String, private val fetch: suspend (Stri
             }
             val books = cards.filter {
                 (request.filters["completed"] != "true" || it.completed) &&
-                    (request.filters["publisher"].let { value -> value == null || value == publishers.first() || value == it.publisher }) &&
-                    ((request.filters["minWords"]?.toInt() ?: 0).let { value -> value == 0 || it.words >= value })
+                    (request.filters["publisher"].let { value -> value == null || value == publishers.first() || value == it.publisher })
             }.map { it.book }
             val total = soup.selectFirst("#pagelink em")?.text()?.substringAfter('/')?.trim()?.toIntOrNull()
             if (soup.selectFirst("#pagelink em") != null && (total == null || total < page)) {
@@ -154,7 +152,7 @@ class Wenku8Discovery(private val host: String, private val fetch: suspend (Stri
 
 /** Parse each card as a unit: missing author/cover nodes cannot shift another book's data. */
 internal object Wenku8DiscoveryParser {
-    data class Card(val book: DiscoveryBook, val publisher: String, val words: Int, val completed: Boolean)
+    data class Card(val book: DiscoveryBook, val publisher: String, val completed: Boolean)
     private val bookPath = Regex("/book/([0-9]+)\\.htm")
 
     fun cards(soup: Document?, host: String): List<Card> = soup
@@ -166,11 +164,7 @@ internal object Wenku8DiscoveryParser {
             val paragraphs = card.select("p").map { it.text() }
             fun field(name: String) = paragraphs.firstOrNull { it.contains(name) }
                 ?.substringAfter(name)?.trimStart(':', '：', ' ')?.substringBefore('/')?.trim().orEmpty()
-            val words = Regex("([0-9]+(?:\\.[0-9]+)?)([Kk万]?)").find(field("字数"))?.let {
-                val scale = when (it.groupValues[2]) { "K", "k" -> 1000; "万" -> 10000; else -> 1 }
-                (it.groupValues[1].toDouble() * scale).toInt()
-            } ?: -1
-            Card(DiscoveryBook(id, title, field("作者"), cover(card, host)), field("分类").ifEmpty { field("文库") }, words,
+            Card(DiscoveryBook(id, title, field("作者"), cover(card, host)), field("分类").ifEmpty { field("文库") },
                 paragraphs.any { it.contains("已完结") || it.contains("已完成") || it.contains("全本") })
         }?.distinctBy { it.book.remoteId }.orEmpty()
 
@@ -202,7 +196,7 @@ internal object Wenku8DiscoveryParser {
         val title = info.selectFirst("span > b")?.text()?.substringBefore('(') ?: return null
         val fields = info.select("tr").lastOrNull()?.select("td").orEmpty().map { it.text().substringAfter('：') }
         return Card(DiscoveryBook(id, title, fields.getOrNull(1).orEmpty(), cover(soup.selectFirst("#content")!!, host)),
-            fields.getOrNull(0).orEmpty(), fields.getOrNull(4)?.removeSuffix("字")?.toIntOrNull() ?: -1,
+            fields.getOrNull(0).orEmpty(),
             fields.getOrNull(2)?.contains("已完结") == true)
     }
 

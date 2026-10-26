@@ -107,7 +107,7 @@ class TypographyInstrumentedTest {
                             SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.settings_text_formatting, {})
                         }
                         Column(Modifier.fillMaxWidth().testTag("discovery")) {
-                            DiscoveryTopBar(title, {}, {}, {})
+                            DiscoveryTopBar(title, "Wenku8", {}, {}, {}, onFilters = {}, filterCount = 0)
                         }
                     }
                 }

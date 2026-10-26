@@ -65,7 +65,7 @@ class DiscoveryResultsViewModelTest {
         val requests = mutableListOf<DiscoveryRequest>()
         var nextFailure = false
         override suspend fun categories() = Ok(listOf(DiscoveryCategory("category", "Same category", "tag")))
-        override fun filters(target: String) = listOf(DiscoveryFilter.Choice("sort", "Sort", linkedMapOf("a" to "A", "b" to "B"), "a"))
+        override fun filters(target: String): List<DiscoveryFilter> = listOf(DiscoveryFilter.Choice("sort", "Sort", linkedMapOf("a" to "A", "b" to "B"), "a"))
         override suspend fun page(request: DiscoveryRequest): Result<DiscoveryPage, DiscoveryError> {
             requests += request
             if (request.cursor != null && nextFailure) { nextFailure = false; return Err(DiscoveryError.Network) }
@@ -122,15 +122,24 @@ class DiscoveryResultsViewModelTest {
         assertEquals(source, a.state.value.books.first().id.sourceId)
     }
 
-    @Test fun changingFiltersCancelsOldRequestAndRestoresLightweightState() = runTest(dispatcher) {
-        val provider = Pages()
+    @Test fun applyingFiltersRefreshesOnceClearsOldBooksAndRestoresLightweightState() = runTest(dispatcher) {
+        val provider = object : Pages() {
+            override fun filters(target: String) = super.filters(target) + DiscoveryFilter.Toggle("completed", "Completed")
+        }
         add(provider)
         val saved = SavedStateHandle()
         val original = model(saved)
         advanceUntilIdle()
         original.scroll(DiscoveryScroll(3, 20))
-        original.filter("sort", "b")
+        val selection = mapOf("sort" to "b", "completed" to "true")
+        original.filter(selection)
+        assertTrue(original.state.value.books.isEmpty())
         advanceUntilIdle()
+        assertEquals(2, provider.requests.size)
+        assertEquals(selection, provider.requests.last().filters)
+        original.filter(selection)
+        advanceUntilIdle()
+        assertEquals(2, provider.requests.size)
         assertEquals(DiscoveryScroll(), original.state.value.scroll)
         assertEquals("b", original.state.value.books.single().title)
         val restored = model(SavedStateHandle(mapOf("discovery.filters" to saved.get<String>("discovery.filters"))))
@@ -138,7 +147,7 @@ class DiscoveryResultsViewModelTest {
         assertEquals("b", restored.state.value.filters["sort"])
         assertEquals("b", restored.state.value.books.single().title)
         assertEquals(3, provider.requests.size)
-        assertEquals(mapOf("sort" to "b"), Json.decodeFromString<Map<String, String>>(saved.get<String>("discovery.filters")!!))
+        assertEquals(selection, Json.decodeFromString<Map<String, String>>(saved.get<String>("discovery.filters")!!))
     }
 
     @Test fun invalidRestoredCategoryStopsBeforeLoadingAndInvalidFiltersUseDefaults() = runTest(dispatcher) {
@@ -288,7 +297,7 @@ class DiscoveryResultsViewModelTest {
         val model = model(route = route.copy(target = "tag-a", filtersJson = "{\"sort\":\"a\",\"draft\":\"page-only\"}"))
         advanceUntilIdle()
         assertNull(model.state.value.error)
-        model.filter("sort", "b")
+        model.filter(mapOf("sort" to "b"))
         advanceUntilIdle()
         assertNull(model.state.value.error)
         assertEquals(listOf("tag-a", "tag-b"), observed.map { it.target })
@@ -357,7 +366,7 @@ class DiscoveryResultsViewModelTest {
         model.loadMore()
         runCurrent()
         assertTrue(started.isCompleted)
-        model.filter("sort", "b")
+        model.filter(mapOf("sort" to "b"))
         runCurrent()
         finish.complete(Unit)
         advanceUntilIdle()
