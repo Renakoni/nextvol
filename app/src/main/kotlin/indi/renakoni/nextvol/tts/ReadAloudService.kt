@@ -72,13 +72,19 @@ class ReadAloudService : MediaSessionService() {
         sleepTimer = SpeechSleepTimer(scope, SystemClock::elapsedRealtime,
             onChanged = { deadline ->
                 if (!shuttingDown && speech.state.value.request != null)
-                    controller.publish(speech.state.value.copy(sleepTimerDeadline = deadline))
+                    controller.publish(speech.state.value.copy(sleepTimerDeadline = deadline,
+                        sleepTimerRemainingMillis = sleepTimer.remainingMillis))
             },
             onExpired = {
                 speech.stop()
                 controller.publish(speech.state.value)
                 stopSelf()
             })
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (!shuttingDown) sleepTimer.setPlaying(isPlaying && speech.state.value.request?.isPreview == false)
+            }
+        })
         val controls = object : ForwardingSimpleBasePlayer(player) {
             override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
                 if (playWhenReady) { if (!sleepTimer.expireIfDue() && foreground()) speech.resume() } else speech.pause()
@@ -117,7 +123,8 @@ class ReadAloudService : MediaSessionService() {
                         if (!preparationWakeLock.isHeld) preparationWakeLock.acquire(90_000)
                     } else if (preparationWakeLock.isHeld) preparationWakeLock.release()
                     if (it.phase in setOf(SpeechPhase.Stopped, SpeechPhase.Completed, SpeechPhase.Failed)) sleepTimer.cancel()
-                    controller.publish(it.copy(sleepTimerDeadline = sleepTimer.deadline))
+                    controller.publish(it.copy(sleepTimerDeadline = sleepTimer.deadline,
+                        sleepTimerRemainingMillis = sleepTimer.remainingMillis))
                     // Word boundaries update the reader, not the system notification/foreground service.
                     val summary = it.copy(position = null)
                     if (summary != notificationState) {
@@ -169,7 +176,7 @@ class ReadAloudService : MediaSessionService() {
                 if (minutes in 0..MAX_SLEEP_TIMER_MINUTES && speech.state.value.phase in setOf(
                         SpeechPhase.Preparing, SpeechPhase.Buffering, SpeechPhase.Playing, SpeechPhase.Paused)) {
                     speech.setChapterSleepTimer(null)
-                    sleepTimer.set(minutes.takeIf { it > 0 })
+                    sleepTimer.set(minutes.takeIf { it > 0 }, player.isPlaying && speech.state.value.request?.isPreview == false)
                 }
             }
             SpeechAction.ChapterSleepTimer -> {
@@ -272,8 +279,10 @@ class ReadAloudService : MediaSessionService() {
         if (preparationWakeLock.isHeld) preparationWakeLock.release()
         getSystemService(NotificationManager::class.java).cancel(notificationId)
         if (last.isActive && controller.state.value.error != SpeechError.ServiceUnavailable) {
-            controller.publish(last.copy(phase = SpeechPhase.Paused, sleepTimerDeadline = null, sleepTimerChapters = null))
-        } else controller.publish(controller.state.value.copy(sleepTimerDeadline = null, sleepTimerChapters = null))
+            controller.publish(last.copy(phase = SpeechPhase.Paused, sleepTimerDeadline = null,
+                sleepTimerRemainingMillis = null, sleepTimerChapters = null))
+        } else controller.publish(controller.state.value.copy(sleepTimerDeadline = null,
+            sleepTimerRemainingMillis = null, sleepTimerChapters = null))
         super.onDestroy()
     }
 

@@ -189,7 +189,7 @@ class ReadAloudSession(
         pause()
     }
 
-    /** Called by the service after checking its unchanged sleep deadline. */
+    /** Restores the book after its playback timer was frozen for the sample. */
     fun restoreAfterPreview(): Boolean {
         val current = state.value
         if (current.request?.isPreview != true || current.phase !in setOf(SpeechPhase.Completed, SpeechPhase.Failed)) return false

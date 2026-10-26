@@ -24,6 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
@@ -52,6 +56,11 @@ fun ReadAloudSheet(
     onChapterSleepTimer: ((Int) -> Unit)? = null,
 ) {
     HideReadAloudOverlay()
+    var showTimer by remember { mutableStateOf(false) }
+    if (showTimer && onSleepTimer != null) {
+        SpeechSleepTimerSheet(state, onSleepTimer, onChapterSleepTimer) { showTimer = false }
+        return
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberBottomSheetState(
@@ -73,6 +82,7 @@ fun ReadAloudSheet(
             onSettings = onSettings,
             onSleepTimer = onSleepTimer,
             onChapterSleepTimer = onChapterSleepTimer,
+            onOpenSleepTimer = { showTimer = true },
             modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
         )
     }
@@ -86,6 +96,7 @@ fun ReadAloudControls(
     modifier: Modifier = Modifier,
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
+    onOpenSleepTimer: (() -> Unit)? = null,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         // Let long titles and errors scroll while keeping playback actions within reach.
@@ -187,7 +198,7 @@ fun ReadAloudControls(
                 Text(stringResource(R.string.next_chapter), textAlign = TextAlign.Center)
             }
             if (onSleepTimer != null && state.request?.isPreview == false) {
-                SpeechSleepTimerButton(state, onSleepTimer, onChapterSleepTimer)
+                SpeechSleepTimerButton(state, onSleepTimer, onChapterSleepTimer, onOpenSleepTimer)
             }
         }
     }
