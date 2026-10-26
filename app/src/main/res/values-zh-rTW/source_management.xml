@@ -2,7 +2,7 @@
     <string name="sources_basic_section">基本設定</string>
     <string name="sources_network_section">網路</string>
     <string name="sources_account_section">帳號</string>
-    <string name="sources_account_name">帳號：%1$s</string>
+    <string name="sources_account_name">%1$s</string>
     <string name="sources_login_again">重新登入</string>
     <string name="sources_open_panel">開啟書源面板</string>
     <string name="sources_account_required">需要重新登入</string>

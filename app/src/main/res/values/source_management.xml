@@ -2,7 +2,7 @@
     <string name="sources_basic_section">Basic settings</string>
     <string name="sources_network_section">Network</string>
     <string name="sources_account_section">Account</string>
-    <string name="sources_account_name">Account: %1$s</string>
+    <string name="sources_account_name">%1$s</string>
     <string name="sources_login_again">Sign in again</string>
     <string name="sources_open_panel">Open source panel</string>
     <string name="sources_account_required">Sign-in required</string>
