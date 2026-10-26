@@ -428,8 +428,8 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
         execute(request, guard, policy)
 
     /** Host-owned response handoffs must remain on the same live route as their original read. */
-    fun responseRoute(): SourceNetworkRoute? = runCatching {
-        checkOpen(); routes.snapshot().takeIf { it.available }
+    fun responseRoute(): SourceRouteReference? = runCatching {
+        checkOpen(); routes.snapshot().reference.takeIf { it.available }
     }.getOrNull()
 
     /** Host-only response identity, including account headers which are not in the rule request. */
@@ -439,8 +439,8 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     }
 
     /** Use the route already captured for an owned response handoff, including native browser reads. */
-    suspend fun executeOnRoute(request: BrokerRequest, guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult =
-        execute(request, guard, policy, route = route)
+    suspend fun executeOnRoute(request: BrokerRequest, guard: RequestCommitGuard, route: SourceRouteReference): BrokerResult =
+        execute(request, guard, policy, route = route.route)
 
     /** Host-only HTTP transport for synthetic/image verification documents; avoids browser re-entry. */
     suspend fun executeHttp(request: BrokerRequest, guard: RequestCommitGuard, route: SourceNetworkRoute? = null): BrokerResult {

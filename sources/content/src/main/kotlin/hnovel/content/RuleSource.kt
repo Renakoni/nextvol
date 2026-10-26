@@ -1015,7 +1015,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         browser: BrowserOptions? = null): BrokerResponse = send(context, prepareRequest(context, url, field, kind, browser), field)
 
     /** Executes a prepared rule request and records the User-Agent its response was fetched with. */
-    private suspend fun send(context: RuleEvaluation, request: BrokerRequest, field: String, route: SourceNetworkRoute? = null): BrokerResponse {
+    private suspend fun send(context: RuleEvaluation, request: BrokerRequest, field: String, route: SourceRouteReference? = null): BrokerResponse {
         val response = executeRequest(request, field, route = route)
         context.requestUserAgent = if (response.protocol == "data") null else session.requestUserAgent(response.finalUrl, request.headers)
         return response
@@ -1039,7 +1039,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
     }
 
     private suspend fun executeRequest(request: BrokerRequest, field: String, publicImage: Boolean = false,
-        route: SourceNetworkRoute? = null): BrokerResponse {
+        route: SourceRouteReference? = null): BrokerResponse {
         val started = System.nanoTime()
         val guard = RequestCommitGuard { authority.authorized(identity, it) }
         val result = if (publicImage) session.loadImage(request, guard)
@@ -1065,7 +1065,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         return response
     }
     private suspend fun fetch(context: RuleEvaluation, url: String, field: String, browser: BrowserOptions? = null,
-        acceptErrorResponse: Boolean = false, prepared: BrokerRequest? = null, route: SourceNetworkRoute? = null): PageDocument {
+        acceptErrorResponse: Boolean = false, prepared: BrokerRequest? = null, route: SourceRouteReference? = null): PageDocument {
         val request = prepared ?: prepareRequest(context, url, field, ResourceKind.Document, browser)
         val response = send(context, request, field, route)
         return responseDocument(context, url, field, request, response, acceptErrorResponse)
