@@ -58,6 +58,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             viewModel::selectEngine, viewModel::selectVoice, viewModel::setRate, viewModel::setPitch,
             onPreview = { viewModel.controller.preview(preview) }, onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
+            onPlaybackSpeed = viewModel::setPlaybackSpeed,
             onSystemSettings = {
                 try { context.startActivity(Intent("com.android.settings.TTS_SETTINGS")) }
                 catch (_: ActivityNotFoundException) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.viewModelScope
 import indi.renakoni.nextvol.tts.*
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
@@ -45,6 +46,18 @@ class SpeechSettingsViewModelTest {
     @After fun destroy() {
         model.viewModelScope.cancel()
         Dispatchers.resetMain()
+    }
+
+    @Test fun playbackSpeedIsSavedWithoutChangingSynthesisOrRefreshingTheVoiceCatalog() = runTest {
+        coEvery { repository.update(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value).validated()
+        }
+        runCurrent()
+        val original = settings.value
+        model.setPlaybackSpeed(2f)
+        runCurrent()
+        assertEquals(original.copy(playbackSpeed = 2f), model.state.value.settings)
+        coVerify(exactly = 1) { engines.inspect(any()) }
     }
 
     @Test fun sameTargetRefreshRetainsKnownResultsUntilTheNewCheckCompletes() = runTest {
