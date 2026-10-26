@@ -53,7 +53,7 @@ class SourceBroker(private val storageRoot: Path, private val dns: Dns = VpnDns.
 class SourceSession internal constructor(val scope: SourceScope, grants: List<NetworkGrant>, root: Path,
     dns: Dns, private val limits: BrokerLimits, cipher: StorageCipher = StorageCipher.Plain,
     private val browser: BrowserExecutor? = null, private val routes: SourceRouteProvider,
-    private val retryPolicy: HttpRetryPolicy = HttpRetryPolicy()) : AutoCloseable {
+    private val retryPolicy: HttpRetryPolicy = HttpRetryPolicy()) : AutoCloseable, SourceStateStorage {
     internal val grants = grants.map { it.copy(headers = it.headers.toMap()) }
     private val policy = NetworkPolicy(this.grants, dns)
     private val imagePolicy = NetworkPolicy(this.grants, dns, publicImages = true)
@@ -370,7 +370,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
         storageFailure?.let { throw it }
     }
 
-    @Synchronized fun read(request: StorageRequest): StorageResult {
+    @Synchronized override fun read(request: StorageRequest): StorageResult {
         checkOpen()
         return when (request.area) {
             StorageArea.Config -> config.read(request.key)
@@ -379,7 +379,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
             StorageArea.BookState -> bookState.read(request.key)
         }
     }
-    @Synchronized fun write(request: StorageRequest): StorageResult {
+    @Synchronized override fun write(request: StorageRequest): StorageResult {
         checkOpen()
         return when (request.area) {
             StorageArea.Config -> config.write(request.key, request.value)
@@ -388,7 +388,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
             StorageArea.BookState -> bookState.write(request.key, request.value)
         }
     }
-    @Synchronized fun writeBookStates(values: Map<String, String>): StorageResult {
+    @Synchronized override fun writeBookStates(values: Map<String, String>): StorageResult {
         checkOpen()
         return bookState.writeAll(values)
     }

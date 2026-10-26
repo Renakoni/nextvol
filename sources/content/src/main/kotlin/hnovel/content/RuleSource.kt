@@ -20,7 +20,8 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
     private val discoveryEnabled: Boolean = definition.enabledExplore) : AutoCloseable {
     internal val spec = RuleSourceDefinition(definition)
     private val bookUrlRule = ":\\A(?:${spec.bookUrlPattern})\\z"
-    private val store = RuleBookStore(session, authority, identity)
+    private val storage: SourceStateStorage = session
+    private val store = RuleBookStore(storage, authority, identity)
     private val previewDocuments = DiscoveryPreviewDocuments()
     internal fun clearDiscoveryPreviews() = previewDocuments.clear()
     private val serial = SourceWorkQueue()
@@ -55,14 +56,14 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         environment: RuleDiscoveryEnvironment = RuleDiscoveryEnvironment()) = RuleDiscoverySession(this, sessionId, values, environment)
 
     internal fun discoveryState(key: String): String? = authority.authorized(identity) {
-        val result = session.read(StorageRequest(StorageArea.Config, "discovery/$key"))
+        val result = storage.read(StorageRequest(StorageArea.Config, "discovery/$key"))
         if (result !is StorageResult.Value) throw SourceContentException(ContentError.Storage, "discovery.$key")
         result.value
     }
 
     internal fun saveDiscoveryState(key: String, value: String) = authority.authorized(identity) {
         val path = if (key == "configuration") "variable" else "discovery/$key"
-        if (session.write(StorageRequest(StorageArea.Config, path, value)) !is StorageResult.Value)
+        if (storage.write(StorageRequest(StorageArea.Config, path, value)) !is StorageResult.Value)
             throw SourceContentException(ContentError.Storage, "discovery.$key")
     }
 
@@ -280,7 +281,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
     }
 
     private fun loginInfo(): String? {
-        val stored = session.read(StorageRequest(StorageArea.Account, StorageRequestKey.LOGIN_INFO)) as? StorageResult.Value
+        val stored = storage.read(StorageRequest(StorageArea.Account, StorageRequestKey.LOGIN_INFO)) as? StorageResult.Value
             ?: throw SourceContentException(ContentError.Storage, "loginUi.values")
         return stored.value
     }
@@ -293,7 +294,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         val original = loginInfo()
         val merged = LoginInfo.merge(original, values)
         if (merged != original)
-            check(session.write(StorageRequest(StorageArea.Account, StorageRequestKey.LOGIN_INFO, merged)) is StorageResult.Value)
+            check(storage.write(StorageRequest(StorageArea.Account, StorageRequestKey.LOGIN_INFO, merged)) is StorageResult.Value)
     }
 
     private fun loginContext(values: Map<String, String>, interactive: Boolean, longClick: Boolean = false): RuleEvaluation =
@@ -368,7 +369,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             }
         }
         if (form.browserUrl != null && action == null) {
-            val pending = if (spec.browserRead) (session.read(StorageRequest(StorageArea.Account,
+            val pending = if (spec.browserRead) (storage.read(StorageRequest(StorageArea.Account,
                 StorageRequestKey.BROWSER_PENDING_URL)) as? StorageResult.Value)?.value else null
             val response = session.execute(BrokerRequest("login", pending ?: form.browserUrl, headers = context.headers(),
                 timeoutMillis = 60000, browser = BrowserOptions(interactive = true)),
@@ -380,8 +381,8 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             }
             // Closing a website preserves its session; HTTP 200 alone does not verify a login.
             authority.authorized(identity) {
-                check(session.write(StorageRequest(StorageArea.Account, "login/status", "session")) is StorageResult.Value)
-                if (pending != null) check(session.write(StorageRequest(StorageArea.Account, StorageRequestKey.BROWSER_PENDING_URL)) is StorageResult.Value)
+                check(storage.write(StorageRequest(StorageArea.Account, "login/status", "session")) is StorageResult.Value)
+                if (pending != null) check(storage.write(StorageRequest(StorageArea.Account, StorageRequestKey.BROWSER_PENDING_URL)) is StorageResult.Value)
             }
             return@operation LoginActionResult()
         }
@@ -427,7 +428,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         if (changed != submitted) saveLoginValues(changed.filter { (key, value) -> submitted[key] != value })
         val refreshDiscovery = actions.any { it.jsonObject.string("kind") == "refresh" }
         if (refreshDiscovery) cachedLoginForm = null
-        if (action == null) authority.authorized(identity) { check(session.write(StorageRequest(StorageArea.Account, "login/status", "authenticated")) is StorageResult.Value) }
+        if (action == null) authority.authorized(identity) { check(storage.write(StorageRequest(StorageArea.Account, "login/status", "authenticated")) is StorageResult.Value) }
         LoginActionResult(refreshTargets.toSet(), messages.toList(), refreshDiscovery)
     }
 
@@ -1135,9 +1136,9 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
                 // A newer failed request must retain its own fallback target.
                 authority.authorized(identity) {
                     // Completing a website flow preserves a session, not a universal authentication verdict.
-                    check(session.write(StorageRequest(StorageArea.Account, "login/status", "session")) is StorageResult.Value)
+                    check(storage.write(StorageRequest(StorageArea.Account, "login/status", "session")) is StorageResult.Value)
                     val key = StorageRequest(StorageArea.Account, StorageRequestKey.BROWSER_PENDING_URL)
-                    if ((session.read(key) as? StorageResult.Value)?.value == request.url) session.write(key)
+                    if ((storage.read(key) as? StorageResult.Value)?.value == request.url) storage.write(key)
                 }
             }
         }
@@ -1152,7 +1153,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         // A public page can return 401/403 for a WAF or other access policy. Only an
         // explicit login request establishes an authentication failure for this account.
         if (status == 401 && (field == "loginUrl" || field.startsWith("loginUi."))) {
-            authority.authorized(identity) { session.write(StorageRequest(StorageArea.Account, "login/status", "required")) }
+            authority.authorized(identity) { storage.write(StorageRequest(StorageArea.Account, "login/status", "required")) }
             throw SourceContentException(ContentError.LoginRequired, field, httpStatus = httpErrorStatus(status))
         }
         if (status !in 200..299) throw SourceContentException(ContentError.Network, field, httpStatus = httpErrorStatus(status), retry = retry)
