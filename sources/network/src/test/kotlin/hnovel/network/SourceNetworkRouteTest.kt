@@ -98,9 +98,13 @@ class SourceNetworkRouteTest {
             SourceBroker(directory.root.toPath(), browser = browser, route = SourceRouteProvider { selected }).use { broker ->
                 val session = broker.session(server.url())
                 session.setCookie(server.url(), "account=fixture")
-                val pending = async { session.execute(BrokerRequest("browser", server.url(), browser = BrowserOptions())) }
-                withTimeout(3000) { entered.await() }
+                val captured = requireNotNull(session.responseRoute())
+                assertSame(captured, session.responseRoute())
                 selected = bypass
+                assertNotSame(captured, session.responseRoute())
+                val pending = async { session.executeOnRoute(BrokerRequest("browser", server.url(), browser = BrowserOptions()),
+                    RequestCommitGuard { it() }, captured) }
+                withTimeout(3000) { entered.await() }
                 release.complete(Unit)
                 assertEquals("old chain", body(pending.await()))
                 assertEquals(0, bypassSockets.opened.get())
@@ -109,6 +113,11 @@ class SourceNetworkRouteTest {
                 assertEquals("account=fixture", session.cookie(server.url()))
                 assertEquals(0L, session.scope.accountGeneration)
                 repeat(3) { assertEquals("account=fixture", server.takeRequest(3, TimeUnit.SECONDS)?.getHeader("Cookie")) }
+                original.invalidate()
+                assertFalse(captured.available)
+                assertEquals(FailureCode.RouteUnavailable, (session.executeOnRoute(BrokerRequest("retired", server.url()),
+                    RequestCommitGuard { it() }, captured) as BrokerResult.Failure).code)
+                assertEquals(3, server.requestCount)
             }
         }
     }
