@@ -79,7 +79,7 @@ class SettingState(
     override val enableBackgroundImage by enableBackgroundImageUserData.safeAsState(false)
     override val backgroundImageDisplayMode by backgroundImageDisplayModeUserData.safeAsState(ReaderBackgroundImageMode.Fixed)
     override val isUsingFlipPage by isUsingFlipPageUserData.safeAsState(false)
-    override val isUsingClickFlipPage by isUsingClickFlipPageUserData.safeAsState(false)
+    override val isUsingClickFlipPage by isUsingClickFlipPageUserData.safeAsState(true)
     override val isUsingContinuousScrolling by isUsingContinuousScrollingUserData.safeAsState(true)
     override val isUsingVolumeKeyFlip by isUsingVolumeKeyFlipUserData.safeAsState(false)
     override val volumeKeyContinuousFlipInterval by volumeKeyContinuousFlipIntervalUserData.safeAsState(-1f)
@@ -91,7 +91,7 @@ class SettingState(
         ReaderPageLayoutPreference.Single, ReaderPageLayoutPreference.Double -> storedPageLayout
         else -> ReaderPageLayoutPreference.Auto
     }
-    override val fastChapterChange by fastChapterChangeUserData.safeAsState(false)
+    override val fastChapterChange by fastChapterChangeUserData.safeAsState(true)
     override val batteryIndicatorDisplayMode by batteryIndicatorDisplayModeUserData.safeAsState(ReaderBatteryDisplayMode.Classic)
     override val enableTimeIndicator by enableTimeIndicatorUserData.safeAsState(true)
     override val enableChapterTitleIndicator by enableChapterTitleIndicatorUserData.safeAsState(true)
