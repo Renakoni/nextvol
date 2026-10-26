@@ -50,6 +50,10 @@ class ReaderSettingsBoundaryTest {
         assertEquals(true, state.enableHideStatusBar)
         assertEquals("classic", state.batteryIndicatorDisplayMode)
         assertEquals("FollowSystem", state.darkModeKey)
+        assertEquals(true, state.isUsingClickFlipPage)
+        assertEquals(true, state.fastChapterChange)
+        assertEquals(false, state.isUsingFlipPage)
+        assertEquals(true, state.isUsingContinuousScrolling)
         assertEquals(UserDataPath.Reader.FontSize.path, state.fontSizeUserData.path)
         assertEquals(UserDataPath.Reader.EnableHideStatusBar.path, state.enableHideStatusBarUserData.path)
         assertEquals(UserDataPath.Settings.Display.DarkMode.path, state.darkModeKeyUserData.path)
@@ -58,6 +62,34 @@ class ReaderSettingsBoundaryTest {
         assertEquals(0.6f, state.volumeKeyScrollFraction)
         assertEquals("reader.isUsingVolumeKeyFlip", state.isUsingVolumeKeyFlipUserData.path)
         assertEquals("reader.volumeKeyScrollFraction", state.volumeKeyScrollFractionUserData.path)
+    }
+
+    @Test
+    fun pagingControlsRestoreSavedChoicesIndependently() = runBlocking {
+        val dao = InMemoryUserDataDao()
+        val first = SettingState(UserDataRepository(dao), scope)
+        assertNull(dao.get(UserDataPath.Reader.IsUsingClickFlipPage.path))
+        assertNull(dao.get(UserDataPath.Reader.FastChapterChange.path))
+        first.isUsingClickFlipPageUserData.set(false)
+        first.fastChapterChangeUserData.set(false)
+        val restored = SettingState(UserDataRepository(dao), scope)
+        withTimeout(5_000) {
+            while (restored.isUsingClickFlipPage || restored.fastChapterChange) delay(1)
+        }
+        assertEquals("false", dao.get(UserDataPath.Reader.IsUsingClickFlipPage.path))
+        assertEquals("false", dao.get(UserDataPath.Reader.FastChapterChange.path))
+
+        first.isUsingClickFlipPageUserData.set(true)
+        withTimeout(5_000) { while (!restored.isUsingClickFlipPage) delay(1) }
+        assertEquals(false, restored.fastChapterChange)
+        assertEquals("true", dao.get(UserDataPath.Reader.IsUsingClickFlipPage.path))
+        first.isUsingClickFlipPageUserData.set(false)
+        first.fastChapterChangeUserData.set(true)
+        withTimeout(5_000) {
+            while (restored.isUsingClickFlipPage || !restored.fastChapterChange) delay(1)
+        }
+        assertEquals("false", dao.get(UserDataPath.Reader.IsUsingClickFlipPage.path))
+        assertEquals("true", dao.get(UserDataPath.Reader.FastChapterChange.path))
     }
 
     @Test

@@ -12,6 +12,7 @@ import hnovel.speech.HttpSpeechError
 import hnovel.speech.HttpSpeechException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -26,16 +27,21 @@ class SpeechSynthesizers @Inject constructor(
     private val runner: RuleTaskRunner,
 ) {
     fun synthesizer(): SpeechSynthesizer = object : SpeechSynthesizer {
-        private var selected: SpeechSynthesizer? = null
+        @Volatile private var selected: SpeechSynthesizer? = null
         override suspend fun open(settings: SpeechSettings): String {
-            close()
+            withContext(NonCancellable + Dispatchers.IO) { close() }
+            currentCoroutineContext().ensureActive()
             val provider = if (settings.httpSource == null) system.synthesizer() else http()
             selected = provider
             return provider.open(settings)
         }
         override suspend fun synthesize(text: String, output: File) = checkNotNull(selected).synthesize(text, output)
         override fun cancel() { selected?.cancel() }
-        override fun close() { selected?.close(); selected = null }
+        override fun close() {
+            val previous = selected
+            selected = null
+            previous?.close()
+        }
     }
 
     private fun http(): SpeechSynthesizer = object : SpeechSynthesizer {
@@ -45,7 +51,8 @@ class SpeechSynthesizers @Inject constructor(
         private var sourceId: String? = null
 
         override suspend fun open(settings: SpeechSettings): String {
-            close()
+            withContext(NonCancellable + Dispatchers.IO) { close() }
+            currentCoroutineContext().ensureActive()
             rate = settings.rate
             return repository.withSource(requireNotNull(settings.httpSource)) { source, runtime ->
                 val definition = source.playbackDefinition()
@@ -61,7 +68,8 @@ class SpeechSynthesizers @Inject constructor(
             val active = client ?: throw SpeechException(SpeechError.HttpSourceUnavailable)
             val partial = File(output.parentFile, output.name + ".part")
             try {
-                val audio = active.synthesize(text, rate)
+                // Token refresh may replace a regional HTTP session and close its TLS pool.
+                val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate) }
                 withContext(Dispatchers.IO) {
                     currentCoroutineContext().ensureActive()
                     partial.writeBytes(audio)
@@ -87,8 +95,14 @@ class SpeechSynthesizers @Inject constructor(
             return emptyList()
         }
 
-        override fun cancel() { client?.close(); owner?.close() }
-        override fun close() { cancel(); client = null; owner = null }
+        override fun cancel() { client?.cancel() }
+        override fun close() {
+            val previousClient = client
+            val previousOwner = owner
+            client = null
+            owner = null
+            try { previousClient?.close() } finally { previousOwner?.close() }
+        }
     }
 }
 

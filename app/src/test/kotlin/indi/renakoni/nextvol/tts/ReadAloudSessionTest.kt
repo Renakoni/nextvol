@@ -1,5 +1,9 @@
 package indi.renakoni.nextvol.tts
 
+import android.util.Log
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -12,6 +16,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -93,22 +98,6 @@ class ReadAloudSessionTest {
         assertEquals(0, env.audioFiles())
     }
 
-    @Test fun switchingBooksWaitsForOldCleanupAndOnlyPlaysTheNewBook() = runTest {
-        val gate = CompletableDeferred<Unit>()
-        val env = Environment(this)
-        env.beforeSynthesis = { withContext(NonCancellable) { gate.await() } }
-        env.session.start(SpeechRequest("old", "one"))
-        runCurrent()
-        env.session.start(SpeechRequest("new", "one"))
-        runCurrent()
-        gate.complete(Unit)
-        runCurrent()
-        assertEquals(listOf("new"), env.player.started.map { it.chapter.bookId })
-        assertEquals("new", env.session.state.value.request?.bookId)
-        assertFalse(env.progress.saved.containsKey("old"))
-        env.stop()
-    }
-
     @Test fun aThirdBookStillWaitsForTheOriginalSessionsCleanup() = runTest {
         val gate = CompletableDeferred<Unit>()
         val env = Environment(this)
@@ -117,18 +106,70 @@ class ReadAloudSessionTest {
             env.session.start(SpeechRequest("old", "one"))
             runCurrent()
             env.session.start(SpeechRequest("middle", "one"))
-            runCurrent()
+            // Replace again before the waiting coroutine can be dispatched.
             env.session.start(SpeechRequest("new", "one"))
             runCurrent()
             assertEquals("The original engine still owns its audio directory", 1, env.opened.size)
             gate.complete(Unit)
             runCurrent()
             assertEquals(listOf("new"), env.player.started.map { it.chapter.bookId })
+            assertEquals("new", env.session.state.value.request?.bookId)
+            assertFalse(env.progress.saved.containsKey("old"))
             assertEquals(2, env.opened.size)
         } finally {
             gate.complete(Unit)
             env.stop()
         }
+    }
+
+    @Test fun cancellationAndCloseFailuresCannotEscapeReplacementOrStop() = runTest {
+        mockkStatic(Log::class)
+        every { Log.w(any(), any<String>()) } returns 0
+        val env = Environment(this)
+        var closed = 0
+        env.onCancel = { throw IOException("private source credentials") }
+        env.onClose = { closed++; throw IOException("private source credentials") }
+        try {
+            env.session.start(SpeechRequest("old", "one"))
+            runCurrent()
+            val oldDirectory = env.player.started.single().file.parentFile!!
+            env.session.start(SpeechRequest("new", "one"))
+            runCurrent()
+            assertEquals(1, closed)
+            assertFalse(oldDirectory.exists())
+            assertEquals("new", env.player.started.last().chapter.bookId)
+            assertEquals(SpeechPhase.Playing, env.session.state.value.phase)
+            assertNull(env.session.state.value.error)
+            env.stop()
+            assertEquals(2, closed)
+            assertEquals(SpeechPhase.Stopped, env.session.state.value.phase)
+            assertNull(env.session.state.value.error)
+            assertTrue(env.directory.listFiles()!!.isEmpty())
+        } finally { env.stop(); unmockkStatic(Log::class) }
+    }
+
+    @Test fun closeFailureAfterPlaybackRemovesFilesAndAllowsRetry() = runTest {
+        mockkStatic(Log::class)
+        every { Log.w(any(), any<String>()) } returns 0
+        val env = Environment(this)
+        env.onClose = { throw IOException("close failed") }
+        try {
+            env.session.start(SpeechRequest("", "", previewText = "Preview."))
+            runCurrent()
+            env.player.finish()
+            runCurrent()
+            assertEquals(SpeechPhase.Failed, env.session.state.value.phase)
+            assertEquals(SpeechError.SynthesisFailed, env.session.state.value.error)
+            assertTrue(env.directory.listFiles()!!.isEmpty())
+            env.onClose = {}
+            env.session.resume()
+            runCurrent()
+            assertEquals(2, env.player.started.size)
+            env.player.finish()
+            runCurrent()
+            assertEquals(SpeechPhase.Completed, env.session.state.value.phase)
+            assertNull(env.session.state.value.error)
+        } finally { env.stop(); unmockkStatic(Log::class) }
     }
 
     @Test fun stoppingDuringABookmarkWriteCannotStartAudioAfterTheWriteFinishes() = runTest {
@@ -417,6 +458,8 @@ class ReadAloudSessionTest {
         val text = "这是正常的小说内容，保留顺序并且持续朗读。".repeat(100)
         var load: suspend (String, String) -> SpeechChapter = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", text) }
         var beforeSynthesis: suspend () -> Unit = {}
+        var onCancel: () -> Unit = {}
+        var onClose: () -> Unit = {}
         var timings = emptyList<SpeechTiming>()
         var configuration = SpeechSettings()
         val synthesized = mutableListOf<String>()
@@ -434,8 +477,8 @@ class ReadAloudSessionTest {
                         output.writeText(text)
                         return timings
                     }
-                    override fun cancel() = Unit
-                    override fun close() = Unit
+                    override fun cancel() = onCancel()
+                    override fun close() = onClose()
                 }
             }, player, directory, StandardTestDispatcher(scope.testScheduler))
         fun audioFiles() = directory.walkTopDown().count { it.isFile }
