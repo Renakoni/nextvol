@@ -13,8 +13,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  debug-apks:
+    name: Build selected Debug test APKs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      device-24: ${{ steps.scope.outputs.device-24 }}
+      device-35: ${{ steps.scope.outputs.device-35 }}
+      device-scopes: ${{ steps.scope.outputs.device-scopes }}
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      build-attempt: ${{ steps.package.outputs.build-attempt }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Select affected checks
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          check: device-24
+      - name: Prepare fixed Android build environment
+        if: steps.scope.outputs.device-24 == 'true' || steps.scope.outputs.device-35 == 'true'
+        uses: ./.github/actions/android-environment
+      - name: Build Debug APKs once for the selected APIs
+        if: steps.scope.outputs.device-24 == 'true' || steps.scope.outputs.device-35 == 'true'
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest --console=plain --stacktrace --max-workers=2
+      - name: Validate APKs and record their build
+        if: steps.scope.outputs.device-24 == 'true' || steps.scope.outputs.device-35 == 'true'
+        id: package
+        run: python3 .github/scripts/ci_debug_apks.py prepare
+      - name: Upload this build's Debug APKs
+        if: steps.scope.outputs.device-24 == 'true' || steps.scope.outputs.device-35 == 'true'
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: debug-apks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/debug/output-metadata.json
+            app/build/outputs/apk/androidTest/debug/*.apk
+            app/build/outputs/apk/androidTest/debug/output-metadata.json
+            app/build/outputs/apk/ci-build.json
+          if-no-files-found: error
+          compression-level: 0
+
   execution-platform:
     name: Isolated execution (API ${{ matrix.api }})
+    needs: debug-apks
+    # Required checks must report failure when selection/build/upload fails.
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -23,15 +68,28 @@ jobs:
         api: [24, 35]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Select affected checks
+      - name: Check upstream build and selected API
         id: scope
-        uses: ./.github/actions/ci-scope
-        with:
-          check: device-${{ matrix.api }}
-      - name: Prepare fixed Android environment
+        env:
+          BUILD_RESULT: ${{ needs.debug-apks.result }}
+          SELECTED: ${{ needs.debug-apks.outputs[format('device-{0}', matrix.api)] }}
+          ARTIFACT_ID: ${{ needs.debug-apks.outputs.artifact-id }}
+        run: python3 .github/scripts/ci_debug_apks.py gate
+      - name: Download the successful producer's APKs
         if: steps.scope.outputs.run == 'true'
-        id: environment
-        uses: ./.github/actions/android-environment
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.debug-apks.outputs.artifact-id }}
+          path: app/build/outputs/apk
+          merge-multiple: true
+      - name: Verify the tested tree and APK contents
+        if: steps.scope.outputs.run == 'true'
+        env:
+          BUILD_ATTEMPT: ${{ needs.debug-apks.outputs.build-attempt }}
+        run: python3 .github/scripts/ci_debug_apks.py verify
+      - name: Prepare fixed Android SDK and image
+        if: steps.scope.outputs.run == 'true'
+        uses: ./.github/actions/android-sdk
         with:
           api: ${{ matrix.api }}
       - name: Enable KVM
@@ -40,15 +98,11 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Build test APKs before starting the emulator
-        if: steps.scope.outputs.run == 'true'
-        run: |
-          ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest --console=plain --stacktrace --max-workers=2
       - name: Run tests on the fixed Android emulator
         if: steps.scope.outputs.run == 'true'
         env:
           API_LEVEL: ${{ matrix.api }}
-          CI_TEST_SCOPES: ${{ steps.scope.outputs.scopes }}
+          CI_TEST_SCOPES: ${{ needs.debug-apks.outputs.device-scopes }}
         run: |
           bash .github/scripts/run-static-emulator.sh "$API_LEVEL" \
             bash .github/scripts/emulator-tests.sh bash .github/scripts/connected-tests.sh
@@ -56,6 +110,7 @@ jobs:
         if: always() && steps.scope.outputs.run == 'true'
         with:
           name: execution-platform-api-${{ matrix.api }}
+          overwrite: true
           path: |
             app/build/reports/androidTests/connected
             app/build/outputs/androidTest-results/connected

@@ -164,21 +164,58 @@ kotlin {
 tasks.withType<Test>().configureEach {
     javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(22)) })
     val scopes = providers.gradleProperty("ciTestScope").orElse("full").get().split(",").toSet()
-    require(scopes.all { it in setOf("full", "ui", "reader", "speech") }) { "Unknown ciTestScope: $scopes" }
+    val uiTests = mapOf(
+        "bookshelf" to listOf("ui.home.bookshelf.*", "ui.home.BookshelfHomeLifecycleTest"),
+        "explore" to listOf("ui.home.explore.*"),
+        "catalog" to listOf(
+            "ui.home.discovery.*", "ui.home.categories.*", "ui.home.explore.*",
+            "ui.home.MainNavigationTest", "data.web.rules.DiscoveryRoutingTest",
+        ),
+        "stats" to listOf("ui.home.reading.stats.*"),
+        "bangumi" to listOf("ui.bangumi.*"),
+        "about" to listOf("ui.home.settings.SettingsHierarchyTest"),
+        "logs" to listOf("ui.home.settings.SettingsHierarchyTest", "data.logging.LoggerRepositoryTest"),
+    )
+    // Directory search, fonts, reading records and reader controls have consumers
+    // outside the reader package. Add scopes by union, without exclusions.
+    val readerTests = listOf(
+        "ui.book.reader.*", "data.content.*", "data.web.rules.MixedSourceAcceptanceTest",
+        "ui.book.detail.*", "ui.dialog.MarkAllChaptersAsReadDialogViewModelTest",
+        "ui.home.settings.SettingsHierarchyTest", "ui.tts.SpeechControlsTest",
+    )
+    val scopeTests = uiTests + mapOf(
+        "ui" to uiTests.values.flatten(),
+        "reader" to readerTests,
+        "speech" to readerTests + listOf("tts.*", "ui.tts.*"),
+        "update" to listOf("data.update.*", "ui.home.settings.SettingsHierarchyTest"),
+        "export" to listOf(
+            "data.export.*", "data.work.EpubExportWorkerAdapterTest", "data.work.EpubExportRegressionTest",
+            "data.work.EpubXhtmlWorkerTest", "data.work.SourceExportWorkerTest", "data.work.BookWorkIdentityTest",
+            "data.download.BookDownloadTest", "data.book.BookRepositoryOperationsTest",
+            "data.web.HostMultiSourceIntegrationTest", "data.web.rules.MixedSourceAcceptanceTest",
+            "ui.book.detail.DetailExportTest",
+        ),
+        "backup" to listOf(
+            "data.backup.*", "data.local.SourceIdentityRoomTest", "data.bookmark.ReadingBookmarkTest",
+            "data.download.BookDownloadTest", "data.web.HostMultiSourceIntegrationTest",
+            "data.localbook.LocalBookRelinkTest", "data.ExternalFilesTest", "ui.ExternalFileViewModelTest",
+            "ui.book.reader.bookmark.ReaderBookmarksUiTest",
+        ),
+        "storage" to listOf(
+            "data.download.*", "data.localbook.*", "ui.bookmanager.*", "ui.book.download.*", "ui.localbook.*",
+            "data.local.SourceIdentityRoomTest", "data.local.UserReadingDataTransactionTest",
+            "data.work.BookWorkIdentityTest", "data.backup.BackupRestoreTransactionTest",
+            "ui.book.reader.ReaderReadingRecordsTest", "ui.book.reader.ReaderDirectoryProgressTest",
+            "ui.home.settings.SettingsHierarchyTest",
+        ),
+    )
+    require(scopes.all { it == "full" || it in scopeTests }) { "Unknown ciTestScope: $scopes" }
+    failOnNoDiscoveredTests.set(true)
     if ("full" !in scopes) {
         filter {
-            // Reader UI also supplies directory/theme components to other screens.
-            includeTestsMatching("indi.renakoni.nextvol.ui.*")
-            if ("reader" in scopes || "speech" in scopes) {
-                includeTestsMatching("indi.renakoni.nextvol.data.content.*")
-                includeTestsMatching("indi.renakoni.nextvol.data.web.rules.MixedSourceAcceptanceTest")
-            } else {
-                excludeTestsMatching("indi.renakoni.nextvol.ui.book.reader.*")
-            }
-            if ("speech" in scopes) {
-                includeTestsMatching("indi.renakoni.nextvol.tts.*")
-            } else {
-                excludeTestsMatching("indi.renakoni.nextvol.ui.tts.*")
+            isFailOnNoMatchingTests = true
+            scopes.flatMap { scopeTests.getValue(it) }.distinct().forEach {
+                includeTestsMatching("indi.renakoni.nextvol.$it")
             }
         }
     }

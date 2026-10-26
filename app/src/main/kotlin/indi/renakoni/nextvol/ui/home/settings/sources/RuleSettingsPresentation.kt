@@ -31,7 +31,7 @@ data class RuleSettingsPresentation(val loginDeclared: Boolean = false, val logi
             if (ui.startsWith("@js:", true) || ui.startsWith("<js>", true))
                 return if (extended) base.copy(configurationDeclared = true) else base.copy(loginErrorField = "loginUi")
             return try {
-                val form = LoginForm.parse(ui, url, extended)
+                val form = LoginForm.parse(ui, url, extended, text("bookSourceUrl"))
                 base.copy(loginDeclared = url.isNotBlank() || form.fields.isNotEmpty(),
                     accountNameField = SourceLoginService.accountNameField(form),
                     configurationDeclared = form.fields.any { it.action != null })

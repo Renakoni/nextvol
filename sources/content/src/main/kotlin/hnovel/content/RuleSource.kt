@@ -325,7 +325,8 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             val result = loginUiValue(context, raw, "loginUi")
             if (result is JsonPrimitive && result.isString) result.content else result.toString()
         } else raw
-        val form = LoginForm.parse(ui, spec.loginUrl, extended).withValues(loginValues())
+        val form = LoginForm.parse(ui, if (spec.loginUi.isBlank()) spec.loginUrl else "", extended, spec.baseUrl)
+            .withValues(loginValues())
         context.discovery = JsonObject(context.discovery!! + ("values" to JsonObject(form.values.mapValues { JsonPrimitive(it.value) })))
         val rendered = form.copy(fields = form.fields.mapIndexed { index, field ->
             if (field.viewName == null) field else {

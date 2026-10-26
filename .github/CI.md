@@ -21,8 +21,9 @@ YAML alone does not update repository protection settings.
 
 ## Checks selected by change scope
 
-Each required job checks out the tested tree and runs the shared `ci-scope` action
-before preparing Java, Gradle, the SDK, or an emulator. The action uses
+Each workflow checks out the tested tree and runs the shared `ci-scope` action
+before preparing Java, Gradle, the SDK, or an emulator. Devices share selection
+and one APK build upstream of the two required API jobs. The action uses
 [`ci_scope.py`](scripts/ci_scope.py) to select work. Jobs with no relevant work
 finish successfully with a selection summary; workflow-level path filters are
 not used, so all six required check names still report a result. A selector error
@@ -30,19 +31,111 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 
 | Changed scope | JVM tasks | Debug devices | Minified runtime | Lint / Release APK |
 | --- | --- | --- | --- | --- |
-| Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens | App UI tests, excluding reader and speech UI | Skip | Skip | Run |
-| Discovery and categories UI | Same UI tests | Skip | Source runtime smoke (uses categories/discovery) | Run |
-| Reader UI and reader tests | App UI tests plus content and mixed-source reader consumers, excluding speech UI | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
-| Speech implementation/UI/tests | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
-| Shared/unknown code, resources, source/EPUB modules, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
-| Only root Markdown or `.github/*.md` documentation | Skip | Skip | Skip | Skip |
+| Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens | Corresponding feature and reviewed consumers | Skip | Skip | Run |
+| Discovery and categories UI | Discovery/categories, explore, navigation and discovery routing consumers | Skip | Source runtime smoke (uses categories/discovery) | Run |
+| Reader UI | Reader, content, directory/detail, settings/font and speech-control consumers | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
+| Speech implementation/UI | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
+| App updates: `data/update`, dedicated update settings and available-update dialog | App update tests and `SettingsHierarchyTest` | Skip | Skip | Run |
+| EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
+| Backup implementation, dedicated import/export dialogs and backup Workers | App backup, persistence and shared-file consumers | Skip | Skip | Run |
+| Storage queries/cleanup/ownership and dedicated book/storage management UI | App storage, downloads, local books and reading-record consumers | API 24 download persistence and local import | Skip | Run |
+| Source module Kotlin implementation and existing source-catalog JSON | Complete App JVM plus module consumers below | Existing full Debug device coverage; speech module retains reader/speech devices | Source runtime; add read-aloud when speech is affected | Run |
+| Shared/unknown code, resources, module inputs, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
+| Only root / `.github/*.md` / `docs/**/*.md` documentation, the three existing Issue templates, or `.github/FUNDING.yml` | Skip | Skip | Skip | Skip |
 
-The exact allowlist is in the selector. In particular, `ui/components`, navigation,
-theme/settings and the data layer retain full checks. These are reviewed path
+The exact allowlist is in the selector. In particular, shared `ui/components`, navigation,
+shared theme/settings and unreviewed data paths retain full checks. These are reviewed path
 boundaries, not automatic dependency analysis; update the selection when sharing
 code across them. Resource files and Markdown fixtures under source directories
 are not assumed to be documentation. Mixed changes take the union; any unknown
 path selects full checks. Full selection runs the maintained suite described below.
+The Issue template allowlist names `bug_report.yml`, `feature_request.yml`, and
+`maintenance_task.yml`; a new template or other repository configuration needs
+review before it can skip Android work. PR templates use the `.github/*.md` rule.
+Deleted documentation follows the same allowlist. A move into a source or fixture
+directory also includes its destination, which retains that input's checks.
+
+The update scope includes source parsing, query/download failures and Android
+interaction through `data.update.*`, plus the update settings consumer in
+`SettingsHierarchyTest`. Source revision updates and `CheckUpdateWork` (book
+chapter updates) are different responsibilities and retain their broader checks.
+MainActivity, global settings, shared navigation, resources and Manifest changes
+still select full checks. App filters use positive unions, preserving existing
+UI/reader/speech coverage when combined with the new update scope. The property
+reduces test execution; App and test compilation still cover the whole App.
+
+Export selects `data.export.*`, the four dedicated export Worker regression
+classes, `BookWorkIdentityTest`, `BookDownloadTest`, `BookRepositoryOperationsTest`,
+`HostMultiSourceIntegrationTest`, `MixedSourceAcceptanceTest` and `DetailExportTest`.
+These consumers cover actual publication, download reuse/cancellation, source
+identity and WorkManager handoff outside the export directory. API 24 retains
+`EpubShareInstrumentedTest`, including the legacy share Activity entry. Shared
+image loading, Room, book repositories, detail navigation/ViewModel and Manifest
+remain broader; EPUB local import is a separate responsibility. Module-only EPUB
+test changes retain the test-input policy instead of launching App/device work.
+
+Backup selects `data.backup.*` plus `SourceIdentityRoomTest`, `ReadingBookmarkTest`,
+`BookDownloadTest`, `HostMultiSourceIntegrationTest`, `LocalBookRelinkTest`,
+`ExternalFilesTest`, `ExternalFileViewModelTest` and `ReaderBookmarksUiTest`.
+These retain restore transactions, pre-NextVol archives, cross-source associations,
+download/local-file ownership, bookmark selection and Worker file handoff.
+`ExportDataWork`, `ImportDataWork`, `SaveBookshelfWork` and the dedicated backup
+dialogs/error message are allowed production entries. Shared external-file
+dispatch, settings/navigation, database schemas/DAOs and UserData remain broad.
+All `app/src/test/resources/backups/**` files, including README and legacy `.lnr`
+archives, are test inputs: they select backup consumers and Lint without Release.
+No separate backup device group is introduced.
+
+Storage selects download and local-book JVM suites, book/download/local-book UI,
+`SourceIdentityRoomTest`, `UserReadingDataTransactionTest`, `BookWorkIdentityTest`,
+`BackupRestoreTransactionTest`, `ReaderReadingRecordsTest`,
+`ReaderDirectoryProgressTest` and `SettingsHierarchyTest`. In particular,
+`BookDownloadTest` exercises orphan attribution, both Worker cancellations,
+failure/cancellation boundaries and retained reading records; `LocalBookStoreTest`
+exercises metadata recovery before storage queries and clearing imported content.
+API 24 retains download persistence and local import without browser/TTS suites.
+Shared Room/DAO, BookIdentity, book repositories and reading-record core paths
+still widen coverage. Changes to shared JVM consumers such as `BookDownloadTest`
+or `LocalBookStoreTest` conservatively run the full App JVM suite; combined with
+storage production edits they retain storage-only devices, not all devices.
+
+### Source module consumers
+
+Only `sources/<module>/src/main/kotlin/**/*.kt` in the table below is classified
+as reviewed source implementation. Module names map to `:source-<module>` in
+`settings.gradle.kts`. Each row runs the complete App JVM suite and
+`:source-compatibility:test`, in addition to the listed `:source-<module>:test`
+tasks. This explicit reverse dependency closure includes test dependencies;
+compiling a dependent module alone would not run its tests.
+
+| Changed module | Own and downstream source JVM tasks |
+| --- | --- |
+| rules | rules, network, import, rhino, execution, content, speech |
+| network | network, import, execution, content, speech |
+| import | import, content |
+| rhino | rhino, execution, content, speech |
+| execution | execution, content, speech |
+| content | content |
+| speech | speech |
+
+The `source` scope keeps the existing full Debug device set because App reading,
+download and browser consumers cross module boundaries. It retains the minified
+source smoke and adds read-aloud smoke for rules/network/rhino/execution, whose
+downstream consumers include speech. A speech-only module edit uses the existing
+reader/speech devices and read-aloud smoke. App tests run without `ciTestScope` for
+all these module edits, including mixed UI changes, so source adapters in download,
+export, image and UI packages remain covered. EPUB module tests are selected only
+when another changed path requires them. Production Lint and Release policy stays
+unchanged.
+
+The existing `catalog`, `Adult`, `Anime`, `Female`, `General`, `Literature` and
+`Platforms` JSON files under `app/src/main/assets/source-catalog` are production
+inputs. They select App/content/compatibility JVM, source devices and source smoke;
+content reads catalog files directly and App tests consume the packaged assets.
+TestFixtures, Rhino resources and compatibility browser/native-routing inputs keep
+the shared-input rules below and union with production changes. Unknown catalog
+files, module resources, new modules, API, Manifest, AIDL and shared build/dependency
+changes still select full checks. No import or execution implementation is changed.
 
 PR and merge-group comparisons use the event's base SHA and the checked-out merge
 tree. A missing base is fetched shallowly by SHA. Git lists all changed paths
@@ -54,7 +147,7 @@ Run all four workflows manually when a complete check of a ref is needed.
 For local task selection (default remains full), use the existing Gradle task:
 
 ```sh
-./gradlew :app:testDebugUnitTest -PciTestScope=ui
+./gradlew :app:testDebugUnitTest -PciTestScope=bookshelf
 ./gradlew :app:testDebugUnitTest -PciTestScope=reader
 ./gradlew :app:testDebugUnitTest :source-speech:test -PciTestScope=reader,speech
 python3 .github/scripts/ci_scope.py --paths app/src/main/kotlin/indi/renakoni/nextvol/ui/home/reading/stats/StatsOverviewScreen.kt
@@ -67,6 +160,47 @@ The JVM job always runs the lightweight selector regression tests, including
 documentation-only changes. Emulator/environment script checks run for full scope.
 
 ## JVM test coverage
+
+UI filters select `bookshelf`, `explore`, `catalog`, `stats`, `bangumi`, `about`
+(including licenses), or `logs`. Bookshelf also includes its home lifecycle test;
+catalog includes explore, MainNavigation and DiscoveryRouting tests; about/logs
+retain SettingsHierarchy, with LoggerRepository for logs. The manual `ui` filter
+is the union of these feature sets. Shared components, navigation and theme inputs
+remain full, and new test packages without a matching group keep the App suite.
+
+Reader includes detail/directory consumers, MarkAllChaptersAsReadDialog,
+SettingsHierarchy (the font-license entry) and SpeechControls (ReaderTopBar), as
+well as reader/content/mixed-source tests. Speech unions the reader set with
+`tts.*` and `ui.tts.*`; its API 24 services and minified read-aloud smoke remain.
+All feature and business sets use positive unions; none exclude another group's
+consumers. App tasks explicitly fail on no discovered tests or unmatched filters.
+
+### Test-only inputs
+
+Production paths retain the policy above. Known test-only paths independently
+select their execution environments and keep Lint, without a production Release
+APK. App JVM tests/resources select the App owner (using a reviewed feature scope
+where available); JVM modules select their complete owning test task. Test code
+changes also select `:source-compatibility:test`, whose product-test file inputs
+invalidate its cache when a referenced class is deleted or moved.
+
+App Android tests select their device scope plus compatibility integrity. The two
+known benchmark smoke classes select their minified check, which still assembles
+both the benchmark App and instrumentation APK. Other benchmark paths remain
+full until their execution contract is reviewed.
+
+Shared inputs have explicit consumers: content testFixtures select content/App
+JVM and the existing Debug devices (including the reading panel); Rhino test
+resources select Rhino/compatibility JVM and Debug devices; compatibility browser
+fixtures select content/compatibility JVM and Debug devices; native-routing site
+fixtures select Debug devices. Live browser tests remain opt-in. Compatibility
+reference files select its JVM task and are declared Gradle inputs.
+
+`device-scopes` is separate from the summary `scopes`: adding a JVM-only test to a
+reader production change must not widen devices to all source tests. Mixed paths
+union tasks, App filters, device scopes, and minified classes independently. Unknown
+production/shared configuration still selects full checks. No discovered-test or
+filter failure is suppressed; a deliberately empty plan skips environment setup.
 
 UI tests retain representative navigation, source ownership, selection, paging,
 retry, download, and account interactions. Narrow copy, formatting, layout, and
@@ -132,13 +266,74 @@ Caches are disposable acceleration: misses fall back to normal dependency or
 fixed tool downloads. AboutLibraries uses local license texts instead of making
 per-library license/funding requests during APK builds.
 
-`gradle-cache.yml` populates main's caches after build/environment configuration
-changes or a manual main run. It compiles Debug/test APKs and unit-test sources,
-and assembles the benchmark instrumentation APK. It does not run R8, boot a
-device, or execute tests. Separate API image jobs only prepare SDK files. This
-main population matters because caches written by one PR are not shared with
-other PRs. Source edits can still miss older compiled outputs; manually warming
-main refreshes them without introducing extra checks on every PR.
+`gradle-cache.yml` refreshes main's compilation caches after build/environment
+configuration changes or a manual main run. Ordinary source, test, documentation
+and template changes do not trigger it. A lightweight selector compares the
+push's `before` SHA with the checked-out commit and reuses the ordinary scope
+plan; manual runs select all compilation. App JVM checks map to
+`:app:compileDebugUnitTestKotlin`; selected source/EPUB/compatibility JVM checks
+map to `:testClasses`, including their Gradle compilation/resource dependencies.
+App's existing dependency supplies source-content test fixtures. Selected Debug
+devices add the App/test APK assembly tasks. Minified coverage only adds
+`:benchmark:assembleBenchmark`, the instrumentation APK; it does not assemble
+the shrunk App. No prewarming task runs tests, R8, or an emulator.
+
+Separate API image jobs run only for fixed SDK action/script/package metadata
+changes or a manual main run. An unavailable push diff conservatively selects
+all compilation and SDK/image preparation. Main remains the only shared Gradle
+cache writer, and PRs remain read-only consumers. Existing Release/benchmark
+variant cache ownership is unchanged; no additional build-directory or Gradle
+home snapshot is introduced. Misses, failed prewarming, or cancellation leave
+ordinary PR checks able to build normally using Gradle's input validation.
+
+The main cache concurrency group preserves its running writer and retains at
+most the newest pending update. Completion allows setup-gradle to save its cache;
+manual cancellation does not guarantee a save. Replaced pending updates do not
+accumulate. A later configuration change or manual full prewarm can refresh cold
+outputs. This affects reuse, not which code PR checks compile or validate.
+
+### Source prewarming evaluation (#721)
+
+Source-triggered warming was withdrawn after a controlled remote replay, before
+deployment to main. The [seed job](https://github.com/Renakoni/nextvol/actions/runs/38410742275/job/115342092865)
+warmed main `7124552a` using its actual update scope: App unit-test compilation
+and compatibility `testClasses`. This took 223.965 seconds plus 38 seconds for
+the fixed environment. The [consumer run](https://github.com/Renakoni/nextvol/actions/runs/38412019549)
+replayed real PR heads #709 (`dad00d23`) and #710 (`711f8d6c`) on fresh runners,
+using isolated snapshots of the same original main task cache, before and after
+that warming. Shared main caches remained read-only throughout the experiment.
+
+| Compilation workload | Original cache (seconds) | Source-warmed cache (seconds) |
+| --- | ---: | ---: |
+| #709 JVM | 211.717 | 160.698 |
+| #710 JVM | 234.068 | 216.808 |
+| #710 shared Debug APK build | 161.644 | 238.921 |
+| Total for two PRs | 607.428 | 616.427 |
+
+Both JVM pairs gained only a compatibility test compilation hit; changed App
+production/test inputs still compiled. The Debug pair had identical task states,
+so its slower warmed run is not evidence of a cache regression. Even ignoring
+that slowdown entirely and crediting both JVM improvements, 68.279 seconds saved
+does not repay 261.965 seconds of warming: an extra 193.686 seconds remains.
+Consumer jobs including setup/transfers totalled 776 versus 752 runner seconds;
+adding the warming lower bound gives 1,013.965 versus 776 seconds. Queue time is
+not runner time. These are compilation-path comparisons, not full CI runtimes:
+tests and emulators were not repeated, and Release/benchmark caches were separate.
+Historical Lint already hit the relevant production outputs and does not consume
+these newly warmed test classes.
+
+This single paired sample does not establish a universal performance ratio.
+The estimate deliberately excludes selection, cache cleanup/publication and any
+superseded running writer. Artifact transfer is an experimental proxy; snapshots
+also retain old outputs that setup-gradle's production cleanup could discard.
+These limits do not establish a net benefit, so ordinary source triggers remain
+disabled. The temporary experiment jobs and script are removed.
+
+The retained full prewarm capability was checked separately: all nine JVM
+`compileTestKotlin` tasks restored `FROM-CACHE` on another clean runner. Adding a
+source-content test input forced recompilation and produced its new class. The
+136.476-second supplemental full warm and contract checks are excluded from the
+source-policy comparison. See #721 for the complete experiment cost and evidence.
 
 ## Emulator scope and failure handling
 
@@ -154,6 +349,32 @@ Both `:app:assembleBenchmark` and `:benchmark:assembleBenchmark` are required:
 the former builds the shrunk App, the latter its instrumentation APK. The target
 APK configuration is non-transitive because App libraries are already inside
 that APK; resolving them again can select unrelated Desktop/JVM variants.
+
+Debug device checks build the App and instrumentation APKs once per workflow,
+only when API 24 or 35 has selected tests. The required API jobs always inspect
+the upstream result: selection, build, or upload failure fails both checks;
+an unselected API succeeds explicitly without downloading APKs or starting an
+emulator. Selected jobs download the producer's immutable artifact ID and prepare
+only the fixed SDK/image, without Java or Gradle setup.
+
+The artifact contains the two APKs, their output metadata, and a build manifest.
+Upload and download preserve `app/build/outputs/apk/debug` and
+`app/build/outputs/apk/androidTest/debug` for `connected-tests.sh`. Validation checks
+the tested merge SHA, workflow run, producer attempt, Debug variant/package, and
+file hashes before preparing an emulator. Missing/expired artifacts, incomplete
+APKs, and failed downloads fail the selected required checks. A failed-device-only
+rerun reuses its successful producer's artifact and original build attempt;
+rerunning all jobs creates a new uniquely named artifact and ID. No artifact is
+selected from a different run, commit, or variant. Existing reports and narrow/
+wide viewport failure propagation remain unchanged.
+
+Sharing removes a duplicate build from runner consumption. Wall-clock changes
+also depend on the shared build, artifact transfers, queueing, and device startup;
+the saved parallel build time is not an equivalent reduction in waiting time.
+The completed baseline device run `38393554272` spent 171/228 seconds compiling
+APKs and 439/711 seconds in the API 24/35 jobs (1,150 runner seconds total); API 35
+retried emulator preparation once. Compare future completed runs with these
+conditions recorded, including the new producer job and artifact transfer cost.
 
 APKs build before boot, avoiding competition between compilation and the device.
 `run-static-emulator.sh` creates a fresh 320x640, 160dpi KVM AVD from the fixed
