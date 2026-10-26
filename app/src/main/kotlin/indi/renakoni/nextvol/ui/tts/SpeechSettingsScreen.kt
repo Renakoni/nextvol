@@ -218,9 +218,6 @@ private fun SpeechPlaybackBar(state: ReadAloudState, onCommand: (SpeechAction) -
                 )
             }
             SpeechPlayPauseButton(state, onCommand, Modifier.size(48.dp))
-            IconButton(onClick = { onCommand(SpeechAction.Stop) }, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.stop_24px), stringResource(R.string.tts_stop))
-            }
         }
     }
 }
