@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,7 +60,8 @@ fun DiscoveryResultsScreen(
 /** Discovery summaries share the source-aware cover and result renderer. Details are read only for a book listed without a cover. */
 @Composable
 internal fun DiscoveryBookCard(book: SourceDiscoveryBook, coverFor: suspend (String) -> Uri? = { null }, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)) {
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Cover(book.id.storageKey, 72.dp, 108.dp, rememberListCover(book.id.storageKey, book.coverUrl, coverFor), book.title, author = book.author)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

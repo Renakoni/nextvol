@@ -427,7 +427,7 @@ private fun ReadingBookCard(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(colorScheme.surface)
+                    .background(colorScheme.background)
                     .combinedClickable(onClick = onClick)
                     .padding(4.dp)
             ) {
@@ -545,7 +545,7 @@ fun ReadingHeaderCardPager(
             .fillMaxWidth()
             .height(190.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(colorScheme.surface)
+            .background(colorScheme.background)
             .nestedScroll(isolatePager)
     ) {
         VerticalPager(
@@ -560,7 +560,6 @@ fun ReadingHeaderCardPager(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(colorScheme.surfaceVariant.copy(alpha = 0.14f))
                     .padding(8.dp)
             ) {
                 val recentReadingBookResult by recentReadingBookFlow.collectAsStateWithLifecycle()
