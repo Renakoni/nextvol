@@ -6,6 +6,11 @@
     <string name="tts_timer_off">Выключить</string>
     <string name="tts_timer_minutes">%1$d мин</string>
     <string name="tts_timer_remaining">Осталось %1$s</string>
+    <string name="tts_timer_chapter_end">До конца главы</string>
+    <string name="tts_timer_chapter_cancelled">Глава изменена · таймер выключен</string>
+    <string name="tts_timer_custom">Свои минуты</string>
+    <string name="tts_timer_range">1–%1$d мин</string>
+    <string name="tts_timer_set">Включить таймер</string>
     <string name="tts_online_sources">Голоса</string>
     <string name="tts_library_actions">Параметры каталога</string>
     <string name="tts_needs_key">Настроить ключ</string>

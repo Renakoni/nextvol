@@ -5,6 +5,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+internal const val MAX_SLEEP_TIMER_MINUTES = 180
+
 /** A service-owned deadline: pauses and chapter changes do not extend it. */
 internal class SpeechSleepTimer(
     private val scope: CoroutineScope,
@@ -17,7 +19,7 @@ internal class SpeechSleepTimer(
     private var job: Job? = null
 
     fun set(minutes: Int?) {
-        require(minutes == null || minutes in 1..60)
+        require(minutes == null || minutes in 1..MAX_SLEEP_TIMER_MINUTES)
         job?.cancel()
         val duration = minutes?.times(60_000L)
         deadline = duration?.let { elapsedRealtime() + it }

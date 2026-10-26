@@ -6,6 +6,11 @@
     <string name="tts_timer_off">關閉定時</string>
     <string name="tts_timer_minutes">%1$d 分鐘</string>
     <string name="tts_timer_remaining">剩餘 %1$s</string>
+    <string name="tts_timer_chapter_end">聽完本章</string>
+    <string name="tts_timer_chapter_cancelled">已切換章節，章末定時已取消</string>
+    <string name="tts_timer_custom">自訂分鐘</string>
+    <string name="tts_timer_range">1–%1$d 分鐘</string>
+    <string name="tts_timer_set">開始定時</string>
     <string name="tts_title">聽書</string>
     <string name="tts_start">聽這本書</string>
     <string name="tts_settings">聽書設定</string>

@@ -9,6 +9,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.media3.common.AudioAttributes
@@ -153,6 +154,7 @@ class ReadAloudService : MediaSessionService() {
         }
         if (action == SpeechAction.Resume && sleepTimer.expireIfDue()) return START_NOT_STICKY
         if ((action == SpeechAction.Start || action == SpeechAction.Resume) && !foreground()) return START_NOT_STICKY
+        val wasChapterTimer = speech.state.value.stopAtChapterEnd
         when (action) {
             SpeechAction.Start -> if (request != null) speech.start(request) else stopSelf()
             SpeechAction.Resume -> if (speech.state.value.request != null) speech.resume() else if (request != null) speech.start(request) else stopSelf()
@@ -164,11 +166,23 @@ class ReadAloudService : MediaSessionService() {
             SpeechAction.NextChapter -> speech.changeChapter(true)
             SpeechAction.SleepTimer -> {
                 val minutes = intent.getIntExtra(ReadAloudController.TIMER_MINUTES, 0)
-                if (minutes in 0..60 && speech.state.value.phase in setOf(
+                if (minutes in 0..MAX_SLEEP_TIMER_MINUTES && speech.state.value.phase in setOf(
                         SpeechPhase.Preparing, SpeechPhase.Buffering, SpeechPhase.Playing, SpeechPhase.Paused)) {
+                    speech.setStopAtChapterEnd(false)
                     sleepTimer.set(minutes.takeIf { it > 0 })
                 }
             }
+            SpeechAction.StopAtChapterEnd -> {
+                val current = speech.state.value
+                if (current.request?.isPreview == false && (current.isActive || current.phase == SpeechPhase.Paused)) {
+                    sleepTimer.cancel()
+                    speech.setStopAtChapterEnd(true)
+                }
+            }
+        }
+        if (wasChapterTimer && !speech.state.value.stopAtChapterEnd && action in setOf(
+                SpeechAction.Previous, SpeechAction.Next, SpeechAction.PreviousChapter, SpeechAction.NextChapter)) {
+            Toast.makeText(this, R.string.tts_timer_chapter_cancelled, Toast.LENGTH_SHORT).show()
         }
         return START_NOT_STICKY
     }
@@ -256,8 +270,8 @@ class ReadAloudService : MediaSessionService() {
         if (preparationWakeLock.isHeld) preparationWakeLock.release()
         getSystemService(NotificationManager::class.java).cancel(notificationId)
         if (last.isActive && controller.state.value.error != SpeechError.ServiceUnavailable) {
-            controller.publish(last.copy(phase = SpeechPhase.Paused))
-        } else controller.publish(controller.state.value.copy(sleepTimerDeadline = null))
+            controller.publish(last.copy(phase = SpeechPhase.Paused, sleepTimerDeadline = null, stopAtChapterEnd = false))
+        } else controller.publish(controller.state.value.copy(sleepTimerDeadline = null, stopAtChapterEnd = false))
         super.onDestroy()
     }
 

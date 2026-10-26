@@ -11,7 +11,7 @@ import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class SpeechAction { Start, Pause, Resume, Stop, Previous, Next, PreviousChapter, NextChapter, SleepTimer }
+enum class SpeechAction { Start, Pause, Resume, Stop, Previous, Next, PreviousChapter, NextChapter, SleepTimer, StopAtChapterEnd }
 
 /** UI sends explicit commands. Merely observing this state never starts a service or an engine. */
 @Singleton
@@ -48,7 +48,7 @@ class ReadAloudController @Inject constructor(@ApplicationContext private val co
         send(action, state.value.request)
     }
     fun setSleepTimer(minutes: Int?) {
-        require(minutes == null || minutes in 1..60)
+        require(minutes == null || minutes in 1..MAX_SLEEP_TIMER_MINUTES)
         send(SpeechAction.SleepTimer, state.value.request, minutes)
     }
     internal fun publish(state: ReadAloudState) {
