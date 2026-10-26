@@ -39,6 +39,7 @@
     <string name="tts_pitch">Высота голоса</string>
     <string name="tts_factor">%1$.1f×</string>
     <string name="tts_preview">Прослушать голос</string>
+    <string name="tts_preview_voice">Прослушать %1$s</string>
     <string name="tts_preview_text">Добро пожаловать в NextVol. Дождь закончился, и начинается новая глава.</string>
     <string name="tts_preparing">Подготовка аудио…</string>
     <string name="tts_buffering">Ожидание аудио…</string>

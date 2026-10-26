@@ -4,7 +4,8 @@ import androidx.compose.runtime.Stable
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class SpeechRequest(val bookId: String, val chapterId: String, val previewText: String? = null) {
+data class SpeechRequest(val bookId: String, val chapterId: String, val previewText: String? = null,
+    val previewSettings: SpeechSettings? = null) {
     val isPreview get() = previewText != null
 }
 
