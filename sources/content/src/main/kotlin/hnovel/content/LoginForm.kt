@@ -92,7 +92,8 @@ data class LoginForm(val fields: List<LoginField>, val browserUrl: String?, val 
             // Without a loginUi, Legado opens a website relative to the source key.
             val browser = loginUrl.trim().takeIf { ui.isBlank() && it.isNotEmpty() }?.let { url ->
                 try {
-                    URI(url) // A website target is URL data, never a script or a JSON object.
+                    val scheme = URI(url).scheme // A website target is URL data, never a script or a JSON object.
+                    require(scheme == null || scheme.equals("http", true) || scheme.equals("https", true))
                     resolveSourceLink(baseUrl, url)
                 } catch (_: Exception) { throw SourceContentException(ContentError.InvalidRule, "loginUrl") }
             }

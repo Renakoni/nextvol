@@ -15,7 +15,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuleLoginFormTest {
-    @Test fun relativeWebsiteLoginUsesTheSourceAddressAndInteractiveBrowser() = runBlocking {
+    @Test fun websiteLoginResolvesHttpAddressesAndRejectsInlineData() = runBlocking {
         val opened = mutableListOf<String>()
         val browser = BrowserExecutor { _, request, options, _, _ ->
             assertTrue(options.interactive)
@@ -34,6 +34,13 @@ class RuleLoginFormTest {
                     assertEquals(target, form.browserUrl)
                     source.login(form.values, formId = form.id)
                 }
+            }
+            fixture.source(profile = AUTO_PROFILE) { raw -> JsonObject(raw + mapOf(
+                "header" to JsonPrimitive(""), "loginUrl" to JsonPrimitive("data:text/html;base64,T0s=")
+            )) }.use { source ->
+                val failure = runCatching { source.login(emptyMap()) }.exceptionOrNull() as SourceContentException
+                assertEquals(ContentError.InvalidRule, failure.code)
+                assertEquals("loginUrl", failure.field)
             }
             assertEquals(listOf(target, target), opened)
         }
