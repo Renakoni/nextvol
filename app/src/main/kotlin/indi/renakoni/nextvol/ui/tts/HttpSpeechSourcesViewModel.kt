@@ -37,15 +37,19 @@ data class HttpSpeechSourcesState(
 class HttpSpeechSourcesViewModel @Inject constructor(
     private val repository: HttpSpeechRepository,
     private val settings: SpeechSettingsRepository,
-    private val controller: ReadAloudController,
+    val controller: ReadAloudController,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HttpSpeechSourcesState())
     val state = mutableState.asStateFlow()
+    private var selectedSettings: SpeechSettings? = null
 
     init {
         work { refreshSources() }
-        viewModelScope.launch { settings.changes.collect { value -> mutableState.update { it.copy(selected = value.httpSource) } } }
+        viewModelScope.launch { settings.changes.collect { value ->
+            selectedSettings = value
+            mutableState.update { it.copy(selected = value.httpSource) }
+        } }
         viewModelScope.launch { repository.deniedOrigins.collect { value -> mutableState.update { it.copy(deniedOrigins = value) } } }
     }
 
@@ -54,8 +58,14 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         settings.update { it.copy(httpSource = id) }
     }
 
+    fun previewVoice(id: String?, text: String) {
+        val selected = selectedSettings ?: return
+        if (state.value.busy || id != null && state.value.sources.none { it.definition.id == id && it.isConfigured }) return
+        controller.preview(text, selected.copy(httpSource = id))
+    }
+
     fun configure(source: SavedHttpSpeechSource, credentials: Map<String, String>) = work {
-        if (state.value.sources.any { it.definition.id == state.value.selected && it.group == source.group }) controller.command(SpeechAction.Stop)
+        if (state.value.sources.any { isInUse(it.definition.id) && it.group == source.group }) controller.command(SpeechAction.Stop)
         repository.configure(source.definition.id, credentials)
         refreshSources()
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
@@ -84,7 +94,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
 
     fun confirmImport() = work {
         val sources = state.value.pending ?: return@work
-        if (sources.any { it.definition.id == state.value.selected }) controller.command(SpeechAction.Stop)
+        if (sources.any { isInUse(it.definition.id) }) controller.command(SpeechAction.Stop)
         repository.save(sources)
         refreshSources()
         mutableState.update { it.copy(pending = null, invalid = 0) }
@@ -92,7 +102,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
 
     fun delete(source: SavedHttpSpeechSource) = work {
         val selected = state.value.selected == source.definition.id
-        if (selected) controller.command(SpeechAction.Stop)
+        if (isInUse(source.definition.id)) controller.command(SpeechAction.Stop)
         repository.delete(source.definition.id)
         if (selected) settings.update { it.copy(httpSource = null) }
         refreshSources()
@@ -103,7 +113,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
             requireNotNull(sourceOrigin(it))
         }.distinct().toList()
         require(origins.size <= 32)
-        if (state.value.selected == source.definition.id) controller.command(SpeechAction.Stop)
+        if (isInUse(source.definition.id)) controller.command(SpeechAction.Stop)
         repository.save(listOf(source.copy(origins = origins)))
         refreshSources()
     }
@@ -117,10 +127,13 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         }
         val preview = previewHttpSpeech(JsonObject(raw).toString())
         require(preview.issues.isEmpty())
-        if (state.value.selected == source.definition.id) controller.command(SpeechAction.Stop)
+        if (isInUse(source.definition.id)) controller.command(SpeechAction.Stop)
         repository.save(listOf(source.copy(definition = preview.sources.single())))
         refreshSources()
     }
+
+    private fun isInUse(id: String) = state.value.selected == id ||
+        controller.state.value.request?.previewSettings?.httpSource == id
 
     private suspend fun refreshSources() {
         val sources = repository.sources()

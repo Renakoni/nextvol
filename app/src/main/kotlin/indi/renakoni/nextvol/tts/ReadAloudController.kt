@@ -31,7 +31,7 @@ class ReadAloudController @Inject constructor(@ApplicationContext private val co
         start(SpeechRequest(book.storageKey, chapter.storageKey))
     }
 
-    fun preview(text: String) = start(SpeechRequest("", "", text))
+    fun preview(text: String, settings: SpeechSettings? = null) = start(SpeechRequest("", "", text, settings))
 
     private fun start(request: SpeechRequest) {
         closingPlayer = false
