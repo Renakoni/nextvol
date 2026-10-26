@@ -62,6 +62,39 @@ class ScopeTests(unittest.TestCase):
             self.assertTrue(any(fnmatch.fnmatchcase(name, ci_scope.PACKAGE + pattern) for name in classes), pattern)
         self.assertNotIn('excludeTestsMatching', build)
 
+    def test_export_selects_module_consumers_and_only_api24_sharing(self):
+        plan = self.select(MAIN + 'data/export/ExportBookToEpubUseCase.kt',
+                           MAIN + 'data/work/ExportBookToEPUBWork.kt',
+                           MAIN + 'ui/book/detail/EpubShareActivity.kt',
+                           'epub/src/main/kotlin/io/nightfish/potatoepub/builder/EpubBuilder.kt')
+        self.assertEqual('export', plan['scopes'])
+        self.assertEqual(':app:testDebugUnitTest :epub:test -PciTestScope=export', plan['gradle-args'])
+        self.assertTrue(plan['release'])
+        self.assertTrue(plan['lint'])
+        self.assertEqual((ci_scope.PACKAGE + 'EpubShareInstrumentedTest', ''),
+                         ci_scope.device_classes({'export'}, 24))
+        self.assertFalse(plan['device-35'])
+        self.assertFalse(plan['minified'])
+        tests = self.select(ci_scope.KOTLIN_ROOTS[1] + 'data/work/SourceExportWorkerTest.kt')
+        self.assertIn('-PciTestScope=export', tests['gradle-args'])
+        self.assertFalse(tests['release'])
+        self.assertFalse(tests['device-24'])
+        device = self.select('app/src/androidTest/kotlin/indi/renakoni/nextvol/EpubShareInstrumentedTest.kt')
+        self.assertTrue(device['device-24'])
+        self.assertFalse(device['device-35'])
+        self.assertFalse(device['release'])
+
+    def test_export_unions_update_and_preserves_shared_boundaries(self):
+        self.assertIn('-PciTestScope=export,update', self.select(
+            MAIN + 'data/export/EpubShareFiles.kt', MAIN + 'data/update/UpdateSource.kt')['gradle-args'])
+        for path in ('data/image/SourceImage.kt', 'data/localbook/EpubBookParser.kt',
+                     'data/book/BookRepository.kt', 'ui/book/detail/DetailViewModel.kt'):
+            self.assertEqual(ci_scope.plan({'full'}), self.select(
+                MAIN + 'data/export/EpubShareFiles.kt', MAIN + path))
+        for relative in ('ui/export/NewShareTest.kt', 'data/download/BookDownloadTest.kt',
+                         'data/work/BookWorkIdentityTest.kt'):
+            self.assertNotIn('-PciTestScope=', self.select(ci_scope.KOTLIN_ROOTS[1] + relative)['gradle-args'])
+
     def test_independent_layouts_skip_reader_devices_and_library_tasks(self):
         for path in ('ui/home/bookshelf/home/BookshelfScreen.kt',
                      'ui/home/reading/stats/StatsOverviewScreen.kt',
