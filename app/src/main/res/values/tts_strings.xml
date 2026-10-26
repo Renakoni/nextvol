@@ -6,6 +6,19 @@
     <string name="tts_timer_off">Off</string>
     <string name="tts_timer_minutes">%1$d min</string>
     <string name="tts_timer_remaining">%1$s remaining</string>
+    <string name="tts_timer_chapter_end">End of chapter</string>
+    <string name="tts_timer_three_chapters">3 chapters</string>
+    <string name="tts_timer_five_chapters">5 chapters</string>
+    <string name="tts_timer_chapter_cancelled">Chapter changed · chapter timer off</string>
+    <string name="tts_timer_custom">Custom duration</string>
+    <string name="tts_timer_by_chapter">By chapter</string>
+    <string name="tts_timer_by_time">By time</string>
+    <string name="tts_timer_hour_unit">hr</string>
+    <string name="tts_timer_minute_unit">min</string>
+    <plurals name="tts_timer_chapters_remaining">
+        <item quantity="one">%1$d chapter remaining</item>
+        <item quantity="other">%1$d chapters remaining</item>
+    </plurals>
     <string name="tts_title">Read aloud</string>
     <string name="tts_start">Listen to this book</string>
     <string name="tts_settings">Read aloud settings</string>

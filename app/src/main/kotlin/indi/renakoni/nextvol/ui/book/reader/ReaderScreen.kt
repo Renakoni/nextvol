@@ -138,6 +138,7 @@ fun ReaderScreen(
     onSpeechCommand: (SpeechAction) -> Unit,
     onSpeechSettings: () -> Unit,
     onSleepTimer: (Int?) -> Unit,
+    onChapterSleepTimer: ((Int) -> Unit)? = null,
     bookmarks: List<ReadingBookmark> = emptyList(),
     bookmarksBusy: Boolean = false,
     bookmarkNotice: Int? = null,
@@ -405,6 +406,7 @@ fun ReaderScreen(
             onSettings = { showReadAloud = false; onSpeechSettings() },
             onDismiss = { showReadAloud = false },
             onSleepTimer = onSleepTimer,
+            onChapterSleepTimer = onChapterSleepTimer,
         )
     }
     if (showSettingsBottomSheet) {

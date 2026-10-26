@@ -671,26 +671,35 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
-    @Test fun timerExpiryDuringPreviewCancelsBothLateSampleAudioAndBookRestoration() = runTest {
+    @Test fun previewFreezesTimerUntilBookPlaybackResumes() = runTest {
         val env = Environment(this)
         val late = CompletableDeferred<Unit>()
         val timer = SpeechSleepTimer(this, { testScheduler.currentTime }, {}, env.session::stop)
         try {
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
-            timer.set(1)
+            timer.set(1, playing = true)
             advanceTimeBy(20_000)
+            timer.setPlaying(false)
             env.beforeSynthesis = { withContext(NonCancellable) { late.await() } }
             env.session.start(SpeechRequest("", "", "Sample."))
             runCurrent()
-            assertEquals(60_000L, timer.deadline)
+            assertNull(timer.deadline)
+            assertEquals(40_000L, timer.remainingMillis)
             advanceTimeBy(40_000)
             runCurrent()
             late.complete(Unit)
             runCurrent()
+            env.player.finish()
+            runCurrent()
+            assertTrue(env.session.restoreAfterPreview())
+            runCurrent()
+            timer.setPlaying(true)
+            assertEquals(100_000L, timer.deadline)
+            advanceTimeBy(40_000)
+            runCurrent()
             assertEquals(SpeechPhase.Stopped, env.session.state.value.phase)
             assertFalse(env.session.restoreAfterPreview())
-            assertEquals(1, env.player.started.size)
             assertTrue(env.directory.listFiles()!!.isEmpty())
         } finally { timer.cancel(); late.complete(Unit); env.stop() }
     }

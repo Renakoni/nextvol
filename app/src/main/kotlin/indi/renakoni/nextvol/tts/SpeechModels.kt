@@ -59,6 +59,9 @@ data class ReadAloudState(
     val sleepTimerDeadline: Long? = null,
     val showFloatingPlayer: Boolean = false,
     val position: SpeechPosition? = null,
+    val sleepTimerChapters: Int? = null,
+    /** Frozen duration while paused; sleepTimerDeadline is present only during book playback. */
+    val sleepTimerRemainingMillis: Long? = null,
 ) {
     val isActive get() = phase in setOf(SpeechPhase.Preparing, SpeechPhase.Playing, SpeechPhase.Buffering)
 }
