@@ -28,6 +28,7 @@
     <string name="tts_pitch">音调</string>
     <string name="tts_factor">%1$.1f×</string>
     <string name="tts_preview">试听音色</string>
+    <string name="tts_preview_voice">试听%1$s</string>
     <string name="tts_preview_text">欢迎使用 NextVol。雨已经停了，窗外透进微光，新的故事即将开始。</string>
     <string name="tts_preparing">正在准备声音…</string>
     <string name="tts_buffering">正在等待声音…</string>

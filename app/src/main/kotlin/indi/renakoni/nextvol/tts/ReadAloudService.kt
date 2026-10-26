@@ -67,7 +67,7 @@ class ReadAloudService : MediaSessionService() {
             setHandleAudioBecomingNoisy(true)
         }
         speech = ReadAloudSession(scope, chapters, settings::get, progress, synthesizers::synthesizer,
-            ExoSpeechPlayback(player, this) { speech.pause() }, File(cacheDir, "read-aloud"))
+            ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"))
         sleepTimer = SpeechSleepTimer(scope, SystemClock::elapsedRealtime,
             onChanged = { deadline ->
                 if (!shuttingDown && speech.state.value.request != null)
@@ -108,6 +108,9 @@ class ReadAloudService : MediaSessionService() {
                 if (!shuttingDown && it.request != null) {
                     // Audio focus can resume the player without a UI/media-session Resume command.
                     if (it.isActive && sleepTimer.expireIfDue()) return@collect
+                    if (it.request.isPreview && it.phase in setOf(SpeechPhase.Completed, SpeechPhase.Failed)) {
+                        if (sleepTimer.expireIfDue() || speech.restoreAfterPreview()) return@collect
+                    }
                     // ExoPlayer owns playback wakefulness; chapter loading and synthesis have no player yet.
                     if (it.phase == SpeechPhase.Preparing || it.phase == SpeechPhase.Buffering) {
                         if (!preparationWakeLock.isHeld) preparationWakeLock.acquire(90_000)
@@ -143,7 +146,11 @@ class ReadAloudService : MediaSessionService() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (action == SpeechAction.Start) sleepTimer.cancel()
+        if (action == SpeechAction.Start) {
+            if (request?.isPreview == true) {
+                if (sleepTimer.expireIfDue()) return START_NOT_STICKY
+            } else sleepTimer.cancel()
+        }
         if (action == SpeechAction.Resume && sleepTimer.expireIfDue()) return START_NOT_STICKY
         if ((action == SpeechAction.Start || action == SpeechAction.Resume) && !foreground()) return START_NOT_STICKY
         when (action) {

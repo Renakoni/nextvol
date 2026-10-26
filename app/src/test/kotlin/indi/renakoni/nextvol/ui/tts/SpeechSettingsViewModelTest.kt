@@ -7,6 +7,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -58,6 +59,30 @@ class SpeechSettingsViewModelTest {
         runCurrent()
         assertEquals(original.copy(playbackSpeed = 2f), model.state.value.settings)
         coVerify(exactly = 1) { engines.inspect(any()) }
+    }
+
+    @Test fun auditioningAnOnlineVoiceDoesNotSaveItAndRemovingItStopsTheSample() = runTest {
+        val source = SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
+            """{"id":"candidate","name":"Candidate","url":"https://example.org"}""").sources.single(), listOf("https://example.org:443"))
+        coEvery { http.sources() } returns listOf(source)
+        every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
+        coEvery { http.delete(source.definition.id) } returns Unit
+        val playback = MutableStateFlow(ReadAloudState())
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns playback
+        val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
+        try {
+            runCurrent()
+            library.previewVoice("candidate", "Sample.")
+            verify { controller.preview("Sample.", settings.value.copy(httpSource = "candidate")) }
+            coVerify(exactly = 0) { repository.update(any()) }
+            assertNull(library.state.value.selected)
+            playback.value = ReadAloudState(SpeechRequest("", "", "Sample.", settings.value.copy(httpSource = "candidate")), SpeechPhase.Playing)
+            library.delete(source)
+            runCurrent()
+            verify { controller.command(SpeechAction.Stop) }
+            coVerify(exactly = 0) { repository.update(any()) }
+        } finally { library.viewModelScope.cancel() }
     }
 
     @Test fun sameTargetRefreshRetainsKnownResultsUntilTheNewCheckCompletes() = runTest {

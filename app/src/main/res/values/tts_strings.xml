@@ -28,6 +28,7 @@
     <string name="tts_pitch">Pitch</string>
     <string name="tts_factor">%1$.1f×</string>
     <string name="tts_preview">Preview voice</string>
+    <string name="tts_preview_voice">Preview %1$s</string>
     <string name="tts_preview_text">Welcome to NextVol. The rain has stopped, and a new chapter begins.</string>
     <string name="tts_preparing">Preparing audio…</string>
     <string name="tts_buffering">Waiting for audio…</string>

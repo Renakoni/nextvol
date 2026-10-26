@@ -55,14 +55,26 @@ class ReadAloudSession(
     private var currentClip: SpeechClip? = null
     private var wantsPlay = true
     private var currentSettings: SpeechSettings? = null
+    private var currentBoundary: SpeechBookmark? = null
+    private var resumeSavedProgress = true
+    private data class SuspendedBook(val request: SpeechRequest, val boundary: SpeechBookmark?,
+        val resumeSaved: Boolean, val playing: Boolean)
+    private var suspendedBook: SuspendedBook? = null
 
     fun start(request: SpeechRequest, resumeSaved: Boolean = true, boundary: SpeechBookmark? = null, playing: Boolean = true) {
+        val current = state.value
+        if (!request.isPreview) suspendedBook = null
+        else if (current.request?.isPreview == false && (current.isActive || current.phase == SpeechPhase.Paused)) {
+            suspendedBook = SuspendedBook(current.request, currentBoundary, resumeSavedProgress, wantsPlay)
+        }
         val previous = work
         val token = ++generation
         cancelEngine()
         previous?.cancel()
         playback.stop()
         currentClip = null
+        currentBoundary = boundary
+        resumeSavedProgress = resumeSaved
         wantsPlay = playing
         mutableState.value = ReadAloudState(request, if (playing) SpeechPhase.Preparing else SpeechPhase.Paused)
         work = scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -80,11 +92,13 @@ class ReadAloudSession(
                     }?.forEach { if (!it.deleteRecursively()) throw SpeechException(SpeechError.Storage) }
                     if (!directory.mkdirs()) throw SpeechException(SpeechError.Storage)
                 }
-                val beforeRead = currentSettings
-                val stored = settings().validated()
-                // A settings emission received during the read takes precedence over its snapshot.
-                val selected = currentSettings?.takeIf { it !== beforeRead } ?: stored
-                currentSettings = selected
+                // Candidate parameters belong only to this sample, never to the selected settings.
+                val selected = request.previewSettings?.takeIf { request.isPreview }?.validated() ?: run {
+                    val beforeRead = currentSettings
+                    val stored = settings().validated()
+                    // A settings emission received during the read takes precedence over its snapshot.
+                    (currentSettings?.takeIf { it !== beforeRead } ?: stored).also { currentSettings = it }
+                }
                 playback.setSpeed(selected.playbackSpeed)
                 val voice = provider.open(selected)
                 currentCoroutineContext().ensureActive()
@@ -93,6 +107,9 @@ class ReadAloudSession(
                     ?.takeIf { it.bookId == request.bookId && !it.completed } else null
                 // The book entry resumes listening independently of the chapter open in the reader.
                 val target = if (boundary == null && saved != null) request.copy(chapterId = saved.chapterId) else request
+                currentCoroutineContext().ensureActive()
+                currentBoundary = boundary ?: saved
+                publish(token) { it.copy(request = target) }
                 stream(token, target, provider, directory, boundary ?: saved)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -135,6 +152,7 @@ class ReadAloudSession(
     }
 
     fun stop() {
+        suspendedBook = null
         generation++
         cancelEngine()
         work?.cancel()
@@ -142,6 +160,21 @@ class ReadAloudSession(
         currentClip = null
         wantsPlay = false
         mutableState.value = state.value.copy(phase = SpeechPhase.Stopped, error = null, position = null)
+    }
+
+    /** A noisy route or permanent focus loss must not resurrect the book behind a sample. */
+    fun interrupt() {
+        suspendedBook = null
+        pause()
+    }
+
+    /** Called by the service after checking its unchanged sleep deadline. */
+    fun restoreAfterPreview(): Boolean {
+        val current = state.value
+        if (current.request?.isPreview != true || current.phase !in setOf(SpeechPhase.Completed, SpeechPhase.Failed)) return false
+        val book = suspendedBook ?: return false
+        start(book.request, book.resumeSaved, book.boundary, book.playing)
+        return true
     }
 
     private fun cancelEngine() {
@@ -178,6 +211,8 @@ class ReadAloudSession(
         val value = settings.validated()
         val previous = currentSettings
         currentSettings = value
+        // A deliberate selection still persists during preview, and takes effect on return.
+        if (state.value.request?.isPreview == true) return
         playback.setSpeed(value.playbackSpeed)
         if (previous != null && previous.copy(playbackSpeed = value.playbackSpeed) != value) reloadSettings()
     }
@@ -185,7 +220,7 @@ class ReadAloudSession(
     /** Voice changes resynthesize from the current boundary, preserving a deliberate pause. */
     fun reloadSettings() {
         val current = state.value
-        if (current.request == null || current.phase in setOf(SpeechPhase.Stopped, SpeechPhase.Completed)) return
+        if (current.request == null || current.request.isPreview || current.phase in setOf(SpeechPhase.Stopped, SpeechPhase.Completed)) return
         start(current.request, boundary = currentClip?.let { it.bookmark(it.segment.start) }, playing = wantsPlay)
     }
 
@@ -260,6 +295,7 @@ class ReadAloudSession(
                     is Step.Ready -> {
                         val clip = step.clip
                         currentClip = clip
+                        currentBoundary = clip.bookmark(clip.segment.start)
                         publish(token) { it.copy(
                             request = request.copy(chapterId = clip.chapter.id), bookTitle = clip.chapter.bookTitle,
                             chapterTitle = clip.chapter.title, segmentIndex = clip.index, segmentCount = clip.count,
@@ -306,6 +342,7 @@ class ReadAloudSession(
                         currentCoroutineContext().ensureActive()
                         // Only actual playback completion advances the durable offset.
                         if (!request.isPreview) save(clip.bookmark(clip.segment.end))
+                        currentBoundary = clip.bookmark(clip.segment.end)
                         currentClip = null
                         publish(token) { it.copy(phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused) }
                     }
