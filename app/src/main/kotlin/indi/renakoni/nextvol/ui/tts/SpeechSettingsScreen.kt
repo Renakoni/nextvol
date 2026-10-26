@@ -75,6 +75,7 @@ fun SpeechSettingsScreen(
     onPlaybackSpeed: (Float) -> Unit,
     onHttpSources: () -> Unit = {},
     onSleepTimer: ((Int?) -> Unit)? = null,
+    onPreviewVoice: ((String) -> Unit)? = null,
 ) {
     var choice by remember { mutableStateOf<String?>(null) }
     var showPlayback by remember { mutableStateOf(false) }
@@ -217,12 +218,13 @@ fun SpeechSettingsScreen(
             stringResource(if (engine) R.string.tts_engine else R.string.tts_voice), current, options,
             onChoose = { if (engine) onEngine(it) else onVoice(it); choice = null },
             onDismiss = { choice = null },
+            onPreview = if (engine) null else onPreviewVoice,
         )
     }
 }
 
 @Composable
-private fun SpeechPlaybackBar(state: ReadAloudState, onCommand: (SpeechAction) -> Unit, onOpen: () -> Unit) {
+internal fun SpeechPlaybackBar(state: ReadAloudState, onCommand: (SpeechAction) -> Unit, onOpen: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
@@ -256,6 +258,7 @@ private data class Choice(val id: String, val title: String, val description: St
 @Composable
 private fun SpeechChoiceDialog(
     title: String, current: String, options: List<Choice>, onChoose: (String) -> Unit, onDismiss: () -> Unit,
+    onPreview: ((String) -> Unit)? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -279,12 +282,20 @@ private fun SpeechChoiceDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        if (onPreview != null) SpeechPreviewButton(option.id.ifEmpty { option.title }, option.enabled) { onPreview(option.id) }
                     }
                 }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+@Composable
+internal fun SpeechPreviewButton(name: String, enabled: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, enabled = enabled) {
+        Icon(painterResource(R.drawable.play_arrow_24px), stringResource(R.string.tts_preview_voice, name))
+    }
 }
 
 @Composable

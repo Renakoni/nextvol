@@ -27,6 +27,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
+import indi.renakoni.nextvol.tts.ReadAloudState
+import indi.renakoni.nextvol.tts.SpeechAction
+import indi.renakoni.nextvol.tts.SpeechPhase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +39,12 @@ fun HttpSpeechSourcesScreen(
     onSites: (SavedHttpSpeechSource, String) -> Unit, onConfirmImport: () -> Unit, onDismissImport: () -> Unit,
     onEdit: (SavedHttpSpeechSource, String, String, String) -> Unit,
     onConfigure: (SavedHttpSpeechSource, Map<String, String>) -> Unit = { _, _ -> },
+    onPreview: ((String?) -> Unit)? = null,
+    playback: ReadAloudState = ReadAloudState(),
+    onCommand: (SpeechAction) -> Unit = {},
 ) {
+    var showPlayback by remember { mutableStateOf(false) }
+    val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
     var configuring by remember { mutableStateOf<SavedHttpSpeechSource?>(null) }
     var expanded by remember { mutableStateOf<String?>(null) }
     var importMenu by remember { mutableStateOf(false) }
@@ -61,13 +69,16 @@ fun HttpSpeechSourcesScreen(
                 }
             }
         })
+    }, bottomBar = {
+        if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
     }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).selectableGroup().testTag("speech-sources-list"),
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             state.error?.let { message -> item { Text(stringResource(message), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) } }
             item {
                 Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    SourceChoice(stringResource(R.string.tts_system_speech), state.selected == null, !state.busy, { onSelect(null) })
+                    SourceChoice(stringResource(R.string.tts_system_speech), state.selected == null, !state.busy, { onSelect(null) },
+                        onPreview = onPreview?.let { { it(null) } })
                 }
             }
             if (state.sources.isEmpty() && !state.busy) item { Text(stringResource(R.string.tts_online_empty), Modifier.padding(16.dp)) }
@@ -95,13 +106,14 @@ fun HttpSpeechSourcesScreen(
                 if (expanded == group) items(sources, key = { it.definition.id }) { source ->
                     SourceChoice(source.definition.name, state.selected == source.definition.id, !state.busy, {
                         if (source.isConfigured) onSelect(source.definition.id) else configuring = source
-                    })
+                    }, onPreview = onPreview?.let { { it(source.definition.id) } }, previewEnabled = source.isConfigured)
                 }
             }
             items(state.sources.filterNot { it.isBuiltIn }, key = { it.definition.id }) { source ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SourceChoice(source.definition.name, state.selected == source.definition.id, !state.busy,
-                        { onSelect(source.definition.id) }, Modifier.weight(1f))
+                        { onSelect(source.definition.id) }, Modifier.weight(1f),
+                        onPreview = onPreview?.let { { it(source.definition.id) } }, previewEnabled = source.isConfigured)
                     var menu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { menu = true }, enabled = !state.busy) {
@@ -122,6 +134,7 @@ fun HttpSpeechSourcesScreen(
             }
         }
     }
+    if (showPlayback && hasPlayback) ReadAloudSheet(playback, onCommand, onSettings = null, onDismiss = { showPlayback = false })
     configuring?.let { source ->
         SpeechCredentialsDialog(source, state.busy, state.error,
             onSave = { values -> onConfigure(source, values) }, onDismiss = { configuring = null })
@@ -181,12 +194,14 @@ fun HttpSpeechSourcesScreen(
 }
 
 @Composable
-private fun SourceChoice(name: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun SourceChoice(name: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
+    onPreview: (() -> Unit)? = null, previewEnabled: Boolean = true) {
     Row(modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         RadioButton(selected, onClick = null, enabled = enabled)
-        Text(name, style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        if (onPreview != null) SpeechPreviewButton(name, enabled && previewEnabled, onPreview)
     }
 }
 

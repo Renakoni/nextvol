@@ -9,6 +9,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.*
@@ -535,6 +536,163 @@ class ReadAloudSessionTest {
             assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
             assertFalse(env.player.playing)
         } finally { read.complete(Unit); env.stop() }
+    }
+
+    @Test fun previewReturnsToTheAudibleBoundaryWithTheOriginalVoiceAndPauseIntent() = runTest {
+        for (playing in listOf(true, false)) {
+            val env = Environment(this)
+            env.configuration = SpeechSettings(voice = "original", playbackSpeed = 1.5f)
+            try {
+                env.session.start(SpeechRequest("book", "one"))
+                runCurrent()
+                env.player.finish()
+                runCurrent()
+                val original = env.player.started.last()
+                if (!playing) env.session.pause()
+                val bookmark = env.progress.saved.getValue("book")
+                env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate", playbackSpeed = 2f)))
+                runCurrent()
+                assertEquals("candidate", env.opened.last().voice)
+                assertEquals(2f, env.player.playbackSpeed)
+                assertEquals(mapOf("book" to bookmark), env.progress.saved)
+                env.player.finish()
+                runCurrent()
+                assertTrue(env.session.restoreAfterPreview())
+                runCurrent()
+                assertEquals(original.chapter, env.player.started.last().chapter)
+                assertEquals(original.segment, env.player.started.last().segment)
+                assertEquals(env.configuration, env.opened.last())
+                assertEquals(playing, env.player.playing)
+                assertEquals(if (playing) SpeechPhase.Playing else SpeechPhase.Paused, env.session.state.value.phase)
+                assertFalse(env.session.restoreAfterPreview())
+            } finally { env.stop() }
+        }
+    }
+
+    @Test fun repeatedPreviewsKeepTheFirstBookAndDiscardLateSynthesis() = runTest {
+        val env = Environment(this)
+        val late = CompletableDeferred<Unit>()
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            val bookmark = env.progress.saved.getValue("book")
+            env.beforeSynthesis = { if (env.synthesized.last() == "Old sample.") withContext(NonCancellable) { late.await() } }
+            env.session.start(SpeechRequest("", "", "Old sample."))
+            runCurrent()
+            env.session.start(SpeechRequest("", "", "Middle sample."))
+            env.session.start(SpeechRequest("", "", "Latest sample."))
+            runCurrent()
+            assertEquals(1, env.player.started.size)
+            late.complete(Unit)
+            runCurrent()
+            assertEquals(listOf("Latest sample."), env.player.started.drop(1).map { it.segment.text })
+            assertEquals(mapOf("book" to bookmark), env.progress.saved)
+            env.player.finish()
+            runCurrent()
+            assertTrue(env.session.restoreAfterPreview())
+            runCurrent()
+            assertEquals("book", env.player.started.last().chapter.bookId)
+            assertEquals(bookmark.offset, env.player.started.last().segment.start)
+        } finally { late.complete(Unit); env.stop() }
+        assertTrue(env.directory.listFiles()!!.isEmpty())
+    }
+
+    @Test fun failedPreviewDuringPreparationRestoresTheExplicitChapterWithoutLoadingAnOlderBookmark() = runTest {
+        val env = Environment(this)
+        val pending = CompletableDeferred<Unit>()
+        env.progress.saved["book"] = SpeechBookmark("book", "old", "old fingerprint", 50, "Book", "Old")
+        env.beforeSynthesis = { if (env.synthesized.last() == "Sample.") throw SpeechException(SpeechError.Network) else pending.await() }
+        try {
+            env.session.start(SpeechRequest("book", "new"), resumeSaved = false, playing = false)
+            runCurrent()
+            env.session.start(SpeechRequest("", "", "Sample."))
+            runCurrent()
+            assertEquals(SpeechError.Network, env.session.state.value.error)
+            assertTrue(env.session.restoreAfterPreview())
+            pending.complete(Unit)
+            runCurrent()
+            assertEquals("new", env.player.started.single().chapter.id)
+            assertEquals(0, env.player.started.single().segment.start)
+            assertFalse(env.player.playing)
+        } finally { pending.complete(Unit); env.stop() }
+    }
+
+    @Test fun selectingAVoiceDuringPreviewAppliesOnReturnWithoutChangingTheSample() = runTest {
+        val env = Environment(this)
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate", playbackSpeed = 2f)))
+            runCurrent()
+            val selected = SpeechSettings(voice = "chosen", playbackSpeed = 1.2f)
+            env.configuration = selected
+            env.session.updateSettings(selected)
+            runCurrent()
+            assertEquals(2, env.opened.size)
+            assertEquals(2f, env.player.playbackSpeed)
+            env.player.finish()
+            runCurrent()
+            assertTrue(env.session.restoreAfterPreview())
+            runCurrent()
+            assertEquals(selected, env.opened.last())
+        } finally { env.stop() }
+    }
+
+    @Test fun stopReplacementAndSystemInterruptionPreventPreviewFromRestoringTheOldBook() = runTest {
+        for (action in listOf("stop", "replace", "interrupt")) {
+            val env = Environment(this)
+            try {
+                env.session.start(SpeechRequest("book", "one"))
+                runCurrent()
+                env.session.start(SpeechRequest("", "", "Sample."))
+                runCurrent()
+                when (action) {
+                    "stop" -> env.session.stop()
+                    "replace" -> env.session.start(SpeechRequest("new", "one"))
+                    else -> { env.session.interrupt(); env.session.resume(); env.player.finish() }
+                }
+                runCurrent()
+                assertFalse(env.session.restoreAfterPreview())
+                assertEquals(1, env.player.started.count { it.chapter.bookId == "book" })
+            } finally { env.stop() }
+        }
+    }
+
+    @Test fun standalonePreviewDoesNotCreateABookOrSaveProgress() = runTest {
+        val env = Environment(this)
+        try {
+            env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate")))
+            runCurrent()
+            env.player.finish()
+            runCurrent()
+            assertFalse(env.session.restoreAfterPreview())
+            assertEquals(SpeechPhase.Completed, env.session.state.value.phase)
+            assertTrue(env.progress.saved.isEmpty())
+        } finally { env.stop() }
+    }
+
+    @Test fun timerExpiryDuringPreviewCancelsBothLateSampleAudioAndBookRestoration() = runTest {
+        val env = Environment(this)
+        val late = CompletableDeferred<Unit>()
+        val timer = SpeechSleepTimer(this, { testScheduler.currentTime }, {}, env.session::stop)
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            timer.set(1)
+            advanceTimeBy(20_000)
+            env.beforeSynthesis = { withContext(NonCancellable) { late.await() } }
+            env.session.start(SpeechRequest("", "", "Sample."))
+            runCurrent()
+            assertEquals(60_000L, timer.deadline)
+            advanceTimeBy(40_000)
+            runCurrent()
+            late.complete(Unit)
+            runCurrent()
+            assertEquals(SpeechPhase.Stopped, env.session.state.value.phase)
+            assertFalse(env.session.restoreAfterPreview())
+            assertEquals(1, env.player.started.size)
+            assertTrue(env.directory.listFiles()!!.isEmpty())
+        } finally { timer.cancel(); late.complete(Unit); env.stop() }
     }
 
     private inner class Environment(val scope: TestScope) {

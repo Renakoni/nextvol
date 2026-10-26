@@ -59,6 +59,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onPreview = { viewModel.controller.preview(preview) }, onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onPlaybackSpeed = viewModel::setPlaybackSpeed,
+            onPreviewVoice = { viewModel.controller.preview(preview, state.settings.copy(voice = it)) },
             onSystemSettings = {
                 try { context.startActivity(Intent("com.android.settings.TTS_SETTINGS")) }
                 catch (_: ActivityNotFoundException) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
@@ -70,11 +71,14 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<HttpSpeechSourcesViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
+        val playback by viewModel.controller.state.collectAsStateWithLifecycle()
+        val preview = stringResource(R.string.tts_preview_text)
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::preview) }
         HttpSpeechSourcesScreen(state, nav::popBackStackIfResumed,
             onImport = { picker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
             onSelect = viewModel::select, onDelete = viewModel::delete, onSites = viewModel::sites,
             onConfirmImport = viewModel::confirmImport, onDismissImport = viewModel::dismissPreview, onEdit = viewModel::edit,
-            onConfigure = viewModel::configure)
+            onConfigure = viewModel::configure, onPreview = { viewModel.previewVoice(it, preview) },
+            playback = playback, onCommand = viewModel.controller::command)
     }
 }

@@ -28,6 +28,7 @@
     <string name="tts_pitch">音調</string>
     <string name="tts_factor">%1$.1f×</string>
     <string name="tts_preview">試聽音色</string>
+    <string name="tts_preview_voice">試聽%1$s</string>
     <string name="tts_preview_text">歡迎使用 NextVol。雨已經停了，窗外透進微光，新的故事即將開始。</string>
     <string name="tts_preparing">正在準備聲音…</string>
     <string name="tts_buffering">正在等待聲音…</string>
