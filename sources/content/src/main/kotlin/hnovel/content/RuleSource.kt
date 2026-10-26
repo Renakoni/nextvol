@@ -296,13 +296,13 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
             check(session.write(StorageRequest(StorageArea.Account, StorageRequestKey.LOGIN_INFO, merged)) is StorageResult.Value)
     }
 
-    private fun loginContext(values: Map<String, String>, interactive: Boolean): RuleEvaluation =
+    private fun loginContext(values: Map<String, String>, interactive: Boolean, longClick: Boolean = false): RuleEvaluation =
         evaluation(loginReading?.book, loginReading?.chapter, interactive = interactive).also {
         // Reuse the existing bounded interaction envelope; the login form owns this draft.
         // No exploration catalogue is evaluated and no Android objects cross the worker boundary.
         it.discovery = buildJsonObject {
             put("sessionId", "login"); put("values", JsonObject(values.mapValues { JsonPrimitive(it.value) }))
-            put("interactive", interactive); put("noBook", loginReading == null)
+            put("interactive", interactive); put("longClick", longClick); put("noBook", loginReading == null)
             put("noChapter", loginReading?.chapter == null); put("readingPanel", loginReading != null)
         }
     }
@@ -341,7 +341,8 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         return rendered.also { cachedLoginForm = it }
     }
 
-    suspend fun login(values: Map<String, String>, action: String? = null, formId: String? = null): LoginActionResult = operation("loginUrl", timeoutMillis = 300000) {
+    suspend fun login(values: Map<String, String>, action: String? = null, formId: String? = null,
+        longClick: Boolean = false): LoginActionResult = operation("loginUrl", timeoutMillis = 300000) {
         if (formId != null && cachedLoginForm?.id != formId)
             throw SourceContentException(ContentError.Unavailable, "loginUi")
         val form = (cachedLoginForm ?: loadLoginForm()).withValues(loginValues())
@@ -358,7 +359,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
         form.validate(submitted, allowAdditional = true)
         val info = JsonObject(submitted.mapValues { JsonPrimitive(it.value) }).toString()
         saveLoginValues(submitted)
-        val context = loginContext(submitted, interactive = true)
+        val context = loginContext(submitted, interactive = true, longClick = longClick && action != null)
         val messages = ArrayDeque<String>()
         context.onMessage = { message ->
             message.trim().take(4096).takeIf { it.isNotEmpty() }?.let {

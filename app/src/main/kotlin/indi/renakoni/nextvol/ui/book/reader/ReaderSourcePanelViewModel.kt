@@ -90,7 +90,7 @@ class ReaderSourcePanelViewModel @Inject internal constructor(
     }
 
     internal fun submit(values: Map<String, String>, action: String?, formId: String,
-        apply: suspend (String, String?, ReadingPanelUpdate) -> Unit) {
+        longClick: Boolean = false, apply: suspend (String, String?, ReadingPanelUpdate) -> Unit) {
         if (busy || !visible) return
         val panel = attempt ?: return
         val capturedRuntime = runtime ?: return
@@ -101,7 +101,7 @@ class ReaderSourcePanelViewModel @Inject internal constructor(
         job = viewModelScope.launch(foreground) {
             var submitted = false
             try {
-                val result = login.submit(panel, values, action, formId)
+                val result = login.submit(panel, values, action, formId, longClick)
                 submitted = true
                 login.withAttempt(panel) {
                     val update = refresh.refresh(capturedBook, capturedChapter, capturedRuntime, result.refreshTargets)
