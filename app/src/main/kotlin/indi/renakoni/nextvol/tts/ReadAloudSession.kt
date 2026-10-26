@@ -94,9 +94,10 @@ class ReadAloudSession(
                 }
                 // Candidate parameters belong only to this sample, never to the selected settings.
                 val selected = request.previewSettings?.takeIf { request.isPreview }?.validated() ?: run {
+                    val beforeRead = currentSettings
                     val stored = settings().validated()
                     // A settings emission received during the read takes precedence over its snapshot.
-                    (currentSettings ?: stored).also { currentSettings = it }
+                    (currentSettings?.takeIf { it !== beforeRead } ?: stored).also { currentSettings = it }
                 }
                 playback.setSpeed(selected.playbackSpeed)
                 val voice = provider.open(selected)
