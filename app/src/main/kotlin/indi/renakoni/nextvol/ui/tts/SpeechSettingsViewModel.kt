@@ -43,45 +43,49 @@ class SpeechSettingsViewModel @Inject constructor(
     val state = mutableState.asStateFlow()
     private var catalog: Job? = null
     private var request = 0L
+    private var catalogSelection: Pair<String, String?>? = null
 
     init {
         viewModelScope.launch {
-            var lastEngine: Pair<String, String?>? = null
             repository.changes.collect { settings ->
                 mutableState.update { it.copy(settings = settings) }
                 val selection = settings.engine to settings.httpSource
-                if (lastEngine != selection) {
-                    lastEngine = selection
-                    refresh()
-                }
+                if (catalogSelection != selection) refresh()
             }
         }
     }
 
     fun refresh() {
-        val engine = state.value.settings.engine
+        val settings = state.value.settings
+        val target = settings.engine to settings.httpSource
+        val changed = catalogSelection != target
+        catalogSelection = target
         val current = ++request
         catalog?.cancel()
+        mutableState.update { it.copy(loading = true,
+            voices = if (changed) emptyList() else it.voices, error = if (changed) null else it.error) }
         catalog = viewModelScope.launch {
-            mutableState.update { it.copy(loading = true, voices = emptyList(), error = null) }
+            var installed = state.value.engines
             try {
-                val selected = state.value.settings.httpSource
+                val selected = settings.httpSource
                 if (selected != null) {
                     val sources = http.sources()
-                    mutableState.update { it.copy(httpSources = sources) }
                     val source = sources.find { it.definition.id == selected }
-                        ?: throw indi.renakoni.nextvol.tts.SpeechException(SpeechError.HttpSourceUnavailable)
-                    if (!source.isConfigured) throw indi.renakoni.nextvol.tts.SpeechException(SpeechError.HttpLogin)
+                    val error = when {
+                        source == null -> SpeechError.HttpSourceUnavailable
+                        !source.isConfigured -> SpeechError.HttpLogin
+                        else -> null
+                    }
+                    if (current == request) mutableState.update { it.copy(httpSources = sources, error = error) }
                     return@launch
                 }
-                val installed = engines.installed()
-                mutableState.update { it.copy(engines = installed) }
-                val details = engines.inspect(engine)
-                if (current == request) mutableState.update { it.copy(voices = details.voices) }
+                installed = engines.installed()
+                val details = engines.inspect(settings.engine)
+                if (current == request) mutableState.update { it.copy(engines = installed, voices = details.voices, error = null) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
-                if (current == request) mutableState.update { it.copy(error = failure.speechError(
-                    if (it.settings.httpSource == null) SpeechError.EngineUnavailable else SpeechError.Storage)) }
+                if (current == request) mutableState.update { it.copy(engines = installed, voices = emptyList(), error = failure.speechError(
+                    if (settings.httpSource == null) SpeechError.EngineUnavailable else SpeechError.Storage)) }
             } finally {
                 if (current == request) mutableState.update { it.copy(loading = false) }
             }
