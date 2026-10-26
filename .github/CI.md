@@ -21,8 +21,9 @@ YAML alone does not update repository protection settings.
 
 ## Checks selected by change scope
 
-Each required job checks out the tested tree and runs the shared `ci-scope` action
-before preparing Java, Gradle, the SDK, or an emulator. The action uses
+Each workflow checks out the tested tree and runs the shared `ci-scope` action
+before preparing Java, Gradle, the SDK, or an emulator. Devices share selection
+and one APK build upstream of the two required API jobs. The action uses
 [`ci_scope.py`](scripts/ci_scope.py) to select work. Jobs with no relevant work
 finish successfully with a selection summary; workflow-level path filters are
 not used, so all six required check names still report a result. A selector error
@@ -287,6 +288,32 @@ Both `:app:assembleBenchmark` and `:benchmark:assembleBenchmark` are required:
 the former builds the shrunk App, the latter its instrumentation APK. The target
 APK configuration is non-transitive because App libraries are already inside
 that APK; resolving them again can select unrelated Desktop/JVM variants.
+
+Debug device checks build the App and instrumentation APKs once per workflow,
+only when API 24 or 35 has selected tests. The required API jobs always inspect
+the upstream result: selection, build, or upload failure fails both checks;
+an unselected API succeeds explicitly without downloading APKs or starting an
+emulator. Selected jobs download the producer's immutable artifact ID and prepare
+only the fixed SDK/image, without Java or Gradle setup.
+
+The artifact contains the two APKs, their output metadata, and a build manifest.
+Upload and download preserve `app/build/outputs/apk/debug` and
+`app/build/outputs/apk/androidTest/debug` for `connected-tests.sh`. Validation checks
+the tested merge SHA, workflow run, producer attempt, Debug variant/package, and
+file hashes before preparing an emulator. Missing/expired artifacts, incomplete
+APKs, and failed downloads fail the selected required checks. A failed-device-only
+rerun reuses its successful producer's artifact and original build attempt;
+rerunning all jobs creates a new uniquely named artifact and ID. No artifact is
+selected from a different run, commit, or variant. Existing reports and narrow/
+wide viewport failure propagation remain unchanged.
+
+Sharing removes a duplicate build from runner consumption. Wall-clock changes
+also depend on the shared build, artifact transfers, queueing, and device startup;
+the saved parallel build time is not an equivalent reduction in waiting time.
+The completed baseline device run `38393554272` spent 171/228 seconds compiling
+APKs and 439/711 seconds in the API 24/35 jobs (1,150 runner seconds total); API 35
+retried emulator preparation once. Compare future completed runs with these
+conditions recorded, including the new producer job and artifact transfer cost.
 
 APKs build before boot, avoiding competition between compilation and the device.
 `run-static-emulator.sh` creates a fresh 320x640, 160dpi KVM AVD from the fixed
