@@ -94,30 +94,33 @@ class SourceNetworkRouteTest {
             }
             server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/child"))
             server.enqueue(MockResponse().setBody("old chain"))
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/pinned-child"))
+            server.enqueue(MockResponse().setBody("pinned chain"))
             server.enqueue(MockResponse().setBody("new request"))
             SourceBroker(directory.root.toPath(), browser = browser, route = SourceRouteProvider { selected }).use { broker ->
                 val session = broker.session(server.url())
                 session.setCookie(server.url(), "account=fixture")
                 val captured = requireNotNull(session.responseRoute())
                 assertSame(captured, session.responseRoute())
+                val pending = async { session.execute(BrokerRequest("browser", server.url(), browser = BrowserOptions())) }
+                withTimeout(3000) { entered.await() }
                 selected = bypass
                 assertNotSame(captured, session.responseRoute())
-                val pending = async { session.executeOnRoute(BrokerRequest("browser", server.url(), browser = BrowserOptions()),
-                    RequestCommitGuard { it() }, captured) }
-                withTimeout(3000) { entered.await() }
                 release.complete(Unit)
                 assertEquals("old chain", body(pending.await()))
+                assertEquals("pinned chain", body(session.executeOnRoute(
+                    BrokerRequest("pinned", server.url(), browser = BrowserOptions()), RequestCommitGuard { it() }, captured)))
                 assertEquals(0, bypassSockets.opened.get())
                 assertEquals("new request", body(session.execute(BrokerRequest("new", server.url()))))
                 assertEquals(1, bypassSockets.opened.get())
                 assertEquals("account=fixture", session.cookie(server.url()))
                 assertEquals(0L, session.scope.accountGeneration)
-                repeat(3) { assertEquals("account=fixture", server.takeRequest(3, TimeUnit.SECONDS)?.getHeader("Cookie")) }
+                repeat(5) { assertEquals("account=fixture", server.takeRequest(3, TimeUnit.SECONDS)?.getHeader("Cookie")) }
                 original.invalidate()
                 assertFalse(captured.available)
                 assertEquals(FailureCode.RouteUnavailable, (session.executeOnRoute(BrokerRequest("retired", server.url()),
                     RequestCommitGuard { it() }, captured) as BrokerResult.Failure).code)
-                assertEquals(3, server.requestCount)
+                assertEquals(5, server.requestCount)
             }
         }
     }
