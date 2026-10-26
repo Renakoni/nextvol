@@ -103,10 +103,35 @@ class HttpSpeechClientTest {
                 client(owner, base, listOf(NetworkGrant(base, true))).use { source ->
                     val work = async(Dispatchers.IO) { source.synthesize(text) }
                     assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(5, TimeUnit.SECONDS) })
+                    source.cancel()
                     work.cancel()
                     withTimeout(3000) { work.join() }
                     assertTrue(work.isCancelled)
                 }
+            }
+        }
+    }
+
+    @Test fun retirementRejectsLateResultsBeforeNetworkTeardown() = runBlocking {
+        val reached = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val authority = ExecutionAuthority()
+        val source = previewHttpSpeech("""{"name":"Voice","url":"https://example.org/voice"}""").sources.single()
+        SourceBroker(directory.root.toPath()).use { owner ->
+            HttpSpeechClient(source, owner, emptyList(), authority) { identity, _, _, _ ->
+                reached.complete(Unit)
+                withContext(NonCancellable) { release.await() }
+                assertFalse(authority.accepts(identity))
+                ExecutionResult.Success("unused retired result")
+            }.use { client ->
+                val work = async { client.synthesize(text) }
+                try {
+                    reached.await()
+                    client.cancel()
+                    release.complete(Unit)
+                    try { work.await(); fail("Retired synthesis returned audio") }
+                    catch (_: CancellationException) { }
+                } finally { release.complete(Unit); work.cancelAndJoin() }
             }
         }
     }

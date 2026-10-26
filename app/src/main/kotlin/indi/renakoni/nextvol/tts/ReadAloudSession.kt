@@ -1,7 +1,9 @@
 package indi.renakoni.nextvol.tts
 
+import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -11,6 +13,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -53,14 +56,14 @@ class ReadAloudSession(
 
     fun start(request: SpeechRequest, resumeSaved: Boolean = true, boundary: SpeechBookmark? = null, playing: Boolean = true) {
         val previous = work
+        val token = ++generation
+        cancelEngine()
         previous?.cancel()
-        engine?.cancel()
         playback.stop()
         currentClip = null
-        val token = ++generation
         wantsPlay = playing
         mutableState.value = ReadAloudState(request, if (playing) SpeechPhase.Preparing else SpeechPhase.Paused)
-        work = scope.launch {
+        work = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             // Preserve the cleanup chain even if another start cancels this waiting replacement.
             withContext(NonCancellable) { previous?.join() }
             currentCoroutineContext().ensureActive()
@@ -89,9 +92,19 @@ class ReadAloudSession(
             } catch (failure: Exception) {
                 publish(token) { it.copy(phase = SpeechPhase.Failed, error = failure.speechError(SpeechError.SynthesisFailed)) }
             } finally {
-                provider.close()
-                if (token == generation) engine = null
-                withContext(NonCancellable + ioDispatcher) { directory.deleteRecursively() }
+                if (engine === provider) engine = null
+                val reportFailure = currentCoroutineContext().isActive
+                withContext(NonCancellable) {
+                    try { withContext(ioDispatcher) { provider.close() } }
+                    catch (failure: Exception) { cleanupFailed(token, "Synthesizer close", failure, reportFailure) }
+                    finally {
+                        try {
+                            withContext(ioDispatcher) {
+                                if (!directory.deleteRecursively()) throw SpeechException(SpeechError.Storage)
+                            }
+                        } catch (failure: Exception) { cleanupFailed(token, "Audio cache cleanup", failure, reportFailure) }
+                    }
+                }
             }
         }
     }
@@ -116,12 +129,24 @@ class ReadAloudSession(
 
     fun stop() {
         generation++
+        cancelEngine()
         work?.cancel()
-        engine?.cancel()
         playback.stop()
         currentClip = null
         wantsPlay = false
         mutableState.value = state.value.copy(phase = SpeechPhase.Stopped, error = null, position = null)
+    }
+
+    private fun cancelEngine() {
+        try { engine?.cancel() }
+        catch (failure: Exception) { Log.w("ReadAloud", "Synthesizer cancel failed: ${failure.javaClass.simpleName}") }
+    }
+
+    private fun cleanupFailed(token: Long, operation: String, failure: Exception, reportFailure: Boolean) {
+        Log.w("ReadAloud", "$operation failed: ${failure.javaClass.simpleName}")
+        if (reportFailure) publish(token) {
+            if (it.error == null) it.copy(phase = SpeechPhase.Failed, error = failure.speechError(SpeechError.SynthesisFailed)) else it
+        }
     }
 
     fun changeChapter(next: Boolean) {

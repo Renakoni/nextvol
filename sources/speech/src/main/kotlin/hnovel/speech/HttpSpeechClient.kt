@@ -133,7 +133,15 @@ class HttpSpeechClient(
         return response.body.also(::checkSpeechAudioContainer)
     }
 
-    override fun close() { authority.revoke(identity); session.close(); microsoftSession?.close() }
+    /** Retire execution immediately without closing sockets on the caller's thread.
+     * The owner also cancels the synthesis coroutine to interrupt pending requests. */
+    fun cancel() { authority.revoke(identity) }
+
+    /** Network teardown must run off the main thread, after synthesis has stopped. */
+    override fun close() {
+        cancel()
+        try { session.close() } finally { microsoftSession?.close() }
+    }
 }
 
 internal const val MAX_AUDIO_BYTES = 2 * 1024 * 1024
