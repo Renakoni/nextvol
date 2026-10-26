@@ -164,21 +164,27 @@ kotlin {
 tasks.withType<Test>().configureEach {
     javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(22)) })
     val scopes = providers.gradleProperty("ciTestScope").orElse("full").get().split(",").toSet()
-    require(scopes.all { it in setOf("full", "ui", "reader", "speech") }) { "Unknown ciTestScope: $scopes" }
+    // Preserve existing UI coverage with positive filters so mixed business scopes
+    // can add consumers without another scope's exclusions cancelling them.
+    val uiTests = listOf(
+        "ui.bangumi.*", "ui.book.detail.*", "ui.book.download.*", "ui.bookmanager.*",
+        "ui.components.*", "ui.dialog.*", "ui.home.*", "ui.localbook.*",
+        "ui.ExternalFileViewModelTest", "ui.RussianQuantityResourcesTest", "ui.SourceVerificationHostTest",
+    )
+    val readerTests = uiTests + listOf(
+        "ui.book.reader.*", "data.content.*", "data.web.rules.MixedSourceAcceptanceTest",
+    )
+    val scopeTests = mapOf(
+        "ui" to uiTests,
+        "reader" to readerTests,
+        "speech" to readerTests + listOf("tts.*", "ui.tts.*"),
+        "update" to listOf("data.update.*", "ui.home.settings.SettingsHierarchyTest"),
+    )
+    require(scopes.all { it == "full" || it in scopeTests }) { "Unknown ciTestScope: $scopes" }
     if ("full" !in scopes) {
         filter {
-            // Reader UI also supplies directory/theme components to other screens.
-            includeTestsMatching("indi.renakoni.nextvol.ui.*")
-            if ("reader" in scopes || "speech" in scopes) {
-                includeTestsMatching("indi.renakoni.nextvol.data.content.*")
-                includeTestsMatching("indi.renakoni.nextvol.data.web.rules.MixedSourceAcceptanceTest")
-            } else {
-                excludeTestsMatching("indi.renakoni.nextvol.ui.book.reader.*")
-            }
-            if ("speech" in scopes) {
-                includeTestsMatching("indi.renakoni.nextvol.tts.*")
-            } else {
-                excludeTestsMatching("indi.renakoni.nextvol.ui.tts.*")
+            scopes.flatMap { scopeTests.getValue(it) }.distinct().forEach {
+                includeTestsMatching("indi.renakoni.nextvol.$it")
             }
         }
     }
