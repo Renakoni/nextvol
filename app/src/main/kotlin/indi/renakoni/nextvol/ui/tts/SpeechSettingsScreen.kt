@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,11 +70,13 @@ fun SpeechSettingsScreen(
     onRate: (Float?) -> Unit, onPitch: (Float?) -> Unit, onPreview: () -> Unit,
     onCommand: (SpeechAction) -> Unit,
     onSystemSettings: () -> Unit, onRefresh: () -> Unit,
+    onPlaybackSpeed: (Float) -> Unit,
     onHttpSources: () -> Unit = {},
     onSleepTimer: ((Int?) -> Unit)? = null,
 ) {
     var choice by remember { mutableStateOf<String?>(null) }
     var showPlayback by remember { mutableStateOf(false) }
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
     val locale = LocalConfiguration.current.locales[0]
     val refreshLabel = stringResource(R.string.tts_refresh)
@@ -132,12 +135,9 @@ fun SpeechSettingsScreen(
                         style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            item(key = "rate") {
-                SpeechParameter(stringResource(R.string.tts_rate), state.settings.rate, onRate,
-                    defaultLabel = stringResource(if (state.settings.httpSource == null) R.string.tts_engine_default else R.string.tts_source_default))
-            }
-            if (state.settings.httpSource == null) item(key = "pitch") {
-                SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
+            item(key = "playback-speed") {
+                SpeechParameter(stringResource(R.string.tts_playback_speed), state.settings.playbackSpeed,
+                    { onPlaybackSpeed(it ?: 1f) }, resetValue = 1f)
             }
             item(key = "preview") {
                 FilledTonalButton(
@@ -150,6 +150,25 @@ fun SpeechSettingsScreen(
                 ) {
                     Icon(painterResource(R.drawable.play_arrow_24px), null, Modifier.padding(end = 8.dp))
                     Text(stringResource(R.string.tts_preview))
+                }
+            }
+            item(key = "advanced") {
+                TextButton(onClick = { showAdvanced = !showAdvanced }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(if (showAdvanced) R.string.tts_hide_advanced else R.string.tts_advanced))
+                }
+            }
+            if (showAdvanced) {
+                item(key = "rate") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SpeechParameter(stringResource(R.string.tts_rate), state.settings.rate, onRate,
+                            defaultLabel = stringResource(if (state.settings.httpSource == null)
+                                R.string.tts_engine_default else R.string.tts_source_default))
+                        Text(stringResource(R.string.tts_rate_description), Modifier.padding(horizontal = 20.dp),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (state.settings.httpSource == null) item(key = "pitch") {
+                    SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
                 }
             }
             if (state.settings.httpSource == null) item(key = "system") {
@@ -281,7 +300,7 @@ private fun SpeechSetting(title: String, value: String? = null, enabled: Boolean
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SpeechParameter(title: String, value: Float?, onChange: (Float?) -> Unit,
-    defaultLabel: String = stringResource(R.string.tts_engine_default)) {
+    defaultLabel: String = stringResource(R.string.tts_engine_default), resetValue: Float? = null) {
     var slider by remember(value) { mutableFloatStateOf(value ?: 1f) }
     var edited by remember(value) { mutableStateOf(false) }
     val description = if (value == null && !edited) defaultLabel
@@ -298,7 +317,7 @@ private fun SpeechParameter(title: String, value: Float?, onChange: (Float?) -> 
                 Text(title, style = MaterialTheme.typography.bodyLarge)
                 Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (value != null || edited) TextButton(onClick = { onChange(null); slider = 1f; edited = false }) {
+            if (value != resetValue || edited) TextButton(onClick = { onChange(resetValue); slider = 1f; edited = false }) {
                 Text(stringResource(R.string.tts_reset))
             }
         }

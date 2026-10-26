@@ -199,7 +199,7 @@ class SpeechControlsTest {
                         SpeechSettingsUiState(loading = false),
                         ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Playing,
                             bookTitle = "A long book title ".repeat(8)),
-                        {}, {}, {}, {}, {}, {}, { actions += it }, {}, {},
+                        {}, {}, {}, {}, {}, {}, { actions += it }, {}, {}, onPlaybackSpeed = {},
                     )
                 }
             }
@@ -213,20 +213,34 @@ class SpeechControlsTest {
         assertEquals(listOf(SpeechAction.Pause, SpeechAction.Stop), actions)
     }
 
-    @Test fun speakingRateCanBeAdjustedDirectlyAndResetToEngineDefault() {
+    @Test fun playbackSpeedIsPrimaryAndSynthesisRateKeepsItsIndependentDefault() {
         val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState(loading = false))
         activity.get().setContent {
             MaterialTheme(typography = AppTypography) {
                 SpeechSettingsScreen(state.value, ReadAloudState(),
                     {}, {}, {},
                     onRate = { state.value = state.value.copy(settings = state.value.settings.copy(rate = it)) },
-                    onPitch = {}, onPreview = {}, onCommand = {}, onSystemSettings = {}, onRefresh = {})
+                    onPitch = {}, onPreview = {}, onCommand = {}, onSystemSettings = {}, onRefresh = {},
+                    onPlaybackSpeed = { state.value = state.value.copy(settings = state.value.settings.copy(playbackSpeed = it)) })
             }
         }
-        assertNull(state.value.settings.rate)
-        compose.onNodeWithContentDescription("Speaking rate").performSemanticsAction(SemanticsActions.SetProgress) { it(1.5f) }
+        val list = compose.onNodeWithTag("speech-settings-list")
+        list.performScrollToNode(hasContentDescription("Playback speed"))
+        compose.onNodeWithContentDescription("Playback speed").performSemanticsAction(SemanticsActions.SetProgress) { it(2f) }
+        compose.runOnIdle {
+            assertEquals(2f, state.value.settings.playbackSpeed)
+            assertNull(state.value.settings.rate)
+        }
+        compose.onNodeWithContentDescription("Synthesis rate").assertDoesNotExist()
+        compose.onNodeWithText("Reset").performClick()
+        compose.runOnIdle { assertEquals(1f, state.value.settings.playbackSpeed) }
+        list.performScrollToNode(hasText("Advanced settings"))
+        compose.onNodeWithText("Advanced settings").performClick()
+        list.performScrollToNode(hasContentDescription("Synthesis rate"))
+        compose.onNodeWithContentDescription("Synthesis rate").performSemanticsAction(SemanticsActions.SetProgress) { it(1.5f) }
         compose.runOnIdle {
             assertEquals(1.5f, state.value.settings.rate)
+            assertEquals(1f, state.value.settings.playbackSpeed)
             assertNull(state.value.settings.pitch)
         }
         compose.onNodeWithText("Reset").performClick()
@@ -250,25 +264,22 @@ class SpeechControlsTest {
             activity.get().setContent { MaterialTheme {
                 val state by model.state.collectAsState()
                 SpeechSettingsScreen(state, ReadAloudState(),
-                    {}, {}, {}, {}, {}, {}, {}, {}, model::refresh)
+                    {}, {}, {}, {}, {}, {}, {}, {}, model::refresh, onPlaybackSpeed = {})
             } }
             waitUntil { !model.state.value.loading }
             val error = activity.get().getString(SpeechError.NoEngine.messageResource)
             compose.onNodeWithText(error).assertIsDisplayed()
-            val rate = compose.onNodeWithContentDescription("Speaking rate").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-            val pitch = compose.onNodeWithContentDescription("Pitch").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            val speed = compose.onNodeWithContentDescription("Playback speed").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             coEvery { engines.inspect("") } coAnswers { inspection.await() }
             compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
             waitUntil { model.state.value.loading }
             compose.onNodeWithText(error).assertIsDisplayed()
-            assertEquals(rate, compose.onNodeWithContentDescription("Speaking rate").fetchSemanticsNode().boundsInRoot)
-            assertEquals(pitch, compose.onNodeWithContentDescription("Pitch").fetchSemanticsNode().boundsInRoot)
+            assertEquals(speed, compose.onNodeWithContentDescription("Playback speed").fetchSemanticsNode().boundsInRoot)
             compose.onNodeWithTag("speech-preview").assertIsNotEnabled()
             inspection.completeExceptionally(SpeechException(SpeechError.NoEngine))
             waitUntil { !model.state.value.loading }
             compose.onNodeWithText(error).assertIsDisplayed()
-            assertEquals(rate, compose.onNodeWithContentDescription("Speaking rate").fetchSemanticsNode().boundsInRoot)
-            assertEquals(pitch, compose.onNodeWithContentDescription("Pitch").fetchSemanticsNode().boundsInRoot)
+            assertEquals(speed, compose.onNodeWithContentDescription("Playback speed").fetchSemanticsNode().boundsInRoot)
             compose.onNodeWithTag("speech-preview").assertIsNotEnabled()
         } finally {
             model.viewModelScope.cancel()
@@ -280,7 +291,7 @@ class SpeechControlsTest {
         activity.get().setContent {
             MaterialTheme {
                 SpeechSettingsScreen(SpeechSettingsUiState(loading = false), ReadAloudState(),
-                    {}, {}, {}, {}, {}, {}, {}, {}, {}, onHttpSources = { opened = true })
+                    {}, {}, {}, {}, {}, {}, {}, {}, {}, onPlaybackSpeed = {}, onHttpSources = { opened = true })
             }
         }
         compose.onNodeWithText("Voices").assertIsDisplayed().performClick()

@@ -3,6 +3,8 @@ package indi.renakoni.nextvol.tts
 import android.content.ContextWrapper
 import android.os.Looper
 import android.os.StrictMode
+import android.os.SystemClock
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -22,6 +24,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
@@ -148,7 +152,7 @@ class HttpSpeechInstrumentedTest {
         } finally { executor.close(); directory.deleteRecursively() }
     }
 
-    @Test fun isolatedSpeechPostReachesActualPlaybackWithoutReinterpretingBookText(): Unit = runBlocking {
+    @Test fun isolatedSpeechPostPreservesTextAndPlaybackSpeedChangesDurationWithoutAnotherRequest(): Unit = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val directory = File(context.cacheDir, "http-speech-test-${UUID.randomUUID()}").apply { mkdirs() }
         val authority = ExecutionAuthority()
@@ -159,7 +163,8 @@ class HttpSpeechInstrumentedTest {
                 val url = server.url("/").toString()
                 val rule = "@js:" + JsonPrimitive("$url,") + "+JSON.stringify({method:'POST',body:{text:speakText,speed:speakSpeed}})"
                 val source = previewHttpSpeech(buildJsonObject { put("name", "Device voice"); put("url", rule) }.toString()).sources.single()
-                val audio = wave()
+                // This deterministic source ignores the requested synthesis rate.
+                val audio = wave(seconds = 4)
                 server.enqueue(MockResponse().setHeader("Content-Type", "audio/mpeg").setBody(okio.Buffer().write(audio)))
                 SourceBroker(File(directory, "runtime").toPath()).use { owner ->
                     HttpSpeechClient(source, owner, listOf(NetworkGrant(url, true)), authority, executor::execute).use { client ->
@@ -174,14 +179,38 @@ class HttpSpeechInstrumentedTest {
                         withContext(Dispatchers.Main) {
                             val player = ExoPlayer.Builder(context).build()
                             try {
-                                var playing = false
                                 val playback = ExoSpeechPlayback(player, context)
-                                withTimeout(10_000) {
-                                    playback.play(SpeechClip(SpeechChapter("", "", "", "", text), SpeechSegment(0, text.length, text), 0, 1, file), true, onRange = {}) { phase, _ ->
-                                        if (phase == SpeechPhase.Playing) playing = true
+                                val clip = SpeechClip(SpeechChapter("", "", "", "", text),
+                                    SpeechSegment(0, text.length, text), 0, 1, file)
+                                val durations = mutableListOf<Long>()
+                                for (speed in listOf(1f, 2f)) {
+                                    var startedAt: Long? = null
+                                    withTimeout(10_000) {
+                                        val playing = launch {
+                                            playback.play(clip, false, onRange = {}) { phase, _ ->
+                                                if (phase == SpeechPhase.Playing && startedAt == null)
+                                                    startedAt = SystemClock.elapsedRealtime()
+                                            }
+                                        }
+                                        while (player.playbackState != Player.STATE_READY) delay(10)
+                                        val pausedAt = player.currentPosition
+                                        playback.setSpeed(speed)
+                                        delay(150)
+                                        assertFalse(player.playWhenReady)
+                                        assertFalse(player.isPlaying)
+                                        assertEquals(pausedAt, player.currentPosition)
+                                        assertEquals(speed, player.playbackParameters.speed)
+                                        assertEquals(1f, player.playbackParameters.pitch)
+                                        playback.resume()
+                                        playing.join()
                                     }
+                                    assertNotNull(startedAt)
+                                    durations += SystemClock.elapsedRealtime() - requireNotNull(startedAt)
                                 }
-                                assertTrue(playing)
+                                assertTrue("Normal playback must consume the four-second audio: $durations", durations[0] >= 3000)
+                                assertTrue("2x must take about half the real time: $durations",
+                                    durations[1].toDouble() / durations[0] in 0.35..0.75)
+                                assertEquals(1, server.requestCount)
                             } finally { player.release() }
                         }
                         file.writeText("{\"error\":\"not audio\"}")
@@ -245,9 +274,9 @@ class HttpSpeechInstrumentedTest {
         } finally { directory.deleteRecursively() }
     }
 
-    private fun wave(): ByteArray {
+    private fun wave(seconds: Int = 1): ByteArray {
         val rate = 16000
-        val samples = ShortArray(rate) { (sin(it * 2 * Math.PI * 440 / rate) * 4000).toInt().toShort() }
+        val samples = ShortArray(rate * seconds) { (sin(it * 2 * Math.PI * 440 / rate) * 4000).toInt().toShort() }
         return ByteBuffer.allocate(44 + samples.size * 2).order(ByteOrder.LITTLE_ENDIAN).apply {
             put("RIFF".toByteArray()); putInt(capacity() - 8); put("WAVEfmt ".toByteArray()); putInt(16)
             putShort(1); putShort(1); putInt(rate); putInt(rate * 2); putShort(2); putShort(16)

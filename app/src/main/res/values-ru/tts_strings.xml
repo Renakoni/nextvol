@@ -31,7 +31,11 @@
     <string name="tts_local_voice">Офлайн</string>
     <string name="tts_voice_not_installed">Необходимо установить данные голоса</string>
     <string name="tts_voice_unavailable">Сохранённый голос недоступен</string>
-    <string name="tts_rate">Скорость речи</string>
+    <string name="tts_playback_speed">Скорость воспроизведения</string>
+    <string name="tts_rate">Темп синтеза речи</string>
+    <string name="tts_advanced">Дополнительные настройки</string>
+    <string name="tts_hide_advanced">Скрыть дополнительные настройки</string>
+    <string name="tts_rate_description">Меняет темп при создании аудио. Текущий фрагмент будет создан заново. Результат зависит от источника голоса.</string>
     <string name="tts_pitch">Высота голоса</string>
     <string name="tts_factor">%1$.1f×</string>
     <string name="tts_preview">Прослушать голос</string>
