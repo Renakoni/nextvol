@@ -35,7 +35,7 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 | Reader UI and reader tests | App UI tests plus content and mixed-source reader consumers, excluding speech UI | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
 | Speech implementation/UI/tests | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
 | Shared/unknown code, resources, source/EPUB modules, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
-| Only root Markdown or `.github/*.md` documentation | Skip | Skip | Skip | Skip |
+| Only root / `.github/*.md` / `docs/**/*.md` documentation, the three existing Issue templates, or `.github/FUNDING.yml` | Skip | Skip | Skip | Skip |
 
 The exact allowlist is in the selector. In particular, `ui/components`, navigation,
 theme/settings and the data layer retain full checks. These are reviewed path
@@ -43,6 +43,11 @@ boundaries, not automatic dependency analysis; update the selection when sharing
 code across them. Resource files and Markdown fixtures under source directories
 are not assumed to be documentation. Mixed changes take the union; any unknown
 path selects full checks. Full selection runs the maintained suite described below.
+The Issue template allowlist names `bug_report.yml`, `feature_request.yml`, and
+`maintenance_task.yml`; a new template or other repository configuration needs
+review before it can skip Android work. PR templates use the `.github/*.md` rule.
+Deleted documentation follows the same allowlist. A move into a source or fixture
+directory also includes its destination, which retains that input's checks.
 
 PR and merge-group comparisons use the event's base SHA and the checked-out merge
 tree. A missing base is fetched shallowly by SHA. Git lists all changed paths

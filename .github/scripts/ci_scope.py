@@ -49,7 +49,12 @@ MINIFIED_SPEECH = PACKAGE + 'benchmark.tts.ReadAloudSmokeTest'
 def classify(path):
     parts = Path(path).parts
     if path.endswith('.md') and (len(parts) == 1 or
-                                (len(parts) == 2 and parts[0] == '.github')):
+                                (len(parts) == 2 and parts[0] == '.github') or
+                                path.startswith('docs/')):
+        return 'docs'
+    if path in {'.github/FUNDING.yml', '.github/ISSUE_TEMPLATE/bug_report.yml',
+                '.github/ISSUE_TEMPLATE/feature_request.yml',
+                '.github/ISSUE_TEMPLATE/maintenance_task.yml'}:
         return 'docs'
     for root in KOTLIN_ROOTS:
         if path.startswith(root):
