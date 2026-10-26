@@ -283,6 +283,8 @@ def changed_paths(event_name, event):
         base = event['pull_request']['base']['sha']
     elif event_name == 'merge_group':
         base = event['merge_group']['base_sha']
+    elif event_name == 'push':
+        base = event['before']
     else:
         raise ValueError('manual/other event: full checks')
     if not re.fullmatch(r'[0-9a-fA-F]{40}', base):
@@ -293,7 +295,7 @@ def changed_paths(event_name, event):
         # Fetch only the base, not the repository's historical large binary assets.
         subprocess.run(['git', 'fetch', '--no-tags', '--depth=1', 'origin', base],
                        check=True, timeout=120)
-    # HEAD is the tested PR merge tree (or merge-group tree). No API file-list cap;
+    # HEAD is the tested merge tree or pushed main commit. No API file-list cap;
     # --no-renames includes both sides of moves, including moves across scopes.
     diff = subprocess.check_output(
         ['git', 'diff', '--no-ext-diff', '--no-renames', '--name-only', '-z', base, 'HEAD', '--'],

@@ -22,11 +22,27 @@ permissions:
 
 concurrency:
   group: android-cache-main
+  # Finish the running writer; GitHub keeps only the latest pending update.
   cancel-in-progress: false
 
 jobs:
-  warm:
+  selection:
     if: github.ref == 'refs/heads/main'
+    name: Select main cache compilation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      gradle-args: ${{ steps.scope.outputs.gradle-args }}
+      images: ${{ steps.scope.outputs.images }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Select compilation and environment inputs
+        id: scope
+        run: python3 .github/scripts/ci_cache.py
+
+  warm:
+    needs: selection
+    if: needs.selection.outputs.gradle-args != ''
     name: Populate main Gradle caches
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -34,13 +50,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./.github/actions/android-environment
       - name: Warm dependency and compilation caches
-        run: >-
-          ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
-          :app:compileDebugUnitTestKotlin :benchmark:assembleBenchmark
-          --console=plain --stacktrace --max-workers=2
+        env:
+          GRADLE_TASKS: ${{ needs.selection.outputs.gradle-args }}
+        run: |
+          read -r -a tasks <<< "$GRADLE_TASKS"
+          ./gradlew --no-daemon "${tasks[@]}" --console=plain --stacktrace --max-workers=2
 
   images:
-    if: github.ref == 'refs/heads/main'
+    needs: selection
+    if: needs.selection.outputs.images == 'true'
     name: Populate main API ${{ matrix.api }} image cache
     runs-on: ubuntu-24.04
     timeout-minutes: 30

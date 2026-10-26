@@ -473,6 +473,7 @@ class ScopeTests(unittest.TestCase):
                 for event_name, event in (
                     ('pull_request', {'pull_request': {'base': {'sha': base}}}),
                     ('merge_group', {'merge_group': {'base_sha': base}}),
+                    ('push', {'before': base}),
                 ):
                     paths = ci_scope.changed_paths(event_name, event)
                     self.assertEqual(308, len(paths))
