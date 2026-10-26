@@ -17,10 +17,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Err
 import indi.renakoni.nextvol.R
@@ -28,6 +34,12 @@ import indi.renakoni.nextvol.data.bookmark.ReadingBookmark
 import indi.renakoni.nextvol.theme.AppTheme
 import indi.renakoni.nextvol.tts.ReadAloudState
 import indi.renakoni.nextvol.ui.LocalAppTheme
+import indi.renakoni.nextvol.ui.home.settings.theme.ThemeScreen
+import indi.renakoni.nextvol.utils.expandEnter
+import indi.renakoni.nextvol.utils.expandExit
+import indi.renakoni.nextvol.utils.expandPopEnter
+import indi.renakoni.nextvol.utils.expandPopExit
+import indi.renakoni.nextvol.utils.popBackStackIfResumed
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.bookmark.LocalReaderBookmarks
 import indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarkSession
@@ -49,6 +61,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class, qualifiers = "en-rUS-w360dp-h640dp-mdpi")
@@ -57,6 +70,8 @@ class ReaderScreenUpdatesTest {
     private lateinit var activity: ActivityController<ComponentActivity>
     private var screenReads = 0
     private var bottomPadding by mutableStateOf(0f)
+    private var reduceMotion by mutableStateOf(true)
+    private lateinit var nav: NavHostController
     private val reportedLayouts = mutableMapOf<String, MutableState<ReaderLayoutResult?>>()
     private lateinit var bookmarks: ReaderBookmarkSession
     private val content = MutableScrollContentUiSate({}, {}, {}, {}, {}).apply {
@@ -72,7 +87,10 @@ class ReaderScreenUpdatesTest {
         content.contentList[1] = "a" to Ok(chapter("a"))
     }
 
-    @After fun teardown() { activity.pause().stop().destroy() }
+    @After fun teardown() {
+        compose.mainClock.autoAdvance = true
+        activity.pause().stop().destroy()
+    }
 
     @Test fun immersiveChapterUpdatesKeepTheLayoutOwnerAndDoNotInvalidateTheScreenScope() =
         checkChapterUpdate(showMenu = false)
@@ -152,13 +170,65 @@ class ReaderScreenUpdatesTest {
         compose.onNodeWithText(activity.get().getString(R.string.reader_bookmarks_load_failed)).assertIsDisplayed()
     }
 
-    private fun show() {
+    @Test
+    @Config(sdk = [35])
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun themeRoundTripsRestoreSettingsPositionAndExpansionAfterTheReturnTransition() {
+        show(withThemeNavigation = true)
+        val pane = SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle,
+            activity.get().getString(R.string.reader_settings))
+        val themeLabel = activity.get().getString(R.string.settings_theme_settings)
+        compose.onNodeWithText("Body a").performTouchInput { click(center) }
+        for (reduced in listOf(false, true)) {
+            compose.runOnIdle { reduceMotion = reduced }
+            compose.onNodeWithContentDescription(activity.get().getString(R.string.settings)).performClick()
+            if (!reduced) {
+                compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand))
+                    .performSemanticsAction(SemanticsActions.Expand) { it() }
+            }
+            compose.onNode(hasScrollToIndexAction() and hasAnyAncestor(pane)).performScrollToIndex(2)
+            val before = compose.onNodeWithText(themeLabel).fetchSemanticsNode().boundsInRoot.top
+
+            compose.mainClock.autoAdvance = false
+            compose.onNodeWithText(themeLabel).performClick()
+            compose.mainClock.advanceTimeBy(32)
+            compose.onNode(pane).assertDoesNotExist()
+            compose.mainClock.autoAdvance = true
+            compose.onNodeWithTag("theme-settings-list").assertIsDisplayed()
+
+            compose.mainClock.autoAdvance = false
+            if (reduced) {
+                compose.runOnIdle { activity.get().onBackPressedDispatcher.onBackPressed() }
+            } else {
+                compose.onNodeWithContentDescription(activity.get().getString(R.string.sources_back)).performClick()
+            }
+            compose.mainClock.advanceTimeBy(32)
+            compose.onNode(pane).assertDoesNotExist()
+            compose.mainClock.autoAdvance = true
+            compose.onAllNodes(pane).assertCountEquals(1)
+            compose.onNodeWithText(themeLabel).assertIsDisplayed()
+            assertEquals(before, compose.onNodeWithText(themeLabel).fetchSemanticsNode().boundsInRoot.top, 1f)
+            compose.onNode(SemanticsMatcher.keyIsDefined(
+                if (reduced) SemanticsActions.Expand else SemanticsActions.Collapse)).assertExists()
+            assertEquals("a", content.readingChapterId)
+
+            compose.onNodeWithContentDescription(activity.get().getString(R.string.close))
+                .performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.onNode(pane).assertDoesNotExist()
+            compose.onNodeWithText("Body a").assertIsDisplayed()
+            compose.onNodeWithContentDescription(activity.get().getString(R.string.settings)).assertIsDisplayed()
+        }
+    }
+
+    private fun show(withThemeNavigation: Boolean = false) {
         val settings = mockk<ReaderSettingsEditor>(relaxed = true) {
             every { paperId } returns "paper"
             every { fontFamilyUri } returns Uri.EMPTY
             every { fontSize } returns 15f
             every { fontWeigh } returns 500f
-            every { reduceMotion } returns true
+            every { reduceMotion } answers { this@ReaderScreenUpdatesTest.reduceMotion }
+            every { backgroundImageUri } returns Uri.EMPTY
+            every { backgroundDarkImageUri } returns Uri.EMPTY
             every { enableChapterTitleIndicator } returns true
             every { enableReadingChapterProgressIndicator } returns true
             every { isUsingFlipPage } answers { reader.contentUiState is MutableFlipPageContentUiState }
@@ -167,13 +237,27 @@ class ReaderScreenUpdatesTest {
             every { backBlockMode } answers { screenReads++; ReaderBackBlockMode.None }
         }
         val fonts = mockk<ReaderFontFamilySettings> { every { getFlow() } returns flowOf(Uri.EMPTY) }
+        val screen: @Composable () -> Unit = {
+            ReaderScreen(reader, settings, fonts, {}, { _, _ -> }, { _, _ -> }, {}, {},
+                {}, { nav.navigate("theme") }, ReadAloudState(), {}, {}, {}, {})
+        }
         compose.runOnUiThread {
             activity.get().setContent {
                 CompositionLocalProvider(LocalAppTheme provides AppTheme(false, lightColorScheme()),
                     LocalDensity provides Density(1f)) {
                     MaterialTheme {
-                        ReaderScreen(reader, settings, fonts, {}, { _, _ -> }, { _, _ -> }, {}, {},
-                            {}, {}, ReadAloudState(), {}, {}, {}, {})
+                        if (withThemeNavigation) {
+                            nav = rememberNavController()
+                            NavHost(nav, startDestination = "reader",
+                                enterTransition = { expandEnter() }, exitTransition = { expandExit() },
+                                popEnterTransition = { expandPopEnter() }, popExitTransition = { expandPopExit() }) {
+                                composable("reader") { screen() }
+                                composable("theme") {
+                                    ThemeScreen(mockk<ThemeSettingsEditor>(relaxed = true), settings,
+                                        nav::popBackStackIfResumed, {}, {})
+                                }
+                            }
+                        } else screen()
                     }
                 }
             }
