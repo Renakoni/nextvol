@@ -1,7 +1,7 @@
 # Source execution isolation (#86)
 
 Content activation is assembled by [createRuleSource](../content/src/main/kotlin/hnovel/content/RuleSourceHost.kt).
-It checks definition/ticket/session ownership,
+It checks definition/ticket/session ownership and binds the ticket before configuration,
 configures the existing session and supplies bound storage, `SourceInvocations` and
 content-only network capabilities. Network and execution never depend on content;
 content retains its `api` dependencies for public request, response and error contracts.

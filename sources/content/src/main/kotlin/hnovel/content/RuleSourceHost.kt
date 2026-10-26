@@ -22,6 +22,7 @@ internal class RuleSourceBinding private constructor(val definition: SourceDefin
             require(identity.sourceId == definition.sourceId && identity.profile == definition.profile && identity.revision == definition.contentDigest)
             require(session.scope.sourceId == identity.sourceId && session.scope.namespace == identity.namespace &&
                 session.scope.profile == identity.profile && session.scope.accountGeneration == identity.accountGeneration)
+            authority.bindSession(identity, session)
             session.configureSource(spec.baseUrl, spec.cookiesEnabled, spec.browserRead, spec.concurrentRate,
                 spec.localStorageRetention, defaultUserAgent = DESKTOP_USER_AGENT, preferBrowserUserAgent = true)
             session.traceRequests(if (trace === ContentTrace.None) RequestTrace.None else RequestTrace { event ->

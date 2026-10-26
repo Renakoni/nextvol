@@ -3,8 +3,35 @@ package hnovel.content
 import hnovel.network.*
 import org.junit.Assert.*
 import org.junit.Test
+import java.nio.file.Files
 
 class RuleSourceHostTest {
+    @Test fun assemblyBindsTheSessionBeforeAnyRuleInvocation() {
+        RuleSourceFixture().use { fixture -> fixture.source().use { source ->
+            val definition = source.definition
+            val scope = SourceScope("rules", definition.sourceId, definition.profile)
+            val session = fixture.broker.open(scope, listOf(NetworkGrant(fixture.server.url("/").toString(), true)))
+            fixture.beforeRun = { _, _ -> error("Assembly must not execute rules") }
+            val ticket = fixture.authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "rules")
+            createRuleSource(definition, ticket, fixture.authority, session, fixture.runner).use {
+                SourceBroker(Files.createTempDirectory("rule-host-other-session")).use { other ->
+                    val replacement = other.open(scope, emptyList())
+                    assertThrows(IllegalStateException::class.java) {
+                        createRuleSource(definition, ticket, fixture.authority, replacement, fixture.runner)
+                    }
+                    assertEquals("", replacement.sourceUrl)
+                    assertFalse(replacement.closed)
+                }
+            }
+            val fresh = fixture.authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "rules")
+            createRuleSource(definition, fresh, fixture.authority, session, fixture.runner).use {
+                assertTrue(fixture.authority.accepts(fresh))
+                session.close()
+                assertFalse(fixture.authority.accepts(fresh))
+            }
+        } }
+    }
+
     @Test fun mismatchedDefinitionsAndAccountsAreRejectedBeforeConfiguringTheSession() {
         RuleSourceFixture().use { fixture -> fixture.source().use { source ->
             val definition = source.definition
