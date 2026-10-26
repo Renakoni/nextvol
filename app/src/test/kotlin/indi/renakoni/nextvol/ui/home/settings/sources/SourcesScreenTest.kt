@@ -1027,7 +1027,8 @@ class SourcesScreenTest {
         compose.onNodeWithText("Sign out").assertDoesNotExist()
         compose.onNodeWithText("Sign in again").assertDoesNotExist()
         compose.runOnIdle { state = state.copy(accountName = "reader-with-a-very-long-account-name@example.com") }
-        compose.onNodeWithText("reader-with-a-v…").assertExists()
+        compose.onNodeWithText("reader-with-a-v…")
+            .assertContentDescriptionEquals("reader-with-a-very-long-account-name@example.com")
         compose.onNodeWithText("reader-with-a-very-long-account-name@example.com").assertDoesNotExist()
     }
 }

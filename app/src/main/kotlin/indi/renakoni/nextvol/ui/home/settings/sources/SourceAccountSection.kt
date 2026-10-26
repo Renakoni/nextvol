@@ -7,6 +7,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +51,7 @@ internal fun SourceAccountSection(status: LoginStatus?, accountName: String?, av
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
             if (hasSession && accountName != null) Text(stringResource(R.string.sources_account_name, displayAccountName(accountName)),
+                modifier = Modifier.semantics { contentDescription = accountName },
                 style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (verification == null && status != null && !available) {
