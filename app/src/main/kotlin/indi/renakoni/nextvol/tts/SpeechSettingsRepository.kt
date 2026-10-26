@@ -20,10 +20,12 @@ data class SpeechSettings(
     val rate: Float? = null,
     val pitch: Float? = null,
     val httpSource: String? = null,
+    val playbackSpeed: Float = 1f,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
         pitch = pitch?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
+        playbackSpeed = playbackSpeed.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f) ?: 1f,
     )
 }
 

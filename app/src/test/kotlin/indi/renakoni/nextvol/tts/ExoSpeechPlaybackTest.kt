@@ -57,11 +57,14 @@ class ExoSpeechPlaybackTest {
         runCurrent()
         assertEquals(listOf(timing[0]), delivered)
         // Advancing wall time without advancing the audio cannot select the next boundary.
+        playback.setSpeed(2f)
+        verify { player.setPlaybackSpeed(2f) }
         advanceTimeBy(2000)
         runCurrent()
         assertEquals(listOf(timing[0]), delivered)
         playing = false
         position = 1000
+        playback.setSpeed(0.5f)
         advanceTimeBy(500)
         runCurrent()
         assertEquals(listOf(timing[0]), delivered)
@@ -78,6 +81,7 @@ class ExoSpeechPlaybackTest {
         assertEquals("Paused seek before the first timestamp must restore the first range", timing + timing.first(), delivered)
         verify(exactly = 1) { player.setMediaItem(any<MediaItem>()) }
         verify(exactly = 1) { player.prepare() }
+        verify(exactly = 0) { player.play() }
         playback.stop()
         runCurrent()
         assertTrue(job.isCancelled)
@@ -118,6 +122,8 @@ class ExoSpeechPlaybackTest {
         advanceTimeBy(50)
         runCurrent()
         assertEquals(listOf(0, 5), anchors)
+        playback.setSpeed(2f)
+        verify { player.setPlaybackSpeed(2f) }
         advanceTimeBy(1000)
         runCurrent()
         assertEquals(listOf(0, 5), anchors)

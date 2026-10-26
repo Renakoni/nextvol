@@ -33,6 +33,7 @@ interface SpeechPlayback {
     fun pause()
     fun resume()
     fun stop()
+    fun setSpeed(speed: Float)
 }
 
 /** Main-thread session owner. Source, synthesis and actual playback have separate lifetimes. */
@@ -53,6 +54,7 @@ class ReadAloudSession(
     private var engine: SpeechSynthesizer? = null
     private var currentClip: SpeechClip? = null
     private var wantsPlay = true
+    private var currentSettings: SpeechSettings? = null
 
     fun start(request: SpeechRequest, resumeSaved: Boolean = true, boundary: SpeechBookmark? = null, playing: Boolean = true) {
         val previous = work
@@ -78,7 +80,11 @@ class ReadAloudSession(
                     }?.forEach { if (!it.deleteRecursively()) throw SpeechException(SpeechError.Storage) }
                     if (!directory.mkdirs()) throw SpeechException(SpeechError.Storage)
                 }
-                val selected = settings()
+                val stored = settings().validated()
+                // A settings emission received during the read takes precedence over its snapshot.
+                val selected = currentSettings ?: stored
+                currentSettings = selected
+                playback.setSpeed(selected.playbackSpeed)
                 val voice = provider.open(selected)
                 currentCoroutineContext().ensureActive()
                 publish(token) { it.copy(voiceLabel = voice) }
@@ -165,6 +171,14 @@ class ReadAloudSession(
             if (delta > 0 || clip.chapter.previousId != null) changeChapter(delta > 0)
             else start(request, resumeSaved = false, boundary = clip.bookmark(clip.segment.start), playing = wantsPlay)
         } else start(request, resumeSaved = false, boundary = clip.bookmark(target.start), playing = wantsPlay)
+    }
+
+    fun updateSettings(settings: SpeechSettings) {
+        val value = settings.validated()
+        val previous = currentSettings
+        currentSettings = value
+        playback.setSpeed(value.playbackSpeed)
+        if (previous != null && previous.copy(playbackSpeed = value.playbackSpeed) != value) reloadSettings()
     }
 
     /** Voice changes resynthesize from the current boundary, preserving a deliberate pause. */
