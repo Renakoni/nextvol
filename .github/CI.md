@@ -38,7 +38,8 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 | EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
 | Backup implementation, dedicated import/export dialogs and backup Workers | App backup, persistence and shared-file consumers | Skip | Skip | Run |
 | Storage queries/cleanup/ownership and dedicated book/storage management UI | App storage, downloads, local books and reading-record consumers | API 24 download persistence and local import | Skip | Run |
-| Shared/unknown code, resources, source/EPUB modules, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
+| Source module Kotlin implementation and existing source-catalog JSON | Complete App JVM plus module consumers below | Existing full Debug device coverage; speech module retains reader/speech devices | Source runtime; add read-aloud when speech is affected | Run |
+| Shared/unknown code, resources, module inputs, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
 | Only root / `.github/*.md` / `docs/**/*.md` documentation, the three existing Issue templates, or `.github/FUNDING.yml` | Skip | Skip | Skip | Skip |
 
 The exact allowlist is in the selector. In particular, shared `ui/components`, navigation,
@@ -96,6 +97,44 @@ Shared Room/DAO, BookIdentity, book repositories and reading-record core paths
 still widen coverage. Changes to shared JVM consumers such as `BookDownloadTest`
 or `LocalBookStoreTest` conservatively run the full App JVM suite; combined with
 storage production edits they retain storage-only devices, not all devices.
+
+### Source module consumers
+
+Only `sources/<module>/src/main/kotlin/**/*.kt` in the table below is classified
+as reviewed source implementation. Module names map to `:source-<module>` in
+`settings.gradle.kts`. Each row runs the complete App JVM suite and
+`:source-compatibility:test`, in addition to the listed `:source-<module>:test`
+tasks. This explicit reverse dependency closure includes test dependencies;
+compiling a dependent module alone would not run its tests.
+
+| Changed module | Own and downstream source JVM tasks |
+| --- | --- |
+| rules | rules, network, import, rhino, execution, content, speech |
+| network | network, import, execution, content, speech |
+| import | import, content |
+| rhino | rhino, execution, content, speech |
+| execution | execution, content, speech |
+| content | content |
+| speech | speech |
+
+The `source` scope keeps the existing full Debug device set because App reading,
+download and browser consumers cross module boundaries. It retains the minified
+source smoke and adds read-aloud smoke for rules/network/rhino/execution, whose
+downstream consumers include speech. A speech-only module edit uses the existing
+reader/speech devices and read-aloud smoke. App tests run without `ciTestScope` for
+all these module edits, including mixed UI changes, so source adapters in download,
+export, image and UI packages remain covered. EPUB module tests are selected only
+when another changed path requires them. Production Lint and Release policy stays
+unchanged.
+
+The existing `catalog`, `Adult`, `Anime`, `Female`, `General`, `Literature` and
+`Platforms` JSON files under `app/src/main/assets/source-catalog` are production
+inputs. They select App/content/compatibility JVM, source devices and source smoke;
+content reads catalog files directly and App tests consume the packaged assets.
+TestFixtures, Rhino resources and compatibility browser/native-routing inputs keep
+the shared-input rules below and union with production changes. Unknown catalog
+files, module resources, new modules, API, Manifest, AIDL and shared build/dependency
+changes still select full checks. No import or execution implementation is changed.
 
 PR and merge-group comparisons use the event's base SHA and the checked-out merge
 tree. A missing base is fetched shallowly by SHA. Git lists all changed paths

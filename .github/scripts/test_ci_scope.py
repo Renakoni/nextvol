@@ -219,13 +219,76 @@ class ScopeTests(unittest.TestCase):
         self.assertIn('-PciTestScope=reader,ui', plan['gradle-args'])
         self.assertTrue(plan['device-35'])
 
+    def test_source_modules_keep_transitive_consumers_without_epub(self):
+        for module, consumers in (
+                ('network', {'network', 'import', 'execution', 'content', 'speech'}),
+                ('rhino', {'rhino', 'execution', 'content', 'speech'}),
+                ('import', {'import', 'content'})):
+            with self.subTest(module=module):
+                plan = self.select(f'sources/{module}/src/main/kotlin/Changed.kt')
+                expected = {':app:testDebugUnitTest', ':source-compatibility:test'}
+                expected.update(f':source-{name}:test' for name in consumers)
+                self.assertEqual(expected, set(plan['gradle-args'].split()))
+                self.assertTrue(plan['release'])
+                self.assertTrue(plan['lint'])
+                for api in (24, 35):
+                    self.assertEqual(ci_scope.device_classes({'full'}, api),
+                                     ci_scope.device_classes(set(plan['device-scopes'].split(',')), api))
+                smoke = {ci_scope.MINIFIED_SOURCE}
+                if 'speech' in consumers:
+                    smoke.add(ci_scope.MINIFIED_SPEECH)
+                self.assertEqual(smoke, set(plan['minified-classes'].split(',')))
+
+    def test_source_impact_table_covers_actual_transitive_module_dependencies(self):
+        dependencies = {module: set(re.findall(r'project\(":source-([a-z]+)"\)',
+                        (ROOT / f'sources/{module}/build.gradle.kts').read_text(encoding='utf-8')))
+                        for module in ci_scope.SOURCE_CONSUMERS}
+        for changed, consumers in ci_scope.SOURCE_CONSUMERS.items():
+            affected = {changed}
+            while True:
+                expanded = affected | {module for module, inputs in dependencies.items() if inputs & affected}
+                if expanded == affected:
+                    break
+                affected = expanded
+            self.assertEqual(affected, set(consumers), changed)
+
+    def test_source_speech_keeps_full_app_and_existing_speech_devices(self):
+        plan = self.select('sources/speech/src/main/kotlin/hnovel/speech/HttpSpeechClient.kt')
+        self.assertEqual({':app:testDebugUnitTest', ':source-speech:test', ':source-compatibility:test'},
+                         set(plan['gradle-args'].split()))
+        self.assertEqual('reader,speech', plan['device-scopes'])
+        self.assertEqual(ci_scope.MINIFIED_SPEECH, plan['minified-classes'])
+
+    def test_source_catalog_and_shared_test_inputs_union_their_consumers(self):
+        plan = self.select('app/src/main/assets/source-catalog/Adult.json',
+                           'sources/rhino/src/test/resources/fixtures/plain.ttf',
+                           ci_scope.KOTLIN_ROOTS[1] + 'ui/home/bookshelf/BookshelfTest.kt')
+        self.assertEqual({':app:testDebugUnitTest', ':source-content:test', ':source-rhino:test',
+                          ':source-compatibility:test'}, set(plan['gradle-args'].split()))
+        self.assertIn('full', plan['device-scopes'].split(','))
+        self.assertTrue(plan['release'])
+        self.assertEqual(ci_scope.MINIFIED_SOURCE, plan['minified-classes'])
+        plan = self.select('sources/content/src/main/kotlin/hnovel/content/RuleSource.kt',
+                           MAIN + 'data/export/ExportBookToEpubUseCase.kt')
+        self.assertIn(':epub:test', plan['gradle-args'])
+        self.assertNotIn('-PciTestScope', plan['gradle-args'])
+        self.assertEqual(len(plan['gradle-args'].split()), len(set(plan['gradle-args'].split())))
+        for path in ('sources/execution/src/main/aidl/Worker.aidl',
+                     'sources/network/src/main/AndroidManifest.xml',
+                     'sources/rhino/src/main/resources/script.js',
+                     'sources/new-module/src/main/kotlin/Unknown.kt',
+                     'app/src/main/assets/source-catalog/NewCategory.json'):
+            with self.subTest(path=path):
+                self.assertEqual(ci_scope.plan({'full'}), self.select(
+                    'sources/content/src/main/kotlin/hnovel/content/RuleSource.kt', path))
+
     def test_shared_unknown_resources_and_build_changes_run_everything(self):
         for path in (MAIN + 'ui/components/Cards.kt', MAIN + 'ui/navigation/Navigation.kt',
                      MAIN + 'ui/home/settings/list/ReadingSettingsList.kt',
                      MAIN + 'data/local/UserReadingDataRepository.kt',
                      MAIN + 'ui/newfeature/NewScreen.kt',
                      'app/src/main/res/values/strings.xml', 'app/src/main/AndroidManifest.xml',
-                     'sources/content/src/main/kotlin/NewClass.kt', 'gradle/libs.versions.toml',
+                     'sources/content/src/main/resources/unknown.json', 'gradle/libs.versions.toml',
                      'app/build.gradle.kts', '.github/scripts/ci_scope.py',
                      '.github/workflows/device-tests.yml', '.github/actions/ci-scope/action.yml'):
             with self.subTest(path=path):
