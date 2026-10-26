@@ -25,7 +25,7 @@ class ReadAloudController @Inject constructor(@ApplicationContext private val co
         val chapter = BookIdentity.chapter(chapterId, book)
         val current = state.value
         if (current.request?.bookId == book.storageKey && current.phase !in setOf(SpeechPhase.Stopped, SpeechPhase.Completed)) {
-            if (current.phase in setOf(SpeechPhase.Paused, SpeechPhase.Failed)) command(SpeechAction.Resume)
+            // Reopening this book's controls preserves its playback intent; Resume is explicit.
             return
         }
         start(SpeechRequest(book.storageKey, chapter.storageKey))
