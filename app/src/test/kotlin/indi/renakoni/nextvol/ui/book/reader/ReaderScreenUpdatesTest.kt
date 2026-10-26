@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -34,6 +35,8 @@ import indi.renakoni.nextvol.data.bookmark.ReadingBookmark
 import indi.renakoni.nextvol.theme.AppTheme
 import indi.renakoni.nextvol.tts.ReadAloudState
 import indi.renakoni.nextvol.ui.LocalAppTheme
+import indi.renakoni.nextvol.ui.LocalDarkColorScheme
+import indi.renakoni.nextvol.ui.LocalLightColorScheme
 import indi.renakoni.nextvol.ui.home.settings.theme.ThemeScreen
 import indi.renakoni.nextvol.utils.expandEnter
 import indi.renakoni.nextvol.utils.expandExit
@@ -244,6 +247,8 @@ class ReaderScreenUpdatesTest {
         compose.runOnUiThread {
             activity.get().setContent {
                 CompositionLocalProvider(LocalAppTheme provides AppTheme(false, lightColorScheme()),
+                    LocalLightColorScheme provides lightColorScheme(),
+                    LocalDarkColorScheme provides darkColorScheme(),
                     LocalDensity provides Density(1f)) {
                     MaterialTheme {
                         if (withThemeNavigation) {
