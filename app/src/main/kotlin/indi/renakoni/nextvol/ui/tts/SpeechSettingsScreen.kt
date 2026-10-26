@@ -73,6 +73,7 @@ fun SpeechSettingsScreen(
     onPlaybackSpeed: (Float) -> Unit,
     onHttpSources: () -> Unit = {},
     onSleepTimer: ((Int?) -> Unit)? = null,
+    onChapterSleepTimer: ((Int) -> Unit)? = null,
     onPreviewVoice: ((String) -> Unit)? = null,
 ) {
     var choice by remember { mutableStateOf<String?>(null) }
@@ -183,6 +184,7 @@ fun SpeechSettingsScreen(
         onSettings = null,
         onDismiss = { showPlayback = false },
         onSleepTimer = onSleepTimer,
+        onChapterSleepTimer = onChapterSleepTimer,
     )
     if (choice != null) {
         val engine = choice == "engine"

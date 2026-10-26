@@ -7,9 +7,19 @@
     <string name="tts_timer_minutes">%1$d 分鐘</string>
     <string name="tts_timer_remaining">剩餘 %1$s</string>
     <string name="tts_timer_chapter_end">聽完本章</string>
-    <string name="tts_timer_chapter_cancelled">已切換章節，章末定時已取消</string>
-    <string name="tts_timer_custom">自訂分鐘</string>
-    <string name="tts_timer_range">1–%1$d 分鐘</string>
+    <string name="tts_timer_chapter_cancelled">已切換章節，章節定時已取消</string>
+    <string name="tts_timer_custom">自訂時長</string>
+    <string name="tts_timer_by_chapter">按章節</string>
+    <string name="tts_timer_by_time">按時間</string>
+    <string name="tts_timer_current_chapter">本章</string>
+    <string name="tts_timer_hour_unit">小時</string>
+    <string name="tts_timer_minute_unit">分鐘</string>
+    <plurals name="tts_timer_chapters">
+        <item quantity="other">%1$d 章</item>
+    </plurals>
+    <plurals name="tts_timer_chapters_remaining">
+        <item quantity="other">剩餘 %1$d 章</item>
+    </plurals>
     <string name="tts_timer_set">開始定時</string>
     <string name="tts_title">聽書</string>
     <string name="tts_start">聽這本書</string>

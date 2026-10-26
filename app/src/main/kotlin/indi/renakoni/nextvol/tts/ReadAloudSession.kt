@@ -58,15 +58,15 @@ class ReadAloudSession(
     private var currentBoundary: SpeechBookmark? = null
     private var resumeSavedProgress = true
     private data class SuspendedBook(val request: SpeechRequest, val boundary: SpeechBookmark?,
-        val resumeSaved: Boolean, val playing: Boolean, val stopAtChapterEnd: Boolean)
+        val resumeSaved: Boolean, val playing: Boolean, val sleepTimerChapters: Int?)
     private var suspendedBook: SuspendedBook? = null
 
     fun start(request: SpeechRequest, resumeSaved: Boolean = true, boundary: SpeechBookmark? = null, playing: Boolean = true,
-        stopAtChapterEnd: Boolean = false) {
+        sleepTimerChapters: Int? = null) {
         val current = state.value
         if (!request.isPreview) suspendedBook = null
         else if (current.request?.isPreview == false && (current.isActive || current.phase == SpeechPhase.Paused)) {
-            suspendedBook = SuspendedBook(current.request, currentBoundary, resumeSavedProgress, wantsPlay, current.stopAtChapterEnd)
+            suspendedBook = SuspendedBook(current.request, currentBoundary, resumeSavedProgress, wantsPlay, current.sleepTimerChapters)
         }
         val previous = work
         val token = ++generation
@@ -78,7 +78,7 @@ class ReadAloudSession(
         resumeSavedProgress = resumeSaved
         wantsPlay = playing
         mutableState.value = ReadAloudState(request, if (playing) SpeechPhase.Preparing else SpeechPhase.Paused,
-            stopAtChapterEnd = stopAtChapterEnd)
+            sleepTimerChapters = sleepTimerChapters)
         work = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             // Preserve the cleanup chain even if another start cancels this waiting replacement.
             withContext(NonCancellable) { previous?.join() }
@@ -149,7 +149,7 @@ class ReadAloudSession(
             playback.resume()
             if (currentClip == null) mutableState.value = current.copy(phase = SpeechPhase.Buffering)
         } else if (current.phase in setOf(SpeechPhase.Failed, SpeechPhase.Stopped, SpeechPhase.Completed)) {
-            start(current.request, stopAtChapterEnd = current.stopAtChapterEnd)
+            start(current.request, sleepTimerChapters = current.sleepTimerChapters)
         }
     }
 
@@ -161,14 +161,26 @@ class ReadAloudSession(
         playback.stop()
         currentClip = null
         wantsPlay = false
-        mutableState.value = state.value.copy(phase = SpeechPhase.Stopped, error = null, position = null, stopAtChapterEnd = false)
+        mutableState.value = state.value.copy(phase = SpeechPhase.Stopped, error = null, position = null, sleepTimerChapters = null)
     }
 
-    fun setStopAtChapterEnd(enabled: Boolean) {
+    fun setChapterSleepTimer(chapters: Int?) {
         val current = state.value
-        // The last clip may already be finished while the next chapter is still loading.
-        if (enabled && currentClip == null && current.segmentCount > 0 && current.segmentIndex == current.segmentCount - 1) stop()
-        else mutableState.value = current.copy(stopAtChapterEnd = enabled)
+        mutableState.value = current.copy(sleepTimerChapters = chapters)
+        // Count the current chapter even if its audio has ended while the next one is loading.
+        if (currentClip == null && current.segmentCount > 0 && current.segmentIndex == current.segmentCount - 1) {
+            finishTimerChapter()
+        }
+    }
+
+    private fun finishTimerChapter(): Boolean {
+        val remaining = state.value.sleepTimerChapters ?: return false
+        if (remaining == 1) {
+            stop()
+            return true
+        }
+        mutableState.value = state.value.copy(sleepTimerChapters = remaining - 1)
+        return false
     }
 
     /** A noisy route or permanent focus loss must not resurrect the book behind a sample. */
@@ -182,7 +194,7 @@ class ReadAloudSession(
         val current = state.value
         if (current.request?.isPreview != true || current.phase !in setOf(SpeechPhase.Completed, SpeechPhase.Failed)) return false
         val book = suspendedBook ?: return false
-        start(book.request, book.resumeSaved, book.boundary, book.playing, book.stopAtChapterEnd)
+        start(book.request, book.resumeSaved, book.boundary, book.playing, book.sleepTimerChapters)
         return true
     }
 
@@ -213,9 +225,9 @@ class ReadAloudSession(
         if (target == null) {
             if (delta > 0 || clip.chapter.previousId != null) changeChapter(delta > 0)
             else start(request, resumeSaved = false, boundary = clip.bookmark(clip.segment.start), playing = wantsPlay,
-                stopAtChapterEnd = state.value.stopAtChapterEnd)
+                sleepTimerChapters = state.value.sleepTimerChapters)
         } else start(request, resumeSaved = false, boundary = clip.bookmark(target.start), playing = wantsPlay,
-            stopAtChapterEnd = state.value.stopAtChapterEnd)
+            sleepTimerChapters = state.value.sleepTimerChapters)
     }
 
     fun updateSettings(settings: SpeechSettings) {
@@ -233,7 +245,7 @@ class ReadAloudSession(
         val current = state.value
         if (current.request == null || current.request.isPreview || current.phase in setOf(SpeechPhase.Stopped, SpeechPhase.Completed)) return
         start(current.request, boundary = currentClip?.let { it.bookmark(it.segment.start) }, playing = wantsPlay,
-            stopAtChapterEnd = current.stopAtChapterEnd)
+            sleepTimerChapters = current.sleepTimerChapters)
     }
 
     private sealed interface Step {
@@ -356,8 +368,7 @@ class ReadAloudSession(
                         if (!request.isPreview) save(clip.bookmark(clip.segment.end))
                         currentBoundary = clip.bookmark(clip.segment.end)
                         currentClip = null
-                        if (!request.isPreview && state.value.stopAtChapterEnd && clip.index == clip.count - 1) {
-                            stop()
+                        if (!request.isPreview && clip.index == clip.count - 1 && finishTimerChapter()) {
                             return@coroutineScope
                         }
                         publish(token) { it.copy(phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused) }
@@ -368,7 +379,7 @@ class ReadAloudSession(
             if (!request.isPreview) {
                 progress.load(request.bookId)?.let { save(it.copy(completed = true)) }
             }
-            publish(token) { it.copy(phase = SpeechPhase.Completed, position = null, stopAtChapterEnd = false) }
+            publish(token) { it.copy(phase = SpeechPhase.Completed, position = null, sleepTimerChapters = null) }
         } finally { queue.cancel() }
     }
 

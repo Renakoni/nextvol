@@ -49,6 +49,7 @@ fun ReadAloudSheet(
     onSettings: (() -> Unit)?,
     onDismiss: () -> Unit,
     onSleepTimer: ((Int?) -> Unit)? = null,
+    onChapterSleepTimer: ((Int) -> Unit)? = null,
 ) {
     HideReadAloudOverlay()
     ModalBottomSheet(
@@ -71,6 +72,7 @@ fun ReadAloudSheet(
             },
             onSettings = onSettings,
             onSleepTimer = onSleepTimer,
+            onChapterSleepTimer = onChapterSleepTimer,
             modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
         )
     }
@@ -83,6 +85,7 @@ fun ReadAloudControls(
     onSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     onSleepTimer: ((Int?) -> Unit)? = null,
+    onChapterSleepTimer: ((Int) -> Unit)? = null,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         // Let long titles and errors scroll while keeping playback actions within reach.
@@ -184,7 +187,7 @@ fun ReadAloudControls(
                 Text(stringResource(R.string.next_chapter), textAlign = TextAlign.Center)
             }
             if (onSleepTimer != null && state.request?.isPreview == false) {
-                SpeechSleepTimerButton(state, onSleepTimer) { onCommand(SpeechAction.StopAtChapterEnd) }
+                SpeechSleepTimerButton(state, onSleepTimer, onChapterSleepTimer)
             }
         }
     }

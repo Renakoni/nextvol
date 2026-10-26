@@ -59,7 +59,7 @@ data class ReadAloudState(
     val sleepTimerDeadline: Long? = null,
     val showFloatingPlayer: Boolean = false,
     val position: SpeechPosition? = null,
-    val stopAtChapterEnd: Boolean = false,
+    val sleepTimerChapters: Int? = null,
 ) {
     val isActive get() = phase in setOf(SpeechPhase.Preparing, SpeechPhase.Playing, SpeechPhase.Buffering)
 }

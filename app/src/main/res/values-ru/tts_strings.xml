@@ -7,9 +7,25 @@
     <string name="tts_timer_minutes">%1$d мин</string>
     <string name="tts_timer_remaining">Осталось %1$s</string>
     <string name="tts_timer_chapter_end">До конца главы</string>
-    <string name="tts_timer_chapter_cancelled">Глава изменена · таймер выключен</string>
-    <string name="tts_timer_custom">Свои минуты</string>
-    <string name="tts_timer_range">1–%1$d мин</string>
+    <string name="tts_timer_chapter_cancelled">Глава изменена · таймер по главам выключен</string>
+    <string name="tts_timer_custom">Своя длительность</string>
+    <string name="tts_timer_by_chapter">По главам</string>
+    <string name="tts_timer_by_time">По времени</string>
+    <string name="tts_timer_current_chapter">Эта глава</string>
+    <string name="tts_timer_hour_unit">ч</string>
+    <string name="tts_timer_minute_unit">мин</string>
+    <plurals name="tts_timer_chapters">
+        <item quantity="one">%1$d глава</item>
+        <item quantity="few">%1$d главы</item>
+        <item quantity="many">%1$d глав</item>
+        <item quantity="other">%1$d главы</item>
+    </plurals>
+    <plurals name="tts_timer_chapters_remaining">
+        <item quantity="one">Осталась %1$d глава</item>
+        <item quantity="few">Осталось %1$d главы</item>
+        <item quantity="many">Осталось %1$d глав</item>
+        <item quantity="other">Осталось %1$d главы</item>
+    </plurals>
     <string name="tts_timer_set">Включить таймер</string>
     <string name="tts_online_sources">Голоса</string>
     <string name="tts_library_actions">Параметры каталога</string>

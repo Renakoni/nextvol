@@ -5,7 +5,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-internal const val MAX_SLEEP_TIMER_MINUTES = 180
+internal const val MAX_SLEEP_TIMER_MINUTES = 24 * 60 - 1
 
 /** A service-owned deadline: pauses and chapter changes do not extend it. */
 internal class SpeechSleepTimer(

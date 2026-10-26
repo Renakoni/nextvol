@@ -58,6 +58,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             viewModel::selectEngine, viewModel::selectVoice, viewModel::setRate, viewModel::setPitch,
             onPreview = { viewModel.controller.preview(preview) }, onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
+            onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
             onPlaybackSpeed = viewModel::setPlaybackSpeed,
             onPreviewVoice = { viewModel.controller.preview(preview, state.settings.copy(voice = it)) },
             onSystemSettings = {
