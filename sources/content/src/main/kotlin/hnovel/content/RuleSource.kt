@@ -21,6 +21,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
     internal val spec = RuleSourceDefinition(definition)
     private val bookUrlRule = ":\\A(?:${spec.bookUrlPattern})\\z"
     private val storage: SourceStateStorage = session
+    private val invocations = SourceInvocations(identity, authority, session)
     private val store = RuleBookStore(storage, authority, identity)
     private val previewDocuments = DiscoveryPreviewDocuments()
     internal fun clearDiscoveryPreviews() = previewDocuments.clear()
@@ -994,7 +995,7 @@ class RuleSource(val definition: SourceDefinition, private val identity: Executi
     }
     internal fun evaluation(book: RuleBook? = null, chapter: RuleChapter? = null, keyword: String = "", page: Int = 1,
         interactive: Boolean = false, maxRuleCalls: Int = 65536, memory: ScriptMemory = ScriptMemory()): RuleEvaluation {
-        val result = RuleEvaluation(identity, authority, session, runner, spec.library, book?.id, chapter?.id,
+        val result = RuleEvaluation(identity, authority, invocations, runner, spec.library, book?.id, chapter?.id,
             book?.state ?: ScriptState(), chapter?.state ?: ScriptState(), book?.id ?: spec.baseUrl, keyword, page,
             headerRule = spec.header, interactive = interactive, trace = trace, sourceLoginUrl = spec.loginUrl,
             sourceComment = spec.comment, verification = ::verification, maxRuleCalls = maxRuleCalls,
