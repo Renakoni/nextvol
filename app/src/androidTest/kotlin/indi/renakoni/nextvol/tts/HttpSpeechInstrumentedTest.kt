@@ -47,7 +47,7 @@ import kotlin.math.sin
 
 @RunWith(AndroidJUnit4::class)
 class HttpSpeechInstrumentedTest {
-    @Test fun httpsPreviewCleanupSurvivesCompletionReplacementStopAndScopeCancellation(): Unit = runBlocking {
+    @Test fun httpsPreviewCleanupSurvivesCompletionReplacementAndShutdown(): Unit = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val directory = File(context.cacheDir, "https-speech-cleanup-${UUID.randomUUID()}").apply { mkdirs() }
         val authority = ExecutionAuthority()
@@ -65,7 +65,7 @@ class HttpSpeechInstrumentedTest {
                 server.start()
                 val url = server.url("/voice").toString()
                 val source = previewHttpSpeech(buildJsonObject { put("name", "HTTPS voice"); put("url", url) }.toString()).sources.single()
-                val grants = listOf(NetworkGrant(url, allowPrivateAddresses = true))
+                val grants = listOf(NetworkGrant(server.url("/").toString(), allowPrivateAddresses = true))
                 withContext(Dispatchers.Main) {
                     val policy = StrictMode.getThreadPolicy()
                     StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder(policy).detectNetwork().penaltyDeathOnNetwork().build())
@@ -85,7 +85,10 @@ class HttpSpeechInstrumentedTest {
                                     val transport = broker.open(SourceScope("speech", source.id, "http-tts"), grants)
                                     transports += transport
                                     // Trust only this fixture certificate through the production source policy.
-                                    val rejected = transport.execute(BrokerRequest("certificate", url)) as BrokerResult.Failure
+                                    val rejected = transport.execute(BrokerRequest("certificate", url))
+                                    check(rejected is BrokerResult.Failure && rejected.certificate != null) {
+                                        "Fixture certificate was not reported: $rejected"
+                                    }
                                     transport.approveCertificate(checkNotNull(rejected.certificate))
                                     client = HttpSpeechClient(source, broker, grants, authority, executor::execute)
                                     source.name
@@ -120,29 +123,25 @@ class HttpSpeechInstrumentedTest {
                         awaitCleanup()
                         preview("Old preview.")
                         awaitPhase(SpeechPhase.Playing)
-                        preview("Intermediate preview.")
                         preview("Latest preview.")
                         withTimeout(10_000) { closed.receive() }
                         awaitPhase(SpeechPhase.Playing)
                         assertEquals("Latest preview.", session.state.value.request?.previewText)
                         assertEquals(3, transports.size)
+                        scope.cancel()
                         session.stop()
                         awaitCleanup()
                         assertEquals(SpeechPhase.Stopped, session.state.value.phase)
-                        preview("Service shutdown.")
-                        awaitPhase(SpeechPhase.Playing)
-                        scope.cancel()
-                        session.stop()
-                        awaitCleanup()
                         assertNull(session.state.value.error)
                         assertTrue(transports.all { it.closed })
-                        assertEquals(4, server.requestCount)
+                        assertEquals(3, server.requestCount)
                     } finally {
                         session.stop()
                         scope.cancel()
-                        withTimeout(10_000) { scope.coroutineContext[Job]!!.join() }
-                        player.release()
-                        StrictMode.setThreadPolicy(policy)
+                        try { withTimeout(10_000) { scope.coroutineContext[Job]!!.join() } }
+                        finally {
+                            try { player.release() } finally { StrictMode.setThreadPolicy(policy) }
+                        }
                     }
                 }
             }

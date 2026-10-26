@@ -68,7 +68,8 @@ class SpeechSynthesizers @Inject constructor(
             val active = client ?: throw SpeechException(SpeechError.HttpSourceUnavailable)
             val partial = File(output.parentFile, output.name + ".part")
             try {
-                val audio = active.synthesize(text, rate)
+                // Token refresh may replace a regional HTTP session and close its TLS pool.
+                val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate) }
                 withContext(Dispatchers.IO) {
                     currentCoroutineContext().ensureActive()
                     partial.writeBytes(audio)

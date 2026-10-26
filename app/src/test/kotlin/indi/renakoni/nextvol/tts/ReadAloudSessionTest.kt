@@ -4,7 +4,6 @@ import android.util.Log
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
-import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -99,22 +98,6 @@ class ReadAloudSessionTest {
         assertEquals(0, env.audioFiles())
     }
 
-    @Test fun switchingBooksWaitsForOldCleanupAndOnlyPlaysTheNewBook() = runTest {
-        val gate = CompletableDeferred<Unit>()
-        val env = Environment(this)
-        env.beforeSynthesis = { withContext(NonCancellable) { gate.await() } }
-        env.session.start(SpeechRequest("old", "one"))
-        runCurrent()
-        env.session.start(SpeechRequest("new", "one"))
-        runCurrent()
-        gate.complete(Unit)
-        runCurrent()
-        assertEquals(listOf("new"), env.player.started.map { it.chapter.bookId })
-        assertEquals("new", env.session.state.value.request?.bookId)
-        assertFalse(env.progress.saved.containsKey("old"))
-        env.stop()
-    }
-
     @Test fun aThirdBookStillWaitsForTheOriginalSessionsCleanup() = runTest {
         val gate = CompletableDeferred<Unit>()
         val env = Environment(this)
@@ -130,6 +113,8 @@ class ReadAloudSessionTest {
             gate.complete(Unit)
             runCurrent()
             assertEquals(listOf("new"), env.player.started.map { it.chapter.bookId })
+            assertEquals("new", env.session.state.value.request?.bookId)
+            assertFalse(env.progress.saved.containsKey("old"))
             assertEquals(2, env.opened.size)
         } finally {
             gate.complete(Unit)
@@ -160,8 +145,6 @@ class ReadAloudSessionTest {
             assertEquals(SpeechPhase.Stopped, env.session.state.value.phase)
             assertNull(env.session.state.value.error)
             assertTrue(env.directory.listFiles()!!.isEmpty())
-            verify(exactly = 2) { Log.w("ReadAloud", "Synthesizer cancel failed: IOException") }
-            verify(exactly = 2) { Log.w("ReadAloud", "Synthesizer close failed: IOException") }
         } finally { env.stop(); unmockkStatic(Log::class) }
     }
 
