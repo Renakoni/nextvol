@@ -20,13 +20,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -94,9 +92,8 @@ fun SpeechSettingsScreen(
                 },
                 actions = {
                     IconButton(onClick = onRefresh, enabled = !state.loading) {
-                        if (state.loading) CircularProgressIndicator(
-                            Modifier.size(20.dp).semantics { contentDescription = refreshLabel }, strokeWidth = 2.dp,
-                        ) else Icon(painterResource(R.drawable.refresh_24px), refreshLabel)
+                        Icon(painterResource(R.drawable.refresh_24px), refreshLabel,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
             )
@@ -157,9 +154,7 @@ fun SpeechSettingsScreen(
                     ) else previewColors,
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 ) {
-                    if (state.loading) CircularProgressIndicator(Modifier.padding(end = 8.dp).size(24.dp),
-                        color = LocalContentColor.current, strokeWidth = 2.dp)
-                    else Icon(painterResource(R.drawable.play_arrow_24px), null, Modifier.padding(end = 8.dp))
+                    Icon(painterResource(R.drawable.play_arrow_24px), null, Modifier.padding(end = 8.dp))
                     Text(stringResource(R.string.tts_preview))
                 }
             }

@@ -13,9 +13,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.text.TextLayoutResult
@@ -290,7 +290,7 @@ class SpeechControlsTest {
     @Test
     @Config(sdk = [35], qualifiers = "en-rUS-w360dp-h900dp")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun previewLoadingKeepsItsSurfaceStableWithoutAllowingPlayback() {
+    fun previewLoadingKeepsItsWholeAppearanceStableWithoutAllowingPlayback() {
         val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState())
         var previews = 0
         activity.get().setContent {
@@ -300,28 +300,32 @@ class SpeechControlsTest {
             }
         }
         val button = compose.onNodeWithTag("speech-preview")
-        fun surface() = button.captureToImage().toPixelMap().let { it[4, it.height / 2] }
+        fun appearance() = button.captureToImage().let { image ->
+            IntArray(image.width * image.height).also { image.readPixels(it) }
+        }
         button.assertIsDisplayed().assertIsNotEnabled().performTouchInput { click() }
-        val loading = surface()
+        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertCountEquals(0)
+        val loading = appearance()
         assertEquals(0, previews)
         compose.runOnIdle {
             state.value = state.value.copy(loading = false, engines = listOf(SpeechEngine("engine", "Engine")))
         }
         button.assertIsEnabled()
-        assertEquals(loading, surface())
+        assertArrayEquals(loading, appearance())
         button.performClick()
         assertEquals(1, previews)
         compose.runOnIdle { state.value = state.value.copy(loading = true) }
         button.assertIsNotEnabled()
-        assertEquals(loading, surface())
+        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertCountEquals(0)
+        assertArrayEquals(loading, appearance())
         compose.runOnIdle {
             state.value = state.value.copy(loading = false, engines = emptyList(), error = SpeechError.NoEngine)
         }
         button.assertIsNotEnabled()
-        val unavailable = surface()
-        assertNotEquals(loading, unavailable)
+        val unavailable = appearance()
+        assertFalse(loading.contentEquals(unavailable))
         compose.runOnIdle { state.value = state.value.copy(loading = true) }
-        assertEquals(unavailable, surface())
+        assertArrayEquals(unavailable, appearance())
     }
 
     @Test fun voiceLibraryIsTheFirstChoiceEvenWhenUsingASystemEngine() {
