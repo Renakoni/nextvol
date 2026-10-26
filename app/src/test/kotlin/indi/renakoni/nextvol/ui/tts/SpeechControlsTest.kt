@@ -190,7 +190,7 @@ class SpeechControlsTest {
     @Test
     @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h480dp")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun settingsKeepPauseAndStopReachableWhileScrollingWithLargeText() {
+    fun settingsKeepPauseReachableAndOfferStopInTheExpandedPlayerWithLargeText() {
         val actions = mutableListOf<SpeechAction>()
         activity.get().setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.8f)) {
@@ -205,10 +205,11 @@ class SpeechControlsTest {
             }
         }
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Stop").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Stop").assertDoesNotExist()
         compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("System speech settings"))
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed().performClick()
-        compose.onNodeWithContentDescription("Stop").assertIsDisplayed().performClick()
+        compose.onNodeWithText("A long book title ".repeat(8)).performClick()
+        compose.onNodeWithText("Stop").assertIsDisplayed().performClick()
         assertEquals(listOf(SpeechAction.Pause, SpeechAction.Stop), actions)
     }
 
