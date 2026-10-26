@@ -34,8 +34,8 @@ android {
         minSdk = 24
         targetSdk = 37
         // 独立发布从 0.1.0 起，versionCode 延续历史值并递增，避免 Android 判定为降级。
-        versionCode = 10_300_009
-        versionName = "0.1.0"
+        versionCode = 10_300_010
+        versionName = "0.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "BENCHMARK", "false")
