@@ -60,6 +60,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
@@ -84,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
 import coil3.compose.AsyncImagePainter
 import com.github.michaelbull.result.get
@@ -147,12 +149,21 @@ fun ReaderScreen(
 ) = ReaderMotionTheme(settingState.reduceMotion) {
     ReaderPaperTheme(settingState, manageSystemBars = true) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    var isImmersive by remember { mutableStateOf(true) }
+    var isImmersive by rememberSaveable { mutableStateOf(true) }
     val context = LocalContext.current
     val snackbarHostState = LocalSnackbarHost.current
     val backBlockMode = settingState.backBlockMode
     var lastBackPressTime: Long by remember { mutableLongStateOf(0) }
-    var showSettingsBottomSheet by remember { mutableStateOf(false) }
+    var showSettingsBottomSheet by rememberSaveable { mutableStateOf(false) }
+    var restoreSettingsOnResume by rememberSaveable { mutableStateOf(false) }
+    val settingsStateHolder = rememberSaveableStateHolder()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        // Wait for the return transition to finish before restoring the reader overlay.
+        if (restoreSettingsOnResume) {
+            restoreSettingsOnResume = false
+            showSettingsBottomSheet = true
+        }
+    }
     val settingsButtonFocus = remember { FocusRequester() }
     val inputMode = LocalInputModeManager.current
     LaunchedEffect(showSettingsBottomSheet) {
@@ -397,18 +408,24 @@ fun ReaderScreen(
         )
     }
     if (showSettingsBottomSheet) {
+        settingsStateHolder.SaveableStateProvider("reader-settings") {
         val settingsBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
         CompositionLocalProvider(LocalReaderLayoutResult provides layoutResult) {
         SettingsBottomSheet(
             sheetState = settingsBottomSheetState,
-            onDismissRequest = { showSettingsBottomSheet = false },
+            onDismissRequest = {
+                showSettingsBottomSheet = false
+                settingsStateHolder.removeState("reader-settings")
+            },
             settingState = settingState,
             onClickThemeSettings = {
                 // Unmount the reader sheet before the destination transition starts.
+                restoreSettingsOnResume = true
                 showSettingsBottomSheet = false
                 onClickThemeSettings()
             }
         )
+        }
         }
     }
 

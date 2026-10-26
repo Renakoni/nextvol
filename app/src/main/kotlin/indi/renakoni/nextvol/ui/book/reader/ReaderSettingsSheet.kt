@@ -108,7 +108,7 @@ internal fun ReaderSettingsSheet(
     }
     if (state.hasExpandedState) {
         LaunchedEffect(state) {
-            state.show()
+            if (state.currentValue == SheetValue.Hidden) state.show()
             if (inputMode.inputMode == InputMode.Keyboard) focus.requestFocus()
         }
     }
