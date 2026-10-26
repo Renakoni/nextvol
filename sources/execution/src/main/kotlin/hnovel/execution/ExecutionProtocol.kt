@@ -111,7 +111,8 @@ class ExecutionAuthority {
   commit()
   active.values.filter { it.sourceId == replacement.sourceId && it.namespace == replacement.namespace && it != replacement }.forEach(::revoke)
  }
- @Synchronized internal fun bindSession(identity: ExecutionIdentity, session: hnovel.network.SourceSession) {
+ /** Trusted host assembly/invocation entry, after checking identity and session scope. */
+ @Synchronized fun bindSession(identity: ExecutionIdentity, session: hnovel.network.SourceSession) {
   check(accepts(identity) && !session.closed)
   val previous = sessions.putIfAbsent(identity.nonce, session)
   check(previous == null || previous === session) { "Execution ticket already belongs to another session" }

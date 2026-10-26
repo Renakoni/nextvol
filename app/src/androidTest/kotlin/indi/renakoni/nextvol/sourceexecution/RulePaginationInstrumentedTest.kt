@@ -59,7 +59,7 @@ class RulePaginationInstrumentedTest {
                 val identity = authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "paging")
                 val runner = RuleTaskRunner { owner, task, limits, bridge -> executor.execute(owner, task, limits, bridge) }
                 val events = mutableListOf<ContentTraceEvent>()
-                RuleSource(definition, identity, authority, session, runner, ContentTrace { events += it }).use { source ->
+                createRuleSource(definition, identity, authority, session, runner, ContentTrace { events += it }).use { source ->
                     val pages = source.openSearchPages("fixture")
                     val first = pages.page()
                     assertEquals(explicit, first.books.isEmpty())
