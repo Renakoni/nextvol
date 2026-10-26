@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.content.RuleSource
+import hnovel.content.createRuleSource
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
 import hnovel.imports.*
@@ -344,7 +345,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
                     " ruleCode=${event.ruleCode} input=${event.inputSize} output=${event.outputSize} elapsedMs=${event.elapsedMillis}" +
                     (event.requestDiagnostic?.let { " requestDiagnostic=$it" } ?: ""))
         }
-        val source = try { RuleSource(definition, ticket, authority, session, runner, trace, discoveryEnabled = preferences.discoveryVisible) }
+        val source = try { createRuleSource(definition, ticket, authority, session, runner, trace, discoveryEnabled = preferences.discoveryVisible) }
             catch (failure: Exception) { authority.revoke(ticket); broker.close(); throw failure }
         val metadata = SourceMetadata(WebDataSourceItem(id, catalog.entry(definition)?.name ?: definition.displayName, "Imported source"), buildSet {
             addAll(listOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent, SourceCapability.Images))

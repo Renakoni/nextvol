@@ -96,7 +96,7 @@ class KnownSourceExecutionInstrumentedTest {
                     val current = broker.open(SourceScope("known-live", definition.sourceId, definition.profile), grants)
                     session = current
                     val identity = authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "known-live")
-                    return RuleSource(definition, identity, authority, current, runner, ContentTrace { trace += it })
+                    return createRuleSource(definition, identity, authority, current, runner, ContentTrace { trace += it })
                 }
                 try {
                     val origin = definition.importKey
