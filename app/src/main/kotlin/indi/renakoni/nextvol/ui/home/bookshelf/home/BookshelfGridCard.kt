@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
@@ -52,7 +53,7 @@ internal fun BookshelfGridCard(
             .padding(horizontal = 8.dp, vertical = 6.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) colors.secondaryContainer else colors.surface)
+            .background(if (selected) colors.secondaryContainer else Color.Transparent)
             .semantics { this.selected = selected }
             .combinedClickable(
                 enabled = result != null || selectMode,
