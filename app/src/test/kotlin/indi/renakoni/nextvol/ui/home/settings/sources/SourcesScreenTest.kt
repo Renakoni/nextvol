@@ -454,7 +454,7 @@ class SourcesScreenTest {
     }
 
     @Test @Config(qualifiers = "en-rUS-w360dp-h800dp")
-    fun openingSettingsDoesNotInsertProgressButUpdatesStillDo() {
+    fun openingSettingsAndSavingVpnDoNotInsertProgressButUpdatesStillDo() {
         val directory = java.nio.file.Files.createTempDirectory("source-settings-progress").toFile()
         val context = object : ContextWrapper(activity.get()) { override fun getFilesDir() = directory }
         val definition = SourceDefinition("qq-fixture", "legado", "fixture", "https://fixture.invalid/", "QQ fixture", true,
@@ -476,7 +476,17 @@ class SourcesScreenTest {
         coEvery { updates.check(id) } coAnswers { checkingUpdate.complete(Unit); awaitCancellation() }
         val zLibrary = mockk<ZLibrarySources>()
         every { zLibrary.state } returns MutableStateFlow(ZLibraryState())
-        val realModel = SourcesViewModel(context, sources, updates, mockk(), WebSourceRegistry(), zLibrary)
+        val network = mockk<SourceNetworkSettings>()
+        every { network.mode(id) } returns hnovel.network.SourceNetworkMode.SystemDefault
+        val saving = CompletableDeferred<Unit>()
+        val finishSaving = java.util.concurrent.CountDownLatch(1)
+        every { network.setBypassVpn(id, true) } answers {
+            saving.complete(Unit)
+            check(finishSaving.await(10, java.util.concurrent.TimeUnit.SECONDS))
+            every { network.mode(id) } returns hnovel.network.SourceNetworkMode.BypassVpn
+        }
+        every { network.setBypassVpn(id, false) } throws java.io.IOException("Cannot save preference")
+        val realModel = SourcesViewModel(context, sources, updates, mockk(), WebSourceRegistry(), zLibrary, network)
         fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10000) {
             org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
             condition()
@@ -496,6 +506,26 @@ class SourcesScreenTest {
             waitUntil { !realModel.state.value.busy }
             org.junit.Assert.assertEquals(details,
                 compose.onNodeWithText("Advanced options").fetchSemanticsNode().boundsInRoot)
+            compose.onNodeWithContentDescription("Bypass VPN").performClick()
+            waitUntil { saving.isCompleted }
+            org.junit.Assert.assertTrue(realModel.state.value.busy)
+            org.junit.Assert.assertFalse(realModel.state.value.showProgress)
+            compose.onAllNodes(progress).assertCountEquals(0)
+            compose.onNodeWithText("Cancel").assertDoesNotExist()
+            compose.onNodeWithContentDescription("Bypass VPN").assertIsNotEnabled().assertIsOff()
+            org.junit.Assert.assertEquals(details,
+                compose.onNodeWithText("Advanced options").fetchSemanticsNode().boundsInRoot)
+            compose.runOnIdle { realModel.setBypassVpn(true) }
+            finishSaving.countDown()
+            waitUntil { !realModel.state.value.busy }
+            verify(exactly = 1) { network.setBypassVpn(id, true) }
+            compose.onNodeWithContentDescription("Bypass VPN").assertIsEnabled().assertIsOn()
+            org.junit.Assert.assertEquals(details,
+                compose.onNodeWithText("Advanced options").fetchSemanticsNode().boundsInRoot)
+            compose.onNodeWithContentDescription("Bypass VPN").performClick()
+            waitUntil { !realModel.state.value.busy }
+            compose.onNodeWithContentDescription("Bypass VPN").assertIsEnabled().assertIsOn()
+            org.junit.Assert.assertEquals(indi.renakoni.nextvol.R.string.sources_action_failed, realModel.state.value.message)
             compose.runOnIdle { realModel.checkUpdate(id) }
             waitUntil { checkingUpdate.isCompleted }
             compose.onAllNodes(progress).assertCountEquals(1)
@@ -504,6 +534,7 @@ class SourcesScreenTest {
             compose.onAllNodes(progress).assertCountEquals(0)
         } finally {
             finishReading.complete(Unit)
+            finishSaving.countDown()
             realModel.viewModelScope.cancel()
             directory.deleteRecursively()
         }
