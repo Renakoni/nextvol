@@ -10,6 +10,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -18,9 +20,16 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewModelScope
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.ui.book.reader.ReaderTopBar
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -221,6 +230,48 @@ class SpeechControlsTest {
         }
         compose.onNodeWithText("Reset").performClick()
         compose.runOnIdle { assertNull(state.value.settings.rate) }
+    }
+
+    @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
+    fun refreshingTheSameMissingEngineKeepsTheErrorAndParameterPositions() {
+        val repository = mockk<SpeechSettingsRepository>()
+        every { repository.changes } returns MutableStateFlow(SpeechSettings())
+        val engines = mockk<SystemSpeechEngines>()
+        coEvery { engines.installed() } returns emptyList()
+        coEvery { engines.inspect("") } throws SpeechException(SpeechError.NoEngine)
+        val model = SpeechSettingsViewModel(repository, engines, mockk(), mockk())
+        val inspection = CompletableDeferred<SpeechEngineState>()
+        fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10000) {
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            condition()
+        }
+        try {
+            activity.get().setContent { MaterialTheme {
+                val state by model.state.collectAsState()
+                SpeechSettingsScreen(state, ReadAloudState(),
+                    {}, {}, {}, {}, {}, {}, {}, {}, model::refresh)
+            } }
+            waitUntil { !model.state.value.loading }
+            val error = activity.get().getString(SpeechError.NoEngine.messageResource)
+            compose.onNodeWithText(error).assertIsDisplayed()
+            val rate = compose.onNodeWithContentDescription("Speaking rate").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            val pitch = compose.onNodeWithContentDescription("Pitch").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            coEvery { engines.inspect("") } coAnswers { inspection.await() }
+            compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
+            waitUntil { model.state.value.loading }
+            compose.onNodeWithText(error).assertIsDisplayed()
+            assertEquals(rate, compose.onNodeWithContentDescription("Speaking rate").fetchSemanticsNode().boundsInRoot)
+            assertEquals(pitch, compose.onNodeWithContentDescription("Pitch").fetchSemanticsNode().boundsInRoot)
+            compose.onNodeWithTag("speech-preview").assertIsNotEnabled()
+            inspection.completeExceptionally(SpeechException(SpeechError.NoEngine))
+            waitUntil { !model.state.value.loading }
+            compose.onNodeWithText(error).assertIsDisplayed()
+            assertEquals(rate, compose.onNodeWithContentDescription("Speaking rate").fetchSemanticsNode().boundsInRoot)
+            assertEquals(pitch, compose.onNodeWithContentDescription("Pitch").fetchSemanticsNode().boundsInRoot)
+            compose.onNodeWithTag("speech-preview").assertIsNotEnabled()
+        } finally {
+            model.viewModelScope.cancel()
+        }
     }
 
     @Test fun voiceLibraryIsTheFirstChoiceEvenWhenUsingASystemEngine() {
