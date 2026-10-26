@@ -1,6 +1,8 @@
 package hnovel.content
 
 import hnovel.imports.EXTENSION_PROFILE
+import hnovel.imports.AUTO_PROFILE
+import hnovel.imports.LEGADO_PROFILE
 import hnovel.network.BrowserExecutor
 import hnovel.network.BrokerResult
 import hnovel.network.FailureCode
@@ -13,6 +15,37 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuleLoginFormTest {
+    @Test fun websiteLoginResolvesHttpAddressesAndRejectsInlineData() = runBlocking {
+        val opened = mutableListOf<String>()
+        val browser = BrowserExecutor { _, request, options, _, _ ->
+            assertTrue(options.interactive)
+            opened += request.url
+            BrokerResult.Success(hnovel.network.BrokerResponse(200, request.url, emptyMap(),
+                "Login page".toByteArray(), "UTF-8", 0, kind = hnovel.network.ResponseKind.BrowserDocument))
+        }
+        RuleSourceFixture(browser).use { fixture ->
+            fixture.beforeRun = { _, _ -> error("Plain website login must not run source scripts") }
+            val target = fixture.server.url("/login").toString()
+            for (address in listOf("/login", target.substringAfter(':'))) {
+                fixture.source(profile = AUTO_PROFILE) { raw -> JsonObject(raw + mapOf(
+                    "header" to JsonPrimitive(""), "loginUrl" to JsonPrimitive(address)
+                )) }.use { source ->
+                    val form = source.loginForm()
+                    assertEquals(target, form.browserUrl)
+                    source.login(form.values, formId = form.id)
+                }
+            }
+            fixture.source(profile = AUTO_PROFILE) { raw -> JsonObject(raw + mapOf(
+                "header" to JsonPrimitive(""), "loginUrl" to JsonPrimitive("data:text/html;base64,T0s=")
+            )) }.use { source ->
+                val failure = runCatching { source.login(emptyMap()) }.exceptionOrNull() as SourceContentException
+                assertEquals(ContentError.InvalidRule, failure.code)
+                assertEquals("loginUrl", failure.field)
+            }
+            assertEquals(listOf(target, target), opened)
+        }
+    }
+
     @Test fun configurationMetadataIsStrictOptionalAndDoesNotChangeActionIdentity() {
         val plain = LoginForm.parse("""[{"name":"Setting","type":"button","action":"configure()"}]""", "").fields.single()
         assertTrue(plain.enabled)
@@ -89,7 +122,7 @@ class RuleLoginFormTest {
         RuleSourceFixture(browser).use { fixture ->
             val budgets = mutableListOf<Long>()
             fixture.beforeRun = { _, limits -> budgets += limits.timeoutMillis }
-            fixture.source { raw -> JsonObject(raw + ("loginUrl" to JsonPrimitive("""
+            fixture.source { raw -> JsonObject(raw + mapOf("loginUi" to JsonPrimitive("[]"), "loginUrl" to JsonPrimitive("""
                 function login() {
                     var page = java.startBrowserAwait('/login', 'Login', false);
                     if (page.body() !== 'signed in') throw new Error('browser result missing');
@@ -280,25 +313,28 @@ class RuleLoginFormTest {
         }
     }
 
-    @Test fun extensionFormUsesLoginHelpersDefaultsAndItsOwnActionDraft() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(profile = EXTENSION_PROFILE) { raw -> JsonObject(raw + mapOf(
+    @Test fun importedStaticAndDynamicFormsUseLoginHelpersDefaultsAndTheirOwnActionDraft() = runBlocking {
+        val rows = """[
+            {"name":"user","default":"alice","viewName":"label()"},
+            {"name":"password","type":"password"},
+            {"name":"region","type":"select","chars":["east","west"],"default":"west"},
+            {"name":"remember","type":"toggle","chars":["no","yes"]},
+            {"name":"change","type":"button","action":"java.upLoginData({user:'bob'});java.reLoginView();"}
+        ]"""
+        for (dynamic in listOf(false, true)) RuleSourceFixture().use { fixture ->
+            fixture.source(profile = AUTO_PROFILE) { raw -> JsonObject(raw + mapOf(
                 "loginUrl" to JsonPrimitive("""
                     function label(){return 'Account';}
                     function login(){source.put('submitted',JSON.stringify(result));}
                 """.trimIndent()),
-                "loginUi" to JsonPrimitive("""@js:
+                "loginUi" to JsonPrimitive(if (dynamic) """@js:
                     source.put('forms',String(Number(source.get('forms')||0)+1));
-                    JSON.stringify([
-                      {name:'user',default:'alice',viewName:'label()'},
-                      {name:'password',type:'password'},
-                      {name:'region',type:'select',chars:['east','west'],default:'west'},
-                      {name:'remember',type:'toggle',chars:['no','yes']},
-                      {name:'change',type:'button',action:"java.upLoginData({user:'bob'});java.reLoginView();"}
-                    ]);
-                """.trimIndent())
+                    JSON.stringify($rows);
+                """.trimIndent() else rows)
             )) }.use { source ->
+                assertEquals(if (dynamic) EXTENSION_PROFILE else LEGADO_PROFILE, source.definition.profile)
                 val form = source.loginForm()
+                assertNull(form.browserUrl)
                 assertEquals("Account", form.fields.first().label)
                 assertEquals(mapOf("user" to "alice", "password" to "", "region" to "west", "remember" to "no"), form.values)
                 source.login(form.values, form.fields.single { it.name == "change" }.id, form.id)
@@ -307,7 +343,7 @@ class RuleLoginFormTest {
                 source.login(changed.values)
                 // Form scripts are not rerun on submission, only on an explicit refresh.
                 val context = source.evaluation()
-                assertEquals("2", context.script("source.get('forms')", hnovel.rules.RuleValue.Empty, "fixture").text())
+                if (dynamic) assertEquals("2", context.script("source.get('forms')", hnovel.rules.RuleValue.Empty, "fixture").text())
                 val submitted = Json.parseToJsonElement(context.script("source.get('submitted')", hnovel.rules.RuleValue.Empty, "fixture").text()).jsonObject
                 assertEquals("bob", submitted.getValue("user").jsonPrimitive.content)
                 assertEquals("west", submitted.getValue("region").jsonPrimitive.content)

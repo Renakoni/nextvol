@@ -72,7 +72,7 @@ class DiscoveryLiveInstrumentedTest {
                 }
                 var identity: io.nightfish.lightnovelreader.api.identifier.Identifier? = null
                 measure("install") {
-                    val preview = sources.importer.preview(raw.toString())
+                    val preview = sources.importer.preview(raw.toString(), AUTO_PROFILE)
                     check(preview.issues.isEmpty()) { "Import rejected" }
                     val candidate = preview.candidates.single()
                     val installed = sources.installedSources().singleOrNull {

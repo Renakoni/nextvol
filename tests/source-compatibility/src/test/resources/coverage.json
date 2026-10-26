@@ -297,7 +297,7 @@
       "fixtures": [
         "LOGIN-CONTRACT"
       ],
-      "evidence": "RuleSource and SourceLoginService run static forms, loginUrl/login(), loginCheckJs response hooks, login information/headers and browser login under one revision/account attempt. UI starts the new account before evaluating its form; cancellation/removal/revision changes cannot revive the previous attempt. Dynamic source headers and image verification are exercised through production worker/broker paths.",
+      "evidence": "RuleSource and SourceLoginService run standard static forms in both profiles, loginUrl/login(), loginCheckJs response hooks, login information/headers and browser login under one revision/account attempt. Without loginUi, website addresses resolve against the source key; declared forms dispatch their scripts. UI starts the new account before evaluating its form; cancellation/removal/revision changes cannot revive the previous attempt. Dynamic source headers and image verification are exercised through production worker/broker paths.",
       "productTests": [
         "hnovel.content.RuleSourceTest",
         "hnovel.content.RuleLoginFormTest",
@@ -486,7 +486,7 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "Pinned extension BaseSource/RowUi/SourceLoginDialog evidence drives an explicit profile-gated contract: @js:/<js> forms, login helper prelude, result values, default/chars/viewName, text/password/button/toggle/select, upLoginData and reLoginView. Host owns layout and explicit field actions; arbitrary fork layouts/long-click login semantics are not claimed. Unknown target fields/types fail with locations. Forms, service cancellation, profile selection and real Compose submission are tested.",
+      "evidence": "Pinned extension BaseSource/RowUi/SourceLoginDialog evidence drives profile-gated @js:/<js> forms and host configuration metadata. Standard default/chars/viewName and text/password/button/toggle/select rows are accepted in both profiles, with login helper prelude, result values, upLoginData and reLoginView. Host owns layout and explicit field actions; arbitrary fork layouts/long-click login semantics are not claimed. Unknown target fields/types fail with locations. Forms, service cancellation, profile selection and real Compose submission are tested.",
       "productTests": [
         "hnovel.content.RuleLoginFormTest",
         "indi.renakoni.nextvol.ui.home.settings.sources.SourcesScreenTest",
