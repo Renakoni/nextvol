@@ -307,7 +307,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         selectSource(id)
         mutable.update { it.copy(message = R.string.source_certificate_revoked) }
     }
-    fun setBypassVpn(enabled: Boolean) = launch {
+    fun setBypassVpn(enabled: Boolean) = launch(showProgress = false) {
         val id = checkNotNull(state.value.selected)
         check(!enabled || networkState(id).limitation == null)
         networkSettings.setBypassVpn(id, enabled)
