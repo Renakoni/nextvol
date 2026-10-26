@@ -493,11 +493,35 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
+    @Test fun subsequentStartsUseNewlyStoredSettingsBeforeTheirNotificationArrives() = runTest {
+        val env = Environment(this)
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            env.configuration = SpeechSettings(voice = "new-voice", playbackSpeed = 2f)
+            env.session.start(SpeechRequest("book", "two"), playing = false)
+            runCurrent()
+            assertEquals(env.configuration, env.opened.last())
+            assertEquals(2f, env.player.playbackSpeed)
+            assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
+            val clip = env.player.started.last()
+            val requests = env.synthesized.size
+            env.session.updateSettings(env.configuration)
+            runCurrent()
+            assertEquals(2, env.opened.size)
+            assertSame(clip, env.player.started.last())
+            assertEquals(requests, env.synthesized.size)
+            assertFalse(env.player.playing)
+        } finally { env.stop() }
+    }
+
     @Test fun settingsReceivedDuringStartupOverrideTheOlderReadWithoutRestartingSynthesis() = runTest {
         val env = Environment(this)
         val read = CompletableDeferred<Unit>()
-        env.beforeSettings = { read.await() }
         try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            env.beforeSettings = { read.await() }
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
             env.session.updateSettings(SpeechSettings(playbackSpeed = 1.5f))
@@ -506,7 +530,8 @@ class ReadAloudSessionTest {
             read.complete(Unit)
             runCurrent()
             assertEquals(2f, env.player.playbackSpeed)
-            assertEquals(2f, env.opened.single().playbackSpeed)
+            assertEquals(2, env.opened.size)
+            assertEquals(2f, env.opened.last().playbackSpeed)
             assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
             assertFalse(env.player.playing)
         } finally { read.complete(Unit); env.stop() }

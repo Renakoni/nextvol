@@ -80,9 +80,10 @@ class ReadAloudSession(
                     }?.forEach { if (!it.deleteRecursively()) throw SpeechException(SpeechError.Storage) }
                     if (!directory.mkdirs()) throw SpeechException(SpeechError.Storage)
                 }
+                val beforeRead = currentSettings
                 val stored = settings().validated()
                 // A settings emission received during the read takes precedence over its snapshot.
-                val selected = currentSettings ?: stored
+                val selected = currentSettings?.takeIf { it !== beforeRead } ?: stored
                 currentSettings = selected
                 playback.setSpeed(selected.playbackSpeed)
                 val voice = provider.open(selected)
