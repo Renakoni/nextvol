@@ -19,12 +19,14 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -140,15 +142,23 @@ fun SpeechSettingsScreen(
                     { onPlaybackSpeed(it ?: 1f) }, resetValue = 1f)
             }
             item(key = "preview") {
+                val previewColors = ButtonDefaults.filledTonalButtonColors()
                 FilledTonalButton(
                     onClick = onPreview,
                     enabled = !state.loading && (if (state.settings.httpSource == null) state.engines.isNotEmpty()
                         else state.httpSources.any { it.definition.id == state.settings.httpSource && it.isConfigured }),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("speech-preview"),
                     shape = RoundedCornerShape(16.dp),
+                    // Loading keeps the tonal surface stable while the action remains disabled.
+                    colors = if (state.loading && state.error == null) previewColors.copy(
+                        disabledContainerColor = previewColors.containerColor,
+                        disabledContentColor = previewColors.contentColor,
+                    ) else previewColors,
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 ) {
-                    Icon(painterResource(R.drawable.play_arrow_24px), null, Modifier.padding(end = 8.dp))
+                    if (state.loading) CircularProgressIndicator(Modifier.padding(end = 8.dp).size(24.dp),
+                        color = LocalContentColor.current, strokeWidth = 2.dp)
+                    else Icon(painterResource(R.drawable.play_arrow_24px), null, Modifier.padding(end = 8.dp))
                     Text(stringResource(R.string.tts_preview))
                 }
             }
