@@ -89,6 +89,8 @@ class ReaderScreenUpdatesTest {
             content.readingChapterId = "b"
             content.readingProgress = .42f
         }
+        // Chapter preparation runs outside Compose's idle tracking, just as on initial load.
+        compose.waitUntil(5_000) { compose.onNodeWithText("Body b").isDisplayed() }
         compose.onNodeWithText("Body b").assertIsDisplayed()
         compose.onAllNodesWithText("Chapter b").assertCountEquals(if (showMenu) 2 else 1)
         compose.onAllNodesWithText("Chapter a").assertCountEquals(0)
