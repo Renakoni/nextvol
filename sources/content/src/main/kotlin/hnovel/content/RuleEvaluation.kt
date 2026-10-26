@@ -1,7 +1,6 @@
 package hnovel.content
 
 import hnovel.execution.*
-import hnovel.network.SourceSession
 import hnovel.rules.*
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -9,7 +8,7 @@ import kotlinx.serialization.json.*
 
 /** One book/row evaluation. State is copied between rows and committed only after its stage succeeds. */
 internal class RuleEvaluation(private val identity: ExecutionIdentity, private val authority: ExecutionAuthority,
-    private val session: SourceSession, private val runner: RuleTaskRunner, private val library: String?,
+    private val invocations: SourceInvocations, private val runner: RuleTaskRunner, private val library: String?,
     var bookId: String? = null, var chapterId: String? = null, var book: ScriptState = ScriptState(),
     var chapter: ScriptState = ScriptState(), var baseUrl: String, val keyword: String = "", var page: Int = 1,
     private val calls: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger(),
@@ -31,7 +30,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         maxRequests = 64, maxDataBytes = 16 * 1024 * 1024)
 
     fun fork(bookId: String? = this.bookId, chapterId: String? = this.chapterId) =
-        RuleEvaluation(identity, authority, session, runner, library, bookId, chapterId, book.copy(), chapter.copy(), baseUrl, keyword, page, calls, headerRule, interactive, trace, sourceLoginUrl, sourceComment, verification, maxRuleCalls, sourceName, sourceLastUpdateTime, memory)
+        RuleEvaluation(identity, authority, invocations, runner, library, bookId, chapterId, book.copy(), chapter.copy(), baseUrl, keyword, page, calls, headerRule, interactive, trace, sourceLoginUrl, sourceComment, verification, maxRuleCalls, sourceName, sourceLastUpdateTime, memory)
             .also { it.discovery = discovery; it.nextChapterUrl = nextChapterUrl; it.requestUserAgent = requestUserAgent; it.readOnly = readOnly; it.onMessage = onMessage }
 
     suspend fun headers(): Map<String, String> {
@@ -158,7 +157,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         var networkFailure: hnovel.network.BrokerResult.Failure? = null
         var requestLimitExceeded = false
         var responseLimitExceeded = false
-        val result = SourceExecutionBroker(identity, authority, session, limits, baseUrl, keyword, page,
+        val result = invocations.create(limits, baseUrl, keyword, page,
             allowInteraction = interactive, sourceName = sourceName, sourceLastUpdateTime = sourceLastUpdateTime,
             requestUserAgent = requestUserAgent.takeUnless { field == "header" }, currentRequest = currentRequest, memory = memory,
             onMessage = onMessage, retryContext = currentCoroutineContext()[hnovel.network.RequestRetryContext],
