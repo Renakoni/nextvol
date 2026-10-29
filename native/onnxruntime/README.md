@@ -15,6 +15,8 @@
 
 快照保留所需源码、CMake 文件、生成脚本、头文件和许可。省略原始模型、测试数据、无关语言实现、示例、文档、预编译文件以及其他执行后端的实现目录；没有修改 CPU 算子注册表。最终保留范围以逐文件清单为准。上游 CMake 文件中的其他平台下载声明仍保留，但本构建将每个所需依赖映射到仓库内源码，并设置 `FETCHCONTENT_FULLY_DISCONNECTED=ON` 和 `FETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER`。不使用本机预装的 ONNX Runtime 或 Maven/AAR 运行时。
 
+未参与主机 protoc 或 Android 运行时构建的上游测试、基准测试翻译单元不纳入快照；保留 CMake 配置所需的辅助源码。源码完整性测试和实际 C/C++ API 冒烟测试由本目录维护。
+
 除 Eigen 外，各依赖归档均核对了上游 `cmake/deps.txt` 的 SHA-1，并另记 SHA-256。Eigen 固定提交的 GitLab ZIP 已重新打包，与上游旧 SHA-1 不同；归档内全部 1,784 个文件均与该提交的 Git blob 身份一致，实际归档哈希及例外记录见 `sources.json`。
 
 ## 补丁

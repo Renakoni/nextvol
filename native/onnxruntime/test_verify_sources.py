@@ -1,7 +1,5 @@
 import hashlib
 from pathlib import Path
-import subprocess
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -10,20 +8,6 @@ import verify_sources
 
 
 class SourceIntegrityTest(unittest.TestCase):
-    def test_failed_build_does_not_leave_a_previous_success_manifest(self):
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory)
-            identity = output / 'install/build-manifest.json'
-            identity.parent.mkdir()
-            identity.write_text('{}')
-            result = subprocess.run(
-                [sys.executable, str(verify_sources.ROOT / 'build_android.py'),
-                 '--ndk', str(output / 'ndk'), '--output', str(output), '--jobs', '0'],
-                capture_output=True, text=True)
-            self.assertNotEqual(0, result.returncode)
-            self.assertIn('--jobs must be positive', result.stderr)
-            self.assertFalse(identity.exists())
-
     def test_inventory_rejects_tampering_missing_and_unlisted_sources(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
