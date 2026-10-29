@@ -144,6 +144,8 @@ class SpeechPackageReaderTest {
         val result = previewSpeechPackage(yaml("private-value: [broken"), "config.yaml")
         assertEquals(SpeechPackageError.InvalidYaml, result.error)
         assertFalse(result.toString().contains("private-value"))
+        assertEquals(SpeechPackageError.InvalidYaml,
+            previewSpeechPackage(yaml("private\u0000value"), "config.yaml").error)
     }
 
     @Test fun cancellationClosesTheArchiveAndDoesNotPublishAPartialPreview() {

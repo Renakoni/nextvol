@@ -12,7 +12,7 @@ import org.yaml.snakeyaml.reader.StreamReader
 import java.io.StringReader
 
 /** Consumes parser events directly. No resolver, composer, Java constructor, or load API is used. */
-internal fun readSpeechPackageYaml(text: String, checkCancelled: () -> Unit): SpeechPackageValue {
+internal fun readSpeechPackageYaml(text: String, checkCancelled: () -> Unit): SpeechPackageValue = try {
     val options = LoaderOptions().apply { codePointLimit = Int.MAX_VALUE }
     val parser = ParserImpl(StreamReader(StringReader(text.removePrefix("\uFEFF"))), options)
     fun expect(id: Event.ID) {
@@ -42,15 +42,13 @@ internal fun readSpeechPackageYaml(text: String, checkCancelled: () -> Unit): Sp
             else -> throw SpeechPackageFailure(if (event.eventId == Event.ID.Alias) SpeechPackageError.YamlAlias else SpeechPackageError.InvalidYaml)
         }
     }
-    try {
-        expect(Event.ID.StreamStart)
-        expect(Event.ID.DocumentStart)
-        val root = value()
-        expect(Event.ID.DocumentEnd)
-        expect(Event.ID.StreamEnd)
-        return root
-    } catch (_: YAMLException) {
-        // Parser messages can contain source snippets and credentials.
-        throw SpeechPackageFailure(SpeechPackageError.InvalidYaml)
-    }
+    expect(Event.ID.StreamStart)
+    expect(Event.ID.DocumentStart)
+    val root = value()
+    expect(Event.ID.DocumentEnd)
+    expect(Event.ID.StreamEnd)
+    root
+} catch (_: YAMLException) {
+    // Parser messages can contain source snippets and credentials.
+    throw SpeechPackageFailure(SpeechPackageError.InvalidYaml)
 }

@@ -62,7 +62,7 @@ fun SpeechPackagePreviewScreen(preview: SpeechPackagePreview?, onBack: () -> Uni
                                 Text(stringResource(if (preview.kinds == setOf(SpeechPackageKind.Unknown)) R.string.tts_package_unknown
                                     else R.string.tts_package_valid), color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.bodyLarge)
-                                Text(preview.kinds.joinToString(" · ") { context.getString(it.labelResource) },
+                                Text(preview.kinds.map { stringResource(it.labelResource) }.joinToString(" · "),
                                     style = MaterialTheme.typography.bodyMedium)
                                 Text(stringResource(R.string.tts_package_counts, preview.engines.size,
                                     preview.engines.sumOf { it.voices.size }, preview.resources.size), style = MaterialTheme.typography.bodyMedium)

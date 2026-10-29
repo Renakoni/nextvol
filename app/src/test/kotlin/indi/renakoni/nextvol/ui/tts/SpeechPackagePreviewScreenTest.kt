@@ -1,11 +1,14 @@
 package indi.renakoni.nextvol.ui.tts
 
 import android.app.Application
+import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.unit.Density
@@ -24,6 +27,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "en-rUS-w320dp-h640dp")
@@ -56,6 +60,25 @@ class SpeechPackagePreviewScreenTest {
         compose.onNodeWithText("Preview voice").assertDoesNotExist()
         compose.onNodeWithContentDescription("Back").performClick()
         assertTrue(backed)
+    }
+
+    @Test fun packageKindUsesUpdatedResourcesWithoutReplacingTheContext() {
+        val file = temporary.newFile().apply { writeText("roles: []") }
+        val preview = previewSpeechPackage(file, "roles.yaml")
+        val resources = mutableStateOf(activity.get().resources)
+        activity.get().setContent {
+            CompositionLocalProvider(LocalResources provides resources.value) {
+                MaterialTheme(typography = AppTypography) { SpeechPackagePreviewScreen(preview) {} }
+            }
+        }
+        compose.onNodeWithText("Role configuration").assertIsDisplayed()
+        compose.runOnIdle {
+            resources.value = activity.get().createConfigurationContext(
+                Configuration(resources.value.configuration).apply { setLocale(Locale.SIMPLIFIED_CHINESE) }
+            ).resources
+        }
+        compose.onNodeWithText("角色配置").assertIsDisplayed()
+        compose.onNodeWithText("Role configuration").assertDoesNotExist()
     }
 
     @Test fun packagePreviewAndExistingJsonImportHaveSeparateWorkingEntries() {

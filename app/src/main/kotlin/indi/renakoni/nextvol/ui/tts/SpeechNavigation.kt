@@ -119,6 +119,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             })
     }
     composable<SpeechPackagePreviewRoute> { entry ->
+        HideReadAloudOverlay()
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechPackagePreviewViewModel>()
         val preview by viewModel.preview.collectAsStateWithLifecycle()
