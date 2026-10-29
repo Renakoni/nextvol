@@ -15,7 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.text.TextLayoutResult
@@ -206,14 +205,14 @@ class SpeechControlsTest {
                         SpeechSettingsUiState(loading = false),
                         ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Playing,
                             bookTitle = "A long book title ".repeat(8)),
-                        {}, {}, {}, {}, {}, {}, { actions += it }, {}, {}, onPlaybackSpeed = {},
+                        {}, onSources = {}, onPreferences = {}, onCommand = { actions += it },
                     )
                 }
             }
         }
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.onNodeWithContentDescription("Stop").assertDoesNotExist()
-        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("System speech settings"))
+        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("Playback settings"))
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed().performClick()
         compose.onNodeWithText("A long book title ".repeat(8)).performClick()
         compose.onNodeWithText("Stop").assertIsDisplayed().performClick()
@@ -224,14 +223,14 @@ class SpeechControlsTest {
         val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState(loading = false))
         activity.get().setContent {
             MaterialTheme(typography = AppTypography) {
-                SpeechSettingsScreen(state.value, ReadAloudState(),
-                    {}, {}, {},
+                SpeechPreferencesScreen(state.value, ReadAloudState(),
+                    {},
                     onRate = { state.value = state.value.copy(settings = state.value.settings.copy(rate = it)) },
-                    onPitch = {}, onPreview = {}, onCommand = {}, onSystemSettings = {}, onRefresh = {},
+                    onPitch = {}, onCommand = {},
                     onPlaybackSpeed = { state.value = state.value.copy(settings = state.value.settings.copy(playbackSpeed = it)) })
             }
         }
-        val list = compose.onNodeWithTag("speech-settings-list")
+        val list = compose.onNodeWithTag("speech-preferences-list")
         list.performScrollToNode(hasContentDescription("Playback speed"))
         compose.onNodeWithContentDescription("Playback speed").performSemanticsAction(SemanticsActions.SetProgress) { it(2f) }
         compose.runOnIdle {
@@ -255,7 +254,7 @@ class SpeechControlsTest {
     }
 
     @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
-    fun refreshingTheSameMissingEngineKeepsTheErrorAndParameterPositions() {
+    fun refreshingTheSameMissingEngineKeepsTheErrorAndDisablesVoiceSelection() {
         val repository = mockk<SpeechSettingsRepository>()
         every { repository.changes } returns MutableStateFlow(SpeechSettings())
         val engines = mockk<SystemSpeechEngines>()
@@ -270,80 +269,71 @@ class SpeechControlsTest {
         try {
             activity.get().setContent { MaterialTheme {
                 val state by model.state.collectAsState()
-                SpeechSettingsScreen(state, ReadAloudState(),
-                    {}, {}, {}, {}, {}, {}, {}, {}, model::refresh, onPlaybackSpeed = {})
+                HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                    onRefresh = model::refresh,
+                    systemSettings = { SystemSpeechSettings(state, {}, {}, {}) })
             } }
             waitUntil { !model.state.value.loading }
             val error = activity.get().getString(SpeechError.NoEngine.messageResource)
             compose.onNodeWithText(error).assertIsDisplayed()
-            val speed = compose.onNodeWithContentDescription("Playback speed").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            val engine = compose.onNodeWithText("Speech engine").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             coEvery { engines.inspect("") } coAnswers { inspection.await() }
             compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
             waitUntil { model.state.value.loading }
             compose.onNodeWithText(error).assertIsDisplayed()
-            assertEquals(speed, compose.onNodeWithContentDescription("Playback speed").fetchSemanticsNode().boundsInRoot)
-            compose.onNodeWithTag("speech-preview").assertIsNotEnabled()
+            assertEquals(engine, compose.onNodeWithText("Speech engine").fetchSemanticsNode().boundsInRoot)
+            compose.onNodeWithText("Voice").assertIsNotEnabled()
             inspection.completeExceptionally(SpeechException(SpeechError.NoEngine))
             waitUntil { !model.state.value.loading }
             compose.onNodeWithText(error).assertIsDisplayed()
-            assertEquals(speed, compose.onNodeWithContentDescription("Playback speed").fetchSemanticsNode().boundsInRoot)
-            compose.onNodeWithTag("speech-preview").assertIsNotEnabled()
+            assertEquals(engine, compose.onNodeWithText("Speech engine").fetchSemanticsNode().boundsInRoot)
         } finally {
             model.viewModelScope.cancel()
         }
     }
 
-    @Test
-    @Config(sdk = [35], qualifiers = "en-rUS-w360dp-h900dp")
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun previewLoadingKeepsItsWholeAppearanceStableWithoutAllowingPlayback() {
-        val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState())
-        var previews = 0
+    @Test fun voiceSourcesKeepSelectionAndPreviewIndependentWhenReturningToSettings() {
+        val definition = hnovel.speech.previewHttpSpeech("""{"id":"test","name":"Test voice","url":"https://example.org"}""").sources.single()
+        val source = SavedHttpSpeechSource(definition, listOf("https://example.org:443"), group = "Built-in service")
+        val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState(loading = false, httpSources = listOf(source)))
+        val opened = androidx.compose.runtime.mutableStateOf(false)
+        var previewed: String? = null
+        var preferencesOpened = false
         activity.get().setContent {
-            MaterialTheme {
-                SpeechSettingsScreen(state.value, ReadAloudState(), {}, {}, {}, {}, {},
-                    onPreview = { previews++ }, onCommand = {}, onSystemSettings = {}, onRefresh = {}, onPlaybackSpeed = {})
+            MaterialTheme(typography = AppTypography) {
+                if (opened.value) HttpSpeechSourcesScreen(
+                    HttpSpeechSourcesState(sources = listOf(source), selected = state.value.settings.httpSource),
+                    onBack = { opened.value = false }, onImport = {},
+                    onSelect = { state.value = state.value.copy(settings = state.value.settings.copy(httpSource = it)) },
+                    onDelete = {}, onSites = { _, _ -> }, onConfirmImport = {}, onDismissImport = {}, onEdit = { _, _, _, _ -> },
+                    onPreview = { previewed = it },
+                    systemSettings = { SystemSpeechSettings(state.value, {}, {}, {}) },
+                ) else SpeechSettingsScreen(state.value, ReadAloudState(),
+                    {}, onSources = { opened.value = true }, onPreferences = { preferencesOpened = true }, onCommand = {})
             }
         }
-        val button = compose.onNodeWithTag("speech-preview")
-        fun appearance() = button.captureToImage().let { image ->
-            IntArray(image.width * image.height).also { image.readPixels(it) }
-        }
-        button.assertIsDisplayed().assertIsNotEnabled().performTouchInput { click() }
-        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertCountEquals(0)
-        val loading = appearance()
-        assertEquals(0, previews)
-        compose.runOnIdle {
-            state.value = state.value.copy(loading = false, engines = listOf(SpeechEngine("engine", "Engine")))
-        }
-        button.assertIsEnabled()
-        assertArrayEquals(loading, appearance())
-        button.performClick()
-        assertEquals(1, previews)
-        compose.runOnIdle { state.value = state.value.copy(loading = true) }
-        button.assertIsNotEnabled()
-        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertCountEquals(0)
-        assertArrayEquals(loading, appearance())
-        compose.runOnIdle {
-            state.value = state.value.copy(loading = false, engines = emptyList(), error = SpeechError.NoEngine)
-        }
-        button.assertIsNotEnabled()
-        val unavailable = appearance()
-        assertFalse(loading.contentEquals(unavailable))
-        compose.runOnIdle { state.value = state.value.copy(loading = true) }
-        assertArrayEquals(unavailable, appearance())
-    }
-
-    @Test fun voiceLibraryIsTheFirstChoiceEvenWhenUsingASystemEngine() {
-        var opened = false
-        activity.get().setContent {
-            MaterialTheme {
-                SpeechSettingsScreen(SpeechSettingsUiState(loading = false), ReadAloudState(),
-                    {}, {}, {}, {}, {}, {}, {}, {}, {}, onPlaybackSpeed = {}, onHttpSources = { opened = true })
-            }
-        }
-        compose.onNodeWithText("Voices").assertIsDisplayed().performClick()
-        assertTrue(opened)
+        compose.onNodeWithText("Speech engine").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Playback speed").assertDoesNotExist()
+        assertTrue(compose.onNodeWithTag("speech-preferences-entry").fetchSemanticsNode().boundsInRoot.top <
+            compose.onNodeWithTag("speech-sources-entry").fetchSemanticsNode().boundsInRoot.top)
+        compose.onNodeWithTag("speech-preferences-entry").assertIsDisplayed().performClick()
+        assertTrue(preferencesOpened)
+        compose.onNodeWithTag("speech-sources-entry").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Speech engine").assertIsDisplayed()
+        compose.onNodeWithTag("speech-sources-list").performScrollToNode(hasText("Built-in service"))
+        compose.onNodeWithText("Built-in service").performClick()
+        compose.onNodeWithTag("speech-sources-list").performScrollToNode(hasText("Test voice"))
+        compose.onNodeWithContentDescription("Preview Test voice").performClick()
+        assertEquals("test", previewed)
+        assertNull(state.value.settings.httpSource)
+        compose.onNodeWithText("Test voice").performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag("speech-sources-entry").assertTextContains("Test voice")
+        compose.onNodeWithTag("speech-sources-entry").performClick()
+        compose.onNodeWithText("Built-in service").performClick()
+        compose.onNodeWithTag("speech-sources-list").performScrollToNode(hasText("Test voice") and isSelected())
+        compose.onNode(hasText("Test voice") and isSelected()).assertIsDisplayed()
+        compose.onNodeWithText("Speech engine").assertDoesNotExist()
     }
 
     @Test fun systemVoicePreviewLeavesTheSelectionDialogOpenUntilAChoiceIsMade() {
@@ -351,10 +341,12 @@ class SpeechControlsTest {
         var previewed: String? = null
         activity.get().setContent {
             MaterialTheme {
-                SpeechSettingsScreen(SpeechSettingsUiState(loading = false,
-                    voices = listOf(SpeechVoice("candidate", "en-US", false, true))), ReadAloudState(),
-                    {}, {}, { selected = it }, {}, {}, {}, {}, {}, {}, onPlaybackSpeed = {},
-                    onPreviewVoice = { previewed = it })
+                HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                    systemSettings = {
+                        SystemSpeechSettings(SpeechSettingsUiState(loading = false,
+                            voices = listOf(SpeechVoice("candidate", "en-US", false, true))), {}, { selected = it }, {},
+                            onPreviewVoice = { previewed = it })
+                    })
             }
         }
         compose.onNodeWithText("Voice").performClick()

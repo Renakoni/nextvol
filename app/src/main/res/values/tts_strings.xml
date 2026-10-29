@@ -22,6 +22,11 @@
     <string name="tts_title">Read aloud</string>
     <string name="tts_start">Listen to this book</string>
     <string name="tts_settings">Read aloud settings</string>
+    <string name="tts_sources">Voice sources</string>
+    <string name="tts_playback_settings">Playback</string>
+    <string name="tts_synthesis_settings">Audio generation</string>
+    <string name="tts_preferences">Playback settings</string>
+    <string name="tts_preferences_description">Playback and voice parameters</string>
     <string name="tts_settings_description">Voices and reading speed</string>
     <string name="tts_engine">Speech engine</string>
     <string name="tts_voice">Voice</string>
