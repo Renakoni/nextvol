@@ -48,6 +48,7 @@ fun HttpSpeechSourcesScreen(
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
     systemSettings: (@Composable () -> Unit)? = null,
+    onPackagePreview: (() -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -75,6 +76,8 @@ fun HttpSpeechSourcesScreen(
                 }
                 DropdownMenu(importMenu, onDismissRequest = { importMenu = false }) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.tts_import_sources)) }, onClick = { importMenu = false; onImport() })
+                    if (onPackagePreview != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_package_open)) },
+                        onClick = { importMenu = false; onPackagePreview() })
                 }
             }
         })
