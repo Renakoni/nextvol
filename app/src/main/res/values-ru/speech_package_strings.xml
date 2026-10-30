@@ -1,4 +1,10 @@
 <resources>
+    <string name="tts_package_http_static">Просмотр не подключается к сервису речи. После подтверждения импорта голоса можно выбрать и прослушать в библиотеке.</string>
+    <string name="tts_package_can_import">Готово к импорту</string>
+    <string name="tts_package_cannot_import">Импорт пока не поддерживается</string>
+    <string name="tts_package_local_audio">Локальные эффекты скорости, усиления громкости и высоты тона из пакета не применяются.</string>
+    <string name="tts_package_http_request_unsupported">Пакету нужна дополнительная обработка запросов или заголовков, которая пока не подключена.</string>
+    <string name="tts_package_http_parameters_required">Пакету нужна настройка дополнительных параметров, которая пока не подключена.</string>
     <string name="tts_package_preview">Просмотр голосового пакета</string>
     <string name="tts_package_open">Просмотреть пакет ZIP / YAML</string>
     <string name="tts_package_reading">Чтение голосового пакета…</string>
