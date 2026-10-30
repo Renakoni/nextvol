@@ -18,33 +18,46 @@ internal fun readSpeechPackageYaml(text: String, checkCancelled: () -> Unit): Sp
     fun expect(id: Event.ID) {
         packageCheck(parser.event.eventId == id, SpeechPackageError.InvalidYaml)
     }
-    fun value(): SpeechPackageValue {
-        checkCancelled()
-        return when (val event = parser.event) {
-            is ScalarEvent -> SpeechPackageValue.Scalar(event.value, event.tag, event.scalarStyle == DumperOptions.ScalarStyle.PLAIN)
-            is SequenceStartEvent -> {
-                val values = mutableListOf<SpeechPackageValue>()
-                while (!parser.checkEvent(Event.ID.SequenceEnd)) values += value()
-                expect(Event.ID.SequenceEnd)
-                SpeechPackageValue.Sequence(values.toList(), event.tag)
-            }
-            is MappingStartEvent -> {
-                val values = linkedMapOf<String, SpeechPackageValue>()
-                while (!parser.checkEvent(Event.ID.MappingEnd)) {
-                    val key = value() as? SpeechPackageValue.Scalar
-                        ?: throw SpeechPackageFailure(SpeechPackageError.InvalidStructure)
-                    packageCheck(key.value !in values, SpeechPackageError.DuplicateKey)
-                    values[key.value] = value()
-                }
-                expect(Event.ID.MappingEnd)
-                SpeechPackageValue.Mapping(values.toMap(), event.tag)
-            }
-            else -> throw SpeechPackageFailure(if (event.eventId == Event.ID.Alias) SpeechPackageError.YamlAlias else SpeechPackageError.InvalidYaml)
-        }
-    }
     expect(Event.ID.StreamStart)
     expect(Event.ID.DocumentStart)
-    val root = value()
+    val collections = ArrayDeque<Pair<Event, MutableList<SpeechPackageValue>>>()
+    var root: SpeechPackageValue
+    while (true) {
+        checkCancelled()
+        val value = when (val event = parser.event) {
+            is ScalarEvent -> SpeechPackageValue.Scalar(event.value, event.tag, event.scalarStyle == DumperOptions.ScalarStyle.PLAIN)
+            is SequenceStartEvent, is MappingStartEvent -> {
+                collections.addLast(event to mutableListOf())
+                continue
+            }
+            else -> {
+                if (event.eventId == Event.ID.Alias) throw SpeechPackageFailure(SpeechPackageError.YamlAlias)
+                packageCheck(event.eventId == Event.ID.SequenceEnd || event.eventId == Event.ID.MappingEnd, SpeechPackageError.InvalidYaml)
+                val (start, children) = collections.removeLastOrNull()
+                    ?: throw SpeechPackageFailure(SpeechPackageError.InvalidYaml)
+                if (start is SequenceStartEvent) {
+                    packageCheck(event.eventId == Event.ID.SequenceEnd, SpeechPackageError.InvalidYaml)
+                    SpeechPackageValue.Sequence(children.toList(), start.tag)
+                } else {
+                    packageCheck(event.eventId == Event.ID.MappingEnd && children.size % 2 == 0, SpeechPackageError.InvalidYaml)
+                    val values = linkedMapOf<String, SpeechPackageValue>()
+                    for (index in children.indices step 2) {
+                        checkCancelled()
+                        val key = children[index] as? SpeechPackageValue.Scalar
+                            ?: throw SpeechPackageFailure(SpeechPackageError.InvalidStructure)
+                        packageCheck(key.value !in values, SpeechPackageError.DuplicateKey)
+                        values[key.value] = children[index + 1]
+                    }
+                    SpeechPackageValue.Mapping(values.toMap(), (start as MappingStartEvent).tag)
+                }
+            }
+        }
+        if (collections.isEmpty()) {
+            root = value
+            break
+        }
+        collections.last().second += value
+    }
     expect(Event.ID.DocumentEnd)
     expect(Event.ID.StreamEnd)
     root

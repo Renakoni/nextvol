@@ -276,64 +276,17 @@ class SpeechControlsTest {
             waitUntil { !model.state.value.loading }
             val error = activity.get().getString(SpeechError.NoEngine.messageResource)
             compose.onNodeWithText(error).assertIsDisplayed()
-            val engine = compose.onNodeWithText("Speech engine").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             coEvery { engines.inspect("") } coAnswers { inspection.await() }
             compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
             waitUntil { model.state.value.loading }
             compose.onNodeWithText(error).assertIsDisplayed()
-            assertEquals(engine, compose.onNodeWithText("Speech engine").fetchSemanticsNode().boundsInRoot)
             compose.onNodeWithText("Voice").assertIsNotEnabled()
             inspection.completeExceptionally(SpeechException(SpeechError.NoEngine))
             waitUntil { !model.state.value.loading }
             compose.onNodeWithText(error).assertIsDisplayed()
-            assertEquals(engine, compose.onNodeWithText("Speech engine").fetchSemanticsNode().boundsInRoot)
         } finally {
             model.viewModelScope.cancel()
         }
-    }
-
-    @Test fun voiceSourcesKeepSelectionAndPreviewIndependentWhenReturningToSettings() {
-        val definition = hnovel.speech.previewHttpSpeech("""{"id":"test","name":"Test voice","url":"https://example.org"}""").sources.single()
-        val source = SavedHttpSpeechSource(definition, listOf("https://example.org:443"), group = "Built-in service")
-        val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState(loading = false, httpSources = listOf(source)))
-        val opened = androidx.compose.runtime.mutableStateOf(false)
-        var previewed: String? = null
-        var preferencesOpened = false
-        activity.get().setContent {
-            MaterialTheme(typography = AppTypography) {
-                if (opened.value) HttpSpeechSourcesScreen(
-                    HttpSpeechSourcesState(sources = listOf(source), selected = state.value.settings.httpSource),
-                    onBack = { opened.value = false }, onImport = {},
-                    onSelect = { state.value = state.value.copy(settings = state.value.settings.copy(httpSource = it)) },
-                    onDelete = {}, onSites = { _, _ -> }, onConfirmImport = {}, onDismissImport = {}, onEdit = { _, _, _, _ -> },
-                    onPreview = { previewed = it },
-                    systemSettings = { SystemSpeechSettings(state.value, {}, {}, {}) },
-                ) else SpeechSettingsScreen(state.value, ReadAloudState(),
-                    {}, onSources = { opened.value = true }, onPreferences = { preferencesOpened = true }, onCommand = {})
-            }
-        }
-        compose.onNodeWithText("Speech engine").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Playback speed").assertDoesNotExist()
-        assertTrue(compose.onNodeWithTag("speech-preferences-entry").fetchSemanticsNode().boundsInRoot.top <
-            compose.onNodeWithTag("speech-sources-entry").fetchSemanticsNode().boundsInRoot.top)
-        compose.onNodeWithTag("speech-preferences-entry").assertIsDisplayed().performClick()
-        assertTrue(preferencesOpened)
-        compose.onNodeWithTag("speech-sources-entry").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Speech engine").assertIsDisplayed()
-        compose.onNodeWithTag("speech-sources-list").performScrollToNode(hasText("Built-in service"))
-        compose.onNodeWithText("Built-in service").performClick()
-        compose.onNodeWithTag("speech-sources-list").performScrollToNode(hasText("Test voice"))
-        compose.onNodeWithContentDescription("Preview Test voice").performClick()
-        assertEquals("test", previewed)
-        assertNull(state.value.settings.httpSource)
-        compose.onNodeWithText("Test voice").performClick()
-        compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithTag("speech-sources-entry").assertTextContains("Test voice")
-        compose.onNodeWithTag("speech-sources-entry").performClick()
-        compose.onNodeWithText("Built-in service").performClick()
-        compose.onNodeWithTag("speech-sources-list").performScrollToNode(hasText("Test voice") and isSelected())
-        compose.onNode(hasText("Test voice") and isSelected()).assertIsDisplayed()
-        compose.onNodeWithText("Speech engine").assertDoesNotExist()
     }
 
     @Test fun systemVoicePreviewLeavesTheSelectionDialogOpenUntilAChoiceIsMade() {

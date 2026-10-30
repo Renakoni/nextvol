@@ -3,8 +3,6 @@ package indi.renakoni.nextvol.benchmark.tts
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
-import androidx.test.uiautomator.UiScrollable
-import androidx.test.uiautomator.UiSelector
 import androidx.test.uiautomator.Until
 import indi.renakoni.nextvol.benchmark.ui.UiAutomatorTest
 import org.junit.Assert.assertFalse
@@ -24,32 +22,23 @@ class ReadAloudSmokeTest : UiAutomatorTest() {
         // Await the settings screen before opening the voice library.
         clickText("Voice sources")
         assertDescription("Library options")
-        scrollSpeechListTo("Imported test voice")
+        scrollToText("Imported test voice")
         clickText("Imported test voice")
         device.pressBack()
         assertText("Imported test voice")
         clickText("Voice sources")
         assertDescription("Library options")
-        scrollSpeechListTo("Imported test voice")
+        scrollToText("Imported test voice")
         clickDescription("Preview Imported test voice")
         clickText("Finished")
         clickText("Stop")
         assertServiceStopped()
-        scrollSpeechListTo("Imported test voice")
+        scrollToText("Imported test voice")
         clickDescription("Voice options")
         clickText("Remove voice")
         assertTrue(device.wait(Until.gone(By.text("Imported test voice")), TIMEOUT))
         device.pressBack()
         assertTextContains("System speech")
-    }
-
-    private fun scrollSpeechListTo(text: String) {
-        // Compact settings may fit on screen and expose no scrollable container.
-        if (!device.hasObject(By.text(text))) {
-            assertTrue("Speech list did not contain: $text",
-                UiScrollable(UiSelector().scrollable(true)).scrollTextIntoView(text))
-        }
-        assertText(text)
     }
 
     private fun assertServiceStopped() {

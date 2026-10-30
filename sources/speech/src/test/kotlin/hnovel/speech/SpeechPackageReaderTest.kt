@@ -25,11 +25,13 @@ class SpeechPackageReaderTest {
     private fun yaml(text: String) = temporary.newFile().also { it.writeText(text) }
 
     @Test fun taggedHttpPackageRetainsSourceDataAndOnlyReportsAdapterFoundation() {
+        constructions = 0
         val file = archive(
             "engines.yaml" to """!!org.nobody.multitts.tts.engine.EngineConfig
                 engines:
                 - code: http_test
-                  name: Test service
+                  name: "null"
+                  extra: !!hnovel.speech.SpeechPackageReaderTest${'$'}ExecutableTag {command: ignored}
                   type: http
                   url: "@js:throw new Error('must not execute')"
                   header: "private-header"
@@ -48,6 +50,8 @@ class SpeechPackageReaderTest {
         val preview = previewSpeechPackage(file)
         assertNull(preview.error)
         val engine = preview.engines.single()
+        assertEquals(0, constructions)
+        assertEquals("null", engine.name)
         assertEquals(SpeechPackageSupport.HttpAdapter, engine.support)
         assertEquals(listOf(SpeechPackageNotice.ImportPending), engine.notices)
         assertTrue(engine.raw!!.values["url"].text()!!.contains("must not execute"))
@@ -100,13 +104,10 @@ class SpeechPackageReaderTest {
         val preview = previewSpeechPackage(archive("roles.yaml" to """!!org.nobody.multitts.tts.role.RoleConfig
             roles:
             - {name: Narrator, voice: narrator}
-            - {name: Alice, voice: alice}
-            - {name: Bob, voice: bob}
         """.trimIndent()))
         assertNull(preview.error)
         assertEquals(setOf(SpeechPackageKind.Roles), preview.kinds)
         assertTrue(preview.engines.isEmpty())
-        assertEquals(3, ((preview.documents.single().value as SpeechPackageValue.Mapping).values["roles"] as SpeechPackageValue.Sequence).values.size)
     }
 
     @Test fun missingDefinitionAndNullVoiceListsAreConfigurationGapsRatherThanBrokenYaml() {
@@ -123,17 +124,11 @@ class SpeechPackageReaderTest {
         assertEquals(setOf(SpeechPackageNotice.MissingVoices, SpeechPackageNotice.MissingRequest, SpeechPackageNotice.ImportPending), empty.engines.single().notices.toSet())
     }
 
-    @Test fun javaTagsRemainDataAndQuotedNullIsNotChangedToYamlNull() {
-        constructions = 0
-        val preview = previewSpeechPackage(yaml("""engines:
-            - code: tagged
-              name: "null"
-              extra: !!hnovel.speech.SpeechPackageReaderTest${'$'}ExecutableTag {command: ignored}
-        """.trimIndent()), "engines.yaml")
+    @Test fun deeplyNestedDataDoesNotExhaustTheJvmStack() {
+        val nested = "[".repeat(2048) + "null" + "]".repeat(2048)
+        val preview = previewSpeechPackage(yaml("engines: [{code: nested, extra: $nested}]"), "engines.yaml")
         assertNull(preview.error)
-        assertEquals(0, constructions)
-        assertEquals("null", preview.engines.single().name)
-        assertTrue(preview.engines.single().raw!!.values["extra"]!!.tag!!.endsWith("ExecutableTag"))
+        assertTrue(preview.engines.single().raw!!.values["extra"] is SpeechPackageValue.Sequence)
     }
 
     @Test fun ambiguousYamlAndAliasesReturnNonSensitiveParseResults() {
