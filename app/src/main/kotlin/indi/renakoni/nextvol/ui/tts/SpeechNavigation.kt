@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -16,6 +17,8 @@ import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
+import android.net.Uri
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechRequest
 import io.nightfish.lightnovelreader.api.Route
@@ -32,6 +35,9 @@ object HttpSpeechSourcesRoute
 
 @Serializable
 object SpeechPreferencesRoute
+
+@Serializable
+data class SpeechPackagePreviewRoute(val uri: String)
 
 fun NavController.navigateToSpeechSettings() = navigate(SpeechSettingsRoute) { launchSingleTop = true }
 
@@ -88,6 +94,9 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val preview = stringResource(R.string.tts_preview_text)
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { settingsViewModel.refresh() }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::preview) }
+        val packagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let { nav.navigate(SpeechPackagePreviewRoute(it.toString())) { launchSingleTop = true } }
+        }
         HttpSpeechSourcesScreen(state, nav::popBackStackIfResumed,
             onImport = { picker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
             onSelect = viewModel::select, onDelete = viewModel::delete, onSites = viewModel::sites,
@@ -97,6 +106,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onRefresh = settingsViewModel::refresh,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
+            onPackagePreview = { packagePicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/yaml",
+                "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
             systemSettings = {
                 SystemSpeechSettings(settings.copy(loading = settings.loading || state.busy),
                     onEngine = settingsViewModel::selectEngine, onVoice = settingsViewModel::selectVoice,
@@ -106,5 +117,14 @@ fun NavGraphBuilder.speechSettingsDestination() {
                         catch (_: ActivityNotFoundException) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
                     })
             })
+    }
+    composable<SpeechPackagePreviewRoute> { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechPackagePreviewViewModel>()
+        val preview by viewModel.preview.collectAsStateWithLifecycle()
+        val uri = entry.toRoute<SpeechPackagePreviewRoute>().uri
+        LaunchedEffect(uri) { viewModel.read(Uri.parse(uri)) }
+        SpeechPackagePreviewScreen(preview, nav::popBackStackIfResumed)
     }
 }
