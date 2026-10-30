@@ -1,0 +1,29 @@
+http_fixture:
+- !!org.nobody.multitts.tts.speaker.Speaker
+  avatar: null
+  code: test_voice_1
+  desc: 测试声音描述
+  extendUI: null
+  gender: 0
+  name: 测试声音1
+  note: !!null '脱敏测试说明'
+  param: null
+  pitch: 1.0
+  sampleRate: 16000
+  speed: 1.3
+  type: 1
+  volume: 2.0
+- !!org.nobody.multitts.tts.speaker.Speaker
+  avatar: null
+  code: test_voice_2
+  desc: 测试声音描述
+  extendUI: null
+  gender: 0
+  name: 测试声音2
+  note: !!null '脱敏测试说明'
+  param: null
+  pitch: 1.0
+  sampleRate: 16000
+  speed: 1.3
+  type: 1
+  volume: 2.0

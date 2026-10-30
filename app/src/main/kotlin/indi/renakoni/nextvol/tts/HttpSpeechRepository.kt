@@ -29,6 +29,9 @@ data class SavedHttpSpeechSource(
     val credentials: Map<String, String> = emptyMap(),
 ) {
     val isBuiltIn: Boolean get() = group != null
+    val category: String? get() = group ?: ((definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject)
+        ?.let { engine -> (engine["name"] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
+            ?: (engine["code"] as? JsonPrimitive)?.contentOrNull }
     val isConfigured: Boolean get() = credentialKeys.all { !credentials[it].isNullOrBlank() }
 
     override fun toString() = "SavedHttpSpeechSource(id=${definition.id}, builtIn=$isBuiltIn, configured=$isConfigured)"

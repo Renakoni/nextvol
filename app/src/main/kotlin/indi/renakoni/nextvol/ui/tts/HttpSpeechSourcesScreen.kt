@@ -61,6 +61,21 @@ fun HttpSpeechSourcesScreen(
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var header by remember { mutableStateOf("") }
+    val sourceRow: @Composable (SavedHttpSpeechSource, Modifier) -> Unit = { source, modifier ->
+        Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+            SourceChoice(source.definition.name, state.selected == source.definition.id, !state.busy, {
+                if (source.isConfigured) onSelect(source.definition.id) else configuring = source
+            }, Modifier.weight(1f),
+                onPreview = onPreview?.let { { it(source.definition.id) } }, previewEnabled = source.isConfigured)
+            if (!source.isBuiltIn) SpeechSourceActions(!state.busy,
+                onEdit = {
+                    definition = source; name = source.definition.name
+                    url = source.definition.url; header = source.definition.text("header")
+                },
+                onSites = { editing = source; sites = source.origins.joinToString("\n") },
+                onDelete = { onDelete(source) })
+        }
+    }
     Scaffold(topBar = {
         TopAppBar(title = { Text(stringResource(R.string.tts_sources), style = MaterialTheme.typography.displayLarge,
             maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
@@ -96,7 +111,7 @@ fun HttpSpeechSourcesScreen(
                 }
             }
             if (state.sources.isEmpty() && !state.busy) item { Text(stringResource(R.string.tts_online_empty), Modifier.padding(16.dp)) }
-            state.sources.filter { it.isBuiltIn }.groupBy { it.group!! }.forEach { (group, sources) ->
+            state.sources.filter { it.category != null }.groupBy { it.category!! }.forEach { (group, sources) ->
                 item(key = "group:$group") {
                     val account = sources.first()
                     val current = sources.find { it.definition.id == state.selected }
@@ -106,7 +121,7 @@ fun HttpSpeechSourcesScreen(
                             .padding(start = 22.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(group, style = MaterialTheme.typography.headlineSmall)
-                                Text(if (!account.isConfigured) stringResource(R.string.tts_needs_key)
+                                Text(if (sources.none { it.isConfigured }) stringResource(R.string.tts_needs_key)
                                     else current?.definition?.name ?: pluralStringResource(R.plurals.tts_voice_count, sources.size, sources.size),
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -119,35 +134,12 @@ fun HttpSpeechSourcesScreen(
                     }
                 }
                 if (expanded == group) items(sources, key = { it.definition.id }) { source ->
-                    SourceChoice(source.definition.name, state.selected == source.definition.id, !state.busy, {
-                        if (source.isConfigured) onSelect(source.definition.id) else configuring = source
-                    }, Modifier.padding(horizontal = 16.dp),
-                        onPreview = onPreview?.let { { it(source.definition.id) } }, previewEnabled = source.isConfigured)
+                    sourceRow(source, Modifier.padding(horizontal = 16.dp))
                 }
             }
-            items(state.sources.filterNot { it.isBuiltIn }, key = { it.definition.id }) { source ->
+            items(state.sources.filter { it.category == null }, key = { it.definition.id }) { source ->
                 SettingsCategory {
-                    Row(Modifier.background(MaterialTheme.colorScheme.surfaceContainer), verticalAlignment = Alignment.CenterVertically) {
-                        SourceChoice(source.definition.name, state.selected == source.definition.id, !state.busy,
-                            { onSelect(source.definition.id) }, Modifier.weight(1f),
-                            onPreview = onPreview?.let { { it(source.definition.id) } }, previewEnabled = source.isConfigured)
-                        var menu by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(onClick = { menu = true }, enabled = !state.busy) {
-                                Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions))
-                            }
-                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = {
-                                    menu = false; definition = source; name = source.definition.name
-                                    url = source.definition.url; header = source.definition.text("header")
-                                })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_source_sites)) }, onClick = {
-                                    menu = false; editing = source; sites = source.origins.joinToString("\n")
-                                })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { menu = false; onDelete(source) })
-                            }
-                        }
-                    }
+                    sourceRow(source, Modifier.background(MaterialTheme.colorScheme.surfaceContainer))
                 }
             }
         }
@@ -209,6 +201,21 @@ fun HttpSpeechSourcesScreen(
             }, confirmButton = { TextButton(onClick = { onEdit(source, name, url, header); definition = null }, enabled = name.isNotBlank() && url.isNotBlank()) {
                 Text(stringResource(R.string.confirm))
             } }, dismissButton = { TextButton(onClick = { definition = null }) { Text(stringResource(R.string.cancel)) } })
+    }
+}
+
+@Composable
+private fun SpeechSourceActions(enabled: Boolean, onEdit: () -> Unit, onSites: () -> Unit, onDelete: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menu = true }, enabled = enabled) {
+            Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions))
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { menu = false; onEdit() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.tts_source_sites)) }, onClick = { menu = false; onSites() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { menu = false; onDelete() })
+        }
     }
 }
 

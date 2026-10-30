@@ -1,4 +1,10 @@
 <resources>
+    <string name="tts_package_http_static">Previewing does not contact a speech service. Confirm import to select and audition voices in the library.</string>
+    <string name="tts_package_can_import">Ready to import</string>
+    <string name="tts_package_cannot_import">Import not supported yet</string>
+    <string name="tts_package_local_audio">This package’s local speed, volume gain and pitch effects are not applied.</string>
+    <string name="tts_package_http_request_unsupported">This package needs additional request or header handling that is not connected yet.</string>
+    <string name="tts_package_http_parameters_required">This package needs a custom parameter setup that is not connected yet.</string>
     <string name="tts_package_preview">Voice package preview</string>
     <string name="tts_package_open">Preview ZIP or YAML package</string>
     <string name="tts_package_reading">Reading package information…</string>

@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -122,9 +123,14 @@ fun NavGraphBuilder.speechSettingsDestination() {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechPackagePreviewViewModel>()
-        val preview by viewModel.preview.collectAsStateWithLifecycle()
+        val sourceEntry = remember(entry) { nav.getBackStackEntry<HttpSpeechSourcesRoute>() }
+        val sourcesViewModel = hiltViewModel<HttpSpeechSourcesViewModel>(sourceEntry)
+        val state by viewModel.state.collectAsStateWithLifecycle()
         val uri = entry.toRoute<SpeechPackagePreviewRoute>().uri
         LaunchedEffect(uri) { viewModel.read(Uri.parse(uri)) }
-        SpeechPackagePreviewScreen(preview, nav::popBackStackIfResumed)
+        SpeechPackagePreviewScreen(state.preview, state.httpImports, onImport = { sources ->
+            sourcesViewModel.previewPackage(sources)
+            nav.popBackStackIfResumed()
+        }, onBack = nav::popBackStackIfResumed)
     }
 }

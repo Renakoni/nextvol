@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.imports.SourceOriginCandidates
 import hnovel.network.sourceOrigin
 import hnovel.speech.previewHttpSpeech
+import hnovel.speech.HttpSpeechDefinition
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
 import kotlinx.coroutines.CancellationException
@@ -91,6 +92,14 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     }
 
     fun dismissPreview() { if (!state.value.busy) mutableState.update { it.copy(pending = null, invalid = 0) } }
+
+    fun previewPackage(sources: List<HttpSpeechDefinition>) {
+        if (state.value.busy || sources.isEmpty()) return
+        val pending = sources.map { source ->
+            SavedHttpSpeechSource(source, SourceOriginCandidates.speech(source.raw).map { it.origin }.distinct())
+        }
+        mutableState.update { it.copy(pending = pending, invalid = 0, error = null) }
+    }
 
     fun confirmImport() = work {
         val sources = state.value.pending ?: return@work

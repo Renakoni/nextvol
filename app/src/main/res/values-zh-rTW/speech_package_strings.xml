@@ -1,4 +1,10 @@
 <resources>
+    <string name="tts_package_http_static">預覽不會連線語音服務。確認匯入後，可在音源中選擇和試聽。</string>
+    <string name="tts_package_can_import">可匯入</string>
+    <string name="tts_package_cannot_import">暫不支援匯入</string>
+    <string name="tts_package_local_audio">此套件的本地變速、音量增益和音調效果暫不套用。</string>
+    <string name="tts_package_http_request_unsupported">此套件需要額外的請求方式或請求標頭處理，暫未接入。</string>
+    <string name="tts_package_http_parameters_required">此套件需要自訂參數設定，暫未接入。</string>
     <string name="tts_package_preview">語音包預覽</string>
     <string name="tts_package_open">預覽 ZIP / YAML 語音包</string>
     <string name="tts_package_reading">正在讀取語音包…</string>

@@ -1,4 +1,10 @@
 <resources>
+    <string name="tts_package_http_static">预览不会连接语音服务。确认导入后，可在音源中选择和试听。</string>
+    <string name="tts_package_can_import">可导入</string>
+    <string name="tts_package_cannot_import">暂不支持导入</string>
+    <string name="tts_package_local_audio">此包的本地变速、音量增益和音调效果暂不应用。</string>
+    <string name="tts_package_http_request_unsupported">此包需要额外的请求方式或请求头处理，暂未接入。</string>
+    <string name="tts_package_http_parameters_required">此包需要自定义参数设置，暂未接入。</string>
     <string name="tts_package_preview">语音包预览</string>
     <string name="tts_package_open">预览 ZIP / YAML 语音包</string>
     <string name="tts_package_reading">正在读取语音包…</string>
