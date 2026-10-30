@@ -89,8 +89,10 @@ def main():
         'needed_libraries': needed, 'load_segment_alignments': [row[-1] for row in loads],
         'runtime': json.loads((runtime / 'install/build-manifest.json').read_text(encoding='utf-8')),
     }
-    identity.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
     (output / 'matcha-elf.txt').write_text(elf, encoding='utf-8')
+    temporary_identity = identity.with_suffix('.tmp')
+    temporary_identity.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    temporary_identity.replace(identity)
     print(json.dumps(manifest, indent=2))
 
 

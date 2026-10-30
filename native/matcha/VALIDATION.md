@@ -7,9 +7,12 @@ Validation date: 2026-10-29 (host local date).
 - Built ONNX Runtime from the inherited #793 source tree, then built the selected
   Sherpa 1.12.10 sources and this JNI adapter. No downloaded runtime binary was
   linked or packaged.
-- All 368 vendored files match the original fixed-version source trees after
+- All 242 retained vendored files match the original fixed-version source trees after
   reversing the recorded patch (Git's line-ending conversion was normalized for
-  this comparison). The build verifies the 369-file vendor/patch inventory.
+  this comparison); all four source archive SHA-256 values were checked.
+  Compiler dependency records identified 126 unused files (714,232 bytes),
+  which were removed. A fresh configure using only local sources passed.
+  The build verifies the 243-file vendor/patch inventory.
 - `:app:compileDebugKotlin`, `:app:compileDebugUnitTestKotlin`, opt-in
   `:app:assembleDebug`, and `:app:lintDebug` passed. Lint reports warnings but no
   errors; the adb probe uses Android Log, which triggers the advisory
@@ -25,8 +28,8 @@ Validation date: 2026-10-29 (host local date).
 
 | Artifact | SHA-256 |
 | --- | --- |
-| Vendor/patch inventory | `2d608e84f30d1a575fee3be89bc6607e0f66e529446fc779be375981c59fe734` |
-| `libnextvol-matcha.so` (9,031,248 bytes) | `3d5d4f3fdec2d11a33e0b216613131b224469c12862929b0ed4a11549a11d69d` |
+| Vendor/patch inventory | `875d94874ceddd2afdd270c648ac8413c3d8b598cac150c79ab7e1cf4521133a` |
+| `libnextvol-matcha.so` (9,031,256 bytes) | `2c4346b5669932f4aead88cf17b5d9082e08ab89e285161505484a039a9d2bdb` |
 | `libonnxruntime.so` | `eb5887b2fa1734a471af760f0002e77d42a8f44de71ef032fbc55bb124317f50` |
 | External acoustic model | `afcf35609e5698e8a06bd30482ac1e47dfbbb9003d10a2eb837541b42572ff02` |
 | External HiFi-GAN vocoder | `a41d404cce7924493540238da5b30a4bc14b6ddaf1a37f3c79fa4f59548c19f0` |
@@ -46,6 +49,18 @@ The session replacement check uses the real `ReadAloudSession` and a capturing
 playback sink, validating the delivered WAV and rejecting stale clips.
 
 ## Results from the isolated application
+
+After pruning, the rebuilt APK produced a valid 22,050 Hz mono PCM16 WAV:
+141,007 frames (6.394875 s), 282,058 bytes, normalized RMS 0.064084 and SHA-256
+`881ae94ea56a3207c2c36fb1c917f8d2cdf5f1f942fc0032bbda61c73cfc08c3`.
+A malformed `tokens.txt` then returned `EngineUnavailable`; restoring the resource
+allowed another successful synthesis. The focused native reproducer exited 255
+before the patch and caught the exception normally afterward. An injected ELF
+export failure also confirmed that no success manifest is left behind.
+
+The measurements below are the original lifecycle acceptance run. Its one-off
+probe modes were subsequently removed; they are not part of the current debug
+entry. The three lifecycle/resource JVM tests remain.
 
 | Scenario | Observed result |
 | --- | --- |

@@ -13,11 +13,15 @@ OpenFST. The build uses these files without downloading dependencies. It first
 builds the runtime from `../onnxruntime` (#793), then builds the JNI adapter and
 selected Sherpa translation units. No upstream JNI binary, AAR or Maven runtime
 is used. ASR, espeak, VITS, Kokoro and Kitten implementations are not compiled.
-Small upstream configuration structs remain to preserve the internal C++ API.
+The retained 242 vendor files follow the compiler dependency inventory, including
+licenses. Unused OpenFST script/extension headers, lattice helpers and limonp
+utilities are omitted. Small upstream configuration structs remain to preserve
+the internal C++ API.
 
 The recorded patch restricts the factory/frontend to Chinese Matcha, rejects
 incompatible graph signatures/metadata and output tensors, and changes fatal
-resource-parser errors into C++ exceptions caught at the JNI boundary. The
+resource-parser errors, including malformed tokens and missing files, into C++
+exceptions caught at the JNI boundary. The
 application-specific JNI binding is `jni.cc`; it handles UTF-16 to UTF-8,
 cancellation and bounded PCM16 output without upstream Java package names.
 
@@ -46,7 +50,7 @@ inventories and builds the current source tree, reusing CMake's object cache.
 `jniLibs/arm64-v8a` contains the two generated libraries. The packaged
 `assets/matcha-native` directory contains their build identity and dependency
 licenses; the manifest embeds #793's runtime identity, including toolchain
-binary dependencies. Neither generated libraries nor model weights are tracked.
+binary dependencies. It is published atomically after all exports succeed. Neither generated libraries nor model weights are tracked.
 
 ## Installed sample and controlled entry
 
@@ -72,20 +76,17 @@ must be addressed by model import/distribution work.
 
 ```powershell
 adb -s 127.0.0.1:16448 shell am start -W `
-  -n indi.renakoni.nextvol.matchaprobe/indi.renakoni.nextvol.tts.matcha.MatchaProbeActivity `
-  --es mode synthesize
+  -n indi.renakoni.nextvol.matchaprobe/indi.renakoni.nextvol.tts.matcha.MatchaProbeActivity
 adb -s 127.0.0.1:16448 shell run-as indi.renakoni.nextvol.matchaprobe cat files/matcha-result.json
 ```
 
 The debug-only activity requires the system `DUMP` permission held by adb shell.
-Modes are `synthesize`, `cancel-init`, `cancel`, `switch`, and `invalid`.
-`invalid` reads `files/matcha-invalid`, a separate fixture with a damaged acoustic
-model and otherwise valid resources. Cancel/failure modes then open a fresh
-valid instance and synthesize again. `switch` uses the real `ReadAloudSession`
-with a capturing playback sink and asserts that only the replacement clip is
-delivered. The generated file is `cache/matcha-probe.wav`; no second player is
-introduced. Probe results go to `files/matcha-result.json` and `NextVolMatcha`
-logcat. All paths and sample text are fixed; intent extras cannot select files.
+It loads `files/matcha`, synthesizes fixed Chinese text into
+`cache/matcha-probe.wav`, and releases the instance. Success, WAV size or a
+failure is written to `files/matcha-result.json` and `NextVolMatcha` logcat.
+Paths and text are fixed. The one-off cancellation/session-replacement and
+memory/timing probe modes have been removed after acceptance; the focused
+lifecycle tests remain.
 
 ## Lifecycle
 
