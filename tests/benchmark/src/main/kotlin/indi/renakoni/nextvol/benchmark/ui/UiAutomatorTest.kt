@@ -4,6 +4,7 @@ import android.graphics.Rect
 import android.os.Build
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
@@ -138,11 +139,17 @@ abstract class UiAutomatorTest {
         text: String,
         attempts: Int = 12,
         direction: Direction = Direction.DOWN,
+    ): UiObject2 = scrollTo(By.text(text), attempts, direction)
+
+    protected fun scrollTo(
+        selector: BySelector,
+        attempts: Int = 12,
+        direction: Direction = Direction.DOWN,
     ): UiObject2 {
         repeat(attempts) {
             try {
-                device.findObject(By.text(text))?.let {
-                    if (!it.visibleBounds.isEmpty) return assertText(text)
+                device.findObject(selector)?.let {
+                    if (!it.visibleBounds.isEmpty) return it
                 }
                 val bounds = device.findObjects(By.scrollable(true))
                     .map { it.visibleBounds }
@@ -165,7 +172,9 @@ abstract class UiAutomatorTest {
             device.waitForIdle()
             device.waitForStableInActiveWindow()
         }
-        return assertText(text)
+        val target = device.wait(Until.findObject(selector), TIMEOUT)
+        assertNotNull("Expected scroll target was not visible: $selector", target)
+        return target
     }
 
     protected fun clickScrolledText(text: String, direction: Direction = Direction.DOWN) {
