@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.ui.tts
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,12 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +30,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -43,6 +40,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -55,8 +53,12 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
+import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.tts.ReadAloudState
 import indi.renakoni.nextvol.tts.SpeechAction
+import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.labelResource
 import indi.renakoni.nextvol.tts.messageResource
@@ -66,120 +68,116 @@ import java.util.Locale
 @Composable
 fun SpeechSettingsScreen(
     state: SpeechSettingsUiState, playback: ReadAloudState,
-    onBack: () -> Unit, onEngine: (String) -> Unit, onVoice: (String) -> Unit,
-    onRate: (Float?) -> Unit, onPitch: (Float?) -> Unit, onPreview: () -> Unit,
+    onBack: () -> Unit, onSources: () -> Unit, onPreferences: () -> Unit,
     onCommand: (SpeechAction) -> Unit,
-    onSystemSettings: () -> Unit, onRefresh: () -> Unit,
-    onPlaybackSpeed: (Float) -> Unit,
-    onHttpSources: () -> Unit = {},
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
-    onPreviewVoice: ((String) -> Unit)? = null,
 ) {
-    var choice by remember { mutableStateOf<String?>(null) }
+    var showPlayback by remember { mutableStateOf(false) }
+    val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
+    Scaffold(
+        topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_settings, onBack) },
+        bottomBar = {
+            if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
+        },
+    ) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-settings-list"),
+            contentPadding = PaddingValues(vertical = 16.dp)) {
+            item {
+                SettingsCategory {
+                    SettingsClickableEntry(
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-preferences-entry"),
+                        painter = painterResource(R.drawable.outline_settings_24px),
+                        title = stringResource(R.string.tts_preferences),
+                        description = stringResource(R.string.tts_preferences_description),
+                        trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                        onClick = onPreferences,
+                    )
+                    val selectedSource = state.httpSources.find { it.definition.id == state.settings.httpSource }
+                    val engine = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
+                        else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
+                    val current = if (state.settings.httpSource == null)
+                        listOf(stringResource(R.string.tts_system_speech), engine, state.settings.voice).filter(String::isNotEmpty).joinToString(" · ")
+                        else selectedSource?.definition?.name ?: stringResource(R.string.tts_voice_unavailable)
+                    SettingsClickableEntry(
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-sources-entry"),
+                        painter = painterResource(R.drawable.headphones_24px),
+                        title = stringResource(R.string.tts_sources), option = current,
+                        trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                        onClick = onSources,
+                    )
+                }
+            }
+        }
+    }
+    if (showPlayback && hasPlayback) ReadAloudSheet(playback, onCommand, onSettings = null,
+        onDismiss = { showPlayback = false }, onSleepTimer = onSleepTimer, onChapterSleepTimer = onChapterSleepTimer)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SpeechPreferencesScreen(
+    state: SpeechSettingsUiState, playback: ReadAloudState,
+    onBack: () -> Unit,
+    onRate: (Float?) -> Unit, onPitch: (Float?) -> Unit,
+    onCommand: (SpeechAction) -> Unit,
+    onPlaybackSpeed: (Float) -> Unit,
+    onSleepTimer: ((Int?) -> Unit)? = null,
+    onChapterSleepTimer: ((Int) -> Unit)? = null,
+) {
     var showPlayback by remember { mutableStateOf(false) }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
-    val locale = LocalConfiguration.current.locales[0]
-    val refreshLabel = stringResource(R.string.tts_refresh)
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.tts_settings), style = MaterialTheme.typography.displayLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onRefresh, enabled = !state.loading) {
-                        Icon(painterResource(R.drawable.refresh_24px), refreshLabel,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-            )
-        },
+        topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_preferences, onBack) },
         bottomBar = {
             if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
         },
     ) { padding ->
         LazyColumn(
-            Modifier.fillMaxSize().padding(padding).testTag("speech-settings-list"),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            Modifier.fillMaxSize().padding(padding).testTag("speech-preferences-list"),
+            contentPadding = PaddingValues(vertical = 16.dp),
         ) {
-            item(key = "voice") {
-                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Column {
-                        val selectedSource = state.httpSources.find { it.definition.id == state.settings.httpSource }
-                        SpeechSetting(stringResource(R.string.tts_online_sources),
-                            if (state.settings.httpSource == null) stringResource(R.string.tts_system_speech)
-                            else selectedSource?.definition?.name ?: stringResource(R.string.tts_voice_unavailable),
-                            onClick = onHttpSources)
-                        if (state.settings.httpSource == null) {
-                            HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            val name = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
-                                else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
-                            SpeechSetting(stringResource(R.string.tts_engine), name) { choice = "engine" }
-                            val voice = if (state.settings.voice.isEmpty()) stringResource(R.string.tts_engine_default)
-                                else state.voices.find { it.id == state.settings.voice }?.let {
-                                    Locale.forLanguageTag(it.locale).getDisplayName(locale) + " · " + it.id
-                                } ?: stringResource(R.string.tts_voice_unavailable)
-                            SpeechSetting(stringResource(R.string.tts_voice), voice, enabled = !state.loading) { choice = "voice" }
-                        }
-                    }
-                }
-            }
-            state.error?.let { error ->
+            state.error?.takeIf { it == SpeechError.Storage }?.let { error ->
                 item(key = "error") {
-                    Text(stringResource(error.messageResource), color = MaterialTheme.colorScheme.error,
+                    Text(stringResource(error.messageResource), Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium)
                 }
             }
             item(key = "playback-speed") {
-                SpeechParameter(stringResource(R.string.tts_playback_speed), state.settings.playbackSpeed,
-                    { onPlaybackSpeed(it ?: 1f) }, resetValue = 1f)
-            }
-            item(key = "preview") {
-                val previewColors = ButtonDefaults.filledTonalButtonColors()
-                FilledTonalButton(
-                    onClick = onPreview,
-                    enabled = !state.loading && (if (state.settings.httpSource == null) state.engines.isNotEmpty()
-                        else state.httpSources.any { it.definition.id == state.settings.httpSource && it.isConfigured }),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("speech-preview"),
-                    shape = RoundedCornerShape(16.dp),
-                    // Loading keeps the tonal surface stable while the action remains disabled.
-                    colors = if (state.loading && state.error == null) previewColors.copy(
-                        disabledContainerColor = previewColors.containerColor,
-                        disabledContentColor = previewColors.contentColor,
-                    ) else previewColors,
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                ) {
-                    Icon(painterResource(R.drawable.play_arrow_24px), null, Modifier.padding(end = 8.dp))
-                    Text(stringResource(R.string.tts_preview))
+                SettingsCategory(title = stringResource(R.string.tts_playback_settings)) {
+                    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                        SpeechParameter(stringResource(R.string.tts_playback_speed), state.settings.playbackSpeed,
+                            { onPlaybackSpeed(it ?: 1f) }, resetValue = 1f)
+                    }
                 }
             }
             item(key = "advanced") {
-                TextButton(onClick = { showAdvanced = !showAdvanced }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(if (showAdvanced) R.string.tts_hide_advanced else R.string.tts_advanced))
-                }
-            }
-            if (showAdvanced) {
-                item(key = "rate") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SpeechParameter(stringResource(R.string.tts_rate), state.settings.rate, onRate,
-                            defaultLabel = stringResource(if (state.settings.httpSource == null)
-                                R.string.tts_engine_default else R.string.tts_source_default))
-                        Text(stringResource(R.string.tts_rate_description), Modifier.padding(horizontal = 20.dp),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SettingsCategory(title = stringResource(R.string.tts_synthesis_settings)) {
+                    SettingsClickableEntry(
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer),
+                        title = stringResource(if (showAdvanced) R.string.tts_hide_advanced else R.string.tts_advanced),
+                        trailingContent = {
+                            Icon(painterResource(R.drawable.keyboard_arrow_up_24px), null,
+                                Modifier.rotate(if (showAdvanced) 0f else 180f))
+                        },
+                        onClick = { showAdvanced = !showAdvanced },
+                    )
+                    if (showAdvanced) {
+                        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                            Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SpeechParameter(stringResource(R.string.tts_rate), state.settings.rate, onRate,
+                                    defaultLabel = stringResource(if (state.settings.httpSource == null)
+                                        R.string.tts_engine_default else R.string.tts_source_default))
+                                Text(stringResource(R.string.tts_rate_description), Modifier.padding(horizontal = 20.dp),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (state.settings.httpSource == null) {
+                                    SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
+                                }
+                            }
+                        }
                     }
                 }
-                if (state.settings.httpSource == null) item(key = "pitch") {
-                    SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
-                }
-            }
-            if (state.settings.httpSource == null) item(key = "system") {
-                SpeechSetting(stringResource(R.string.tts_system_settings), onClick = onSystemSettings)
             }
         }
     }
@@ -191,6 +189,29 @@ fun SpeechSettingsScreen(
         onSleepTimer = onSleepTimer,
         onChapterSleepTimer = onChapterSleepTimer,
     )
+}
+
+@Composable
+internal fun SystemSpeechSettings(
+    state: SpeechSettingsUiState,
+    onEngine: (String) -> Unit, onVoice: (String) -> Unit, onSystemSettings: () -> Unit,
+    onPreviewVoice: ((String) -> Unit)? = null,
+) {
+    var choice by rememberSaveable { mutableStateOf<String?>(null) }
+    val locale = LocalConfiguration.current.locales[0]
+    val name = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
+        else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
+    SpeechSetting(stringResource(R.string.tts_engine), name) { choice = "engine" }
+    val voice = if (state.settings.voice.isEmpty()) stringResource(R.string.tts_engine_default)
+        else state.voices.find { it.id == state.settings.voice }?.let {
+            Locale.forLanguageTag(it.locale).getDisplayName(locale) + " · " + it.id
+        } ?: stringResource(R.string.tts_voice_unavailable)
+    SpeechSetting(stringResource(R.string.tts_voice), voice, enabled = !state.loading) { choice = "voice" }
+    SpeechSetting(stringResource(R.string.tts_system_settings), onClick = onSystemSettings)
+    state.error?.let { error ->
+        Text(stringResource(error.messageResource), Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+    }
     if (choice != null) {
         val engine = choice == "engine"
         val current = if (engine) state.settings.engine else state.settings.voice
@@ -298,13 +319,14 @@ internal fun SpeechPreviewButton(name: String, enabled: Boolean, onClick: () -> 
 @Composable
 private fun SpeechSetting(title: String, value: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).heightIn(min = 56.dp)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 22.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(title, style = MaterialTheme.typography.headlineSmall)
             if (!value.isNullOrEmpty()) Text(
                 value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,

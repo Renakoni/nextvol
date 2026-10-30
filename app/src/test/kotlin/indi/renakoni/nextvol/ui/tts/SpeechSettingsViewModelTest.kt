@@ -85,6 +85,35 @@ class SpeechSettingsViewModelTest {
         } finally { library.viewModelScope.cancel() }
     }
 
+    @Test fun packagePreviewWaitsForConfirmationAndSavingDoesNotSelectOrPlayAVoice() = runTest {
+        val definition = hnovel.speech.previewHttpSpeech(
+            """{"name":"Package voice","url":"https://speech.example.invalid/audio"}""").sources.single()
+        var saved = emptyList<SavedHttpSpeechSource>()
+        coEvery { http.sources() } coAnswers { saved }
+        coEvery { http.save(any()) } coAnswers { saved = firstArg() }
+        every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns MutableStateFlow(ReadAloudState())
+        val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
+        try {
+            runCurrent()
+            library.previewPackage(listOf(definition))
+            assertEquals(definition.id, library.state.value.pending!!.single().definition.id)
+            assertEquals(listOf("https://speech.example.invalid:443"), library.state.value.pending!!.single().origins)
+            coVerify(exactly = 0) { http.save(any()) }
+            library.dismissPreview()
+            assertNull(library.state.value.pending)
+            library.previewPackage(listOf(definition))
+            library.confirmImport()
+            runCurrent()
+            coVerify(exactly = 1) { http.save(any()) }
+            assertNull(library.state.value.pending)
+            assertEquals(definition.id, library.state.value.sources.single().definition.id)
+            coVerify(exactly = 0) { repository.update(any()) }
+            verify(exactly = 0) { controller.preview(any(), any()) }
+        } finally { library.viewModelScope.cancel() }
+    }
+
     @Test fun sameTargetRefreshRetainsKnownResultsUntilTheNewCheckCompletes() = runTest {
         runCurrent()
         assertEquals(SpeechError.NoEngine, model.state.value.error)

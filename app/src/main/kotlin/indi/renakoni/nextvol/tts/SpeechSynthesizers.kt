@@ -10,6 +10,8 @@ import hnovel.network.StorageCipher
 import hnovel.speech.HttpSpeechClient
 import hnovel.speech.HttpSpeechError
 import hnovel.speech.HttpSpeechException
+import indi.renakoni.nextvol.tts.matcha.MatchaResources
+import indi.renakoni.nextvol.tts.matcha.MatchaSpeechSynthesizer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -26,6 +28,9 @@ class SpeechSynthesizers @Inject constructor(
     private val authority: ExecutionAuthority,
     private val runner: RuleTaskRunner,
 ) {
+    /** Controlled development entry for an already installed Chinese Matcha sample. */
+    fun matcha(resources: MatchaResources): SpeechSynthesizer = MatchaSpeechSynthesizer(resources)
+
     fun synthesizer(): SpeechSynthesizer = object : SpeechSynthesizer {
         @Volatile private var selected: SpeechSynthesizer? = null
         override suspend fun open(settings: SpeechSettings): String {

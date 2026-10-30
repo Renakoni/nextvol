@@ -82,6 +82,20 @@ class BuiltInSpeechSourcesTest {
         assertEquals(99, repository.sources().size)
     }
 
+    @Test fun packageVoicesKeepTheirCategoryAndParametersAfterSaveReopenAndRepeatImport() = runBlocking {
+        val definition = previewHttpSpeech("""{"name":"Package voice","url":"https://speech.example.invalid/audio",
+            "multiTts":{"engine":{"code":"http_fixture","name":"思必驰"},
+            "voice":{"code":"test_voice","speed":"1.3","volume":"2.0","pitch":"1.0"}}}""").sources.single()
+        val imported = SavedHttpSpeechSource(definition, listOf("https://speech.example.invalid:443"))
+        val repository = repository()
+        repository.save(listOf(imported))
+        repository.save(listOf(imported))
+        val restored = repository().sources().single { !it.isBuiltIn }
+        assertEquals("思必驰", restored.category)
+        assertEquals(imported.definition.raw, restored.playbackDefinition().raw)
+        assertEquals(imported.origins, restored.origins)
+    }
+
     @Test fun partialOrUnexpectedKeysDoNotReplaceSavedCredentials() = runBlocking {
         val repository = repository()
         val source = repository.sources().single { it.group == "阿里云" }
