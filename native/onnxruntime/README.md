@@ -15,7 +15,7 @@
 
 快照保留所需源码、CMake 文件、生成脚本、头文件和许可。省略原始模型、测试数据、无关语言实现、示例、文档、预编译文件以及其他执行后端的实现目录；没有修改 CPU 算子注册表。最终保留范围以逐文件清单为准。上游 CMake 文件中的其他平台下载声明仍保留，但本构建将每个所需依赖映射到仓库内源码，并设置 `FETCHCONTENT_FULLY_DISCONNECTED=ON` 和 `FETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER`。不使用本机预装的 ONNX Runtime 或 Maven/AAR 运行时。
 
-未参与主机 protoc 或 Android 运行时构建的上游测试、基准测试翻译单元不纳入快照；保留 CMake 配置所需的辅助源码。源码完整性测试和实际 C/C++ API 冒烟测试由本目录维护。
+未参与主机 protoc 或 Android 运行时构建的上游测试、基准、模糊测试、CI 脚本、诊断命令、其他语言绑定和重复 JSON 头文件不纳入快照。按编译命令、头文件依赖和主机项目核对后，进一步省略 805 个文件；保留 Protobuf 配置输入及 Abseil 无条件声明目标所需的辅助源码。源码完整性测试和实际 C/C++ API 冒烟测试由本目录维护。
 
 除 Eigen 外，各依赖归档均核对了上游 `cmake/deps.txt` 的 SHA-1，并另记 SHA-256。Eigen 固定提交的 GitLab ZIP 已重新打包，与上游旧 SHA-1 不同；归档内全部 1,784 个文件均与该提交的 Git blob 身份一致，实际归档哈希及例外记录见 `sources.json`。
 
@@ -29,7 +29,7 @@
 | ONNX Runtime | `patches/0002-android-no-runpath.patch` | Android 系统依赖无需 RUNPATH；避免 Windows 交叉编译把 shell 单引号写进 ELF，导致加载器告警 |
 | ONNX | 上游 `cmake/patches/onnx/onnx.patch` | 依照 ORT 1.17.1 配方调整告警设置 |
 | Protobuf | 上游 `cmake/patches/protobuf/protobuf_cmake.patch` | 依照 ORT 1.17.1 配方调整告警设置 |
-| FlatBuffers | 上游 `cmake/patches/flatbuffers/flatbuffers.patch` | 依照 ORT 1.17.1 配方修正编译告警 |
+| FlatBuffers | 上游 `cmake/patches/flatbuffers/flatbuffers.patch` | 保留 ORT 1.17.1 配方的 CMake 告警调整；未使用的 Rust 生成器不纳入快照 |
 
 没有应用 Windows 目标的 Abseil 补丁，本任务的目标平台是 Android。当前不宣称复现 `csukuangfj/onnxruntime-libs` 的历史 Android 二进制；该发行标签没有提供对应包的完整 Android 构建配方。
 
