@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.26)
+project(nextvol_ort_validation LANGUAGES CXX)
+if(NOT ANDROID OR NOT ANDROID_ABI STREQUAL "arm64-v8a")
+    message(FATAL_ERROR "This smoke test requires Android arm64-v8a")
+endif()
+if(NOT EXISTS "${ORT_INSTALL}/lib/libonnxruntime.so")
+    message(FATAL_ERROR "Set ORT_INSTALL to the build_android.py install directory")
+endif()
+add_library(onnxruntime SHARED IMPORTED)
+set_target_properties(onnxruntime PROPERTIES
+    IMPORTED_LOCATION "${ORT_INSTALL}/lib/libonnxruntime.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${ORT_INSTALL}/include")
+add_executable(nextvol-ort-smoke api_smoke.cc)
+target_compile_features(nextvol-ort-smoke PRIVATE cxx_std_17)
+target_link_libraries(nextvol-ort-smoke PRIVATE onnxruntime)
+target_link_options(nextvol-ort-smoke PRIVATE "-Wl,-z,max-page-size=16384")

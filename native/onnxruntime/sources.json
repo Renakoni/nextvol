@@ -1,0 +1,187 @@
+[
+  {
+    "name": "onnxruntime",
+    "commit": "8f5c79cb63f09ef1302e85081093a3fe4da1bc7d",
+    "url": "https://codeload.github.com/microsoft/onnxruntime/zip/8f5c79cb63f09ef1302e85081093a3fe4da1bc7d",
+    "licenses": [
+      "vendor/onnxruntime/LICENSE",
+      "vendor/onnxruntime/ThirdPartyNotices.txt"
+    ],
+    "patches": [
+      "patches/0001-pinned-build-identity.patch",
+      "patches/0002-android-no-runpath.patch"
+    ],
+    "version": "1.17.1",
+    "archive_sha256": "eb5d50faeed99c3680d43a552068eebdf4ed6bc37f3836529ecdc0dc8e8857af"
+  },
+  {
+    "name": "abseil_cpp",
+    "url": "https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.0.zip",
+    "upstream_sha1": "bc2cec6baaad67fcb6c0c38972b687d4797927e9",
+    "archive_sha256": "d0f9a580463375978f5ae4e04da39c3664bdaa23724b2f0bf00896a02bf801b9",
+    "bytes": 3093121,
+    "licenses": [
+      "vendor/abseil_cpp/LICENSE"
+    ]
+  },
+  {
+    "name": "date",
+    "url": "https://github.com/HowardHinnant/date/archive/refs/tags/v3.0.1.zip",
+    "upstream_sha1": "2dac0c81dc54ebdd8f8d073a75c053b04b56e159",
+    "archive_sha256": "f4300b96f7a304d4ef9bf6e0fa3ded72159f7f2d0f605bdde3e030a0dba7cf9f",
+    "bytes": 941286,
+    "licenses": [
+      "vendor/date/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "eigen",
+    "commit": "e7248b26a1ed53fa030c5c459f7ea095dfd276ac",
+    "url": "https://gitlab.com/libeigen/eigen/-/archive/e7248b26a1ed53fa030c5c459f7ea095dfd276ac/eigen-e7248b26a1ed53fa030c5c459f7ea095dfd276ac.zip",
+    "archive_sha256": "a50ef69dad8d694136806051841a382f09290c9af811b13a2955b56640484007",
+    "archive_sha1": "32b145f525a8308d7ab1c09388b2e288312d8eba",
+    "upstream_sha1": "be8be39fdbc6e60e94fa7870b280707069b5b81a",
+    "verification": "All 1784 archive files match Git blob identities at the pinned commit; regenerated GitLab archive differs from ORT deps.txt SHA1.",
+    "licenses": [
+      "vendor/eigen/COPYING.APACHE",
+      "vendor/eigen/COPYING.BSD",
+      "vendor/eigen/COPYING.GPL",
+      "vendor/eigen/COPYING.LGPL",
+      "vendor/eigen/COPYING.MINPACK",
+      "vendor/eigen/COPYING.MPL2",
+      "vendor/eigen/COPYING.README",
+      "vendor/eigen/unsupported/Eigen/src/LevenbergMarquardt/CopyrightMINPACK.txt"
+    ]
+  },
+  {
+    "name": "flatbuffers",
+    "url": "https://github.com/google/flatbuffers/archive/refs/tags/v1.12.0.zip",
+    "upstream_sha1": "ba0a75fd12dbef8f6557a74e611b7a3d0c5fe7bf",
+    "archive_sha256": "4b8b21adbfe8a74b90604161afcf87c125a26b86c99327e7a04525080606536c",
+    "bytes": 1498456,
+    "patches": [
+      "vendor/onnxruntime/cmake/patches/flatbuffers/flatbuffers.patch"
+    ],
+    "licenses": [
+      "vendor/flatbuffers/LICENSE.txt",
+      "vendor/flatbuffers/dart/LICENSE",
+      "vendor/flatbuffers/swift/LICENSE"
+    ]
+  },
+  {
+    "name": "google_nsync",
+    "url": "https://github.com/google/nsync/archive/refs/tags/1.26.0.zip",
+    "upstream_sha1": "5e7c00ef6bf5b787386fc040067903ec774e2752",
+    "archive_sha256": "a723c8d8e48f12d94d01dc6245552193f4ddb7009a687849d8cfcf8cdd86e89f",
+    "bytes": 336679,
+    "licenses": [
+      "vendor/google_nsync/LICENSE"
+    ]
+  },
+  {
+    "name": "json",
+    "url": "https://github.com/nlohmann/json/archive/refs/tags/v3.10.5.zip",
+    "upstream_sha1": "f257f8dc27c5b8c085dc887b40cddd18ae1f725c",
+    "archive_sha256": "ea4b0084709fb934f92ca0a68669daa0fe6f2a2c6400bf353454993a834bb0bb",
+    "bytes": 7381040,
+    "licenses": [
+      "vendor/json/LICENSE.MIT"
+    ]
+  },
+  {
+    "name": "microsoft_gsl",
+    "url": "https://github.com/microsoft/GSL/archive/refs/tags/v4.0.0.zip",
+    "upstream_sha1": "cf368104cd22a87b4dd0c80228919bb2df3e2a14",
+    "archive_sha256": "eb91fcb10a6aa5ccb1d224e07a56c8ecffe9a1bb601fa1848276ec46a2200bfb",
+    "bytes": 78670,
+    "licenses": [
+      "vendor/microsoft_gsl/LICENSE",
+      "vendor/microsoft_gsl/ThirdPartyNotices.txt"
+    ]
+  },
+  {
+    "name": "mp11",
+    "url": "https://github.com/boostorg/mp11/archive/refs/tags/boost-1.82.0.zip",
+    "upstream_sha1": "9bc9e01dffb64d9e0773b2e44d2f22c51aace063",
+    "archive_sha256": "81431bdc44c439a324e02c07ed067f8f556419fd86f2d8b486ff568df6aac899",
+    "bytes": 232716,
+    "licenses": [
+      "vendor/mp11/LICENSE_1_0.txt"
+    ],
+    "additional_license_source": {
+      "url": "https://raw.githubusercontent.com/boostorg/boost/boost-1.82.0/LICENSE_1_0.txt",
+      "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+    }
+  },
+  {
+    "name": "onnx",
+    "url": "https://github.com/onnx/onnx/archive/refs/tags/v1.15.0.zip",
+    "upstream_sha1": "54c3f960a0541c5d8d3e60c2933e11f5d3688a11",
+    "archive_sha256": "b95ea88b32ea9b58d231bf4461d10ab4bd1c05430c06ee8cae20f04185e84b27",
+    "bytes": 15560505,
+    "patches": [
+      "vendor/onnxruntime/cmake/patches/onnx/onnx.patch"
+    ],
+    "licenses": [
+      "vendor/onnx/LICENSE",
+      "vendor/onnx/LICENSES/Apache-2.0.txt",
+      "vendor/onnx/LICENSES/BSD-2-Clause.txt",
+      "vendor/onnx/LICENSES/CC0-1.0.txt"
+    ]
+  },
+  {
+    "name": "protobuf",
+    "url": "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v21.12.zip",
+    "upstream_sha1": "7cf2733949036c7d52fda017badcab093fe73bfa",
+    "archive_sha256": "6a31b662deaeb0ac35e6287bda2f3369b19836e6c9f8828d4da444346f420298",
+    "bytes": 7180794,
+    "patches": [
+      "vendor/onnxruntime/cmake/patches/protobuf/protobuf_cmake.patch"
+    ],
+    "licenses": [
+      "vendor/protobuf/LICENSE"
+    ]
+  },
+  {
+    "name": "pytorch_cpuinfo",
+    "url": "https://github.com/pytorch/cpuinfo/archive/959002f82d7962a473d8bf301845f2af720e0aa4.zip",
+    "upstream_sha1": "85da3caa60eb2b148613b443fbc2bfdc30689965",
+    "archive_sha256": "a0f53ccfb477c57753c595df02bf79ed67bf092fd9a5c61ec5b8992b81bc1e65",
+    "bytes": 3813452,
+    "licenses": [
+      "vendor/pytorch_cpuinfo/LICENSE",
+      "vendor/pytorch_cpuinfo/deps/clog/LICENSE"
+    ]
+  },
+  {
+    "name": "re2",
+    "url": "https://github.com/google/re2/archive/refs/tags/2022-06-01.zip",
+    "upstream_sha1": "aa77313b76e91b531ee7f3e45f004c6a502a5374",
+    "archive_sha256": "9f3b65f2e0c78253fcfdfce1754172b0f97ffdb643ee5fd67f0185acf91a3f28",
+    "bytes": 438194,
+    "licenses": [
+      "vendor/re2/LICENSE",
+      "vendor/re2/re2/fuzzing/compiler-rt/LICENSE"
+    ]
+  },
+  {
+    "name": "safeint",
+    "url": "https://github.com/dcleblanc/SafeInt/archive/refs/tags/3.0.28.zip",
+    "upstream_sha1": "23f252040ff6cb9f1fd18575b32fa8fb5928daac",
+    "archive_sha256": "3ffbd9a2fdff45da77da3e7269e9aa512ea43bed5c38ce8fd8f3d1068a032c3f",
+    "bytes": 626378,
+    "licenses": [
+      "vendor/safeint/LICENSE"
+    ]
+  },
+  {
+    "name": "utf8_range",
+    "url": "https://github.com/protocolbuffers/utf8_range/archive/72c943dea2b9240cd09efde15191e144bc7c7d38.zip",
+    "upstream_sha1": "9925739c9debc0efa2adcb194d371a35b6a03156",
+    "archive_sha256": "dffb52973f0226fe5df6d9ed40b0d1af1bb89f54beec6a64b66d25e7db9c4152",
+    "bytes": 71643,
+    "licenses": [
+      "vendor/utf8_range/LICENSE"
+    ]
+  }
+]
