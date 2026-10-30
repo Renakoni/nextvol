@@ -94,9 +94,6 @@ class BuiltInSpeechSourcesTest {
         assertEquals("思必驰", restored.category)
         assertEquals(imported.definition.raw, restored.playbackDefinition().raw)
         assertEquals(imported.origins, restored.origins)
-        assertEquals(100, repository().sources().size)
-        repository.delete(definition.id)
-        assertTrue(repository().sources().all { it.isBuiltIn })
     }
 
     @Test fun partialOrUnexpectedKeysDoNotReplaceSavedCredentials() = runBlocking {

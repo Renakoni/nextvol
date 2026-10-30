@@ -93,9 +93,22 @@ class HttpSpeechPackageTest {
         assertEquals(HttpSpeechPackageError.UnsupportedEngine, previewHttpSpeechPackage(inner).error)
         val scripted = packageEngine(engines = fixture("engines.yaml").replace("url: https://", "url: '@js: https://").trimEnd() + "'\n")
         assertEquals(HttpSpeechPackageError.UnsupportedRequest, previewHttpSpeechPackage(scripted).error)
-        val parameterized = packageEngine(config = fixture("config.yaml").replace("param: null", "param: '@credential'"))
-        val result = previewHttpSpeechPackage(parameterized)
-        assertEquals(HttpSpeechPackageError.RequiresParameters, result.error)
+        for (param in listOf("'@credential'", "{token: required}")) {
+            val parameterized = packageEngine(config = fixture("config.yaml").replace("param: null", "param: $param"))
+            val result = previewHttpSpeechPackage(parameterized)
+            assertEquals(HttpSpeechPackageError.RequiresParameters, result.error)
+            assertTrue(result.sources.isEmpty())
+        }
+        val structuredHeader = packageEngine(engines = fixture("engines.yaml")
+            .replace("header: ''", "header: {Authorization: required}"))
+        assertEquals(HttpSpeechPackageError.UnsupportedRequest, previewHttpSpeechPackage(structuredHeader).error)
+    }
+
+    @Test fun metadataTooDeepForHttpJsonRemainsPreviewableWithoutCrashingImport() {
+        val nested = "[".repeat(20_000) + "0" + "]".repeat(20_000)
+        val engine = packageEngine(config = fixture("config.yaml").replaceFirst("avatar: null", "avatar: $nested"))
+        val result = previewHttpSpeechPackage(engine)
+        assertEquals(HttpSpeechPackageError.InvalidConfiguration, result.error)
         assertTrue(result.sources.isEmpty())
     }
 }

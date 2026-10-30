@@ -23,10 +23,13 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
     val template = definition.values["url"].text()?.trim().orEmpty()
     if (template.isEmpty() || engine.voices.isEmpty() || engine.voices.any { it.code.isBlank() })
         return failed(HttpSpeechPackageError.InvalidConfiguration)
-    if (!definition.values["param"].text().isNullOrBlank() || engine.voices.any {
-        !it.raw.values["param"].text().isNullOrBlank() || !it.raw.values["extendUI"].text().isNullOrBlank()
+    if (definition.values["param"].requiresInput() || engine.voices.any {
+        it.raw.values["param"].requiresInput() || it.raw.values["extendUI"].requiresInput()
     }) return failed(HttpSpeechPackageError.RequiresParameters)
-    val header = definition.values["header"].text().orEmpty()
+    val rawHeader = definition.values["header"]
+    if (rawHeader != null && rawHeader !is SpeechPackageValue.Scalar)
+        return failed(HttpSpeechPackageError.UnsupportedRequest)
+    val header = rawHeader.text().orEmpty()
     if (header.isNotBlank()) {
         val headers = try { Json.parseToJsonElement(header) as? JsonObject } catch (_: IllegalArgumentException) { null }
         if (headers == null || headers.values.any { it !is JsonPrimitive || !it.isString || "{{" in it.content })
@@ -59,7 +62,12 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
         })
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: IllegalArgumentException) { failed(HttpSpeechPackageError.InvalidConfiguration) }
+    // YAML preview is iterative, but the existing HTTP JSON representation uses recursive serialization.
+    catch (_: StackOverflowError) { failed(HttpSpeechPackageError.InvalidConfiguration) }
 }
+
+private fun SpeechPackageValue?.requiresInput(): Boolean =
+    this != null && (this !is SpeechPackageValue.Scalar || !text().isNullOrBlank())
 
 /** Reuses balanced template scanning, but leaves every expression unevaluated until the worker runs it. */
 private fun packageGetExpression(template: String): String {
