@@ -117,8 +117,10 @@ def main():
         'host_protoc_sha256': hashlib.sha256(protoc.read_bytes()).hexdigest(),
         'toolchain_binary_dependencies': toolchain_dependencies,
     }
-    identity.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
     (install / 'elf.txt').write_text(elf, encoding='utf-8')
+    pending_identity = identity.with_suffix('.tmp')
+    pending_identity.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    pending_identity.replace(identity)
     print(json.dumps(manifest, indent=2))
 
 
