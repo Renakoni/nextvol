@@ -22,6 +22,7 @@ import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
 import io.nightfish.lightnovelreader.api.bookshelf.BookshelfBookMetadata
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.job
@@ -434,16 +435,15 @@ class AddToBookshelfDialogViewModelTest {
 
     @Test fun clearingTheViewModelCancelsSavingWithoutShowingAnError() = runTest(dispatcher) {
         val started = CompletableDeferred<Unit>()
-        val release = CompletableDeferred<Unit>()
-        coEvery { bookshelfRepository.addBookIntoBookShelf(1, information) } coAnswers { started.complete(Unit); release.await() }
+        coEvery { bookshelfRepository.addBookIntoBookShelf(1, information) } coAnswers { started.complete(Unit); awaitCancellation() }
         model.bookId = bookId
         awaitInitialization()
         model.onSelectBookshelf(1)
         model.processAddToBookshelfRequest()
         started.await()
+        val scopeJob = model.viewModelScope.coroutineContext.job
         store.clear()
-        release.complete(Unit)
-        awaitInitialization()
+        scopeJob.join()
         assertFalse(model.addToBookshelfDialogUiState.isSaving)
         assertNull(model.addToBookshelfDialogUiState.errorMessage)
         verify(exactly = 0) { navController.popBackStack() }
