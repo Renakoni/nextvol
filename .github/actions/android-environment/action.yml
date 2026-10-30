@@ -1,6 +1,9 @@
 name: Fixed Android environment
 description: Exact JDK and Android revisions with reusable tool and Gradle caches
 inputs:
+  write-gradle-cache:
+    description: Allow the serialized main cache warmer to publish Gradle state
+    default: 'false'
   api:
     description: Optional emulator API, 24 or 35
     default: ''
@@ -21,7 +24,7 @@ runs:
       with:
         # All checks reuse main's dependencies/transforms/build cache. Avoid six
         # competing PR snapshots evicting the shared cache and fixed images.
-        cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+        cache-read-only: ${{ github.ref != 'refs/heads/main' || inputs.write-gradle-cache != 'true' }}
     - uses: ./.github/actions/android-sdk
       with:
         api: ${{ inputs.api }}

@@ -243,11 +243,11 @@ keys together when upgrading. Automatic Gradle JDK/SDK provisioning is disabled.
 
 | Cache | Consumers | Contents / writer |
 | --- | --- | --- |
-| Gradle (`setup-gradle`) | All build/test checks | Wrapper, dependencies, transforms, local build cache; main writes, PR/merge-group runs read only |
-| Variant task outputs | Release and Minified checks | Separate Release/benchmark output directories; restored from the latest same-variant entry and saved after a successful APK build |
-| SDK | All checks | Platform, Build Tools, adb; saved immediately after successful preparation |
-| Emulator + one API image | Device checks only | API 24 and API 35 have separate exact keys; saved before boot/tests |
-| Robolectric SDKs | JVM check only | Runtime jars under `~/.m2/repository/org/robolectric` |
+| Gradle (`setup-gradle`) | All build/test checks | Wrapper, dependencies, transforms, local build cache; only the serialized main warmer writes |
+| Variant task outputs | Release and Minified checks | Separate Release/benchmark outputs; latest snapshot per ref and variant, saved after a successful APK build |
+| SDK | All checks | Platform, Build Tools, adb; main publishes one shared version |
+| Emulator + one API image | Device checks only | Main publishes separate API 24 and API 35 entries |
+| Robolectric SDKs | JVM check only | Main publishes Android runtime jars under `~/.m2/repository/org/robolectric` |
 
 `org.gradle.caching=true` remains enabled. Gradle validates task inputs before
 reusing outputs; a restored cache does not skip changed code or guarantee every
@@ -260,17 +260,21 @@ main outputs and preserve each variant's own entries. The minified cache is save
 before device tests so a test failure does not discard successful compilation.
 Cache keys include the variant and commit; restore prefixes allow reuse after
 source edits, with Gradle checking the actual task inputs. Closed PR cache entries
-are removed by `cleanup-pr-caches.yml`, which runs only trusted base workflow code
-and deletes only that PR's merge-ref caches without checking out PR code.
+are removed by `cleanup-pr-caches.yml`. After Release workflow completion, it also
+retains only the latest snapshot for each ref/variant and removes redundant PR
+tool copies once a main entry exists for that tool. It checks out only main code,
+never the completed workflow's head or its artifacts, with `actions: write`.
+Concurrent cleanups tolerate caches already removed by another run or eviction.
 Caches are disposable acceleration: misses fall back to normal dependency or
 fixed tool downloads. AboutLibraries uses local license texts instead of making
 per-library license/funding requests during APK builds.
 
 `gradle-cache.yml` refreshes main's compilation caches after build/environment
-configuration changes or a manual main run. Ordinary source, test, documentation
+configuration changes, a manual main run, or daily maintenance at 09:17 UTC.
+Ordinary source, test, documentation
 and template changes do not trigger it. A lightweight selector compares the
 push's `before` SHA with the checked-out commit and reuses the ordinary scope
-plan; manual runs select all compilation. App JVM checks map to
+plan; manual and scheduled runs select all compilation. App JVM checks map to
 `:app:compileDebugUnitTestKotlin`; selected source/EPUB/compatibility JVM checks
 map to `:testClasses`, including their Gradle compilation/resource dependencies.
 App's existing dependency supplies source-content test fixtures. Selected Debug
@@ -279,18 +283,41 @@ devices add the App/test APK assembly tasks. Minified coverage only adds
 the shrunk App. No prewarming task runs tests, R8, or an emulator.
 
 Separate API image jobs run only for fixed SDK action/script/package metadata
-changes or a manual main run. An unavailable push diff conservatively selects
+changes, a manual main run, or daily maintenance. An unavailable push diff conservatively selects
 all compilation and SDK/image preparation. Main remains the only shared Gradle
 cache writer, and PRs remain read-only consumers. Existing Release/benchmark
-variant cache ownership is unchanged; no additional build-directory or Gradle
-home snapshot is introduced. Misses, failed prewarming, or cancellation leave
+variant cache ownership is unchanged; no additional build-directory or duplicate
+Gradle home cache is introduced. Misses, failed prewarming, or cancellation leave
 ordinary PR checks able to build normally using Gradle's input validation.
 
 The main cache concurrency group preserves its running writer and retains at
 most the newest pending update. Completion allows setup-gradle to save its cache;
 manual cancellation does not guarantee a save. Replaced pending updates do not
-accumulate. A later configuration change or manual full prewarm can refresh cold
-outputs. This affects reuse, not which code PR checks compile or validate.
+accumulate. Daily maintenance repairs eviction without requiring a build-file
+change or adding a full warmup to every source push. It restores reusable state
+before compilation; it does not execute tests. This affects reuse, not which code
+PR checks compile or validate.
+
+Fixed SDK/image actions only save on main. PR cache misses still prepare the
+required tools locally, without uploading private copies. The Robolectric action
+likewise restores only on PRs; tests retain their normal download fallback.
+`prepare-robolectric.sh` downloads the instrumented SDKs for the APIs selected by
+App tests (24, 27, 28, 30, 33, 34, 35), plus API 36 used by Robolectric 4.16.1 for
+compile-time resources. It verifies Maven SHA-512 checksums before installation,
+without launching Gradle or tests. Its script hash versions the shared cache;
+update the coordinates when upgrading Robolectric or adding tested APIs.
+
+The warmer uses a run/attempt suffix for setup-gradle's root snapshot. A rerun on
+the same commit can therefore publish repaired payloads instead of hitting an
+immutable, partially evicted commit entry and skipping its save. After successful
+warming, retention restores that exact root archive to read setup-gradle v4's
+payload manifest. It preserves the current root and every referenced payload,
+then deletes older roots and unreferenced payloads on main. An incomplete manifest
+or missing payload stops Gradle pruning. This reader depends on the pinned action's
+cache paths and metadata format; review them when upgrading setup-gradle.
+Only the main warmer can write shared Gradle state, so its concurrency group also
+serializes publication and pruning. Failed warming keeps the previous Gradle graph.
+Old PR tool copies are removed only after a main replacement is available.
 
 ### Source prewarming evaluation (#721)
 

@@ -41,8 +41,8 @@ def full_plan():
 
 
 def github_plan():
-    if os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch':
-        return full_plan(), 'Manual main run: all compilation and fixed SDK/image caches'
+    if os.environ['GITHUB_EVENT_NAME'] in ('workflow_dispatch', 'schedule'):
+        return full_plan(), 'Main maintenance run: all compilation and fixed SDK/image caches'
     try:
         event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
         paths = ci_scope.changed_paths(os.environ['GITHUB_EVENT_NAME'], event)

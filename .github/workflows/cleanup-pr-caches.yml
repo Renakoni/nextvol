@@ -1,22 +1,37 @@
-name: Clean closed PR caches
+name: Clean PR caches
 
 on:
   pull_request_target:
     types: [closed]
+  workflow_run:
+    workflows: ['Android checks 3/4 - Release']
+    types: [completed]
+  workflow_dispatch:
 
 permissions:
   actions: write
+  contents: read
 
 jobs:
   cleanup:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      # Runs only trusted workflow code from the base branch. No checkout or
-      # execution of PR code, and no deletion of main or another PR's caches.
+      # Never checkout workflow_run.head_sha or execute a PR's scripts with this
+      # token. The closed-PR handler remains scoped to that exact merge ref.
       - name: Remove caches scoped to this closed pull request
+        if: github.event_name == 'pull_request_target'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: gh cache delete --all --ref "refs/pull/$PR_NUMBER/merge" --succeed-on-no-caches
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Retain latest variant snapshots and shared fixed tools
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 .github/scripts/ci_cache_retention.py

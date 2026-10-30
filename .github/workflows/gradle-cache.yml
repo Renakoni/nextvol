@@ -6,6 +6,9 @@ on:
     paths:
       - '.github/actions/**'
       - '.github/scripts/prepare-android-sdk.sh'
+      - '.github/scripts/prepare-robolectric.sh'
+      - '.github/scripts/ci_cache.py'
+      - '.github/scripts/ci_cache_retention.py'
       - '.github/scripts/ci.init.gradle'
       - '.github/ci-environment/aboutlibraries/**'
       - '.github/ci-environment/sdk-packages/**'
@@ -16,6 +19,8 @@ on:
       - 'gradlew'
       - 'gradlew.bat'
   workflow_dispatch:
+  schedule:
+    - cron: '17 9 * * *'
 
 permissions:
   contents: read
@@ -25,17 +30,30 @@ concurrency:
   # Finish the running writer; GitHub keeps only the latest pending update.
   cancel-in-progress: false
 
+# A new execution key also repairs partially evicted snapshots on the same
+# commit. setup-gradle otherwise skips saving an exact commit-key hit.
+env:
+  GRADLE_BUILD_ACTION_CACHE_KEY_JOB_EXECUTION: ${{ github.run_id }}-${{ github.run_attempt }}
+
 jobs:
   selection:
     if: github.ref == 'refs/heads/main'
     name: Select main cache compilation
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
     outputs:
       gradle-args: ${{ steps.scope.outputs.gradle-args }}
       images: ${{ steps.scope.outputs.images }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Remove redundant snapshots before preparing shared caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 .github/scripts/ci_cache_retention.py
       - name: Select compilation and environment inputs
         id: scope
         run: python3 .github/scripts/ci_cache.py
@@ -49,12 +67,23 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./.github/actions/android-environment
+        with:
+          write-gradle-cache: 'true'
       - name: Warm dependency and compilation caches
         env:
           GRADLE_TASKS: ${{ needs.selection.outputs.gradle-args }}
         run: |
           read -r -a tasks <<< "$GRADLE_TASKS"
           ./gradlew --no-daemon "${tasks[@]}" --console=plain --stacktrace --max-workers=2
+
+  robolectric:
+    needs: selection
+    name: Populate main Robolectric runtime cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/robolectric
 
   images:
     needs: selection
@@ -71,3 +100,39 @@ jobs:
       - uses: ./.github/actions/android-sdk
         with:
           api: ${{ matrix.api }}
+
+  prune:
+    needs: [warm, images, robolectric]
+    if: always() && needs.warm.result == 'success' && needs.robolectric.result == 'success' && (needs.images.result == 'success' || needs.images.result == 'skipped')
+    name: Retain the published main cache graph
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Locate this execution's Gradle snapshot
+        id: snapshot
+        run: python3 .github/scripts/ci_cache_retention.py --select-gradle "$GRADLE_BUILD_ACTION_CACHE_KEY_JOB_EXECUTION"
+      # Read setup-gradle v4's root archive, including its payload manifest.
+      # This does not save a second Gradle cache or restore the large payloads.
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: archive
+        with:
+          path: |
+            ${{ steps.snapshot.outputs.home }}/caches
+            ${{ steps.snapshot.outputs.home }}/notifications
+            ${{ steps.snapshot.outputs.home }}/.setup-gradle
+          key: ${{ steps.snapshot.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Remove superseded snapshots and unreferenced Gradle payloads
+        env:
+          GRADLE_CACHE_KEY: ${{ steps.snapshot.outputs.key }}
+          EXACT_CACHE_HIT: ${{ steps.archive.outputs.cache-hit }}
+        run: |
+          test "$EXACT_CACHE_HIT" = true
+          python3 .github/scripts/ci_cache_retention.py --gradle-key "$GRADLE_CACHE_KEY"
