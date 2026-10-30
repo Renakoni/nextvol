@@ -1,0 +1,19 @@
+<resources>
+    <string name="tts_offline_sources">Офлайн-голоса</string>
+    <string name="tts_offline_device">Для Matcha нужны Android 8 или новее, процесс arm64 и встроенный движок. Системные и онлайн-голоса остаются доступны.</string>
+    <string name="tts_offline_empty">Откройте ZIP-пакет через меню, чтобы установить китайский голос Matcha.</string>
+    <string name="tts_offline_delete">Удалить %1$s</string>
+    <string name="tts_offline_missing">Ресурс отсутствует или повреждён: %1$s</string>
+    <string name="tts_offline_install">Установить %1$s</string>
+    <string name="tts_offline_size">Требуется места: %1$s</string>
+    <string name="tts_offline_import_note">Устанавливается только выбранный голос. Повторный импорт заменяет его ресурсы. Выбор и прослушивание выполняются отдельно.</string>
+    <string name="tts_offline_installing">Установка голоса…</string>
+    <string name="tts_offline_installed">Голос %1$s установлен. Вернитесь к списку для выбора или прослушивания.</string>
+    <string name="tts_offline_changed">Пакет изменился после просмотра. Откройте его заново.</string>
+    <string name="tts_offline_model">Модель не поддерживается. Доступна только проверенная китайская пара моделей Matcha / Baker.</string>
+    <string name="tts_offline_parameters">Параметр голоса не поддерживается: %1$s</string>
+    <string name="tts_offline_path">Каталог модели должен быть безопасным относительным путём.</string>
+    <string name="tts_offline_ambiguous">Голос или ресурсы модели определены неоднозначно.</string>
+    <string name="tts_offline_profile">Ниже можно установить китайские голоса Matcha. Другие модели пока не поддерживаются.</string>
+    <string name="tts_offline_unavailable">Офлайн-голос недоступен. Проверьте ресурсы и поддержку устройства в списке голосов.</string>
+</resources>

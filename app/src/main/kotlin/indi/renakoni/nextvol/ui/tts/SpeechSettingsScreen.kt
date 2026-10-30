@@ -96,7 +96,8 @@ fun SpeechSettingsScreen(
                     val selectedSource = state.httpSources.find { it.definition.id == state.settings.httpSource }
                     val engine = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
                         else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
-                    val current = if (state.settings.httpSource == null)
+                    val current = if (state.settings.offlineVoice != null) state.offlineName ?: stringResource(R.string.tts_voice_unavailable)
+                        else if (state.settings.httpSource == null)
                         listOf(stringResource(R.string.tts_system_speech), engine, state.settings.voice).filter(String::isNotEmpty).joinToString(" · ")
                         else selectedSource?.definition?.name ?: stringResource(R.string.tts_voice_unavailable)
                     SettingsClickableEntry(
@@ -171,7 +172,7 @@ fun SpeechPreferencesScreen(
                                         R.string.tts_engine_default else R.string.tts_source_default))
                                 Text(stringResource(R.string.tts_rate_description), Modifier.padding(horizontal = 20.dp),
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                if (state.settings.httpSource == null) {
+                                if (state.settings.httpSource == null && state.settings.offlineVoice == null) {
                                     SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
                                 }
                             }

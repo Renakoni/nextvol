@@ -1,0 +1,19 @@
+<resources>
+    <string name="tts_offline_sources">離線音源</string>
+    <string name="tts_offline_device">Matcha 需要 Android 8 及以上、arm64 處理程序和隨應用程式提供的後端。系統及線上音源仍可使用。</string>
+    <string name="tts_offline_empty">從選單開啟 ZIP 語音包，安裝中文 Matcha 聲音。</string>
+    <string name="tts_offline_delete">刪除 %1$s</string>
+    <string name="tts_offline_missing">資源缺失或損壞：%1$s</string>
+    <string name="tts_offline_install">安裝 %1$s</string>
+    <string name="tts_offline_size">所需空間：%1$s</string>
+    <string name="tts_offline_import_note">只安裝所選聲音。重複匯入會替換該聲音的資源；選擇和試聽需另行操作。</string>
+    <string name="tts_offline_installing">正在安裝聲音…</string>
+    <string name="tts_offline_installed">已安裝 %1$s。返回音源頁即可選擇或試聽。</string>
+    <string name="tts_offline_changed">語音包內容已變更，請重新開啟預覽後安裝。</string>
+    <string name="tts_offline_model">暫不支援此模型，目前僅支援已驗證的中文 Matcha / Baker 模型組合。</string>
+    <string name="tts_offline_parameters">暫不支援此聲音參數：%1$s</string>
+    <string name="tts_offline_path">模型目錄不是安全的相對路徑。</string>
+    <string name="tts_offline_ambiguous">聲音或模型資源不唯一，無法確定要安裝的內容。</string>
+    <string name="tts_offline_profile">可在下方安裝中文 Matcha 聲音，其他模型暫不支援。</string>
+    <string name="tts_offline_unavailable">離線聲音無法使用，請在音源頁檢查資源和裝置支援情況。</string>
+</resources>

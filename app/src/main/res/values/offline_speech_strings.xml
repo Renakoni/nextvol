@@ -1,0 +1,19 @@
+<resources>
+    <string name="tts_offline_sources">Offline voices</string>
+    <string name="tts_offline_device">Matcha requires Android 8 or later and an arm64 process with the bundled backend. System and online voices remain available.</string>
+    <string name="tts_offline_empty">Open a ZIP voice package from the menu to install a Chinese Matcha voice.</string>
+    <string name="tts_offline_delete">Delete %1$s</string>
+    <string name="tts_offline_missing">Missing or damaged resource: %1$s</string>
+    <string name="tts_offline_install">Install %1$s</string>
+    <string name="tts_offline_size">Required storage: %1$s</string>
+    <string name="tts_offline_import_note">Only the chosen voice is installed. Importing it again replaces its resources. Selection and audition are separate actions.</string>
+    <string name="tts_offline_installing">Installing voice…</string>
+    <string name="tts_offline_installed">%1$s installed. Return to Voices to select or audition it.</string>
+    <string name="tts_offline_changed">The package changed since preview. Open it again before installing.</string>
+    <string name="tts_offline_model">This model is not supported. Currently only the verified Chinese Matcha / Baker model pair can be installed.</string>
+    <string name="tts_offline_parameters">Unsupported voice parameter: %1$s</string>
+    <string name="tts_offline_path">The model directory is not a safe relative path.</string>
+    <string name="tts_offline_ambiguous">This voice or its model resources are ambiguous.</string>
+    <string name="tts_offline_profile">Chinese Matcha voices can be installed below. Other models are not supported yet.</string>
+    <string name="tts_offline_unavailable">The offline voice is unavailable. Check its resources and device support in Voices.</string>
+</resources>

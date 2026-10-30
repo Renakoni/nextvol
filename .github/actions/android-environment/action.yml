@@ -28,6 +28,7 @@ runs:
     - uses: ./.github/actions/android-sdk
       with:
         api: ${{ inputs.api }}
+    - uses: ./.github/actions/matcha-toolchain
     - name: Select fixed JDKs and local license data
       shell: bash
       env:

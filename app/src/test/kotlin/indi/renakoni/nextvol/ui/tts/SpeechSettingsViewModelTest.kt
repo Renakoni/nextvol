@@ -41,7 +41,7 @@ class SpeechSettingsViewModelTest {
         every { repository.changes } returns settings
         coEvery { engines.installed() } returns emptyList()
         coEvery { engines.inspect(any()) } throws SpeechException(SpeechError.NoEngine)
-        model = SpeechSettingsViewModel(repository, engines, mockk(), http)
+        model = SpeechSettingsViewModel(repository, engines, mockk(), http, mockk())
     }
 
     @After fun destroy() {

@@ -21,7 +21,7 @@ import kotlin.concurrent.withLock
 
 class MatchaSpeechSynthesizer internal constructor(
     private val resources: MatchaResources,
-    private val native: () -> MatchaNativeApi = { MatchaNative },
+    private val native: () -> MatchaNativeApi = { MatchaNative.apply { requireAvailable() } },
 ) : SpeechSynthesizer {
     private val lock = ReentrantLock()
     private val cancelled = AtomicBoolean()

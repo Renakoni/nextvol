@@ -89,11 +89,13 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val context = LocalContext.current
         val viewModel = hiltViewModel<HttpSpeechSourcesViewModel>()
         val settingsViewModel = hiltViewModel<SpeechSettingsViewModel>()
+        val offlineViewModel = hiltViewModel<OfflineSpeechSourcesViewModel>()
+        val offline by offlineViewModel.state.collectAsStateWithLifecycle()
         val settings by settingsViewModel.state.collectAsStateWithLifecycle()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
         val preview = stringResource(R.string.tts_preview_text)
-        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { settingsViewModel.refresh() }
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { settingsViewModel.refresh(); offlineViewModel.refresh() }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::preview) }
         val packagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let { nav.navigate(SpeechPackagePreviewRoute(it.toString())) { launchSingleTop = true } }
@@ -109,10 +111,12 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
             onPackagePreview = { packagePicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/yaml",
                 "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
+            offlineSettings = { OfflineSpeechSources(offline, offlineViewModel::select,
+                onPreview = { offlineViewModel.preview(it, preview) }, onDelete = offlineViewModel::delete) },
             systemSettings = {
                 SystemSpeechSettings(settings.copy(loading = settings.loading || state.busy),
                     onEngine = settingsViewModel::selectEngine, onVoice = settingsViewModel::selectVoice,
-                    onPreviewVoice = { viewModel.controller.preview(preview, settings.settings.copy(httpSource = null, voice = it)) },
+                    onPreviewVoice = { viewModel.controller.preview(preview, settings.settings.copy(httpSource = null, voice = it, offlineVoice = null)) },
                     onSystemSettings = {
                         try { context.startActivity(Intent("com.android.settings.TTS_SETTINGS")) }
                         catch (_: ActivityNotFoundException) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
@@ -131,6 +135,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechPackagePreviewScreen(state.preview, state.httpImports, onImport = { sources ->
             sourcesViewModel.previewPackage(sources)
             nav.popBackStackIfResumed()
-        }, onBack = nav::popBackStackIfResumed)
+        }, onBack = nav::popBackStackIfResumed, offline = state,
+            onInstall = viewModel::install, onCancelInstall = viewModel::cancelInstall)
     }
 }

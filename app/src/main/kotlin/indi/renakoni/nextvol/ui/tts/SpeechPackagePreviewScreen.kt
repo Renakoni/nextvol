@@ -37,6 +37,8 @@ import hnovel.speech.SpeechPackageSupport
 import hnovel.speech.HttpSpeechDefinition
 import hnovel.speech.HttpSpeechPackageError
 import hnovel.speech.HttpSpeechPackageImport
+import hnovel.speech.MatchaPackagePlan
+import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
@@ -49,6 +51,9 @@ fun SpeechPackagePreviewScreen(
     httpImports: Map<Int, HttpSpeechPackageImport> = emptyMap(),
     onImport: ((List<HttpSpeechDefinition>) -> Unit)? = null,
     onBack: () -> Unit,
+    offline: SpeechPackagePreviewState = SpeechPackagePreviewState(),
+    onInstall: (MatchaPackagePlan) -> Unit = {},
+    onCancelInstall: () -> Unit = {},
 ) {
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val context = LocalContext.current
@@ -80,9 +85,17 @@ fun SpeechPackagePreviewScreen(
                                 }
                             }
                         }
-                        Text(stringResource(if (httpImports.values.any { it.sources.isNotEmpty() }) R.string.tts_package_http_static
+                        Text(stringResource(if (offline.offlineImports.isNotEmpty()) R.string.tts_offline_import_note
+                            else if (httpImports.values.any { it.sources.isNotEmpty() }) R.string.tts_package_http_static
                             else R.string.tts_package_static), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (offline.installing) {
+                            Text(stringResource(R.string.tts_offline_installing))
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            TextButton(onClick = onCancelInstall) { Text(stringResource(R.string.cancel)) }
+                        }
+                        offline.installed?.let { Text(stringResource(R.string.tts_offline_installed, it), color = MaterialTheme.colorScheme.primary) }
+                        offline.installError?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
@@ -94,7 +107,8 @@ fun SpeechPackagePreviewScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(stringResource(R.string.tts_package_engine_info, engine.code.take(256),
                                 engine.type?.take(64) ?: stringResource(R.string.tts_package_undeclared)), style = MaterialTheme.typography.bodyMedium)
-                            Text(stringResource(if (httpImport != null) {
+                            val hasOffline = offline.offlineImports.keys.any { it.first == engineIndex }
+                            Text(stringResource(if (hasOffline) R.string.tts_offline_profile else if (httpImport != null) {
                                 if (httpImport.sources.isNotEmpty()) R.string.tts_package_can_import else R.string.tts_package_cannot_import
                             } else when (engine.support) {
                                 SpeechPackageSupport.HttpAdapter -> R.string.tts_package_http_adapter
@@ -102,7 +116,7 @@ fun SpeechPackagePreviewScreen(
                                 SpeechPackageSupport.Unsupported -> R.string.tts_package_unsupported
                             }), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
                             engine.notices.filterNot { engine.support == SpeechPackageSupport.Unsupported && it == SpeechPackageNotice.UnsupportedEngine ||
-                                httpImport != null && it == SpeechPackageNotice.ImportPending }.forEach { notice ->
+                                (httpImport != null || hasOffline) && it == SpeechPackageNotice.ImportPending }.forEach { notice ->
                                 Text(stringResource(notice.messageResource), style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -133,12 +147,41 @@ fun SpeechPackagePreviewScreen(
                     }
                 }
                 itemsIndexed(if ("voices:$engineIndex" in expanded) engine.voices else engine.voices.take(5),
-                    key = { index, _ -> "voice:$engineIndex:$index" }) { _, voice ->
+                    key = { index, _ -> "voice:$engineIndex:$index" }) { voiceIndex, voice ->
                     Column(Modifier.fillMaxWidth().padding(horizontal = 38.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(voice.name.take(256).ifEmpty { stringResource(R.string.tts_package_unnamed_voice) }, style = MaterialTheme.typography.headlineSmall)
                         if (voice.code.isNotEmpty()) Text(voice.code.take(256), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        offline.offlineImports[engineIndex to voiceIndex]?.let { local ->
+                            val plan = local.plan
+                            if (plan != null) {
+                                Text(stringResource(R.string.tts_offline_size, Formatter.formatShortFileSize(context, plan.resources.sumOf { it.bytes })),
+                                    style = MaterialTheme.typography.bodyMedium)
+                                if (!offline.offlineSupported) Text(stringResource(R.string.tts_offline_device), style = MaterialTheme.typography.bodySmall)
+                                FilledTonalButton(onClick = { onInstall(plan) }, enabled = offline.offlineSupported && !offline.installing) {
+                                    Text(stringResource(R.string.tts_offline_install, voice.name))
+                                }
+                                if (plan.id == offline.installingId) {
+                                    if (offline.installing) {
+                                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                                        TextButton(onClick = onCancelInstall) { Text(stringResource(R.string.cancel)) }
+                                    }
+                                    offline.installed?.let { Text(stringResource(R.string.tts_offline_installed, it), style = MaterialTheme.typography.bodySmall) }
+                                    offline.installError?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+                                }
+                            } else {
+                                val reason = when (local.error) {
+                                    MatchaPackageError.Parameters -> R.string.tts_offline_parameters
+                                    MatchaPackageError.UnsafePath -> R.string.tts_offline_path
+                                    MatchaPackageError.Ambiguous -> R.string.tts_offline_ambiguous
+                                    MatchaPackageError.MissingResource -> R.string.tts_offline_missing
+                                    else -> R.string.tts_offline_model
+                                }
+                                Text(stringResource(reason, local.detail), style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
                 if (engine.voices.size > 5) item(key = "more:$engineIndex") {

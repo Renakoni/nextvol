@@ -71,6 +71,14 @@ def main():
     jni.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(library, jni / library.name)
     shutil.copyfile(runtime / 'install/lib/libonnxruntime.so', jni / 'libonnxruntime.so')
+    # ABI markers preserve installation of the universal APK on unsupported devices.
+    clang = llvm / ('clang.exe' if os.name == 'nt' else 'clang')
+    for abi, target in (('armeabi-v7a', 'armv7a-linux-androideabi24'),
+                        ('x86', 'i686-linux-android24'), ('x86_64', 'x86_64-linux-android24')):
+        destination = output / 'jniLibs' / abi / 'libnextvol-platform.so'
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        run([clang, '--target=' + target, '-shared', '-fPIC', '-O2',
+             '-Wl,-z,max-page-size=16384', ROOT / 'platform.c', '-o', destination])
     assets = identity.parent
     assets.mkdir(parents=True, exist_ok=True)
     for source in json.loads((ROOT / 'sources.json').read_text(encoding='utf-8')):
@@ -84,7 +92,7 @@ def main():
         'profile': 'Chinese Matcha / HiFi-GAN / CPU / two threads / one instance',
         'abi': 'arm64-v8a', 'android_api': 26, 'stl': 'c++_static',
         'source_inventory_sha256': digest(ROOT / 'sources.sha256'),
-        'recipe_sha256': {name: digest(ROOT / name) for name in ('build_android.py', 'CMakeLists.txt', 'sources.cmake', 'sources.json', 'jni.cc')},
+        'recipe_sha256': {name: digest(ROOT / name) for name in ('build_android.py', 'CMakeLists.txt', 'sources.cmake', 'sources.json', 'jni.cc', 'platform.c')},
         'library_sha256': digest(library), 'library_bytes': library.stat().st_size,
         'needed_libraries': needed, 'load_segment_alignments': [row[-1] for row in loads],
         'runtime': json.loads((runtime / 'install/build-manifest.json').read_text(encoding='utf-8')),

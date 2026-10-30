@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.tts
 
 import indi.renakoni.nextvol.data.local.room.dao.UserDataDao
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -12,8 +13,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechSettingsRepositoryTest {
-    @Test fun legacySynthesisSettingsKeepTheirMeaningWhenPlaybackSpeedIsSavedAndReopened() = runBlocking {
-        for (legacy in listOf("""{"rate":null,"pitch":null}""", """{"rate":1.5,"pitch":0.8}""")) {
+    @Test fun legacySettingsAndOfflineSelectionSurviveSavingAndReopening() = runBlocking {
+        for (legacy in listOf("""{"rate":null,"pitch":null}""", """{"rate":1.5,"pitch":0.8,"httpSource":"old-http-id"}""")) {
             val stored = MutableStateFlow<String?>(legacy)
             val dao = mockk<UserDataDao>()
             coEvery { dao.get("tts.settings") } answers { stored.value }
@@ -22,12 +23,20 @@ class SpeechSettingsRepositoryTest {
             val data = UserDataRepository(dao)
             val repository = SpeechSettingsRepository(data)
             val old = repository.get()
+            assertNull(old.offlineVoice)
+            assertEquals(if (legacy.contains("old-http-id")) "old-http-id" else null, old.httpSource)
             assertEquals(1f, old.playbackSpeed)
             assertEquals(if (legacy.contains("1.5")) 1.5f else null, old.rate)
             assertEquals(if (legacy.contains("0.8")) 0.8f else null, old.pitch)
             repository.update { it.copy(playbackSpeed = 2f) }
             assertEquals(old.copy(playbackSpeed = 2f), repository.changes.first())
             assertEquals(old.copy(playbackSpeed = 2f), SpeechSettingsRepository(data).get())
+            val local = OfflineVoiceRef("a".repeat(64), "b".repeat(64))
+            repository.update { it.copy(offlineVoice = local) }
+            val reopened = SpeechSettingsRepository(data).get()
+            assertEquals(local, reopened.offlineVoice)
+            assertNull(reopened.httpSource)
+            assertEquals(old.rate, reopened.rate)
         }
     }
 

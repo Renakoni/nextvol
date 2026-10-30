@@ -49,6 +49,7 @@ fun HttpSpeechSourcesScreen(
     onChapterSleepTimer: ((Int) -> Unit)? = null,
     systemSettings: (@Composable () -> Unit)? = null,
     onPackagePreview: (() -> Unit)? = null,
+    offlineSettings: (@Composable () -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -81,7 +82,7 @@ fun HttpSpeechSourcesScreen(
             maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back)) }
         }, actions = {
-            if (onRefresh != null && state.selected == null) IconButton(onClick = onRefresh, enabled = !state.busy) {
+            if (onRefresh != null && state.selected == null && !state.offlineSelected) IconButton(onClick = onRefresh, enabled = !state.busy) {
                 Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.tts_refresh))
             }
             if (state.busy) CircularProgressIndicator(Modifier.padding(horizontal = 16.dp).size(20.dp), strokeWidth = 2.dp)
@@ -104,12 +105,13 @@ fun HttpSpeechSourcesScreen(
             state.error?.let { message -> item { Text(stringResource(message), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) } }
             item {
                 SettingsCategory {
-                    SourceChoice(stringResource(R.string.tts_system_speech), state.selected == null, !state.busy, { onSelect(null) },
+                    SourceChoice(stringResource(R.string.tts_system_speech), state.selected == null && !state.offlineSelected, !state.busy, { onSelect(null) },
                         Modifier.background(MaterialTheme.colorScheme.surfaceContainer),
                         onPreview = onPreview?.let { { it(null) } })
-                    if (state.selected == null) systemSettings?.invoke()
+                    if (state.selected == null && !state.offlineSelected) systemSettings?.invoke()
                 }
             }
+            if (offlineSettings != null) item { offlineSettings() }
             if (state.sources.isEmpty() && !state.busy) item { Text(stringResource(R.string.tts_online_empty), Modifier.padding(16.dp)) }
             state.sources.filter { it.category != null }.groupBy { it.category!! }.forEach { (group, sources) ->
                 item(key = "group:$group") {
@@ -220,7 +222,7 @@ private fun SpeechSourceActions(enabled: Boolean, onEdit: () -> Unit, onSites: (
 }
 
 @Composable
-private fun SourceChoice(name: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
+internal fun SourceChoice(name: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
     onPreview: (() -> Unit)? = null, previewEnabled: Boolean = true) {
     Row(modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,

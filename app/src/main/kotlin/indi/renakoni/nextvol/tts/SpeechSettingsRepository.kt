@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.tts
 
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -21,11 +22,13 @@ data class SpeechSettings(
     val pitch: Float? = null,
     val httpSource: String? = null,
     val playbackSpeed: Float = 1f,
+    val offlineVoice: OfflineVoiceRef? = null,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
         pitch = pitch?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
         playbackSpeed = playbackSpeed.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f) ?: 1f,
+        httpSource = httpSource.takeIf { offlineVoice == null },
     )
 }
 

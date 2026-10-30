@@ -1,9 +1,11 @@
-# Chinese Matcha backend (#791)
+# Chinese Matcha backend
 
 Sherpa 1.12.10 (`6b1fbdedd2d90dba2714b7aff825412d89e45eba`) runs the
 installed Chinese Matcha / HiFi-GAN sample through `SpeechSynthesizer`. It produces
 a complete mono PCM16 WAV, then uses the existing read-aloud session and player.
-Model import, persistent selection and settings UI belong to #794.
+The ordinary debug, release and snapshot APKs include the backend. Users install
+external voice packages through Settings → Read aloud → Voices; weights are not
+bundled with the application.
 
 ## Source boundary
 
@@ -28,18 +30,26 @@ cancellation and bounded PCM16 output without upstream Java package names.
 The fixed profile is CPU, two threads per ONNX session, speaker 0, 22,050 Hz, NDK
 28.2.13676358, Android API 26 and arm64-v8a, with static libc++ and 16 KiB ELF
 segment alignment. Use CMake >= 3.26 and < 4.0, Ninja and the host build tools
-listed in the #793 recipe. This issue deliberately exposes an opt-in debug build;
-ordinary debug, release and snapshot variants retain their existing platform
-support and do not package the backend.
+listed in the #793 recipe. All variants retain minSdk 24. Matcha is offered only on API 26+ when the arm64
+library actually loads. Small, never-loaded ABI marker libraries keep the same
+APK installable on armeabi-v7a, x86 and x86_64; those processes retain system and
+HTTP speech. An emulator with ARM translation still needs an arm64 process;
+MuMu A selected arm64 automatically when installing the ordinary APK during
+#794 acceptance. Merely advertising arm64 in the device ABI list is not treated
+as a working backend.
 
 ## Build
 
 ```powershell
-./gradlew.bat :app:assembleDebug -PmatchaNative=true `
+./gradlew.bat :app:assembleDebug `
   -PmatchaNdk=E:/Android/Sdk/ndk/28.2.13676358 `
   '-PmatchaCmake=E:/Microsoft Visual Studio/2022/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe' `
   -PmatchaNinja=E:/Android/Sdk/cmake/3.22.1/bin/ninja.exe
 ```
+
+The NDK defaults to `ndk/28.2.13676358` in the Android SDK. CI installs fixed
+NDK/CMake tools and caches the Gradle native task outputs. `matchaNative=false`
+is an explicit build opt-out, with offline voices reported unavailable.
 
 Optional `matchaBuildDir` selects an output/cache directory; `matchaPython`
 selects the Python interpreter. The default output is `app/build/matcha`.
@@ -52,41 +62,51 @@ inventories and builds the current source tree, reusing CMake's object cache.
 licenses; the manifest embeds #793's runtime identity, including toolchain
 binary dependencies. It is published atomically after all exports succeed. Neither generated libraries nor model weights are tracked.
 
-## Installed sample and controlled entry
+## Package import and selection
 
-Install the debug APK on the designated MuMu instance. The opt-in build uses
-`indi.renakoni.nextvol.matchaprobe` to coexist with ordinary debug installations. Copy the already obtained
-sample into the app's private `files/matcha` directory with `adb push` and
-`run-as indi.renakoni.nextvol.matchaprobe`. Required files:
+Open a MultiTTS ZIP from the system document picker. The first supported sample
+is Baker in the Sherpa Matcha/Kokoro package. The static preview reads YAML as
+data; it never executes scripts, constructs tagged Java objects or loads models.
+Select **Install Baker**, return to Voices, and explicitly select or audition it.
+Cached/local chapters can then play with networking disabled.
 
-```text
-model-steps-3.onnx  hifigan_v2.onnx  tokens.txt  lexicon.txt
-date.fst  number.fst  phone.fst
-dict/jieba.dict.utf8  dict/hmm_model.utf8  dict/user.dict.utf8
-dict/idf.utf8  dict/stop_words.utf8
-```
+Mapping uses `engine.code == sherpa`, `engine.type == inner`, and
+`voice.param.modelDir`, falling back to `voice.code`. Relative directories may be
+nested. The required filenames are fixed by `ChineseMatchaProfile`, including
+the acoustic graph, HiFi-GAN, tokens, lexicon, five dictionary files and three
+FSTs. Extra ONNX candidates, duplicate identities/paths and escaping paths are
+rejected. This first importer verifies the two graphs against the accepted
+sample SHA-256 values; filename/`inner` declarations alone do not establish
+model compatibility. Unsupported voices remain visible with a reason.
 
-This profile accepts the Baker Chinese sample's `x`, `x_length`, `noise_scale`,
-`length_scale` acoustic inputs, `matcha-tts` metadata and pad ID 1. Resources must
-be readable, bounded regular files whose canonical paths do not escape their
-installation. Rate must be finite and in 0.5–2; pitch changes and alternate
-voices are unsupported. Model weights are external acceptance fixtures; they
-are not distributed with NextVol. Their own licenses and dataset restrictions
-must be addressed by model import/distribution work.
+The current runtime fixes CPU, two threads and speaker 0. Explicit differing
+parameters, dynamic `extendUI` references and local speed/pitch/volume effects
+are rejected. `noiseScale` and `lengthScale` only accept the shipped Matcha
+values (1); other model-specific parameters are unsupported. MultiTTS's existing
+`p134t4/c` parser uses `modelDir`/speaker code and defaults to four threads;
+`p134t4/b` applies its noise parameters to VITS, not to the Matcha builder.
+This importer intentionally describes its supported profile rather than silently
+applying all of those fields to Matcha. Rate uses the existing synthesis setting;
+playback speed continues to use the common player. System pitch remains stored
+but is not applied to Matcha.
 
-```powershell
-adb -s 127.0.0.1:16448 shell am start -W `
-  -n indi.renakoni.nextvol.matchaprobe/indi.renakoni.nextvol.tts.matcha.MatchaProbeActivity
-adb -s 127.0.0.1:16448 shell run-as indi.renakoni.nextvol.matchaprobe cat files/matcha-result.json
-```
+Installation reopens the document, repeats static mapping, checks selected paths,
+sizes and CRCs against the preview, and copies only the required files with
+bounds, CRC and graph-hash verification. Files are staged in private no-backup
+storage, then atomically published with the catalog. Interrupted staging and
+unreferenced revisions are reclaimed at the next process start. Duplicate import
+replaces the same voice identity; identical resources reuse the same revision.
+The persisted `OfflineVoiceRef(id, revision)` is separate from existing system
+and HTTP selections. The ID derives from engine/voice code, while the revision
+hash covers the installed resource contents. A deleted voice cannot open again;
+active leases defer resource deletion until native destruction completes.
 
-The debug-only activity requires the system `DUMP` permission held by adb shell.
-It loads `files/matcha`, synthesizes fixed Chinese text into
-`cache/matcha-probe.wav`, and releases the instance. Success, WAV size or a
-failure is written to `files/matcha-result.json` and `NextVolMatcha` logcat.
-Paths and text are fixed. The one-off cancellation/session-replacement and
-memory/timing probe modes have been removed after acceptance; the focused
-lifecycle tests remain.
+The imported weights are user-provided, are not redistributed by NextVol, and
+remain subject to their own model and dataset licenses. Native dependency
+licenses and source-build provenance are packaged in `assets/matcha-native`.
+
+The legacy debug-only `MatchaProbeActivity` remains a restricted development
+helper. It is not part of the user import or acceptance workflow.
 
 ## Lifecycle
 

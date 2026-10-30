@@ -82,3 +82,54 @@ Whole-process PSS was 460,664 KiB after initialization and 251,978 KiB after
 release in the sample run. The one-instance bound is enforced by the adapter's
 semaphore, while the existing session's bounded file queue is retained. These
 two memory observations are not a peak-memory measurement or a leak test.
+
+# #794 ordinary-package acceptance
+
+Validation date: 2026-10-30 (host local date). MuMu A, API 32, 4 KiB pages.
+The ordinary `indi.renakoni.nextvol.debug` APK was installed without an ABI
+override or native feature flag; Android selected `arm64-v8a`. No probe activity,
+external TTS app or adb model injection was used for this acceptance.
+
+The system document picker opened the real external Sherpa Matcha/Kokoro ZIP
+(817,152,513 bytes). Preview found 1 engine, 66 voices and 1,113 resource files.
+Installing Baker copied only its 12 required files (92,568,146 bytes), verified
+the graph hashes above, and retained the previously selected HTTP voice.
+The catalog used voice ID
+`e0545b1de5fc60d854ee78bc104a0baa6b3eeca844235602eefd4a1713760291`
+and resource revision
+`b1994ef1f7d8bafb43aa4c60bc19da27cc817dfde9ee81545015cb1360a11974`.
+
+| Scenario | Observed result |
+| --- | --- |
+| Explicit Baker audition | Shared Media3 player completed a 22,050 Hz mono PCM16 file: 126,452 frames, normalized RMS 0.071844 |
+| Persisted selection | Baker remained selected after app force-stop and emulator restart |
+| Offline chapter | With Wi-Fi disabled and Android reporting no active default network, cached chapter “第一章 黑与白” in “魔法少女育成计划” synthesized and played through the ordinary reader |
+| Playback controls | Media session changed from playing to paused and back; next-segment synthesis resumed; stopping removed the audio cache |
+| Missing resource | Temporarily renaming `tokens.txt` showed its filename and disabled audition; restoring it made the voice usable |
+| Cancel installation | Leaving during extraction removed staging files and published no voice |
+| Duplicate import | Successful re-import retained one catalog entry and the same ID/revision |
+| Delete during native initialization | Catalog became empty while the leased model still existed; after native cleanup only the catalog remained, with no audio files; re-import succeeded |
+| Unsupported models | English Matcha and Kokoro stayed visible with unsupported-model/parameter explanations and no install action |
+| Unsupported process ABI | The same APK installed with `--abi x86_64`; Baker selection/audition were disabled with a support explanation; existing “豆包 · 通用女声” HTTP selection and audition still worked |
+
+The first captured offline chapter file contained 470,238 frames (21.325986 s),
+940,520 bytes and normalized RMS 0.059500. Its SHA-256 was
+`b2c6b721a3c60c5575794b82eefa5a65c1bd94047976840586fb3444c3d32bd6`.
+Two further captured chapter clips were also valid 22,050 Hz mono WAVs.
+These are waveform and player-state observations, not a subjective audio-quality
+assessment. Wi-Fi and the ordinary arm64 installation were restored afterward.
+
+Fresh native source build, debug/release assembly, debug lint, app unit-test
+compilation and source-speech test compilation passed. Lint reported 452 warnings
+and 8 hints, with no errors. Resource contracts and action YAML were checked.
+APK library hashes matched the packaged source manifest; dependency licenses
+were present and no ONNX weights were embedded. ELF LOAD alignment was 16 KiB,
+including the three API-24 ABI markers; debug APK 16 KiB zip alignment passed.
+
+Regression tests cover static path/parameter mapping, selected-resource changes,
+unknown graph rejection, catalog persistence, idempotent imports, replacement and
+deletion leases, and Android-style app-directory aliases. They were compiled,
+not executed locally, under the repository's CI-only test-execution rule.
+Physical phones, API 24 runtime behavior, 16 KiB devices and release-runtime
+playback were not exercised here. Book-switch behavior retains the existing
+session implementation and its tests; this device run exercised one cached book.

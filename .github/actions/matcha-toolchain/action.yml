@@ -1,0 +1,35 @@
+name: Matcha source toolchain
+description: Fixed tools for the native backend included in ordinary APKs
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      id: tools
+      with:
+        path: ${{ runner.temp }}/matcha-toolchain
+        key: matcha-linux-ndk28c-cmake3.31.6-v1
+    - name: Prepare native tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        tools="$RUNNER_TEMP/matcha-toolchain"
+        mkdir -p "$tools"
+        if [[ ! -f "$tools/android-ndk-r28c/source.properties" ]]; then
+          curl --fail --location --retry 2 https://dl.google.com/android/repository/android-ndk-r28c-linux.zip -o "$tools/ndk.zip"
+          unzip -q "$tools/ndk.zip" -d "$tools"
+          rm "$tools/ndk.zip"
+        fi
+        if [[ ! -x "$tools/cmake/bin/cmake" ]]; then
+          python3 -m pip install --disable-pip-version-check --no-deps --target "$tools/python" cmake==3.31.6
+          ln -s "$tools/python/cmake/data" "$tools/cmake"
+        fi
+        cat >> "$GITHUB_ENV" <<EOF
+        ORG_GRADLE_PROJECT_matchaNdk=$tools/android-ndk-r28c
+        ORG_GRADLE_PROJECT_matchaCmake=$tools/cmake/bin/cmake
+        ORG_GRADLE_PROJECT_matchaNinja=/usr/bin/ninja
+        EOF
+    - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      if: github.ref == 'refs/heads/main' && steps.tools.outputs.cache-hit != 'true'
+      with:
+        path: ${{ runner.temp }}/matcha-toolchain
+        key: ${{ steps.tools.outputs.cache-primary-key }}

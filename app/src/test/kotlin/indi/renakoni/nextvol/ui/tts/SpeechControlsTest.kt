@@ -260,7 +260,7 @@ class SpeechControlsTest {
         val engines = mockk<SystemSpeechEngines>()
         coEvery { engines.installed() } returns emptyList()
         coEvery { engines.inspect("") } throws SpeechException(SpeechError.NoEngine)
-        val model = SpeechSettingsViewModel(repository, engines, mockk(), mockk())
+        val model = SpeechSettingsViewModel(repository, engines, mockk(), mockk(), mockk())
         val inspection = CompletableDeferred<SpeechEngineState>()
         fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10000) {
             org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()

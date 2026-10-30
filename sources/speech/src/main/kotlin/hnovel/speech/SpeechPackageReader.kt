@@ -43,8 +43,10 @@ private fun readZip(file: File, name: String, checkCancelled: () -> Unit): Speec
         val resources = mutableListOf<SpeechPackageResource>()
         val seen = mutableSetOf<String>()
         val entries = zip.entries()
+        var count = 0
         while (entries.hasMoreElements()) {
             checkCancelled()
+            packageCheck(++count <= 100_000, SpeechPackageError.InvalidArchive)
             val entry = entries.nextElement()
             if (entry.isDirectory) continue
             val path = entry.name
@@ -53,7 +55,7 @@ private fun readZip(file: File, name: String, checkCancelled: () -> Unit): Speec
                 val bytes = zip.getInputStream(entry).use { readYamlBytes(it, checkCancelled) }
                 packageCheck(bytes.size.toLong() == entry.size && CRC32().apply { update(bytes) }.value == entry.crc, SpeechPackageError.InvalidArchive)
                 documents += SpeechPackageDocument(path, readSpeechPackageYaml(decodeYaml(bytes), checkCancelled))
-            } else resources += SpeechPackageResource(path, entry.size)
+            } else resources += SpeechPackageResource(path, entry.size, entry.crc)
         }
         describeSpeechPackage(name, documents.toList(), resources.toList(), checkCancelled)
     }
@@ -66,6 +68,7 @@ private fun readYamlBytes(input: InputStream, checkCancelled: () -> Unit): ByteA
         checkCancelled()
         val count = input.read(buffer)
         if (count < 0) break
+        packageCheck(output.size() + count <= 4 * 1024 * 1024, SpeechPackageError.InvalidYaml)
         output.write(buffer, 0, count)
     }
     return output.toByteArray()
