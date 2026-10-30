@@ -1,0 +1,23 @@
+set(SHERPA_SOURCES
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-impl.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-model-config.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-matcha-model-config.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-vits-model-config.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-kokoro-model-config.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-kitten-model-config.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-matcha-model.cc
+  vendor/sherpa/sherpa-onnx/csrc/vocoder.cc
+  vendor/sherpa/sherpa-onnx/csrc/hifigan-vocoder.cc
+  vendor/sherpa/sherpa-onnx/csrc/jieba-lexicon.cc
+  vendor/sherpa/sherpa-onnx/csrc/jieba.cc
+  vendor/sherpa/sherpa-onnx/csrc/lexicon.cc
+  vendor/sherpa/sherpa-onnx/csrc/symbol-table.cc
+  vendor/sherpa/sherpa-onnx/csrc/text-utils.cc
+  vendor/sherpa/sherpa-onnx/csrc/file-utils.cc
+  vendor/sherpa/sherpa-onnx/csrc/onnx-utils.cc
+  vendor/sherpa/sherpa-onnx/csrc/session.cc
+  vendor/sherpa/sherpa-onnx/csrc/provider.cc
+  vendor/sherpa/sherpa-onnx/csrc/provider-config.cc
+  vendor/sherpa/sherpa-onnx/csrc/parse-options.cc
+)

@@ -8,9 +8,9 @@ interface SpeechSynthesizer : AutoCloseable {
     suspend fun open(settings: SpeechSettings): String
     /** Returns only after a complete, validated file is committed to [output]. */
     suspend fun synthesize(text: String, output: File): List<SpeechTiming>
-    /** Signal cancellation on the session thread; never release network resources here. */
+    /** Signal cancellation on the session thread without blocking or releasing in-flight resources. */
     fun cancel()
-    /** May block on network teardown. Call off the main thread after synthesis has stopped. */
+    /** May block on teardown. Call off the main thread after synthesis has stopped. */
     override fun close()
 }
 

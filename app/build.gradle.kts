@@ -15,7 +15,35 @@ plugins {
     id("com.mikepenz.aboutlibraries.plugin.android")
 }
 
+// #791's controlled development build. Ordinary variants do not load or package Matcha.
+val matchaNative = providers.gradleProperty("matchaNative").map(String::toBoolean).getOrElse(false)
+val matchaOutput = providers.gradleProperty("matchaBuildDir").map { file(it) }
+    .getOrElse(layout.buildDirectory.dir("matcha").get().asFile)
+if (matchaNative) {
+    val buildMatchaNative by tasks.registering(Exec::class) {
+        inputs.files(rootProject.fileTree("native/matcha") { exclude("build/**", "__pycache__/**") })
+        inputs.files(rootProject.fileTree("native/onnxruntime") { exclude("build/**", "__pycache__/**") })
+        inputs.properties(listOf("matchaPython", "matchaNdk", "matchaCmake", "matchaNinja")
+            .associateWith { providers.gradleProperty(it).getOrElse("") })
+        outputs.dir(matchaOutput.resolve("jniLibs"))
+        outputs.dir(matchaOutput.resolve("assets"))
+        commandLine(
+            providers.gradleProperty("matchaPython").getOrElse("python"),
+            rootProject.file("native/matcha/build_android.py"),
+            "--ndk", providers.gradleProperty("matchaNdk").get(),
+            "--cmake", providers.gradleProperty("matchaCmake").getOrElse("cmake"),
+            "--ninja", providers.gradleProperty("matchaNinja").getOrElse("ninja"),
+            "--output", matchaOutput,
+        )
+    }
+    tasks.matching { it.name == "preDebugBuild" }.configureEach { dependsOn(buildMatchaNative) }
+}
+
 android {
+    if (matchaNative) {
+        sourceSets.getByName("debug").jniLibs.srcDir(matchaOutput.resolve("jniLibs"))
+        sourceSets.getByName("debug").assets.srcDir(matchaOutput.resolve("assets"))
+    }
     sourceSets.getByName("androidTest").assets.srcDir("../sources/rhino/src/test/resources")
     sourceSets.getByName("androidTest").assets.srcDir("../tests/source-compatibility/browser")
     sourceSets.getByName("androidTest").assets.srcDir("../tests/source-compatibility/fixtures/native-routing/site")
@@ -39,6 +67,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "BENCHMARK", "false")
+        buildConfigField("boolean", "MATCHA_NATIVE", "false")
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -57,7 +86,8 @@ android {
         }
 
         debug {
-            applicationIdSuffix = ".debug"
+            buildConfigField("boolean", "MATCHA_NATIVE", matchaNative.toString())
+            applicationIdSuffix = if (matchaNative) ".matchaprobe" else ".debug"
             isDebuggable = true
             isJniDebuggable = true
             vcsInfo.include = false
@@ -136,6 +166,10 @@ android {
         }
     }
     packaging {
+        if (matchaNative) {
+            // Preserve the source-build manifest's hashes in the debug APK.
+            jniLibs.keepDebugSymbols += setOf("**/libnextvol-matcha.so", "**/libonnxruntime.so")
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             // JAR lookup indexes are not used by Android; both pinned Hutool artifacts contain one.
