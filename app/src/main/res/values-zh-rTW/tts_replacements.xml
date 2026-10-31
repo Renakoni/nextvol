@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_replacements">替換規則</string>
+    <string name="tts_replace_add">新增規則</string>
+    <string name="tts_replace_preview">替換預覽</string>
+    <string name="tts_replace_ungrouped">未分組</string>
+    <string name="tts_replace_all_groups">全部分組</string>
+    <string name="tts_replace_empty">尚無規則</string>
+    <string name="tts_replace_whole">全段替換</string>
+    <string name="tts_replace_normal">一般替換</string>
+    <string name="tts_replace_regex">正則運算式</string>
+    <string name="tts_replace_actions">規則操作：%1$s</string>
+    <string name="tts_replace_edit">編輯規則</string>
+    <string name="tts_replace_up">上移</string>
+    <string name="tts_replace_down">下移</string>
+    <string name="tts_replace_delete">刪除規則</string>
+    <string name="tts_replace_name">規則名稱</string>
+    <string name="tts_replace_group">分組</string>
+    <string name="tts_replace_enabled">啟用</string>
+    <string name="tts_replace_source">尋找內容</string>
+    <string name="tts_replace_target">替換為</string>
+    <string name="tts_replace_sample">她說：「重慶的天亮了。」</string>
+    <string name="tts_replace_input">範例原文</string>
+    <string name="tts_replace_run_preview">執行預覽</string>
+    <string name="tts_replace_after_whole">全段替換後</string>
+    <string name="tts_replace_after_normal">實際合成分段</string>
+    <string name="tts_replace_no_speech">無可朗讀內容</string>
+    <string name="tts_replace_failed">替換規則執行失敗，已停止準備朗讀。</string>
+    <string name="tts_replace_error_pattern">正則運算式無效</string>
+    <string name="tts_replace_error_target">替換文字或擷取群組參照無效</string>
+    <string name="tts_replace_error_budget">執行超出預算，已中止該規則</string>
+    <string name="tts_replace_error_rule">%1$s：%2$s</string>
+</resources>

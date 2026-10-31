@@ -46,4 +46,23 @@ class SpeechSettingsRepositoryTest {
             assertEquals(defaults.copy(playbackSpeed = expected), defaults.copy(playbackSpeed = input).validated())
         }
     }
+
+    @Test fun completeRuleDataAndOrderSurviveVoiceChangesAndReopeningWithoutExecutingRegex() = runBlocking {
+        val stored = MutableStateFlow<String?>(null)
+        val dao = mockk<UserDataDao>()
+        coEvery { dao.get("tts.settings") } answers { stored.value }
+        every { dao.getFlow("tts.settings") } returns stored
+        coEvery { dao.insert("tts.settings", any(), "String", any()) } answers { stored.value = arg(3) }
+        val data = UserDataRepository(dao)
+        val repository = SpeechSettingsRepository(data)
+        val rules = listOf(
+            SpeechReplacementRule("first", "引号", "人物", "「", "“<<张三>>"),
+            SpeechReplacementRule("second", "纠音", "草稿", "(", "$1", regex = true, activate = false),
+        )
+        repository.update { it.copy(replacements = rules, httpSource = "online") }
+        repository.update { it.copy(offlineVoice = OfflineVoiceRef("a".repeat(64), "b".repeat(64))) }
+        assertEquals(rules, SpeechSettingsRepository(data).get().replacements)
+        repository.update { it.copy(replacements = it.replacements.reversed()) }
+        assertEquals(rules.reversed(), repository.changes.first().replacements)
+    }
 }

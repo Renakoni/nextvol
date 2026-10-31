@@ -20,6 +20,8 @@ data class SpeechBookmark(
     val bookTitle: String = "",
     val chapterTitle: String = "",
     val completed: Boolean = false,
+    val replacementKey: String? = null,
+    val segmentIndex: Int? = null,
 )
 
 interface SpeechProgressStore {

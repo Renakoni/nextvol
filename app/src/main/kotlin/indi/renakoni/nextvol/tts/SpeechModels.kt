@@ -27,7 +27,7 @@ enum class SpeechError {
     NoEngine, EngineUnavailable, MissingVoice, MissingLanguageData, InitializationTimeout,
     SynthesisTimeout, SynthesisFailed, Network, InvalidAudio, Storage, SourceUnavailable,
     SourceTimeout, EmptyText, UnsupportedContent, Playback, ServiceUnavailable,
-    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, OfflineUnavailable,
+    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, OfflineUnavailable, ReplacementRule,
 }
 
 class SpeechException(val error: SpeechError) : Exception(error.name)
@@ -62,6 +62,7 @@ data class ReadAloudState(
     val sleepTimerChapters: Int? = null,
     /** Frozen duration while paused; sleepTimerDeadline is present only during book playback. */
     val sleepTimerRemainingMillis: Long? = null,
+    val replacementFailure: SpeechReplacementFailure? = null,
 ) {
     val isActive get() = phase in setOf(SpeechPhase.Preparing, SpeechPhase.Playing, SpeechPhase.Buffering)
 }

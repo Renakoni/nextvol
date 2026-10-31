@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_replacements">Replacement rules</string>
+    <string name="tts_replace_add">Add rule</string>
+    <string name="tts_replace_preview">Preview replacements</string>
+    <string name="tts_replace_ungrouped">Ungrouped</string>
+    <string name="tts_replace_all_groups">All groups</string>
+    <string name="tts_replace_empty">No rules yet</string>
+    <string name="tts_replace_whole">Whole-text replacement</string>
+    <string name="tts_replace_normal">Normal replacement</string>
+    <string name="tts_replace_regex">Regular expression</string>
+    <string name="tts_replace_actions">Actions for %1$s</string>
+    <string name="tts_replace_edit">Edit rule</string>
+    <string name="tts_replace_up">Move up</string>
+    <string name="tts_replace_down">Move down</string>
+    <string name="tts_replace_delete">Delete rule</string>
+    <string name="tts_replace_name">Rule name</string>
+    <string name="tts_replace_group">Group</string>
+    <string name="tts_replace_enabled">Enabled</string>
+    <string name="tts_replace_source">Find</string>
+    <string name="tts_replace_target">Replace with</string>
+    <string name="tts_replace_sample">She said: 「Hello.」</string>
+    <string name="tts_replace_input">Sample text</string>
+    <string name="tts_replace_run_preview">Run preview</string>
+    <string name="tts_replace_after_whole">After whole-text replacements</string>
+    <string name="tts_replace_after_normal">Synthesis passages</string>
+    <string name="tts_replace_no_speech">No spoken text remains.</string>
+    <string name="tts_replace_failed">A replacement rule stopped speech preparation.</string>
+    <string name="tts_replace_error_pattern">Invalid regular expression</string>
+    <string name="tts_replace_error_target">Invalid replacement or capture reference</string>
+    <string name="tts_replace_error_budget">Execution limit reached; the rule was stopped</string>
+    <string name="tts_replace_error_rule">%1$s: %2$s</string>
+</resources>

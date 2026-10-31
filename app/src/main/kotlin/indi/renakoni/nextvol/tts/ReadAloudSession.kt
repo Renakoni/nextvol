@@ -49,6 +49,10 @@ class ReadAloudSession(
     private val playback: SpeechPlayback,
     private val cacheRoot: File,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val preparePlan: suspend (SpeechChapter, SpeechSettings) -> SpeechPlan = { chapter, synthesis ->
+        val task = currentCoroutineContext()
+        prepareSpeechPlan(chapter, synthesis) { task.ensureActive() }
+    },
 ) {
     private val mutableState = MutableStateFlow(ReadAloudState())
     val state = mutableState.asStateFlow()
@@ -169,7 +173,7 @@ class ReadAloudSession(
         currentClip = null
         currentPlan = null
         wantsPlay = false
-        mutableState.value = state.value.copy(phase = SpeechPhase.Stopped, error = null, position = null, sleepTimerChapters = null)
+        mutableState.value = state.value.copy(phase = SpeechPhase.Stopped, error = null, position = null, sleepTimerChapters = null, replacementFailure = null)
     }
 
     fun setChapterSleepTimer(chapters: Int?) {
@@ -234,7 +238,7 @@ class ReadAloudSession(
             if (delta > 0 || clip.chapter.previousId != null) changeChapter(delta > 0)
             else start(request, resumeSaved = false, boundary = clip.bookmark(clip.segment.start), playing = wantsPlay,
                 sleepTimerChapters = state.value.sleepTimerChapters)
-        } else start(request, resumeSaved = false, boundary = clip.bookmark(target.start), playing = wantsPlay,
+        } else start(request, resumeSaved = false, boundary = clip.plan.bookmark(target.start, clip.index + delta), playing = wantsPlay,
             sleepTimerChapters = state.value.sleepTimerChapters)
     }
 
@@ -258,8 +262,9 @@ class ReadAloudSession(
 
     private sealed interface Step {
         data class Ready(val clip: SpeechClip) : Step
+        data class Skipped(val plan: SpeechPlan) : Step
         data class Failed(val error: SpeechError, val request: SpeechRequest, val chapter: SpeechChapter?,
-            val plan: SpeechPlan?, val index: Int) : Step
+            val plan: SpeechPlan?, val index: Int, val replacementFailure: SpeechReplacementFailure? = null) : Step
     }
 
     private suspend fun stream(token: Long, request: SpeechRequest, provider: SpeechSynthesizer,
@@ -281,11 +286,13 @@ class ReadAloudSession(
                         else loadChapter(target)
                     val loaded = chapter
                     plan = reusablePlan?.takeIf { it.matches(loaded, synthesis) } ?: withContext(ioDispatcher) {
-                        val task = currentCoroutineContext()
-                        prepareSpeechPlan(loaded, synthesis) { task.ensureActive() }
+                        preparePlan(loaded, synthesis)
                     }
                     val segments = plan.segments
-                    if (segments.isEmpty()) throw SpeechException(SpeechError.EmptyText)
+                    if (segments.isEmpty()) {
+                        if (synthesis.replacements.none { it.activate }) throw SpeechException(SpeechError.EmptyText)
+                        queue.send(Step.Skipped(plan))
+                    }
                     val startIndex = plan.startIndex(saved.takeIf { first })
                     for (index in startIndex..segments.lastIndex) {
                         val segment = segments[index]
@@ -307,20 +314,35 @@ class ReadAloudSession(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                queue.send(Step.Failed(failure.speechError(SpeechError.SynthesisFailed), target, chapter, plan, position))
+                queue.send(Step.Failed(failure.speechError(SpeechError.SynthesisFailed), target, chapter, plan, position,
+                    (failure as? SpeechReplacementException)?.failure))
             } finally { queue.close() }
         }
         try {
             for (step in queue) {
                 currentCoroutineContext().ensureActive()
                 when (step) {
+                    is Step.Skipped -> {
+                        val skipped = step.plan
+                        currentPlan = skipped
+                        currentClip = null
+                        currentBoundary = skipped.bookmark(skipped.chapter.text.length, 0)
+                        if (!request.isPreview) save(currentBoundary!!)
+                        publish(token) { it.copy(request = request.copy(chapterId = skipped.chapter.id),
+                            bookTitle = skipped.chapter.bookTitle, chapterTitle = skipped.chapter.title,
+                            segmentIndex = 0, segmentCount = 0, currentText = "", position = null,
+                            previousChapterId = skipped.chapter.previousId, nextChapterId = skipped.chapter.nextId) }
+                        if (!request.isPreview && finishTimerChapter()) return@coroutineScope
+                    }
                     is Step.Failed -> {
                         currentClip = null
                         currentPlan = step.plan
                         val failed = step.chapter
                         val segment = step.plan?.segments?.getOrNull(step.index)
                         val bookTitle = failed?.bookTitle ?: state.value.bookTitle
-                        currentBoundary = step.plan?.bookmark(segment?.start ?: 0) ?: SpeechBookmark(request.bookId,
+                        currentBoundary = step.plan?.bookmark(segment?.start ?: 0, step.index)
+                            ?: currentBoundary?.takeIf { it.chapterId == failed?.id && it.fingerprint == failed.fingerprint }
+                            ?: SpeechBookmark(request.bookId,
                             step.request.chapterId, failed?.fingerprint.orEmpty(), 0, bookTitle, failed?.title.orEmpty())
                         if (!request.isPreview) save(currentBoundary!!)
                         publish(token) { it.copy(request = step.request, bookTitle = bookTitle, chapterTitle = failed?.title.orEmpty(),
@@ -328,7 +350,7 @@ class ReadAloudSession(
                             position = if (request.isPreview || failed == null || segment == null) null else SpeechPosition(
                                 failed.bookId, failed.id, failed.fingerprint, segment.start, segment.end),
                             previousChapterId = failed?.previousId, nextChapterId = failed?.nextId,
-                            phase = SpeechPhase.Failed, error = step.error) }
+                            phase = SpeechPhase.Failed, error = step.error, replacementFailure = step.replacementFailure) }
                         return@coroutineScope
                     }
                     is Step.Ready -> {
@@ -341,37 +363,34 @@ class ReadAloudSession(
                             chapterTitle = clip.chapter.title, segmentIndex = clip.index, segmentCount = clip.count,
                             currentText = clip.segment.text, previousChapterId = clip.chapter.previousId,
                             nextChapterId = clip.chapter.nextId,
-                            phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused, error = null,
+                            phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused, error = null, replacementFailure = null,
                         ) }
                         if (!request.isPreview) save(clip.bookmark(clip.segment.start))
                         val sentences = if (clip.timings.isEmpty()) emptyList() else speechSentences(clip.segment.text)
-                        var audibleStart = clip.segment.start + (sentences.firstOrNull()?.start ?: 0)
-                        var audibleEnd = clip.segment.start + (sentences.firstOrNull()?.end ?: clip.segment.text.length)
+                        var audibleStart = sentences.firstOrNull()?.start ?: 0
+                        var audibleEnd = sentences.firstOrNull()?.end ?: clip.segment.text.length
                         var audibleAnchor = audibleStart
                         try {
                             playback.play(clip, wantsPlay, onRange = { range ->
                                 if (token == generation && currentClip === clip && !request.isPreview) {
                                     val sentence = sentences.firstOrNull { range.start in it.start until it.end }
-                                    audibleStart = clip.segment.start + (sentence?.start ?: range.start)
-                                    audibleEnd = clip.segment.start + maxOf(sentence?.end ?: range.end, range.end)
-                                    audibleAnchor = clip.segment.start + range.start
-                                    publish(token) { it.copy(position = SpeechPosition(clip.chapter.bookId, clip.chapter.id,
-                                        clip.chapter.fingerprint, audibleStart, audibleEnd, audibleAnchor)) }
+                                    audibleStart = sentence?.start ?: range.start
+                                    audibleEnd = maxOf(sentence?.end ?: range.end, range.end)
+                                    audibleAnchor = range.start
+                                    publish(token) { it.copy(position = clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)) }
                                 }
                             }, onEstimatedAnchor = { anchor ->
                                 if (token == generation && currentClip === clip && !request.isPreview && clip.timings.isEmpty()) {
                                     // Keep the reliably audible clip highlighted; only viewport following is estimated.
-                                    audibleAnchor = clip.segment.start + anchor
-                                    publish(token) { it.copy(position = SpeechPosition(clip.chapter.bookId, clip.chapter.id,
-                                        clip.chapter.fingerprint, audibleStart, audibleEnd, audibleAnchor)) }
+                                    audibleAnchor = anchor
+                                    publish(token) { it.copy(position = clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)) }
                                 }
                             }) { phase, playing ->
                                 if (token == generation && currentClip === clip) {
                                     wantsPlay = playing
                                     publish(token) { it.copy(phase = phase,
                                         position = if (!request.isPreview && phase in setOf(SpeechPhase.Playing, SpeechPhase.Paused))
-                                            SpeechPosition(clip.chapter.bookId, clip.chapter.id, clip.chapter.fingerprint,
-                                                audibleStart, audibleEnd, audibleAnchor)
+                                            clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)
                                         else it.position,
                                     ) }
                                 }
@@ -414,11 +433,15 @@ class ReadAloudSession(
         currentCoroutineContext().ensureActive()
     }
 
-    private fun SpeechClip.bookmark(offset: Int) = plan.bookmark(offset)
+    private fun SpeechClip.bookmark(offset: Int) = plan.bookmark(offset, if (offset == segment.end) index + 1 else index)
 
     private inline fun publish(token: Long, update: (ReadAloudState) -> ReadAloudState) {
         if (token == generation) mutableState.value = update(state.value)
     }
 }
 
-internal fun Exception.speechError(fallback: SpeechError) = (this as? SpeechException)?.error ?: fallback
+internal fun Exception.speechError(fallback: SpeechError) = when (this) {
+    is SpeechException -> error
+    is SpeechReplacementException -> SpeechError.ReplacementRule
+    else -> fallback
+}
