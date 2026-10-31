@@ -11,13 +11,14 @@ internal fun speechDigest(text: String): String = MessageDigest.getInstance("SHA
     .digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
 /** Bounded UTF-16 input, preserving sentence boundaries and never splitting a surrogate pair. */
-fun speechSegments(text: String, maxLength: Int = 200, firstLength: Int = 80): List<SpeechSegment> {
+fun speechSegments(text: String, maxLength: Int = 200, firstLength: Int = 80, checkCancelled: () -> Unit = {}): List<SpeechSegment> {
     require(maxLength >= 2 && firstLength >= 2)
     val result = mutableListOf<SpeechSegment>()
-    val sentences = speechSentences(text)
+    val sentences = speechSentences(text, checkCancelled)
     var sentenceIndex = 0
     var start = 0
     while (start < text.length) {
+        checkCancelled()
         while (start < text.length && text[start].isWhitespace()) start++
         if (start == text.length) break
         val limit = if (result.isEmpty()) minOf(firstLength, maxLength) else maxLength
@@ -50,16 +51,18 @@ fun speechSegments(text: String, maxLength: Int = 200, firstLength: Int = 80): L
 }
 
 /** Platform sentence rules handle punctuation/closing quotes; newlines are hard paragraph edges. */
-internal fun speechSentences(text: String): List<SpeechSegment> {
+internal fun speechSentences(text: String, checkCancelled: () -> Unit = {}): List<SpeechSegment> {
     val iterator = BreakIterator.getSentenceInstance(Locale.ROOT)
     val result = mutableListOf<SpeechSegment>()
     var paragraphStart = 0
     while (paragraphStart < text.length) {
+        checkCancelled()
         val paragraphEnd = text.indexOf('\n', paragraphStart).let { if (it < 0) text.length else it }
         iterator.setText(text.substring(paragraphStart, paragraphEnd))
         var start = iterator.first()
         var end = iterator.next()
         while (end != BreakIterator.DONE) {
+            checkCancelled()
             var from = paragraphStart + start
             var to = paragraphStart + end
             while (from < to && text[from].isWhitespace()) from++

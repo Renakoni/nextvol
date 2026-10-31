@@ -180,8 +180,8 @@ class HttpSpeechInstrumentedTest {
                             val player = ExoPlayer.Builder(context).build()
                             try {
                                 val playback = ExoSpeechPlayback(player, context)
-                                val clip = SpeechClip(SpeechChapter("", "", "", "", text),
-                                    SpeechSegment(0, text.length, text), 0, 1, file)
+                                val clip = SpeechClip(prepareSpeechPlan(SpeechChapter("", "", "", "", text),
+                                    SpeechSettings()) {}, 0, file)
                                 val durations = mutableListOf<Long>()
                                 for (speed in listOf(1f, 2f)) {
                                     var startedAt: Long? = null
