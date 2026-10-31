@@ -22,7 +22,7 @@ data class SpeechReplacementRule(
     // MultiTTS N6.a.c classifies the literal rule strings, including regex syntax.
     val wholeText: Boolean get() = source.any { it in STRUCTURE_CHARS } || target.any { it in STRUCTURE_CHARS }
 
-    private companion object { const val STRUCTURE_CHARS = ":：\"“”「」[]|" }
+    companion object { private const val STRUCTURE_CHARS = ":：\"“”「」[]|" }
 }
 
 enum class SpeechReplacementProblem { Pattern, Replacement, Budget }

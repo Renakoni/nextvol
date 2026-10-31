@@ -412,7 +412,7 @@ class ScopeTests(unittest.TestCase):
             self.assertIn('device-24 | False', summary.read_text())
 
     def test_full_device_class_inventory_exists_and_keeps_current_coverage(self):
-        for api, count in ((24, 17), (35, 9)):
+        for api, count in ((24, 18), (35, 9)):
             main, wide = ci_scope.device_classes({'full'}, api)
             self.assertEqual(count, len(main.split(',')))
             self.assertEqual(2, len(wide.split(',')))
