@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_replacements">Правила замены</string>
+    <string name="tts_replace_add">Добавить правило</string>
+    <string name="tts_replace_preview">Просмотр замен</string>
+    <string name="tts_replace_ungrouped">Без группы</string>
+    <string name="tts_replace_all_groups">Все группы</string>
+    <string name="tts_replace_empty">Правил пока нет</string>
+    <string name="tts_replace_whole">Замена во всём тексте</string>
+    <string name="tts_replace_normal">Обычная замена</string>
+    <string name="tts_replace_regex">Регулярное выражение</string>
+    <string name="tts_replace_actions">Действия: %1$s</string>
+    <string name="tts_replace_edit">Изменить правило</string>
+    <string name="tts_replace_up">Выше</string>
+    <string name="tts_replace_down">Ниже</string>
+    <string name="tts_replace_delete">Удалить правило</string>
+    <string name="tts_replace_name">Название правила</string>
+    <string name="tts_replace_group">Группа</string>
+    <string name="tts_replace_enabled">Включено</string>
+    <string name="tts_replace_source">Найти</string>
+    <string name="tts_replace_target">Заменить на</string>
+    <string name="tts_replace_sample">Она сказала: 「Привет.」</string>
+    <string name="tts_replace_input">Исходный текст</string>
+    <string name="tts_replace_run_preview">Выполнить</string>
+    <string name="tts_replace_after_whole">После замены во всём тексте</string>
+    <string name="tts_replace_after_normal">Отрывки для синтеза</string>
+    <string name="tts_replace_no_speech">Нет текста для озвучивания.</string>
+    <string name="tts_replace_failed">Ошибка правила замены. Подготовка озвучивания остановлена.</string>
+    <string name="tts_replace_error_pattern">Недопустимое регулярное выражение</string>
+    <string name="tts_replace_error_target">Недопустимая замена или ссылка на группу</string>
+    <string name="tts_replace_error_budget">Превышен предел выполнения; правило остановлено</string>
+    <string name="tts_replace_error_rule">%1$s: %2$s</string>
+</resources>

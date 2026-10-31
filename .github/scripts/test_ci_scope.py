@@ -202,6 +202,8 @@ class ScopeTests(unittest.TestCase):
             self.assertEqual(ci_scope.MINIFIED_SPEECH, plan['minified-classes'])
             self.assertIn('SystemSpeechInstrumentedTest',
                           ci_scope.device_classes({'reader', 'speech'}, 24)[0])
+            self.assertIn('SpeechReplacementInstrumentedTest',
+                          ci_scope.device_classes({'reader', 'speech'}, 24)[0])
 
     def test_catalog_keeps_source_smoke_without_unrelated_device_suites(self):
         for path in ('ui/home/discovery/DiscoveryComponents.kt',

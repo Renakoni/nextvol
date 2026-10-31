@@ -142,13 +142,14 @@ fun ReadAloudControls(
                     )
                 }
             }
-            state.error?.let {
+            state.error?.takeIf { state.replacementFailure == null }?.let {
                 Text(
                     stringResource(it.messageResource),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
+            state.replacementFailure?.let { SpeechReplacementError(it) }
         }
         val canStep = state.segmentCount > 0 && state.phase in setOf(
             SpeechPhase.Playing, SpeechPhase.Paused, SpeechPhase.Buffering,

@@ -3,15 +3,16 @@ package hnovel.rules
 import java.util.regex.Pattern
 
 /** Check scans in small batches: normal long paragraphs can revisit millions of characters. */
-internal class BudgetText(private val value: String, private val budget: RuleBudget) : CharSequence {
+internal class BudgetText(private val value: String, private val budget: RuleBudget,
+    private val checkCancelled: () -> Unit = {}) : CharSequence {
     private var reads = 0
     override val length get() = value.length
     override fun get(index: Int): Char {
         // Keep deadline/interruption checks inside the matcher, including backtracking.
-        if (reads++ and 255 == 0) budget.check()
+        if (reads++ and 255 == 0) { checkCancelled(); budget.check() }
         return value[index]
     }
-    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = BudgetText(value.substring(startIndex, endIndex), budget)
+    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = BudgetText(value.substring(startIndex, endIndex), budget, checkCancelled)
     override fun toString() = value
 }
 

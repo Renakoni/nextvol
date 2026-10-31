@@ -23,6 +23,7 @@ data class SpeechSettings(
     val httpSource: String? = null,
     val playbackSpeed: Float = 1f,
     val offlineVoice: OfflineVoiceRef? = null,
+    val replacements: List<SpeechReplacementRule> = emptyList(),
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
