@@ -2,6 +2,7 @@
 //
 // Copyright (c)  2022-2023  Xiaomi Corporation
 
+#include <stdexcept>
 #include "sherpa-onnx/csrc/file-utils.h"
 
 #include <fstream>
@@ -20,7 +21,7 @@ bool FileExists(const std::string &filename) {
 void AssertFileExists(const std::string &filename) {
   if (!FileExists(filename)) {
     SHERPA_ONNX_LOGE("filename '%s' does not exist", filename.c_str());
-    SHERPA_ONNX_EXIT(-1);
+    throw std::runtime_error("Invalid Sherpa model or resources");
   }
 }
 
@@ -36,7 +37,7 @@ std::vector<char> ReadFile(AAssetManager *mgr, const std::string &filename) {
   if (!asset) {
     __android_log_print(ANDROID_LOG_FATAL, "sherpa-onnx",
                         "Read binary file: Load '%s' failed", filename.c_str());
-    SHERPA_ONNX_EXIT(-1);
+    throw std::runtime_error("Invalid Sherpa model or resources");
   }
 
   auto p = reinterpret_cast<const char *>(AAsset_getBuffer(asset));

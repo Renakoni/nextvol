@@ -53,7 +53,7 @@ class HifiganVocoder::Impl {
     const auto total = info.GetElementCount();
     if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT ||
         total == 0 || total > (8 * 1024 * 1024 - 44) / 2) {
-      throw std::runtime_error("Invalid HiFi-GAN output");
+      throw std::runtime_error("Invalid or oversized TTS audio tensor");
     }
 
     const float *p = out[0].GetTensorData<float>();
@@ -68,12 +68,9 @@ class HifiganVocoder::Impl {
     GetInputNames(sess_.get(), &input_names_, &input_names_ptr_);
 
     GetOutputNames(sess_.get(), &output_names_, &output_names_ptr_);
-    if (input_names_.size() != 1 || output_names_.size() != 1 ||
-        sess_->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT ||
-        sess_->GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
-      throw std::invalid_argument("Unsupported HiFi-GAN graph signature");
+    if (input_names_.size() != 1 || output_names_.size() != 1) {
+      throw std::invalid_argument("Invalid HiFi-GAN graph input/output layout");
     }
-
   }
 
  private:

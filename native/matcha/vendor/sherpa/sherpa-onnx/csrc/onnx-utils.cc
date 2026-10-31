@@ -2,6 +2,7 @@
 //
 // Copyright (c)  2023  Xiaomi Corporation
 // Copyright (c)  2023  Pingfeng Luo
+#include <stdexcept>
 #include "sherpa-onnx/csrc/onnx-utils.h"
 
 #include <algorithm>
@@ -158,7 +159,7 @@ Ort::Value Clone(OrtAllocator *allocator, const Ort::Value *v) {
     default:
       fprintf(stderr, "Unsupported type: %d\n",
               static_cast<int32_t>(type_and_shape.GetElementType()));
-      exit(-1);
+      throw std::runtime_error("Invalid Sherpa model or resources");
       // unreachable code
       return Ort::Value{nullptr};
   }
@@ -190,7 +191,7 @@ Ort::Value View(Ort::Value *v) {
     default:
       fprintf(stderr, "Unsupported type: %d\n",
               static_cast<int32_t>(type_and_shape.GetElementType()));
-      exit(-1);
+      throw std::runtime_error("Invalid Sherpa model or resources");
       // unreachable code
       return Ort::Value{nullptr};
   }

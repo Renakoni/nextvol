@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.tts.matcha
 
 import indi.renakoni.nextvol.tts.SpeechSettings
+import hnovel.speech.discoverSherpaVoiceConfig
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Rule
@@ -19,7 +20,7 @@ class MatchaSpeechSynthesizerTest {
         val release = CountDownLatch(1)
         val destroyed = AtomicInteger()
         val native = object : FakeNative() {
-            override fun create(directory: String): Long {
+            override fun create(configuration: MatchaNativeConfig): Long {
                 entered.countDown()
                 check(release.await(10, TimeUnit.SECONDS))
                 return 7
@@ -30,7 +31,7 @@ class MatchaSpeechSynthesizerTest {
         val nextEntered = CompletableDeferred<Unit>()
         val next = MatchaSpeechSynthesizer(resources()) {
             object : FakeNative() {
-                override fun create(directory: String): Long { nextEntered.complete(Unit); return 8 }
+                override fun create(configuration: MatchaNativeConfig): Long { nextEntered.complete(Unit); return 8 }
             }
         }
         val opening = launch { engine.open(SpeechSettings()) }
@@ -110,6 +111,35 @@ class MatchaSpeechSynthesizerTest {
         engine.close()
     }
 
+    @Test fun selectedModelPathsAndVoiceParametersReachNativeWithoutASampleProfile() = runBlocking {
+        val original = resources()
+        val model = File(original.directory, "custom-acoustic.onnx")
+        assertTrue(File(original.directory, original.configuration.model).renameTo(model))
+        val configuration = original.configuration.copy(model = model.name, speakerId = 3,
+            numThreads = 6, noiseScale = .4f, lengthScale = 1.2f, speed = .8f, pitch = 1.1f, volume = .6f)
+        var received: MatchaNativeConfig? = null
+        val engine = MatchaSpeechSynthesizer(MatchaResources(original.directory, configuration)) {
+            object : FakeNative() {
+                override fun create(configuration: MatchaNativeConfig): Long {
+                    received = configuration
+                    return 1
+                }
+            }
+        }
+        try {
+            engine.open(SpeechSettings())
+            val actual = checkNotNull(received)
+            assertEquals(model.path, actual.model)
+            assertEquals(3, actual.speakerId)
+            assertEquals(6, actual.numThreads)
+            assertEquals(.4f, actual.noiseScale)
+            assertEquals(1.2f, actual.lengthScale)
+            assertEquals(.8f, actual.speed)
+            assertEquals(1.1f, actual.pitch)
+            assertEquals(.6f, actual.volume)
+        } finally { engine.close() }
+    }
+
     private fun resources(): MatchaResources {
         val directory = files.newFolder()
         for (name in listOf("model-steps-3.onnx", "hifigan_v2.onnx", "tokens.txt", "lexicon.txt",
@@ -117,11 +147,12 @@ class MatchaSpeechSynthesizerTest {
             "dict/user.dict.utf8", "dict/idf.utf8", "dict/stop_words.utf8")) {
             File(directory, name).apply { parentFile!!.mkdirs(); writeText("resource") }
         }
-        return MatchaResources(directory)
+        return MatchaResources(directory, discoverSherpaVoiceConfig(directory.walkTopDown().filter { it.isFile }
+            .map { it.relativeTo(directory).invariantSeparatorsPath }.toList()))
     }
 
     private open class FakeNative : MatchaNativeApi {
-        override fun create(directory: String) = 1L
+        override fun create(configuration: MatchaNativeConfig) = 1L
         override fun generate(handle: Long, text: String, speed: Float, path: String, cancellation: MatchaCancellation) = Unit
         override fun destroy(handle: Long) = Unit
     }

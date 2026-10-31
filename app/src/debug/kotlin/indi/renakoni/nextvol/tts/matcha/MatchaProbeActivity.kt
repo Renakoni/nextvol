@@ -8,6 +8,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechSynthesizers
+import hnovel.speech.discoverSherpaVoiceConfig
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.File
@@ -25,7 +26,9 @@ class MatchaProbeActivity : ComponentActivity() {
             try {
                 check(BuildConfig.MATCHA_NATIVE) { "Build with -PmatchaNative=true" }
                 withTimeout(120_000) {
-                    val engine = synthesizers.matcha(MatchaResources(File(filesDir, "matcha")))
+                    val directory = File(filesDir, "matcha")
+                    val paths = directory.walkTopDown().filter { it.isFile }.map { it.relativeTo(directory).invariantSeparatorsPath }.toList()
+                    val engine = synthesizers.matcha(MatchaResources(directory, discoverSherpaVoiceConfig(paths)))
                     val output = File(cacheDir, "matcha-probe.wav").also { it.delete() }
                     try {
                         engine.open(SpeechSettings())

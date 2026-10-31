@@ -3,6 +3,12 @@ package indi.renakoni.nextvol.ui.tts
 import android.app.Application
 import androidx.lifecycle.viewModelScope
 import indi.renakoni.nextvol.tts.*
+import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
+import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
+import hnovel.speech.OfflineEngineConfig
+import hnovel.speech.OfflineVoiceConfig
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -112,6 +118,60 @@ class SpeechSettingsViewModelTest {
             coVerify(exactly = 0) { repository.update(any()) }
             verify(exactly = 0) { controller.preview(any(), any()) }
         } finally { library.viewModelScope.cancel() }
+    }
+
+    @Test fun editingOfflineParametersStopsAnAffectedPreviewButRenamingDoesNot() = runTest {
+        val configuration = OfflineEngineConfig("msctts", "MSC")
+        val reference = OfflineVoiceRef("voice", "revision")
+        val offline = mockk<OfflineSpeechRepository>()
+        coEvery { offline.voices() } returns listOf(InstalledOfflineVoice(reference, "Voice", emptyMap(),
+            configuration = OfflineVoiceConfig("msctts", "voice")))
+        val catalog = mockk<OfflineEngineRepository>()
+        every { catalog.changes } returns MutableStateFlow(0L)
+        coEvery { catalog.all() } returns listOf(configuration)
+        coEvery { catalog.save(any()) } returns Unit
+        coEvery { repository.get() } returns settings.value
+        coEvery { http.sources() } returns emptyList()
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns MutableStateFlow(ReadAloudState(
+            SpeechRequest("", "", "Sample", SpeechSettings(offlineVoice = reference)), SpeechPhase.Playing))
+        val editor = SpeechEnginesViewModel(catalog, http, offline, repository, controller)
+        try {
+            runCurrent()
+            editor.save(configuration.copy(name = "Renamed")) {}
+            runCurrent()
+            verify(exactly = 0) { controller.command(any()) }
+            editor.save(configuration.copy(parameters = "{\"region\":\"bj\"}")) {}
+            runCurrent()
+            verify(exactly = 1) { controller.command(SpeechAction.Stop) }
+            coVerify { catalog.save(configuration.copy(parameters = "{\"region\":\"bj\"}")) }
+        } finally { editor.viewModelScope.cancel() }
+    }
+
+    @Test fun leavingTheVoiceLibraryDuringDeletionStillClearsTheSelectedReference() = runTest {
+        val reference = OfflineVoiceRef("voice", "revision")
+        val voice = InstalledOfflineVoice(reference, "Voice", emptyMap())
+        settings.value = SpeechSettings(offlineVoice = reference)
+        val offline = mockk<OfflineSpeechRepository>()
+        every { offline.changes } returns MutableStateFlow(0L)
+        coEvery { offline.voices() } returns emptyList()
+        val deleting = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        coEvery { offline.delete(reference) } coAnswers { deleting.complete(Unit); release.await(); 0L }
+        coEvery { repository.update(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
+        }
+        val library = OfflineSpeechSourcesViewModel(offline, repository, mockk(relaxed = true))
+        try {
+            runCurrent()
+            val deletion = library.delete(voice)
+            runCurrent()
+            assertTrue(deleting.isCompleted)
+            library.viewModelScope.cancel()
+            release.complete(Unit)
+            deletion.join()
+            assertNull(settings.value.offlineVoice)
+        } finally { release.complete(Unit); library.viewModelScope.cancel() }
     }
 
     @Test fun sameTargetRefreshRetainsKnownResultsUntilTheNewCheckCompletes() = runTest {

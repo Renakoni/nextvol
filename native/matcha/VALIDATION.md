@@ -83,53 +83,112 @@ release in the sample run. The one-instance bound is enforced by the adapter's
 semaphore, while the existing session's bounded file queue is retained. These
 two memory observations are not a peak-memory measurement or a leak test.
 
-# #794 ordinary-package acceptance
+# #794 general offline-package acceptance
 
-Validation date: 2026-10-30 (host local date). MuMu A, API 32, 4 KiB pages.
-The ordinary `indi.renakoni.nextvol.debug` APK was installed without an ABI
-override or native feature flag; Android selected `arm64-v8a`. No probe activity,
-external TTS app or adb model injection was used for this acceptance.
+Validation date: 2026-10-31 (host local date). This section supersedes the earlier
+Baker-only #794 acceptance. The #791 measurements above describe that historical
+backend; their model identifiers are not import requirements.
 
-The system document picker opened the real external Sherpa Matcha/Kokoro ZIP
-(817,152,513 bytes). Preview found 1 engine, 66 voices and 1,113 resource files.
-Installing Baker copied only its 12 required files (92,568,146 bytes), verified
-the graph hashes above, and retained the previously selected HTTP voice.
-The catalog used voice ID
-`e0545b1de5fc60d854ee78bc104a0baa6b3eeca844235602eefd4a1713760291`
-and resource revision
-`b1994ef1f7d8bafb43aa4c60bc19da27cc817dfde9ee81545015cb1360a11974`.
+## Package and runtime behavior
 
-| Scenario | Observed result |
+- Static parsing accepted all 49 caller-supplied ZIPs and resolved installation
+  plans for 1,589 voices across 16 engine families. This does not mean that every
+  voice was synthesized or that arbitrary future SDK formats are supported.
+- Import and installation use no model hash, CRC comparison or fixed-model
+  allowlist. Paths, selected resources and actual byte lengths are checked;
+  successful imports receive fresh random revisions. The SDK still interprets
+  its own model format and package license parameters.
+- Engine definitions have an independent entry in listening settings. Importing
+  another voice preserves user-edited engine configuration; HTTP engine edits
+  apply to all voices under the same imported engine code.
+- The ordinary build fetches `offline-runtime-1` and packages 42 vendor libraries
+  and runtime defaults, alongside the source-built Sherpa/ONNX backend and the
+  official Microsoft client AAR. The runtime ZIP is 77.61 MiB; its native
+  libraries are about 201.55 MiB uncompressed. No voice weights are bundled.
+- The adapters synthesize complete WAV files for the existing application player.
+  No Android TTS service is exposed to other apps.
+
+## Device evidence
+
+MuMu A, Android API 32, arm64 translation, 4 KiB pages. The normal debug package
+is `indi.renakoni.nextvol.debug`; the install explicitly selects arm64 because
+MuMu also advertises x86 ABIs.
+
+The shell-only debug entry exercised the actual preview, selected-resource
+installer, runtime router and complete-WAV synthesis. These representative
+cases produced nonzero PCM samples:
+
+| Family / variant | Observed output |
 | --- | --- |
-| Explicit Baker audition | Shared Media3 player completed a 22,050 Hz mono PCM16 file: 126,452 frames, normalized RMS 0.071844 |
-| Persisted selection | Baker remained selected after app force-stop and emulator restart |
-| Offline chapter | With Wi-Fi disabled and Android reporting no active default network, cached chapter “第一章 黑与白” in “魔法少女育成计划” synthesized and played through the ordinary reader |
-| Playback controls | Media session changed from playing to paused and back; next-segment synthesis resumed; stopping removed the audio cache |
-| Missing resource | Temporarily renaming `tokens.txt` showed its filename and disabled audition; restoring it made the voice usable |
-| Cancel installation | Leaving during extraction removed staging files and published no voice |
-| Duplicate import | Successful re-import retained one catalog entry and the same ID/revision |
-| Delete during native initialization | Catalog became empty while the leased model still existed; after native cleanup only the catalog remained, with no audio files; re-import succeeded |
-| Unsupported models | English Matcha and Kokoro stayed visible with unsupported-model/parameter explanations and no install action |
-| Unsupported process ABI | The same APK installed with `--abi x86_64`; Baker selection/audition were disabled with a support explanation; existing “豆包 · 通用女声” HTTP selection and audition still worked |
+| Audio effects | 48,000 Hz, 1.608 s; fixed audio playback, not narration |
+| Acapela | 22,050 Hz, 3.857 s |
+| Baidu | 16,000 Hz, 3.024 s |
+| CereProc | 24,000 Hz, 3.55 s |
+| Google | 24,000 Hz, 3.01 s |
+| IssTTS | 24,000 Hz, 2.365 s |
+| Lark legacy / modern | 16,000 Hz, 3.211 / 2.68 s |
+| MscTTS legacy xzhd / purextts | 16,000 Hz, 11.556 / 2.058 s |
+| VCS | 16,000 Hz, 2.965 s |
+| WeRead | 16,000 Hz, 2.93 s |
+| Xiaomi | 16,000 Hz, 2.976 s |
+| Microsoft Xiaoxiao | 24,000 Hz, 2.313 s |
+| Microsoft classic Andrei / Hongyu | 24,000 Hz, 3.61 / 3.632 s; filename-case compatibility verified |
+| Sogou | 16,000 Hz, 2.0 s |
+| Vocalizer | 22,050 Hz, 2.873 s |
+| Samsung | 24,000 Hz, 2.97 s |
+| Sherpa Piper Dutch | 16,000 Hz, 2.544 s |
+| Sherpa VITS Theresa | 22,050 Hz, 3.636 s |
+| Sherpa Matcha Chinese / English | 22,050 Hz, 4.101 / 3.344 s |
+| Sherpa Kokoro English / multilingual Chinese | 24,000 Hz, 3.034 / 5.191 s |
 
-The first captured offline chapter file contained 470,238 frames (21.325986 s),
-940,520 bytes and normalized RMS 0.059500. Its SHA-256 was
-`b2c6b721a3c60c5575794b82eefa5a65c1bd94047976840586fb3444c3d32bd6`.
-Two further captured chapter clips were also valid 22,050 Hz mono WAVs.
-These are waveform and player-state observations, not a subjective audio-quality
-assessment. Wi-Fi and the ordinary arm64 installation were restored afterward.
+The normal UI separately imported the real Sogou ZIP through Android's document
+picker (24 voices, 36 resources), installed Xiaobing's selected 22 MB resources,
+selected the voice and completed audition through Media3. Engine-name edits
+survived force-stop/relaunch and were restored after the check.
 
-Fresh native source build, debug/release assembly, debug lint, app unit-test
-compilation and source-speech test compilation passed. Lint reported 452 warnings
-and 8 hints, with no errors. Resource contracts and action YAML were checked.
-APK library hashes matched the packaged source manifest; dependency licenses
-were present and no ONNX weights were embedded. ELF LOAD alignment was 16 KiB,
-including the three API-24 ABI markers; debug APK 16 KiB zip alignment passed.
+With Android reporting `Active default network: none`, the ordinary reader
+played cached text from *魔法少女育成计划* with Sogou. Four captured chapter clips
+were valid 16,000 Hz mono PCM16 WAVs, with durations 4.8, 25.0, 1.2 and 9.6 s and
+nonzero samples. Media-session state changed from playing to paused and back;
+stopping removed the session's audio files. Wi-Fi was re-enabled afterward.
+These are waveform and player-state observations, not subjective audio-quality
+or physical-device performance measurements.
 
-Regression tests cover static path/parameter mapping, selected-resource changes,
-unknown graph rejection, catalog persistence, idempotent imports, replacement and
-deletion leases, and Android-style app-directory aliases. They were compiled,
-not executed locally, under the repository's CI-only test-execution rule.
-Physical phones, API 24 runtime behavior, 16 KiB devices and release-runtime
-playback were not exercised here. Book-switch behavior retains the existing
-session implementation and its tests; this device run exercised one cached book.
+A further network-disabled run covered 18 representative vendor cases, including
+classic and neural Microsoft voices and both MSC/Lark variants. All produced
+nonzero WAVs; the final Microsoft cases used the ordinary APK and unmodified
+caller-supplied ZIPs. Sogou's offline check is the reader playback described above.
+Android reported no default network during these checks; Wi-Fi was restored.
+
+The final ordinary-build path downloaded the published runtime bundle and rebuilt
+the source backend. Debug and Release assembly, Release R8/Vital Lint, full Debug
+Lint, app unit-test compilation and source-speech test compilation passed. Debug
+Lint reported 462 warnings and 8 hints, with no errors. No JVM tests were run locally.
+
+A real Piper package with a deliberately damaged FAR file installed successfully
+and returned `EngineUnavailable` during initialization instead of crashing the
+process. A subsequent valid Piper import and synthesis produced a nonzero
+16,000 Hz WAV.
+
+Classic Microsoft model loading depends on case-insensitive filenames.
+A controlled file-open observation showed `.INI` and `.APM` lookups against
+lowercase package names, and a lowercase `.ini` lookup against an uppercase name.
+The SDK reported these missing files as a wrong decryption key. Installation now
+adds extension hard links before catalog publication. Hongyu additionally needs
+the filename stems referenced by `Tokens.xml`, title-cased extra-language suffixes,
+and lowercase NUSData domain suffixes. REA file-open observations confirmed these
+SDK lookups; installation now adds their aliases, preserves original names and
+existing alternate files, and does not duplicate model data.
+The private model directories synthesized successfully with these aliases;
+no key, model bytes, runtime binary or authentication rule was changed.
+
+## Coverage limits
+
+The supplied APK lacks Baidu's optional `libbd_ettl.so` variant. Google's supplied
+runtime requires Android 8+, and some older vendor libraries only support 4 KiB
+memory pages. Audio-effect packages play recordings. These are actual runtime
+constraints, not model-identity restrictions.
+
+Physical phones, API 24 runtime behavior and 16 KiB devices were not exercised.
+JVM regression tests are compiled but left to remote CI for execution according
+to the repository's testing rules.

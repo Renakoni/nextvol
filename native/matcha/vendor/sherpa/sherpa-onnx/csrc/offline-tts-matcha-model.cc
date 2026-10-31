@@ -2,6 +2,7 @@
 //
 // Copyright (c)  2024  Xiaomi Corporation
 
+#include <stdexcept>
 #include "sherpa-onnx/csrc/offline-tts-matcha-model.h"
 
 #include <algorithm>
@@ -58,7 +59,7 @@ class OfflineTtsMatchaModel::Impl {
     if (x_shape[0] != 1) {
       SHERPA_ONNX_LOGE("Support only batch_size == 1. Given: %d",
                        static_cast<int32_t>(x_shape[0]));
-      SHERPA_ONNX_EXIT(-1);
+      throw std::runtime_error("Invalid Sherpa model or resources");
     }
 
     int64_t len = x_shape[1];
@@ -112,6 +113,9 @@ class OfflineTtsMatchaModel::Impl {
       // https://github.com/shivammehta25/Matcha-TTS
     }
 
+    if (input_names_ptr_.size() != inputs.size()) {
+      throw std::invalid_argument("TTS graph inputs do not match model metadata");
+    }
     auto out =
         sess_->Run({}, input_names_ptr_.data(), inputs.data(), inputs.size(),
                    output_names_ptr_.data(), output_names_ptr_.size());
@@ -128,10 +132,8 @@ class OfflineTtsMatchaModel::Impl {
 
     GetOutputNames(sess_.get(), &output_names_, &output_names_ptr_);
 
-    // NextVol's Chinese Matcha profile: reject foreign graphs before Run indexes inputs.
-    if (input_names_ != std::vector<std::string>{"x", "x_length", "noise_scale", "length_scale"} ||
-        output_names_.size() != 1) {
-      throw std::invalid_argument("Unsupported Matcha graph signature");
+    if (input_names_.size() < 3 || output_names_.empty()) {
+      throw std::invalid_argument("Invalid TTS graph input/output layout");
     }
     // get meta data
     Ort::ModelMetadata meta_data = sess_->GetModelMetadata();
@@ -170,13 +172,6 @@ class OfflineTtsMatchaModel::Impl {
     SHERPA_ONNX_READ_META_DATA(meta_data_.pad_id, "pad_id");
     SHERPA_ONNX_READ_META_DATA_STR_WITH_DEFAULT(meta_data_.voice, "voice",
                                                 "en-us");
-    if (meta_data_.sample_rate != 22050 || meta_data_.num_speakers != 1 ||
-        meta_data_.jieba != 1 || meta_data_.has_espeak != 0 ||
-        meta_data_.pad_id != 1 || meta_data_.use_eos_bos != 0 ||
-        LookupCustomModelMetaData(meta_data, "model_type", allocator) != "matcha-tts") {
-      throw std::invalid_argument("Unsupported Chinese Matcha metadata");
-    }
-
   }
 
  private:

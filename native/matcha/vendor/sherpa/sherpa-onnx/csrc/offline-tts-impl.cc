@@ -16,7 +16,10 @@
 #include "rawfile/raw_file_manager.h"
 #endif
 
+#include "sherpa-onnx/csrc/offline-tts-kitten-impl.h"
+#include "sherpa-onnx/csrc/offline-tts-kokoro-impl.h"
 #include "sherpa-onnx/csrc/offline-tts-matcha-impl.h"
+#include "sherpa-onnx/csrc/offline-tts-vits-impl.h"
 
 namespace sherpa_onnx {
 
@@ -34,26 +37,36 @@ std::vector<int64_t> OfflineTtsImpl::AddBlank(const std::vector<int64_t> &x,
 
 std::unique_ptr<OfflineTtsImpl> OfflineTtsImpl::Create(
     const OfflineTtsConfig &config) {
-  if (!config.model.matcha.acoustic_model.empty()) {
+  if (!config.model.vits.model.empty()) {
+    return std::make_unique<OfflineTtsVitsImpl>(config);
+  } else if (!config.model.matcha.acoustic_model.empty()) {
     return std::make_unique<OfflineTtsMatchaImpl>(config);
-
+  } else if (!config.model.kokoro.model.empty()) {
+    return std::make_unique<OfflineTtsKokoroImpl>(config);
+  } else if (!config.model.kitten.model.empty()) {
+    return std::make_unique<OfflineTtsKittenImpl>(config);
   }
 
   SHERPA_ONNX_LOGE("Please provide a tts model.");
 
-  throw std::invalid_argument("Only Matcha is enabled");
+  throw std::invalid_argument("Missing Sherpa TTS model");
 }
 
 template <typename Manager>
 std::unique_ptr<OfflineTtsImpl> OfflineTtsImpl::Create(
     Manager *mgr, const OfflineTtsConfig &config) {
-  if (!config.model.matcha.acoustic_model.empty()) {
+  if (!config.model.vits.model.empty()) {
+    return std::make_unique<OfflineTtsVitsImpl>(mgr, config);
+  } else if (!config.model.matcha.acoustic_model.empty()) {
     return std::make_unique<OfflineTtsMatchaImpl>(mgr, config);
-
+  } else if (!config.model.kokoro.model.empty()) {
+    return std::make_unique<OfflineTtsKokoroImpl>(mgr, config);
+  } else if (!config.model.kitten.model.empty()) {
+    return std::make_unique<OfflineTtsKittenImpl>(mgr, config);
   }
 
   SHERPA_ONNX_LOGE("Please provide a tts model.");
-  throw std::invalid_argument("Only Matcha is enabled");
+  throw std::invalid_argument("Missing Sherpa TTS model");
 }
 
 #if __ANDROID_API__ >= 9

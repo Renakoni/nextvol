@@ -48,6 +48,8 @@ python native/onnxruntime/build_android.py `
 
 默认输出到本目录下被 Git 忽略的 `build/`。可用 `--output` 指定独立输出目录，避免 Windows 路径过长；同一目录不应混用不同主机或工具链。
 
+CI 通过 `--cache-key` 显式启用安装产物复用。该键由 ORT 源码、配方、固定工具链和 runner 镜像版本生成；应用及 Matcha/JNI 改动不影响它。恢复 `install/` 后仍检查源码清单、配方和工具版本，以及所有导出文件的 SHA-256；匹配时跳过主机 protoc 和 ORT 编译。缺失、不匹配或损坏的导出重新构建，首次没有缓存仍需完整编译。直接调用脚本时不传该参数，继续使用原有 CMake 增量构建。
+
 成功后 `build/install/` 包含：
 
 - `lib/libonnxruntime.so`，供 Sherpa 链接的共享运行时。

@@ -7,11 +7,20 @@ set(SHERPA_SOURCES
   vendor/sherpa/sherpa-onnx/csrc/offline-tts-kokoro-model-config.cc
   vendor/sherpa/sherpa-onnx/csrc/offline-tts-kitten-model-config.cc
   vendor/sherpa/sherpa-onnx/csrc/offline-tts-matcha-model.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-vits-model.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-kokoro-model.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-kitten-model.cc
   vendor/sherpa/sherpa-onnx/csrc/vocoder.cc
   vendor/sherpa/sherpa-onnx/csrc/hifigan-vocoder.cc
+  vendor/sherpa/sherpa-onnx/csrc/vocos-vocoder.cc
   vendor/sherpa/sherpa-onnx/csrc/jieba-lexicon.cc
   vendor/sherpa/sherpa-onnx/csrc/jieba.cc
   vendor/sherpa/sherpa-onnx/csrc/lexicon.cc
+  vendor/sherpa/sherpa-onnx/csrc/melo-tts-lexicon.cc
+  vendor/sherpa/sherpa-onnx/csrc/kokoro-multi-lang-lexicon.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-character-frontend.cc
+  vendor/sherpa/sherpa-onnx/csrc/offline-tts-frontend.cc
+  vendor/sherpa/sherpa-onnx/csrc/piper-phonemize-lexicon.cc
   vendor/sherpa/sherpa-onnx/csrc/symbol-table.cc
   vendor/sherpa/sherpa-onnx/csrc/text-utils.cc
   vendor/sherpa/sherpa-onnx/csrc/file-utils.cc

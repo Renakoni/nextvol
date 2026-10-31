@@ -20,6 +20,7 @@ import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,7 +29,7 @@ import javax.inject.Inject
 data class OfflineSpeechState(
     val voices: List<InstalledOfflineVoice> = emptyList(),
     val selected: OfflineVoiceRef? = null,
-    val supported: Boolean = false,
+    val supported: Boolean = true,
     val missing: Map<OfflineVoiceRef, String> = emptyMap(),
     val error: Boolean = false,
 )
@@ -51,8 +52,7 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
         refreshing = work {
             val voices = repository.voices()
             val missing = withContext(Dispatchers.IO) { voices.mapNotNull { voice -> repository.problem(voice)?.let { voice.reference to it } }.toMap() }
-            val supported = withContext(Dispatchers.IO) { matchaAvailable() }
-            mutableState.update { it.copy(voices = voices, supported = supported, missing = missing) }
+            mutableState.update { it.copy(voices = voices, missing = missing) }
         }
     }
     fun select(voice: InstalledOfflineVoice) = work {
@@ -68,8 +68,10 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
         if (state.value.selected == voice.reference || controller.state.value.request?.previewSettings?.offlineVoice == voice.reference)
             controller.command(indi.renakoni.nextvol.tts.SpeechAction.Stop)
         // The lease remains held until native cleanup actually finishes.
-        repository.delete(voice.reference)
-        settings.update { if (it.offlineVoice == voice.reference) it.copy(offlineVoice = null) else it }
+        withContext(NonCancellable) {
+            repository.delete(voice.reference)
+            settings.update { if (it.offlineVoice == voice.reference) it.copy(offlineVoice = null) else it }
+        }
     }
     private fun work(action: suspend () -> Unit) = viewModelScope.launch {
         mutableState.update { it.copy(error = false) }

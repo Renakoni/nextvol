@@ -15,7 +15,7 @@ PACKAGE = 'indi.renakoni.nextvol.debug'
 
 def selected_api(build_result, selected, artifact_id):
     if build_result != 'success':
-        raise ValueError(f'Debug APK selection/build/upload did not succeed: {build_result}')
+        raise ValueError(f'APK selection/build/upload did not succeed: {build_result}')
     if selected not in ('true', 'false'):
         raise ValueError(f'Missing or invalid device selection: {selected!r}')
     if selected == 'true' and not re.fullmatch(r'[1-9][0-9]*', artifact_id):
