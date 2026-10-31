@@ -154,7 +154,7 @@ stopping removed the session's audio files. Wi-Fi was re-enabled afterward.
 These are waveform and player-state observations, not subjective audio-quality
 or physical-device performance measurements.
 
-A further network-disabled run covered 19 representative vendor cases, including
+A further network-disabled run covered 18 representative vendor cases, including
 classic and neural Microsoft voices and both MSC/Lark variants. All produced
 nonzero WAVs; the final Microsoft cases used the ordinary APK and unmodified
 caller-supplied ZIPs. Sogou's offline check is the reader playback described above.
