@@ -37,7 +37,7 @@ import hnovel.speech.SpeechPackageSupport
 import hnovel.speech.HttpSpeechDefinition
 import hnovel.speech.HttpSpeechPackageError
 import hnovel.speech.HttpSpeechPackageImport
-import hnovel.speech.MatchaPackagePlan
+import hnovel.speech.OfflinePackagePlan
 import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SectionHeader
@@ -52,7 +52,7 @@ fun SpeechPackagePreviewScreen(
     onImport: ((List<HttpSpeechDefinition>) -> Unit)? = null,
     onBack: () -> Unit,
     offline: SpeechPackagePreviewState = SpeechPackagePreviewState(),
-    onInstall: (MatchaPackagePlan) -> Unit = {},
+    onInstall: (OfflinePackagePlan) -> Unit = {},
     onCancelInstall: () -> Unit = {},
 ) {
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
@@ -107,7 +107,9 @@ fun SpeechPackagePreviewScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(stringResource(R.string.tts_package_engine_info, engine.code.take(256),
                                 engine.type?.take(64) ?: stringResource(R.string.tts_package_undeclared)), style = MaterialTheme.typography.bodyMedium)
-                            val hasOffline = offline.offlineImports.keys.any { it.first == engineIndex }
+                            val localVoices = offline.offlineImports.filterKeys { it.first == engineIndex }.values
+                            val hasOffline = localVoices.any { it.plan != null }
+                            val offlineResolved = localVoices.isNotEmpty() && localVoices.all { it.plan != null }
                             Text(stringResource(if (hasOffline) R.string.tts_offline_profile else if (httpImport != null) {
                                 if (httpImport.sources.isNotEmpty()) R.string.tts_package_can_import else R.string.tts_package_cannot_import
                             } else when (engine.support) {
@@ -116,7 +118,9 @@ fun SpeechPackagePreviewScreen(
                                 SpeechPackageSupport.Unsupported -> R.string.tts_package_unsupported
                             }), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
                             engine.notices.filterNot { engine.support == SpeechPackageSupport.Unsupported && it == SpeechPackageNotice.UnsupportedEngine ||
-                                (httpImport != null || hasOffline) && it == SpeechPackageNotice.ImportPending }.forEach { notice ->
+                                (httpImport != null || hasOffline) && it == SpeechPackageNotice.ImportPending ||
+                                offlineResolved && it in setOf(SpeechPackageNotice.RuntimeParameters,
+                                    SpeechPackageNotice.ConfigurationRequired, SpeechPackageNotice.MissingResource) }.forEach { notice ->
                                 Text(stringResource(notice.messageResource), style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }

@@ -12,15 +12,14 @@ import hnovel.speech.SpeechPackagePreview
 import hnovel.speech.HttpSpeechPackageImport
 import hnovel.speech.previewHttpSpeechPackage
 import hnovel.speech.previewSpeechPackage
-import hnovel.speech.MatchaPackagePreview
-import hnovel.speech.MatchaPackagePlan
-import hnovel.speech.previewMatchaVoice
+import hnovel.speech.OfflinePackagePreview
+import hnovel.speech.OfflinePackagePlan
+import hnovel.speech.previewOfflineVoice
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineInstallException
 import indi.renakoni.nextvol.tts.matcha.OfflineInstallError
-import indi.renakoni.nextvol.tts.matcha.matchaAvailable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,8 +36,8 @@ import javax.inject.Inject
 data class SpeechPackagePreviewState(
     val preview: SpeechPackagePreview? = null,
     val httpImports: Map<Int, HttpSpeechPackageImport> = emptyMap(),
-    val offlineImports: Map<Pair<Int, Int>, MatchaPackagePreview> = emptyMap(),
-    val offlineSupported: Boolean = false,
+    val offlineImports: Map<Pair<Int, Int>, OfflinePackagePreview> = emptyMap(),
+    val offlineSupported: Boolean = true,
     val installing: Boolean = false,
     val installingId: String? = null,
     val installed: String? = null,
@@ -83,18 +82,18 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     if (engine.type == "http") index to previewHttpSpeechPackage(engine) else null
                 }.toMap()
                 val local = preview.engines.flatMapIndexed { index, engine ->
-                    if (engine.code == "sherpa") engine.voices.mapIndexed { voiceIndex, voice ->
-                        (index to voiceIndex) to previewMatchaVoice(preview, engine, voice)
+                    if (engine.type != "http") engine.voices.mapIndexed { voiceIndex, voice ->
+                        (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
                     } else emptyList()
                 }.toMap()
-                SpeechPackagePreviewState(preview, imports, local, matchaAvailable())
+                SpeechPackagePreviewState(preview, imports, local)
             }
             currentCoroutineContext().ensureActive()
             mutableState.value = result
         }
     }
 
-    fun install(plan: MatchaPackagePlan) {
+    fun install(plan: OfflinePackagePlan) {
         val uri = input ?: return
         if (state.value.installing || !state.value.offlineSupported || state.value.offlineImports.values.none { it.plan == plan }) return
         mutableState.update { it.copy(installing = true, installingId = plan.id, installError = null, installed = null) }
@@ -111,7 +110,6 @@ class SpeechPackagePreviewViewModel @Inject constructor(
             catch (failure: Exception) {
                 val message = when ((failure as? OfflineInstallException)?.error) {
                     OfflineInstallError.ChangedPackage -> R.string.tts_offline_changed
-                    OfflineInstallError.UnsupportedModel -> R.string.tts_offline_model
                     OfflineInstallError.InvalidArchive -> R.string.tts_package_invalid_archive
                     null -> R.string.tts_import_failed
                 }

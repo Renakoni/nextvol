@@ -2,6 +2,7 @@
 //
 // Copyright (c)  2022-2023  Xiaomi Corporation
 
+#include <stdexcept>
 #include "sherpa-onnx/csrc/lexicon.h"
 
 #include <algorithm>
@@ -150,7 +151,7 @@ std::vector<TokenIDs> Lexicon::ConvertTextToTokenIds(
       return ConvertTextToTokenIdsNotChinese(text);
     default:
       SHERPA_ONNX_LOGE("Unknown language: %d", static_cast<int32_t>(language_));
-      exit(-1);
+      throw std::runtime_error("Invalid Sherpa model or resources");
   }
 
   return {};

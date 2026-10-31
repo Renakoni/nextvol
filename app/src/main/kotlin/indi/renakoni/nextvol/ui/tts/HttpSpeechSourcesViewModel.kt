@@ -140,6 +140,15 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         if (isInUse(source.definition.id)) controller.command(SpeechAction.Stop)
         repository.save(listOf(source.copy(definition = preview.sources.single())))
         refreshSources()
+        mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
+    }
+
+    fun editEngine(source: SavedHttpSpeechSource, name: String, url: String, header: String) = work(R.string.tts_source_invalid) {
+        val code = requireNotNull(source.importedEngineCode)
+        if (state.value.sources.any { it.importedEngineCode == code && isInUse(it.definition.id) }) controller.command(SpeechAction.Stop)
+        repository.editImportedEngine(code, name, url, header)
+        refreshSources()
+        mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }
 
     private fun isInUse(id: String) = state.value.selected == id ||

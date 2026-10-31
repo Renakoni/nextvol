@@ -32,7 +32,13 @@ import kotlinx.serialization.Serializable
 object SpeechSettingsRoute
 
 @Serializable
-object HttpSpeechSourcesRoute
+data class HttpSpeechSourcesRoute(val editId: String? = null)
+
+@Serializable
+object SpeechEnginesRoute
+
+@Serializable
+data class SpeechEngineEditorRoute(val code: String)
 
 @Serializable
 object SpeechPreferencesRoute
@@ -63,8 +69,9 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
-            onSources = { nav.navigate(HttpSpeechSourcesRoute) { launchSingleTop = true } },
+            onSources = { nav.navigate(HttpSpeechSourcesRoute()) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
+            onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer)
@@ -83,7 +90,26 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
             onPlaybackSpeed = viewModel::setPlaybackSpeed)
     }
-    composable<HttpSpeechSourcesRoute> {
+    composable<SpeechEnginesRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechEnginesViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
+        SpeechEnginesScreen(state, nav::popBackStackIfResumed,
+            onEdit = { nav.navigate(SpeechEngineEditorRoute(it)) { launchSingleTop = true } },
+            onHttp = { nav.navigate(HttpSpeechSourcesRoute(editId = it)) { launchSingleTop = true } })
+    }
+    composable<SpeechEngineEditorRoute> { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechEnginesViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val code = entry.toRoute<SpeechEngineEditorRoute>().code
+        SpeechEngineEditorScreen(state.engines.find { it.code == code }, state, nav::popBackStackIfResumed,
+            onSave = { viewModel.save(it, nav::popBackStackIfResumed) })
+    }
+    composable<HttpSpeechSourcesRoute> { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val context = LocalContext.current
@@ -101,6 +127,9 @@ fun NavGraphBuilder.speechSettingsDestination() {
             uri?.let { nav.navigate(SpeechPackagePreviewRoute(it.toString())) { launchSingleTop = true } }
         }
         HttpSpeechSourcesScreen(state, nav::popBackStackIfResumed,
+            initialEditId = entry.toRoute<HttpSpeechSourcesRoute>().editId,
+            onInitialEditorClosed = nav::popBackStackIfResumed,
+            onEditEngine = viewModel::editEngine,
             onImport = { picker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
             onSelect = viewModel::select, onDelete = viewModel::delete, onSites = viewModel::sites,
             onConfirmImport = viewModel::confirmImport, onDismissImport = viewModel::dismissPreview, onEdit = viewModel::edit,

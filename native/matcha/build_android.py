@@ -1,4 +1,4 @@
-"""Build the vendored Chinese Matcha backend and its source-built #793 runtime."""
+"""Build the vendored offline Sherpa TTS backend and its source-built runtime."""
 import argparse
 import hashlib
 import json
@@ -91,10 +91,10 @@ def main():
     shutil.copytree(runtime / 'install/licenses', assets / 'licenses/onnxruntime', dirs_exist_ok=True)
     manifest = {
         'sherpa_version': '1.12.10', 'sherpa_commit': '6b1fbdedd2d90dba2714b7aff825412d89e45eba',
-        'profile': 'Chinese Matcha / HiFi-GAN / CPU / two threads / one instance',
+        'profile': 'Sherpa VITS / Matcha / Kokoro / Kitten / CPU / one instance',
         'abi': 'arm64-v8a', 'android_api': 26, 'stl': 'c++_static',
         'source_inventory_sha256': digest(ROOT / 'sources.sha256'),
-        'recipe_sha256': {name: digest(ROOT / name) for name in ('build_android.py', 'CMakeLists.txt', 'sources.cmake', 'sources.json', 'jni.cc', 'platform.c')},
+        'recipe_sha256': {name: digest(ROOT / name) for name in ('build_android.py', 'CMakeLists.txt', 'phonemize.cmake', 'sources.cmake', 'sources.json', 'jni.cc', 'platform.c')},
         'library_sha256': digest(library), 'library_bytes': library.stat().st_size,
         'needed_libraries': needed, 'load_segment_alignments': [row[-1] for row in loads],
         'runtime': json.loads((runtime / 'install/build-manifest.json').read_text(encoding='utf-8')),

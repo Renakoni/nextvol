@@ -29,7 +29,7 @@ class SpeechPackageDocument(val path: String, val value: SpeechPackageValue) {
     override fun toString() = "SpeechPackageDocument(path=$path)"
 }
 
-data class SpeechPackageResource(val path: String, val bytes: Long, val crc: Long? = null)
+data class SpeechPackageResource(val path: String, val bytes: Long)
 data class SpeechPackageResourceReference(val path: String, val present: Boolean)
 
 class SpeechPackageVoice(val code: String, val name: String, val raw: SpeechPackageValue.Mapping) {

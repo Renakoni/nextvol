@@ -28,7 +28,7 @@ import javax.inject.Inject
 data class OfflineSpeechState(
     val voices: List<InstalledOfflineVoice> = emptyList(),
     val selected: OfflineVoiceRef? = null,
-    val supported: Boolean = false,
+    val supported: Boolean = true,
     val missing: Map<OfflineVoiceRef, String> = emptyMap(),
     val error: Boolean = false,
 )
@@ -51,8 +51,7 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
         refreshing = work {
             val voices = repository.voices()
             val missing = withContext(Dispatchers.IO) { voices.mapNotNull { voice -> repository.problem(voice)?.let { voice.reference to it } }.toMap() }
-            val supported = withContext(Dispatchers.IO) { matchaAvailable() }
-            mutableState.update { it.copy(voices = voices, supported = supported, missing = missing) }
+            mutableState.update { it.copy(voices = voices, missing = missing) }
         }
     }
     fun select(voice: InstalledOfflineVoice) = work {

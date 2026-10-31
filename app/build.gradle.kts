@@ -19,6 +19,27 @@ plugins {
 val matchaNative = providers.gradleProperty("matchaNative").map(String::toBoolean).getOrElse(true)
 val matchaOutput = providers.gradleProperty("matchaBuildDir").map { file(it) }
     .getOrElse(layout.buildDirectory.dir("matcha").get().asFile)
+// Voice packages supply models; ordinary APKs embed the separate SDK runtime bundle.
+val suppliedOfflineRuntime = providers.gradleProperty("offlineRuntimeDir").map { file(it) }.orNull
+val offlineRuntime = suppliedOfflineRuntime ?: layout.buildDirectory.dir("offline-runtime").get().asFile
+if (suppliedOfflineRuntime != null) {
+    require(offlineRuntime.resolve("jniLibs").isDirectory) { "offlineRuntimeDir must contain jniLibs" }
+} else {
+    val runtimeUrl = providers.gradleProperty("offlineRuntimeUrl").getOrElse(
+        "https://github.com/Renakoni/nextvol/releases/download/offline-runtime-1/offline-runtime-arm64-v1.zip")
+    val prepareOfflineRuntime by tasks.registering(Exec::class) {
+        inputs.property("runtimeUrl", runtimeUrl)
+        inputs.file(rootProject.file("native/offline/fetch_runtime.py"))
+        outputs.dir(offlineRuntime)
+        commandLine(
+            providers.gradleProperty("matchaPython").getOrElse("python"),
+            rootProject.file("native/offline/fetch_runtime.py"),
+            "--url", runtimeUrl,
+            "--output", offlineRuntime,
+        )
+    }
+    tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareOfflineRuntime) }
+}
 if (matchaNative) {
     val buildMatchaNative by tasks.registering(Exec::class) {
         inputs.property("host", System.getProperty("os.name"))
@@ -44,6 +65,8 @@ if (matchaNative) {
 }
 
 android {
+    sourceSets.getByName("main").jniLibs.srcDir(offlineRuntime.resolve("jniLibs"))
+    sourceSets.getByName("main").assets.srcDir(offlineRuntime.resolve("assets"))
     if (matchaNative) {
         sourceSets.getByName("main").jniLibs.srcDir(matchaOutput.resolve("jniLibs"))
         sourceSets.getByName("main").assets.srcDir(matchaOutput.resolve("assets"))
@@ -169,6 +192,8 @@ android {
         }
     }
     packaging {
+        // Embedded engines such as Sogou open companion libraries by their filesystem paths.
+        jniLibs.useLegacyPackaging = true
         if (matchaNative) {
             // Preserve the source-build manifest's hashes in every APK.
             jniLibs.keepDebugSymbols += setOf("**/libnextvol-matcha.so", "**/libonnxruntime.so")
@@ -278,6 +303,10 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 dependencies {
+    implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.45.0") {
+        // Embedded synthesis does not use Azure token credentials; azure-core requires API 26.
+        exclude(group = "com.azure", module = "azure-core")
+    }
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation("me.zhanghai.android.libarchive:library:1.1.6")

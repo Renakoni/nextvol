@@ -8,7 +8,12 @@ import hnovel.execution.ExecutionAuthority
 import hnovel.network.StorageCipher
 import hnovel.network.sourceOrigin
 import hnovel.speech.HttpSpeechDefinition
+import hnovel.speech.SpeechPackageEngine
+import hnovel.speech.SpeechPackageSupport
+import hnovel.speech.SpeechPackageValue
+import hnovel.speech.SpeechPackageVoice
 import hnovel.speech.previewHttpSpeech
+import hnovel.speech.previewHttpSpeechPackage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +34,10 @@ data class SavedHttpSpeechSource(
     val credentials: Map<String, String> = emptyMap(),
 ) {
     val isBuiltIn: Boolean get() = group != null
+    val importedEngine: JsonObject? get() = if (isBuiltIn) null else
+        (definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject
+    val importedEngineCode: String? get() = importedEngine?.takeIf { (it["type"] as? JsonPrimitive)?.contentOrNull == "http" }
+        ?.get("code")?.let { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }
     val category: String? get() = group ?: ((definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject)
         ?.let { engine -> (engine["name"] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
             ?: (engine["code"] as? JsonPrimitive)?.contentOrNull }
@@ -86,6 +95,31 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     suspend fun delete(id: String) = change { it.filterNot { source -> source.definition.id == id } }
+
+    /** Rebuild each voice's request from the shared template while preserving its identity and local settings. */
+    suspend fun editImportedEngine(code: String, name: String, url: String, header: String) = change { current ->
+        require(name.isNotBlank() && current.any { it.importedEngineCode == code })
+        current.map { source ->
+            if (source.importedEngineCode != code) source else {
+                val metadata = source.definition.raw.getValue("multiTts").jsonObject
+                val engine = JsonObject(requireNotNull(source.importedEngine) + mapOf(
+                    "name" to JsonPrimitive(name.trim()), "url" to JsonPrimitive(url.trim()), "header" to JsonPrimitive(header)))
+                val voice = metadata.getValue("voice").jsonObject
+                val converted = previewHttpSpeechPackage(SpeechPackageEngine(code, name.trim(), "http", engine.packageValue(),
+                    listOf(SpeechPackageVoice(voice.getValue("code").jsonPrimitive.content, source.definition.name, voice.packageValue())),
+                    SpeechPackageSupport.HttpAdapter, emptyList(), emptyList()))
+                require(converted.error == null && converted.sources.size == 1)
+                val generated = converted.sources.single()
+                val raw = source.definition.raw.toMutableMap().apply {
+                    put("id", JsonPrimitive(source.definition.id))
+                    put("url", generated.raw.getValue("url"))
+                    if (header.isBlank()) remove("header") else put("header", JsonPrimitive(header))
+                    put("multiTts", JsonObject(metadata + ("engine" to engine)))
+                }
+                source.copy(definition = previewHttpSpeech(JsonObject(raw).toString()).sources.single())
+            }
+        }
+    }
 
     suspend fun configure(id: String, credentials: Map<String, String>) = change { current ->
         val source = builtIns.first { it.definition.id == id }
@@ -170,3 +204,13 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         private const val BUILT_IN_PREFIX = "nextvol:builtin:"
     }
 }
+
+private fun JsonObject.packageValue(): SpeechPackageValue.Mapping = SpeechPackageValue.Mapping(mapValues { (_, value) ->
+    fun convert(element: JsonElement): SpeechPackageValue = when (element) {
+        is JsonObject -> element.packageValue()
+        is JsonArray -> SpeechPackageValue.Sequence(element.map(::convert), null)
+        JsonNull -> SpeechPackageValue.Scalar("null", "tag:yaml.org,2002:null", true)
+        is JsonPrimitive -> SpeechPackageValue.Scalar(element.content, null, false)
+    }
+    convert(value)
+}, null)

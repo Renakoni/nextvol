@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_engines">引擎</string>
+    <string name="tts_engines_description">管理引擎名稱與共用參數</string>
+    <string name="tts_engines_builtin">內建引擎</string>
+    <string name="tts_engines_http">線上引擎設定</string>
+    <string name="tts_engine_edit">編輯引擎</string>
+    <string name="tts_engine_name">引擎名稱</string>
+    <string name="tts_engine_parameters">引擎參數</string>
+    <string name="tts_engine_note">備註</string>
+    <string name="tts_engine_save">儲存</string>
+    <string name="tts_engine_parameters_hint">僅該引擎實際支援的參數生效，不取代個別音源的參數。</string>
+    <string name="tts_engine_preset_online">此線上引擎使用預設連線設定，可在音源中選擇和試聽發音人。</string>
+</resources>

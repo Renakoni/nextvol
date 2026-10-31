@@ -7,7 +7,6 @@ import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
-import java.util.zip.CRC32
 import java.util.zip.ZipFile
 import java.util.zip.ZipException
 
@@ -53,9 +52,9 @@ private fun readZip(file: File, name: String, checkCancelled: () -> Unit): Speec
             if (path.lowercase() in metadataNames) {
                 packageCheck(seen.add(path), SpeechPackageError.DuplicatePath)
                 val bytes = zip.getInputStream(entry).use { readYamlBytes(it, checkCancelled) }
-                packageCheck(bytes.size.toLong() == entry.size && CRC32().apply { update(bytes) }.value == entry.crc, SpeechPackageError.InvalidArchive)
+                packageCheck(bytes.size.toLong() == entry.size, SpeechPackageError.InvalidArchive)
                 documents += SpeechPackageDocument(path, readSpeechPackageYaml(decodeYaml(bytes), checkCancelled))
-            } else resources += SpeechPackageResource(path, entry.size, entry.crc)
+            } else resources += SpeechPackageResource(path, entry.size)
         }
         describeSpeechPackage(name, documents.toList(), resources.toList(), checkCancelled)
     }

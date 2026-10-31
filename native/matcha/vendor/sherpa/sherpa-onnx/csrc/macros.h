@@ -4,11 +4,11 @@
 
 #ifndef SHERPA_ONNX_CSRC_MACROS_H_
 #define SHERPA_ONNX_CSRC_MACROS_H_
+#include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <utility>
-#include <stdexcept>
 #if __OHOS__
 #include "hilog/log.h"
 
@@ -50,7 +50,7 @@
   } while (0)
 #endif
 
-#define SHERPA_ONNX_EXIT(code) throw std::runtime_error("Sherpa initialization or synthesis failed")
+#define SHERPA_ONNX_EXIT(code) throw std::runtime_error("Invalid Sherpa model or resources")
 
 // Read an integer
 #define SHERPA_ONNX_READ_META_DATA(dst, src_key)                           \
