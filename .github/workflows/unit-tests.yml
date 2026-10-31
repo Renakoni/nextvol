@@ -30,6 +30,8 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         id: environment
         uses: ./.github/actions/android-environment
+        with:
+          native-tools: 'false'
       - name: Restore shared Robolectric SDKs
         if: steps.scope.outputs.run == 'true'
         uses: ./.github/actions/robolectric
@@ -49,7 +51,8 @@ jobs:
           GRADLE_TASKS: ${{ steps.scope.outputs.gradle-args }}
         run: |
           read -r -a tasks <<< "$GRADLE_TASKS"
-          ./gradlew --no-daemon "${tasks[@]}" --console=plain --stacktrace --max-workers=2
+          # Host JVM tests cannot load the Android ARM64 library; APK jobs build it.
+          ./gradlew --no-daemon "${tasks[@]}" -x :app:buildMatchaNative --console=plain --stacktrace --max-workers=2
       - name: Upload test reports
         if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

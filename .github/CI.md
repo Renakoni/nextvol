@@ -6,12 +6,16 @@ Pull requests, merge groups, and manual runs use four independent workflows:
 | --- | --- | --- |
 | `unit-tests.yml` (1/4) | `JVM unit tests` | `unit-test-reports` |
 | `device-tests.yml` (2/4) | `Isolated execution (API 24)` and `Isolated execution (API 35)` | `execution-platform-api-24`, `execution-platform-api-35` |
-| `release-checks.yml` (3/4) | `Release APK` and `Minified source runtime (API 35)` | `release-build-reports`, `minified-source-runtime` |
+| `release-checks.yml` (3/4) | `Release APK` and `Minified source runtime (API 35)` | `release-build-reports`, `minified-build-reports`, `minified-source-runtime` |
 | `lint.yml` (4/4) | `Android Lint` | `android-lint-reports` |
 
 The JVM check does not wait for the release APK build. Selected device tests retain
-the API matrix and diagnostic reports. The minified check builds the benchmark
-variant when its source runtime or read-aloud coverage is affected.
+the API matrix and diagnostic reports. When minified coverage is affected, a
+producer builds and uploads the benchmark APKs, then a separate API 35 job tests
+that exact artifact ID. Each job has its own 30-minute budget, so cold native
+compilation cannot consume the device test's budget. The existing required
+`Minified source runtime (API 35)` check fails if its producer fails; unselected
+checks still report success through the same gate as Debug device checks.
 The workflows have separate concurrency groups so they cannot cancel each other.
 
 Require all six check names above in the `main` branch's status checks. In
@@ -298,10 +302,18 @@ Only `app/build/matcha/onnxruntime/install` is archived, never CMake object tree
 The builder verifies the source inventory and every exported file's hash before
 skipping protoc and ORT compilation; missing, stale or damaged exports rebuild.
 Successful PR jobs can publish this small cache within their own merge ref, while
-main publishes entries available to other PRs. The four workflows can still build
-independently on their first simultaneous miss. Cache hits remove the repeated
+main publishes entries available to other PRs. The Debug, Release and minified
+APK builders can still build independently on their first simultaneous miss.
+Cache hits remove the repeated
 ORT compilation, not the existing checks or Matcha build. Main/PR retention keeps
 each ref's newest ORT entry; main's different input key never replaces a PR's entry.
+
+JVM and Lint jobs skip native tool preparation and exclude only
+`:app:buildMatchaNative`; their Kotlin build flags and existing test/lint coverage
+remain the same. Host JVM tests cannot load the Android ARM64 library and use the
+existing native test doubles. The APK jobs retain the source build, ELF checks,
+native libraries and license/manifest packaging. The minified APK producer saves
+its caches before the independent device job starts, including when tests later fail.
 
 The main cache concurrency group preserves its running writer and retains at
 most the newest pending update. Completion allows setup-gradle to save its cache;
