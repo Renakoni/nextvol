@@ -3,6 +3,8 @@ package indi.renakoni.nextvol.ui.tts
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,7 +57,10 @@ class SpeechEnginesNavigationTest {
         var savedName: String? = null
         activity.get().setContent { MaterialTheme {
             nav = rememberNavController()
-            NavHost(nav, startDestination = SpeechSettingsRoute) {
+            // This exercises route ownership; an editor dialog need not wait for a screen animation.
+            NavHost(nav, startDestination = SpeechSettingsRoute,
+                enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None }, popExitTransition = { ExitTransition.None }) {
                 composable<SpeechSettingsRoute> {
                     SpeechSettingsScreen(SpeechSettingsUiState(loading = false), ReadAloudState(), {},
                         onSources = { sourcesOpened++ }, onPreferences = {}, onCommand = {},

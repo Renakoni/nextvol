@@ -53,7 +53,9 @@ class OfflineSpeechSynthesizerTest {
             release.countDown()
             withTimeout(10_000) { opening.join(); replacement.join() }
             assertTrue(openingFailure is CancellationException)
-            assertTrue(openingFailure!!.suppressed.contains(closeFailure))
+            // Coroutine stack recovery can copy exceptions and retain the original as a cause.
+            val cleanupFailures = generateSequence(openingFailure) { it.cause }.flatMap { it.suppressed.asSequence() }
+            assertTrue(cleanupFailures.any { cleanup -> generateSequence(cleanup) { it.cause }.any { it === closeFailure } })
             assertTrue(closeFailure.suppressed.contains(cancellationFailure))
             assertTrue(nextEntered.isCompleted)
             assertEquals(1, destroyed.get())
@@ -136,7 +138,7 @@ class OfflineSpeechSynthesizerTest {
             val failure = runCatching { engine.open(SpeechSettings()) }.exceptionOrNull()
             assertTrue(failure is SpeechException)
             assertEquals(SpeechError.OfflineUnavailable, (failure as SpeechException).error)
-            assertSame(cause, failure.cause)
+            assertTrue(generateSequence(failure.cause) { it.cause }.any { it === cause })
             withTimeout(10_000) { assertEquals("bdetts", next.open(SpeechSettings())) }
         } finally {
             withContext(Dispatchers.IO) { engine.close(); next.close() }
