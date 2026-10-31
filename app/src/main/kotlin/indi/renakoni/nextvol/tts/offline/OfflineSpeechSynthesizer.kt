@@ -58,9 +58,13 @@ internal class OfflineSpeechSynthesizer(
             }
             return voice.engine
         } catch (failure: Throwable) {
-            withContext(NonCancellable + Dispatchers.IO) {
-                try { close() } catch (cleanup: Throwable) {
-                    if (cleanup !== failure) failure.addSuppressed(cleanup)
+            // Keep the dispatcher return non-cancellable too, so it cannot replace
+            // the original failure after cleanup has attached its suppressed errors.
+            withContext(NonCancellable) {
+                withContext(Dispatchers.IO) {
+                    try { close() } catch (cleanup: Throwable) {
+                        if (cleanup !== failure) failure.addSuppressed(cleanup)
+                    }
                 }
             }
             if (failure is CancellationException || failure is SpeechException) throw failure
