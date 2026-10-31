@@ -19,6 +19,8 @@ on:
       - 'gradlew'
       - 'gradlew.bat'
       - 'native/onnxruntime/**'
+      - 'native/offline/runtime.json'
+      - 'native/offline/fetch_runtime.py'
   workflow_dispatch:
   schedule:
     - cron: '17 9 * * *'
