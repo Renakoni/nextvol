@@ -72,7 +72,7 @@ class SpeechSettingsViewModelTest {
             """{"id":"candidate","name":"Candidate","url":"https://example.org"}""").sources.single(), listOf("https://example.org:443"))
         coEvery { http.sources() } returns listOf(source)
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
-        coEvery { http.delete(source.definition.id) } returns Unit
+        coEvery { http.delete(setOf(source.definition.id)) } returns Unit
         val playback = MutableStateFlow(ReadAloudState())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns playback
@@ -103,13 +103,13 @@ class SpeechSettingsViewModelTest {
         val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
         try {
             runCurrent()
-            library.previewPackage(listOf(definition))
+            library.previewPackage(listOf(definition), null)
             assertEquals(definition.id, library.state.value.pending!!.single().definition.id)
             assertEquals(listOf("https://speech.example.invalid:443"), library.state.value.pending!!.single().origins)
             coVerify(exactly = 0) { http.save(any()) }
             library.dismissPreview()
             assertNull(library.state.value.pending)
-            library.previewPackage(listOf(definition))
+            library.previewPackage(listOf(definition), null)
             library.confirmImport()
             runCurrent()
             coVerify(exactly = 1) { http.save(any()) }
@@ -157,7 +157,7 @@ class SpeechSettingsViewModelTest {
         coEvery { offline.voices() } returns emptyList()
         val deleting = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
-        coEvery { offline.delete(reference) } coAnswers { deleting.complete(Unit); release.await(); 0L }
+        coEvery { offline.delete(setOf(reference)) } coAnswers { deleting.complete(Unit); release.await(); 0L }
         coEvery { repository.update(any()) } coAnswers {
             settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
         }

@@ -15,6 +15,7 @@ import hnovel.speech.HttpSpeechException
 import indi.renakoni.nextvol.tts.matcha.MatchaResources
 import indi.renakoni.nextvol.tts.matcha.MatchaSpeechSynthesizer
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRuntimeInfo
 import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import indi.renakoni.nextvol.R
@@ -80,6 +81,13 @@ class SpeechSynthesizers @Inject constructor(
                         else OfflineSpeechSynthesizer(context, active.directory, active.configuration)
                 }
                 delegate!!.open(settings.copy(httpSource = null, voice = "", pitch = null))
+                (delegate as? MatchaSpeechSynthesizer)?.let { synthesizer ->
+                    withContext(Dispatchers.IO) {
+                        val details = synthesizer.describe()
+                        if (details.size == 2) lease?.let { active -> offline.recordRuntimeInfo(active.voice.reference,
+                            OfflineVoiceRuntimeInfo(active.configuration.copy(engineParameters = ""), details[0], details[1])) }
+                    }
+                }
                 return lease!!.voice.name
             } catch (error: Throwable) {
                 if (attempted && error !is CancellationException && (error is Exception || error is LinkageError)) {
@@ -129,6 +137,7 @@ class SpeechSynthesizers @Inject constructor(
             currentCoroutineContext().ensureActive()
             rate = settings.rate
             return repository.withSource(requireNotNull(settings.httpSource)) { source, runtime ->
+                if (!source.enabled) throw SpeechException(SpeechError.HttpSourceUnavailable)
                 val definition = source.playbackDefinition()
                 sourceId = source.definition.id
                 val broker = SourceBroker(runtime.toPath(), cipher = cipher)

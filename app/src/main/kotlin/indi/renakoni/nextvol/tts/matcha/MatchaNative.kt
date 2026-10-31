@@ -8,6 +8,7 @@ internal interface MatchaNativeApi {
     fun create(configuration: MatchaNativeConfig): Long
     fun generate(handle: Long, text: String, speed: Float, path: String, cancellation: MatchaCancellation)
     fun destroy(handle: Long)
+    fun describe(handle: Long): IntArray = intArrayOf()
 }
 
 /** JNI reads these named fields; keep the shared serialized package schema independent of JNI. */
@@ -56,6 +57,7 @@ internal object MatchaNative : MatchaNativeApi {
     external override fun create(configuration: MatchaNativeConfig): Long
     external override fun generate(handle: Long, text: String, speed: Float, path: String, cancellation: MatchaCancellation)
     external override fun destroy(handle: Long)
+    external override fun describe(handle: Long): IntArray
 }
 
 fun matchaAvailable(): Boolean = MatchaNative.available

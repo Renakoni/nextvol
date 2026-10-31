@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.ui.tts
 
 import android.text.format.Formatter
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -41,7 +40,6 @@ import hnovel.speech.OfflinePackagePlan
 import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SectionHeader
-import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,79 +59,60 @@ fun SpeechPackagePreviewScreen(
         LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-package-preview"),
             contentPadding = PaddingValues(vertical = 16.dp)) {
             item(key = "summary") {
-                SettingsCategory {
-                    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(22.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (preview == null) {
-                            Text(stringResource(R.string.tts_package_reading), style = MaterialTheme.typography.headlineSmall)
-                            LinearProgressIndicator(Modifier.fillMaxWidth())
-                        } else {
-                            if (preview.name.isNotEmpty()) Text(preview.name, style = MaterialTheme.typography.headlineSmall)
-                            preview.error?.let { error ->
-                                Text(stringResource(error.messageResource), color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodyMedium)
-                            } ?: run {
-                                Text(stringResource(if (preview.kinds == setOf(SpeechPackageKind.Unknown)) R.string.tts_package_unknown
-                                    else R.string.tts_package_valid), color = MaterialTheme.colorScheme.primary,
-                                    style = MaterialTheme.typography.bodyLarge)
-                                Text(preview.kinds.map { stringResource(it.labelResource) }.joinToString(" · "),
-                                    style = MaterialTheme.typography.bodyMedium)
-                                Text(stringResource(R.string.tts_package_counts, preview.engines.size,
-                                    preview.engines.sumOf { it.voices.size }, preview.resources.size), style = MaterialTheme.typography.bodyMedium)
-                                if (preview.kinds.any { it != SpeechPackageKind.Voices && it != SpeechPackageKind.Unknown }) {
-                                    Text(stringResource(R.string.tts_package_config_unsupported), style = MaterialTheme.typography.bodyMedium)
-                                }
+                Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (preview == null) {
+                        Text(stringResource(R.string.tts_package_reading), style = MaterialTheme.typography.headlineSmall)
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                    } else {
+                        if (preview.name.isNotEmpty()) Text(preview.name, style = MaterialTheme.typography.headlineSmall)
+                        preview.error?.let { error ->
+                            Text(stringResource(error.messageResource), color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium)
+                        } ?: run {
+                            if (preview.kinds == setOf(SpeechPackageKind.Unknown)) Text(stringResource(R.string.tts_package_unknown))
+                            Text(stringResource(R.string.tts_package_counts, preview.engines.size,
+                                preview.engines.sumOf { it.voices.size }, preview.resources.size), style = MaterialTheme.typography.bodyMedium)
+                            if (preview.kinds.any { it != SpeechPackageKind.Voices && it != SpeechPackageKind.Unknown }) {
+                                Text(stringResource(R.string.tts_package_config_unsupported), style = MaterialTheme.typography.bodyMedium)
                             }
                         }
-                        Text(stringResource(if (offline.offlineImports.isNotEmpty()) R.string.tts_offline_import_note
-                            else if (httpImports.values.any { it.sources.isNotEmpty() }) R.string.tts_package_http_static
-                            else R.string.tts_package_static), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (offline.installing) {
-                            Text(stringResource(R.string.tts_offline_installing))
-                            LinearProgressIndicator(Modifier.fillMaxWidth())
-                            TextButton(onClick = onCancelInstall) { Text(stringResource(R.string.cancel)) }
-                        }
-                        offline.installed?.let { Text(stringResource(R.string.tts_offline_installed, it), color = MaterialTheme.colorScheme.primary) }
-                        offline.installError?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
             preview?.engines?.forEachIndexed { engineIndex, engine ->
                 val httpImport = httpImports[engineIndex]
                 item(key = "engine:$engineIndex") {
-                    SettingsCategory(title = engine.name.take(256)) {
-                        Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(22.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(stringResource(R.string.tts_package_engine_info, engine.code.take(256),
-                                engine.type?.take(64) ?: stringResource(R.string.tts_package_undeclared)), style = MaterialTheme.typography.bodyMedium)
-                            val localVoices = offline.offlineImports.filterKeys { it.first == engineIndex }.values
-                            val hasOffline = localVoices.any { it.plan != null }
-                            val offlineResolved = localVoices.isNotEmpty() && localVoices.all { it.plan != null }
-                            Text(stringResource(if (hasOffline) R.string.tts_offline_profile else if (httpImport != null) {
-                                if (httpImport.sources.isNotEmpty()) R.string.tts_package_can_import else R.string.tts_package_cannot_import
-                            } else when (engine.support) {
-                                SpeechPackageSupport.HttpAdapter -> R.string.tts_package_http_adapter
-                                SpeechPackageSupport.NeedsConfiguration -> R.string.tts_package_needs_configuration
-                                SpeechPackageSupport.Unsupported -> R.string.tts_package_unsupported
-                            }), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                            engine.notices.filterNot { engine.support == SpeechPackageSupport.Unsupported && it == SpeechPackageNotice.UnsupportedEngine ||
-                                (httpImport != null || hasOffline) && it == SpeechPackageNotice.ImportPending ||
-                                offlineResolved && it in setOf(SpeechPackageNotice.RuntimeParameters,
-                                    SpeechPackageNotice.ConfigurationRequired, SpeechPackageNotice.MissingResource) }.forEach { notice ->
-                                Text(stringResource(notice.messageResource), style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            httpImport?.error?.let { error -> Text(stringResource(error.messageResource), style = MaterialTheme.typography.bodyMedium) }
-                            if (httpImport?.hasLocalAudioSettings == true) {
-                                Text(stringResource(R.string.tts_package_local_audio), style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(stringResource(R.string.tts_package_not_verified), style = MaterialTheme.typography.bodySmall)
-                            if (onImport != null && !httpImport?.sources.isNullOrEmpty()) {
-                                FilledTonalButton(onClick = { onImport(httpImport.sources) }, modifier = Modifier.fillMaxWidth()) {
-                                    Text(stringResource(R.string.tts_import_sources))
-                                }
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(engine.name.take(256), style = MaterialTheme.typography.titleLarge)
+                        Text(stringResource(R.string.tts_package_engine_info, engine.code.take(256),
+                            engine.type?.take(64) ?: stringResource(R.string.tts_package_undeclared)), style = MaterialTheme.typography.bodyMedium)
+                        val localVoices = offline.offlineImports.filterKeys { it.first == engineIndex }.values
+                        val hasOffline = localVoices.any { it.plan != null }
+                        val offlineResolved = localVoices.isNotEmpty() && localVoices.all { it.plan != null }
+                        if (!hasOffline && httpImport?.sources.isNullOrEmpty()) Text(stringResource(if (httpImport != null) {
+                            R.string.tts_package_cannot_import
+                        } else when (engine.support) {
+                            SpeechPackageSupport.HttpAdapter -> R.string.tts_package_http_adapter
+                            SpeechPackageSupport.NeedsConfiguration -> R.string.tts_package_needs_configuration
+                            SpeechPackageSupport.Unsupported -> R.string.tts_package_unsupported
+                        }), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                        engine.notices.filterNot { engine.support == SpeechPackageSupport.Unsupported && it == SpeechPackageNotice.UnsupportedEngine ||
+                            (httpImport != null || hasOffline) && it == SpeechPackageNotice.ImportPending ||
+                            offlineResolved && it in setOf(SpeechPackageNotice.RuntimeParameters,
+                                SpeechPackageNotice.ConfigurationRequired, SpeechPackageNotice.MissingResource) }.forEach { notice ->
+                            Text(stringResource(notice.messageResource), style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        httpImport?.error?.let { error -> Text(stringResource(error.messageResource), style = MaterialTheme.typography.bodyMedium) }
+                        if (httpImport?.hasLocalAudioSettings == true) {
+                            Text(stringResource(R.string.tts_package_local_audio), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (onImport != null && !httpImport?.sources.isNullOrEmpty()) {
+                            FilledTonalButton(onClick = { onImport(httpImport.sources) }, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.tts_import_sources))
                             }
                         }
                     }
@@ -152,9 +131,9 @@ fun SpeechPackagePreviewScreen(
                 }
                 itemsIndexed(if ("voices:$engineIndex" in expanded) engine.voices else engine.voices.take(5),
                     key = { index, _ -> "voice:$engineIndex:$index" }) { voiceIndex, voice ->
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 38.dp, vertical = 10.dp),
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(voice.name.take(256).ifEmpty { stringResource(R.string.tts_package_unnamed_voice) }, style = MaterialTheme.typography.headlineSmall)
+                        Text(voice.name.take(256).ifEmpty { stringResource(R.string.tts_package_unnamed_voice) }, style = MaterialTheme.typography.titleMedium)
                         if (voice.code.isNotEmpty()) Text(voice.code.take(256), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         offline.offlineImports[engineIndex to voiceIndex]?.let { local ->
@@ -163,7 +142,7 @@ fun SpeechPackagePreviewScreen(
                                 Text(stringResource(R.string.tts_offline_size, Formatter.formatShortFileSize(context, plan.resources.sumOf { it.bytes })),
                                     style = MaterialTheme.typography.bodyMedium)
                                 val status = offline.availability[plan.id]
-                                Text(stringResource(status?.message ?: R.string.tts_offline_check_incomplete, status?.detail.orEmpty()),
+                                if (status?.canRun != true) Text(stringResource(status?.message ?: R.string.tts_offline_check_incomplete, status?.detail.orEmpty()),
                                     style = MaterialTheme.typography.bodySmall)
                                 if (status?.canRun == false) Text(stringResource(R.string.tts_offline_install_only), style = MaterialTheme.typography.bodySmall)
                                 FilledTonalButton(onClick = { onInstall(plan) }, enabled = !offline.installing) {
@@ -228,14 +207,6 @@ fun SpeechPackagePreviewScreen(
             }
         }
     }
-}
-
-private val SpeechPackageKind.labelResource: Int get() = when (this) {
-    SpeechPackageKind.Voices -> R.string.tts_package_voices
-    SpeechPackageKind.Roles -> R.string.tts_package_roles
-    SpeechPackageKind.Replacements -> R.string.tts_package_replacements
-    SpeechPackageKind.VoicePool -> R.string.tts_package_pool
-    SpeechPackageKind.Unknown -> R.string.tts_package_unknown
 }
 
 private val SpeechPackageNotice.messageResource: Int get() = when (this) {

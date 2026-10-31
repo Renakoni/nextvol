@@ -55,9 +55,10 @@ class OfflineAvailabilityChecker internal constructor(
     val changes = mutableChanges.asStateFlow()
 
     internal fun installed(voice: InstalledOfflineVoice, repository: OfflineSpeechRepository): OfflineAvailability {
+        if (!voice.enabled) return OfflineAvailability(R.string.tts_voice_disabled, canRun = false)
         repository.problem(voice)?.let { return OfflineAvailability(R.string.tts_offline_missing, it, false) }
         val configuration = repository.configuration(voice)
-        val directory = repository.directory(voice.reference)
+        val directory = repository.directory(voice.resourceReference)
         val result = inspect(configuration, voice.sizes.keys) { path -> File(directory, path).inputStream() }
         if (!result.canRun) return result
         return synchronized(observations) { observations[Observation(voice.reference, configuration)] } ?: result

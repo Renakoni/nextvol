@@ -1,6 +1,4 @@
 <resources>
-    <string name="tts_package_http_static">Просмотр не подключается к сервису речи. После подтверждения импорта голоса можно выбрать и прослушать в библиотеке.</string>
-    <string name="tts_package_can_import">Готово к импорту</string>
     <string name="tts_package_cannot_import">Импорт пока не поддерживается</string>
     <string name="tts_package_local_audio">Локальные эффекты скорости, усиления громкости и высоты тона из пакета не применяются.</string>
     <string name="tts_package_http_request_unsupported">Пакету нужна дополнительная обработка запросов или заголовков, которая пока не подключена.</string>
@@ -8,9 +6,7 @@
     <string name="tts_package_preview">Просмотр голосового пакета</string>
     <string name="tts_package_open">Просмотреть пакет ZIP / YAML</string>
     <string name="tts_package_reading">Чтение голосового пакета…</string>
-    <string name="tts_package_valid">Структура пакета распознана</string>
     <string name="tts_package_unknown">Тип пакета не распознан</string>
-    <string name="tts_package_static">Только просмотр структуры. Голоса не устанавливаются и не включаются, подключения к сервисам нет.</string>
     <string name="tts_package_counts">Движки: %1$d · Голоса: %2$d · Файлы ресурсов: %3$d</string>
     <string name="tts_package_config_unsupported">Тип настроек распознан; перенос пока не поддерживается.</string>
     <string name="tts_package_engine_info">%1$s · Тип: %2$s</string>
@@ -18,7 +14,6 @@
     <string name="tts_package_http_adapter">Основа HTTP-адаптера доступна</string>
     <string name="tts_package_needs_configuration">Настройки неполные</string>
     <string name="tts_package_unsupported">Адаптер пока не подключён</string>
-    <string name="tts_package_not_verified">Синтез речи не проверен</string>
     <string name="tts_package_resource_present">Ресурсы модели найдены: %1$s</string>
     <string name="tts_package_resource_missing">Ресурсы модели отсутствуют: %1$s</string>
     <string name="tts_package_unnamed_voice">Голос без названия</string>
@@ -28,10 +23,6 @@
     <string name="tts_package_show_resources">Показать файлы ресурсов (%1$d)</string>
     <string name="tts_package_documents">Файлы настроек</string>
     <string name="tts_package_resources">Ресурсы пакета</string>
-    <string name="tts_package_voices">Настройки голосов</string>
-    <string name="tts_package_roles">Настройки персонажей</string>
-    <string name="tts_package_replacements">Правила замены</string>
-    <string name="tts_package_pool">Пул голосов</string>
     <string name="tts_package_missing_engine">Отсутствует определение соответствующего движка.</string>
     <string name="tts_package_missing_voices">Для этого движка не предоставлен список голосов.</string>
     <string name="tts_package_missing_request">Отсутствует определение HTTP-запроса.</string>

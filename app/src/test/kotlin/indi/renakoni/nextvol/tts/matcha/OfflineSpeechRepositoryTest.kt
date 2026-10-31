@@ -21,15 +21,87 @@ class OfflineSpeechRepositoryTest {
 
     private val resources = listOf("model-steps-3.onnx", "hifigan_v2.onnx", "tokens.txt", "lexicon.txt", "dict/jieba.dict.utf8")
 
-    private fun archive(token: String = "tokens", extra: String? = null): File = files.newFile().also { file ->
+    private fun archive(token: String = "tokens", extra: String? = null, speed: Float = 1f): File = files.newFile().also { file ->
         ZipOutputStream(file.outputStream()).use { zip ->
             val entries = linkedMapOf(
                 "engines.yaml" to "engines: [{code: sherpa, type: inner}]",
-                "config.yaml" to "sherpa: [{code: voice, name: Baker, locale: zh-CN, param: '{\"modelDir\":\"models/chinese\"}'}]",
+                "sherpa/avatar/voice.png" to "image fixture",
+                "config.yaml" to "sherpa: [{code: voice, name: Baker, locale: zh-CN, avatar: voice.png, sampleRate: 24000, speed: $speed, param: '{\"modelDir\":\"models/chinese\"}'}]",
             ) + resources.associate { "sherpa/models/chinese/$it" to if (it == "tokens.txt") token else "fixture" } +
                 (extra?.let { mapOf(it to "must not be extracted") } ?: emptyMap())
             entries.forEach { (path, text) -> zip.putNextEntry(ZipEntry(path)); zip.write(text.toByteArray()); zip.closeEntry() }
         }
+    }
+
+    @Test fun editsKeepIdentityAndOverridesWhileCopiesAndLeasesShareResources() = runBlocking {
+        val root = files.newFolder()
+        val repository = OfflineSpeechRepository(root)
+        val input = archive(speed = 1.3f)
+        val original = repository.install(input, plan(input))
+        assertEquals(24000, original.configuration!!.sampleRate)
+        assertEquals("image fixture", repository.avatar(original)!!.readText())
+        repository.recordRuntimeInfo(original.reference, OfflineVoiceRuntimeInfo(original.configuration, 3, 22050))
+        val discovered = repository.voices().single()
+        assertEquals(22050, discovered.configuration!!.sampleRate)
+        assertEquals(listOf("0", "1", "2"), speechExtensionControls(discovered.configuration.extendUI).single().candidates.keys.toList())
+        // Catalogs installed before the editor have no recorded defaults.
+        val legacy = original.copy(defaults = null, enabled = false)
+        File(root, "voices.json").writeText(kotlinx.serialization.json.Json.encodeToString(listOf(legacy)))
+        val refreshedLegacy = repository.install(input, plan(input))
+        assertFalse(refreshedLegacy.enabled)
+        val renamed = repository.save(refreshedLegacy.copy(name = "My voice", enabled = true))
+        assertEquals(refreshedLegacy.reference.id, renamed.reference.id)
+        val edited = repository.save(renamed.copy(configuration = renamed.configuration!!.copy(speed = 1f)))
+        assertEquals(original.reference.id, edited.reference.id)
+        assertNotEquals(original.reference.revision, edited.reference.revision)
+        assertEquals(refreshedLegacy.resourceReference, edited.resourceReference)
+        val copy = repository.save(edited.copy(name = "Copy"), copy = true)
+        val lease = repository.acquire(copy.reference)
+        repository.enable(setOf(copy.reference), false)
+        val disabled = repository.voices().single { it.reference.id == copy.reference.id }
+        assertThrows(IllegalStateException::class.java) { repository.acquire(disabled.reference) }
+        val replacement = archive("after!", speed = 1.5f)
+        val imported = repository.install(replacement, plan(replacement))
+        assertEquals("My voice", imported.name)
+        assertEquals(1f, imported.configuration!!.speed)
+        assertEquals(1f, imported.configuration.sherpa!!.speed)
+        assertEquals(1.5f, imported.defaults!!.configuration.speed)
+        assertEquals(original.reference.id, imported.reference.id)
+        assertEquals("tokens", File(lease.directory, "tokens.txt").readText())
+        val reopened = OfflineSpeechRepository(root).voices()
+        assertEquals(2, reopened.size)
+        assertTrue(reopened.all { repository.avatar(it)?.readText() == "image fixture" })
+        assertTrue(lease.directory.exists())
+        repository.delete(setOf(disabled.reference, imported.reference))
+        assertTrue(repository.voices().isEmpty())
+        assertTrue(lease.directory.exists())
+        lease.close()
+        assertFalse(lease.directory.exists())
+    }
+
+    @Test fun googleDirectoryRefreshAddsDeclaredSpeakersWithoutReplacingEditsOrCopyingModels() = runBlocking {
+        val input = files.newFile()
+        ZipOutputStream(input.outputStream()).use { zip ->
+            mapOf("engines.yaml" to "engines: [{code: google, type: inner}]",
+                "config.yaml" to "google: [{code: cmn-cn-x-a, name: First, locale: zh-CN}]",
+                "google/cmn-cn/multi/pipeline.pb" to "model",
+                "google/cmn-cn/multi/backend_pipeline.textproto" to
+                    """speakers { speaker: "a" gender: "female" } speakers { speaker: "b" gender: "male" }"""
+            ).forEach { (path, content) -> zip.putNextEntry(ZipEntry(path)); zip.write(content.toByteArray()); zip.closeEntry() }
+        }
+        val repository = OfflineSpeechRepository(files.newFolder())
+        val original = repository.install(input, plan(input))
+        repository.save(original.copy(name = "My name"))
+        repository.refreshCatalog()
+        repository.refreshCatalog()
+        val voices = repository.voices()
+        assertEquals(2, voices.size)
+        assertEquals("My name", voices.single { it.reference.id == original.reference.id }.name)
+        val discovered = voices.single { it.reference.id != original.reference.id }
+        assertEquals("cmn-cn-x-b", discovered.configuration!!.code)
+        assertEquals("zh-CN", discovered.configuration.locale)
+        assertEquals(1, discovered.configuration.gender)
+        assertEquals(original.resourceReference, discovered.resourceReference)
     }
     private fun plan(file: File): OfflinePackagePlan {
         val preview = previewSpeechPackage(file)

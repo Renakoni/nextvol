@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tts_engines">Движки</string>
-    <string name="tts_engines_description">Названия и общие параметры движков</string>
     <string name="tts_engines_builtin">Встроенные движки</string>
     <string name="tts_engines_http">Настройки онлайн-движков</string>
     <string name="tts_engine_edit">Изменить движок</string>

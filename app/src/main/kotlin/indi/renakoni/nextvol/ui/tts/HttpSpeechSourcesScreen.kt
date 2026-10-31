@@ -1,10 +1,10 @@
 package indi.renakoni.nextvol.ui.tts
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -27,11 +27,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
 import indi.renakoni.nextvol.tts.ReadAloudState
 import indi.renakoni.nextvol.tts.SpeechAction
 import indi.renakoni.nextvol.tts.SpeechPhase
+import indi.renakoni.nextvol.tts.speakerData
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
@@ -51,7 +51,15 @@ fun HttpSpeechSourcesScreen(
     onChapterSleepTimer: ((Int) -> Unit)? = null,
     systemSettings: (@Composable () -> Unit)? = null,
     onPackagePreview: (() -> Unit)? = null,
-    offlineSettings: (@Composable () -> Unit)? = null,
+    offlineSettings: (LazyListScope.() -> Unit)? = null,
+    libraryControls: (@Composable () -> Unit)? = null,
+    searchActive: Boolean = false,
+    selecting: Boolean = false,
+    chosen: Set<String> = emptySet(),
+    onChoose: (String) -> Unit = {},
+    onVoiceEditor: ((SavedHttpSpeechSource, Boolean) -> Unit)? = null,
+    onEnableVoice: (SavedHttpSpeechSource, Boolean) -> Unit = { _, _ -> },
+    grouping: Int = 0,
     initialEditId: String? = null,
     onInitialEditorClosed: () -> Unit = {},
     onEditEngine: (SavedHttpSpeechSource, String, String, String) -> Unit = onEdit,
@@ -85,26 +93,65 @@ fun HttpSpeechSourcesScreen(
         }
     }
     val sourceRow: @Composable (SavedHttpSpeechSource, Modifier) -> Unit = { source, modifier ->
-        Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-            SourceChoice(source.definition.name, state.selected == source.definition.id, !state.busy, {
-                if (source.isConfigured) onSelect(source.definition.id) else configuring = source
-            }, Modifier.weight(1f),
-                onPreview = onPreview?.let { { it(source.definition.id) } }, previewEnabled = source.isConfigured)
-            if (!source.isBuiltIn) SpeechSourceActions(!state.busy,
-                onEdit = {
-                    definition = source; name = source.definition.name
-                    url = source.definition.url; header = source.definition.text("header")
-                },
-                onSites = { editing = source; sites = source.origins.joinToString("\n") },
-                onDelete = { onDelete(source) })
+        val metadata = source.speakerData()
+        Column(modifier) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SpeechAvatar((metadata["avatar"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                    (metadata["gender"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
+                    Modifier.padding(start = 12.dp).size(36.dp), state.avatars[source.definition.id])
+                if (selecting) {
+                    Checkbox(source.definition.id in chosen, { onChoose(source.definition.id) })
+                    Text(source.definition.name, Modifier.weight(1f).clickable { onChoose(source.definition.id) }, style = MaterialTheme.typography.bodyLarge)
+                } else SourceChoice(source.definition.name, state.selected == source.definition.id, !state.busy && source.enabled, {
+                    if (source.isConfigured) onSelect(source.definition.id) else configuring = source
+                }, Modifier.weight(1f),
+                    onPreview = onPreview?.let { { it(source.definition.id) } }, previewEnabled = source.isConfigured)
+                if (onVoiceEditor != null) {
+                    var menu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { menu = true }, enabled = !state.busy) {
+                            Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions))
+                        }
+                        DropdownMenu(menu, { menu = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { menu = false; onVoiceEditor(source, false) })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { menu = false; onVoiceEditor(source, true) })
+                            DropdownMenuItem(text = { Text(stringResource(if (source.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
+                                onClick = { menu = false; onEnableVoice(source, !source.enabled) })
+                            if (!source.isBuiltIn) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_source_sites)) }, onClick = { menu = false; editing = source; sites = source.origins.joinToString("\n") })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { menu = false; onDelete(source) })
+                            }
+                        }
+                    }
+                } else if (!source.isBuiltIn) SpeechSourceActions(!state.busy,
+                    onEdit = {
+                        definition = source; name = source.definition.name
+                        url = source.definition.url; header = source.definition.text("header")
+                    },
+                    onSites = { editing = source; sites = source.origins.joinToString("\n") },
+                    onDelete = { onDelete(source) })
+            }
+            (metadata["desc"] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)?.let {
+                Text(it, Modifier.padding(start = 22.dp, end = 22.dp, bottom = 8.dp),
+                    style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+            if (!source.enabled) Text(stringResource(R.string.tts_voice_disabled),
+                Modifier.padding(horizontal = 22.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+    val unknownLanguage = stringResource(R.string.tts_voice_locale_unspecified)
+    fun sourceGroup(source: SavedHttpSpeechSource): String? = when (grouping) {
+        1 -> (source.speakerData()["locale"] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) ?: unknownLanguage
+        2 -> null
+        else -> source.category
     }
     Scaffold(topBar = {
         TopAppBar(title = { Text(stringResource(R.string.tts_sources), style = MaterialTheme.typography.displayLarge,
             maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
             IconButton(onClick = onBack) { Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back)) }
         }, actions = {
-            if (onRefresh != null && state.selected == null && !state.offlineSelected) IconButton(onClick = onRefresh, enabled = !state.busy) {
+            if (onRefresh != null) IconButton(onClick = onRefresh, enabled = !state.busy) {
                 Icon(painterResource(R.drawable.refresh_24px), stringResource(R.string.tts_refresh))
             }
             if (state.busy) CircularProgressIndicator(Modifier.padding(horizontal = 16.dp).size(20.dp), strokeWidth = 2.dp)
@@ -125,46 +172,41 @@ fun HttpSpeechSourcesScreen(
         LazyColumn(Modifier.fillMaxSize().padding(padding).selectableGroup().testTag("speech-sources-list"),
             contentPadding = PaddingValues(vertical = 16.dp)) {
             state.error?.let { message -> item { Text(stringResource(message), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) } }
+            if (libraryControls != null) item { libraryControls() }
             item {
-                SettingsCategory {
+                Column(Modifier.padding(horizontal = 16.dp)) {
                     SourceChoice(stringResource(R.string.tts_system_speech), state.selected == null && !state.offlineSelected, !state.busy, { onSelect(null) },
-                        Modifier.background(MaterialTheme.colorScheme.surfaceContainer),
                         onPreview = onPreview?.let { { it(null) } })
                     if (state.selected == null && !state.offlineSelected) systemSettings?.invoke()
                 }
             }
-            if (offlineSettings != null) item { offlineSettings() }
-            if (state.sources.isEmpty() && !state.busy) item { Text(stringResource(R.string.tts_online_empty), Modifier.padding(16.dp)) }
-            state.sources.filter { it.category != null }.groupBy { it.category!! }.forEach { (group, sources) ->
-                item(key = "group:$group") {
+            offlineSettings?.invoke(this)
+            if (state.sources.isEmpty() && !state.busy && !searchActive) item { Text(stringResource(R.string.tts_online_empty), Modifier.padding(16.dp)) }
+            state.sources.filter { sourceGroup(it) != null }.groupBy { sourceGroup(it)!! }.forEach { (group, sources) ->
+                item(key = "http-group:$group") {
                     val account = sources.first()
-                    val current = sources.find { it.definition.id == state.selected }
-                    SettingsCategory {
+                    Column(Modifier.padding(horizontal = 16.dp)) {
                         Row(Modifier.fillMaxWidth().clickable(enabled = !state.busy, role = Role.Button) { expanded = if (expanded == group) null else group }
-                            .background(MaterialTheme.colorScheme.surfaceContainer)
-                            .padding(start = 22.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            .padding(start = 6.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(group, style = MaterialTheme.typography.headlineSmall)
-                                Text(if (sources.none { it.isConfigured }) stringResource(R.string.tts_needs_key)
-                                    else current?.definition?.name ?: pluralStringResource(R.plurals.tts_voice_count, sources.size, sources.size),
+                                Text(group, style = MaterialTheme.typography.titleMedium)
+                                if (sources.none { it.isConfigured }) Text(stringResource(R.string.tts_needs_key),
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 3, overflow = TextOverflow.Ellipsis)
                             }
-                            if (account.credentialKeys.isNotEmpty()) IconButton(onClick = { configuring = account }, enabled = !state.busy) {
+                            if (grouping == 0 && account.credentialKeys.isNotEmpty()) IconButton(onClick = { configuring = account }, enabled = !state.busy) {
                                 Icon(painterResource(R.drawable.outline_settings_24px), stringResource(R.string.tts_configure_service, group))
                             }
                             Icon(painterResource(R.drawable.keyboard_arrow_up_24px), null, Modifier.rotate(if (expanded == group) 0f else 180f))
                         }
                     }
                 }
-                if (expanded == group) items(sources, key = { it.definition.id }) { source ->
+                if (expanded == group || searchActive) items(sources, key = { "http:${it.definition.id}" }) { source ->
                     sourceRow(source, Modifier.padding(horizontal = 16.dp))
                 }
             }
-            items(state.sources.filter { it.category == null }, key = { it.definition.id }) { source ->
-                SettingsCategory {
-                    sourceRow(source, Modifier.background(MaterialTheme.colorScheme.surfaceContainer))
-                }
+            items(state.sources.filter { sourceGroup(it) == null }, key = { "http:${it.definition.id}" }) { source ->
+                sourceRow(source, Modifier.padding(horizontal = 16.dp))
             }
         }
     }
@@ -288,7 +330,7 @@ internal fun SourceChoice(name: String, selected: Boolean, enabled: Boolean, onC
 private fun SpeechCredentialsDialog(source: SavedHttpSpeechSource, busy: Boolean, error: Int?,
     onSave: (Map<String, String>) -> Unit, onDismiss: () -> Unit) {
     var values by remember(source.definition.id) { mutableStateOf(source.credentials) }
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(source.group.orEmpty()) },
+    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(source.category.orEmpty()) },
         text = {
             Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 source.credentialKeys.forEach { key ->
