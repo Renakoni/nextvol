@@ -51,16 +51,26 @@ class ReadAloudSessionTest {
 
     @Test fun prefetchIsBoundedAndCannotAdvanceTheListeningPosition() = runTest {
         val env = Environment(this)
-        env.session.start(SpeechRequest("book", "one"))
+        val loaded = mutableListOf<String>()
+        env.load = { book, chapter ->
+            loaded += chapter
+            SpeechChapter(book, chapter, "Book", chapter, "一小段。", nextId = (chapter.toInt() + 1).toString())
+        }
         runCurrent()
+        assertTrue(loaded.isEmpty())
+        env.session.start(SpeechRequest("book", "1"))
+        runCurrent()
+        assertEquals(listOf("1", "2", "3", "4"), loaded)
         assertEquals(1, env.player.started.size)
         assertEquals(4, env.synthesized.size)
         assertEquals(4, env.audioFiles())
         assertEquals(0, env.progress.saved.getValue("book").offset)
+        assertEquals("1", env.progress.saved.getValue("book").chapterId)
         val first = env.player.started.single()
         env.player.finish()
         runCurrent()
         assertEquals(2, env.player.started.size)
+        assertEquals("2", env.progress.saved.getValue("book").chapterId)
         assertEquals(env.player.started.last().segment.start, env.progress.saved.getValue("book").offset)
         assertFalse(first.file.exists())
         assertTrue(env.audioFiles() <= 4)
@@ -267,17 +277,19 @@ class ReadAloudSessionTest {
         env.stop()
     }
 
-    @Test fun enteringABookResumesItsListeningChapterIndependentlyOfTheReader() = runTest {
+    @Test fun enteringABookResumesItsListeningChapterAfterTheCompletedSegment() = runTest {
         val env = Environment(this)
-        val chapter = SpeechChapter("book", "two", "Book", "Chapter two", env.text)
-        val segment = speechSegments(env.text)[2]
-        env.progress.saved["book"] = SpeechBookmark("book", "two", chapter.fingerprint, segment.start)
+        val text = "第一段。\n\n  第二段。\n第三段。"
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", chapter, text) }
+        val chapter = env.load("book", "two")
+        val segments = speechSegments(text)
+        env.progress.saved["book"] = SpeechBookmark("book", "two", chapter.fingerprint, segments.first().end)
         try {
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
             val clip = env.player.started.single()
             assertEquals("two", clip.chapter.id)
-            assertEquals(segment.start, clip.segment.start)
+            assertEquals(segments[1].start, clip.segment.start)
             // An explicit chapter command still starts at that chapter, not the saved location.
             env.session.start(SpeechRequest("book", "one"), resumeSaved = false)
             runCurrent()
@@ -780,25 +792,6 @@ class ReadAloudSessionTest {
             assertFalse(replacement.file.parentFile!!.exists())
             assertTrue(env.audioFiles() <= 4)
         } finally { env.stop() }
-    }
-
-    @Test fun plansArePreparedOnlyForStartedSpeechAndChapterPrefetchRemainsBounded() = runTest {
-        val env = Environment(this)
-        val loaded = mutableListOf<String>()
-        env.load = { book, chapter ->
-            loaded += chapter
-            SpeechChapter(book, chapter, "Book", chapter, "一小段。", nextId = (chapter.toInt() + 1).toString())
-        }
-        runCurrent()
-        assertTrue(loaded.isEmpty())
-        try {
-            env.session.start(SpeechRequest("book", "1"))
-            runCurrent()
-            assertEquals(listOf("1", "2", "3", "4"), loaded)
-            assertEquals(4, env.audioFiles())
-            assertEquals("1", env.progress.saved.getValue("book").chapterId)
-        } finally { env.stop() }
-        assertEquals(0, env.audioFiles())
     }
 
     private inner class Environment(val scope: TestScope) {

@@ -12,9 +12,9 @@ class SpeechPlan internal constructor(
     internal fun startIndex(saved: SpeechBookmark?): Int {
         val offset = saved?.takeIf { it.bookId == chapter.bookId && it.chapterId == chapter.id &&
             it.fingerprint == chapter.fingerprint && !it.completed && it.offset in 0..chapter.text.length }?.offset ?: 0
-        // Playback may have completed this chapter while its successor was still loading.
-        return if (segments.isNotEmpty() && offset >= segments.last().end && chapter.nextId != null) segments.size
-            else segments.indexOfLast { it.start <= offset }.coerceAtLeast(0)
+        // End offsets are exclusive: a durable completion boundary must not replay
+        // the finished segment, including whitespace before the next segment.
+        return segments.indexOfFirst { it.end > offset }.takeIf { it >= 0 } ?: segments.size
     }
 
     internal fun bookmark(offset: Int) = SpeechBookmark(chapter.bookId, chapter.id,
