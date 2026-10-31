@@ -591,35 +591,45 @@ class ReaderPositionInstrumentedTest {
 
         fun assertPosition(offset: Int = target, description: String = "") {
             awaitReady()
-            val position = reader.positions.captureNow()!!.position!!
-            assertEquals(chapter.id, position.chapterId)
-            assertEquals(0, position.componentIndex)
-            assertEquals(description, offset, position.offset)
-            val nodes = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
-                .fetchSemanticsNodes()
-            val visible = compose.runOnIdle {
-                nodes.any { node ->
-                    val layouts = mutableListOf<TextLayoutResult>()
-                    node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
-                    layouts.any { layout ->
-                        val start = text.indexOf(layout.layoutInput.text.text)
-                        start >= 0 && offset in start until start + layout.layoutInput.text.length &&
-                            node.boundsInRoot.overlaps(layout.getBoundingBox(offset - start).translate(node.positionInRoot))
+            var diagnostics = ""
+            try {
+                compose.waitUntil(10_000) {
+                    // Renderer handoff may detach a previously fetched node before its bounds are read.
+                    val nodes = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
+                        .fetchSemanticsNodes()
+                    compose.runOnIdle {
+                        var visible = false
+                        val details = mutableListOf<String>()
+                        nodes.forEach { node ->
+                            val layouts = mutableListOf<TextLayoutResult>()
+                            node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+                            layouts.forEach { layout ->
+                                val start = text.indexOf(layout.layoutInput.text.text)
+                                if (start >= 0) {
+                                    val bounds = node.boundsInRoot
+                                    val origin = node.positionInRoot
+                                    details += "source=$start bounds=$bounds origin=$origin size=${layout.size}"
+                                    if (!bounds.isEmpty && offset in start until start + layout.layoutInput.text.length &&
+                                        bounds.overlaps(layout.getBoundingBox(offset - start).translate(origin))) {
+                                        visible = true
+                                    }
+                                }
+                            }
+                        }
+                        val scroll = (reader.uiState.contentUiState as? ScrollContentUiState)?.lazyListState
+                        diagnostics = "list=${scroll?.firstVisibleItemIndex}/${scroll?.firstVisibleItemScrollOffset}: ${details.joinToString("; ")}"
+                        if (visible) {
+                            val position = reader.positions.captureNow()!!.position!!
+                            assertEquals(chapter.id, position.chapterId)
+                            assertEquals(0, position.componentIndex)
+                            assertEquals(description, offset, position.offset)
+                        }
+                        visible
                     }
                 }
+            } catch (timeout: ComposeTimeoutException) {
+                throw AssertionError("$description Original source offset $offset must be in the clipped visible viewport; $diagnostics", timeout)
             }
-            val diagnostics = if (visible) "" else compose.runOnIdle {
-                nodes.mapNotNull { node ->
-                    val layouts = mutableListOf<TextLayoutResult>()
-                    node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
-                    layouts.firstOrNull()?.let { layout ->
-                        val start = text.indexOf(layout.layoutInput.text.text)
-                        if (start < 0) null else "source=$start bounds=${node.boundsInRoot} origin=${node.positionInRoot} size=${layout.size}"
-                    }
-                }.joinToString("; ")
-            }
-            val scroll = (reader.uiState.contentUiState as? ScrollContentUiState)?.lazyListState
-            assertTrue("$description Original source offset $offset must be in the clipped visible viewport; list=${scroll?.firstVisibleItemIndex}/${scroll?.firstVisibleItemScrollOffset}: $diagnostics", visible)
         }
     }
 
