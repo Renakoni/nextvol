@@ -162,8 +162,11 @@ fun SpeechPackagePreviewScreen(
                             if (plan != null) {
                                 Text(stringResource(R.string.tts_offline_size, Formatter.formatShortFileSize(context, plan.resources.sumOf { it.bytes })),
                                     style = MaterialTheme.typography.bodyMedium)
-                                if (!offline.offlineSupported) Text(stringResource(R.string.tts_offline_device), style = MaterialTheme.typography.bodySmall)
-                                FilledTonalButton(onClick = { onInstall(plan) }, enabled = offline.offlineSupported && !offline.installing) {
+                                val status = offline.availability[plan.id]
+                                Text(stringResource(status?.message ?: R.string.tts_offline_check_incomplete, status?.detail.orEmpty()),
+                                    style = MaterialTheme.typography.bodySmall)
+                                if (status?.canRun == false) Text(stringResource(R.string.tts_offline_install_only), style = MaterialTheme.typography.bodySmall)
+                                FilledTonalButton(onClick = { onInstall(plan) }, enabled = !offline.installing) {
                                     Text(stringResource(R.string.tts_offline_install, voice.name))
                                 }
                                 if (plan.id == offline.installingId) {

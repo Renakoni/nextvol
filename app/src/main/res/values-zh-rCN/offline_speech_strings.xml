@@ -1,4 +1,15 @@
 <resources>
+    <string name="tts_offline_unverified">设备条件已检查，尚未实际合成。</string>
+    <string name="tts_offline_check_incomplete">部分运行条件尚无法确认，可通过试听进一步检查。</string>
+    <string name="tts_offline_runtime_missing">此 APK 缺少所需运行库：%1$s</string>
+    <string name="tts_offline_android">此声音需要 Android API %1$s 或更高版本。</string>
+    <string name="tts_offline_abi">此声音需要兼容 %1$s 的应用进程。</string>
+    <string name="tts_offline_package_abi">语音包中没有适合当前应用进程的引擎库（%1$s）。</string>
+    <string name="tts_offline_pages">运行库不兼容设备的内存页面大小：%1$s</string>
+    <string name="tts_offline_initialization_failed">上次初始化失败，请检查引擎设置和资源后重试。</string>
+    <string name="tts_offline_synthesis_failed">上次合成失败，请检查此声音的参数和资源后重试。</string>
+    <string name="tts_offline_verified">此声音已在本次应用运行中成功合成音频。</string>
+    <string name="tts_offline_install_only">仍可安装资源，但此设备暂时无法使用该声音。</string>
     <string name="tts_offline_sources">离线音源</string>
     <string name="tts_offline_device">此声音需要设备中可用的内置引擎。</string>
     <string name="tts_offline_empty">从菜单打开 ZIP 语音包，安装离线声音。</string>
