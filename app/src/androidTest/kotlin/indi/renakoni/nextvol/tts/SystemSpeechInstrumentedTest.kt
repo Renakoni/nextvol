@@ -157,7 +157,7 @@ class SystemSpeechInstrumentedTest {
                 assertFalse(File(directory, "preview.wav.part").exists())
                 val started = CompletableDeferred<Unit>()
                 val chapter = SpeechChapter("", "", "", "Preview", text)
-                val clip = SpeechClip(chapter, SpeechSegment(0, text.length, text), 0, 1, audio)
+                val clip = SpeechClip(prepareSpeechPlan(chapter, SpeechSettings()) {}, 0, audio)
                 val playing = launch(Dispatchers.Main) {
                     playback.play(clip, true, onRange = {}) { phase, _ -> if (phase == SpeechPhase.Playing) started.complete(Unit) }
                 }

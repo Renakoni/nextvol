@@ -41,8 +41,8 @@ class ExoSpeechPlaybackTest {
         }
         val playback = ExoSpeechPlayback(player, RuntimeEnvironment.getApplication())
         val timing = listOf(SpeechTiming(100, 0, 3), SpeechTiming(1000, 3, 6))
-        val clip = SpeechClip(SpeechChapter("book", "chapter", "Book", "Chapter", "你好。再见。"),
-            SpeechSegment(0, 6, "你好。再见。"), 0, 1, files.newFile(), timing)
+        val clip = SpeechClip(prepareSpeechPlan(SpeechChapter("book", "chapter", "Book", "Chapter", "你好。再见。"),
+            SpeechSettings()) {}, 0, files.newFile(), timing)
         val delivered = mutableListOf<SpeechTiming>()
         val estimates = mutableListOf<Int>()
         val job = launch { playback.play(clip, true, { delivered += it }, { estimates += it }) { _, _ -> } }
@@ -105,8 +105,8 @@ class ExoSpeechPlaybackTest {
         }
         val playback = ExoSpeechPlayback(player, RuntimeEnvironment.getApplication())
         val text = "甲乙丙丁戊己庚辛壬癸"
-        val clip = SpeechClip(SpeechChapter("book", "chapter", "Book", "Chapter", text),
-            SpeechSegment(0, text.length, text), 0, 1, files.newFile())
+        val clip = SpeechClip(prepareSpeechPlan(SpeechChapter("book", "chapter", "Book", "Chapter", text),
+            SpeechSettings()) {}, 0, files.newFile())
         val anchors = mutableListOf<Int>()
         val ranges = mutableListOf<SpeechTiming>()
         val job = launch { playback.play(clip, true, { ranges += it }, { anchors += it }) { _, _ -> } }

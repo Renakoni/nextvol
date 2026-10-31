@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.tts
 
 import android.util.Log
+import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
@@ -50,16 +51,26 @@ class ReadAloudSessionTest {
 
     @Test fun prefetchIsBoundedAndCannotAdvanceTheListeningPosition() = runTest {
         val env = Environment(this)
-        env.session.start(SpeechRequest("book", "one"))
+        val loaded = mutableListOf<String>()
+        env.load = { book, chapter ->
+            loaded += chapter
+            SpeechChapter(book, chapter, "Book", chapter, "一小段。", nextId = (chapter.toInt() + 1).toString())
+        }
         runCurrent()
+        assertTrue(loaded.isEmpty())
+        env.session.start(SpeechRequest("book", "1"))
+        runCurrent()
+        assertEquals(listOf("1", "2", "3", "4"), loaded)
         assertEquals(1, env.player.started.size)
         assertEquals(4, env.synthesized.size)
         assertEquals(4, env.audioFiles())
         assertEquals(0, env.progress.saved.getValue("book").offset)
+        assertEquals("1", env.progress.saved.getValue("book").chapterId)
         val first = env.player.started.single()
         env.player.finish()
         runCurrent()
         assertEquals(2, env.player.started.size)
+        assertEquals("2", env.progress.saved.getValue("book").chapterId)
         assertEquals(env.player.started.last().segment.start, env.progress.saved.getValue("book").offset)
         assertFalse(first.file.exists())
         assertTrue(env.audioFiles() <= 4)
@@ -201,16 +212,20 @@ class ReadAloudSessionTest {
         runCurrent()
         assertEquals(SpeechPhase.Playing, env.session.state.value.phase)
         assertEquals(1, env.player.started.size)
+        val plan = env.player.started.single().plan
         env.player.finish()
         runCurrent()
         assertEquals(SpeechError.Network, env.session.state.value.error)
-        val expected = speechSegments(env.text)[1]
+        val expected = plan.segments[1]
         assertEquals(expected.start, env.progress.saved.getValue("book").offset)
+        assertEquals(SpeechPosition("book", "one", plan.chapter.fingerprint, expected.start, expected.end), env.session.state.value.position)
+        assertEquals(plan.segments.size, env.session.state.value.segmentCount)
         fail = false
         env.session.resume()
         runCurrent()
         assertEquals(expected.text, env.player.started.last().segment.text)
         assertEquals(1, env.player.started.last().index)
+        assertSame(plan, env.player.started.last().plan)
         env.stop()
     }
 
@@ -262,17 +277,19 @@ class ReadAloudSessionTest {
         env.stop()
     }
 
-    @Test fun enteringABookResumesItsListeningChapterIndependentlyOfTheReader() = runTest {
+    @Test fun enteringABookResumesItsListeningChapterAfterTheCompletedSegment() = runTest {
         val env = Environment(this)
-        val chapter = SpeechChapter("book", "two", "Book", "Chapter two", env.text)
-        val segment = speechSegments(env.text)[2]
-        env.progress.saved["book"] = SpeechBookmark("book", "two", chapter.fingerprint, segment.start)
+        val text = "第一段。\n\n  第二段。\n第三段。"
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", chapter, text) }
+        val chapter = env.load("book", "two")
+        val segments = speechSegments(text)
+        env.progress.saved["book"] = SpeechBookmark("book", "two", chapter.fingerprint, segments.first().end)
         try {
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
             val clip = env.player.started.single()
             assertEquals("two", clip.chapter.id)
-            assertEquals(segment.start, clip.segment.start)
+            assertEquals(segments[1].start, clip.segment.start)
             // An explicit chapter command still starts at that chapter, not the saved location.
             env.session.start(SpeechRequest("book", "one"), resumeSaved = false)
             runCurrent()
@@ -288,6 +305,7 @@ class ReadAloudSessionTest {
         env.player.finish()
         runCurrent()
         val index = env.player.started.last().index
+        val oldPlan = env.player.started.last().plan
         env.session.pause()
         env.configuration = SpeechSettings(voice = "new-voice")
         env.session.updateSettings(env.configuration)
@@ -295,6 +313,8 @@ class ReadAloudSessionTest {
         assertEquals(index, env.player.started.last().index)
         assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
         assertEquals("new-voice", env.opened.last().voice)
+        assertNotSame(oldPlan, env.player.started.last().plan)
+        assertEquals("new-voice", env.player.started.last().plan.synthesis.voice)
         env.stop()
     }
 
@@ -305,11 +325,13 @@ class ReadAloudSessionTest {
         env.player.finish()
         runCurrent()
         assertTrue(env.player.started.last().index > 0)
+        val oldPlan = env.player.started.last().plan
         env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Edited", "New introduction. " + env.text) }
         env.session.reloadSettings()
         runCurrent()
         assertEquals(0, env.player.started.last().index)
         assertTrue(env.player.started.last().segment.text.startsWith("New introduction."))
+        assertNotSame(oldPlan, env.player.started.last().plan)
         env.stop()
     }
 
@@ -330,6 +352,7 @@ class ReadAloudSessionTest {
         assertEquals("", state.currentText)
         assertNull(state.previousChapterId)
         assertNull(state.nextChapterId)
+        assertNull(state.position)
         assertEquals("Book", env.progress.saved.getValue("book").bookTitle)
         env.stop()
     }
@@ -482,7 +505,7 @@ class ReadAloudSessionTest {
             assertFalse(env.player.playing)
             assertEquals(1, env.player.started.size)
             assertEquals(3, env.synthesized.size)
-            assertEquals(listOf(env.configuration), env.opened)
+            assertEquals(listOf(env.configuration.copy(playbackSpeed = 1f)), env.opened)
             env.session.resume()
             repeat(2) { env.player.finish(); runCurrent() }
             assertEquals(listOf(1.5f, 2f, 2f), env.player.startSpeeds)
@@ -502,7 +525,7 @@ class ReadAloudSessionTest {
             env.configuration = SpeechSettings(voice = "new-voice", playbackSpeed = 2f)
             env.session.start(SpeechRequest("book", "two"), playing = false)
             runCurrent()
-            assertEquals(env.configuration, env.opened.last())
+            assertEquals(env.configuration.copy(playbackSpeed = 1f), env.opened.last())
             assertEquals(2f, env.player.playbackSpeed)
             assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
             val clip = env.player.started.last()
@@ -532,7 +555,7 @@ class ReadAloudSessionTest {
             runCurrent()
             assertEquals(2f, env.player.playbackSpeed)
             assertEquals(2, env.opened.size)
-            assertEquals(2f, env.opened.last().playbackSpeed)
+            assertEquals(1f, env.opened.last().playbackSpeed)
             assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
             assertFalse(env.player.playing)
         } finally { read.complete(Unit); env.stop() }
@@ -561,7 +584,8 @@ class ReadAloudSessionTest {
                 runCurrent()
                 assertEquals(original.chapter, env.player.started.last().chapter)
                 assertEquals(original.segment, env.player.started.last().segment)
-                assertEquals(env.configuration, env.opened.last())
+                assertSame(original.plan, env.player.started.last().plan)
+                assertEquals(env.configuration.copy(playbackSpeed = 1f), env.opened.last())
                 assertEquals(playing, env.player.playing)
                 assertEquals(if (playing) SpeechPhase.Playing else SpeechPhase.Paused, env.session.state.value.phase)
                 assertFalse(env.session.restoreAfterPreview())
@@ -634,7 +658,7 @@ class ReadAloudSessionTest {
             runCurrent()
             assertTrue(env.session.restoreAfterPreview())
             runCurrent()
-            assertEquals(selected, env.opened.last())
+            assertEquals(selected.copy(playbackSpeed = 1f), env.opened.last())
         } finally { env.stop() }
     }
 
@@ -702,6 +726,72 @@ class ReadAloudSessionTest {
             assertFalse(env.session.restoreAfterPreview())
             assertTrue(env.directory.listFiles()!!.isEmpty())
         } finally { timer.cancel(); late.complete(Unit); env.stop() }
+    }
+
+    @Test fun skippingAndResumingUseThePlayingPlanEvenWhenAFutureChapterHasBeenPrepared() = runTest {
+        val env = Environment(this)
+        var loaded = 0
+        env.load = { book, chapter ->
+            loaded++
+            SpeechChapter(book, chapter, "Book", chapter, "𠀀第一段。\n\n  第二段。\n第三段。",
+                nextId = if (chapter == "one") "two" else null)
+        }
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            val first = env.player.started.single()
+            assertEquals(2, loaded)
+            env.session.pause()
+            env.session.skipSegment(1)
+            runCurrent()
+            val second = env.player.started.last()
+            assertSame(first.plan, second.plan)
+            assertSame(first.plan.segments[1], second.segment)
+            assertEquals(second.segment.start, env.progress.saved.getValue("book").offset)
+            assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
+            assertEquals(SpeechPosition("book", "one", first.chapter.fingerprint, second.segment.start, second.segment.end),
+                env.session.state.value.position)
+            env.session.resume()
+            env.player.finish()
+            runCurrent()
+            assertSame(first.plan, env.player.started.last().plan)
+            assertEquals(2, env.player.started.last().index)
+        } finally { env.stop() }
+    }
+
+    @Test fun offlineResourceAndRateChangesDiscardOldAudioButInactiveParametersAndPlaybackSpeedDoNot() = runTest {
+        val env = Environment(this)
+        val reference = OfflineVoiceRef("a".repeat(64), "b".repeat(64))
+        env.configuration = SpeechSettings(offlineVoice = reference)
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            env.session.pause()
+            val first = env.player.started.single()
+            val synthesized = env.synthesized.size
+            env.configuration = env.configuration.copy(engine = "unused", voice = "unused", pitch = 2f, rate = 1f, playbackSpeed = 2f)
+            env.session.updateSettings(env.configuration)
+            runCurrent()
+            assertEquals(synthesized, env.synthesized.size)
+            assertEquals(1, env.opened.size)
+            assertTrue(first.file.exists())
+            assertEquals(2f, env.player.playbackSpeed)
+            env.configuration = env.configuration.copy(offlineVoice = reference.copy(revision = "c".repeat(64)))
+            env.session.updateSettings(env.configuration)
+            runCurrent()
+            val replacement = env.player.started.last()
+            assertNotSame(first.plan, replacement.plan)
+            assertEquals(env.configuration.offlineVoice, replacement.plan.synthesis.offlineVoice)
+            assertFalse(first.file.parentFile!!.exists())
+            assertFalse(env.player.playing)
+            env.configuration = env.configuration.copy(rate = 1.5f)
+            env.session.updateSettings(env.configuration)
+            runCurrent()
+            assertNotSame(replacement.plan, env.player.started.last().plan)
+            assertEquals(1.5f, env.opened.last().rate)
+            assertFalse(replacement.file.parentFile!!.exists())
+            assertTrue(env.audioFiles() <= 4)
+        } finally { env.stop() }
     }
 
     private inner class Environment(val scope: TestScope) {
