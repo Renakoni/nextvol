@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir -p build/reports/lint
           # Lint analyzes Kotlin/resources; native packaging remains checked by APK builds.
-          ./gradlew --no-daemon :app:lintDebug :app:lintVitalRelease -x :app:buildMatchaNative --continue --console=plain --stacktrace --max-workers=2 2>&1 | tee build/reports/lint/gradle.log
+          ./gradlew --no-daemon :app:lintDebug :app:lintVitalRelease -x :app:buildMatchaNative -x :app:prepareOfflineRuntime --continue --console=plain --stacktrace --max-workers=2 2>&1 | tee build/reports/lint/gradle.log
       - name: Upload Lint reports
         if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

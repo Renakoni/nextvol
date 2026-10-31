@@ -6,10 +6,11 @@ SDKs or grant an SDK license.
 
 Sherpa and its ONNX Runtime continue to build from `native/matcha` and
 `native/onnxruntime`. Microsoft client SDK 1.45.0 comes from its official Maven
-AAR. Ordinary builds fetch the pinned `offline-runtime-1` release asset through
-`fetch_runtime.py` and embed its libraries and runtime data in the APK. The user
-does not need a second app or an engine download after installation. CI uses the
-same Gradle task. The bundle is kept outside Git because it contains binary SDKs.
+AAR. Ordinary builds fetch the release asset pinned by URL and SHA-256 in
+`runtime.json` through `fetch_runtime.py` and embed its libraries and runtime data
+in the APK. The user does not need a second app or an engine download after installation. CI uses the
+same verifier with a shared ZIP cache and supplies the extracted directory to Gradle.
+The bundle is kept outside Git because it contains binary SDKs.
 To build with a locally supplied runtime instead:
 
 ```text
@@ -18,9 +19,18 @@ To build with a locally supplied runtime instead:
 
 The directory contains `jniLibs/<abi>/*.so` and `assets/offline-native/`. An
 alternative versioned artifact location can be supplied with
-`-PofflineRuntimeUrl=https://.../runtime.zip`. Download or extraction failures
-fail the build instead of silently producing an APK without its engines. No
+`-PofflineRuntimeUrl=https://.../runtime.zip` with its expected
+`-PofflineRuntimeSha256=<digest>`. A mirror of the pinned bytes uses the same digest.
+The script retains a ZIP beside its output directory, or at `--archive`, and verifies
+its SHA-256 before every extraction. Invalid cached bytes trigger a fresh download;
+a mismatched download fails before replacing the current SDK output. Download or
+extraction failures fail the build instead of silently producing an APK without its engines. No
 model hashes or model allowlist checks are used.
+
+Main publishes one SDK ZIP cache keyed by `runtime.json`; APK jobs restore it or
+download the pinned asset on a miss. JVM/Lint skip SDK preparation. Updating the
+runtime URL or digest triggers main cache warming, and retention keeps the latest
+shared archive. The SDK cache is independent of the source-built ONNX Runtime cache.
 
 The reference bundle has 42 arm64 libraries: 201.55 MiB before compression and
 77.61 MiB for the complete ZIP. APK download size and installed native-library

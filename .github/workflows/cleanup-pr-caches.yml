@@ -4,7 +4,7 @@ on:
   pull_request_target:
     types: [closed]
   workflow_run:
-    workflows: ['Android checks 3/4 - Release']
+    workflows: ['Android checks 3/4 - Release', 'Prepare signed release']
     types: [completed]
   workflow_dispatch:
 

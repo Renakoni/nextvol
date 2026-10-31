@@ -8,7 +8,7 @@ inputs:
     description: Optional emulator API, 24 or 35
     default: ''
   native-tools:
-    description: Prepare Matcha tools and the ORT cache for native APK builds
+    description: Prepare native tools, the ORT cache and the embedded SDK for APK builds
     default: 'true'
 runs:
   using: composite
@@ -32,6 +32,8 @@ runs:
       with:
         api: ${{ inputs.api }}
     - uses: ./.github/actions/matcha-toolchain
+      if: inputs.native-tools == 'true'
+    - uses: ./.github/actions/offline-runtime
       if: inputs.native-tools == 'true'
     - name: Select fixed JDKs and local license data
       shell: bash
