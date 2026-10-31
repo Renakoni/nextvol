@@ -245,6 +245,7 @@ keys together when upgrading. Automatic Gradle JDK/SDK provisioning is disabled.
 | --- | --- | --- |
 | Gradle (`setup-gradle`) | All build/test checks | Wrapper, dependencies, transforms, local build cache; only the serialized main warmer writes |
 | Variant task outputs | Release and Minified checks | Separate Release/benchmark outputs; latest snapshot per ref and variant, saved after a successful APK build |
+| ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref |
 | SDK | All checks | Platform, Build Tools, adb; main publishes one shared version |
 | Emulator + one API image | Device checks only | Main publishes separate API 24 and API 35 entries |
 | Robolectric SDKs | JVM check only | Main publishes Android runtime jars under `~/.m2/repository/org/robolectric` |
@@ -270,7 +271,7 @@ fixed tool downloads. AboutLibraries uses local license texts instead of making
 per-library license/funding requests during APK builds.
 
 `gradle-cache.yml` refreshes main's compilation caches after build/environment
-configuration changes, a manual main run, or daily maintenance at 09:17 UTC.
+configuration or `native/onnxruntime/**` changes, a manual main run, or daily maintenance at 09:17 UTC.
 Ordinary source, test, documentation
 and template changes do not trigger it. A lightweight selector compares the
 push's `before` SHA with the checked-out commit and reuses the ordinary scope
@@ -286,9 +287,21 @@ Separate API image jobs run only for fixed SDK action/script/package metadata
 changes, a manual main run, or daily maintenance. An unavailable push diff conservatively selects
 all compilation and SDK/image preparation. Main remains the only shared Gradle
 cache writer, and PRs remain read-only consumers. Existing Release/benchmark
-variant cache ownership is unchanged; no additional build-directory or duplicate
-Gradle home cache is introduced. Misses, failed prewarming, or cancellation leave
+variant cache ownership is unchanged; no duplicate Gradle home cache is introduced.
+Misses, failed prewarming, or cancellation leave
 ordinary PR checks able to build normally using Gradle's input validation.
+
+The independent ONNX Runtime cache uses the vendored sources, source inventories,
+build scripts/profile, pinned toolchain action and Ubuntu runner image revision.
+Kotlin, Matcha/JNI, PR commit IDs and native README/validation notes are not inputs.
+Only `app/build/matcha/onnxruntime/install` is archived, never CMake object trees.
+The builder verifies the source inventory and every exported file's hash before
+skipping protoc and ORT compilation; missing, stale or damaged exports rebuild.
+Successful PR jobs can publish this small cache within their own merge ref, while
+main publishes entries available to other PRs. The four workflows can still build
+independently on their first simultaneous miss. Cache hits remove the repeated
+ORT compilation, not the existing checks or Matcha build. Main/PR retention keeps
+each ref's newest ORT entry; main's different input key never replaces a PR's entry.
 
 The main cache concurrency group preserves its running writer and retains at
 most the newest pending update. Completion allows setup-gradle to save its cache;

@@ -41,6 +41,8 @@ jobs:
           python3 .github/scripts/test_prepare_android_sdk.py
           python3 .github/scripts/test_ci_debug_apks.py
           python3 .github/scripts/test_ci_cache.py
+          python3 native/onnxruntime/test_verify_sources.py
+          python3 native/onnxruntime/test_build_cache.py
       - name: Run JVM unit tests
         if: steps.scope.outputs.run == 'true'
         env:

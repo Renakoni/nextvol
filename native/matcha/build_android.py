@@ -39,6 +39,7 @@ def main():
     parser.add_argument('--ninja', default='ninja')
     parser.add_argument('--output', type=Path, default=ROOT / 'build')
     parser.add_argument('--jobs', type=int, default=3)
+    parser.add_argument('--ort-cache-key', default='')
     args = parser.parse_args()
     output = args.output.resolve()
     identity = output / 'assets/matcha-native/build-manifest.json'
@@ -47,7 +48,8 @@ def main():
     ndk = args.ndk.resolve()
     runtime = output / 'onnxruntime'
     run([sys.executable, ROOT.parent / 'onnxruntime/build_android.py', '--ndk', ndk,
-         '--cmake', args.cmake, '--ninja', args.ninja, '--output', runtime, '--jobs', args.jobs])
+         '--cmake', args.cmake, '--ninja', args.ninja, '--output', runtime, '--jobs', args.jobs,
+         '--cache-key', args.ort_cache_key])
     build = output / 'matcha-arm64'
     run([args.cmake, '-S', ROOT, '-B', build, '-G', 'Ninja',
          '-DCMAKE_MAKE_PROGRAM=' + args.ninja,

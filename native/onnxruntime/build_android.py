@@ -21,6 +21,26 @@ def run(args):
     subprocess.run([str(arg) for arg in args], check=True)
 
 
+def install_hashes(install):
+    return {path.relative_to(install).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in install.rglob('*') if path.is_file() and path.name != 'build-manifest.json'}
+
+
+def reuse_install(install, inputs):
+    if not inputs:
+        return False
+    try:
+        manifest = json.loads((install / 'build-manifest.json').read_text(encoding='utf-8'))
+        if not isinstance(manifest, dict) or manifest.get('cache_inputs') != inputs:
+            return False
+        hashes = install_hashes(install)
+        return (bool(hashes.get('lib/libonnxruntime.so')) and
+                manifest.get('library_sha256') == hashes['lib/libonnxruntime.so'] and
+                manifest.get('install_files_sha256') == hashes)
+    except (OSError, ValueError):
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ndk', type=Path, required=True)
@@ -28,14 +48,13 @@ def main():
     parser.add_argument('--ninja', default='ninja')
     parser.add_argument('--output', type=Path, default=ROOT / 'build')
     parser.add_argument('--jobs', type=int, default=4)
+    parser.add_argument('--cache-key', default='', help='Opt in to verified install reuse for this toolchain identity')
     args = parser.parse_args()
     output = args.output.resolve()
     host = output / 'host-protobuf'
     android = output / 'android-arm64'
     install = output / 'install'
-    # A failed rebuild must not leave an old success manifest behind.
     identity = install / 'build-manifest.json'
-    identity.unlink(missing_ok=True)
     if args.jobs < 1:
         parser.error('--jobs must be positive')
     ndk = args.ndk.resolve()
@@ -47,6 +66,20 @@ def main():
     if not version or not ((3, 26) <= tuple(map(int, version.groups()[:2])) < (4, 0)):
         parser.error('Use CMake >= 3.26 and < 4.0')
     print(f'Verified {verify_sources()} source files.', flush=True)
+    cache_inputs = None
+    if args.cache_key:
+        cache_inputs = {
+            'key': args.cache_key, 'ndk': NDK_VERSION, 'cmake': cmake_version,
+            'ninja': subprocess.check_output([args.ninja, '--version'], text=True).strip(),
+            'files': {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in (
+                'sources.sha256', 'sources.json', 'build_android.py', 'verify_sources.py',
+                'cmake/android-arm64.cmake')},
+        }
+    if reuse_install(install, cache_inputs):
+        print('Reusing verified ONNX Runtime install; skipping protoc and runtime compilation.', flush=True)
+        return
+    # A failed rebuild must not leave an old success manifest behind.
+    identity.unlink(missing_ok=True)
     host_options = ['-Dprotobuf_BUILD_TESTS=OFF', '-Dprotobuf_WITH_ZLIB=OFF',
                     '-Dprotobuf_BUILD_SHARED_LIBS=OFF', '-Dprotobuf_BUILD_PROTOC_BINARIES=ON',
                     '-DCMAKE_BUILD_TYPE=Release', '-DFETCHCONTENT_FULLY_DISCONNECTED=ON']
@@ -84,7 +117,10 @@ def main():
     needed = re.findall(r'Shared library: \[(.*?)\]', elf)
     if set(needed) - {'libdl.so', 'liblog.so', 'libm.so', 'libc.so'}:
         raise ValueError(f'Unexpected runtime binary dependency: {needed}')
-    (install / 'lib').mkdir(parents=True, exist_ok=True)
+    # Replace the complete export, including stale files from an invalid cache.
+    if install.exists():
+        shutil.rmtree(install)
+    (install / 'lib').mkdir(parents=True)
     (install / 'include').mkdir(exist_ok=True)
     shutil.copyfile(library, install / 'lib/libonnxruntime.so')
     for header in (ROOT / 'vendor/onnxruntime/include/onnxruntime/core/session').glob('*.h'):
@@ -118,6 +154,8 @@ def main():
         'toolchain_binary_dependencies': toolchain_dependencies,
     }
     (install / 'elf.txt').write_text(elf, encoding='utf-8')
+    manifest['cache_inputs'] = cache_inputs
+    manifest['install_files_sha256'] = install_hashes(install)
     pending_identity = identity.with_suffix('.tmp')
     pending_identity.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
     pending_identity.replace(identity)
