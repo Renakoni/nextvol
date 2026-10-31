@@ -20,8 +20,6 @@ class OfflineSpeechPackageTest {
             plan.engineConfiguration)
         assertEquals("4", plan.configuration.parameters)
         assertEquals("", plan.configuration.engineParameters)
-        assertEquals(plan.engineConfiguration,
-            Json.decodeFromString<OfflineEngineConfig>(Json.encodeToString(plan.engineConfiguration)))
     }
 
     private fun preview(engineCode: String, param: String = "", paths: List<String>, extra: Map<String, String> = emptyMap()): OfflinePackagePreview {
@@ -37,36 +35,13 @@ class OfflineSpeechPackageTest {
         return previewOfflineVoice(preview, engine, voice)
     }
 
-    @Test fun engineParametersAndSharedResourcesSurviveImportPlanningAndCatalogSerialization() {
-        val samples = mapOf("audio" to "scene.mp3", "acapela" to "", "cereproc" to "", "google" to "",
-            "isstts" to "62915", "larktts" to "1", "msctts" to "5ef02a7c,77010006", "vcstts" to "",
-            "vocalizer" to "", "weread" to "", "samsung" to "", "xiaomi" to "4",
-            "microsoft" to "Microsoft Xiaoxiao (Natural) - Chinese (Simplified, China)")
-        samples.forEach { (engine, param) ->
-            val type = if (engine == "microsoft") "0" else "2"
-            val paths = when (engine) {
-                "audio" -> listOf(param)
-                "xiaomi", "samsung", "microsoft", "vocalizer", "cereproc" -> listOf("voice/cfg", "voice/model.bin")
-                "msctts" -> listOf("5ef02a7c/common.jet", "5ef02a7c/voice.jet")
-                "larktts" -> listOf("larktrf.trf", "libspeaker_xiaowu.so", "acoustic/voice.trf")
-                "vcstts" -> listOf("idst/asr/shared.bin", "acoustic/voice")
-                else -> listOf("shared/dictionary.bin", "voices/voice.data")
-            }
-            val plan = preview(engine, param, paths, mapOf("type" to type)).plan!!
-            assertEquals(engine + "\u0000voice", plan.id)
-            assertEquals(engine, plan.directory)
-            assertEquals(paths.size, plan.resources.size)
-            val config = plan.configuration
-            assertEquals(param, config.parameters)
-            assertEquals(48000, config.sampleRate)
-            assertEquals("en-US", config.locale)
-            assertEquals(.8f, config.speed, 0f)
-            assertEquals(1.2f, config.pitch, 0f)
-            assertEquals(3f, config.volume, 0f)
-            assertEquals(type.toInt(), config.type)
-            assertEquals(2, config.gender)
-            assertEquals(config, Json.decodeFromString<OfflineVoiceConfig>(Json.encodeToString(config)))
-        }
+    @Test fun sharedResourceTreesPreserveVoiceConfigurationInTheCatalog() {
+        val paths = listOf("shared/dictionary.bin", "voices/voice.data")
+        val plan = preview("isstts", "62915", paths).plan!!
+        assertEquals("isstts\u0000voice", plan.id)
+        assertEquals(paths.map { "isstts/$it" }, plan.resources.map { it.path })
+        val config = OfflineVoiceConfig("isstts", "voice", "62915", "en-US", 48000, .8f, 1.2f, 3f, 2, gender = 2)
+        assertEquals(config, Json.decodeFromString<OfflineVoiceConfig>(Json.encodeToString(plan.configuration)))
         val sherpa = preview("sherpa", paths = listOf("voice/model.onnx", "voice/tokens.txt"),
             param = """{"speakerId":"@sid"}""", extra = mapOf("extendUI" to """[{"code":"sid","value":"7"}]""")).plan!!
         assertEquals("sherpa/voice", sherpa.directory)

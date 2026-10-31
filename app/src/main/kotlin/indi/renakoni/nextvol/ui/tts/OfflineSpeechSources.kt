@@ -20,6 +20,7 @@ import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,8 +68,10 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
         if (state.value.selected == voice.reference || controller.state.value.request?.previewSettings?.offlineVoice == voice.reference)
             controller.command(indi.renakoni.nextvol.tts.SpeechAction.Stop)
         // The lease remains held until native cleanup actually finishes.
-        repository.delete(voice.reference)
-        settings.update { if (it.offlineVoice == voice.reference) it.copy(offlineVoice = null) else it }
+        withContext(NonCancellable) {
+            repository.delete(voice.reference)
+            settings.update { if (it.offlineVoice == voice.reference) it.copy(offlineVoice = null) else it }
+        }
     }
     private fun work(action: suspend () -> Unit) = viewModelScope.launch {
         mutableState.update { it.copy(error = false) }

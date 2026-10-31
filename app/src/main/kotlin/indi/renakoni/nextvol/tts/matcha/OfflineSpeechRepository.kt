@@ -89,7 +89,10 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
                     }
                     // Reopen the document and resolve the selection again before copying any resource.
                     val preview = previewSpeechPackage(file) { task.ensureActive() }
-                    val actual = preview.engines.flatMap { engine -> engine.voices.mapNotNull { voice ->
+                    val actual = preview.engines.flatMap { engine -> engine.voices.filter { voice ->
+                        engine.code + "\u0000" + voice.code == plan.id
+                    }.mapNotNull { voice ->
+                        task.ensureActive()
                         previewOfflineVoice(preview, engine, voice).plan
                     } }.singleOrNull { it.id == plan.id }
                     if (actual != plan) throw OfflineInstallException(OfflineInstallError.ChangedPackage)

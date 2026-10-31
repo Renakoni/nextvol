@@ -43,14 +43,16 @@ class OfflineSpeechRepositoryTest {
         val first = repository.install(firstPackage, plan(firstPackage))
         assertEquals(first, OfflineSpeechRepository(root).voices().single())
         val lease = repository.acquire(first.reference)
-        val replacement = archive("updated tokens")
-        val next = repository.install(replacement, plan(replacement))
+        // Same-sized replacement content is accepted without a model digest comparison.
+        val replacement = archive("after!")
+        val next = repository.install(replacement, plan(firstPackage))
         assertEquals(first.reference.id, next.reference.id)
         assertNotEquals(first.reference.revision, next.reference.revision)
         assertEquals("tokens", File(lease.resources.directory, "tokens.txt").readText())
         lease.close()
         assertFalse(lease.resources.directory.exists())
         val current = repository.acquire(next.reference)
+        assertEquals("after!", File(current.resources.directory, "tokens.txt").readText())
         repository.delete(next.reference)
         assertTrue(repository.voices().isEmpty())
         assertTrue(current.resources.directory.isDirectory)
@@ -77,19 +79,6 @@ class OfflineSpeechRepositoryTest {
         assertTrue(repository.voices().isEmpty())
         assertTrue(root.listFiles()!!.isEmpty())
         assertFalse(File(root.parentFile, "outside").exists())
-    }
-
-    @Test fun installationAcceptsModelContentsWithoutDigestComparisonAndReimportPublishesNewRevision() = runBlocking {
-        val root = files.newFolder()
-        val repository = OfflineSpeechRepository(root)
-        val original = archive("before")
-        val changed = archive("after!")
-        val first = repository.install(changed, plan(original))
-        repository.acquire(first.reference).use { assertEquals("after!", File(it.resources.directory, "tokens.txt").readText()) }
-        val next = repository.install(changed, plan(changed))
-        assertEquals(first.reference.id, next.reference.id)
-        assertNotEquals(first.reference.revision, next.reference.revision)
-        assertEquals(next, repository.voices().single())
     }
 
     @Test fun appDirectoryAliasesAreResolvedBeforeCheckingManagedResourcePaths() = runBlocking {

@@ -23,6 +23,7 @@ import indi.renakoni.nextvol.tts.matcha.OfflineInstallError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -83,6 +84,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                 }.toMap()
                 val local = preview.engines.flatMapIndexed { index, engine ->
                     if (engine.type != "http") engine.voices.mapIndexed { voiceIndex, voice ->
+                        task.ensureActive()
                         (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
                     } else emptyList()
                 }.toMap()
@@ -99,12 +101,23 @@ class SpeechPackagePreviewViewModel @Inject constructor(
         mutableState.update { it.copy(installing = true, installingId = plan.id, installError = null, installed = null) }
         installing = viewModelScope.launch {
             try {
-                val voice = withContext(Dispatchers.IO) {
-                    context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
-                        offline.install(File("/proc/self/fd/${descriptor.fd}"), plan)
-                    } ?: error("Unreadable package")
+                val voice = try {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                            offline.install(File("/proc/self/fd/${descriptor.fd}"), plan)
+                        } ?: error("Unreadable package")
+                    }
+                } finally {
+                    // Publication can finish just as cancellation discards the IO result.
+                    // Keep the selected reference aligned with the committed catalog either way.
+                    withContext(NonCancellable) {
+                        offline.voices().singleOrNull { it.sourceKey == plan.id }?.let { installed ->
+                            settings.update {
+                                if (it.offlineVoice?.id == installed.reference.id) it.copy(offlineVoice = installed.reference) else it
+                            }
+                        }
+                    }
                 }
-                settings.update { if (it.offlineVoice?.id == voice.reference.id) it.copy(offlineVoice = voice.reference) else it }
                 mutableState.update { it.copy(installed = voice.name) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {

@@ -18,6 +18,10 @@ import hnovel.speech.OfflineEngineConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.HttpSpeechRepository
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
+import indi.renakoni.nextvol.tts.ReadAloudController
+import indi.renakoni.nextvol.tts.SpeechAction
+import indi.renakoni.nextvol.tts.SpeechSettingsRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
@@ -39,6 +43,9 @@ data class SpeechEnginesState(
 class SpeechEnginesViewModel @Inject constructor(
     private val repository: OfflineEngineRepository,
     private val http: HttpSpeechRepository,
+    private val offline: OfflineSpeechRepository,
+    private val settings: SpeechSettingsRepository,
+    private val controller: ReadAloudController,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechEnginesState())
     val state = mutableState.asStateFlow()
@@ -61,7 +68,19 @@ class SpeechEnginesViewModel @Inject constructor(
         if (state.value.saving) return
         mutableState.update { it.copy(saving = true, failed = false) }
         viewModelScope.launch {
-            try { repository.save(configuration); onSaved() }
+            try {
+                val previous = state.value.engines.single { it.code == configuration.code }
+                if (previous.parameters != configuration.parameters) {
+                    val selected = settings.get().offlineVoice
+                    val preview = controller.state.value.request?.previewSettings?.offlineVoice
+                    if (offline.voices().any { it.configuration?.engine == configuration.code &&
+                            (it.reference == selected || it.reference == preview) }) {
+                        controller.command(SpeechAction.Stop)
+                    }
+                }
+                repository.save(configuration)
+                onSaved()
+            }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableState.update { it.copy(failed = true) } }
             finally { mutableState.update { it.copy(saving = false) } }
