@@ -34,3 +34,22 @@ runs:
       with:
         path: ${{ runner.temp }}/matcha-toolchain
         key: ${{ steps.tools.outputs.cache-primary-key }}
+    - name: Identify the ONNX Runtime build inputs
+      id: runtime
+      shell: bash
+      env:
+        ORT_INPUTS: ${{ hashFiles('native/onnxruntime/vendor/**', 'native/onnxruntime/sources.sha256', 'native/onnxruntime/sources.json', 'native/onnxruntime/cmake/**', 'native/onnxruntime/build_android.py', 'native/onnxruntime/verify_sources.py', '.github/actions/matcha-toolchain/action.yml') }}
+      run: |
+        set -euo pipefail
+        test -n "$ORT_INPUTS"
+        # The runner image fixes the host compiler used for protoc. Neither the
+        # application commit nor Matcha/JNI inputs change this runtime identity.
+        key="onnxruntime-linux-v1-${ImageOS:?}-${ImageVersion:?}-$ORT_INPUTS"
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+        echo "ORG_GRADLE_PROJECT_matchaOrtCacheKey=$key" >> "$GITHUB_ENV"
+    - name: Restore and save the source-built ONNX Runtime install
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: app/build/matcha/onnxruntime/install
+        # Exact inputs only. GitHub isolates PR writes from the shared main cache.
+        key: ${{ steps.runtime.outputs.key }}

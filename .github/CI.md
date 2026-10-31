@@ -6,12 +6,16 @@ Pull requests, merge groups, and manual runs use four independent workflows:
 | --- | --- | --- |
 | `unit-tests.yml` (1/4) | `JVM unit tests` | `unit-test-reports` |
 | `device-tests.yml` (2/4) | `Isolated execution (API 24)` and `Isolated execution (API 35)` | `execution-platform-api-24`, `execution-platform-api-35` |
-| `release-checks.yml` (3/4) | `Release APK` and `Minified source runtime (API 35)` | `release-build-reports`, `minified-source-runtime` |
+| `release-checks.yml` (3/4) | `Release APK` and `Minified source runtime (API 35)` | `release-build-reports`, `minified-build-reports`, `minified-source-runtime` |
 | `lint.yml` (4/4) | `Android Lint` | `android-lint-reports` |
 
 The JVM check does not wait for the release APK build. Selected device tests retain
-the API matrix and diagnostic reports. The minified check builds the benchmark
-variant when its source runtime or read-aloud coverage is affected.
+the API matrix and diagnostic reports. When minified coverage is affected, a
+producer builds and uploads the benchmark APKs, then a separate API 35 job tests
+that exact artifact ID. Each job has its own 30-minute budget, so cold native
+compilation cannot consume the device test's budget. The existing required
+`Minified source runtime (API 35)` check fails if its producer fails; unselected
+checks still report success through the same gate as Debug device checks.
 The workflows have separate concurrency groups so they cannot cancel each other.
 
 Require all six check names above in the `main` branch's status checks. In
@@ -245,6 +249,7 @@ keys together when upgrading. Automatic Gradle JDK/SDK provisioning is disabled.
 | --- | --- | --- |
 | Gradle (`setup-gradle`) | All build/test checks | Wrapper, dependencies, transforms, local build cache; only the serialized main warmer writes |
 | Variant task outputs | Release and Minified checks | Separate Release/benchmark outputs; latest snapshot per ref and variant, saved after a successful APK build |
+| ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref |
 | SDK | All checks | Platform, Build Tools, adb; main publishes one shared version |
 | Emulator + one API image | Device checks only | Main publishes separate API 24 and API 35 entries |
 | Robolectric SDKs | JVM check only | Main publishes Android runtime jars under `~/.m2/repository/org/robolectric` |
@@ -270,7 +275,7 @@ fixed tool downloads. AboutLibraries uses local license texts instead of making
 per-library license/funding requests during APK builds.
 
 `gradle-cache.yml` refreshes main's compilation caches after build/environment
-configuration changes, a manual main run, or daily maintenance at 09:17 UTC.
+configuration or `native/onnxruntime/**` changes, a manual main run, or daily maintenance at 09:17 UTC.
 Ordinary source, test, documentation
 and template changes do not trigger it. A lightweight selector compares the
 push's `before` SHA with the checked-out commit and reuses the ordinary scope
@@ -286,9 +291,29 @@ Separate API image jobs run only for fixed SDK action/script/package metadata
 changes, a manual main run, or daily maintenance. An unavailable push diff conservatively selects
 all compilation and SDK/image preparation. Main remains the only shared Gradle
 cache writer, and PRs remain read-only consumers. Existing Release/benchmark
-variant cache ownership is unchanged; no additional build-directory or duplicate
-Gradle home cache is introduced. Misses, failed prewarming, or cancellation leave
+variant cache ownership is unchanged; no duplicate Gradle home cache is introduced.
+Misses, failed prewarming, or cancellation leave
 ordinary PR checks able to build normally using Gradle's input validation.
+
+The independent ONNX Runtime cache uses the vendored sources, source inventories,
+build scripts/profile, pinned toolchain action and Ubuntu runner image revision.
+Kotlin, Matcha/JNI, PR commit IDs and native README/validation notes are not inputs.
+Only `app/build/matcha/onnxruntime/install` is archived, never CMake object trees.
+The builder verifies the source inventory and every exported file's hash before
+skipping protoc and ORT compilation; missing, stale or damaged exports rebuild.
+Successful PR jobs can publish this small cache within their own merge ref, while
+main publishes entries available to other PRs. The Debug, Release and minified
+APK builders can still build independently on their first simultaneous miss.
+Cache hits remove the repeated
+ORT compilation, not the existing checks or Matcha build. Main/PR retention keeps
+each ref's newest ORT entry; main's different input key never replaces a PR's entry.
+
+JVM and Lint jobs skip native tool preparation and exclude only
+`:app:buildMatchaNative`; their Kotlin build flags and existing test/lint coverage
+remain the same. Host JVM tests cannot load the Android ARM64 library and use the
+existing native test doubles. The APK jobs retain the source build, ELF checks,
+native libraries and license/manifest packaging. The minified APK producer saves
+its caches before the independent device job starts, including when tests later fail.
 
 The main cache concurrency group preserves its running writer and retains at
 most the newest pending update. Completion allows setup-gradle to save its cache;

@@ -50,6 +50,8 @@ as a working backend.
 The NDK defaults to `ndk/28.2.13676358` in the Android SDK. CI installs fixed
 NDK/CMake tools and caches the Gradle native task outputs. `matchaNative=false`
 is an explicit build opt-out, with offline voices reported unavailable.
+CI also sets `matchaOrtCacheKey` (`--ort-cache-key` for the script) to reuse the
+independently cached, verified ONNX Runtime install across Matcha/JNI changes.
 
 Optional `matchaBuildDir` selects an output/cache directory; `matchaPython`
 selects the Python interpreter. The default output is `app/build/matcha`.

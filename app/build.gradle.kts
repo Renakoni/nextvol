@@ -24,7 +24,7 @@ if (matchaNative) {
         inputs.property("host", System.getProperty("os.name"))
         inputs.files(rootProject.fileTree("native/matcha") { exclude("build/**", "__pycache__/**") })
         inputs.files(rootProject.fileTree("native/onnxruntime") { exclude("build/**", "__pycache__/**") })
-        inputs.properties(listOf("matchaPython", "matchaNdk", "matchaCmake", "matchaNinja")
+        inputs.properties(listOf("matchaPython", "matchaNdk", "matchaCmake", "matchaNinja", "matchaOrtCacheKey")
             .associateWith { providers.gradleProperty(it).getOrElse("") })
         outputs.dir(matchaOutput.resolve("jniLibs"))
         outputs.dir(matchaOutput.resolve("assets"))
@@ -37,6 +37,7 @@ if (matchaNative) {
             "--cmake", providers.gradleProperty("matchaCmake").getOrElse("cmake"),
             "--ninja", providers.gradleProperty("matchaNinja").getOrElse("ninja"),
             "--output", matchaOutput,
+            "--ort-cache-key", providers.gradleProperty("matchaOrtCacheKey").getOrElse(""),
         )
     }
     tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(buildMatchaNative) }
