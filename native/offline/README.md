@@ -87,6 +87,19 @@ older SDK libraries may require 4 KiB memory pages. The helper reports those fac
 without rewriting the SDKs or disabling their authentication. On-disk companion
 loads use extracted native libraries (`useLegacyPackaging = true`).
 
+Package preview, installed voices, selection and synthesis share the app's
+per-voice availability check. It reads the actual process ABIs, system page size,
+packaged ELF headers and runtime dependency inventory without loading an SDK.
+Baidu and IssTTS variants are checked independently; Samsung and Lark also check
+the selected package's native library. Audio effects remain independent of the
+native speech runtimes. Unsupported devices can still preview and install data.
+
+Passing static checks means unverified, not successful playback. Initialization
+and synthesis failures remain retryable and are recorded for the exact voice
+revision and effective engine configuration in the current app process. A
+completed synthesis replaces that failure with a successful-synthesis status;
+edited parameters or a fresh resource revision do not inherit that observation.
+
 Classic Microsoft models rely on case-insensitive filenames in the reference
 app's external storage. Managed installation adds hard links for extension casing,
 `Tokens.xml` references, extra-language suffixes and NUSData domain suffixes in

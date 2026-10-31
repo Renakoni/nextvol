@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.tts.offline.legacy
 
 import android.content.Context
 import android.os.Build
+import android.os.Process
 import android.os.ParcelFileDescriptor
 import com.samsung.SMT.engine.SmtTTS
 import com.samsung.SMT.ref.VoiceDataInfo
@@ -41,7 +42,8 @@ internal class SamsungEngine(@Suppress("UNUSED_PARAMETER") context: Context, dir
         require(model.canonicalFile.toPath().startsWith(directory.canonicalFile.toPath()) && model.isDirectory) {
             "Missing or escaped Samsung voice directory"
         }
-        val library = Build.SUPPORTED_ABIS.asSequence().flatMap { abi ->
+        val processAbis = if (Process.is64Bit()) Build.SUPPORTED_64_BIT_ABIS else Build.SUPPORTED_32_BIT_ABIS
+        val library = processAbis.asSequence().flatMap { abi ->
             sequenceOf(File(model, "lib/$abi/libsamsungtts.so"), File(model, "lib/$abi/libsamsungttse.so"))
         }.firstOrNull(File::isFile) ?: error("Samsung voice has no library for this device ABI")
         require(library.canonicalFile.toPath().startsWith(model.canonicalFile.toPath())) { "Escaped Samsung voice library" }

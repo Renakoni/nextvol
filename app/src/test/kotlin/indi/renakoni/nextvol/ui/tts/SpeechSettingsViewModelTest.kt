@@ -161,7 +161,11 @@ class SpeechSettingsViewModelTest {
         coEvery { repository.update(any()) } coAnswers {
             settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
         }
-        val library = OfflineSpeechSourcesViewModel(offline, repository, mockk(relaxed = true))
+        val availability = mockk<indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker>()
+        every { availability.changes } returns MutableStateFlow(0L)
+        val engines = mockk<indi.renakoni.nextvol.tts.offline.OfflineEngineRepository>()
+        every { engines.changes } returns MutableStateFlow(0L)
+        val library = OfflineSpeechSourcesViewModel(offline, repository, mockk(relaxed = true), availability, engines)
         try {
             runCurrent()
             val deletion = library.delete(voice)

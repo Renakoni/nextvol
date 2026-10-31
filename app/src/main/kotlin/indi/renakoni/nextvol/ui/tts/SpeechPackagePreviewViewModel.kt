@@ -20,6 +20,8 @@ import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineInstallException
 import indi.renakoni.nextvol.tts.matcha.OfflineInstallError
+import indi.renakoni.nextvol.tts.offline.OfflineAvailability
+import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -32,25 +34,27 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.zip.ZipFile
 import javax.inject.Inject
 
 data class SpeechPackagePreviewState(
     val preview: SpeechPackagePreview? = null,
     val httpImports: Map<Int, HttpSpeechPackageImport> = emptyMap(),
     val offlineImports: Map<Pair<Int, Int>, OfflinePackagePreview> = emptyMap(),
-    val offlineSupported: Boolean = true,
+    val availability: Map<String, OfflineAvailability> = emptyMap(),
     val installing: Boolean = false,
     val installingId: String? = null,
     val installed: String? = null,
     val installError: Int? = null,
 )
 
-/** Preview is static. Installation only begins after the user chooses a supported voice. */
+/** Resource installation is independent of whether this device can execute the selected engine. */
 @HiltViewModel
 class SpeechPackagePreviewViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val offline: OfflineSpeechRepository,
     private val settings: SpeechSettingsRepository,
+    private val availability: OfflineAvailabilityChecker,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPackagePreviewState())
     val state = mutableState.asStateFlow()
@@ -88,7 +92,21 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                         (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
                     } else emptyList()
                 }.toMap()
-                SpeechPackagePreviewState(preview, imports, local)
+                val capabilities = try {
+                    context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                        ZipFile(File("/proc/self/fd/${descriptor.fd}")).use { zip ->
+                            local.values.mapNotNull { it.plan }.associate { plan ->
+                                task.ensureActive()
+                                plan.id to availability.inspect(plan.configuration,
+                                    plan.resources.map { it.path.removePrefix(plan.directory + "/") }.toSet()) { path ->
+                                    zip.getInputStream(requireNotNull(zip.getEntry("${plan.directory}/$path")))
+                                }
+                            }
+                        }
+                    }.orEmpty()
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { emptyMap() }
+                SpeechPackagePreviewState(preview, imports, local, capabilities)
             }
             currentCoroutineContext().ensureActive()
             mutableState.value = result
@@ -97,7 +115,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
 
     fun install(plan: OfflinePackagePlan) {
         val uri = input ?: return
-        if (state.value.installing || !state.value.offlineSupported || state.value.offlineImports.values.none { it.plan == plan }) return
+        if (state.value.installing || state.value.offlineImports.values.none { it.plan == plan }) return
         mutableState.update { it.copy(installing = true, installingId = plan.id, installError = null, installed = null) }
         installing = viewModelScope.launch {
             try {
