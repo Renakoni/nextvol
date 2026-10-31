@@ -198,6 +198,7 @@ class SpeechControlsTest {
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun settingsKeepPauseReachableAndOfferStopInTheExpandedPlayerWithLargeText() {
         val actions = mutableListOf<SpeechAction>()
+        var enginesOpened = 0
         activity.get().setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.8f)) {
                 MaterialTheme(typography = AppTypography) {
@@ -205,7 +206,8 @@ class SpeechControlsTest {
                         SpeechSettingsUiState(loading = false),
                         ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Playing,
                             bookTitle = "A long book title ".repeat(8)),
-                        {}, onSources = {}, onPreferences = {}, onCommand = { actions += it },
+                        {}, onSources = { fail("The engine entry must not open voice sources") },
+                        onPreferences = {}, onCommand = { actions += it }, onEngines = { enginesOpened++ },
                     )
                 }
             }
@@ -213,6 +215,9 @@ class SpeechControlsTest {
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.onNodeWithContentDescription("Stop").assertDoesNotExist()
         compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("Playback settings"))
+        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasTestTag("speech-engines-entry"))
+        compose.onNodeWithTag("speech-engines-entry").performClick()
+        assertEquals(1, enginesOpened)
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed().performClick()
         compose.onNodeWithText("A long book title ".repeat(8)).performClick()
         compose.onNodeWithText("Stop").assertIsDisplayed().performClick()
