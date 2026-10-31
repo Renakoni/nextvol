@@ -71,6 +71,7 @@ fun SpeechSettingsScreen(
     onBack: () -> Unit, onSources: () -> Unit, onPreferences: () -> Unit,
     onCommand: (SpeechAction) -> Unit,
     onEngines: (() -> Unit)? = null,
+    onPlaybackPreferences: (() -> Unit)? = null,
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
 ) {
@@ -90,10 +91,18 @@ fun SpeechSettingsScreen(
                         modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-preferences-entry"),
                         painter = painterResource(R.drawable.outline_settings_24px),
                         title = stringResource(R.string.tts_preferences),
-                        description = stringResource(R.string.tts_preferences_description),
                         trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                         onClick = onPreferences,
                     )
+                    onPlaybackPreferences?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer),
+                            painter = painterResource(R.drawable.outline_settings_24px),
+                            title = stringResource(R.string.tts_playback_preferences),
+                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            onClick = open,
+                        )
+                    }
                     val selectedSource = state.httpSources.find { it.definition.id == state.settings.httpSource }
                     val engine = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
                         else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
@@ -113,7 +122,6 @@ fun SpeechSettingsScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-engines-entry"),
                             painter = painterResource(R.drawable.outline_settings_24px),
                             title = stringResource(R.string.tts_engines),
-                            description = stringResource(R.string.tts_engines_description),
                             trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                             onClick = open,
                         )

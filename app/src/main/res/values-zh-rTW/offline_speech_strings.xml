@@ -17,14 +17,11 @@
     <string name="tts_offline_missing">資源缺失或損壞：%1$s</string>
     <string name="tts_offline_install">安裝 %1$s</string>
     <string name="tts_offline_size">所需空間：%1$s</string>
-    <string name="tts_offline_import_note">只安裝所選聲音。重複匯入會替換該聲音的資源；選擇和試聽需另行操作。</string>
-    <string name="tts_offline_installing">正在安裝聲音…</string>
     <string name="tts_offline_installed">已安裝 %1$s。返回音源頁即可選擇或試聽。</string>
     <string name="tts_offline_changed">語音包內容已變更，請重新開啟預覽後安裝。</string>
     <string name="tts_offline_model">此套件未指定可用的離線引擎或模型。</string>
     <string name="tts_offline_parameters">聲音參數無效或尚未設定：%1$s</string>
     <string name="tts_offline_path">模型目錄不是安全的相對路徑。</string>
     <string name="tts_offline_ambiguous">聲音或模型資源不唯一，無法確定要安裝的內容。</string>
-    <string name="tts_offline_profile">可在下方安裝聲音，再到音源頁選擇或試聽。</string>
     <string name="tts_offline_unavailable">離線聲音無法使用，請在音源頁檢查資源和裝置支援情況。</string>
 </resources>

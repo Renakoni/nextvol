@@ -107,3 +107,41 @@ private storage. For example, a packaged `.apm` remains available under the SDK'
 `.APM` lookup, and `voiceAssistant.unt` under `voiceassistant.UNT`, without copying
 model data or changing existing files.
 Missing these paths can surface as `WRONG_DECRYPTION_KEY` from the native SDK.
+
+## Voice editing
+
+The voice library supports search, engine/language grouping, name sorting,
+enable/disable, copying and batch management. A voice has a stable ID distinct
+from its engine and resource revision. Copies share model files; deletion waits
+for the last referencing voice and active lease. Package refreshes retain user
+speaker overrides, including values changed back to 1, while adopting untouched
+new defaults. Refresh also discovers Google speakers from installed pipeline
+declarations without initializing the SDK. On first use, Sherpa fills missing
+speaker choices and the model sample rate, as MultiTTS does; package-defined
+choices remain intact.
+
+`param` and `extendUI` preserve unknown control fields. Their raw editors are
+hidden by default and enabled separately in Playback settings. The compact voice
+form shows package-defined choices directly; it has no nested advanced sections.
+Candidate keys are parameter values, candidate values are labels, and an empty
+selection defaults to the first candidate. Only complete `@code` references are
+substituted. HTTP parameters are JSON encoded before entering the existing
+isolated request worker, retaining the saved source's network grants.
+
+Package defaults are overridden by saved speaker settings. Speaker synthesis
+rate multiplies the global synthesis rate; player speed remains separate under
+Voice settings. The editor follows the MultiTTS field order and candidate lists.
+Import keeps declared sample rates and fills missing/zero rates with 16000.
+Sample rate describes either the native
+request or declared PCM format, not a universal resampler. Shared DSP remains
+the responsibility of #814; role/segment overrides are not implemented here.
+
+Playback settings owns the shared audition text used by the voice list, system
+voice choices. The editor has Cancel and Save actions; audition is available
+from the voice list after saving. Finishing audition restores the book's audible
+boundary, play/pause intent and frozen timer. Saving publishes a new synthesis
+revision when required, invalidating prepared speech plans.
+
+Avatars resolve from `<engine>/avatar/<filename>` in imported packages. Copies
+share their image resource, user-selected images use persistent document access,
+and absent or unreadable images fall back to the gender-specific portrait.

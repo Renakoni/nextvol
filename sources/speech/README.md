@@ -27,7 +27,9 @@ JVM tests cover import boundaries, template/data separation, request cancellatio
 
 ## Bundled Android catalog
 
-Android loads `app/src/main/assets/speech/builtin-voices.json` on every repository instance. The 99 fixed entries remain available without an import file, after reopening, and after app-data reset. Namespaced IDs keep existing imported definitions and selections separate. Built-ins cannot be edited or removed through the import manager; updates ship with the app.
+Android loads `app/src/main/assets/speech/builtin-voices.json` on every repository instance. The 99 fixed entries remain available without an import file, after reopening, and after app-data reset. Namespaced IDs keep existing imported definitions and selections separate. Speaker metadata and enabled state can be overridden, and voices can be copied; built-in entries cannot be deleted. Copies keep the original service credential reference and approved origins.
+
+Imported MultiTTS speakers retain their `param` and `extendUI`. Candidate controls feed JSON-encoded values into the request template's `params` array without executing during import or editing. Reimport retains stable speaker IDs and local overrides. Auditions remain in the voice list and use saved settings through the existing authorization and worker path. Shared audio effects remain the responsibility of #814.
 
 The catalog covers the previously exercised Baidu, AISpeech, Volcengine, Microsoft Translator, Shipook and iFlytek-compatible recipes. The two Qidian proxy voices require a user Token, shared at service level; no sample proxy token is bundled. Aliyun requires the user's AppKey, AccessKeyId and AccessKeySecret and uses its HTTPS CreateToken flow. Account fields remain in the existing Keystore-encrypted store; that store and its runtime are excluded from Android backup because the Keystore key does not transfer. Clearing or changing them revokes execution tickets and removes cached runtime tokens. Private credentials are serialized as JSON before binding in the existing isolated executor; input values cannot add script or query parameters.
 

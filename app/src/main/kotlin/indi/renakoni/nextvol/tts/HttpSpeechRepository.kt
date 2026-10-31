@@ -13,6 +13,8 @@ import hnovel.speech.SpeechPackageSupport
 import hnovel.speech.SpeechPackageValue
 import hnovel.speech.SpeechPackageVoice
 import hnovel.speech.previewHttpSpeech
+import hnovel.speech.speechPackageAvatarPath
+import hnovel.speech.safeSpeechPackagePath
 import hnovel.speech.previewHttpSpeechPackage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +25,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import java.io.File
+import java.util.UUID
+import java.util.zip.ZipFile
+import java.util.zip.ZipException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,13 +37,19 @@ data class SavedHttpSpeechSource(
     val group: String? = null,
     val credentialKeys: List<String> = emptyList(),
     val credentials: Map<String, String> = emptyMap(),
+    val engineReference: String? = null,
+    val speakerDefaults: JsonObject? = null,
+    val isVoiceCopy: Boolean = false,
+    val packageAvatar: String? = null,
 ) {
+    val enabled: Boolean get() = (definition.raw["nextvolEnabled"] as? JsonPrimitive)?.booleanOrNull != false
     val isBuiltIn: Boolean get() = group != null
     val importedEngine: JsonObject? get() = if (isBuiltIn) null else
         (definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject
     val importedEngineCode: String? get() = importedEngine?.takeIf { (it["type"] as? JsonPrimitive)?.contentOrNull == "http" }
         ?.get("code")?.let { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }
-    val category: String? get() = group ?: ((definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject)
+    val category: String? get() = group ?: (definition.raw["nextvolEngineName"] as? JsonPrimitive)?.contentOrNull
+        ?: ((definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject)
         ?.let { engine -> (engine["name"] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
             ?: (engine["code"] as? JsonPrimitive)?.contentOrNull }
     val isConfigured: Boolean get() = credentialKeys.all { !credentials[it].isNullOrBlank() }
@@ -59,6 +70,7 @@ data class SavedHttpSpeechSource(
 class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Context, private val cipher: StorageCipher,
     private val authority: ExecutionAuthority) {
     private val file = AtomicFile(File(context.filesDir, "http-speech.enc"))
+    private val avatarRoot = File(context.filesDir, "speech-avatars")
     private val runtimeRoot = File(context.filesDir, "speech-runtime")
     private val builtIns by lazy {
         val entries = context.assets.open("speech/builtin-voices.json").bufferedReader().use { Json.parseToJsonElement(it.readText()).jsonArray }
@@ -88,13 +100,47 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
 
     private fun runtimeDirectory(id: String) = File(runtimeRoot, speechDigest(id))
 
-    suspend fun save(sources: List<SavedHttpSpeechSource>) = change { current ->
+    fun avatar(source: SavedHttpSpeechSource): File? = source.packageAvatar?.takeIf {
+        safeSpeechPackagePath(it) && '/' !in it
+    }?.let { File(avatarRoot, it).takeIf { file -> file.canonicalFile == file.absoluteFile && file.isFile } }
+
+    suspend fun save(sources: List<SavedHttpSpeechSource>, archive: File? = null) = change { current ->
         require(sources.none { it.definition.id.startsWith(BUILT_IN_PREFIX) })
-        val incoming = sources.associateBy { it.definition.id }
-        current.map { incoming[it.definition.id] ?: it } + sources.filter { item -> current.none { it.definition.id == item.definition.id } }
+        val merged = current.toMutableList()
+        val avatars = if (archive == null) emptyMap() else importAvatars(archive, sources)
+        sources.forEach { source ->
+            val incoming = source.copy(packageAvatar = avatars[source.definition.id] ?: source.packageAvatar)
+            val index = merged.indexOfFirst { it.definition.id == incoming.definition.id ||
+                incoming.packageIdentity() != null && it.packageIdentity() == incoming.packageIdentity() }
+            val imported = mergeHttpVoice(merged.getOrNull(index), incoming)
+            if (index < 0) merged += imported else merged[index] = imported
+        }
+        merged
+    }
+
+    suspend fun saveVoice(source: SavedHttpSpeechSource) = change { current ->
+        require(source.definition.id in combined(current).map { it.definition.id } || !source.definition.id.startsWith(BUILT_IN_PREFIX))
+        val credentials = combined(current).find { it.definition.id == source.definition.id }?.credentials ?: source.credentials
+        current.filterNot { it.definition.id == source.definition.id } + source.copy(credentials = credentials)
+    }
+
+    suspend fun enable(ids: Set<String>, enabled: Boolean) = change { current ->
+        val changed = combined(current).filter { it.definition.id in ids }.map { source ->
+            source.copy(definition = previewHttpSpeech(JsonObject(source.definition.raw +
+                ("nextvolEnabled" to JsonPrimitive(enabled))).toString()).sources.single())
+        }
+        current.filterNot { it.definition.id in ids } + changed
     }
 
     suspend fun delete(id: String) = change { it.filterNot { source -> source.definition.id == id } }
+
+    suspend fun delete(ids: Set<String>) = change { current -> current.filterNot { it.definition.id in ids && !it.definition.id.startsWith(BUILT_IN_PREFIX) } }
+
+    suspend fun copyVoices(ids: Set<String>, name: (String) -> String) = change { current ->
+        current + combined(current).filter { it.definition.id in ids }.map { source ->
+            editHttpVoice(source, buildJsonObject { put("name", name(source.definition.name)) }, source.enabled, copy = true)
+        }
+    }
 
     /** Rebuild each voice's request from the shared template while preserving its identity and local settings. */
     suspend fun editImportedEngine(code: String, name: String, url: String, header: String) = change { current ->
@@ -122,14 +168,15 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     suspend fun configure(id: String, credentials: Map<String, String>) = change { current ->
-        val source = builtIns.first { it.definition.id == id }
+        val requested = combined(current).first { it.definition.id == id }
+        val source = builtIns.first { it.definition.id == (requested.engineReference ?: id) }
         require(source.credentialKeys.isNotEmpty() && credentials.keys.all { it in source.credentialKeys })
         require(credentials.values.all { it.length <= 4096 && it.none(Char::isISOControl) })
         val values = credentials.mapValues { it.value.trim() }.filterValues { it.isNotEmpty() }
         require(values.isEmpty() || source.credentialKeys.all { it in values })
         val related = builtIns.filter { it.group == source.group && it.credentialKeys == source.credentialKeys }
         val ids = related.map { it.definition.id }.toSet()
-        current.filterNot { it.definition.id in ids } + if (values.isEmpty()) emptyList() else related.map { it.copy(credentials = values) }
+        current.filterNot { it.definition.id in ids } + combined(current).filter { it.definition.id in ids }.map { it.copy(credentials = values) }
     }
 
     private suspend fun change(update: (List<SavedHttpSpeechSource>) -> List<SavedHttpSpeechSource>) = withContext(Dispatchers.IO) {
@@ -143,6 +190,10 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 buildJsonObject {
                     put("definition", source.definition.raw); put("origins", JsonArray(source.origins.map(::JsonPrimitive)))
                     if (source.credentials.isNotEmpty()) put("credentials", JsonObject(source.credentials.mapValues { JsonPrimitive(it.value) }))
+                    source.engineReference?.let { put("engineReference", it) }
+                    source.speakerDefaults?.let { put("speakerDefaults", it) }
+                    if (source.isVoiceCopy) put("isVoiceCopy", true)
+                    source.packageAvatar?.let { put("packageAvatar", it) }
                 }
             }).toString().toByteArray(Charsets.UTF_8)
             require(raw.size <= MAX_BYTES)
@@ -151,6 +202,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val output = file.startWrite()
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
+            cleanAvatars(updated)
             val sources = combined(updated)
             previous.filter { old -> sources.none { it.definition.id == old.definition.id &&
                 it.definition.revision == old.definition.revision && it.origins == old.origins && it.credentials == old.credentials } }.forEach { old ->
@@ -164,12 +216,18 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         }
     }
 
-    private fun read() = combined(readStored())
+    private fun read() = readStored().let { cleanAvatars(it); combined(it) }
 
     private fun combined(stored: List<SavedHttpSpeechSource>): List<SavedHttpSpeechSource> {
-        val credentials = stored.associate { it.definition.id to it.credentials }
-        return builtIns.map { it.copy(credentials = credentials[it.definition.id].orEmpty()) } +
-            stored.filterNot { it.definition.id.startsWith(BUILT_IN_PREFIX) }
+        val overrides = stored.associateBy { it.definition.id }
+        val presets = builtIns.map { preset -> overrides[preset.definition.id]?.let {
+            preset.copy(definition = it.definition, credentials = it.credentials, speakerDefaults = it.speakerDefaults, packageAvatar = it.packageAvatar)
+        } ?: preset }
+        return presets + stored.filterNot { it.definition.id.startsWith(BUILT_IN_PREFIX) }.map { source ->
+            presets.find { it.definition.id == source.engineReference }?.let { engine ->
+                source.copy(credentialKeys = engine.credentialKeys, credentials = engine.credentials)
+            } ?: source
+        }
     }
 
     private fun readStored(): List<SavedHttpSpeechSource> {
@@ -194,7 +252,36 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val origins = entry.jsonObject.getValue("origins").jsonArray.map { it.jsonPrimitive.content }
             require(origins.size <= 32 && origins.all { sourceOrigin(it) == it })
             val credentials = entry.jsonObject["credentials"]?.jsonObject?.mapValues { it.value.jsonPrimitive.content }.orEmpty()
-            SavedHttpSpeechSource(source, origins, credentials = credentials)
+            SavedHttpSpeechSource(source, origins, credentials = credentials,
+                engineReference = entry.jsonObject["engineReference"]?.jsonPrimitive?.contentOrNull,
+                speakerDefaults = entry.jsonObject["speakerDefaults"] as? JsonObject,
+                isVoiceCopy = entry.jsonObject["isVoiceCopy"]?.jsonPrimitive?.booleanOrNull == true,
+                packageAvatar = entry.jsonObject["packageAvatar"]?.jsonPrimitive?.contentOrNull)
+        }
+    }
+
+    private fun cleanAvatars(sources: List<SavedHttpSpeechSource>) {
+        val retained = sources.mapNotNull { it.packageAvatar }.toSet()
+        avatarRoot.listFiles().orEmpty().filter { it.isFile && it.name !in retained }.forEach { it.delete() }
+    }
+
+    private fun importAvatars(archive: File, sources: List<SavedHttpSpeechSource>): Map<String, String> {
+        val zip = try { ZipFile(archive) } catch (_: ZipException) { return emptyMap() }
+        return zip.use {
+            val copied = mutableMapOf<String, String>()
+            sources.mapNotNull { source ->
+                val engine = source.importedEngineCode ?: return@mapNotNull null
+                val filename = (source.speakerData()["avatar"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                val path = speechPackageAvatarPath(engine, filename) ?: return@mapNotNull null
+                val entry = zip.getEntry(path)?.takeUnless { it.isDirectory } ?: return@mapNotNull null
+                val stored = copied.getOrPut(path) {
+                    avatarRoot.mkdirs()
+                    val name = UUID.randomUUID().toString()
+                    zip.getInputStream(entry).use { input -> File(avatarRoot, name).outputStream().use { output -> input.copyTo(output) } }
+                    name
+                }
+                source.definition.id to stored
+            }.toMap()
         }
     }
 
@@ -205,7 +292,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 }
 
-private fun JsonObject.packageValue(): SpeechPackageValue.Mapping = SpeechPackageValue.Mapping(mapValues { (_, value) ->
+internal fun JsonObject.packageValue(): SpeechPackageValue.Mapping = SpeechPackageValue.Mapping(mapValues { (_, value) ->
     fun convert(element: JsonElement): SpeechPackageValue = when (element) {
         is JsonObject -> element.packageValue()
         is JsonArray -> SpeechPackageValue.Sequence(element.map(::convert), null)

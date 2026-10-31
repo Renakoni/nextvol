@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tts_engines">引擎</string>
-    <string name="tts_engines_description">管理引擎名称与共用参数</string>
     <string name="tts_engines_builtin">内置引擎</string>
     <string name="tts_engines_http">在线引擎配置</string>
     <string name="tts_engine_edit">编辑引擎</string>

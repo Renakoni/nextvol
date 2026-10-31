@@ -17,14 +17,11 @@
     <string name="tts_offline_missing">Ресурс отсутствует или повреждён: %1$s</string>
     <string name="tts_offline_install">Установить %1$s</string>
     <string name="tts_offline_size">Требуется места: %1$s</string>
-    <string name="tts_offline_import_note">Устанавливается только выбранный голос. Повторный импорт заменяет его ресурсы. Выбор и прослушивание выполняются отдельно.</string>
-    <string name="tts_offline_installing">Установка голоса…</string>
     <string name="tts_offline_installed">Голос %1$s установлен. Вернитесь к списку для выбора или прослушивания.</string>
     <string name="tts_offline_changed">Пакет изменился после просмотра. Откройте его заново.</string>
     <string name="tts_offline_model">В пакете не указан поддерживаемый офлайн-движок или модель.</string>
     <string name="tts_offline_parameters">Недопустимый или ненастроенный параметр голоса: %1$s</string>
     <string name="tts_offline_path">Каталог модели должен быть безопасным относительным путём.</string>
     <string name="tts_offline_ambiguous">Голос или ресурсы модели определены неоднозначно.</string>
-    <string name="tts_offline_profile">Установите голос ниже, затем выберите или прослушайте его в списке голосов.</string>
     <string name="tts_offline_unavailable">Офлайн-голос недоступен. Проверьте ресурсы и поддержку устройства в списке голосов.</string>
 </resources>

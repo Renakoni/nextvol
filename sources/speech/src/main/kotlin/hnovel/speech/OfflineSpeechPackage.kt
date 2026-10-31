@@ -20,7 +20,7 @@ data class OfflineVoiceConfig(
     val code: String,
     val parameters: String = "",
     val locale: String = "",
-    val sampleRate: Int = 0,
+    val sampleRate: Int = 16000,
     val speed: Float = 1f,
     val pitch: Float = 1f,
     val volume: Float = 1f,
@@ -28,7 +28,12 @@ data class OfflineVoiceConfig(
     val sherpa: SherpaVoiceConfig? = null,
     val gender: Int = 0,
     val engineParameters: String = "",
+    val rawParameters: String? = null,
+    val extendUI: String = "",
 )
+
+@Serializable
+data class OfflineVoiceMetadata(val note: String = "", val description: String = "", val avatar: String = "")
 
 data class OfflinePackagePlan(
     val id: String,
@@ -37,6 +42,8 @@ data class OfflinePackagePlan(
     val resources: List<SpeechPackageResource>,
     val configuration: OfflineVoiceConfig,
     val engineConfiguration: OfflineEngineConfig = OfflineEngineConfig(configuration.engine, configuration.engine),
+    val metadata: OfflineVoiceMetadata = OfflineVoiceMetadata(),
+    val avatar: SpeechPackageResource? = null,
 )
 
 data class OfflinePackagePreview(val plan: OfflinePackagePlan? = null, val error: MatchaPackageError? = null, val detail: String = "")
@@ -59,7 +66,7 @@ fun previewOfflineVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngi
         }
         val engineConfiguration = OfflineEngineConfig(engine.code, engine.name, engine.type ?: "inner",
             engineText("param"), engineText("note"))
-        val raw = voice.raw.values
+        val raw = voice.withImportDefaults(engine.code).raw.values
         fun scalar(key: String): String {
             val value = raw[key] ?: return ""
             if (value !is SpeechPackageValue.Scalar) configurationFailure(MatchaPackageError.Parameters, key)
@@ -71,8 +78,11 @@ fun previewOfflineVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngi
         }
         val configuration = OfflineVoiceConfig(engine.code, voice.code,
             resolveOfflineParameters(scalar("param"), scalar("extendUI")), scalar("locale"), integer("sampleRate"),
-            voiceNumber(raw, "speed"), voiceNumber(raw, "pitch"), voiceNumber(raw, "volume", allowZero = true), integer("type"),
-            gender = integer("gender"))
+            voiceNumber(raw, "speed", allowZero = true), voiceNumber(raw, "pitch"), voiceNumber(raw, "volume", allowZero = true), integer("type"),
+            gender = integer("gender"), rawParameters = scalar("param"), extendUI = scalar("extendUI"))
+        val metadata = OfflineVoiceMetadata(scalar("note"), scalar("desc"), scalar("avatar"))
+        val avatarPath = speechPackageAvatarPath(engine.code, metadata.avatar)
+        val avatar = preview.resources.singleOrNull { it.path == avatarPath }
         if (engine.code == "microsoft" && configuration.type != 0) {
             configurationFailure(MatchaPackageError.UnsupportedModel, "online voice")
         }
@@ -80,15 +90,15 @@ fun previewOfflineVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngi
             val mapped = previewMatchaVoice(preview, engine, voice)
             val plan = mapped.plan ?: return OfflinePackagePreview(error = mapped.error, detail = mapped.detail)
             OfflinePackagePreview(OfflinePackagePlan(plan.id, plan.name, plan.directory, plan.resources,
-                configuration.copy(sherpa = plan.configuration), engineConfiguration))
+                configuration.copy(sherpa = plan.configuration), engineConfiguration, metadata, avatar))
         } else {
             val directory = engine.code
-            val available = preview.resources.filter { it.path.startsWith("$directory/") }.sortedBy { it.path }
+            val available = preview.resources.filter { it.path.startsWith("$directory/") && !it.path.startsWith("$directory/avatar/") }.sortedBy { it.path }
             if (available.any { !safeSpeechPackagePath(it.path) }) configurationFailure(MatchaPackageError.UnsafePath, "resource")
             if (available.map { it.path }.toSet().size != available.size) configurationFailure(MatchaPackageError.Ambiguous, "resource")
             val selected = offlineResources(configuration, available)
             if (selected.isEmpty() || selected.any { it.bytes < 0 }) configurationFailure(MatchaPackageError.MissingResource, directory)
-            OfflinePackagePreview(OfflinePackagePlan(engine.code + "\u0000" + voice.code, voice.name, directory, selected, configuration, engineConfiguration))
+            OfflinePackagePreview(OfflinePackagePlan(engine.code + "\u0000" + voice.code, voice.name, directory, selected, configuration, engineConfiguration, metadata, avatar))
         }
     } catch (failure: OfflinePackageFailure) {
         OfflinePackagePreview(error = failure.error, detail = failure.detail)
@@ -163,29 +173,26 @@ private fun offlineResources(config: OfflineVoiceConfig, available: List<SpeechP
 }
 
 internal fun offlineControlDefaults(extendUI: String?): Map<String, JsonPrimitive> {
-    if (extendUI.isNullOrBlank()) return emptyMap()
-    val controls = try { Json.parseToJsonElement(extendUI) as? JsonArray }
-        catch (_: IllegalArgumentException) { null }
-        ?: configurationFailure(MatchaPackageError.Parameters, "extendUI")
-    val defaults = mutableMapOf<String, JsonPrimitive>()
-    controls.forEach { control ->
-        val item = control as? JsonObject ?: configurationFailure(MatchaPackageError.Parameters, "extendUI")
-        val key = item.string("code")
-        val value = item["value"] as? JsonPrimitive ?: configurationFailure(MatchaPackageError.Parameters, "extendUI.value")
-        if (key.isBlank() || value == JsonNull || defaults.put(key, value) != null) {
-            configurationFailure(MatchaPackageError.Parameters, "extendUI.code")
-        }
-    }
-    return defaults
+    return speechExtensionControls(extendUI.orEmpty()).associate { it.code to it.value }
 }
 
-private fun resolveOfflineParameters(param: String, extendUI: String): String {
-    val references = Regex("@([A-Za-z_][A-Za-z0-9_-]*)")
-    if (extendUI.isBlank() || !references.containsMatchIn(param)) return param
+fun resolveOfflineParameters(param: String, extendUI: String): String {
     val defaults = offlineControlDefaults(extendUI)
-    val json = param.trimStart().startsWith('{') || param.trimStart().startsWith('[')
-    return references.replace(param) { match ->
-        val value = defaults[match.groupValues[1]]?.content ?: return@replace match.value
-        if (json) JsonPrimitive(value).toString().removeSurrounding("\"") else value
+    fun reference(value: String): JsonPrimitive? {
+        if (!value.startsWith('@')) return null
+        return defaults[value.drop(1)] ?: configurationFailure(MatchaPackageError.Parameters, value)
     }
+    if (param.trimStart().startsWith('{') || param.trimStart().startsWith('[')) {
+        fun resolve(value: JsonElement): JsonElement = when (value) {
+            is JsonObject -> JsonObject(value.mapValues { resolve(it.value) })
+            is JsonArray -> JsonArray(value.map { resolve(it) })
+            is JsonPrimitive -> if (value.isString) reference(value.content) ?: value else value
+        }
+        // Older Sherpa packages declare @sid before a model query creates the control.
+        val parsed = speechParameterJson(param, "param")
+        val compatible = if (extendUI.isBlank() && parsed is JsonObject && parsed["speakerId"] == JsonPrimitive("@sid"))
+            JsonObject(parsed + ("speakerId" to JsonPrimitive(0))) else parsed
+        return resolve(compatible).toString()
+    }
+    return param.split(',').joinToString(",") { reference(it.trim())?.content ?: it }
 }

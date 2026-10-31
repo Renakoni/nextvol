@@ -24,8 +24,7 @@
     <string name="tts_sources">音源</string>
     <string name="tts_playback_settings">播放</string>
     <string name="tts_synthesis_settings">語音合成</string>
-    <string name="tts_preferences">播放設定</string>
-    <string name="tts_preferences_description">播放與語音參數</string>
+    <string name="tts_preferences">語音設定</string>
     <string name="tts_settings_description">音源、音色與朗讀語速</string>
     <string name="tts_engine">語音引擎</string>
     <string name="tts_voice">音色</string>

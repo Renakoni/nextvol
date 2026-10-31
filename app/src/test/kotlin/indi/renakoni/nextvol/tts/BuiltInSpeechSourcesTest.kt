@@ -69,17 +69,75 @@ class BuiltInSpeechSourcesTest {
         assertEquals(SpeechError.HttpLogin, assertThrows(SpeechException::class.java) { source.playbackDefinition() }.error)
         val token = "synthetic'\"&token"
         repository.configure(source.definition.id, mapOf("Token" to token))
+        val configured = repository.sources().first { it.definition.id == source.definition.id }
+        val copy = editHttpVoice(configured, buildJsonObject { put("name", "My copy") }, enabled = false, copy = true)
+        repository.saveVoice(copy)
+        val reopenedCopy = repository().sources().single { it.definition.id == copy.definition.id }
+        assertFalse(reopenedCopy.enabled)
+        assertEquals("My copy", reopenedCopy.definition.name)
+        assertEquals(source.definition.id, reopenedCopy.engineReference)
+        assertEquals(source.origins, reopenedCopy.origins)
+        assertEquals(token, reopenedCopy.credentials["Token"])
         assertTrue(repository().sources().filter { it.group == source.group }.all { it.isConfigured && it.credentials["Token"] == token })
         assertFalse(repository().sources().joinToString().contains(token))
         val ticket = repository.withSource(source.definition.id) { saved, runtime ->
             runtime.mkdirs(); File(runtime, "token").writeText("cached")
             authority.issue(saved.definition.id, "http-tts", saved.playbackDefinition().revision, "speech")
         }!!
-        repository.configure(source.definition.id, emptyMap())
+        repository.configure(copy.definition.id, emptyMap())
         assertFalse(authority.accepts(ticket))
         repository.withSource(source.definition.id) { _, runtime -> assertFalse(runtime.exists()) }
         assertTrue(repository().sources().filter { it.group == source.group }.all { !it.isConfigured })
-        assertEquals(99, repository.sources().size)
+        val resetCopy = repository().sources().single { it.definition.id == copy.definition.id }
+        assertFalse(resetCopy.isConfigured)
+        assertFalse(resetCopy.enabled)
+        assertEquals("My copy", resetCopy.definition.name)
+        assertEquals(100, repository.sources().size)
+    }
+
+    @Test fun refreshedPackageKeepsEditedSpeakerIdentityAndDoesNotOverwriteIndependentCopies() = runBlocking {
+        fun imported(name: String, volume: String, note: String, type: Int = 0) = SavedHttpSpeechSource(previewHttpSpeech(buildJsonObject {
+            put("name", name); put("url", "https://example.org/voice")
+            put("multiTts", buildJsonObject {
+                put("engine", buildJsonObject {
+                    put("code", "fixture"); put("name", "Fixture"); put("type", "http")
+                    put("url", "https://example.org/audio?style={{params[0]}}")
+                })
+                put("voice", buildJsonObject {
+                    put("code", "one"); put("avatar", "one.png"); put("type", type); put("name", name); put("volume", volume); put("note", note); put("param", "original")
+                })
+            })
+        }.toString()).sources.single(), listOf("https://example.org:443"))
+        val repository = repository()
+        val archive = directory.newFile()
+        java.util.zip.ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("fixture/avatar/one.png")); zip.write("avatar".toByteArray()); zip.closeEntry()
+        }
+        repository.save(listOf(imported("First", "2", "Old note")), archive)
+        val first = repository.sources().single { !it.isBuiltIn }
+        val image = repository.avatar(first)!!
+        assertEquals("avatar", image.readText())
+        val edited = editHttpVoice(first, buildJsonObject { put("name", "Mine"); put("volume", "1"); put("param", "edited"); put("type", 1) }, false, false)
+        repository.saveVoice(edited)
+        val copy = editHttpVoice(edited, buildJsonObject { put("name", "Copy") }, true, true)
+        repository.saveVoice(copy)
+        repository.save(listOf(imported("Updated", "3", "New note"), imported("Another type", "1", "", type = 2)))
+        val voices = repository().sources().filterNot { it.isBuiltIn }
+        assertEquals(3, voices.size)
+        val refreshed = voices.single { it.definition.id == first.definition.id }
+        assertEquals("Mine", refreshed.definition.name)
+        assertFalse(refreshed.enabled)
+        assertEquals("1", refreshed.speakerData().getValue("volume").jsonPrimitive.content)
+        assertEquals(1, refreshed.speakerData().getValue("type").jsonPrimitive.int)
+        assertEquals("New note", refreshed.speakerData().getValue("note").jsonPrimitive.content)
+        assertTrue(refreshed.definition.url.contains("edited"))
+        assertEquals("3", refreshed.speakerDefaults!!.getValue("volume").jsonPrimitive.content)
+        assertEquals(copy.definition.raw, voices.single { it.definition.id == copy.definition.id }.definition.raw)
+        assertEquals(image, repository.avatar(refreshed))
+        repository.delete(first.definition.id)
+        assertTrue(image.exists())
+        repository.delete(copy.definition.id)
+        assertFalse(image.exists())
     }
 
     @Test fun packageVoicesKeepTheirCategoryAndParametersAfterSaveReopenAndRepeatImport() = runBlocking {

@@ -38,8 +38,7 @@
     <string name="tts_sources">Источники голоса</string>
     <string name="tts_playback_settings">Воспроизведение</string>
     <string name="tts_synthesis_settings">Синтез речи</string>
-    <string name="tts_preferences">Настройки воспроизведения</string>
-    <string name="tts_preferences_description">Воспроизведение и параметры голоса</string>
+    <string name="tts_preferences">Настройки голоса</string>
     <string name="tts_settings_description">Голоса и скорость чтения</string>
     <string name="tts_engine">Синтезатор речи</string>
     <string name="tts_voice">Голос</string>
