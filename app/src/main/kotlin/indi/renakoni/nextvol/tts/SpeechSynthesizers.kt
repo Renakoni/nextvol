@@ -1,7 +1,9 @@
 package indi.renakoni.nextvol.tts
 
+import android.content.Context
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
 import hnovel.network.NetworkGrant
@@ -12,6 +14,8 @@ import hnovel.speech.HttpSpeechError
 import hnovel.speech.HttpSpeechException
 import indi.renakoni.nextvol.tts.matcha.MatchaResources
 import indi.renakoni.nextvol.tts.matcha.MatchaSpeechSynthesizer
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -27,8 +31,10 @@ class SpeechSynthesizers @Inject constructor(
     private val cipher: StorageCipher,
     private val authority: ExecutionAuthority,
     private val runner: RuleTaskRunner,
+    private val offline: OfflineSpeechRepository,
+    @ApplicationContext private val context: Context,
 ) {
-    /** Controlled development entry for an already installed Chinese Matcha sample. */
+    /** Development entry for an already installed Sherpa model. */
     fun matcha(resources: MatchaResources): SpeechSynthesizer = MatchaSpeechSynthesizer(resources)
 
     fun synthesizer(): SpeechSynthesizer = object : SpeechSynthesizer {
@@ -36,7 +42,11 @@ class SpeechSynthesizers @Inject constructor(
         override suspend fun open(settings: SpeechSettings): String {
             withContext(NonCancellable + Dispatchers.IO) { close() }
             currentCoroutineContext().ensureActive()
-            val provider = if (settings.httpSource == null) system.synthesizer() else http()
+            val provider = when {
+                settings.offlineVoice != null -> offline()
+                settings.httpSource != null -> http()
+                else -> system.synthesizer()
+            }
             selected = provider
             return provider.open(settings)
         }
@@ -46,6 +56,36 @@ class SpeechSynthesizers @Inject constructor(
             val previous = selected
             selected = null
             previous?.close()
+        }
+    }
+
+    private fun offline(): SpeechSynthesizer = object : SpeechSynthesizer {
+        private var lease: OfflineSpeechRepository.Lease? = null
+        @Volatile private var delegate: SpeechSynthesizer? = null
+        override suspend fun open(settings: SpeechSettings): String {
+            try {
+                withContext(Dispatchers.IO) {
+                    lease = offline.acquire(requireNotNull(settings.offlineVoice))
+                    val active = checkNotNull(lease)
+                    delegate = if (active.configuration.engine == "sherpa") MatchaSpeechSynthesizer(active.resources)
+                        else OfflineSpeechSynthesizer(context, active.directory, active.configuration)
+                }
+                delegate!!.open(settings.copy(httpSource = null, voice = "", pitch = null))
+                return lease!!.voice.name
+            } catch (error: Exception) {
+                withContext(NonCancellable + Dispatchers.IO) { close() }
+                if (error is CancellationException || error is SpeechException) throw error
+                throw SpeechException(SpeechError.OfflineUnavailable).apply { initCause(error) }
+            }
+        }
+        override suspend fun synthesize(text: String, output: File) = checkNotNull(delegate).synthesize(text, output)
+        override fun cancel() { delegate?.cancel() }
+        override fun close() {
+            try { delegate?.close() } finally {
+                delegate = null
+                lease?.close()
+                lease = null
+            }
         }
     }
 

@@ -82,3 +82,113 @@ Whole-process PSS was 460,664 KiB after initialization and 251,978 KiB after
 release in the sample run. The one-instance bound is enforced by the adapter's
 semaphore, while the existing session's bounded file queue is retained. These
 two memory observations are not a peak-memory measurement or a leak test.
+
+# #794 general offline-package acceptance
+
+Validation date: 2026-10-31 (host local date). This section supersedes the earlier
+Baker-only #794 acceptance. The #791 measurements above describe that historical
+backend; their model identifiers are not import requirements.
+
+## Package and runtime behavior
+
+- Static parsing accepted all 49 caller-supplied ZIPs and resolved installation
+  plans for 1,589 voices across 16 engine families. This does not mean that every
+  voice was synthesized or that arbitrary future SDK formats are supported.
+- Import and installation use no model hash, CRC comparison or fixed-model
+  allowlist. Paths, selected resources and actual byte lengths are checked;
+  successful imports receive fresh random revisions. The SDK still interprets
+  its own model format and package license parameters.
+- Engine definitions have an independent entry in listening settings. Importing
+  another voice preserves user-edited engine configuration; HTTP engine edits
+  apply to all voices under the same imported engine code.
+- The ordinary build fetches `offline-runtime-1` and packages 42 vendor libraries
+  and runtime defaults, alongside the source-built Sherpa/ONNX backend and the
+  official Microsoft client AAR. The runtime ZIP is 77.61 MiB; its native
+  libraries are about 201.55 MiB uncompressed. No voice weights are bundled.
+- The adapters synthesize complete WAV files for the existing application player.
+  No Android TTS service is exposed to other apps.
+
+## Device evidence
+
+MuMu A, Android API 32, arm64 translation, 4 KiB pages. The normal debug package
+is `indi.renakoni.nextvol.debug`; the install explicitly selects arm64 because
+MuMu also advertises x86 ABIs.
+
+The shell-only debug entry exercised the actual preview, selected-resource
+installer, runtime router and complete-WAV synthesis. These representative
+cases produced nonzero PCM samples:
+
+| Family / variant | Observed output |
+| --- | --- |
+| Audio effects | 48,000 Hz, 1.608 s; fixed audio playback, not narration |
+| Acapela | 22,050 Hz, 3.857 s |
+| Baidu | 16,000 Hz, 3.024 s |
+| CereProc | 24,000 Hz, 3.55 s |
+| Google | 24,000 Hz, 3.01 s |
+| IssTTS | 24,000 Hz, 2.365 s |
+| Lark legacy / modern | 16,000 Hz, 3.211 / 2.68 s |
+| MscTTS legacy xzhd / purextts | 16,000 Hz, 11.556 / 2.058 s |
+| VCS | 16,000 Hz, 2.965 s |
+| WeRead | 16,000 Hz, 2.93 s |
+| Xiaomi | 16,000 Hz, 2.976 s |
+| Microsoft Xiaoxiao | 24,000 Hz, 2.313 s |
+| Microsoft classic Andrei / Hongyu | 24,000 Hz, 3.61 / 3.632 s; filename-case compatibility verified |
+| Sogou | 16,000 Hz, 2.0 s |
+| Vocalizer | 22,050 Hz, 2.873 s |
+| Samsung | 24,000 Hz, 2.97 s |
+| Sherpa Piper Dutch | 16,000 Hz, 2.544 s |
+| Sherpa VITS Theresa | 22,050 Hz, 3.636 s |
+| Sherpa Matcha Chinese / English | 22,050 Hz, 4.101 / 3.344 s |
+| Sherpa Kokoro English / multilingual Chinese | 24,000 Hz, 3.034 / 5.191 s |
+
+The normal UI separately imported the real Sogou ZIP through Android's document
+picker (24 voices, 36 resources), installed Xiaobing's selected 22 MB resources,
+selected the voice and completed audition through Media3. Engine-name edits
+survived force-stop/relaunch and were restored after the check.
+
+With Android reporting `Active default network: none`, the ordinary reader
+played cached text from *魔法少女育成计划* with Sogou. Four captured chapter clips
+were valid 16,000 Hz mono PCM16 WAVs, with durations 4.8, 25.0, 1.2 and 9.6 s and
+nonzero samples. Media-session state changed from playing to paused and back;
+stopping removed the session's audio files. Wi-Fi was re-enabled afterward.
+These are waveform and player-state observations, not subjective audio-quality
+or physical-device performance measurements.
+
+A further network-disabled run covered 18 representative vendor cases, including
+classic and neural Microsoft voices and both MSC/Lark variants. All produced
+nonzero WAVs; the final Microsoft cases used the ordinary APK and unmodified
+caller-supplied ZIPs. Sogou's offline check is the reader playback described above.
+Android reported no default network during these checks; Wi-Fi was restored.
+
+The final ordinary-build path downloaded the published runtime bundle and rebuilt
+the source backend. Debug and Release assembly, Release R8/Vital Lint, full Debug
+Lint, app unit-test compilation and source-speech test compilation passed. Debug
+Lint reported 462 warnings and 8 hints, with no errors. No JVM tests were run locally.
+
+A real Piper package with a deliberately damaged FAR file installed successfully
+and returned `EngineUnavailable` during initialization instead of crashing the
+process. A subsequent valid Piper import and synthesis produced a nonzero
+16,000 Hz WAV.
+
+Classic Microsoft model loading depends on case-insensitive filenames.
+A controlled file-open observation showed `.INI` and `.APM` lookups against
+lowercase package names, and a lowercase `.ini` lookup against an uppercase name.
+The SDK reported these missing files as a wrong decryption key. Installation now
+adds extension hard links before catalog publication. Hongyu additionally needs
+the filename stems referenced by `Tokens.xml`, title-cased extra-language suffixes,
+and lowercase NUSData domain suffixes. REA file-open observations confirmed these
+SDK lookups; installation now adds their aliases, preserves original names and
+existing alternate files, and does not duplicate model data.
+The private model directories synthesized successfully with these aliases;
+no key, model bytes, runtime binary or authentication rule was changed.
+
+## Coverage limits
+
+The supplied APK lacks Baidu's optional `libbd_ettl.so` variant. Google's supplied
+runtime requires Android 8+, and some older vendor libraries only support 4 KiB
+memory pages. Audio-effect packages play recordings. These are actual runtime
+constraints, not model-identity restrictions.
+
+Physical phones, API 24 runtime behavior and 16 KiB devices were not exercised.
+JVM regression tests are compiled but left to remote CI for execution according
+to the repository's testing rules.

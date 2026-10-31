@@ -28,6 +28,8 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         id: environment
         uses: ./.github/actions/android-environment
+        with:
+          native-tools: 'false'
       - name: Check resource contracts
         if: steps.scope.outputs.run == 'true'
         shell: bash
@@ -40,7 +42,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p build/reports/lint
-          ./gradlew --no-daemon :app:lintDebug :app:lintVitalRelease --continue --console=plain --stacktrace --max-workers=2 2>&1 | tee build/reports/lint/gradle.log
+          # Lint analyzes Kotlin/resources; native packaging remains checked by APK builds.
+          ./gradlew --no-daemon :app:lintDebug :app:lintVitalRelease -x :app:buildMatchaNative --continue --console=plain --stacktrace --max-workers=2 2>&1 | tee build/reports/lint/gradle.log
       - name: Upload Lint reports
         if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

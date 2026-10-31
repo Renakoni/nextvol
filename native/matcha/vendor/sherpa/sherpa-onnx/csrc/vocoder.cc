@@ -17,6 +17,7 @@
 #include "sherpa-onnx/csrc/hifigan-vocoder.h"
 #include "sherpa-onnx/csrc/macros.h"
 #include "sherpa-onnx/csrc/onnx-utils.h"
+#include "sherpa-onnx/csrc/vocos-vocoder.h"
 
 namespace sherpa_onnx {
 
@@ -81,13 +82,13 @@ std::unique_ptr<Vocoder> Vocoder::Create(const OfflineTtsModelConfig &config) {
       return std::make_unique<HifiganVocoder>(
           config.num_threads, config.provider, config.matcha.vocoder);
     case ModelType::kVocoos:
-      throw std::invalid_argument("Only HiFi-GAN is enabled");
+      return std::make_unique<VocosVocoder>(config);
     case ModelType::kUnknown:
       SHERPA_ONNX_LOGE("Unknown model type in vocoder!");
-      throw std::invalid_argument("Unsupported vocoder");
+      throw std::invalid_argument("Unrecognized vocoder graph");
   }
 
-  throw std::invalid_argument("Unsupported vocoder");
+  throw std::invalid_argument("Unrecognized vocoder graph");
 }
 
 template <typename Manager>
@@ -101,10 +102,10 @@ std::unique_ptr<Vocoder> Vocoder::Create(Manager *mgr,
       return std::make_unique<HifiganVocoder>(
           mgr, config.num_threads, config.provider, config.matcha.vocoder);
     case ModelType::kVocoos:
-      throw std::invalid_argument("Only HiFi-GAN is enabled");
+      return std::make_unique<VocosVocoder>(mgr, config);
     case ModelType::kUnknown:
       SHERPA_ONNX_LOGE("Unknown model type in vocoder!");
-      throw std::invalid_argument("Unsupported vocoder");
+      throw std::invalid_argument("Unrecognized vocoder graph");
   }
 }
 

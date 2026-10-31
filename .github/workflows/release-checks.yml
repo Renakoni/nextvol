@@ -55,10 +55,14 @@ jobs:
             app/build/outputs/mapping/release/usage.txt
           if-no-files-found: ignore
 
-  minified-source-runtime:
-    name: Minified source runtime (API 35)
+  minified-apks:
+    name: Build minified test APKs
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      classes: ${{ steps.scope.outputs.minified-classes }}
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Select affected checks
@@ -70,21 +74,13 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         id: environment
         uses: ./.github/actions/android-environment
-        with:
-          api: 35
       - name: Restore minified task outputs
         if: steps.scope.outputs.run == 'true'
         id: build-cache
         uses: ./.github/actions/gradle-build-cache
         with:
           variant: benchmark
-      - name: Enable KVM
-        if: steps.scope.outputs.run == 'true'
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Build minified app and test APKs before starting the emulator
+      - name: Build minified app and test APKs
         if: steps.scope.outputs.run == 'true'
         run: |
           # Production Vital Lint and full Debug Lint run in the Android Lint job.
@@ -96,10 +92,66 @@ jobs:
         with:
           path: ${{ steps.build-cache.outputs.path }}
           key: ${{ steps.build-cache.outputs.key }}
+      - name: Upload this build's minified APKs
+        if: steps.scope.outputs.run == 'true'
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: minified-apks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            app/build/outputs/apk/benchmark/*.apk
+            tests/benchmark/build/outputs/apk/benchmark/*.apk
+            tests/benchmark/build/outputs/apk/benchmark/output-metadata.json
+          if-no-files-found: error
+          compression-level: 0
+      - name: Upload minified build reports
+        if: always() && steps.scope.outputs.run == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: minified-build-reports
+          path: |
+            app/build/outputs/mapping/benchmark/usage.txt
+            app/build/outputs/mapping/benchmark/missing_rules.txt
+          if-no-files-found: ignore
+
+  minified-source-runtime:
+    name: Minified source runtime (API 35)
+    needs: minified-apks
+    # Preserve the required check when selection/build/upload fails or selects no tests.
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check upstream build and selected tests
+        id: scope
+        env:
+          BUILD_RESULT: ${{ needs.minified-apks.result }}
+          SELECTED: ${{ needs.minified-apks.outputs.run }}
+          ARTIFACT_ID: ${{ needs.minified-apks.outputs.artifact-id }}
+        run: python3 .github/scripts/ci_debug_apks.py gate
+      - name: Download the successful producer's APKs
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.minified-apks.outputs.artifact-id }}
+          path: .
+          merge-multiple: true
+      - name: Prepare fixed Android SDK and image
+        if: steps.scope.outputs.run == 'true'
+        uses: ./.github/actions/android-sdk
+        with:
+          api: 35
+      - name: Enable KVM
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - name: Run minified tests on the fixed Android emulator
         if: steps.scope.outputs.run == 'true'
         env:
-          TEST_CLASSES: ${{ steps.scope.outputs.minified-classes }}
+          TEST_CLASSES: ${{ needs.minified-apks.outputs.classes }}
         run: >-
           bash .github/scripts/run-static-emulator.sh 35
           bash .github/scripts/emulator-tests.sh bash .github/scripts/run-prebuilt-tests.sh
@@ -115,7 +167,5 @@ jobs:
           path: |
             tests/benchmark/build/reports/androidTests/connected
             tests/benchmark/build/outputs/androidTest-results/connected
-            app/build/outputs/mapping/benchmark/usage.txt
-            app/build/outputs/mapping/benchmark/missing_rules.txt
             app/build/reports/emulator-diagnostics
           if-no-files-found: ignore

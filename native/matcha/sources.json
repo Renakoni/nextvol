@@ -37,5 +37,47 @@
       "vendor/openfst/COPYING",
       "vendor/openfst/AUTHORS"
     ]
+  },
+  {
+    "name": "piper-phonemize",
+    "version": "1.2.0",
+    "commit": "78a788e0b719013401572d70fef372e77bff8e43",
+    "url": "https://github.com/csukuangfj/piper-phonemize/archive/78a788e0b719013401572d70fef372e77bff8e43.zip",
+    "archive_sha256": "89641a46489a4898754643ce57bda9c9b54b4ca46485fdc02bf0dc84b866645d",
+    "licenses": [
+      "vendor/piper-phonemize/LICENSE.md"
+    ]
+  },
+  {
+    "name": "espeak-ng",
+    "version": "1.52.0.1",
+    "commit": "f6fed6c58b5e0998b8e68c6610125e2d07d595a7",
+    "url": "https://github.com/csukuangfj/espeak-ng/archive/f6fed6c58b5e0998b8e68c6610125e2d07d595a7.zip",
+    "archive_sha256": "70cbf4050e7a014aae19140b05e57249da4720f56128459fbe3a93beaf971ae6",
+    "licenses": [
+      "vendor/espeak-ng/COPYING",
+      "vendor/espeak-ng/src/ucd-tools/COPYING",
+      "vendor/espeak-ng/src/ucd-tools/COPYING.UCD"
+    ]
+  },
+  {
+    "name": "kaldi-native-fbank",
+    "version": "1.21.3",
+    "url": "https://github.com/csukuangfj/kaldi-native-fbank/archive/refs/tags/v1.21.3.tar.gz",
+    "archive_sha256": "d409eddae5a46dc796f0841880f489ff0728b96ae26218702cd438c28667c70e",
+    "licenses": [
+      "vendor/kaldi-native-fbank/LICENSE"
+    ]
+  },
+  {
+    "name": "kissfft",
+    "commit": "febd4caeed32e33ad8b2e0bb5ea77542c40f18ec",
+    "url": "https://github.com/mborgerding/kissfft/archive/febd4caeed32e33ad8b2e0bb5ea77542c40f18ec.zip",
+    "archive_sha256": "497103e664168ebe39580b757adbe616f6cf85a16572af581ca7bc42d0ab13fd",
+    "licenses": [
+      "vendor/kissfft/COPYING",
+      "vendor/kissfft/LICENSES/BSD-3-Clause",
+      "vendor/kissfft/LICENSES/Unlicense"
+    ]
   }
 ]

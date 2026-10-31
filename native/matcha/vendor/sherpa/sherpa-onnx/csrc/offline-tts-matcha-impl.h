@@ -14,12 +14,15 @@
 #include "kaldifst/csrc/kaldi-fst-io.h"
 #include "kaldifst/csrc/text-normalizer.h"
 #include "sherpa-onnx/csrc/jieba-lexicon.h"
-#include "sherpa-onnx/csrc/file-utils.h"
+#include "sherpa-onnx/csrc/lexicon.h"
 #include "sherpa-onnx/csrc/macros.h"
+#include "sherpa-onnx/csrc/melo-tts-lexicon.h"
+#include "sherpa-onnx/csrc/offline-tts-character-frontend.h"
 #include "sherpa-onnx/csrc/offline-tts-frontend.h"
 #include "sherpa-onnx/csrc/offline-tts-impl.h"
 #include "sherpa-onnx/csrc/offline-tts-matcha-model.h"
 #include "sherpa-onnx/csrc/onnx-utils.h"
+#include "sherpa-onnx/csrc/piper-phonemize-lexicon.h"
 #include "sherpa-onnx/csrc/text-utils.h"
 #include "sherpa-onnx/csrc/vocoder.h"
 
@@ -68,12 +71,21 @@ class OfflineTtsMatchaImpl : public OfflineTtsImpl {
         }
         std::unique_ptr<fst::FarReader<fst::StdArc>> reader(
             fst::FarReader<fst::StdArc>::Open(f));
+        if (!reader || reader->Error()) {
+          throw std::invalid_argument("Invalid offline TTS FAR archive");
+        }
         for (; !reader->Done(); reader->Next()) {
+          const auto *rule = reader->GetFst();
+          if (!rule) throw std::invalid_argument("Invalid offline TTS FAR rule");
           std::unique_ptr<fst::StdConstFst> r(
-              fst::CastOrConvertToConstFst(reader->GetFst()->Copy()));
+              fst::CastOrConvertToConstFst(rule->Copy()));
+          if (!r) throw std::invalid_argument("Invalid offline TTS FAR rule");
 
           tn_list_.push_back(
               std::make_unique<kaldifst::TextNormalizer>(std::move(r)));
+        }
+        if (reader->Error()) {
+          throw std::invalid_argument("Cannot read offline TTS FAR archive");
         }
       }
 
@@ -130,13 +142,22 @@ class OfflineTtsMatchaImpl : public OfflineTtsImpl {
         std::unique_ptr<fst::FarReader<fst::StdArc>> reader(
             fst::FarReader<fst::StdArc>::Open(std::move(s)));
 
+        if (!reader || reader->Error()) {
+          throw std::invalid_argument("Invalid offline TTS FAR archive");
+        }
         for (; !reader->Done(); reader->Next()) {
+          const auto *rule = reader->GetFst();
+          if (!rule) throw std::invalid_argument("Invalid offline TTS FAR rule");
           std::unique_ptr<fst::StdConstFst> r(
-              fst::CastOrConvertToConstFst(reader->GetFst()->Copy()));
+              fst::CastOrConvertToConstFst(rule->Copy()));
+          if (!r) throw std::invalid_argument("Invalid offline TTS FAR rule");
 
           tn_list_.push_back(
               std::make_unique<kaldifst::TextNormalizer>(std::move(r)));
         }  // for (; !reader->Done(); reader->Next())
+        if (reader->Error()) {
+          throw std::invalid_argument("Cannot read offline TTS FAR archive");
+        }
       }    // for (const auto &f : files)
     }      // if (!config.rule_fars.empty())
   }
@@ -327,6 +348,10 @@ class OfflineTtsMatchaImpl : public OfflineTtsImpl {
       frontend_ = std::make_unique<JiebaLexicon>(
           mgr, config_.model.matcha.lexicon, config_.model.matcha.tokens,
           config_.model.matcha.dict_dir, config_.model.debug);
+    } else if (meta_data.has_espeak && !meta_data.jieba) {
+      frontend_ = std::make_unique<PiperPhonemizeLexicon>(
+          mgr, config_.model.matcha.tokens, config_.model.matcha.data_dir,
+          meta_data);
     } else {
       SHERPA_ONNX_LOGE("jieba + espeaker-ng is not supported yet");
       SHERPA_ONNX_EXIT(-1);
@@ -340,6 +365,10 @@ class OfflineTtsMatchaImpl : public OfflineTtsImpl {
       frontend_ = std::make_unique<JiebaLexicon>(
           config_.model.matcha.lexicon, config_.model.matcha.tokens,
           config_.model.matcha.dict_dir, config_.model.debug);
+    } else if (meta_data.has_espeak && !meta_data.jieba) {
+      frontend_ = std::make_unique<PiperPhonemizeLexicon>(
+          config_.model.matcha.tokens, config_.model.matcha.data_dir,
+          meta_data);
     } else {
       SHERPA_ONNX_LOGE("jieba + espeaker-ng is not supported yet");
       SHERPA_ONNX_EXIT(-1);

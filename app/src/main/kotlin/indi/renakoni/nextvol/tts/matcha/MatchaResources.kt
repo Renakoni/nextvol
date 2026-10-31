@@ -1,27 +1,33 @@
 package indi.renakoni.nextvol.tts.matcha
 
 import java.io.File
+import hnovel.speech.SherpaVoiceConfig
+import hnovel.speech.safeSpeechPackagePath
 
-/** Already installed Chinese Matcha sample. Import and model selection belong to #794. */
-class MatchaResources(val directory: File) {
+/** Resolves the selected model's resources inside its managed installation. */
+class MatchaResources(val directory: File, val configuration: SherpaVoiceConfig) {
+    internal fun path(relative: String): String {
+        if (relative.isEmpty()) return ""
+        require(safeSpeechPackagePath(relative))
+        val file = File(directory, relative)
+        require(file.canonicalFile == file.absoluteFile)
+        return file.path
+    }
+
     internal fun validate(): File {
         val root = directory.canonicalFile
-        require(root.isDirectory && ',' !in root.path && '\u0000' !in root.path)
-        val files = mapOf(
-            "model-steps-3.onnx" to 128L * 1024 * 1024,
-            "hifigan_v2.onnx" to 32L * 1024 * 1024,
-            "tokens.txt" to 1024L * 1024,
-            "lexicon.txt" to 32L * 1024 * 1024,
-            "date.fst" to 32L * 1024 * 1024,
-            "number.fst" to 32L * 1024 * 1024,
-            "phone.fst" to 32L * 1024 * 1024,
-        ) + listOf("jieba.dict.utf8", "hmm_model.utf8", "user.dict.utf8", "idf.utf8", "stop_words.utf8")
-            .associate { "dict/$it" to 16L * 1024 * 1024 }
-        for ((name, limit) in files) {
-            val file = File(root, name)
-            require(file.canonicalFile == file.absoluteFile && file.isFile && file.canRead() && file.length() in 1..limit) {
-                "Missing, escaped or oversized Matcha resource: $name"
+        require(root == directory.absoluteFile && root.isDirectory && ',' !in root.path && '\u0000' !in root.path)
+        require(configuration.model.isNotBlank() && configuration.tokens.isNotBlank())
+        val files = listOf(configuration.model, configuration.vocoder, configuration.voices, configuration.tokens) +
+            configuration.lexicons + configuration.ruleFsts + configuration.ruleFars
+        for (name in files.filter(String::isNotEmpty)) {
+            val file = File(path(name))
+            require(file.isFile && file.canRead() && file.length() > 0) {
+                "Missing or unreadable offline resource: $name"
             }
+        }
+        for (name in listOf(configuration.dataDir, configuration.dictDir).filter(String::isNotEmpty)) {
+            require(File(path(name)).isDirectory) { "Missing offline resource directory: $name" }
         }
         return root
     }

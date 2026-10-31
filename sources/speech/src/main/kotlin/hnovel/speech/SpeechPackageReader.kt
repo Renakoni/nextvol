@@ -7,7 +7,6 @@ import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
-import java.util.zip.CRC32
 import java.util.zip.ZipFile
 import java.util.zip.ZipException
 
@@ -43,15 +42,17 @@ private fun readZip(file: File, name: String, checkCancelled: () -> Unit): Speec
         val resources = mutableListOf<SpeechPackageResource>()
         val seen = mutableSetOf<String>()
         val entries = zip.entries()
+        var count = 0
         while (entries.hasMoreElements()) {
             checkCancelled()
+            packageCheck(++count <= 100_000, SpeechPackageError.InvalidArchive)
             val entry = entries.nextElement()
             if (entry.isDirectory) continue
             val path = entry.name
             if (path.lowercase() in metadataNames) {
                 packageCheck(seen.add(path), SpeechPackageError.DuplicatePath)
                 val bytes = zip.getInputStream(entry).use { readYamlBytes(it, checkCancelled) }
-                packageCheck(bytes.size.toLong() == entry.size && CRC32().apply { update(bytes) }.value == entry.crc, SpeechPackageError.InvalidArchive)
+                packageCheck(bytes.size.toLong() == entry.size, SpeechPackageError.InvalidArchive)
                 documents += SpeechPackageDocument(path, readSpeechPackageYaml(decodeYaml(bytes), checkCancelled))
             } else resources += SpeechPackageResource(path, entry.size)
         }
@@ -66,6 +67,7 @@ private fun readYamlBytes(input: InputStream, checkCancelled: () -> Unit): ByteA
         checkCancelled()
         val count = input.read(buffer)
         if (count < 0) break
+        packageCheck(output.size() + count <= 4 * 1024 * 1024, SpeechPackageError.InvalidYaml)
         output.write(buffer, 0, count)
     }
     return output.toByteArray()

@@ -14,6 +14,8 @@ import indi.renakoni.nextvol.tts.SystemSpeechEngines
 import indi.renakoni.nextvol.tts.HttpSpeechRepository
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
 import indi.renakoni.nextvol.tts.speechError
+import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +32,7 @@ data class SpeechSettingsUiState(
     val loading: Boolean = true,
     val error: SpeechError? = null,
     val httpSources: List<SavedHttpSpeechSource> = emptyList(),
+    val offlineName: String? = null,
 )
 
 @HiltViewModel
@@ -38,18 +41,19 @@ class SpeechSettingsViewModel @Inject constructor(
     private val engines: SystemSpeechEngines,
     val controller: ReadAloudController,
     private val http: HttpSpeechRepository,
+    private val offline: OfflineSpeechRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechSettingsUiState())
     val state = mutableState.asStateFlow()
     private var catalog: Job? = null
     private var request = 0L
-    private var catalogSelection: Pair<String, String?>? = null
+    private var catalogSelection: Triple<String, String?, OfflineVoiceRef?>? = null
 
     init {
         viewModelScope.launch {
             repository.changes.collect { settings ->
                 mutableState.update { it.copy(settings = settings) }
-                val selection = settings.engine to settings.httpSource
+                val selection = Triple(settings.engine, settings.httpSource, settings.offlineVoice)
                 if (catalogSelection != selection) refresh()
             }
         }
@@ -57,7 +61,7 @@ class SpeechSettingsViewModel @Inject constructor(
 
     fun refresh() {
         val settings = state.value.settings
-        val target = settings.engine to settings.httpSource
+        val target = Triple(settings.engine, settings.httpSource, settings.offlineVoice)
         val changed = catalogSelection != target
         catalogSelection = target
         val current = ++request
@@ -67,6 +71,12 @@ class SpeechSettingsViewModel @Inject constructor(
         catalog = viewModelScope.launch {
             var installed = state.value.engines
             try {
+                if (settings.offlineVoice != null) {
+                    val voice = offline.voices().find { it.reference == settings.offlineVoice }
+                    if (current == request) mutableState.update { it.copy(offlineName = voice?.name,
+                        error = if (voice == null) SpeechError.OfflineUnavailable else null) }
+                    return@launch
+                }
                 val selected = settings.httpSource
                 if (selected != null) {
                     val sources = http.sources()
@@ -92,7 +102,7 @@ class SpeechSettingsViewModel @Inject constructor(
         }
     }
 
-    fun selectEngine(engine: String) = update { it.copy(engine = engine, voice = "", httpSource = null) }
+    fun selectEngine(engine: String) = update { it.copy(engine = engine, voice = "", httpSource = null, offlineVoice = null) }
     fun selectVoice(voice: String) = update { it.copy(voice = voice) }
     fun setRate(value: Float?) = update { it.copy(rate = value) }
     fun setPitch(value: Float?) = update { it.copy(pitch = value) }

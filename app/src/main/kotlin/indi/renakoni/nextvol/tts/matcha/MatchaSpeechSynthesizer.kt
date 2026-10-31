@@ -21,7 +21,7 @@ import kotlin.concurrent.withLock
 
 class MatchaSpeechSynthesizer internal constructor(
     private val resources: MatchaResources,
-    private val native: () -> MatchaNativeApi = { MatchaNative },
+    private val native: () -> MatchaNativeApi = { MatchaNative.apply { requireAvailable() } },
 ) : SpeechSynthesizer {
     private val lock = ReentrantLock()
     private val cancelled = AtomicBoolean()
@@ -48,9 +48,9 @@ class MatchaSpeechSynthesizer internal constructor(
                         checkCancelled()
                         ownsPermit = true
                         transferred = true
-                        val root = resources.validate()
+                        resources.validate()
                         speed = rate
-                        handle = native().create(root.path)
+                        handle = native().create(MatchaNativeConfig(resources))
                         check(handle != 0L)
                         job.ensureActive()
                         checkCancelled()
@@ -59,7 +59,7 @@ class MatchaSpeechSynthesizer internal constructor(
             } finally {
                 if (!transferred) instances.release()
             }
-            return "Matcha · 中文"
+            return "Sherpa"
         } catch (error: Throwable) {
             withContext(NonCancellable + Dispatchers.IO) { close() }
             if (error is CancellationException) throw error
@@ -86,6 +86,8 @@ class MatchaSpeechSynthesizer internal constructor(
                     job.ensureActive()
                     checkCancelled()
                     validateSpeechWav(partial)
+                    job.ensureActive()
+                    checkCancelled()
                     if (!partial.renameTo(output)) throw SpeechException(SpeechError.Storage)
                     committed = true
                 }

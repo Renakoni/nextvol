@@ -27,7 +27,7 @@ enum class SpeechError {
     NoEngine, EngineUnavailable, MissingVoice, MissingLanguageData, InitializationTimeout,
     SynthesisTimeout, SynthesisFailed, Network, InvalidAudio, Storage, SourceUnavailable,
     SourceTimeout, EmptyText, UnsupportedContent, Playback, ServiceUnavailable,
-    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin,
+    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, OfflineUnavailable,
 }
 
 class SpeechException(val error: SpeechError) : Exception(error.name)

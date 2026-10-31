@@ -15,34 +15,61 @@ plugins {
     id("com.mikepenz.aboutlibraries.plugin.android")
 }
 
-// #791's controlled development build. Ordinary variants do not load or package Matcha.
-val matchaNative = providers.gradleProperty("matchaNative").map(String::toBoolean).getOrElse(false)
+// The ordinary APK includes the source-built backend; other ABIs retain system/HTTP speech.
+val matchaNative = providers.gradleProperty("matchaNative").map(String::toBoolean).getOrElse(true)
 val matchaOutput = providers.gradleProperty("matchaBuildDir").map { file(it) }
     .getOrElse(layout.buildDirectory.dir("matcha").get().asFile)
+// Voice packages supply models; ordinary APKs embed the separate SDK runtime bundle.
+val suppliedOfflineRuntime = providers.gradleProperty("offlineRuntimeDir").map { file(it) }.orNull
+val offlineRuntime = suppliedOfflineRuntime ?: layout.buildDirectory.dir("offline-runtime").get().asFile
+if (suppliedOfflineRuntime != null) {
+    require(offlineRuntime.resolve("jniLibs").isDirectory) { "offlineRuntimeDir must contain jniLibs" }
+} else {
+    val runtimeUrl = providers.gradleProperty("offlineRuntimeUrl").getOrElse(
+        "https://github.com/Renakoni/nextvol/releases/download/offline-runtime-1/offline-runtime-arm64-v1.zip")
+    val prepareOfflineRuntime by tasks.registering(Exec::class) {
+        inputs.property("runtimeUrl", runtimeUrl)
+        inputs.file(rootProject.file("native/offline/fetch_runtime.py"))
+        outputs.dir(offlineRuntime)
+        commandLine(
+            providers.gradleProperty("matchaPython").getOrElse("python"),
+            rootProject.file("native/offline/fetch_runtime.py"),
+            "--url", runtimeUrl,
+            "--output", offlineRuntime,
+        )
+    }
+    tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareOfflineRuntime) }
+}
 if (matchaNative) {
     val buildMatchaNative by tasks.registering(Exec::class) {
+        inputs.property("host", System.getProperty("os.name"))
         inputs.files(rootProject.fileTree("native/matcha") { exclude("build/**", "__pycache__/**") })
         inputs.files(rootProject.fileTree("native/onnxruntime") { exclude("build/**", "__pycache__/**") })
-        inputs.properties(listOf("matchaPython", "matchaNdk", "matchaCmake", "matchaNinja")
+        inputs.properties(listOf("matchaPython", "matchaNdk", "matchaCmake", "matchaNinja", "matchaOrtCacheKey")
             .associateWith { providers.gradleProperty(it).getOrElse("") })
         outputs.dir(matchaOutput.resolve("jniLibs"))
         outputs.dir(matchaOutput.resolve("assets"))
+        outputs.cacheIf { true }
         commandLine(
             providers.gradleProperty("matchaPython").getOrElse("python"),
             rootProject.file("native/matcha/build_android.py"),
-            "--ndk", providers.gradleProperty("matchaNdk").get(),
+            "--ndk", providers.gradleProperty("matchaNdk").getOrElse(
+                androidComponents.sdkComponents.sdkDirectory.get().asFile.resolve("ndk/28.2.13676358").path),
             "--cmake", providers.gradleProperty("matchaCmake").getOrElse("cmake"),
             "--ninja", providers.gradleProperty("matchaNinja").getOrElse("ninja"),
             "--output", matchaOutput,
+            "--ort-cache-key", providers.gradleProperty("matchaOrtCacheKey").getOrElse(""),
         )
     }
-    tasks.matching { it.name == "preDebugBuild" }.configureEach { dependsOn(buildMatchaNative) }
+    tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(buildMatchaNative) }
 }
 
 android {
+    sourceSets.getByName("main").jniLibs.srcDir(offlineRuntime.resolve("jniLibs"))
+    sourceSets.getByName("main").assets.srcDir(offlineRuntime.resolve("assets"))
     if (matchaNative) {
-        sourceSets.getByName("debug").jniLibs.srcDir(matchaOutput.resolve("jniLibs"))
-        sourceSets.getByName("debug").assets.srcDir(matchaOutput.resolve("assets"))
+        sourceSets.getByName("main").jniLibs.srcDir(matchaOutput.resolve("jniLibs"))
+        sourceSets.getByName("main").assets.srcDir(matchaOutput.resolve("assets"))
     }
     sourceSets.getByName("androidTest").assets.srcDir("../sources/rhino/src/test/resources")
     sourceSets.getByName("androidTest").assets.srcDir("../tests/source-compatibility/browser")
@@ -67,7 +94,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "BENCHMARK", "false")
-        buildConfigField("boolean", "MATCHA_NATIVE", "false")
+        buildConfigField("boolean", "MATCHA_NATIVE", matchaNative.toString())
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -86,8 +113,7 @@ android {
         }
 
         debug {
-            buildConfigField("boolean", "MATCHA_NATIVE", matchaNative.toString())
-            applicationIdSuffix = if (matchaNative) ".matchaprobe" else ".debug"
+            applicationIdSuffix = ".debug"
             isDebuggable = true
             isJniDebuggable = true
             vcsInfo.include = false
@@ -166,8 +192,10 @@ android {
         }
     }
     packaging {
+        // Embedded engines such as Sogou open companion libraries by their filesystem paths.
+        jniLibs.useLegacyPackaging = true
         if (matchaNative) {
-            // Preserve the source-build manifest's hashes in the debug APK.
+            // Preserve the source-build manifest's hashes in every APK.
             jniLibs.keepDebugSymbols += setOf("**/libnextvol-matcha.so", "**/libonnxruntime.so")
         }
         resources {
@@ -275,6 +303,10 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 dependencies {
+    implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.45.0") {
+        // Embedded synthesis does not use Azure token credentials; azure-core requires API 26.
+        exclude(group = "com.azure", module = "azure-core")
+    }
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation("me.zhanghai.android.libarchive:library:1.1.6")

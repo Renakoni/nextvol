@@ -12,13 +12,23 @@ import hnovel.speech.SpeechPackagePreview
 import hnovel.speech.HttpSpeechPackageImport
 import hnovel.speech.previewHttpSpeechPackage
 import hnovel.speech.previewSpeechPackage
+import hnovel.speech.OfflinePackagePreview
+import hnovel.speech.OfflinePackagePlan
+import hnovel.speech.previewOfflineVoice
+import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.tts.SpeechSettingsRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineInstallException
+import indi.renakoni.nextvol.tts.matcha.OfflineInstallError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -27,17 +37,26 @@ import javax.inject.Inject
 data class SpeechPackagePreviewState(
     val preview: SpeechPackagePreview? = null,
     val httpImports: Map<Int, HttpSpeechPackageImport> = emptyMap(),
+    val offlineImports: Map<Pair<Int, Int>, OfflinePackagePreview> = emptyMap(),
+    val offlineSupported: Boolean = true,
+    val installing: Boolean = false,
+    val installingId: String? = null,
+    val installed: String? = null,
+    val installError: Int? = null,
 )
 
-/** Owns a read-only document handle. This flow has no source repository or execution controller. */
+/** Preview is static. Installation only begins after the user chooses a supported voice. */
 @HiltViewModel
 class SpeechPackagePreviewViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val offline: OfflineSpeechRepository,
+    private val settings: SpeechSettingsRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPackagePreviewState())
     val state = mutableState.asStateFlow()
     private var input: Uri? = null
     private var reading: Job? = null
+    private var installing: Job? = null
 
     fun read(uri: Uri) {
         if (uri == input) return
@@ -63,10 +82,54 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     task.ensureActive()
                     if (engine.type == "http") index to previewHttpSpeechPackage(engine) else null
                 }.toMap()
-                SpeechPackagePreviewState(preview, imports)
+                val local = preview.engines.flatMapIndexed { index, engine ->
+                    if (engine.type != "http") engine.voices.mapIndexed { voiceIndex, voice ->
+                        task.ensureActive()
+                        (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
+                    } else emptyList()
+                }.toMap()
+                SpeechPackagePreviewState(preview, imports, local)
             }
             currentCoroutineContext().ensureActive()
             mutableState.value = result
         }
     }
+
+    fun install(plan: OfflinePackagePlan) {
+        val uri = input ?: return
+        if (state.value.installing || !state.value.offlineSupported || state.value.offlineImports.values.none { it.plan == plan }) return
+        mutableState.update { it.copy(installing = true, installingId = plan.id, installError = null, installed = null) }
+        installing = viewModelScope.launch {
+            try {
+                val voice = try {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                            offline.install(File("/proc/self/fd/${descriptor.fd}"), plan)
+                        } ?: error("Unreadable package")
+                    }
+                } finally {
+                    // Publication can finish just as cancellation discards the IO result.
+                    // Keep the selected reference aligned with the committed catalog either way.
+                    withContext(NonCancellable) {
+                        offline.voices().singleOrNull { it.sourceKey == plan.id }?.let { installed ->
+                            settings.update {
+                                if (it.offlineVoice?.id == installed.reference.id) it.copy(offlineVoice = installed.reference) else it
+                            }
+                        }
+                    }
+                }
+                mutableState.update { it.copy(installed = voice.name) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                val message = when ((failure as? OfflineInstallException)?.error) {
+                    OfflineInstallError.ChangedPackage -> R.string.tts_offline_changed
+                    OfflineInstallError.InvalidArchive -> R.string.tts_package_invalid_archive
+                    null -> R.string.tts_import_failed
+                }
+                mutableState.update { it.copy(installError = message) }
+            } finally { mutableState.update { it.copy(installing = false) } }
+        }
+    }
+
+    fun cancelInstall() { installing?.cancel() }
 }

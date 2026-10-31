@@ -108,6 +108,53 @@ class BuiltInSpeechSourcesTest {
         }
     }
 
+    @Test fun importedEngineEditUpdatesAllItsVoicesAndKeepsTheirIndependentSettings() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val base = server.url("/").toString().removeSuffix("/")
+            fun voice(code: String, engine: String = "shared") = SavedHttpSpeechSource(previewHttpSpeech(buildJsonObject {
+                put("id", code); put("name", "My $code"); put("url", "$base/old")
+                put("multiTts", buildJsonObject {
+                    put("engine", buildJsonObject {
+                        put("code", engine); put("name", "Same display name"); put("type", "http"); put("url", "$base/old")
+                    })
+                    put("voice", buildJsonObject { put("code", code); put("name", "Package $code"); put("speed", "1.3") })
+                })
+            }.toString()).sources.single(), listOf(base))
+            val originals = listOf(voice("a"), voice("b"), voice("c", "other"))
+            val repository = repository()
+            repository.save(originals)
+            val oldTicket = repository.withSource("b") { source, _ ->
+                authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+            }!!
+            repository.editImportedEngine("shared", "Edited engine", "$base/updated?voice={{voiceCode}}&text={{speakText}}",
+                """{"X-Engine":"edited"}""")
+            val restored = repository().sources()
+            assertFalse(authority.accepts(oldTicket))
+            assertEquals(originals[2].definition.raw, restored.single { it.definition.id == "c" }.definition.raw)
+            assertEquals(99, restored.count { it.isBuiltIn })
+            for (original in originals.take(2)) {
+                val source = restored.single { it.definition.id == original.definition.id }
+                assertEquals("Edited engine", source.category)
+                assertEquals(original.definition.name, source.definition.name)
+                assertEquals(original.origins, source.origins)
+                assertEquals(original.definition.raw["multiTts"]!!.jsonObject["voice"], source.definition.raw["multiTts"]!!.jsonObject["voice"])
+                server.enqueue(MockResponse().setBody(okio.Buffer().write("RIFFxxxxWAVE".toByteArray() + ByteArray(100))))
+                SourceBroker(directory.newFolder("engine-${source.definition.id}").toPath()).use { owner ->
+                    HttpSpeechClient(source.playbackDefinition(), owner, listOf(NetworkGrant(base, true)), authority) { identity, task, limits, broker ->
+                        ExecutionWire.decodeResult(WorkerMain.executeSerialized(ExecutionWire.encode(identity, task, limits).toString(Charsets.UTF_8),
+                            HostBridge { name, args -> runBlocking { broker.call(name, args) } }).toByteArray(Charsets.UTF_8))
+                    }.use { client -> client.synthesize("正文") }
+                }
+                val request = server.takeRequest(3, TimeUnit.SECONDS)!!
+                assertEquals("/updated", request.requestUrl!!.encodedPath)
+                assertEquals(source.definition.id, request.requestUrl!!.queryParameter("voice"))
+                assertEquals("正文", request.requestUrl!!.queryParameter("text"))
+                assertEquals("edited", request.getHeader("X-Engine"))
+            }
+        }
+    }
+
     @Test fun proxyCredentialsAndTextAreDataRatherThanScriptOrQueryParameters() = runBlocking {
         val original = repository().sources().first { it.group == "起点" }
         MockWebServer().use { server ->

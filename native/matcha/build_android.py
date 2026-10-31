@@ -1,4 +1,4 @@
-"""Build the vendored Chinese Matcha backend and its source-built #793 runtime."""
+"""Build the vendored offline Sherpa TTS backend and its source-built runtime."""
 import argparse
 import hashlib
 import json
@@ -39,6 +39,7 @@ def main():
     parser.add_argument('--ninja', default='ninja')
     parser.add_argument('--output', type=Path, default=ROOT / 'build')
     parser.add_argument('--jobs', type=int, default=3)
+    parser.add_argument('--ort-cache-key', default='')
     args = parser.parse_args()
     output = args.output.resolve()
     identity = output / 'assets/matcha-native/build-manifest.json'
@@ -47,7 +48,8 @@ def main():
     ndk = args.ndk.resolve()
     runtime = output / 'onnxruntime'
     run([sys.executable, ROOT.parent / 'onnxruntime/build_android.py', '--ndk', ndk,
-         '--cmake', args.cmake, '--ninja', args.ninja, '--output', runtime, '--jobs', args.jobs])
+         '--cmake', args.cmake, '--ninja', args.ninja, '--output', runtime, '--jobs', args.jobs,
+         '--cache-key', args.ort_cache_key])
     build = output / 'matcha-arm64'
     run([args.cmake, '-S', ROOT, '-B', build, '-G', 'Ninja',
          '-DCMAKE_MAKE_PROGRAM=' + args.ninja,
@@ -71,6 +73,14 @@ def main():
     jni.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(library, jni / library.name)
     shutil.copyfile(runtime / 'install/lib/libonnxruntime.so', jni / 'libonnxruntime.so')
+    # ABI markers preserve installation of the universal APK on unsupported devices.
+    clang = llvm / ('clang.exe' if os.name == 'nt' else 'clang')
+    for abi, target in (('armeabi-v7a', 'armv7a-linux-androideabi24'),
+                        ('x86', 'i686-linux-android24'), ('x86_64', 'x86_64-linux-android24')):
+        destination = output / 'jniLibs' / abi / 'libnextvol-platform.so'
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        run([clang, '--target=' + target, '-shared', '-fPIC', '-O2',
+             '-Wl,-z,max-page-size=16384', ROOT / 'platform.c', '-o', destination])
     assets = identity.parent
     assets.mkdir(parents=True, exist_ok=True)
     for source in json.loads((ROOT / 'sources.json').read_text(encoding='utf-8')):
@@ -81,10 +91,10 @@ def main():
     shutil.copytree(runtime / 'install/licenses', assets / 'licenses/onnxruntime', dirs_exist_ok=True)
     manifest = {
         'sherpa_version': '1.12.10', 'sherpa_commit': '6b1fbdedd2d90dba2714b7aff825412d89e45eba',
-        'profile': 'Chinese Matcha / HiFi-GAN / CPU / two threads / one instance',
+        'profile': 'Sherpa VITS / Matcha / Kokoro / Kitten / CPU / one instance',
         'abi': 'arm64-v8a', 'android_api': 26, 'stl': 'c++_static',
         'source_inventory_sha256': digest(ROOT / 'sources.sha256'),
-        'recipe_sha256': {name: digest(ROOT / name) for name in ('build_android.py', 'CMakeLists.txt', 'sources.cmake', 'sources.json', 'jni.cc')},
+        'recipe_sha256': {name: digest(ROOT / name) for name in ('build_android.py', 'CMakeLists.txt', 'phonemize.cmake', 'sources.cmake', 'sources.json', 'jni.cc', 'platform.c')},
         'library_sha256': digest(library), 'library_bytes': library.stat().st_size,
         'needed_libraries': needed, 'load_segment_alignments': [row[-1] for row in loads],
         'runtime': json.loads((runtime / 'install/build-manifest.json').read_text(encoding='utf-8')),

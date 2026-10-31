@@ -2,6 +2,7 @@
 //
 // Copyright (c)  2022-2023  Xiaomi Corporation
 
+#include <stdexcept>
 #include "sherpa-onnx/csrc/symbol-table.h"
 
 #include <algorithm>
@@ -130,14 +131,14 @@ std::unordered_map<std::string, int32_t> ReadTokens(
     iss >> std::ws;
     if (!iss.eof()) {
       SHERPA_ONNX_LOGE("Error: %s", line.c_str());
-      SHERPA_ONNX_EXIT(-1);
+      throw std::runtime_error("Invalid Sherpa model or resources");
     }
 
 #if 0
     if (token2id.count(sym)) {
       SHERPA_ONNX_LOGE("Duplicated token %s. Line %s. Existing ID: %d",
                        sym.c_str(), line.c_str(), token2id.at(sym));
-      SHERPA_ONNX_EXIT(-1);
+      throw std::runtime_error("Invalid Sherpa model or resources");
     }
 #endif
     if (id2token) {

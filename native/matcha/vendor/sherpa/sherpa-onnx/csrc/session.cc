@@ -2,6 +2,7 @@
 //
 // Copyright (c)  2023  Xiaomi Corporation
 
+#include <stdexcept>
 #include "sherpa-onnx/csrc/session.h"
 
 #include <algorithm>
@@ -80,7 +81,7 @@ Ort::SessionOptions GetSessionOptionsImpl(
         SHERPA_ONNX_LOGE(
             "Tensorrt support for Online models ony,"
             "Must be extended for offline and others");
-        exit(1);
+        throw std::runtime_error("Invalid Sherpa model or resources");
       }
       auto trt_config = provider_config->trt_config;
       struct TrtPairs {
