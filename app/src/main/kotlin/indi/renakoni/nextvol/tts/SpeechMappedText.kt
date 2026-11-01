@@ -5,8 +5,9 @@ internal class SpeechMappedText private constructor(
     val text: String, private val starts: IntArray, private val ends: IntArray,
     private val emptyOrigin: Pair<Int, Int> = 0 to 0,
 ) {
-    fun slice(start: Int, end: Int) = SpeechMappedText(text.substring(start, end),
-        starts.copyOfRange(start, end), ends.copyOfRange(start, end), if (start == end) range(start, end) else 0 to 0)
+    fun slice(start: Int, end: Int) = if (start == 0 && end == text.length) this else
+        SpeechMappedText(text.substring(start, end), starts.copyOfRange(start, end), ends.copyOfRange(start, end),
+            if (start == end) range(start, end) else 0 to 0)
 
     fun range(start: Int = 0, end: Int = text.length): Pair<Int, Int> {
         if (start == end) {

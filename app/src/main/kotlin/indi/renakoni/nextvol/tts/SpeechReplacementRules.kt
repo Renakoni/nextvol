@@ -45,30 +45,28 @@ internal suspend fun previewSpeechReplacement(text: String, rule: SpeechReplacem
 internal class SpeechReplacements(rules: List<SpeechReplacementRule>,
     private val replaceRegex: (suspend (String, String, String) -> List<ReplacementPart>)? = null,
     private val checkCancelled: () -> Unit) {
-    private val rules = rules.filter { it.activate }
+    private val stages = rules.filter { it.activate && (it.regex || it.source.isNotEmpty()) }
+        .groupBy { it.wholeText }.mapValues { (_, rules) -> rules.partition { it.regex } }
 
     suspend fun apply(input: SpeechMappedText, wholeText: Boolean): SpeechMappedText {
-        val stage = rules.filter { it.wholeText == wholeText }
-        var output = literals(input, stage.filterNot { it.regex })
-        for (rule in stage.filter { it.regex }) output = execute(rule) { budget ->
+        val (regex, literal) = stages[wholeText] ?: return input
+        var output = literals(input, literal)
+        for (rule in regex) output = execute(rule) { budget ->
             val parts = replaceRegex?.invoke(output.text, rule.source, rule.target)
                 ?: RegexReplacement.replace(output.text, rule.source, rule.target, budget, checkCancelled)
             val result = SpeechMappedText.Builder(output.text.length)
-            val mappingBudget = RuleBudget()
             for (part in parts) {
                 checkCancelled()
                 val text = part.text
                 if (text == null) result.append(output, part.start, part.end)
                 else result.append(text, output.range(part.start, part.end))
-                mappingBudget.checkSize(result.length, mappingBudget.limits.maxOutputChars)
             }
             result.build(output)
         }
         return output
     }
 
-    private fun literals(input: SpeechMappedText, rules: List<SpeechReplacementRule>): SpeechMappedText {
-        val active = rules.filter { it.source.isNotEmpty() }
+    private fun literals(input: SpeechMappedText, active: List<SpeechReplacementRule>): SpeechMappedText {
         if (active.isEmpty() || input.text.isEmpty()) return input
         val budgets = active.map { RuleBudget() }
         val next = IntArray(active.size) { -1 }
@@ -78,6 +76,7 @@ internal class SpeechReplacements(rules: List<SpeechReplacementRule>,
             }
         }
         active.indices.forEach { find(it, 0) }
+        if (next.all { it < 0 }) return input
         val result = SpeechMappedText.Builder(input.text.length)
         var end = 0
         var lastRule: Int? = null
