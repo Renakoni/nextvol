@@ -1,32 +1,97 @@
 package indi.renakoni.nextvol.tts
 
+import kotlinx.serialization.json.Json
+import java.util.Locale
+
 /** One chapter's synthesis input and original UTF-16 ranges, shared by every session consumer. */
 class SpeechPlan internal constructor(
     val chapter: SpeechChapter,
     val synthesis: SpeechSettings,
     val segments: List<SpeechSegment>,
+    val structuredText: String,
+    private val mappedSegments: List<SpeechMappedText>,
+    val context: SpeechContext = SpeechContext(),
+    val nextContext: SpeechContext = context,
+    private val maxInputLength: Int = Int.MAX_VALUE,
+    private val locale: Locale = Locale.getDefault(),
 ) {
-    internal fun matches(chapter: SpeechChapter, synthesis: SpeechSettings) =
-        this.chapter == chapter && this.synthesis == synthesis
+    private val replacementKey = synthesis.textProcessingKey(maxInputLength, locale)
+    internal fun matches(chapter: SpeechChapter, synthesis: SpeechSettings, context: SpeechContext, maxInputLength: Int) =
+        this.chapter == chapter && this.synthesis == synthesis && this.context == context &&
+            this.maxInputLength == maxInputLength && locale == Locale.getDefault()
 
     internal fun startIndex(saved: SpeechBookmark?): Int {
-        val offset = saved?.takeIf { it.bookId == chapter.bookId && it.chapterId == chapter.id &&
-            it.fingerprint == chapter.fingerprint && !it.completed && it.offset in 0..chapter.text.length }?.offset ?: 0
+        val matching = saved?.takeIf { it.bookId == chapter.bookId && it.chapterId == chapter.id &&
+            it.fingerprint == chapter.fingerprint && !it.completed && it.offset in 0..chapter.text.length }
+        // Expansion/capture reordering can give several clips overlapping original ranges.
+        matching?.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }?.let { return it }
+        val offset = matching?.offset ?: 0
         // End offsets are exclusive: a durable completion boundary must not replay
         // the finished segment, including whitespace before the next segment.
         return segments.indexOfFirst { it.end > offset }.takeIf { it >= 0 } ?: segments.size
     }
 
-    internal fun bookmark(offset: Int) = SpeechBookmark(chapter.bookId, chapter.id,
-        chapter.fingerprint, offset, chapter.bookTitle, chapter.title)
+    internal fun bookmark(offset: Int, index: Int? = null) = SpeechBookmark(chapter.bookId, chapter.id,
+        chapter.fingerprint, offset, chapter.bookTitle, chapter.title,
+        replacementKey = replacementKey, segmentIndex = index, context = context)
+
+    internal fun position(index: Int, start: Int = 0, end: Int = segments[index].text.length, anchor: Int = start): SpeechPosition {
+        val mapped = mappedSegments[index]
+        val range = mapped.range(start, end)
+        val originalAnchor = mapped.anchor(anchor)
+        return SpeechPosition(chapter.bookId, chapter.id, chapter.fingerprint, range.first, range.second,
+            originalAnchor.coerceIn(range.first, range.second - 1))
+    }
 }
 
 /** No plan is built by ordinary reading. Preparation is cancellable and limited to one bounded chapter. */
-internal fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: SpeechSettings, checkCancelled: () -> Unit): SpeechPlan {
+internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: SpeechSettings,
+    replaceRegex: (suspend (String, String, String) -> List<hnovel.rules.ReplacementPart>)? = null,
+    context: SpeechContext = SpeechContext(), maxInputLength: Int = Int.MAX_VALUE,
+    checkCancelled: () -> Unit): SpeechPlan {
     checkCancelled()
     if (chapter.text.length > 1_000_000) throw SpeechException(SpeechError.UnsupportedContent)
-    return SpeechPlan(chapter, synthesis, speechSegments(chapter.text, checkCancelled = checkCancelled))
+    val settings = synthesis.text
+    val locale = Locale.getDefault()
+    val original = speechTrim(SpeechMappedText.original(chapter.text))
+    // The original service filters before normalization, replacement and emoji expansion.
+    if (settings.filterUnspoken && speechIsUnspoken(original.text))
+        return SpeechPlan(chapter, synthesis, emptyList(), "", emptyList(), context = context, maxInputLength = maxInputLength, locale = locale)
+    val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
+    val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
+    val structure = speechStructure(structured, settings, context, checkCancelled = checkCancelled)
+    val segments = mutableListOf<SpeechSegment>()
+    val mappings = mutableListOf<SpeechMappedText>()
+    for (part in structure.parts) {
+        checkCancelled()
+        val languages = if (part.controlMark) listOf(SpeechLanguageSegment(part.content, "lang:mark"))
+            else speechLatinSegments(part.content, settings.separateEnglish, checkCancelled)
+        for (language in languages) {
+            var corrected = language.content
+            if (!part.controlMark) {
+                corrected = replacements.apply(corrected, wholeText = false)
+                if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
+            }
+            for (sentence in speechSentenceChunks(corrected, settings.maxSentenceLength, locale, checkCancelled)) {
+                for (mapped in speechHardChunks(sentence, maxInputLength, checkCancelled)) {
+                    if (mapped.text.all { Character.isWhitespace(it) } || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
+                    val (start, end) = mapped.range()
+                    if (start < end) {
+                        segments += SpeechSegment(start, end, mapped.text, part.dialogue, part.speaker,
+                            part.speakerHint, language.language, part.beforeText, part.afterText,
+                            part.rememberedText, part.previousVoice, part.changeVoice)
+                        mappings += mapped
+                    }
+                }
+            }
+        }
+    }
+    return SpeechPlan(chapter, synthesis, segments, structured.text, mappings, context, structure.nextContext, maxInputLength, locale)
 }
+
+internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
+    speechDigest("speech-text-v2\u0000" + Json.encodeToString(replacements) + "\u0000" +
+        Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag())
 
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {

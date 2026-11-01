@@ -445,6 +445,7 @@ tasks.register("printVersionCode") {
 dependencies {
     implementation(project(":source-execution"))
     implementation(project(":source-speech"))
+    implementation(project(":source-rules"))
     implementation(project(":source-rhino"))
     implementation(project(":source-content"))
     testImplementation(testFixtures(project(":source-content")))

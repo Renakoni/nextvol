@@ -93,6 +93,7 @@ class SystemSpeechEngines @Inject constructor(@ApplicationContext private val co
 internal data class SystemSpeechClient(val tts: TextToSpeech, val engine: SpeechEngine)
 
 private class SystemSpeechSynthesizer(private val engines: SystemSpeechEngines) : SpeechSynthesizer {
+    override val maxInputLength get() = TextToSpeech.getMaxSpeechInputLength()
     private val client = AtomicReference<SystemSpeechClient?>()
     private val mutex = Mutex()
     private class Synthesis(val id: String, val complete: CompletableDeferred<Unit>, val timing: SpeechTimingCollector)

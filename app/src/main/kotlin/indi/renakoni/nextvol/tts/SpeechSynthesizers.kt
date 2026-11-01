@@ -43,6 +43,7 @@ class SpeechSynthesizers @Inject constructor(
 
     fun synthesizer(): SpeechSynthesizer = object : SpeechSynthesizer {
         @Volatile private var selected: SpeechSynthesizer? = null
+        override val maxInputLength get() = checkNotNull(selected).maxInputLength
         override suspend fun open(settings: SpeechSettings): String {
             withContext(NonCancellable + Dispatchers.IO) { close() }
             currentCoroutineContext().ensureActive()
@@ -66,6 +67,7 @@ class SpeechSynthesizers @Inject constructor(
     private fun offline(): SpeechSynthesizer = object : SpeechSynthesizer {
         private var lease: OfflineSpeechRepository.Lease? = null
         @Volatile private var delegate: SpeechSynthesizer? = null
+        override val maxInputLength get() = checkNotNull(delegate).maxInputLength
         override suspend fun open(settings: SpeechSettings): String {
             var attempted = false
             try {
@@ -127,6 +129,7 @@ class SpeechSynthesizers @Inject constructor(
     }
 
     private fun http(): SpeechSynthesizer = object : SpeechSynthesizer {
+        override val maxInputLength = 65536
         @Volatile private var owner: SourceBroker? = null
         @Volatile private var client: HttpSpeechClient? = null
         private var rate: Float? = null
