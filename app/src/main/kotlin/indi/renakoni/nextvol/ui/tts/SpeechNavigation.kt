@@ -150,9 +150,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
     composable<SpeechNameTestRoute> {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechNameTestViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechNameTestScreen(state, viewModel.available, nav::popBackStackIfResumed, viewModel::recognize, viewModel::clear)
+        SpeechNameTestScreen(nav::popBackStackIfResumed)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()

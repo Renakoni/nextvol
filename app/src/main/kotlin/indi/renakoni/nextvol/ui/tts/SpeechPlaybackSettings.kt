@@ -148,12 +148,16 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             }
             state.settings?.let { settings -> item {
                 val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner)) {} }
-                SettingsMenuEntry(title = stringResource(R.string.tts_name_algorithm), options = algorithms,
+                SettingsMenuEntry(painter = painterResource(R.drawable.group_24px),
+                    title = stringResource(R.string.tts_name_algorithm), options = algorithms,
                     selectedOptionKey = settings.nameDiscoveryAlgorithm.toString(),
                     onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
             } }
             item {
-                SettingsClickableEntry(title = stringResource(R.string.tts_name_test), onClick = onNameTest)
+                SettingsClickableEntry(painter = painterResource(R.drawable.search_24px),
+                    title = stringResource(R.string.tts_name_test),
+                    trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                    onClick = onNameTest)
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_audition_text),
