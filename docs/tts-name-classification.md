@@ -102,9 +102,11 @@ reconstructed feature vectors matched. Unknown Latin/emoji inputs retained the
 original raw model label while correctly reporting no vocabulary support for the
 NextVol fallback contract.
 
-Focused JVM tests cover surname/feature positions, UTF-16 unknown units, known
-zero scores, changed rules, full matches and conflict order. The instrumented
-test executes the bundled model and checks its priority over fallback rules.
+Focused JVM tests cover surname/feature positions, UTF-16 unknown units and known
+zero scores. Android tests cover the bundled model's priority, changed rules,
+full matches, conflict order, syntax errors and budget recovery. Cancellation and
+queue recovery are covered by the shared isolated executor tests; the actual
+classification UI's process-exit evidence is recorded below.
 
 ## Ownership and cancellation
 
@@ -122,3 +124,52 @@ and rules remain request arguments, so edits take effect on the next request.
 Cancellation is checked after preparation, after model loading and before returning
 inference results. A cancelled inference finishes its single bounded five-feature
 call without publishing a result or discarding resources used by other requests.
+
+Fallback regex compilation and full matching run in the existing independent
+isolated worker pool, without scripts or a host broker. Each nonempty rule has a
+2.5-second execution budget; male and female rules remain sequential and stop at
+the first match. Android service startup has the executor's separate 15-second
+readiness budget. Cancellation or budget expiry retires the worker via its
+termination Binder call and waits up to two seconds for Binder death. A live
+retiring Binder cannot be reused. Successful workers can serve later names and
+retain the pool's existing idle retirement; no additional pool or regex cache is
+introduced. The classifier retains one built-in authority ticket for its process
+lifetime. Syntax errors retain the rule field, pattern and error offset; budget
+and worker failures identify the male/female field rather than returning Unknown.
+
+This is a per-name rule budget, not a chapter processing budget. The classifier
+adds no name-length limit. Existing transport limits still apply: 32 MiB of
+serialized UTF-8 request data and 512 KiB per input packet (gzip when useful), plus
+the worker's existing sampled allocation budget. These are not a fixed character
+limit or a promise that every request below 32 MiB fits in worker memory.
+
+REA rechecked `O6.j.g` for #841
+(`ev_0c61ddc116819cc46a69b57c1a14401e700887b93c840b29eda9b5d86d282386`):
+the original fallback directly calls `Pattern.matcher(name).matches()` with no
+execution budget at that call site. A bounded probe on the specified MuMu device
+(`127.0.0.1:16448`) ran `(a+)+$` against 40,000 `a` characters followed by `!`.
+After thread interruption and a 500 ms wait, matching was still running and used
+498 ms of process CPU during that wait. The input wrapper received one `toString`
+call and zero `charAt` calls. The probe process was then killed. Thus neither
+thread interruption nor a checking CharSequence establishes Android cancellation;
+the isolated process boundary is necessary. This observation is independent of
+the earlier host-JVM probe.
+
+The corrected classifier was probed on the same MuMu (Android 12), using its real
+Binder workers. Warm-worker timings include encoding, transport and matching:
+
+| Input characters (`a` followed by `!`) | Linear `[a-z]+!` rule | Both original default rules |
+| --- | --- | --- |
+| 40,001 | 10 ms | 16 ms |
+| 1,000,001 | 44 ms | 239 ms |
+| 4,000,001 | 180 ms | 744 ms |
+
+With the probe's 10-second budget, the high-backtracking female rule returned
+`femaleNameRegex: Timeout` after 10,058 ms with its Binder already dead. Through the actual classification UI,
+cancel, input edit and leaving the tab terminated the old workers in 83, 481 and
+388 ms respectively, measured from the UI action to observed Binder death.
+Each action was followed by a fresh successful classification without a stale
+result. These are device observations, not universal latency guarantees. The
+temporary measurement harness is not shipped or retained in the test suite.
+These device timings were collected with a 10-second budget; the current
+2.5-second configuration has not been remeasured on device.
