@@ -68,6 +68,9 @@ object SpeechNameTestRoute
 object SpeechNameClassificationRoute
 
 @Serializable
+object SpeechNewWordTestRoute
+
+@Serializable
 object SpeechReplacementsRoute
 
 @Serializable
@@ -149,7 +152,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val state by viewModel.state.collectAsStateWithLifecycle()
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed, viewModel::update,
             onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } },
-            onNameClassification = { nav.navigate(SpeechNameClassificationRoute) { launchSingleTop = true } })
+            onNameClassification = { nav.navigate(SpeechNameClassificationRoute) { launchSingleTop = true } },
+            onNewWordTest = { nav.navigate(SpeechNewWordTestRoute) { launchSingleTop = true } })
     }
     composable<SpeechNameTestRoute> {
         HideReadAloudOverlay()
@@ -165,6 +169,13 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val state by viewModel.state.collectAsStateWithLifecycle()
         SpeechNameClassificationScreen(state, viewModel.available, nav::popBackStackIfResumed,
             viewModel::classify, viewModel::clear)
+    }
+    composable<SpeechNewWordTestRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechNewWordTestViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechNewWordTestScreen(state, nav::popBackStackIfResumed, viewModel::discover, viewModel::clear)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()

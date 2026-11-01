@@ -1,0 +1,14 @@
+<resources>
+    <string name="tts_new_word_algorithm">New-word discovery</string>
+    <string name="tts_new_word_pattern">Name pattern</string>
+    <string name="tts_new_word_default_pattern">Original Chinese pattern</string>
+    <string name="tts_new_word_pattern_scope">Filters candidates from the new-word statistics. Expressions match the entire candidate; an empty expression finds no names.</string>
+    <string name="tts_new_word_test">New-word discovery test</string>
+    <string name="tts_new_word_scope">Finds possible names using repeated words and their contexts. Short text may yield no results, and candidates may include ordinary words. Each test starts fresh.</string>
+    <string name="tts_new_word_run">Discover new words</string>
+    <string name="tts_new_word_candidates">Candidate</string>
+    <string name="tts_new_word_score">Statistical score</string>
+    <string name="tts_new_word_empty">No candidates found. Try a passage where names recur in different contexts.</string>
+    <string name="tts_new_word_error">New-word discovery failed: %1$s</string>
+    <string name="tts_new_word_sample">林逸来到门前。林逸转身离开。林逸笑着点头。林逸站在窗边。</string>
+</resources>

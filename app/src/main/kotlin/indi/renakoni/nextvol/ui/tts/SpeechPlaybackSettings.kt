@@ -25,6 +25,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
+import indi.renakoni.nextvol.tts.names.SpeechNewWordDiscovery
 import indi.renakoni.nextvol.data.setting.AbstractSettingState
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
@@ -41,6 +42,7 @@ import kotlin.math.roundToInt
 
 data class SpeechPlaybackSettingsState(
     val settings: SpeechTextSettings? = null,
+    val defaultNamePattern: String? = null,
     val error: SpeechError? = null,
 )
 
@@ -48,6 +50,7 @@ data class SpeechPlaybackSettingsState(
 class SpeechPlaybackSettingsViewModel @Inject constructor(
     private val repository: SpeechSettingsRepository,
     userData: UserDataRepository,
+    newWords: SpeechNewWordDiscovery,
 ) : ViewModel() {
     val preferences = SpeechPlaybackPreferences(userData, viewModelScope)
     private val mutableState = MutableStateFlow(SpeechPlaybackSettingsState())
@@ -56,6 +59,13 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.changes.collect { settings -> mutableState.update { it.copy(settings = settings.text) } }
+        }
+        viewModelScope.launch {
+            try {
+                val pattern = newWords.defaultNamePattern()
+                mutableState.update { it.copy(defaultNamePattern = pattern) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.Storage) } }
         }
     }
 
@@ -86,9 +96,10 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onNameTest: () -> Unit,
-    onNameClassification: () -> Unit) {
+    onNameClassification: () -> Unit, onNewWordTest: () -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingMaleRule by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var editingPersonRule by rememberSaveable { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
     val defaultText = stringResource(R.string.tts_preview_text)
     Scaffold(topBar = {
@@ -149,7 +160,8 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 }
             }
             state.settings?.let { settings -> item {
-                val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner)) {} }
+                val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner),
+                    Option("100", R.string.tts_new_word_algorithm)) {} }
                 SettingsMenuEntry(title = stringResource(R.string.tts_name_algorithm), options = algorithms,
                     selectedOptionKey = settings.nameDiscoveryAlgorithm.toString(),
                     onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
@@ -157,6 +169,15 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_name_test), onClick = onNameTest)
             }
+            state.settings?.let { settings ->
+                if (state.defaultNamePattern != null) item {
+                    SettingsClickableEntry(title = stringResource(R.string.tts_new_word_pattern),
+                        option = if (settings.personNameRegex == null) stringResource(R.string.tts_new_word_default_pattern)
+                            else settings.personNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
+                        onClick = { text = settings.personNameRegex ?: state.defaultNamePattern; editingPersonRule = true })
+                }
+            }
+            item { SettingsClickableEntry(title = stringResource(R.string.tts_new_word_test), onClick = onNewWordTest) }
             state.settings?.let { settings ->
                 item {
                     SettingsClickableEntry(title = stringResource(R.string.tts_name_male_rule),
@@ -213,6 +234,18 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             }) { Text(stringResource(R.string.tts_engine_save)) } },
             dismissButton = { TextButton(onClick = { editingMaleRule = null }) { Text(stringResource(R.string.cancel)) } })
     }
+    if (editingPersonRule) AlertDialog(onDismissRequest = { editingPersonRule = false },
+        title = { Text(stringResource(R.string.tts_new_word_pattern)) },
+        text = {
+            OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), minLines = 3, maxLines = 8,
+                supportingText = { Text(stringResource(R.string.tts_new_word_pattern_scope)) })
+        },
+        confirmButton = { TextButton(onClick = {
+            val pattern = text
+            onUpdate { it.copy(personNameRegex = pattern.takeUnless { it == state.defaultNamePattern }) }
+            editingPersonRule = false
+        }) { Text(stringResource(R.string.tts_engine_save)) } },
+        dismissButton = { TextButton(onClick = { editingPersonRule = false }) { Text(stringResource(R.string.cancel)) } })
 }
 
 @Composable
