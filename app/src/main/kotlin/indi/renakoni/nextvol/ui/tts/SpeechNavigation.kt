@@ -71,15 +71,6 @@ data class SpeechReplacementEditorRoute(val ruleId: String? = null)
 object SpeechReplacementPreviewRoute
 
 @Serializable
-object SpeechReplacementsRoute
-
-@Serializable
-data class SpeechReplacementEditorRoute(val ruleId: String? = null)
-
-@Serializable
-object SpeechReplacementPreviewRoute
-
-@Serializable
 data class SpeechPackagePreviewRoute(val uri: String)
 
 fun NavController.navigateToSpeechSettings() = navigate(SpeechSettingsRoute) { launchSingleTop = true }
