@@ -64,13 +64,13 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val roles = SpeechRoleRules(synthesis.roleRules, chapter.bookId, synthesis.roleContextPattern, replaceRegex, checkCancelled)
     // Context retains person identity, but an edited/disabled rule must not retain its old voice.
     val inputContext = routing.refreshContext(context) { old ->
-        old.roleMatch?.let { roles.refresh(it)?.personVoice() }
-            ?: if (old.roleMatch == null) routing.explicit(old.person) else null
+        if (old.roleMatch != null) roles.refresh(old.roleMatch)?.personVoice()
+        else roles.resolve(old.person, SpeechContextDirection.Explicit)?.personVoice() ?: routing.explicit(old.person)
     }
     val structure = speechStructure(structured, settings, inputContext,
         resolve = if (synthesis.hasVoiceRouting) { name, direction ->
-            (if (direction == SpeechContextDirection.Explicit) routing.explicit(name) else null)
-                ?: roles.resolve(name, direction)?.personVoice()
+            roles.resolve(name, direction)?.personVoice()
+                ?: if (direction == SpeechContextDirection.Explicit) routing.explicit(name) else null
         } else null,
         textRules = roles.splitText(structured),
         checkCancelled = checkCancelled)

@@ -86,6 +86,27 @@ class SpeechRolePlanTest {
         assertEquals(narrator.key, otherBook.segments.single().selectedVoice!!.reference.key)
     }
 
+    @Test fun roleRulesOverrideExplicitAssignmentsAndTheirContinuedContext() = runBlocking {
+        val assigned = settings.copy(speakerVoices = mapOf("甲" to first), speakerBookId = "book",
+            text = settings.text.copy(continueDialogue = true))
+        val opening = chapter("“<<甲>>开始")
+        val before = prepareSpeechPlan(opening, assigned) {}
+        assertEquals(first.key, before.segments.single().selectedVoice!!.reference.key)
+        assertNull(before.segments.single().roleMatch)
+        assertTrue(before.nextContext.openDialogue)
+
+        val rule = role("甲", second)
+        val configured = assigned.copy(roleRules = listOf(rule))
+        val explicit = prepareSpeechPlan(opening, configured) {}
+        val continued = prepareSpeechPlan(chapter("接着说。”", id = "two"), configured,
+            context = before.nextContext) {}
+        for (plan in listOf(explicit, continued)) {
+            assertEquals("甲", plan.segments.single().speaker)
+            assertEquals(rule.id, plan.segments.single().roleMatch?.ruleId)
+            assertEquals(second.key, plan.segments.single().selectedVoice!!.reference.key)
+        }
+    }
+
     @Test fun continuedDialogueUsesTheEditedRoleVoiceInsteadOfItsPreviousContextSnapshot() = runBlocking {
         val rule = role("甲")
         val configured = settings.copy(roleRules = listOf(rule), text = settings.text.copy(continueDialogue = true))
