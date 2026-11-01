@@ -24,7 +24,6 @@
     <string name="tts_online_sources">Голоса</string>
     <string name="tts_library_actions">Параметры каталога</string>
     <string name="tts_needs_key">Настроить ключ</string>
-    <string name="tts_configure_service">Настроить %1$s</string>
     <string name="tts_clear_credentials">Удалить данные</string>
     <plurals name="tts_voice_count">
         <item quantity="one">%1$d голос</item>
@@ -38,8 +37,7 @@
     <string name="tts_sources">Источники голоса</string>
     <string name="tts_playback_settings">Воспроизведение</string>
     <string name="tts_synthesis_settings">Синтез речи</string>
-    <string name="tts_preferences">Настройки воспроизведения</string>
-    <string name="tts_preferences_description">Воспроизведение и параметры голоса</string>
+    <string name="tts_preferences">Настройки голоса</string>
     <string name="tts_settings_description">Голоса и скорость чтения</string>
     <string name="tts_engine">Синтезатор речи</string>
     <string name="tts_voice">Голос</string>
@@ -76,7 +74,7 @@
     <string name="tts_previous_passage">Предыдущий фрагмент</string>
     <string name="tts_next_passage">Следующий фрагмент</string>
     <string name="tts_passage">Фрагмент %1$d из %2$d</string>
-    <string name="tts_refresh">Обновить синтезаторы и голоса</string>
+    <string name="tts_refresh">Перезагрузить данные</string>
     <string name="tts_error_no_engine">Синтезатор речи не найден. Установите и настройте его в системных настройках, затем повторите попытку.</string>
     <string name="tts_error_engine">Выбранный синтезатор речи недоступен. Проверьте его настройки.</string>
     <string name="tts_error_voice">Этот голос недоступен. Выберите другой голос или откройте настройки синтезатора.</string>

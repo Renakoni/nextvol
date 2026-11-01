@@ -49,7 +49,7 @@ fun previewMatchaVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngin
         return MatchaPackagePreview(error = MatchaPackageError.UnsupportedModel)
     }
     return try {
-        val raw = voice.raw.values
+        val raw = voice.withImportDefaults(engine.code).raw.values
         for (key in listOf("param", "extendUI")) {
             if (raw[key] != null && raw[key] !is SpeechPackageValue.Scalar) configurationFailure(MatchaPackageError.Parameters, key)
         }
@@ -64,7 +64,7 @@ fun previewMatchaVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngin
         if (selected.any { it.bytes < 0 }) configurationFailure(MatchaPackageError.MissingResource, directory)
         val paths = selected.map { it.path.removePrefix("$directory/") }
         val configuration = discoverSherpaVoiceConfig(paths, parameters).copy(
-            speed = voiceNumber(raw, "speed"),
+            speed = voiceNumber(raw, "speed", allowZero = true),
             pitch = voiceNumber(raw, "pitch"),
             volume = voiceNumber(raw, "volume", allowZero = true),
         )
@@ -141,10 +141,8 @@ fun discoverSherpaVoiceConfig(paths: Collection<String>, parameters: JsonObject 
     )
 }
 
-private fun resolveSherpaParameters(param: String?, extendUI: String?): JsonObject {
-    fun parse(text: String, field: String) = try { Json.parseToJsonElement(text) }
-        catch (_: IllegalArgumentException) { configurationFailure(MatchaPackageError.Parameters, field) }
-    val parameters = if (param.isNullOrBlank()) JsonObject(emptyMap()) else parse(param, "param") as? JsonObject
+fun resolveSherpaParameters(param: String?, extendUI: String?): JsonObject {
+    val parameters = if (param.isNullOrBlank()) JsonObject(emptyMap()) else speechParameterJson(param, "param") as? JsonObject
         ?: configurationFailure(MatchaPackageError.Parameters, "param")
     val defaults = offlineControlDefaults(extendUI)
     return JsonObject(parameters.mapValues { (key, value) ->

@@ -47,6 +47,11 @@ class HttpSpeechPackageTest {
         assertEquals("2.0", voice.getValue("volume").jsonPrimitive.content)
         assertEquals("16000", voice.getValue("sampleRate").jsonPrimitive.content)
         assertEquals(JsonNull, voice.getValue("param"))
+        val withDefaults = previewHttpSpeechPackage(packageEngine(config = fixture("config.yaml")
+            .replace("sampleRate: 16000", "sampleRate: 0").replace("pitch: 1.0", "pitch: 0.0"))).sources.first()
+            .raw.getValue("multiTts").jsonObject.getValue("voice").jsonObject
+        assertEquals("16000", withDefaults.getValue("sampleRate").jsonPrimitive.content)
+        assertEquals("1.0", withDefaults.getValue("pitch").jsonPrimitive.content)
         assertTrue(source.url.contains("not during preview"))
         assertEquals(source.raw, previewHttpSpeech(source.raw.toString()).sources.single().raw)
     }
@@ -55,7 +60,15 @@ class HttpSpeechPackageTest {
         MockWebServer().use { server ->
             server.start()
             val base = server.url("/").toString().removeSuffix("/")
-            val engine = packageEngine(engines = fixture("engines.yaml").replace("https://speech.example.invalid", base))
+            val parameter = "quoted\";throw Error(1);// & literal"
+            val extensions = buildJsonArray { add(buildJsonObject {
+                put("code", "style"); put("value", "")
+                put("candidate", buildJsonObject { put(parameter, "Example") })
+            }) }.toString()
+            val engine = packageEngine(engines = fixture("engines.yaml").replace("https://speech.example.invalid", base)
+                .trimEnd() + "&style={{java.encodeURI(params[0])}}\n",
+                config = fixture("config.yaml").replace("param: null", "param: '@style'")
+                    .replace("extendUI: null", "extendUI: '$extensions'"))
             val definition = previewHttpSpeechPackage(engine).sources.first()
             val text = "中文 \"quoted\" & + {{throw 'not code'}} @js:literal"
             val audio = "RIFFxxxxWAVE".toByteArray() + ByteArray(128)
@@ -76,6 +89,7 @@ class HttpSpeechPackageTest {
                         assertEquals("200", request.requestUrl!!.queryParameter("volume"))
                         assertEquals("mp3", request.requestUrl!!.queryParameter("audioType"))
                         assertEquals("16000", request.requestUrl!!.queryParameter("sampleRate"))
+                        assertEquals(parameter, request.requestUrl!!.queryParameter("style"))
                     }
                 }
                 client(emptyList()).use { source ->

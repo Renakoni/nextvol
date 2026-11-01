@@ -20,6 +20,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.*
 import kotlinx.coroutines.withContext
 import org.junit.After
@@ -45,6 +46,7 @@ class SpeechSettingsViewModelTest {
     @Before fun create() {
         Dispatchers.setMain(StandardTestDispatcher())
         every { repository.changes } returns settings
+        every { http.changes } returns MutableStateFlow(0L)
         coEvery { engines.installed() } returns emptyList()
         coEvery { engines.inspect(any()) } throws SpeechException(SpeechError.NoEngine)
         model = SpeechSettingsViewModel(repository, engines, mockk(), http, mockk())
@@ -72,20 +74,20 @@ class SpeechSettingsViewModelTest {
             """{"id":"candidate","name":"Candidate","url":"https://example.org"}""").sources.single(), listOf("https://example.org:443"))
         coEvery { http.sources() } returns listOf(source)
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
-        coEvery { http.delete(source.definition.id) } returns Unit
+        coEvery { http.delete(setOf(source.definition.id)) } returns Unit
         val playback = MutableStateFlow(ReadAloudState())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns playback
         val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
         try {
-            runCurrent()
+            library.state.first { it.loaded }
             library.previewVoice("candidate", "Sample.")
             verify { controller.preview("Sample.", settings.value.copy(httpSource = "candidate")) }
             coVerify(exactly = 0) { repository.update(any()) }
             assertNull(library.state.value.selected)
             playback.value = ReadAloudState(SpeechRequest("", "", "Sample.", settings.value.copy(httpSource = "candidate")), SpeechPhase.Playing)
             library.delete(source)
-            runCurrent()
+            library.state.first { !it.busy }
             verify { controller.command(SpeechAction.Stop) }
             coVerify(exactly = 0) { repository.update(any()) }
         } finally { library.viewModelScope.cancel() }
@@ -95,23 +97,25 @@ class SpeechSettingsViewModelTest {
         val definition = hnovel.speech.previewHttpSpeech(
             """{"name":"Package voice","url":"https://speech.example.invalid/audio"}""").sources.single()
         var saved = emptyList<SavedHttpSpeechSource>()
+        val changes = MutableStateFlow(0L)
+        every { http.changes } returns changes
         coEvery { http.sources() } coAnswers { saved }
-        coEvery { http.save(any()) } coAnswers { saved = firstArg() }
+        coEvery { http.save(any()) } coAnswers { saved = firstArg(); changes.value++ }
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
         val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
         try {
-            runCurrent()
-            library.previewPackage(listOf(definition))
+            library.state.first { it.loaded }
+            library.previewPackage(listOf(definition), null)
             assertEquals(definition.id, library.state.value.pending!!.single().definition.id)
             assertEquals(listOf("https://speech.example.invalid:443"), library.state.value.pending!!.single().origins)
             coVerify(exactly = 0) { http.save(any()) }
             library.dismissPreview()
             assertNull(library.state.value.pending)
-            library.previewPackage(listOf(definition))
+            library.previewPackage(listOf(definition), null)
             library.confirmImport()
-            runCurrent()
+            library.state.first { !it.busy && it.sources.isNotEmpty() }
             coVerify(exactly = 1) { http.save(any()) }
             assertNull(library.state.value.pending)
             assertEquals(definition.id, library.state.value.sources.single().definition.id)
@@ -157,11 +161,18 @@ class SpeechSettingsViewModelTest {
         coEvery { offline.voices() } returns emptyList()
         val deleting = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
-        coEvery { offline.delete(reference) } coAnswers { deleting.complete(Unit); release.await(); 0L }
+        coEvery { offline.delete(setOf(reference)) } coAnswers { deleting.complete(Unit); release.await(); 0L }
         coEvery { repository.update(any()) } coAnswers {
             settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
         }
-        val library = OfflineSpeechSourcesViewModel(offline, repository, mockk(relaxed = true))
+        val availability = mockk<indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker>()
+        every { availability.changes } returns MutableStateFlow(0L)
+        val engines = mockk<indi.renakoni.nextvol.tts.offline.OfflineEngineRepository>()
+        every { engines.changes } returns MutableStateFlow(0L)
+        coEvery { engines.all() } returns emptyList()
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns MutableStateFlow(ReadAloudState())
+        val library = OfflineSpeechSourcesViewModel(offline, repository, controller, availability, engines)
         try {
             runCurrent()
             val deletion = library.delete(voice)

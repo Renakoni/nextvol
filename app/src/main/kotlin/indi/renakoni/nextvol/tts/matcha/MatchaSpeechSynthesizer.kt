@@ -31,6 +31,11 @@ class MatchaSpeechSynthesizer internal constructor(
     private var handle = 0L
     private var speed = 1f
 
+    internal fun describe(): IntArray = lock.withLock {
+        check(handle != 0L && !closed)
+        native().describe(handle)
+    }
+
     override suspend fun open(settings: SpeechSettings): String {
         check(opened.compareAndSet(false, true))
         val job = currentCoroutineContext().job

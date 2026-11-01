@@ -74,7 +74,7 @@ class SpeechSettingsViewModel @Inject constructor(
                 if (settings.offlineVoice != null) {
                     val voice = offline.voices().find { it.reference == settings.offlineVoice }
                     if (current == request) mutableState.update { it.copy(offlineName = voice?.name,
-                        error = if (voice == null) SpeechError.OfflineUnavailable else null) }
+                        error = if (voice == null || !voice.enabled) SpeechError.OfflineUnavailable else null) }
                     return@launch
                 }
                 val selected = settings.httpSource
@@ -82,7 +82,7 @@ class SpeechSettingsViewModel @Inject constructor(
                     val sources = http.sources()
                     val source = sources.find { it.definition.id == selected }
                     val error = when {
-                        source == null -> SpeechError.HttpSourceUnavailable
+                        source == null || !source.enabled -> SpeechError.HttpSourceUnavailable
                         !source.isConfigured -> SpeechError.HttpLogin
                         else -> null
                     }

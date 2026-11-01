@@ -191,6 +191,18 @@ Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_create(JNIEnv *env, jobject, 
   } catch (const std::exception &error) { Fail(env, error); return 0; }
 }
 
+extern "C" JNIEXPORT jintArray JNICALL
+Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_describe(JNIEnv *env, jobject, jlong handle) {
+  try {
+    if (!handle) throw std::invalid_argument("Missing offline TTS handle");
+    const auto &engine = reinterpret_cast<Instance *>(handle)->engine;
+    const jint values[] = {engine->NumSpeakers(), engine->SampleRate()};
+    auto result = env->NewIntArray(2);
+    if (result) env->SetIntArrayRegion(result, 0, 2, values);
+    return result;
+  } catch (const std::exception &error) { Fail(env, error); return nullptr; }
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_generate(
     JNIEnv *env, jobject, jlong handle, jstring text, jfloat speed, jstring path, jobject cancellation) {

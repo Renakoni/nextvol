@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tts_engines">Engines</string>
-    <string name="tts_engines_description">Manage engine names and shared parameters</string>
     <string name="tts_engines_builtin">Built-in engines</string>
     <string name="tts_engines_http">Online engine settings</string>
     <string name="tts_engine_edit">Edit engine</string>
