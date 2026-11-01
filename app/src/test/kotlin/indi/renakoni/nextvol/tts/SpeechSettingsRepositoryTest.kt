@@ -34,8 +34,15 @@ class SpeechSettingsRepositoryTest {
         try {
             Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
             repository.update { it.copy(text = SpeechTextSettings()) }
+            val chinese = repository.get().text
+            assertTrue(Regex(chinese.maleNameRegex).matches("张强"))
+            assertTrue(Regex(chinese.femaleNameRegex).matches("小婷"))
             Locale.setDefault(Locale.ENGLISH)
-            assertEquals(60, SpeechSettingsRepository(data).get().text.maxSentenceLength)
+            assertEquals(chinese, SpeechSettingsRepository(data).get().text)
+            repository.update { it.copy(text = it.text.copy(maleNameRegex = "", femaleNameRegex = "")) }
+            Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
+            assertEquals("", SpeechSettingsRepository(data).get().text.maleNameRegex)
+            assertEquals("", SpeechSettingsRepository(data).get().text.femaleNameRegex)
         } finally { Locale.setDefault(previousLocale) }
         val rules = listOf(
             SpeechReplacementRule("first", "引号", "人物", "「", "“<<张三>>"),

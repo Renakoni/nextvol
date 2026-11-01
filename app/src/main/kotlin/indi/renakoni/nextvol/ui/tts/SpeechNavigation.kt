@@ -66,6 +66,9 @@ object SpeechPreferencesRoute
 object SpeechPlaybackSettingsRoute
 
 @Serializable
+object SpeechNameTestRoute
+
+@Serializable
 object SpeechReplacementsRoute
 
 @Serializable
@@ -180,7 +183,13 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val defaultContext = stringResource(R.string.tts_role_context_default)
         LaunchedEffect(Unit) { viewModel.initializeRoleContext(defaultContext) }
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
-            viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern)
+            viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern,
+            onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } })
+    }
+    composable<SpeechNameTestRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        SpeechNameTestScreen(nav::popBackStackIfResumed)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()

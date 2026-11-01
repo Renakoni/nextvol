@@ -26,9 +26,12 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
+import indi.renakoni.nextvol.tts.names.SpeechNewWordDiscovery
 import indi.renakoni.nextvol.data.setting.AbstractSettingState
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
+import indi.renakoni.nextvol.ui.components.MenuOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +47,7 @@ data class SpeechPlaybackSettingsState(
     val settings: SpeechTextSettings? = null,
     val allowMultipleVoices: Boolean = false,
     val roleContextPattern: String = "__ROLE__",
+    val defaultNamePattern: String? = null,
     val error: SpeechError? = null,
 )
 
@@ -51,6 +55,7 @@ data class SpeechPlaybackSettingsState(
 class SpeechPlaybackSettingsViewModel @Inject constructor(
     private val repository: SpeechSettingsRepository,
     userData: UserDataRepository,
+    newWords: SpeechNewWordDiscovery,
 ) : ViewModel() {
     val preferences = SpeechPlaybackPreferences(userData, viewModelScope)
     private val mutableState = MutableStateFlow(SpeechPlaybackSettingsState())
@@ -62,6 +67,13 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
                 it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
+        }
+        viewModelScope.launch {
+            try {
+                val pattern = newWords.defaultNamePattern()
+                mutableState.update { it.copy(defaultNamePattern = pattern) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.Storage) } }
         }
     }
 
@@ -110,11 +122,13 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
-    onContextPattern: (String) -> Unit) {
+    onContextPattern: (String) -> Unit, onNameTest: () -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingContext by rememberSaveable { mutableStateOf(false) }
     var contextPattern by rememberSaveable { mutableStateOf("") }
     var contextError by remember { mutableStateOf(false) }
+    var editingMaleRule by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var editingPersonRule by rememberSaveable { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
     val defaultText = stringResource(R.string.tts_preview_text)
     Scaffold(topBar = {
@@ -190,6 +204,37 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     }
                 }
             }
+            item { HorizontalDivider(Modifier.padding(start = 60.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)) }
+            state.settings?.let { settings -> item {
+                val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner),
+                    Option("100", R.string.tts_new_word_algorithm)) {} }
+                SettingsMenuEntry(painter = painterResource(R.drawable.group_24px),
+                    title = stringResource(R.string.tts_name_algorithm), options = algorithms,
+                    selectedOptionKey = settings.nameDiscoveryAlgorithm.toString(),
+                    onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
+            } }
+            item {
+                SettingsClickableEntry(painter = painterResource(R.drawable.search_24px),
+                    title = stringResource(R.string.tts_name_test),
+                    trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                    onClick = onNameTest)
+            }
+            state.settings?.let { settings ->
+                if (state.defaultNamePattern != null) item {
+                    SpeechTextEntry(R.drawable.code_24px, R.string.tts_new_word_pattern, R.string.tts_new_word_pattern_description,
+                        Modifier.clickable { text = settings.personNameRegex ?: state.defaultNamePattern; editingPersonRule = true })
+                }
+            }
+            state.settings?.let { settings ->
+                item {
+                    SpeechTextEntry(R.drawable.male_24px, R.string.tts_name_male_rule, R.string.tts_name_male_rule_description,
+                        Modifier.clickable { text = settings.maleNameRegex; editingMaleRule = true })
+                }
+                item {
+                    SpeechTextEntry(R.drawable.female_24px, R.string.tts_name_female_rule, R.string.tts_name_female_rule_description,
+                        Modifier.clickable { text = settings.femaleNameRegex; editingMaleRule = false })
+                }
+            }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_audition_text),
                     option = preferences.auditionText.ifBlank { defaultText },
@@ -230,12 +275,34 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
         }) {
             Text(stringResource(R.string.confirm))
         } }, dismissButton = { TextButton(onClick = { editingContext = false }) { Text(stringResource(R.string.cancel)) } })
+    editingMaleRule?.let { male ->
+        SpeechNameRuleDialog(stringResource(if (male) R.string.tts_name_male_rule else R.string.tts_name_female_rule),
+            text, { text = it }, onSave = {
+                val pattern = text
+                onUpdate { if (male) it.copy(maleNameRegex = pattern) else it.copy(femaleNameRegex = pattern) }
+                editingMaleRule = null
+            }, onDismiss = { editingMaleRule = null })
+    }
+    if (editingPersonRule) SpeechNameRuleDialog(stringResource(R.string.tts_new_word_pattern),
+        text, { text = it }, onSave = {
+            val pattern = text
+            onUpdate { it.copy(personNameRegex = pattern.takeUnless { it == state.defaultNamePattern }) }
+            editingPersonRule = false
+        }, onDismiss = { editingPersonRule = false })
 }
 
 @Composable
 private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
     checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChange)
+    SpeechTextEntry(icon, title, description, Modifier.toggleable(checked, role = Role.Switch, onValueChange = onChange)) {
+        PlaybackSwitch(checked)
+    }
+}
+
+@Composable
+private fun SpeechTextEntry(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
+    modifier: Modifier, trailingContent: @Composable () -> Unit = {}) {
+    Row(modifier.fillMaxWidth()
         .heightIn(min = 68.dp).padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -243,7 +310,7 @@ private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @Str
             Text(stringResource(description), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        PlaybackSwitch(checked)
+        trailingContent()
     }
 }
 
