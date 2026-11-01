@@ -1,8 +1,7 @@
 <resources>
     <string name="tts_name_algorithm">人名发现算法</string>
     <string name="tts_name_ner">NER（中文）</string>
-    <string name="tts_name_test">人名识别测试</string>
-    <string name="tts_name_scope">识别中文文本中可能的人名。结果来自模型推断，可能漏识别或误识别。</string>
+    <string name="tts_name_test">人物分析测试</string>
     <string name="tts_name_input">待识别文本</string>
     <string name="tts_name_run">识别人名</string>
     <string name="tts_name_results">识别结果</string>

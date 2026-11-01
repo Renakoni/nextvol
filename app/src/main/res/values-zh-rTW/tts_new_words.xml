@@ -1,14 +1,11 @@
 <resources>
-    <string name="tts_new_word_algorithm">新詞發現</string>
-    <string name="tts_new_word_pattern">人名正則</string>
+    <string name="tts_new_word_algorithm">New word discovery</string>
+    <string name="tts_new_word_pattern">人物名稱正則</string>
     <string name="tts_new_word_default_pattern">原版中文規則</string>
-    <string name="tts_new_word_pattern_scope">篩選新詞統計中的候選人名。正則匹配完整候選，留空則不發現人名。</string>
-    <string name="tts_new_word_test">新詞發現測試</string>
-    <string name="tts_new_word_scope">根據重複詞語和上下文發現可能的人名。短文字可能沒有結果，也可能把普通詞列為候選。每次測試重新統計。</string>
-    <string name="tts_new_word_run">發現新詞</string>
+    <string name="tts_new_word_run">開始分析</string>
     <string name="tts_new_word_candidates">候選詞</string>
     <string name="tts_new_word_score">統計評分</string>
-    <string name="tts_new_word_empty">未發現候選詞。可嘗試在不同上下文中多次出現人名的段落。</string>
-    <string name="tts_new_word_error">新詞發現失敗：%1$s</string>
+    <string name="tts_new_word_empty">未發現候選詞。</string>
+    <string name="tts_new_word_error">分析失敗：%1$s</string>
     <string name="tts_new_word_sample">林逸来到门前。林逸转身离开。林逸笑着点头。林逸站在窗边。</string>
 </resources>

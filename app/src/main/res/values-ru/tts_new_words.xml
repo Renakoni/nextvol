@@ -1,10 +1,7 @@
 <resources>
-    <string name="tts_new_word_algorithm">Поиск новых слов</string>
+    <string name="tts_new_word_algorithm">New word discovery</string>
     <string name="tts_new_word_pattern">Шаблон имён</string>
     <string name="tts_new_word_default_pattern">Исходный китайский шаблон</string>
-    <string name="tts_new_word_pattern_scope">Фильтрует кандидатов из статистики новых слов. Выражение должно совпасть с кандидатом целиком; пустое выражение не находит имён.</string>
-    <string name="tts_new_word_test">Проверка поиска новых слов</string>
-    <string name="tts_new_word_scope">Ищет возможные имена по повторяющимся словам и контексту. Короткий текст может не дать результатов, а обычные слова могут попасть в список. Каждый запуск начинает статистику заново.</string>
     <string name="tts_new_word_run">Найти новые слова</string>
     <string name="tts_new_word_candidates">Кандидат</string>
     <string name="tts_new_word_score">Оценка</string>

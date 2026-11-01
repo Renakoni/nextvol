@@ -65,12 +65,6 @@ object SpeechPlaybackSettingsRoute
 object SpeechNameTestRoute
 
 @Serializable
-object SpeechNameClassificationRoute
-
-@Serializable
-object SpeechNewWordTestRoute
-
-@Serializable
 object SpeechReplacementsRoute
 
 @Serializable
@@ -151,31 +145,12 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed, viewModel::update,
-            onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } },
-            onNameClassification = { nav.navigate(SpeechNameClassificationRoute) { launchSingleTop = true } },
-            onNewWordTest = { nav.navigate(SpeechNewWordTestRoute) { launchSingleTop = true } })
+            onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } })
     }
     composable<SpeechNameTestRoute> {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechNameTestViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechNameTestScreen(state, viewModel.available, nav::popBackStackIfResumed, viewModel::recognize, viewModel::clear)
-    }
-    composable<SpeechNameClassificationRoute> {
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechNameClassificationViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechNameClassificationScreen(state, viewModel.available, nav::popBackStackIfResumed,
-            viewModel::classify, viewModel::clear)
-    }
-    composable<SpeechNewWordTestRoute> {
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechNewWordTestViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechNewWordTestScreen(state, nav::popBackStackIfResumed, viewModel::discover, viewModel::clear)
+        SpeechNameTestScreen(nav::popBackStackIfResumed)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()

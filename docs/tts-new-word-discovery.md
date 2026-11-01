@@ -3,8 +3,9 @@
 Algorithm 100 uses the original MultiTTS P6 incremental statistics. The default
 batch route implements `Ngr.discovery(file, 2, 5, 1000, "")`; the optional extended
 route implements its HanLP discovery and chunk merge. These are three distinct
-algorithms. The NER test retains algorithm 101's existing semantics; the separate
-new-word test is a NextVol addition for inspecting algorithm 100's actual output.
+algorithms. Playback settings exposes one name-analysis test page with NER,
+New word discovery and classification tabs. NER retains algorithm 101's semantics;
+the discovery tab inspects algorithm 100 independently of the saved selector.
 
 The maintained Kotlin implementation does not load the original `libngr.so` or
 add a HanLP dependency. Discovery returns candidates only. It does not create

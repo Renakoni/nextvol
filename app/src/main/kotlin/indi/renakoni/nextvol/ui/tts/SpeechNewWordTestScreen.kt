@@ -3,6 +3,8 @@ package indi.renakoni.nextvol.ui.tts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -10,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,7 +21,6 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.names.RealtimeNameCandidate
 import indi.renakoni.nextvol.tts.names.SpeechNewWordDiscovery
-import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -62,53 +65,43 @@ class SpeechNewWordTestViewModel @Inject constructor(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SpeechNewWordTestScreen(state: SpeechNewWordTestState, onBack: () -> Unit,
-    onDiscover: (String) -> Unit, onClear: () -> Unit) {
+internal fun SpeechNewWordTestContent() {
+    val viewModel = hiltViewModel<SpeechNewWordTestViewModel>()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val sample = stringResource(R.string.tts_new_word_sample)
     var text by rememberSaveable { mutableStateOf(sample) }
-    DisposableEffect(Unit) { onDispose(onClear) }
-    Scaffold(topBar = {
-        SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_new_word_test, onBack)
-    }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(), contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    DisposableEffect(viewModel) { onDispose(viewModel::clear) }
+    LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        item {
+            NameTestInput(text, { text = it; viewModel.clear() }, stringResource(R.string.tts_name_input),
+                Modifier.testTag("new-word-input"))
+        }
+        item {
+            NameTestAction(state.running, text.isNotBlank(), stringResource(R.string.tts_new_word_run),
+                { viewModel.discover(text) }, viewModel::clear)
+        }
+        state.error?.let { error -> item {
+            Text(stringResource(R.string.tts_new_word_error, error), color = MaterialTheme.colorScheme.error)
+        } }
+        state.candidates?.let { candidates ->
             item {
-                Text(stringResource(R.string.tts_new_word_scope), style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            item {
-                OutlinedTextField(text, { text = it; onClear() }, Modifier.fillMaxWidth().testTag("new-word-input"),
-                    label = { Text(stringResource(R.string.tts_name_input)) }, minLines = 4, maxLines = 8)
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onDiscover(text) }, enabled = !state.running && text.isNotBlank()) {
-                        Text(stringResource(R.string.tts_new_word_run))
-                    }
-                    if (state.running) TextButton(onClick = onClear) { Text(stringResource(R.string.cancel)) }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.tts_new_word_candidates), Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.tts_new_word_score), style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            if (state.running) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            state.error?.let { error -> item {
-                Text(stringResource(R.string.tts_new_word_error, error), color = MaterialTheme.colorScheme.error)
-            } }
-            state.candidates?.let { candidates ->
-                if (candidates.isEmpty()) item { Text(stringResource(R.string.tts_new_word_empty)) }
-                else {
-                    item {
-                        Row(Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.tts_new_word_candidates), Modifier.weight(1f),
-                                style = MaterialTheme.typography.titleSmall)
-                            Text(stringResource(R.string.tts_new_word_score), style = MaterialTheme.typography.titleSmall)
-                        }
-                    }
-                    items(candidates) { candidate ->
-                        Row(Modifier.fillMaxWidth()) {
-                            Text(candidate.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                            Text("%.4f".format(candidate.score), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+            if (candidates.isEmpty()) item { Text(stringResource(R.string.tts_new_word_empty)) }
+            else items(candidates) { candidate ->
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(candidate.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                        Text("%.4f".format(candidate.score), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }

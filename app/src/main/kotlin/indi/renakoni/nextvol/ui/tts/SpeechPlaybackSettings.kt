@@ -95,8 +95,7 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
-    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onNameTest: () -> Unit,
-    onNameClassification: () -> Unit, onNewWordTest: () -> Unit) {
+    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onNameTest: () -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingMaleRule by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var editingPersonRule by rememberSaveable { mutableStateOf(false) }
@@ -160,38 +159,40 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 }
             }
             state.settings?.let { settings -> item {
-                val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner),
-                    Option("100", R.string.tts_new_word_algorithm)) {} }
-                SettingsMenuEntry(title = stringResource(R.string.tts_name_algorithm), options = algorithms,
+                val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner)) {} }
+                SettingsMenuEntry(painter = painterResource(R.drawable.group_24px),
+                    title = stringResource(R.string.tts_name_algorithm), options = algorithms,
                     selectedOptionKey = settings.nameDiscoveryAlgorithm.toString(),
                     onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
             } }
             item {
-                SettingsClickableEntry(title = stringResource(R.string.tts_name_test), onClick = onNameTest)
+                SettingsClickableEntry(painter = painterResource(R.drawable.search_24px),
+                    title = stringResource(R.string.tts_name_test),
+                    trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                    onClick = onNameTest)
             }
             state.settings?.let { settings ->
                 if (state.defaultNamePattern != null) item {
-                    SettingsClickableEntry(title = stringResource(R.string.tts_new_word_pattern),
+                    SettingsClickableEntry(painter = painterResource(R.drawable.code_24px),
+                        title = stringResource(R.string.tts_new_word_pattern),
                         option = if (settings.personNameRegex == null) stringResource(R.string.tts_new_word_default_pattern)
                             else settings.personNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
                         onClick = { text = settings.personNameRegex ?: state.defaultNamePattern; editingPersonRule = true })
                 }
             }
-            item { SettingsClickableEntry(title = stringResource(R.string.tts_new_word_test), onClick = onNewWordTest) }
             state.settings?.let { settings ->
                 item {
-                    SettingsClickableEntry(title = stringResource(R.string.tts_name_male_rule),
+                    SettingsClickableEntry(painter = painterResource(R.drawable.male_24px),
+                        title = stringResource(R.string.tts_name_male_rule),
                         option = settings.maleNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
                         onClick = { text = settings.maleNameRegex; editingMaleRule = true })
                 }
                 item {
-                    SettingsClickableEntry(title = stringResource(R.string.tts_name_female_rule),
+                    SettingsClickableEntry(painter = painterResource(R.drawable.female_24px),
+                        title = stringResource(R.string.tts_name_female_rule),
                         option = settings.femaleNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
                         onClick = { text = settings.femaleNameRegex; editingMaleRule = false })
                 }
-            }
-            item {
-                SettingsClickableEntry(title = stringResource(R.string.tts_name_classification_test), onClick = onNameClassification)
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_audition_text),
@@ -221,31 +222,19 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             Text(stringResource(R.string.tts_engine_save))
         } }, dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } })
     editingMaleRule?.let { male ->
-        AlertDialog(onDismissRequest = { editingMaleRule = null },
-            title = { Text(stringResource(if (male) R.string.tts_name_male_rule else R.string.tts_name_female_rule)) },
-            text = {
-                OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), minLines = 2, maxLines = 6,
-                    supportingText = { Text(stringResource(R.string.tts_name_rule_scope)) })
-            },
-            confirmButton = { TextButton(onClick = {
+        SpeechNameRuleDialog(stringResource(if (male) R.string.tts_name_male_rule else R.string.tts_name_female_rule),
+            text, { text = it }, onSave = {
                 val pattern = text
                 onUpdate { if (male) it.copy(maleNameRegex = pattern) else it.copy(femaleNameRegex = pattern) }
                 editingMaleRule = null
-            }) { Text(stringResource(R.string.tts_engine_save)) } },
-            dismissButton = { TextButton(onClick = { editingMaleRule = null }) { Text(stringResource(R.string.cancel)) } })
+            }, onDismiss = { editingMaleRule = null })
     }
-    if (editingPersonRule) AlertDialog(onDismissRequest = { editingPersonRule = false },
-        title = { Text(stringResource(R.string.tts_new_word_pattern)) },
-        text = {
-            OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), minLines = 3, maxLines = 8,
-                supportingText = { Text(stringResource(R.string.tts_new_word_pattern_scope)) })
-        },
-        confirmButton = { TextButton(onClick = {
+    if (editingPersonRule) SpeechNameRuleDialog(stringResource(R.string.tts_new_word_pattern),
+        text, { text = it }, onSave = {
             val pattern = text
             onUpdate { it.copy(personNameRegex = pattern.takeUnless { it == state.defaultNamePattern }) }
             editingPersonRule = false
-        }) { Text(stringResource(R.string.tts_engine_save)) } },
-        dismissButton = { TextButton(onClick = { editingPersonRule = false }) { Text(stringResource(R.string.cancel)) } })
+        }, onDismiss = { editingPersonRule = false })
 }
 
 @Composable

@@ -1,10 +1,7 @@
 <resources>
-    <string name="tts_new_word_algorithm">New-word discovery</string>
+    <string name="tts_new_word_algorithm">New word discovery</string>
     <string name="tts_new_word_pattern">Name pattern</string>
     <string name="tts_new_word_default_pattern">Original Chinese pattern</string>
-    <string name="tts_new_word_pattern_scope">Filters candidates from the new-word statistics. Expressions match the entire candidate; an empty expression finds no names.</string>
-    <string name="tts_new_word_test">New-word discovery test</string>
-    <string name="tts_new_word_scope">Finds possible names using repeated words and their contexts. Short text may yield no results, and candidates may include ordinary words. Each test starts fresh.</string>
     <string name="tts_new_word_run">Discover new words</string>
     <string name="tts_new_word_candidates">Candidate</string>
     <string name="tts_new_word_score">Statistical score</string>
