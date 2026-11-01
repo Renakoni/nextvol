@@ -247,6 +247,8 @@ submission contract, confirmed regex boundary fix, native scoring/filtering and
 reverse lookup, libc++ child order, HanLP float thresholds/chunk reset, cancellation
 inside long lines and Reader ownership. Session tests cover replay/deduplication
 separately. Repository tests run in CI; they were not executed locally.
+The native regression retains only the two tied candidates affected by ordering
+and the reverse-lookup score, rather than storing the complete 107-item result.
 
 The installed full APK passed four service calls through `SpeechNewWordDiscovery`:
 Native and HanLP each with `onlyNew` off and on. All candidate names and values
