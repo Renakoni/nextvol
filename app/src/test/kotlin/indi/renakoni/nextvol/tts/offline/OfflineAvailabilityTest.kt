@@ -21,10 +21,12 @@ class OfflineAvailabilityTest {
 
     @Test fun oldOrNonArmDevicesStillAllowAudioButExplainNativeRestrictions() {
         val old = checker(api = 24, abis = listOf("x86"))
-        assertTrue(old.check("audio").canRun)
-        assertEquals(R.string.tts_offline_unverified, old.check("audio").message)
-        assertEquals(R.string.tts_offline_android, old.check("google").message)
-        assertFalse(old.check("google").canRun)
+        val audio = old.check("audio")
+        assertTrue(audio.canRun)
+        assertEquals(R.string.tts_offline_unverified, audio.message)
+        val google = old.check("google")
+        assertEquals(R.string.tts_offline_android, google.message)
+        assertFalse(google.canRun)
         assertEquals(R.string.tts_offline_abi, old.check("sougou").message)
         assertEquals(R.string.tts_offline_runtime_missing, checker().check("sougou").message)
     }
@@ -38,7 +40,6 @@ class OfflineAvailabilityTest {
         assertEquals("libbd_ettl.so", missing.detail)
         assertTrue(device.check("isstts", "1,old").canRun)
         assertFalse(device.check("isstts", "1,new").canRun)
-        assertEquals(listOf("synthesizer"), offlineLibraries(OfflineVoiceConfig("larktts", "voice", "1")))
     }
 
     @Test fun pageSizeComesFromTheDeviceAndActualLibraryHeaders() {

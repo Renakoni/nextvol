@@ -60,19 +60,12 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
         }
     }
     fun select(voice: InstalledOfflineVoice) = work {
-        if (!canRun(voice)) return@work
-        check(repository.voices().any { it.reference == voice.reference })
+        if (state.value.availability[voice.reference]?.canRun != true) return@work
         settings.update { it.copy(offlineVoice = voice.reference, httpSource = null) }
     }
     fun preview(voice: InstalledOfflineVoice, text: String) = work {
-        if (!canRun(voice)) return@work
-        check(repository.voices().any { it.reference == voice.reference })
+        if (state.value.availability[voice.reference]?.canRun != true) return@work
         controller.preview(text, settings.get().copy(offlineVoice = voice.reference, httpSource = null))
-    }
-    private suspend fun canRun(voice: InstalledOfflineVoice): Boolean {
-        val result = withContext(Dispatchers.IO) { availability.installed(voice, repository) }
-        mutableState.update { it.copy(availability = it.availability + (voice.reference to result)) }
-        return result.canRun
     }
     fun delete(voice: InstalledOfflineVoice) = work {
         if (state.value.selected == voice.reference || controller.state.value.request?.previewSettings?.offlineVoice == voice.reference)

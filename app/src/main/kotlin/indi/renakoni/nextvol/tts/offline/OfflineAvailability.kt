@@ -55,7 +55,6 @@ class OfflineAvailabilityChecker internal constructor(
     val changes = mutableChanges.asStateFlow()
 
     internal fun installed(voice: InstalledOfflineVoice, repository: OfflineSpeechRepository): OfflineAvailability {
-        repository.problem(voice)?.let { return OfflineAvailability(R.string.tts_offline_missing, it, false) }
         val configuration = repository.configuration(voice)
         val directory = repository.directory(voice.reference)
         val result = inspect(configuration, voice.sizes.keys) { path -> File(directory, path).inputStream() }
@@ -88,12 +87,12 @@ class OfflineAvailabilityChecker internal constructor(
         while (pending.isNotEmpty()) {
             val name = pending.removeFirst()
             if (!visited.add(name)) continue
-            val file = File(nativeDirectory, name)
-            if (!file.isFile) return if ("arm64-v8a" !in device.abis)
-                OfflineAvailability(R.string.tts_offline_abi, "arm64-v8a", false)
-            else OfflineAvailability(R.string.tts_offline_runtime_missing, name, false)
             val inspection = inspections.getOrPut(name) {
-                runCatching { file.inputStream().use { inspectOfflineLibrary(it, device, name) } }
+                val file = File(nativeDirectory, name)
+                if (!file.isFile) {
+                    if ("arm64-v8a" !in device.abis) OfflineAvailability(R.string.tts_offline_abi, "arm64-v8a", false)
+                    else OfflineAvailability(R.string.tts_offline_runtime_missing, name, false)
+                } else runCatching { file.inputStream().use { inspectOfflineLibrary(it, device, name) } }
                     .getOrDefault(OfflineAvailability(R.string.tts_offline_check_incomplete))
             }
             if (!inspection.canRun) return inspection
