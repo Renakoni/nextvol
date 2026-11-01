@@ -112,7 +112,13 @@ Missing these paths can surface as `WRONG_DECRYPTION_KEY` from the native SDK.
 
 The voice library uses scrollable engine tabs and toolbar search within the
 current tab. Each voice supports editing, enable/disable and copying. Refresh
-and imports live in the toolbar menu. A voice has a stable ID distinct
+and imports live in the toolbar menu. HTTP tabs use engine codes so equally named
+engines remain separate. Search follows MultiTTS 1.8.3's speaker matcher: plain
+terms match name, description or code, ignoring case; whitespace-separated terms
+must all match. Field queries support `desc`, `note`, `locale`, `code`, `gender`,
+`type`, `sampleRate`, `param`, `extendUI` and `ischecked`. In this app `ischecked`
+refers to the selected reading voice. Empty or incomplete numeric queries do not
+crash live search. A voice has a stable ID distinct
 from its engine and resource revision. Copies share model files; deletion waits
 for the last referencing voice and active lease. Package refreshes retain user
 speaker overrides, including values changed back to 1, while adopting untouched

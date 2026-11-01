@@ -110,7 +110,8 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
                     }
                 }
             }
-            if (refreshed != current) { write(refreshed); mutableChanges.value++ }
+            if (refreshed != current) write(refreshed)
+            mutableChanges.value++
         }
     }
 

@@ -20,6 +20,10 @@ fun speechExtensionControls(text: String): List<SpeechExtensionControl> {
     if (text.isBlank()) return emptyList()
     val array = speechParameterJson(text, "extendUI") as? JsonArray
         ?: configurationFailure(MatchaPackageError.Parameters, "extendUI")
+    return speechExtensionControls(array)
+}
+
+private fun speechExtensionControls(array: JsonArray): List<SpeechExtensionControl> {
     val seen = mutableSetOf<String>()
     return array.map { element ->
         val item = element as? JsonObject ?: configurationFailure(MatchaPackageError.Parameters, "extendUI")
@@ -38,12 +42,14 @@ fun speechExtensionControls(text: String): List<SpeechExtensionControl> {
 }
 
 fun updateSpeechExtension(text: String, code: String, value: String): String {
-    val controls = speechExtensionControls(text)
+    val array = speechParameterJson(text, "extendUI") as? JsonArray
+        ?: configurationFailure(MatchaPackageError.Parameters, "extendUI")
+    val controls = speechExtensionControls(array)
     val control = controls.single { it.code == code }
     require(control.supported)
     require(value in control.candidates)
     val replacement = JsonPrimitive(value)
-    return JsonArray((Json.parseToJsonElement(text) as JsonArray).map { element ->
+    return JsonArray(array.map { element ->
         val item = element as JsonObject
         if (item.string("code") == code) JsonObject(item + ("value" to replacement)) else item
     }).toString()

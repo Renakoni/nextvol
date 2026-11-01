@@ -93,7 +93,7 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
             inspectedEngines += engine
         }
     }
-    fun refreshCatalog() = work { repository.refreshCatalog(); refresh() }
+    fun refreshCatalog() = work { repository.refreshCatalog() }
     fun select(voice: InstalledOfflineVoice) = work {
         if (state.value.availability[voice.reference]?.canRun != true) return@work
         settings.update { it.copy(offlineVoice = voice.reference, httpSource = null) }
