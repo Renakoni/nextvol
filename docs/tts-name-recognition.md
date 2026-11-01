@@ -29,6 +29,9 @@ punctuation splitting and full padded-sequence Viterbi decoder
 `ev_75ad22dcd85324d538e98de12cee2a774ca07b3aa1cd20b1a7d19227ba8f180b`,
 `ev_4a813a97007c65ce2a0cc133c27a83cfac01abe186ccddc7b35aac458c2077e2`).
 Supplemental Ghidra pseudocode was checked against those assembly observations.
+Inference writes directly into a fixed `[1,30,3]` float tensor, as in the original
+(`ev_e260de6f7890aff4b98c9e6407a8e3f0de95488410aec3d3ec60fdbdb2b9a20d`),
+without querying and rechecking the same output shape for every text window.
 
 The original JNI widens each UTF-16 unit, including individual surrogate halves
 (`ev_fbeb7be27481b886dcc220596e9247ca7fdd375d78dc449f35feb82a82d2959a`).
