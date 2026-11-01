@@ -27,7 +27,6 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.data.setting.AbstractSettingState
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
-import indi.renakoni.nextvol.tts.SpeechNetworkCheck
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
