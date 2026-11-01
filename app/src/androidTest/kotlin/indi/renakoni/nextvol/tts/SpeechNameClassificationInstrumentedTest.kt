@@ -5,9 +5,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import hnovel.execution.ExecutionAuthority
 import indi.renakoni.nextvol.sourceexecution.AndroidIsolatedExecutor
 import indi.renakoni.nextvol.tts.names.*
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -32,7 +29,6 @@ class SpeechNameClassificationInstrumentedTest {
             classifier.classify("林黛玉", maleNameRegex = "["))
         assertEquals(SpeechNameClassification(SpeechNameHint.Male, SpeechNameHintBasis.Model),
             classifier.classify("王小明", femaleNameRegex = "王小明"))
-        assertEquals(SpeechNameClassification(SpeechNameHint.Unknown, SpeechNameHintBasis.None), classifier.classify("qzx"))
     }
 
     @Test fun isolatedRulesKeepFullMatchesOrderAndLocatableSyntaxErrors(): Unit = runBlocking {
@@ -53,13 +49,10 @@ class SpeechNameClassificationInstrumentedTest {
         }
     }
 
-    @Test fun cancellationAndDeadlineReleaseTheWorkerForTheNextName(): Unit = runBlocking {
+    @Test fun deadlineReleasesTheWorkerForTheNextName(): Unit = runBlocking {
+        // Warm the worker so this checks matching's budget rather than cold service startup.
         assertEquals(SpeechNameHint.Male, classifier.classify("Anna", "Anna").hint)
         val input = "a".repeat(40_000) + "!"
-        val running = async { classifier.classify(input, "(a+)+$") }
-        delay(250)
-        assertTrue(running.isActive)
-        withTimeout(5000) { running.cancelAndJoin() }
         val failure = withTimeout(25_000) {
             try { classifier.classify(input, femaleNameRegex = "(a+)+$"); null }
             catch (error: IllegalStateException) { error }

@@ -104,7 +104,9 @@ NextVol fallback contract.
 
 Focused JVM tests cover surname/feature positions, UTF-16 unknown units and known
 zero scores. Android tests cover the bundled model's priority, changed rules,
-full matches, conflict order, syntax errors, cancellation and budget recovery.
+full matches, conflict order, syntax errors and budget recovery. Cancellation and
+queue recovery are covered by the shared isolated executor tests; the actual
+classification UI's process-exit evidence is recorded below.
 
 ## Ownership and cancellation
 
@@ -169,5 +171,5 @@ cancel, input edit and leaving the tab terminated the old workers in 83, 481 and
 Each action was followed by a fresh successful classification without a stale
 result. These are device observations, not universal latency guarantees. The
 temporary measurement harness is not shipped or retained in the test suite.
-The final 2.5-second budget is a constant-only adjustment; these device timings
-were collected before that adjustment.
+These device timings were collected with a 10-second budget; the current
+2.5-second configuration has not been remeasured on device.

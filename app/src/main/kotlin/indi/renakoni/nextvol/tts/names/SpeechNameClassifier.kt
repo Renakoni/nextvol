@@ -6,7 +6,6 @@ import hnovel.execution.ExecutionAuthority
 import hnovel.execution.ExecutionLimits
 import hnovel.execution.ExecutionResult
 import hnovel.execution.ExecutionTask
-import hnovel.rules.RuleLocation
 import indi.renakoni.nextvol.sourceexecution.AndroidIsolatedExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -64,7 +63,7 @@ class SpeechNameClassifier @Inject constructor(@ApplicationContext private val c
 
     private suspend fun matches(name: String, pattern: String, field: String): Boolean {
         if (pattern.isEmpty()) return false
-        return when (val result = executor.execute(ruleIdentity, ExecutionTask.RegexMatch(name, pattern, RuleLocation(field)),
+        return when (val result = executor.execute(ruleIdentity, ExecutionTask.RegexMatch(name, pattern),
             ExecutionLimits(timeoutMillis = 2500, maxRequests = 0))) {
             is ExecutionResult.Success -> result.output.toBooleanStrict()
             is ExecutionResult.Failure -> {
