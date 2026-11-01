@@ -14,8 +14,7 @@ data class SpeechNewWordScope(val bookId: String, val rangeId: String)
  * Call [reset] when stopping or switching algorithms. Previews use a separate instance;
  * do not use a whole book as one range or share this session with batch analysis.
  */
-class SpeechNewWordSession(stopwords: Set<String>) {
-    private val stopwords = stopwords.toSet()
+class SpeechNewWordSession(private val stopwords: Set<String>) {
     private val mutex = Mutex()
     private var scope: SpeechNewWordScope? = null
     private var nameRegex: String? = null

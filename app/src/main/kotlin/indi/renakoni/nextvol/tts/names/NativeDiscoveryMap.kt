@@ -117,7 +117,7 @@ internal class NativeDiscoveryMap<K : Any, V : Any>(private val hash: (K) -> Lon
     }
 }
 
-/** libc++ CityHash on little-endian wchar_t strings (the original words are at most five code points). */
+/** libc++ CityHash on little-endian wchar_t strings (counted ngrams have at most six code points). */
 internal fun nativeDiscoveryWordHash(word: String): Long {
     val points = word.codePoints().toArray()
     val bytes = points.size * 4

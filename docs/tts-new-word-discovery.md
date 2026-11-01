@@ -124,8 +124,10 @@ rules, with identity hashing for wchar_t and the original CityHash for short
 little-endian wchar_t strings. Native stopwords retain initializer order; they
 first pass through the original unordered-set insertion/iteration order before
 being inserted into the filtering trie. The same container rules are used for
-character entropy and accumulated candidates. Newest-insertion order is not
-used as a substitute.
+character entropy, the two intermediate candidate maps and accumulated
+candidates. Neighbor entropy also preserves the original copy into a fresh
+character-frequency map before summing. Newest-insertion order is not used as
+a substitute.
 
 The returned value follows the original operation order:
 
@@ -138,14 +140,13 @@ argument reduction and compensated arithmetic: JVM `ln(x)/ln(2)` adds rounding
 that changes a verified top score from 99 to 100. For the original overlapping
 东方青岚/青岚 fixture, the correct results are 青岚99 and 东方青岚90.
 
-One implementation boundary remains: C++ `std::sort` does not define the order
-of equal raw scores, while the JVM sort is stable. A deliberately tied original
-fixture differs only in ordering of exactly equal raw scores; all candidate
-names and integer values match. This is not a claim of universal binary
-equivalence: ordering can affect a later first-descendant traversal in other
-inputs. No invented lexical tie-break is applied. The inspected locale path
-initializes from `locale::classic()`; application-wide replacement of the C++
-global locale was not exhaustively ruled out.
+The private score sorter reproduces the shipped libc++ 18 non-branchless
+introsort, including median/ninther partitioning, insertion shortcuts and heap
+fallback. Its comparator uses descending raw score. Preserving equal-score
+order matters because subsequent tail filtering inserts accepted candidates
+into another trie. A JVM stable sort or lexical tie-break changes that order.
+The inspected locale path initializes from `locale::classic()`; application-wide
+replacement of the C++ global locale was not exhaustively ruled out.
 
 ## Extended batch: HanLP
 
@@ -193,9 +194,10 @@ gzip changes source storage only: AAPT expands this file to the APK asset
 Examples are 中国3358, 天气151, 艾莉丝1000, and no
 entry for 林逸. Preserve initializer order when loading the native stopword set.
 
-The container/hash helpers derive from LLVM libc++ 18.1.8 under Apache-2.0 with
-LLVM exceptions. The logarithm derives from fdlibm e_log2.c/k_log.h under the
-included Sun permission notice. Neither helper requires a runtime dependency.
+The container/hash and sorting helpers derive from LLVM libc++ 18.1.8 under
+Apache-2.0 with LLVM exceptions. The logarithm derives from fdlibm
+e_log2.c/k_log.h under the included Sun permission notice. These helpers require
+no runtime dependency.
 
 ## Evidence and verification
 
@@ -208,6 +210,8 @@ REA static evidence includes:
 - Child insertion and rehash: `ev_45f848d7488266c77f2d580bbe8d8e167452a633cae791dba46b5c28cd313d49`,
   `ev_51ecff0ffc8cafba322494e861a38fe93314e8190066c0a19137d29cba2f6287`.
 - Native short-string hashing: `ev_e99dc1dcc72ded32aa1edf467338e79cd94aaddb4c6981a40cb4381e2f74b86b`.
+- Native introsort: `ev_956ce858b9a0ff7efbaf516b9ced89208fb82f2ea63ace8841b67fa77420bbeb`.
+- Neighbor-frequency map copies: `ev_60ae1dc3c9d7914e875086a16758b6d2c4b38d0c4307ed40e48911aae5806693`.
 - HanLP route: `ev_9be47c1f3b7dd0ef747d24b4b0674a11cb36cdeb2a554f71ecb2d66708e56f72`.
 
 Controlled original-runtime observations are
@@ -221,15 +225,22 @@ assignment/serialization; it did not test final voice selection.
 An independent standalone JVM probe compiled the maintained production sources
 and matched all 35 frozen observations: 6 P6 checkpoints, 13 native cases and
 16 HanLP cases. Native integer scores were compared exactly, including 99/100.
-The final character-entropy container change was followed by another 13-case
-native comparison. Only equal-raw-score native ordering is excluded from that
-equivalence claim.
+After restoring the intermediate maps, neighbor-frequency copies and native
+sort, a separate 13-case native comparison matched every candidate name and
+integer value in complete list order, including all 107 candidates in the
+reverse-lookup fixture. Equal raw-score ordering is included in that comparison.
 
 An independent source-built libc++ 18.1.8 probe matched all 2,263 output lines:
 1,652 word hashes, the complete original stopword-set iteration order, 330 integer
 map update states and 280 string map update states. It used 32-bit wchar_t and
 64-bit size_t, covered collisions, repeated updates and multiple rehashes, and
 used headers byte-identical to the version used for this reconstruction.
+
+A separate comparison against source-built libc++ 18.1.8 matched all 161 sorter
+cases by complete element order, including equal scores, the 24/128 size
+boundaries, nearly sorted and alternating inputs, subranges and forced heap
+fallback. It invokes the production private sorter without copying its Kotlin
+implementation into the probe.
 
 Focused repository tests retain original nonempty fixtures and cover the P6
 submission contract, confirmed regex boundary fix, native scoring/filtering and

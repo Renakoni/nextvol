@@ -58,9 +58,14 @@ class NativeNewWordDiscovery(private val stopwords: Set<String>) {
         var trie = Trie()
         var lines = 0
         val accumulated = NativeDiscoveryMap<String, Double>(::nativeDiscoveryWordHash)
+        val orderedStopwords = NativeDiscoveryMap<String, IntArray>(::nativeDiscoveryWordHash)
+        for (word in stopwords) {
+            checkCancelled()
+            orderedStopwords[word] = codePoints(word, checkCancelled)
+        }
 
         fun finishChunk() {
-            val chunk = removeTails(score(trie, checkCancelled), checkCancelled)
+            val chunk = removeTails(score(trie, checkCancelled), orderedStopwords.values, checkCancelled)
             for (word in chunk.take(10000)) {
                 checkCancelled()
                 accumulated[word.name] = (accumulated[word.name] ?: 0.0) + word.score
@@ -80,7 +85,7 @@ class NativeNewWordDiscovery(private val stopwords: Set<String>) {
             scored.add(ScoredWord(name, value))
         }
         sort(scored, checkCancelled)
-        val selected = removeTails(scored, checkCancelled).take(1000)
+        val selected = removeTails(scored, orderedStopwords.values, checkCancelled).take(1000)
         if (selected.isEmpty()) return emptyList()
         val scale = 100.0 / nativeDiscoveryLog2(selected.first().score * 100.0)
         val result = ArrayList<NewWordCandidate>()
@@ -131,59 +136,59 @@ class NativeNewWordDiscovery(private val stopwords: Set<String>) {
             }
         }
 
-        val result = ArrayList<ScoredWord>()
+        // Both intermediate unordered_maps affect the vector order before native std::sort.
+        val nodes = NativeDiscoveryMap<String, Node>(::nativeDiscoveryWordHash)
         fun collect(node: Node, length: Int) {
             checkCancelled()
-            if (length in 2..5) {
-                val name = String(path, 0, length)
-                if (name !in stopwords) {
-                    var backward = trie.backward
-                    for (index in length - 1 downTo 0) backward = backward.children.getValue(path[index])
-                    val mutual = if (length <= 2) node.mutualInformation
-                        else min(node.mutualInformation, backward.mutualInformation)
-                    val characters = NativeDiscoveryMap<Int, Int> { it.toLong() }
-                    for (index in 0 until length) characters[path[index]] = (characters[path[index]] ?: 0) + 1
-                    val internalEntropy = entropy(characters.values, length)
-                    val neighborEntropy = min(neighborEntropy(node, checkCancelled), neighborEntropy(backward, checkCancelled))
-                    if (mutual != 0.0 && internalEntropy != 0.0 && neighborEntropy != 0.0) {
-                        result.add(ScoredWord(name, mutual * internalEntropy * node.count * neighborEntropy))
-                    }
-                }
-            }
-            if (length < 5) {
-                for ((point, child) in node.children) {
-                    path[length] = point
-                    collect(child, length + 1)
-                }
+            if (node.terminal) nodes[String(path, 0, length)] = node
+            for ((point, child) in node.children) {
+                path[length] = point
+                collect(child, length + 1)
             }
         }
-        for ((point, node) in trie.forward.children) {
-            path[0] = point
-            collect(node, 1)
+        collect(trie.forward, 0)
+        val scores = NativeDiscoveryMap<String, Double>(::nativeDiscoveryWordHash)
+        for ((name, node) in nodes) {
+            checkCancelled()
+            val points = codePoints(name, checkCancelled)
+            if (points.size !in 2..5 || name in stopwords) continue
+            val characters = NativeDiscoveryMap<Int, Int> { it.toLong() }
+            for (point in points) characters[point] = (characters[point] ?: 0) + 1
+            val internalEntropy = entropy(characters.values, points.size, checkCancelled)
+            if (internalEntropy == 0.0 || node.mutualInformation == 0.0) continue
+            var backward = trie.backward
+            for (index in points.lastIndex downTo 0) backward = backward.children.getValue(points[index])
+            val mutual = if (points.size <= 2) node.mutualInformation
+                else min(node.mutualInformation, backward.mutualInformation)
+            if (mutual == 0.0) continue
+            val neighborEntropy = min(neighborEntropy(backward, checkCancelled), neighborEntropy(node, checkCancelled))
+            if (neighborEntropy != 0.0) scores[name] = mutual * internalEntropy * node.count * neighborEntropy
+        }
+        val result = ArrayList<ScoredWord>()
+        for ((name, value) in scores) {
+            checkCancelled()
+            result.add(ScoredWord(name, value))
         }
         sort(result, checkCancelled)
         return result
     }
 
-    private fun removeTails(words: List<ScoredWord>, checkCancelled: () -> Unit): List<ScoredWord> {
+    private fun removeTails(words: List<ScoredWord>, stopwordPoints: Iterable<IntArray>,
+                            checkCancelled: () -> Unit): List<ScoredWord> {
         if (words.size < 2) return words
         val known = Trie()
-        val orderedStopwords = NativeDiscoveryMap<String, Boolean>(::nativeDiscoveryWordHash)
-        for (word in stopwords) {
+        for (points in stopwordPoints) {
             checkCancelled()
-            orderedStopwords[word] = true
-        }
-        for ((word, _) in orderedStopwords) {
-            checkCancelled()
-            known.set(codePoints(word, checkCancelled), 1000000)
+            known.set(points, 1000000)
         }
         val best = words.first().score
         val result = ArrayList<ScoredWord>()
         for (word in words) {
             checkCancelled()
             val points = codePoints(word.name, checkCancelled)
-            val related = max(max(prefixFrequency(known.forward, points), prefixFrequency(known.backward, points.reversedArray())),
-                max(superwordFrequency(known.forward, points), superwordFrequency(known.backward, points.reversedArray())))
+            val reversed = points.reversedArray()
+            val related = max(max(prefixFrequency(known.forward, points), prefixFrequency(known.backward, reversed)),
+                max(superwordFrequency(known.forward, points), superwordFrequency(known.backward, reversed)))
             val scaled = (1000000.0 / best * word.score).toInt()
             if (related < 1 || related <= scaled * 10) {
                 result.add(word)
@@ -210,20 +215,21 @@ class NativeNewWordDiscovery(private val stopwords: Set<String>) {
     }
 
     private fun neighborEntropy(node: Node, checkCancelled: () -> Unit): Double {
-        var result = 0.0
+        // getN1Prefix/SuffixWords copies terminal children into a fresh native map.
+        val counts = NativeDiscoveryMap<Int, Int> { it.toLong() }
         var index = 0
-        for (child in node.children.values) {
+        for ((point, child) in node.children) {
             if (index++ and 1023 == 0) checkCancelled()
-            if (child.count == 0) continue
-            val probability = child.count.toDouble() / node.count
-            result -= probability * nativeDiscoveryLog2(probability)
+            if (child.terminal) counts[point] = child.count
         }
-        return result
+        return entropy(counts.values, node.count, checkCancelled)
     }
 
-    private fun entropy(counts: Iterable<Int>, total: Int): Double {
+    private fun entropy(counts: Iterable<Int>, total: Int, checkCancelled: () -> Unit): Double {
         var result = 0.0
+        var index = 0
         for (count in counts) {
+            if (index++ and 1023 == 0) checkCancelled()
             if (count == 0) continue
             val probability = count.toDouble() / total
             result -= probability * nativeDiscoveryLog2(probability)
@@ -232,10 +238,196 @@ class NativeNewWordDiscovery(private val stopwords: Set<String>) {
     }
 
     private fun sort(words: MutableList<ScoredWord>, checkCancelled: () -> Unit) {
-        var comparisons = 0
-        words.sortWith { first, second ->
+        ScoreSort(words, checkCancelled).sort(0, words.size, 2 * (31 - Integer.numberOfLeadingZeros(words.size)), true)
+    }
+
+    /* Score-specific libc++ 18 introsort. Equal-score order feeds native tail filtering.
+     * Adapted from LLVM __algorithm/sort.h and heap helpers; Apache-2.0 WITH LLVM-exception.
+     * Full license: assets/speech/names/LICENSE-libcxx.txt.
+     */
+    private class ScoreSort(private val words: MutableList<ScoredWord>, private val checkCancelled: () -> Unit) {
+        private var comparisons = 0
+
+        private fun before(first: ScoredWord, second: ScoredWord): Boolean {
             if (comparisons++ and 1023 == 0) checkCancelled()
-            second.score.compareTo(first.score)
+            return first.score > second.score
+        }
+
+        private fun swap(first: Int, second: Int) {
+            val saved = words[first]
+            words[first] = words[second]
+            words[second] = saved
+        }
+
+        private fun sortThree(first: Int, second: Int, third: Int) {
+            if (before(words[second], words[first])) swap(first, second)
+            if (before(words[third], words[second])) swap(second, third)
+            if (before(words[second], words[first])) swap(first, second)
+        }
+
+        private fun insert(index: Int, first: Int) {
+            val value = words[index]
+            var position = index
+            while (position > first && before(value, words[position - 1])) {
+                words[position] = words[position - 1]
+                position--
+            }
+            words[position] = value
+        }
+
+        private fun insertionSort(first: Int, last: Int) {
+            for (index in first + 1 until last) insert(index, first)
+        }
+
+        private fun insertionSortIncomplete(first: Int, last: Int): Boolean {
+            if (last - first <= 5) {
+                insertionSort(first, last)
+                return true
+            }
+            sortThree(first, first + 1, first + 2)
+            var moved = 0
+            for (index in first + 3 until last) {
+                if (before(words[index], words[index - 1])) {
+                    insert(index, first)
+                    if (++moved == 8) return index + 1 == last
+                }
+            }
+            return true
+        }
+
+        private fun partitionLeft(first: Int, last: Int): Int {
+            val pivot = words[first]
+            var left = first
+            var right = last
+            if (before(pivot, words[last - 1])) {
+                do { left++ } while (!before(pivot, words[left]))
+            } else {
+                do { left++ } while (left < right && !before(pivot, words[left]))
+            }
+            if (left < right) {
+                do { right-- } while (before(pivot, words[right]))
+            }
+            while (left < right) {
+                swap(left, right)
+                do { left++ } while (!before(pivot, words[left]))
+                do { right-- } while (before(pivot, words[right]))
+            }
+            words[first] = words[left - 1]
+            words[left - 1] = pivot
+            return left
+        }
+
+        private fun partitionRight(first: Int, last: Int): Pair<Int, Boolean> {
+            val pivot = words[first]
+            var left = first
+            var right = last
+            do { left++ } while (before(words[left], pivot))
+            if (left == first + 1) {
+                while (left < right) {
+                    right--
+                    if (before(words[right], pivot)) break
+                }
+            } else {
+                do { right-- } while (!before(words[right], pivot))
+            }
+            val alreadyPartitioned = left >= right
+            while (left < right) {
+                swap(left, right)
+                do { left++ } while (before(words[left], pivot))
+                do { right-- } while (!before(words[right], pivot))
+            }
+            words[first] = words[left - 1]
+            words[left - 1] = pivot
+            return left - 1 to alreadyPartitioned
+        }
+
+        fun sort(start: Int, end: Int, initialDepth: Int, initiallyLeftmost: Boolean) {
+            var first = start
+            var last = end
+            var depth = initialDepth
+            var leftmost = initiallyLeftmost
+            while (true) {
+                val length = last - first
+                if (length < 24) {
+                    insertionSort(first, last)
+                    return
+                }
+                if (depth-- == 0) {
+                    heapSort(first, last)
+                    return
+                }
+                val middle = first + length / 2
+                if (length > 128) {
+                    sortThree(first, middle, last - 1)
+                    sortThree(first + 1, middle - 1, last - 2)
+                    sortThree(first + 2, middle + 1, last - 3)
+                    sortThree(middle - 1, middle, middle + 1)
+                    swap(first, middle)
+                } else sortThree(middle, first, last - 1)
+                if (!leftmost && !before(words[first - 1], words[first])) {
+                    first = partitionLeft(first, last)
+                    continue
+                }
+                val (pivot, alreadyPartitioned) = partitionRight(first, last)
+                if (alreadyPartitioned) {
+                    val leftComplete = insertionSortIncomplete(first, pivot)
+                    if (insertionSortIncomplete(pivot + 1, last)) {
+                        if (leftComplete) return
+                        last = pivot
+                        continue
+                    }
+                    if (leftComplete) {
+                        first = pivot + 1
+                        continue
+                    }
+                }
+                sort(first, pivot, depth, leftmost)
+                first = pivot + 1
+                leftmost = false
+            }
+        }
+
+        private fun heapSort(first: Int, last: Int) {
+            val length = last - first
+            fun child(parent: Int, size: Int): Int {
+                var index = parent * 2 + 1
+                if (index + 1 < size && before(words[first + index], words[first + index + 1])) index++
+                return index
+            }
+            for (start in (length - 2) / 2 downTo 0) {
+                var position = start
+                var next = child(position, length)
+                val value = words[first + position]
+                if (before(words[first + next], value)) continue
+                do {
+                    words[first + position] = words[first + next]
+                    position = next
+                    if (position > (length - 2) / 2) break
+                    next = child(position, length)
+                } while (!before(words[first + next], value))
+                words[first + position] = value
+            }
+            for (size in length downTo 2) {
+                val top = words[first]
+                var hole = 0
+                do {
+                    val next = child(hole, size)
+                    words[first + hole] = words[first + next]
+                    hole = next
+                } while (hole <= (size - 2) / 2)
+                if (hole == size - 1) words[first + hole] = top
+                else {
+                    val value = words[first + size - 1]
+                    words[first + size - 1] = top
+                    while (hole > 0) {
+                        val parent = (hole - 1) / 2
+                        if (!before(words[first + parent], value)) break
+                        words[first + hole] = words[first + parent]
+                        hole = parent
+                    }
+                    words[first + hole] = value
+                }
+            }
         }
     }
 
