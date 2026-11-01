@@ -138,7 +138,9 @@ fun NavGraphBuilder.speechSettingsDestination() {
         LaunchedEffect(Unit) { viewModel.refresh() }
         SpeechVoicePickerScreen(state, route.dialogue, route.person, nav::popBackStackIfResumed,
             onSelect = { voice ->
-                if (route.person != null) viewModel.assign(route.person, voice, nav::popBackStackIfResumed)
+                if (route.person != null) viewModel.assign(route.person, voice) {
+                    if (nav.currentBackStackEntry === entry) nav.popBackStackIfResumed()
+                }
                 else voice?.let { viewModel.toggle(route.dialogue, it) }
             }, onSources = { nav.navigate(HttpSpeechSourcesRoute) },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) })
