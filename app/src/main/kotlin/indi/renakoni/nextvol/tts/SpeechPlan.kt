@@ -61,7 +61,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
     val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
     val routing = SpeechVoiceRouting(synthesis, chapter.bookId, voices, context, maxInputLength)
-    val structure = speechStructure(structured, settings, context,
+    val structure = speechStructure(structured, settings, routing.refreshContext(context),
         resolve = if (synthesis.hasVoiceRouting) { name, direction ->
             if (direction == SpeechContextDirection.Explicit) routing.explicit(name) else null
         } else null,

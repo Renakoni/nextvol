@@ -91,4 +91,16 @@ class SpeechVoiceRoutingTest {
         assertEquals("“<<甲>>你好。”", otherBook.segments.single().text)
         assertEquals(alternate.key, otherBook.segments.single().selectedVoice!!.reference.key)
     }
+
+    @Test fun rebindingAnExplicitPersonUpdatesAnUnfinishedDialogueAndItsRememberedVoice() = runBlocking {
+        val configured = settings.copy(text = settings.text.copy(continueDialogue = true, recordVoice = true))
+        val first = prepareSpeechPlan(SpeechChapter("book", "one", "", "", "“<<甲>>还没说完"), configured) {}
+        val edited = configured.copy(speakerVoices = configured.speakerVoices + ("甲" to offline))
+        val next = prepareSpeechPlan(SpeechChapter("book", "two", "", "", "继续说完。”"), edited,
+            context = first.nextContext) {}
+        assertEquals("甲", next.segments.single().speaker)
+        assertEquals(offline.key, next.segments.single().selectedVoice!!.reference.key)
+        assertFalse(next.nextContext.recentVoices.contains(online.key))
+        assertEquals(online.key, first.nextContext.previousText.single().personVoice!!.voice)
+    }
 }

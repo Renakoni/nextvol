@@ -46,6 +46,22 @@ internal class SpeechVoiceRouting(private val settings: SpeechSettings, private 
     fun explicit(name: String): SpeechPersonVoice? = settings.speakerVoices
         .takeIf { settings.speakerBookId == bookId }?.get(name)?.let { SpeechPersonVoice(name, it.key) }
 
+    fun refreshContext(incoming: SpeechContext): SpeechContext {
+        val changes = mutableMapOf<String, MutableSet<String?>>()
+        val previousText = incoming.previousText.map { previous ->
+            val old = previous.personVoice
+            if (old == null || old.person.isEmpty()) previous else {
+                val current = explicit(old.person)
+                changes.getOrPut(old.voice) { mutableSetOf() }.add(current?.voice)
+                previous.copy(personVoice = current)
+            }
+        }
+        return incoming.copy(previousText = previousText, recentVoices = incoming.recentVoices.map { voice ->
+            val changed = changes[voice]
+            if (changed == null) voice else changed.singleOrNull()
+        })
+    }
+
     private fun resolve(reference: SpeechVoiceRef) = voices[reference.key]
         ?: SpeechResolvedVoice(reference, settings.forVoice(reference), defaultLimit)
 
