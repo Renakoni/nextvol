@@ -1,0 +1,31 @@
+<resources>
+    <string name="tts_roles">角色管理</string>
+    <string name="tts_roles_failed">角色規則執行失敗，可前往角色管理修改。</string>
+    <string name="tts_role_add">新增角色規則</string>
+    <string name="tts_role_edit">編輯角色規則</string>
+    <string name="tts_role_menu">角色操作</string>
+    <string name="tts_role_preview">角色比對預覽</string>
+    <string name="tts_role_context_template">上下文比對範本</string>
+    <string name="tts_role_global">所有書籍</string>
+    <string name="tts_role_this_book">本書</string>
+    <string name="tts_role_search">尋找人物或規則</string>
+    <string name="tts_role_empty">新增人物或規則，為符合條件的內文指定聲音。</string>
+    <string name="tts_role_mode_text">文字規則</string>
+    <string name="tts_role_mode_character">人物規則</string>
+    <string name="tts_role_abstract">抽象角色</string>
+    <string name="tts_role_concrete">具體人物</string>
+    <string name="tts_role_voice_missing">尚未指定聲音</string>
+    <string name="tts_role_current_chapter">目前章節</string>
+    <string name="tts_role_match">規則：%1$s · 人物：%2$s</string>
+    <string name="tts_role_no_match">未符合角色規則</string>
+    <string name="tts_role_context_before">上文：%1$s</string>
+    <string name="tts_role_context_after">下文：%1$s</string>
+    <string name="tts_role_regex">比對正規表示式</string>
+    <string name="tts_role_regex_hint">姓名或別名用 | 分隔，留空時依規則名稱比對。</string>
+    <string name="tts_role_scope">作用範圍</string>
+    <string name="tts_role_before">比對對話上文</string>
+    <string name="tts_role_after">比對對話下文</string>
+    <string name="tts_role_note">備註</string>
+    <string name="tts_role_test_draft">預覽草稿</string>
+    <string name="tts_role_context_hint">__ROLE__ 代表候選人物，__OTHER__ 代表上下文中的其他人名。範本用於判斷這段上下文是否指向該人物發言。</string>
+</resources>

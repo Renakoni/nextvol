@@ -142,7 +142,7 @@ fun ReadAloudControls(
                     )
                 }
             }
-            state.error?.takeIf { state.replacementFailure == null }?.let {
+            state.error?.takeIf { state.replacementFailure == null && state.roleFailure == null }?.let {
                 Text(
                     stringResource(it.messageResource),
                     style = MaterialTheme.typography.bodyMedium,
@@ -150,6 +150,10 @@ fun ReadAloudControls(
                 )
             }
             state.replacementFailure?.let { SpeechReplacementError(it) }
+            state.roleFailure?.let {
+                SpeechRoleError(it)
+                if (onSettings != null) TextButton(onClick = onSettings) { Text(stringResource(R.string.tts_settings)) }
+            }
         }
         val canStep = state.segmentCount > 0 && state.phase in setOf(
             SpeechPhase.Playing, SpeechPhase.Paused, SpeechPhase.Buffering,

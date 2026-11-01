@@ -81,6 +81,13 @@ class SpeechVoiceRoutingViewModelTest {
             assertEquals(first.key, assigned.plan!!.segments.single().selectedVoice!!.reference.key)
             assertFalse(assigned.plan.segments.single().text.contains("<<"))
             verify(exactly = 0) { controller.preview(any(), any()) }
+
+            val failure = SpeechRoleFailure("role", "Invalid role", SpeechReplacementProblem.Pattern)
+            coEvery { plans.prepare(any(), any(), any(), any()) } throws SpeechRoleException(failure)
+            model.loadPlan()
+            val failed = withContext(Dispatchers.Default) { withTimeout(5000) { model.state.first { it.roleFailure != null } } }
+            assertEquals(SpeechError.RoleRule, failed.error)
+            assertEquals(failure, failed.roleFailure)
         } finally {
             model.viewModelScope.cancel()
             Dispatchers.resetMain()

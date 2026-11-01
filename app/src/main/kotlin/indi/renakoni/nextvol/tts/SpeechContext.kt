@@ -17,7 +17,7 @@ data class SpeechContext(
 data class SpeechContextText(val text: String, val dialogue: Boolean, val personVoice: SpeechPersonVoice? = null)
 
 @Serializable
-data class SpeechPersonVoice(val person: String, val voice: String)
+data class SpeechPersonVoice(val person: String, val voice: String, val roleMatch: SpeechRoleMatch? = null)
 
 private val speakerMarker = Regex("<<.*?>>")
 

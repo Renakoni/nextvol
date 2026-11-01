@@ -23,6 +23,7 @@ data class SpeechVoiceRoutingState(
     val plan: SpeechPlan? = null,
     val preparing: Boolean = false,
     val error: SpeechError? = null,
+    val roleFailure: SpeechRoleFailure? = null,
 )
 
 @HiltViewModel
@@ -97,13 +98,14 @@ class SpeechVoiceRoutingViewModel @Inject constructor(
         val playback = controller.state.value
         val request = playback.request?.takeUnless { it.isPreview } ?: return
         previewJob?.cancel()
-        mutableState.update { it.copy(preparing = true, plan = null, error = null) }
+        mutableState.update { it.copy(preparing = true, plan = null, error = null, roleFailure = null) }
         previewJob = viewModelScope.launch {
             try {
                 chapter = chapters.load(request.bookId, request.chapterId)
                 context = playback.planContext
                 buildPlan()
             } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: SpeechRoleException) { mutableState.update { it.copy(error = SpeechError.RoleRule, roleFailure = failure.failure) } }
             catch (failure: Exception) { mutableState.update { it.copy(error = failure.speechError(SpeechError.SourceUnavailable)) } }
             finally { if (currentCoroutineContext().isActive) mutableState.update { it.copy(preparing = false) } }
         }
@@ -111,10 +113,11 @@ class SpeechVoiceRoutingViewModel @Inject constructor(
 
     private fun prepare() {
         previewJob?.cancel()
-        mutableState.update { it.copy(preparing = true, error = null) }
+        mutableState.update { it.copy(preparing = true, error = null, roleFailure = null) }
         previewJob = viewModelScope.launch {
             try { buildPlan() }
             catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: SpeechRoleException) { mutableState.update { it.copy(error = SpeechError.RoleRule, roleFailure = failure.failure) } }
             catch (failure: Exception) { mutableState.update { it.copy(error = failure.speechError(SpeechError.SynthesisFailed)) } }
             finally { if (currentCoroutineContext().isActive) mutableState.update { it.copy(preparing = false) } }
         }

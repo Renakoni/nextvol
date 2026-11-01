@@ -26,7 +26,7 @@ import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechVoiceRoutingScreen(state: SpeechVoiceRoutingState, onBack: () -> Unit,
-    onCandidates: (Boolean) -> Unit, onPlan: () -> Unit, onSources: () -> Unit) {
+    onCandidates: (Boolean) -> Unit, onPlan: () -> Unit, onSources: () -> Unit, onRoles: () -> Unit) {
     Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_voice_routing, onBack) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(vertical = 16.dp)) {
             item {
@@ -47,7 +47,7 @@ internal fun SpeechVoiceRoutingScreen(state: SpeechVoiceRoutingState, onBack: ()
                     RoutingEntry(stringResource(R.string.tts_sources), null, onSources)
                 }
             }
-            state.error?.let { error -> item { RoutingError(error, onSources) } }
+            state.error?.let { error -> item { RoutingError(error, onSources, state.roleFailure, onRoles) } }
         }
     }
 }
@@ -68,30 +68,34 @@ private fun RoutingEntry(title: String, option: String?, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechVoicePickerScreen(state: SpeechVoiceRoutingState, dialogue: Boolean, person: String?,
-    onBack: () -> Unit, onSelect: (SpeechVoiceRef?) -> Unit, onSources: () -> Unit, onPlaybackPreferences: () -> Unit) {
+    onBack: () -> Unit, onSelect: (SpeechVoiceRef?) -> Unit, onSources: () -> Unit, onPlaybackPreferences: () -> Unit,
+    onRoles: () -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     val assigned = person?.let(state.settings.speakerVoices::get)
         .takeIf { state.settings.speakerBookId == state.plan?.chapter?.bookId }
-    val selected = if (person != null) listOfNotNull(assigned)
-        else if (dialogue) state.settings.dialogueVoices else state.settings.narrationVoices
+    if (person != null) {
+        SpeechSingleVoicePickerScreen(state.choices, assigned, person, R.string.tts_voice_use_dialogue,
+            state.loading, state.error, onBack, onSelect, onSources, state.roleFailure, onRoles)
+        return
+    }
+    val selected = if (dialogue) state.settings.dialogueVoices else state.settings.narrationVoices
     val available = state.choices.map { it.key }.toSet()
     val other = if (dialogue) state.settings.narrationVoices else state.settings.dialogueVoices
-    val enabled = person != null || !dialogue || state.settings.text.dialogue
+    val enabled = !dialogue || state.settings.text.dialogue
     val voices = (selected + state.choices).distinctBy { it.key }
         .filter { query.isBlank() || it.label.contains(query, ignoreCase = true) }
-    val title = if (person != null) R.string.tts_assign_voice else if (dialogue) R.string.tts_dialogue_voices else R.string.tts_narration_voices
+    val title = if (dialogue) R.string.tts_dialogue_voices else R.string.tts_narration_voices
     Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), title, onBack) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-voice-picker"), contentPadding = PaddingValues(vertical = 16.dp)) {
             item {
                 Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (person != null) Text(person, style = MaterialTheme.typography.titleLarge)
-                    else Text(stringResource(R.string.tts_voice_rotation), style = MaterialTheme.typography.bodyMedium,
+                    Text(stringResource(R.string.tts_voice_rotation), style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     ReplacementField(query, { query = it }, stringResource(R.string.tts_voice_search), singleLine = true)
                 }
             }
             if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) }
-            if (person == null && selected.isEmpty() && state.settings.voiceRoutingConfigured) item {
+            if (selected.isEmpty() && state.settings.voiceRoutingConfigured) item {
                 Text(stringResource(R.string.tts_voice_none), Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }
@@ -102,32 +106,23 @@ internal fun SpeechVoicePickerScreen(state: SpeechVoiceRoutingState, dialogue: B
                     TextButton(onPlaybackPreferences) { Text(stringResource(R.string.tts_playback_preferences)) }
                 }
             }
-            if (person != null) item {
-                Row(Modifier.fillMaxWidth().selectable(assigned == null, role = Role.RadioButton, onClick = { onSelect(null) })
-                    .padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(assigned == null, onClick = null)
-                    Text(stringResource(R.string.tts_voice_use_dialogue), Modifier.padding(start = 16.dp))
-                }
-            }
             items(voices, key = { it.key }) { voice ->
                 val index = selected.indexOfFirst { it.key == voice.key }
                 val checked = index >= 0
                 val missing = voice.key !in available
-                val action = if (person == null) Modifier.toggleable(checked, enabled = enabled, role = Role.Checkbox) { onSelect(voice) }
-                    else Modifier.selectable(checked, enabled = !missing, role = Role.RadioButton) { onSelect(voice) }
+                val action = Modifier.toggleable(checked, enabled = enabled, role = Role.Checkbox) { onSelect(voice) }
                 Row(Modifier.fillMaxWidth().then(action).padding(horizontal = 24.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (person == null) Checkbox(checked, onCheckedChange = null, enabled = enabled)
-                    else RadioButton(checked, onClick = null, enabled = !missing)
+                    Checkbox(checked, onCheckedChange = null, enabled = enabled)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(voice.label, style = MaterialTheme.typography.bodyLarge)
                         if (missing) Text(stringResource(R.string.tts_voice_unavailable), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error)
-                        else if (person == null && other.any { it.key == voice.key }) Text(
+                        else if (other.any { it.key == voice.key }) Text(
                             stringResource(if (dialogue) R.string.tts_voice_from_narration else R.string.tts_voice_from_dialogue),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (checked && person == null) Text((index + 1).toString(), style = MaterialTheme.typography.labelLarge,
+                    if (checked) Text((index + 1).toString(), style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary)
                 }
             }
@@ -135,7 +130,56 @@ internal fun SpeechVoicePickerScreen(state: SpeechVoiceRoutingState, dialogue: B
                 Text(stringResource(R.string.search_no_results), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item { TextButton(onSources, Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.tts_sources)) } }
-            state.error?.let { error -> item { RoutingError(error, onSources) } }
+            state.error?.let { error -> item { RoutingError(error, onSources, state.roleFailure, onRoles) } }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SpeechSingleVoicePickerScreen(choices: List<SpeechVoiceRef>, selected: SpeechVoiceRef?, label: String,
+    @androidx.annotation.StringRes unassignedLabel: Int, loading: Boolean, error: SpeechError?,
+    onBack: () -> Unit, onSelect: (SpeechVoiceRef?) -> Unit, onSources: () -> Unit,
+    roleFailure: SpeechRoleFailure? = null, onRoles: (() -> Unit)? = null) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val available = choices.map { it.key }.toSet()
+    val voices = (listOfNotNull(selected) + choices).distinctBy { it.key }
+        .filter { query.isBlank() || it.label.contains(query, true) }
+    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_assign_voice, onBack) }) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-voice-picker"), contentPadding = PaddingValues(vertical = 16.dp)) {
+            item {
+                Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(label, style = MaterialTheme.typography.titleLarge)
+                    ReplacementField(query, { query = it }, stringResource(R.string.tts_voice_search), singleLine = true)
+                }
+            }
+            if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) }
+            item {
+                Row(Modifier.fillMaxWidth().selectable(selected == null, role = Role.RadioButton, onClick = { onSelect(null) })
+                    .padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected == null, onClick = null)
+                    Text(stringResource(unassignedLabel), Modifier.padding(start = 16.dp))
+                }
+            }
+            items(voices, key = { it.key }) { voice ->
+                val checked = selected?.key == voice.key
+                val missing = voice.key !in available
+                Row(Modifier.fillMaxWidth().selectable(checked, enabled = !missing, role = Role.RadioButton) { onSelect(voice) }
+                    .padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    RadioButton(checked, onClick = null, enabled = !missing)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(voice.label, style = MaterialTheme.typography.bodyLarge)
+                        if (missing) Text(stringResource(R.string.tts_voice_unavailable), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+            if (voices.isEmpty() && !loading) item {
+                Text(stringResource(R.string.search_no_results), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item { TextButton(onSources, Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.tts_sources)) } }
+            error?.let { item { RoutingError(it, onSources, roleFailure, onRoles) } }
         }
     }
 }
@@ -143,13 +187,13 @@ internal fun SpeechVoicePickerScreen(state: SpeechVoiceRoutingState, dialogue: B
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechVoicePlanScreen(state: SpeechVoiceRoutingState, onBack: () -> Unit, onPerson: (String) -> Unit,
-    onSources: () -> Unit) {
+    onSources: () -> Unit, onRoles: () -> Unit) {
     val plan = state.plan
     val people = plan?.segments?.mapNotNull { it.speakerHint }?.distinct().orEmpty()
     Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_voice_plan, onBack) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-voice-plan"), contentPadding = PaddingValues(vertical = 16.dp)) {
             if (state.preparing) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) }
-            state.error?.let { error -> item { RoutingError(error, onSources) } }
+            state.error?.let { error -> item { RoutingError(error, onSources, state.roleFailure, onRoles) } }
             if (plan == null && !state.preparing && state.error == null) item {
                 Text(stringResource(R.string.tts_voice_plan_empty), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -197,9 +241,13 @@ private val SpeechVoiceReason.resource: Int get() = when (this) {
 }
 
 @Composable
-private fun RoutingError(error: SpeechError, onSources: () -> Unit) {
+private fun RoutingError(error: SpeechError, onSources: () -> Unit, roleFailure: SpeechRoleFailure? = null,
+    onRoles: (() -> Unit)? = null) {
     Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-        Text(stringResource(error.messageResource), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-        TextButton(onSources) { Text(stringResource(R.string.tts_sources)) }
+        if (roleFailure != null) SpeechRoleError(roleFailure)
+        else Text(stringResource(error.messageResource), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        if (error == SpeechError.RoleRule) {
+            if (onRoles != null) TextButton(onRoles) { Text(stringResource(R.string.tts_roles)) }
+        } else TextButton(onSources) { Text(stringResource(R.string.tts_sources)) }
     }
 }

@@ -1,0 +1,31 @@
+<resources>
+    <string name="tts_roles">Управление персонажами</string>
+    <string name="tts_roles_failed">Не удалось применить правило роли. Откройте управление персонажами, чтобы изменить его.</string>
+    <string name="tts_role_add">Добавить правило роли</string>
+    <string name="tts_role_edit">Изменить правило роли</string>
+    <string name="tts_role_menu">Действия с ролями</string>
+    <string name="tts_role_preview">Проверка правил ролей</string>
+    <string name="tts_role_context_template">Шаблон контекста</string>
+    <string name="tts_role_global">Все книги</string>
+    <string name="tts_role_this_book">Эта книга</string>
+    <string name="tts_role_search">Найти персонажа или правило</string>
+    <string name="tts_role_empty">Добавьте персонажей или правила, чтобы назначить голоса подходящим фрагментам текста.</string>
+    <string name="tts_role_mode_text">Текстовое правило</string>
+    <string name="tts_role_mode_character">Правило персонажа</string>
+    <string name="tts_role_abstract">Абстрактная роль</string>
+    <string name="tts_role_concrete">Персонаж</string>
+    <string name="tts_role_voice_missing">Голос не назначен</string>
+    <string name="tts_role_current_chapter">Текущая глава</string>
+    <string name="tts_role_match">Правило: %1$s · Персонаж: %2$s</string>
+    <string name="tts_role_no_match">Подходящих правил нет</string>
+    <string name="tts_role_context_before">Перед репликой: %1$s</string>
+    <string name="tts_role_context_after">После реплики: %1$s</string>
+    <string name="tts_role_regex">Регулярное выражение</string>
+    <string name="tts_role_regex_hint">Разделяйте имена и псевдонимы символом |. Если поле пустое, используется имя правила.</string>
+    <string name="tts_role_scope">Область действия</string>
+    <string name="tts_role_before">Искать перед репликой</string>
+    <string name="tts_role_after">Искать после реплики</string>
+    <string name="tts_role_note">Примечания</string>
+    <string name="tts_role_test_draft">Проверить черновик</string>
+    <string name="tts_role_context_hint">__ROLE__ обозначает возможного говорящего, а __OTHER__ обозначает другие имена в окружающем тексте. Шаблон определяет, указывает ли контекст на этого персонажа.</string>
+</resources>

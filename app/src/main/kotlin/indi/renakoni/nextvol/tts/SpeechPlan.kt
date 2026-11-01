@@ -61,10 +61,18 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
     val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
     val routing = SpeechVoiceRouting(synthesis, chapter.bookId, voices, context, maxInputLength)
-    val structure = speechStructure(structured, settings, routing.refreshContext(context),
+    val roles = SpeechRoleRules(synthesis.roleRules, chapter.bookId, synthesis.roleContextPattern, replaceRegex, checkCancelled)
+    // Context retains person identity, but an edited/disabled rule must not retain its old voice.
+    val inputContext = routing.refreshContext(context) { old ->
+        old.roleMatch?.let { roles.refresh(it)?.personVoice() }
+            ?: if (old.roleMatch == null) routing.explicit(old.person) else null
+    }
+    val structure = speechStructure(structured, settings, inputContext,
         resolve = if (synthesis.hasVoiceRouting) { name, direction ->
-            if (direction == SpeechContextDirection.Explicit) routing.explicit(name) else null
+            (if (direction == SpeechContextDirection.Explicit) routing.explicit(name) else null)
+                ?: roles.resolve(name, direction)?.personVoice()
         } else null,
+        textRules = roles.splitText(structured),
         checkCancelled = checkCancelled)
     val segments = mutableListOf<SpeechSegment>()
     val mappings = mutableListOf<SpeechMappedText>()
@@ -86,7 +94,8 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
                     if (start < end) {
                         segments += SpeechSegment(start, end, mapped.text, part.dialogue, part.speaker,
                             part.speakerHint, language.language, part.beforeText, part.afterText,
-                            part.rememberedText, part.previousVoice, part.changeVoice, voice, reason)
+                            part.rememberedText, part.previousVoice, part.changeVoice, voice, reason,
+                            part.textRule ?: part.personVoice?.roleMatch?.takeIf { part.dialogue })
                         mappings += mapped
                     }
                 }
@@ -102,7 +111,8 @@ internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Local
     speechDigest("speech-text-v3\u0000" + Json.encodeToString(replacements) + "\u0000" +
         Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag() +
         "\u0000" + Json.encodeToString(narrationVoices) + Json.encodeToString(dialogueVoices) +
-        Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured)
+        Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured +
+        Json.encodeToString(roleRules) + roleContextPattern)
 
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {

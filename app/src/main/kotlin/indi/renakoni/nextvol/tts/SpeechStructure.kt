@@ -12,6 +12,7 @@ internal data class SpeechStructure(
     /** A remembered voice suggestion, without inventing a person for an unresolved dialogue. */
     val previousVoice: String? = null,
     val controlMark: Boolean = false,
+    val textRule: SpeechRoleMatch? = null,
 ) {
     val speaker get() = personVoice?.person?.takeIf { it.isNotEmpty() }
 }
@@ -30,6 +31,7 @@ internal suspend fun speechStructure(
     settings: SpeechTextSettings,
     incoming: SpeechContext = SpeechContext(),
     resolve: (suspend (String, SpeechContextDirection) -> SpeechPersonVoice?)? = null,
+    textRules: List<SpeechRoleText> = emptyList(),
     checkCancelled: () -> Unit,
 ): SpeechStructureResult {
     checkCancelled()
@@ -40,7 +42,17 @@ internal suspend fun speechStructure(
     var state = if (incoming.openDialogue) QuoteState.DialogueStart else QuoteState.DialogueBefore
     var changeDialogue = !incoming.openDialogue
     var changeNarration = true
-    val controls = speechControlMark.findAll(input.text).iterator()
+    data class Bypass(val start: Int, val end: Int, val role: SpeechRoleMatch?)
+    val bypasses = mutableListOf<Bypass>()
+    var offset = 0
+    for (span in textRules.ifEmpty { listOf(SpeechRoleText(input)) }) {
+        if (span.match != null) bypasses += Bypass(offset, offset + span.content.text.length, span.match)
+        else speechControlMark.findAll(span.content.text).forEach {
+            bypasses += Bypass(offset + it.range.first, offset + it.range.last + 1, null)
+        }
+        offset += span.content.text.length
+    }
+    val controls = bypasses.iterator()
     var control = if (controls.hasNext()) controls.next() else null
     fun emit(end: Int, dialogue: Boolean) {
         result += SpeechStructure(input.slice(start, end), dialogue,
@@ -49,17 +61,18 @@ internal suspend fun speechStructure(
     }
     for (index in input.text.indices) {
         checkCancelled()
-        if (control != null && index > control.range.last) control = if (controls.hasNext()) controls.next() else null
-        if (control?.range?.contains(index) == true) {
-            if (index == control.range.first) {
+        if (control != null && index >= control.end) control = if (controls.hasNext()) controls.next() else null
+        if (control != null && index in control.start until control.end) {
+            if (index == control.start) {
                 if (start < index) {
                     val dialogue = settings.dialogue && state == QuoteState.DialogueStart
                     emit(index, dialogue)
                     changeDialogue = !dialogue
                     if (!dialogue) changeNarration = false
                 }
-                val end = control.range.last + 1
-                result += SpeechStructure(input.slice(index, end), false, changeVoice = false, controlMark = true)
+                val end = control.end
+                result += SpeechStructure(input.slice(index, end), false, changeVoice = control.role != null,
+                    personVoice = control.role?.personVoice(), controlMark = control.role == null, textRule = control.role)
                 start = end
             }
             continue
@@ -121,9 +134,9 @@ internal suspend fun speechStructure(
     val unfinished = settings.dialogue && (state == QuoteState.DialogueStart || state == QuoteState.NarrationQuote)
     if (start < input.text.length) emit(input.text.length, unfinished)
     // Tagged control spans bypass the quote FSM and the original contextual-text list.
-    val contextual = result.filterNot { it.controlMark }.toMutableList()
+    val contextual = result.filterNot { it.controlMark || it.textRule != null }.toMutableList()
     if (!settings.dialogue || contextual.isEmpty()) return SpeechStructureResult(result, incoming)
     val resolved = resolveSpeechContext(contextual, settings, incoming, unfinished, resolve, checkCancelled)
     val parts = resolved.parts.iterator()
-    return SpeechStructureResult(result.map { if (it.controlMark) it else parts.next() }, resolved.nextContext)
+    return SpeechStructureResult(result.map { if (it.controlMark || it.textRule != null) it else parts.next() }, resolved.nextContext)
 }

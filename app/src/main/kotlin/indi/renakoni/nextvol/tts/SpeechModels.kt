@@ -27,7 +27,7 @@ enum class SpeechError {
     NoEngine, EngineUnavailable, MissingVoice, MissingLanguageData, InitializationTimeout,
     SynthesisTimeout, SynthesisFailed, Network, NetworkUnavailable, InvalidAudio, Storage, SourceUnavailable,
     SourceTimeout, EmptyText, UnsupportedContent, Playback, ServiceUnavailable,
-    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, HttpConfiguration, HttpAuthentication, OfflineUnavailable, ReplacementRule,
+    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, HttpConfiguration, HttpAuthentication, OfflineUnavailable, ReplacementRule, RoleRule,
 }
 
 class SpeechException(val error: SpeechError) : Exception(error.name)
@@ -65,6 +65,7 @@ data class ReadAloudState(
     val replacementFailure: SpeechReplacementFailure? = null,
     val planContext: SpeechContext = SpeechContext(),
     val failedVoice: SpeechVoiceRef? = null,
+    val roleFailure: SpeechRoleFailure? = null,
 ) {
     val isActive get() = phase in setOf(SpeechPhase.Preparing, SpeechPhase.Playing, SpeechPhase.Buffering)
 }

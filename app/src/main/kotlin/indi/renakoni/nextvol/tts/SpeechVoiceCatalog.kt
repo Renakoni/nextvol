@@ -65,7 +65,7 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
 }
 
 internal fun SpeechSettings.references(): List<SpeechVoiceRef> =
-    (listOf(voiceReference()) + narrationVoices + dialogueVoices + speakerVoices.values).distinctBy { it.key }
+    (listOf(voiceReference()) + narrationVoices + dialogueVoices + speakerVoices.values + roleRules.mapNotNull { it.speaker }).distinctBy { it.key }
 
 internal const val SPEECH_HTTP_INPUT_LIMIT = 65536
 

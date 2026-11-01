@@ -30,6 +30,7 @@ val SpeechError.messageResource: Int
         SpeechError.HttpAuthentication -> R.string.tts_error_http_authentication
         SpeechError.OfflineUnavailable -> R.string.tts_offline_unavailable
         SpeechError.ReplacementRule -> R.string.tts_replace_failed
+        SpeechError.RoleRule -> R.string.tts_roles_failed
     }
 
 val SpeechPhase.labelResource: Int

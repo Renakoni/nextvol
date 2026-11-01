@@ -32,6 +32,8 @@ data class SpeechRoleRule(
 data class SpeechRoleMatch(val person: String, val ruleId: String, val ruleName: String,
     val isAbstract: Boolean, val voiceRef: SpeechVoiceRef?)
 
+internal fun SpeechRoleMatch.personVoice() = SpeechPersonVoice(person, voiceRef?.key ?: "role:$ruleId", this)
+
 data class SpeechRoleFailure(val ruleId: String, val ruleName: String, val problem: SpeechReplacementProblem)
 internal class SpeechRoleException(val failure: SpeechRoleFailure) : Exception()
 
@@ -44,7 +46,11 @@ internal class SpeechRoleRules(rules: List<SpeechRoleRule>, bookId: String,
     private val checkCancelled: () -> Unit) {
     private val active = rules.filter { it.activate && it.pattern.isNotEmpty() && (it.bookId == null || it.bookId == bookId) }
     private val roles = active.filter { it.mode != 0 && it.mode != 1 && !it.pattern.startsWith("lang:") }
-    private val budget = RuleBudget()
+
+    suspend fun refresh(match: SpeechRoleMatch): SpeechRoleMatch? {
+        val rule = roles.firstOrNull { it.id == match.ruleId } ?: return null
+        return if (find(match.person, rule.pattern, rule).isNotEmpty()) rule.match(match.person) else null
+    }
 
     suspend fun resolve(text: String, direction: SpeechContextDirection): SpeechRoleMatch? {
         val rules = roles.filter { if (direction == SpeechContextDirection.Next) it.matchAfter else it.matchBefore }
@@ -65,7 +71,7 @@ internal class SpeechRoleRules(rules: List<SpeechRoleRule>, bookId: String,
             .let { if (direction == SpeechContextDirection.Previous) it.asReversed() else it }
         for ((index, candidate) in candidates.withIndex()) {
             var context = text
-            execute(rules.first()) {
+            execute(rules.first()) { budget ->
                 for ((other, name) in candidates.withIndex()) {
                     checkCancelled()
                     budget.check(context.length.toLong())
@@ -111,20 +117,19 @@ internal class SpeechRoleRules(rules: List<SpeechRoleRule>, bookId: String,
 
     private fun SpeechRoleRule.match(person: String) = SpeechRoleMatch(person, id, label, isAbstract, speaker)
 
-    private suspend fun find(text: String, pattern: String, rule: SpeechRoleRule): List<ReplacementPart> = execute(rule) {
+    private suspend fun find(text: String, pattern: String, rule: SpeechRoleRule): List<ReplacementPart> = execute(rule) { budget ->
         budget.checkSize(text.length, budget.limits.maxInputChars)
         budget.checkSize(pattern.length, budget.limits.maxRuleChars)
         val parts = replaceRegex?.invoke(text, pattern, "x")
             ?: RegexReplacement.replace(text, pattern, "x", budget, checkCancelled)
-        budget.check(parts.size.toLong())
+        checkCancelled()
         parts.filter { it.text != null }
     }
 
-    private suspend fun <T> execute(rule: SpeechRoleRule, block: suspend () -> T): T {
+    private suspend fun <T> execute(rule: SpeechRoleRule, block: suspend (RuleBudget) -> T): T {
         try {
             checkCancelled()
-            budget.check()
-            return block()
+            return block(RuleBudget())
         } catch (failure: SpeechRegexException) { fail(rule, failure.problem) }
         catch (_: PatternSyntaxException) { fail(rule, SpeechReplacementProblem.Pattern) }
         catch (_: RuleBudgetExceeded) { fail(rule, SpeechReplacementProblem.Budget) }
