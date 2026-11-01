@@ -11,6 +11,7 @@ internal data class SpeechStructure(
     val rememberedText: List<String> = emptyList(),
     /** A remembered voice suggestion, without inventing a person for an unresolved dialogue. */
     val previousVoice: String? = null,
+    val controlMark: Boolean = false,
 ) {
     val speaker get() = personVoice?.person?.takeIf { it.isNotEmpty() }
 }
@@ -33,7 +34,6 @@ internal fun speechStructure(
 ): SpeechStructureResult {
     checkCancelled()
     if (input.text.isEmpty()) return SpeechStructureResult(emptyList(), incoming)
-    if (!settings.dialogue) return SpeechStructureResult(listOf(SpeechStructure(input, false)), incoming)
 
     val result = mutableListOf<SpeechStructure>()
     var start = 0
@@ -50,7 +50,21 @@ internal fun speechStructure(
     for (index in input.text.indices) {
         checkCancelled()
         if (control != null && index > control.range.last) control = if (controls.hasNext()) controls.next() else null
-        if (control?.range?.contains(index) == true) continue
+        if (control?.range?.contains(index) == true) {
+            if (index == control.range.first) {
+                if (start < index) {
+                    val dialogue = settings.dialogue && state == QuoteState.DialogueStart
+                    emit(index, dialogue)
+                    changeDialogue = !dialogue
+                    if (!dialogue) changeNarration = false
+                }
+                val end = control.range.last + 1
+                result += SpeechStructure(input.slice(index, end), false, changeVoice = false, controlMark = true)
+                start = end
+            }
+            continue
+        }
+        if (!settings.dialogue) continue
         val char = input.text[index]
         if (char == ' ' || char == '\u3000') continue
         when (state) {
@@ -86,7 +100,7 @@ internal fun speechStructure(
                     changeDialogue = true
                 }
                 '"', '“' -> {
-                    emit(index, false)
+                    if (start < index) emit(index, false)
                     state = QuoteState.NarrationQuote
                     changeNarration = true
                     changeDialogue = true
@@ -104,7 +118,12 @@ internal fun speechStructure(
             }
         }
     }
-    val unfinished = state == QuoteState.DialogueStart || state == QuoteState.NarrationQuote
+    val unfinished = settings.dialogue && (state == QuoteState.DialogueStart || state == QuoteState.NarrationQuote)
     if (start < input.text.length) emit(input.text.length, unfinished)
-    return resolveSpeechContext(result, settings, incoming, unfinished, resolve, checkCancelled)
+    // Tagged control spans bypass the quote FSM and the original contextual-text list.
+    val contextual = result.filterNot { it.controlMark }.toMutableList()
+    if (!settings.dialogue || contextual.isEmpty()) return SpeechStructureResult(result, incoming)
+    val resolved = resolveSpeechContext(contextual, settings, incoming, unfinished, resolve, checkCancelled)
+    val parts = resolved.parts.iterator()
+    return SpeechStructureResult(result.map { if (it.controlMark) it else parts.next() }, resolved.nextContext)
 }

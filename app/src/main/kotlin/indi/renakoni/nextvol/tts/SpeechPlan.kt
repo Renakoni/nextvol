@@ -8,8 +8,8 @@ class SpeechPlan internal constructor(
     val chapter: SpeechChapter,
     val synthesis: SpeechSettings,
     val segments: List<SpeechSegment>,
-    val structuredText: String = chapter.text,
-    private val mappedSegments: List<SpeechMappedText> = emptyList(),
+    val structuredText: String,
+    private val mappedSegments: List<SpeechMappedText>,
     val context: SpeechContext = SpeechContext(),
     val nextContext: SpeechContext = context,
     private val maxInputLength: Int = Int.MAX_VALUE,
@@ -36,10 +36,9 @@ class SpeechPlan internal constructor(
         replacementKey = replacementKey, segmentIndex = index, context = context)
 
     internal fun position(index: Int, start: Int = 0, end: Int = segments[index].text.length, anchor: Int = start): SpeechPosition {
-        val segment = segments[index]
-        val mapped = mappedSegments.getOrNull(index)
-        val range = mapped?.range(start, end) ?: (segment.start + start to segment.start + end)
-        val originalAnchor = mapped?.anchor(anchor) ?: (segment.start + anchor)
+        val mapped = mappedSegments[index]
+        val range = mapped.range(start, end)
+        val originalAnchor = mapped.anchor(anchor)
         return SpeechPosition(chapter.bookId, chapter.id, chapter.fingerprint, range.first, range.second,
             originalAnchor.coerceIn(range.first, range.second - 1))
     }
@@ -57,7 +56,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val original = speechTrim(SpeechMappedText.original(chapter.text))
     // The original service filters before normalization, replacement and emoji expansion.
     if (settings.filterUnspoken && speechIsUnspoken(original.text))
-        return SpeechPlan(chapter, synthesis, emptyList(), "", context = context, maxInputLength = maxInputLength, locale = locale)
+        return SpeechPlan(chapter, synthesis, emptyList(), "", emptyList(), context = context, maxInputLength = maxInputLength, locale = locale)
     val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
     val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
     val structure = speechStructure(structured, settings, context, checkCancelled = checkCancelled)
@@ -65,11 +64,15 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val mappings = mutableListOf<SpeechMappedText>()
     for (part in structure.parts) {
         checkCancelled()
-        for (language in speechLatinSegments(part.content, settings.separateEnglish, checkCancelled)) {
-            var corrected = replacements.apply(language.content, wholeText = false)
-            if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
-            for (sentence in speechSentenceChunks(corrected, settings.maxSentenceLength, settings.filterUnspoken,
-                locale, checkCancelled)) {
+        val languages = if (part.controlMark) listOf(SpeechLanguageSegment(part.content, "lang:mark"))
+            else speechLatinSegments(part.content, settings.separateEnglish, checkCancelled)
+        for (language in languages) {
+            var corrected = language.content
+            if (!part.controlMark) {
+                corrected = replacements.apply(corrected, wholeText = false)
+                if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
+            }
+            for (sentence in speechSentenceChunks(corrected, settings.maxSentenceLength, locale, checkCancelled)) {
                 for (mapped in speechHardChunks(sentence, maxInputLength, checkCancelled)) {
                     if (mapped.text.all { Character.isWhitespace(it) } || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
                     val (start, end) = mapped.range()

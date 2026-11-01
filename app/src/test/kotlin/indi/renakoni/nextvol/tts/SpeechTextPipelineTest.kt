@@ -46,6 +46,19 @@ class SpeechTextPipelineTest {
         assertEquals(0, changed.startIndex(saved))
     }
 
+    @Test fun controlSpansBypassOrdinaryReplacementAndEmojiWithDialogueDisabled() = runBlocking {
+        val chapter = SpeechChapter("book", "one", "", "", "甲[[SPEED:2😀]]乙")
+        val settings = SpeechSettings(replacements = listOf(
+            SpeechReplacementRule(source = "甲", target = "前"),
+            SpeechReplacementRule(source = "SPEED", target = "改写")),
+            text = SpeechTextSettings(replaceEmoji = true))
+        val plan = prepareSpeechPlan(chapter, settings) {}
+        assertEquals(listOf("前", "[[SPEED:2😀]]", "乙"), plan.segments.map { it.text })
+        assertEquals("lang:mark", plan.segments[1].language)
+        assertEquals(1, plan.position(1).start)
+        assertEquals(chapter.text.length - 1, plan.position(1).end)
+    }
+
     @Test fun localeChangeRebuildsEmojiSegmentsAndResumesAtOriginalOffset() = runBlocking {
         val previousLocale = Locale.getDefault()
         try {

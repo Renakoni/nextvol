@@ -41,23 +41,20 @@ class SpeechPreprocessingTest {
 
     @Test fun sentenceTargetIsSoftUntilTwiceItsLengthAndBackendLimitRemainsHard() {
         val input = SpeechMappedText.original("甲".repeat(9))
-        val soft = speechSentenceChunks(input, 5, false, Locale.CHINESE)
+        val soft = speechSentenceChunks(input, 5, Locale.CHINESE)
         assertEquals(listOf(input.text), soft.map { it.text })
         assertEquals(listOf(5, 4), soft.flatMap { speechHardChunks(it, 5) }.map { it.text.length })
         assertEquals(listOf(5, 5), speechSentenceChunks(
-            SpeechMappedText.original("甲".repeat(10)), 5, false, Locale.CHINESE).map { it.text.length })
+            SpeechMappedText.original("甲".repeat(10)), 5, Locale.CHINESE).map { it.text.length })
         assertEquals(listOf("甲乙。丙丁。", "戊己。"), speechSentenceChunks(
-            SpeechMappedText.original("甲乙。丙丁。戊己。"), 6, false, Locale.CHINESE).map { it.text })
+            SpeechMappedText.original("甲乙。丙丁。戊己。"), 6, Locale.CHINESE).map { it.text })
     }
 
-    @Test fun longWhitespaceGroupingAndFilteringFollowOriginalFlushRules() {
+    @Test fun longWhitespaceGroupingPreservesOriginalFlushRules() {
         val input = SpeechMappedText.original("alpha  beta gamma")
-        val chunks = speechSentenceChunks(input, 6, false, Locale.ENGLISH)
+        val chunks = speechSentenceChunks(input, 6, Locale.ENGLISH)
         assertEquals(listOf(" alpha", " beta", " gamma"), chunks.map { it.text })
         assertEquals(7 to 11, chunks[1].range(1, 5))
-        assertTrue(speechSentenceChunks(SpeechMappedText.original("！！！！！"), 2, true, Locale.CHINESE).isEmpty())
-        // The original short-input fast path leaves filtering to the service/final stage.
-        assertEquals("！！", speechSentenceChunks(SpeechMappedText.original("！！"), 2, true, Locale.CHINESE).single().text)
     }
 
     @Test fun sentenceAndHardBoundariesNeverSplitMarkersOrSurrogatePairs() {
@@ -66,11 +63,11 @@ class SpeechPreprocessingTest {
         assertEquals(listOf("ab", "<<角色>>", "cd", "[[en]]", "𠀀x"), chunks.map { it.text })
         assertEquals(text, chunks.joinToString("") { it.text })
         val quoted = "a𠀀“甲乙丙丁”"
-        val sentences = speechSentenceChunks(SpeechMappedText.original(quoted), 3, false, Locale.CHINESE)
+        val sentences = speechSentenceChunks(SpeechMappedText.original(quoted), 3, Locale.CHINESE)
         assertEquals(quoted, sentences.joinToString("") { it.text })
         assertTrue(sentences.none { it.text.first().isLowSurrogate() || it.text.last().isHighSurrogate() })
         assertEquals(listOf("A", "<<人物姓名>>", "B"), speechSentenceChunks(
-            SpeechMappedText.original("A<<人物姓名>>B"), 4, false, Locale.CHINESE).map { it.text })
+            SpeechMappedText.original("A<<人物姓名>>B"), 4, Locale.CHINESE).map { it.text })
     }
 
     @Test fun markerLongerThanBackendLimitFailsWithoutSplittingOrLooping() {

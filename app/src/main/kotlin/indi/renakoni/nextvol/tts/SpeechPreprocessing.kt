@@ -112,7 +112,7 @@ internal fun speechReplaceEmoji(
 
 /** MultiTTS groups at the target, but only hard-splits a group at twice that length. */
 internal fun speechSentenceChunks(
-    input: SpeechMappedText, limit: Int, filterUnspoken: Boolean,
+    input: SpeechMappedText, limit: Int,
     locale: Locale = Locale.getDefault(), checkCancelled: () -> Unit = {},
 ): List<SpeechMappedText> {
     require(limit >= 2)
@@ -123,7 +123,7 @@ internal fun speechSentenceChunks(
         val group = input.slice(start, end)
         val chunks = if (group.text.length < limit * 2) listOf(group)
             else speechLongSentence(group, limit, checkCancelled)
-        result += chunks.filter { !filterUnspoken || !speechIsUnspoken(it.text) }
+        result += chunks
     }
     val pattern = if (locale.language == "en" || locale.language == "zh") chineseEnglishSentence else otherSentence
     val marks = speechMarkRanges(input.text)

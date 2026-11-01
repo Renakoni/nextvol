@@ -12,6 +12,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -148,12 +149,12 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_show_parameters),
-                    trailingContent = { Switch(preferences.showParameters, preferences.parametersData::asynchronousSet) },
+                    trailingContent = { PlaybackSwitch(preferences.showParameters, preferences.parametersData::asynchronousSet) },
                     onClick = { preferences.parametersData.asynchronousSet(!preferences.showParameters) })
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_show_extensions),
-                    trailingContent = { Switch(preferences.showExtensions, preferences.extensionsData::asynchronousSet) },
+                    trailingContent = { PlaybackSwitch(preferences.showExtensions, preferences.extensionsData::asynchronousSet) },
                     onClick = { preferences.extensionsData.asynchronousSet(!preferences.showExtensions) })
             }
         }
@@ -176,6 +177,19 @@ private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @Str
             Text(stringResource(description), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked, onCheckedChange = null, modifier = Modifier.scale(0.8f))
+        PlaybackSwitch(checked)
     }
+}
+
+@Composable
+private fun PlaybackSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)? = null) {
+    val colors = MaterialTheme.colorScheme
+    Switch(checked, onCheckedChange, modifier = Modifier.scale(0.65f), colors = SwitchDefaults.colors(
+        checkedThumbColor = colors.primary,
+        checkedTrackColor = colors.primary.copy(alpha = 0.24f),
+        checkedBorderColor = Color.Transparent,
+        uncheckedThumbColor = colors.onSurfaceVariant,
+        uncheckedTrackColor = colors.onSurfaceVariant.copy(alpha = 0.12f),
+        uncheckedBorderColor = Color.Transparent,
+    ))
 }

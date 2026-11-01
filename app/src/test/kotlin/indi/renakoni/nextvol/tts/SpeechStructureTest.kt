@@ -62,15 +62,19 @@ class SpeechStructureTest {
     }
 
     @Test fun controlMarkersKeepTheirTextWithoutChangingQuoteStateOrSupplyingAPerson() {
-        val input = "“开始[[<<甲>>“参数”:“值”]]结束”"
-        val part = structure(input, resolve = names).parts.single()
-        assertTrue(part.dialogue)
-        assertEquals(input, part.content.text)
-        assertNull(part.speakerHint)
-        assertNull(part.speaker)
-        val narration = "说明[[“参数”]]文字"
-        assertEquals(narration, structure(narration).parts.single().content.text)
-        assertFalse(structure(narration).parts.single().dialogue)
+        val mark = "[[<<甲>>“参数”:“值”]]"
+        val result = structure("“开始${mark}结束”", resolve = names)
+        assertEquals(listOf("“开始", mark, "结束”"), result.parts.map { it.content.text })
+        assertEquals(listOf(true, false, true), result.parts.map { it.dialogue })
+        assertTrue(result.parts[1].controlMark)
+        assertFalse(result.parts.last().changeVoice)
+        assertTrue(result.parts.all { it.speakerHint == null && it.speaker == null })
+        assertEquals(listOf("结束”"), result.nextContext.previousText.map { it.text })
+        val narration = structure("说明${mark}文字")
+        assertEquals(listOf("文字", "说明"), narration.nextContext.previousText.map { it.text })
+        assertTrue(narration.parts.none { it.dialogue })
+        val context = narration.nextContext
+        assertEquals(context, structure(mark, incoming = context).nextContext)
     }
 
     @Test fun onlyResolvedFirstMarkerRemovesMarkersAndKeepsSurvivingUtf16Origins() {

@@ -57,14 +57,7 @@ internal fun resolveSpeechContext(
         var part = parts[index]
         if (!part.dialogue) continue
         val text = part.content.text
-        val controls = speechControlMark.findAll(text).iterator()
-        var control = if (controls.hasNext()) controls.next() else null
-        val markers = if (text.length > 5) speakerMarker.findAll(text).filter { marker ->
-            checkCancelled()
-            while (control != null && control!!.range.last < marker.range.first)
-                control = if (controls.hasNext()) controls.next() else null
-            control == null || control!!.range.first > marker.range.last
-        }.toList() else emptyList()
+        val markers = if (text.length > 5) speakerMarker.findAll(text).toList() else emptyList()
         val marker = markers.firstOrNull()
         val hint = marker?.value?.let { it.substring(2, it.length - 2).trim { char -> Character.isWhitespace(char) } }
             ?.takeIf { it.isNotEmpty() }

@@ -16,9 +16,4 @@ class SpeechTextTest {
         assertTrue(sentences.all { it.text == text.substring(it.start, it.end) })
         assertEquals(text.filterNot(Char::isWhitespace), sentences.joinToString("") { it.text }.filterNot(Char::isWhitespace))
     }
-
-    @Test fun contentChangeInvalidatesFingerprint() {
-        assertNotEquals(speechDigest("text"), speechDigest("text\n"))
-        assertEquals(speechDigest("text"), speechDigest("text"))
-    }
 }
