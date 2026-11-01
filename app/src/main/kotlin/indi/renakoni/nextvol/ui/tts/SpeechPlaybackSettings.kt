@@ -176,11 +176,8 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             }
             state.settings?.let { settings ->
                 if (state.defaultNamePattern != null) item {
-                    SettingsClickableEntry(painter = painterResource(R.drawable.code_24px),
-                        title = stringResource(R.string.tts_new_word_pattern),
-                        option = if (settings.personNameRegex == null) stringResource(R.string.tts_new_word_default_pattern)
-                            else settings.personNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
-                        onClick = { text = settings.personNameRegex ?: state.defaultNamePattern; editingPersonRule = true })
+                    SpeechTextEntry(R.drawable.code_24px, R.string.tts_new_word_pattern, R.string.tts_new_word_pattern_description,
+                        Modifier.clickable { text = settings.personNameRegex ?: state.defaultNamePattern; editingPersonRule = true })
                 }
             }
             state.settings?.let { settings ->

@@ -1,11 +1,11 @@
 <resources>
     <string name="tts_new_word_algorithm">New word discovery</string>
     <string name="tts_new_word_pattern">人物名稱正則</string>
-    <string name="tts_new_word_default_pattern">原版中文規則</string>
     <string name="tts_new_word_run">開始分析</string>
     <string name="tts_new_word_candidates">候選詞</string>
     <string name="tts_new_word_score">統計評分</string>
     <string name="tts_new_word_empty">未發現候選詞。</string>
     <string name="tts_new_word_error">分析失敗：%1$s</string>
     <string name="tts_new_word_sample">林逸来到门前。林逸转身离开。林逸笑着点头。林逸站在窗边。</string>
+    <string name="tts_new_word_pattern_description">用於文字人物分析中過濾人名</string>
 </resources>

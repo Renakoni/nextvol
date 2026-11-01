@@ -1,11 +1,11 @@
 <resources>
     <string name="tts_new_word_algorithm">New word discovery</string>
     <string name="tts_new_word_pattern">Шаблон имён</string>
-    <string name="tts_new_word_default_pattern">Исходный китайский шаблон</string>
     <string name="tts_new_word_run">Найти новые слова</string>
     <string name="tts_new_word_candidates">Кандидат</string>
     <string name="tts_new_word_score">Оценка</string>
     <string name="tts_new_word_empty">Кандидаты не найдены. Попробуйте текст, где имена повторяются в разных контекстах.</string>
     <string name="tts_new_word_error">Не удалось найти новые слова: %1$s</string>
     <string name="tts_new_word_sample">林逸来到门前。林逸转身离开。林逸笑着点头。林逸站在窗边。</string>
+    <string name="tts_new_word_pattern_description">Для фильтрации имён при анализе персонажей в тексте</string>
 </resources>
