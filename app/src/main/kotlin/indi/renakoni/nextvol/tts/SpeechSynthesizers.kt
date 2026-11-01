@@ -177,8 +177,14 @@ class SpeechSynthesizers @Inject constructor(
                 HttpSpeechError.InvalidAudio, HttpSpeechError.TooLarge -> SpeechError.InvalidAudio
                 HttpSpeechError.InvalidSource -> SpeechError.HttpSourceUnavailable
             }).apply { initCause(failure) } }
-            catch (failure: SpeechException) { throw failure }
-            catch (_: java.io.IOException) { throw SpeechException(SpeechError.Storage) }
+            catch (failure: SpeechException) {
+                selectedSource?.let { repository.recordSynthesis(it, R.string.tts_offline_synthesis_failed) }
+                throw failure
+            }
+            catch (_: java.io.IOException) {
+                selectedSource?.let { repository.recordSynthesis(it, R.string.tts_error_storage) }
+                throw SpeechException(SpeechError.Storage)
+            }
             finally { partial.delete() }
             return emptyList()
         }

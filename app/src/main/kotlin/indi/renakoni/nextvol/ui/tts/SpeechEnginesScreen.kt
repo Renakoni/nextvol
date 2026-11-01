@@ -111,12 +111,18 @@ internal fun SpeechEnginesScreen(state: SpeechEnginesState, onBack: () -> Unit,
 @Composable
 internal fun SpeechEngineEditorScreen(configuration: SpeechEngineConfig?, creating: Boolean, state: SpeechEnginesState,
     onBack: () -> Unit, onSave: (SpeechEngineConfig) -> Unit) {
+    val title = if (creating) R.string.tts_engine_new else R.string.tts_engine_edit
+    // Restore the draft after its engine is loaded, so the placeholder cannot reset saved edits.
+    if (!creating && state.loading) {
+        Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), title, onBack) }) { _ -> }
+        return
+    }
     val original = configuration ?: SpeechEngineConfig("", "", "http")
     var draft by rememberSaveable(original.key, stateSaver = androidx.compose.runtime.saveable.Saver<SpeechEngineConfig, String>(
         save = { kotlinx.serialization.json.Json.encodeToString(it) }, restore = { kotlinx.serialization.json.Json.decodeFromString(it) })) { mutableStateOf(original) }
     val back = { if (!state.saving) onBack() }
     BackHandler(onBack = back)
-    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), if (creating) R.string.tts_engine_new else R.string.tts_engine_edit, back) },
+    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), title, back) },
         bottomBar = {
             if (creating || configuration != null) Surface {
                 Row(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 22.dp, vertical = 12.dp),
