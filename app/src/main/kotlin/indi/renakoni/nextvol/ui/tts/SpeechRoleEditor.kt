@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.ui.tts
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -22,7 +21,6 @@ import indi.renakoni.nextvol.tts.messageResource
 @Composable
 internal fun SpeechRoleEditorScreen(state: SpeechRolesState, onBack: () -> Unit, onSave: (String) -> Unit,
     onEdit: ((SpeechRoleRule) -> SpeechRoleRule) -> Unit, onEngine: (String) -> Unit) {
-    BackHandler(enabled = state.saving) { }
     Surface(Modifier.padding(24.dp).widthIn(max = 560.dp).fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
         val draft = state.draft
         if (state.loading || draft == null) {

@@ -129,7 +129,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onToggle = viewModel::toggle, onOrder = viewModel::order, onDelete = viewModel::delete,
             onRename = viewModel::renameGroup)
     }
-    dialog<SpeechRoleEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
+    dialog<SpeechRoleEditorRoute>(dialogProperties = DialogProperties(
+        dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false)) { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val owner = remember(entry) { nav.getBackStackEntry<SpeechRolesRoute>() }
