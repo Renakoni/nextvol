@@ -2,7 +2,6 @@
     <string name="tts_name_algorithm">Алгоритм поиска имён</string>
     <string name="tts_name_ner">NER (китайский)</string>
     <string name="tts_name_test">Проверка анализа имён</string>
-    <string name="tts_name_scope">Находит возможные имена в китайском тексте. Модель может пропускать имена или ошибаться.</string>
     <string name="tts_name_input">Текст</string>
     <string name="tts_name_run">Распознать имена</string>
     <string name="tts_name_results">Распознанные имена</string>
