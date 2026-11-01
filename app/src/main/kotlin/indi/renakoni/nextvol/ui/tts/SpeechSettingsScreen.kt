@@ -144,6 +144,7 @@ fun SpeechPreferencesScreen(
     onPlaybackSpeed: (Float) -> Unit,
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
+    onHttpVolume: (Float) -> Unit = {},
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
@@ -191,6 +192,10 @@ fun SpeechPreferencesScreen(
                                         R.string.tts_engine_default else R.string.tts_source_default))
                                 Text(stringResource(R.string.tts_rate_description), Modifier.padding(horizontal = 20.dp),
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (state.httpSources.any { it.definition.id == state.settings.httpSource && it.definition.usesMultiTts }) {
+                                    SpeechParameter(stringResource(R.string.tts_http_volume), state.settings.httpVolume,
+                                        { onHttpVolume(it ?: 1f) }, resetValue = 1f, valueRange = 0f..2f, steps = 19)
+                                }
                                 if (state.settings.httpSource == null && state.settings.offlineVoice == null) {
                                     SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
                                 }
@@ -360,7 +365,8 @@ private fun SpeechSetting(title: String, value: String? = null, enabled: Boolean
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SpeechParameter(title: String, value: Float?, onChange: (Float?) -> Unit,
-    defaultLabel: String = stringResource(R.string.tts_engine_default), resetValue: Float? = null) {
+    defaultLabel: String = stringResource(R.string.tts_engine_default), resetValue: Float? = null,
+    valueRange: ClosedFloatingPointRange<Float> = 0.5f..2f, steps: Int = 14) {
     var slider by remember(value) { mutableFloatStateOf(value ?: 1f) }
     var edited by remember(value) { mutableStateOf(false) }
     val description = if (value == null && !edited) defaultLabel
@@ -383,7 +389,7 @@ private fun SpeechParameter(title: String, value: Float?, onChange: (Float?) -> 
         }
         Slider(
             value = slider, onValueChange = { slider = it; edited = true },
-            onValueChangeFinished = { onChange(slider) }, valueRange = 0.5f..2f, steps = 14,
+            onValueChangeFinished = { onChange(slider) }, valueRange = valueRange, steps = steps,
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = title; stateDescription = description },
             colors = colors,
             thumb = { Surface(Modifier.size(20.dp), shape = CircleShape, color = MaterialTheme.colorScheme.onSurface) {} },

@@ -5,6 +5,49 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ScriptRequestTemplatesTest {
+    @Test fun multiTtsAjaxKeepsHeadersScopedAndGeneratedTextAsData() {
+        val spoken = "中文 {{mustNotExecute()}}"
+        val engine = RhinoScriptEngine(HostBridge { name, args ->
+            assertEquals("speech.ajax", name)
+            val request = args.single().jsonObject
+            assertEquals("POST", request.getValue("method").jsonPrimitive.content)
+            assertEquals(10_000, request.getValue("timeoutMillis").jsonPrimitive.int)
+            assertEquals(spoken, request.getValue("body").jsonPrimitive.content)
+            assertEquals(buildJsonObject { put("Content-Type", "application/json") }, request["headers"])
+            JsonPrimitive("""{"token":"temporary"}""")
+        })
+        val rule = """@js:
+            if (typeof java.get !== 'undefined') throw Error('wrong bridge');
+            var token=JSON.parse(java.fetch('https://auth.invalid', JSON.stringify({method:POST,body:speakText,timeout:10000}))).token;
+            'https://audio.invalid?voice='+voiceCode+','+JSON.stringify({method:POST,headers:{Authorization:token},body:JSON.stringify({text:speakText,style:params[0],volume:speakVolume,speed:speakSpeed})})
+        """.trimIndent()
+        val input = buildJsonObject {
+            put("url", rule); put("voiceCode", "speaker")
+            put("params", buildJsonArray { add("calm") }); put("speakSpeed", 75); put("speakVolume", 25)
+            put("headers", buildJsonObject { put("Cookie", "engine-only") })
+        }
+        val result = engine.evaluate("host.call('request.multitts',result)", frame.copy(
+            variables = mapOf("result" to input), speakText = spoken, sourceHeaderRule = """{"Cookie":"must-not-leak"}"""))
+        assertTrue(result.toString(), result is ScriptResult.Success)
+        val request = Json.parseToJsonElement((result as ScriptResult.Success).json).jsonObject
+        assertEquals("https://audio.invalid?voice=speaker", request.getValue("url").jsonPrimitive.content)
+        assertEquals("temporary", request.getValue("headers").jsonObject.getValue("Authorization").jsonPrimitive.content)
+        assertEquals("engine-only", request.getValue("headers").jsonObject.getValue("Cookie").jsonPrimitive.content)
+        assertEquals(buildJsonObject {
+            put("text", spoken); put("style", "calm"); put("volume", 25); put("speed", 75)
+        }, Json.parseToJsonElement(request.getValue("body").jsonPrimitive.content))
+        val failing = RhinoScriptEngine(HostBridge { _, _ -> error("private network details") })
+        val fallback = JsonObject(input + ("url" to JsonPrimitive("""@js:
+            try { java.ajax('https://auth.invalid') } catch(e) {
+                if (!(e instanceof Error) || String(e).indexOf('private') >= 0) throw Error('unsafe error');
+                'https://audio.invalid/fallback'
+            }
+        """.trimIndent())))
+        val recovered = failing.evaluate("host.call('request.multitts',result)", frame.copy(
+            variables = mapOf("result" to fallback), speakText = spoken)) as ScriptResult.Success
+        assertEquals("https://audio.invalid/fallback", Json.parseToJsonElement(recovered.json).jsonObject.getValue("url").jsonPrimitive.content)
+    }
+
     @Test fun sourceKeyPropertyUsesTheSameHostIdentityAsItsGetter() {
         val engine = RhinoScriptEngine(HostBridge { name, _ ->
             assertEquals("source.getKey", name)

@@ -67,7 +67,7 @@ class HttpSpeechPackageTest {
             val base = server.url("/").toString().removeSuffix("/")
             val parameter = "quoted\";throw Error(1);// & literal"
             val extensions = buildJsonArray { add(buildJsonObject {
-                put("code", "style"); put("value", "")
+                put("code", "style"); put("name", "Style"); put("value", parameter)
                 put("candidate", buildJsonObject { put(parameter, "Example") })
             }) }.toString()
             val engine = packageEngine(engines = fixture("engines.yaml").replace("https://speech.example.invalid", base)
@@ -89,7 +89,7 @@ class HttpSpeechPackageTest {
                         val request = server.takeRequest(3, TimeUnit.SECONDS)!!
                         assertEquals("GET", request.method)
                         assertEquals("test_voice_1", request.requestUrl!!.queryParameter("voiceId"))
-                        assertEquals(text, request.requestUrl!!.queryParameter("text"))
+                        assertEquals(text.replace('\'', ' ').replace('"', ' '), request.requestUrl!!.queryParameter("text"))
                         assertEquals(expectedSpeed, request.requestUrl!!.queryParameter("speed"))
                         assertEquals("200", request.requestUrl!!.queryParameter("volume"))
                         assertEquals("mp3", request.requestUrl!!.queryParameter("audioType"))
@@ -107,17 +107,15 @@ class HttpSpeechPackageTest {
         }
     }
 
-    @Test fun unsupportedProtocolsAndParameterSetupAreReportedRatherThanDiscarded() {
+    @Test fun scriptsAndUnresolvedParametersRemainEditableWithoutRunningDuringImport() {
         val inner = packageEngine(engines = fixture("engines.yaml").replace("type: http", "type: inner"))
         assertEquals(HttpSpeechPackageError.UnsupportedEngine, previewHttpSpeechPackage(inner).error)
         val scripted = packageEngine(engines = fixture("engines.yaml").replace("url: https://", "url: '@js: https://").trimEnd() + "'\n")
-        assertEquals(HttpSpeechPackageError.UnsupportedRequest, previewHttpSpeechPackage(scripted).error)
-        for (param in listOf("'@credential'", "{token: required}")) {
-            val parameterized = packageEngine(config = fixture("config.yaml").replace("param: null", "param: $param"))
-            val result = previewHttpSpeechPackage(parameterized)
-            assertEquals(HttpSpeechPackageError.RequiresParameters, result.error)
-            assertTrue(result.sources.isEmpty())
-        }
+        assertNull(previewHttpSpeechPackage(scripted).error)
+        val unresolved = packageEngine(config = fixture("config.yaml").replace("param: null", "param: '@credential'"))
+        assertNull(previewHttpSpeechPackage(unresolved).error)
+        val structuredParameters = packageEngine(config = fixture("config.yaml").replace("param: null", "param: {token: required}"))
+        assertEquals(HttpSpeechPackageError.RequiresParameters, previewHttpSpeechPackage(structuredParameters).error)
         val structuredHeader = packageEngine(engines = fixture("engines.yaml")
             .replace("header: ''", "header: {Authorization: required}"))
         assertEquals(HttpSpeechPackageError.UnsupportedRequest, previewHttpSpeechPackage(structuredHeader).error)

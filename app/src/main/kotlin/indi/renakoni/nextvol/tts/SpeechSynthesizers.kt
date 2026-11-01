@@ -37,6 +37,7 @@ class SpeechSynthesizers @Inject constructor(
     private val offline: OfflineSpeechRepository,
     @ApplicationContext private val context: Context,
     private val availability: OfflineAvailabilityChecker,
+    private val networkCheck: SpeechNetworkCheck,
 ) {
     /** Development entry for an already installed Sherpa model. */
     fun matcha(resources: MatchaResources): SpeechSynthesizer = MatchaSpeechSynthesizer(resources)
@@ -130,6 +131,7 @@ class SpeechSynthesizers @Inject constructor(
         @Volatile private var owner: SourceBroker? = null
         @Volatile private var client: HttpSpeechClient? = null
         private var rate: Float? = null
+        private var volume = 1f
         private var sourceId: String? = null
         private var selectedSource: SavedHttpSpeechSource? = null
 
@@ -137,6 +139,7 @@ class SpeechSynthesizers @Inject constructor(
             withContext(NonCancellable + Dispatchers.IO) { close() }
             currentCoroutineContext().ensureActive()
             rate = settings.rate
+            volume = settings.httpVolume
             return repository.withSource(requireNotNull(settings.httpSource)) { source, runtime ->
                 if (!source.available) throw SpeechException(SpeechError.HttpSourceUnavailable)
                 val definition = source.playbackDefinition()
@@ -153,8 +156,9 @@ class SpeechSynthesizers @Inject constructor(
             val active = client ?: throw SpeechException(SpeechError.HttpSourceUnavailable)
             val partial = File(output.parentFile, output.name + ".part")
             try {
+                networkCheck.check()
                 // Token refresh may replace a regional HTTP session and close its TLS pool.
-                val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate) }
+                val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate, volume) }
                 withContext(Dispatchers.IO) {
                     currentCoroutineContext().ensureActive()
                     partial.writeBytes(audio)
@@ -165,20 +169,22 @@ class SpeechSynthesizers @Inject constructor(
                 selectedSource?.let { repository.recordSynthesis(it, R.string.tts_offline_verified) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: HttpSpeechException) {
-                selectedSource?.let { repository.recordSynthesis(it, if (failure.error == HttpSpeechError.PermissionDenied)
-                    R.string.tts_error_http_permission else R.string.tts_offline_synthesis_failed) }
+                val error = when (failure.error) {
+                    HttpSpeechError.PermissionDenied -> SpeechError.HttpPermission
+                    HttpSpeechError.UnsupportedDependency -> SpeechError.HttpUnsupported
+                    HttpSpeechError.InvalidSource, HttpSpeechError.Script -> SpeechError.HttpConfiguration
+                    HttpSpeechError.Authentication -> SpeechError.HttpAuthentication
+                    HttpSpeechError.LoginRequired -> SpeechError.HttpLogin
+                    HttpSpeechError.Network -> SpeechError.Network
+                    HttpSpeechError.Timeout -> SpeechError.SynthesisTimeout
+                    HttpSpeechError.InvalidAudio, HttpSpeechError.TooLarge -> SpeechError.InvalidAudio
+                }
+                selectedSource?.let { repository.recordSynthesis(it, error.messageResource) }
                 sourceId?.let { repository.recordDeniedOrigins(it, failure.deniedOrigins) }
-                throw SpeechException(when (failure.error) {
-                HttpSpeechError.PermissionDenied -> SpeechError.HttpPermission
-                HttpSpeechError.UnsupportedDependency, HttpSpeechError.Script -> SpeechError.HttpUnsupported
-                HttpSpeechError.LoginRequired -> SpeechError.HttpLogin
-                HttpSpeechError.Network -> SpeechError.Network
-                HttpSpeechError.Timeout -> SpeechError.SynthesisTimeout
-                HttpSpeechError.InvalidAudio, HttpSpeechError.TooLarge -> SpeechError.InvalidAudio
-                HttpSpeechError.InvalidSource -> SpeechError.HttpSourceUnavailable
-            }).apply { initCause(failure) } }
+                throw SpeechException(error).apply { initCause(failure) }
+            }
             catch (failure: SpeechException) {
-                selectedSource?.let { repository.recordSynthesis(it, R.string.tts_offline_synthesis_failed) }
+                selectedSource?.let { repository.recordSynthesis(it, failure.error.messageResource) }
                 throw failure
             }
             catch (_: java.io.IOException) {

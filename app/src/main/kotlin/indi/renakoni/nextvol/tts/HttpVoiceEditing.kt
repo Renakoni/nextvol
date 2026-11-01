@@ -112,6 +112,10 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
 
 internal fun SavedHttpSpeechSource.sameExecution(other: SavedHttpSpeechSource): Boolean {
     val fields = setOf("url", "header", "jsLib", "contentType", "loginUrl", "loginUi", "loginCheckJs", "concurrentRate", "enabledCookieJar", "speed")
+    val voiceFields = setOf("code", "param", "extendUI")
+    val multiTts = definition.usesMultiTts
     return definition.raw.filterKeys { it in fields } == other.definition.raw.filterKeys { it in fields } &&
+        multiTts == other.definition.usesMultiTts && (!multiTts ||
+            speakerData().filterKeys { it in voiceFields } == other.speakerData().filterKeys { it in voiceFields }) &&
         origins == other.origins && credentials == other.credentials && available == other.available
 }

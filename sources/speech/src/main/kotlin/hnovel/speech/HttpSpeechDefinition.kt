@@ -11,6 +11,14 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
     val revision: String = digest(raw.canonical().toString())
     internal val microsoft: MicrosoftSpeechConfiguration? by lazy { MicrosoftSpeechConfiguration.recognize(this) }
     val usesMicrosoftTranslator: Boolean get() = microsoft != null
+    internal val multiTts: JsonObject? get() = (raw["multiTts"] as? JsonObject)?.takeIf { metadata ->
+        val engine = metadata["engine"] as? JsonObject
+        val voice = metadata["voice"] as? JsonObject
+        (engine?.get("type") as? JsonPrimitive)?.contentOrNull == "http" &&
+            !(engine?.get("url") as? JsonPrimitive)?.contentOrNull.isNullOrBlank() &&
+            !(voice?.get("code") as? JsonPrimitive)?.contentOrNull.isNullOrBlank()
+    }
+    val usesMultiTts: Boolean get() = multiTts != null
     val unknownFields: Set<String> get() = raw.keys - fields
     val speed: Int? get() = raw["speed"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.int
     val hasScripts: Boolean get() = url.contains("{{") || url.contains("@js:", true) || url.contains("<js>", true)

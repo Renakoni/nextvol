@@ -14,6 +14,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.setting.AbstractSettingState
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
+import indi.renakoni.nextvol.tts.SpeechNetworkCheck
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import kotlinx.coroutines.CoroutineScope
@@ -29,9 +30,11 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
     val auditionData = userData.stringUserData("tts.audition.text")
     val parametersData = userData.booleanUserData("tts.editor.parameters")
     val extensionsData = userData.booleanUserData("tts.editor.extensions")
+    val networkCheckData = userData.booleanUserData(SpeechNetworkCheck.SETTING_KEY)
     val auditionText by auditionData.asState("")
     val showParameters by parametersData.asState(false)
     val showExtensions by extensionsData.asState(false)
+    val checkNetwork by networkCheckData.asState(false)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +59,11 @@ internal fun SpeechPlaybackSettingsScreen(preferences: SpeechPlaybackPreferences
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_show_extensions),
                     trailingContent = { Switch(preferences.showExtensions, preferences.extensionsData::asynchronousSet) },
                     onClick = { preferences.extensionsData.asynchronousSet(!preferences.showExtensions) })
+            }
+            item {
+                SettingsClickableEntry(title = stringResource(R.string.tts_http_check_network),
+                    trailingContent = { Switch(preferences.checkNetwork, preferences.networkCheckData::asynchronousSet) },
+                    onClick = { preferences.networkCheckData.asynchronousSet(!preferences.checkNetwork) })
             }
         }
     }

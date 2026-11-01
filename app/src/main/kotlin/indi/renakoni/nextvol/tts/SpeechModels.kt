@@ -25,9 +25,9 @@ enum class SpeechPhase { Stopped, Preparing, Playing, Paused, Buffering, Complet
 
 enum class SpeechError {
     NoEngine, EngineUnavailable, MissingVoice, MissingLanguageData, InitializationTimeout,
-    SynthesisTimeout, SynthesisFailed, Network, InvalidAudio, Storage, SourceUnavailable,
+    SynthesisTimeout, SynthesisFailed, Network, NetworkUnavailable, InvalidAudio, Storage, SourceUnavailable,
     SourceTimeout, EmptyText, UnsupportedContent, Playback, ServiceUnavailable,
-    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, OfflineUnavailable,
+    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, HttpConfiguration, HttpAuthentication, OfflineUnavailable,
 }
 
 class SpeechException(val error: SpeechError) : Exception(error.name)

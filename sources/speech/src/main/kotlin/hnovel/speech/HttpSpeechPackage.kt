@@ -1,9 +1,6 @@
 package hnovel.speech
 
-import hnovel.rules.RuleBudget
-import hnovel.rules.RuleLimits
-import hnovel.rules.RuleLocation
-import hnovel.rules.RuleParser
+import hnovel.rules.RequestOptionsJson
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.*
 
@@ -32,31 +29,16 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
         return failed(HttpSpeechPackageError.UnsupportedRequest)
     val header = rawHeader.text().orEmpty()
     if (header.isNotBlank()) {
-        val headers = try { Json.parseToJsonElement(header) as? JsonObject } catch (_: IllegalArgumentException) { null }
-        if (headers == null || headers.values.any { it !is JsonPrimitive || !it.isString || "{{" in it.content })
+        val headers = try { RequestOptionsJson.parse(header) as? JsonObject } catch (_: IllegalArgumentException) { null }
+        if (headers == null)
             return failed(HttpSpeechPackageError.UnsupportedRequest)
     }
-    val expression = try { packageGetExpression(template) }
-        catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: RuntimeException) { return failed(HttpSpeechPackageError.UnsupportedRequest) }
     return try {
         val sources = engine.voices.map { imported ->
             val voice = imported.withImportDefaults(engine.code)
-            val defaults = offlineControlDefaults(voice.raw.values["extendUI"].text())
-            val rawParameters = voice.raw.values["param"].text().orEmpty()
-            val parameters = if (rawParameters.isBlank()) emptyList() else rawParameters.split(',').map { parameter ->
-                val value = parameter.trim()
-                if (value.startsWith('@')) defaults[value.drop(1)]?.content
-                    ?: configurationFailure(MatchaPackageError.Parameters, value) else value
-            }
-            // The existing 1x binding is 10; MultiTTS's request defaults are speed=50 and volume=50.
-            // Speaker speed/volume/pitch are separate local audio effects, retained below as data.
-            val script = "@js:(function(speakText,speakSpeed){" +
-                "var voiceCode=${JsonPrimitive(voice.code)},params=${JsonArray(parameters.map(::JsonPrimitive))},speakVolume=50;" +
-                "speakSpeed=speakSpeed*5;return $expression;})(speakText,speakSpeed)"
             HttpSpeechDefinition.parse(buildJsonObject {
                 put("name", voice.name.ifBlank { voice.code })
-                put("url", script)
+                put("url", template)
                 if (header.isNotBlank()) put("header", header)
                 put("multiTts", buildJsonObject {
                     put("engine", definition.jsonData())
@@ -73,31 +55,9 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
             }
         })
     } catch (cancelled: CancellationException) { throw cancelled }
-    catch (_: OfflinePackageFailure) { failed(HttpSpeechPackageError.RequiresParameters) }
     catch (_: IllegalArgumentException) { failed(HttpSpeechPackageError.InvalidConfiguration) }
     // YAML preview is iterative, but the existing HTTP JSON representation uses recursive serialization.
     catch (_: StackOverflowError) { failed(HttpSpeechPackageError.InvalidConfiguration) }
-}
-
-/** Reuses balanced template scanning, but leaves every expression unevaluated until the worker runs it. */
-private fun packageGetExpression(template: String): String {
-    require(template.startsWith("https://", true) || template.startsWith("http://", true))
-    val parser = RuleParser()
-    val budget = RuleBudget(RuleLimits(maxRuleChars = template.length))
-    val parts = mutableListOf<String>()
-    var offset = 0
-    while (offset < template.length) {
-        val start = template.indexOf("{{", offset).let { if (it < 0) template.length else it }
-        val literal = template.substring(offset, start)
-        require(!Regex(",\\s*\\{").containsMatchIn(literal))
-        if (literal.isNotEmpty()) parts += JsonPrimitive(literal).toString()
-        if (start == template.length) break
-        val end = parser.balancedEnd(template, start, RuleLocation("speech.url"), budget)
-        require(template.substring(end - 2, end) == "}}")
-        parts += "String((${template.substring(start + 2, end - 2)}))"
-        offset = end
-    }
-    return parts.joinToString("+")
 }
 
 private fun SpeechPackageValue.jsonData(): JsonElement = when (this) {

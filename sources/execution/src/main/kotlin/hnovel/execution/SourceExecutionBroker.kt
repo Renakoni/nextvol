@@ -30,6 +30,8 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
      * Consumers use it only for BridgeDenied, never to override handled errors or successful rules. */
     @Volatile var requestFailure: BrokerResult.Failure? = null
         private set
+    @Volatile var speechStatus: Int? = null
+        private set
     @Volatile var requestLimitExceeded = false
         private set
     @Volatile var responseLimitExceeded = false
@@ -85,6 +87,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
 
     private suspend fun callField(name: String, args: List<JsonElement>): JsonElement {
         requestFailure = null
+        speechStatus = null
         requestLimitExceeded = false
         responseLimitExceeded = false
         if (name != "request.withHeaders") return callWithHeaders(name, args, emptyMap())
@@ -262,6 +265,16 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
                     check(value is StorageResult.Value && value.value != null) { "Source identifier unavailable" }
                     JsonPrimitive(value.value)
                 }
+                "speech.ajax" -> {
+                    require(speakText != null && args.size == 1)
+                    val request = MultiTtsRequest.compile(args.single().jsonObject, "speech-$requestNumber")
+                    val response = fetch(request, limits.scriptDataLimit, request.timeoutMillis)
+                    if (response.status !in 200..299) {
+                        speechStatus = response.status
+                        error("Speech request failed")
+                    }
+                    JsonPrimitive(response.body.toString(Charsets.UTF_8))
+                }
                 "java.ajax" -> {
                     require(args.size == 1)
                     val url = (args[0] as? JsonArray)?.firstOrNull() ?: args[0]
@@ -355,8 +368,9 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
         item.content
     }
 
-    private suspend fun fetch(request: BrokerRequest, maxResponseBytes: Int = limits.maxDataBytes ?: BridgeWire.MAX_BYTES): BrokerResponse {
-        val result = session.execute(request.copy(timeoutMillis = requestTimeoutMillis, maxResponseBytes = minOf(maxResponseBytes, BrokerLimits.DEFAULT_MAX_RESPONSE_BYTES)), RequestCommitGuard { action -> authorized(action) })
+    private suspend fun fetch(request: BrokerRequest, maxResponseBytes: Int = limits.maxDataBytes ?: BridgeWire.MAX_BYTES,
+        timeoutMillis: Long = requestTimeoutMillis): BrokerResponse {
+        val result = session.execute(request.copy(timeoutMillis = minOf(timeoutMillis, requestTimeoutMillis), maxResponseBytes = minOf(maxResponseBytes, BrokerLimits.DEFAULT_MAX_RESPONSE_BYTES)), RequestCommitGuard { action -> authorized(action) })
         if (result is BrokerResult.Failure) requestFailure = result
         check(result is BrokerResult.Success) { "Broker request failed" }
         return result.response

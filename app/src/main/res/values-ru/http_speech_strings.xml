@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_http_check_network">Проверять сеть для онлайн-голосов</string>
+    <string name="tts_http_volume">Громкость синтеза</string>
+    <string name="tts_error_http_network_unavailable">Нет подключения к интернету. Подключитесь к сети или отключите проверку сети для онлайн-голосов.</string>
+    <string name="tts_error_http_configuration">Проверьте настройки запроса движка и параметры голоса.</string>
+    <string name="tts_error_http_authentication">Сервис голоса отклонил авторизацию. Обновите данные учётной записи в настройках движка.</string>
+</resources>
