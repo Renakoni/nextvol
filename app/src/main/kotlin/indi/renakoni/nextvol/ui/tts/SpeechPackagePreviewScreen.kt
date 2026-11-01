@@ -48,6 +48,7 @@ fun SpeechPackagePreviewScreen(
     preview: SpeechPackagePreview?,
     httpImports: Map<Int, HttpSpeechPackageImport> = emptyMap(),
     onImport: ((List<HttpSpeechDefinition>) -> Unit)? = null,
+    onImportEngine: ((hnovel.speech.SpeechEngineConfig) -> Unit)? = null,
     onBack: () -> Unit,
     offline: SpeechPackagePreviewState = SpeechPackagePreviewState(),
     onInstall: (OfflinePackagePlan) -> Unit = {},
@@ -91,7 +92,7 @@ fun SpeechPackagePreviewScreen(
                         val localVoices = offline.offlineImports.filterKeys { it.first == engineIndex }.values
                         val hasOffline = localVoices.any { it.plan != null }
                         val offlineResolved = localVoices.isNotEmpty() && localVoices.all { it.plan != null }
-                        if (!hasOffline && httpImport?.sources.isNullOrEmpty()) Text(stringResource(if (httpImport != null) {
+                        if (!hasOffline && httpImport?.sources.isNullOrEmpty() && httpImport?.engine == null) Text(stringResource(if (httpImport != null) {
                             R.string.tts_package_cannot_import
                         } else when (engine.support) {
                             SpeechPackageSupport.HttpAdapter -> R.string.tts_package_http_adapter
@@ -109,6 +110,12 @@ fun SpeechPackagePreviewScreen(
                         if (httpImport?.hasLocalAudioSettings == true) {
                             Text(stringResource(R.string.tts_package_local_audio), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (httpImport?.error == null && httpImport?.sources?.isEmpty() == true && onImportEngine != null) {
+                            httpImport.engine?.let { configuration ->
+                                FilledTonalButton(onClick = { onImportEngine(configuration) }, enabled = !offline.installing,
+                                    modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.tts_import_sources)) }
+                            }
                         }
                         if (onImport != null && !httpImport?.sources.isNullOrEmpty()) {
                             FilledTonalButton(onClick = { onImport(httpImport.sources) }, modifier = Modifier.fillMaxWidth()) {

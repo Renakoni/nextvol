@@ -134,15 +134,17 @@ class SpeechSynthesizers @Inject constructor(
         @Volatile private var client: HttpSpeechClient? = null
         private var rate: Float? = null
         private var sourceId: String? = null
+        private var selectedSource: SavedHttpSpeechSource? = null
 
         override suspend fun open(settings: SpeechSettings): String {
             withContext(NonCancellable + Dispatchers.IO) { close() }
             currentCoroutineContext().ensureActive()
             rate = settings.rate
             return repository.withSource(requireNotNull(settings.httpSource)) { source, runtime ->
-                if (!source.enabled) throw SpeechException(SpeechError.HttpSourceUnavailable)
+                if (!source.available) throw SpeechException(SpeechError.HttpSourceUnavailable)
                 val definition = source.playbackDefinition()
                 sourceId = source.definition.id
+                selectedSource = source
                 val broker = SourceBroker(runtime.toPath(), cipher = cipher)
                 owner = broker
                 client = HttpSpeechClient(definition, broker, source.origins.map { NetworkGrant(it) }, authority, runner::execute)
@@ -163,8 +165,11 @@ class SpeechSynthesizers @Inject constructor(
                     currentCoroutineContext().ensureActive()
                     if (!partial.renameTo(output)) throw SpeechException(SpeechError.Storage)
                 }
+                selectedSource?.let { repository.recordSynthesis(it, R.string.tts_offline_verified) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: HttpSpeechException) {
+                selectedSource?.let { repository.recordSynthesis(it, if (failure.error == HttpSpeechError.PermissionDenied)
+                    R.string.tts_error_http_permission else R.string.tts_offline_synthesis_failed) }
                 sourceId?.let { repository.recordDeniedOrigins(it, failure.deniedOrigins) }
                 throw SpeechException(when (failure.error) {
                 HttpSpeechError.PermissionDenied -> SpeechError.HttpPermission
@@ -175,8 +180,14 @@ class SpeechSynthesizers @Inject constructor(
                 HttpSpeechError.InvalidAudio, HttpSpeechError.TooLarge -> SpeechError.InvalidAudio
                 HttpSpeechError.InvalidSource -> SpeechError.HttpSourceUnavailable
             }).apply { initCause(failure) } }
-            catch (failure: SpeechException) { throw failure }
-            catch (_: java.io.IOException) { throw SpeechException(SpeechError.Storage) }
+            catch (failure: SpeechException) {
+                selectedSource?.let { repository.recordSynthesis(it, R.string.tts_offline_synthesis_failed) }
+                throw failure
+            }
+            catch (_: java.io.IOException) {
+                selectedSource?.let { repository.recordSynthesis(it, R.string.tts_error_storage) }
+                throw SpeechException(SpeechError.Storage)
+            }
             finally { partial.delete() }
             return emptyList()
         }

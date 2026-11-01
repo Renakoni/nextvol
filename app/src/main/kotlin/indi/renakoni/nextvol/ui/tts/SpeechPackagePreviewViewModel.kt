@@ -55,6 +55,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
     private val offline: OfflineSpeechRepository,
     private val settings: SpeechSettingsRepository,
     private val availability: OfflineAvailabilityChecker,
+    private val http: indi.renakoni.nextvol.tts.HttpSpeechRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPackagePreviewState())
     val state = mutableState.asStateFlow()
@@ -110,6 +111,17 @@ class SpeechPackagePreviewViewModel @Inject constructor(
             }
             currentCoroutineContext().ensureActive()
             mutableState.value = result
+        }
+    }
+
+    fun importEngine(engine: hnovel.speech.SpeechEngineConfig, onSaved: () -> Unit) {
+        if (state.value.installing) return
+        mutableState.update { it.copy(installing = true, installError = null) }
+        viewModelScope.launch {
+            try { http.registerEngine(engine); onSaved() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
+            finally { mutableState.update { it.copy(installing = false) } }
         }
     }
 

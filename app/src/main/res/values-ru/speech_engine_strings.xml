@@ -1,13 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tts_engines">Движки</string>
-    <string name="tts_engines_builtin">Встроенные движки</string>
-    <string name="tts_engines_http">Настройки онлайн-движков</string>
     <string name="tts_engine_edit">Изменить движок</string>
     <string name="tts_engine_name">Название движка</string>
     <string name="tts_engine_parameters">Параметры движка</string>
     <string name="tts_engine_note">Примечания</string>
     <string name="tts_engine_save">Сохранить</string>
-    <string name="tts_engine_parameters_hint">Применяются только параметры, поддерживаемые движком. Параметры отдельных голосов задаются отдельно.</string>
-    <string name="tts_engine_preset_online">Этот онлайн-движок использует готовые настройки подключения. Выбор и прослушивание голосов доступны в разделе источников речи.</string>
+    <string name="tts_engine_new">Новый движок</string>
+    <string name="tts_engine_code">Код</string>
+    <string name="tts_engine_type">Тип</string>
+    <string name="tts_engine_url">URL</string>
+    <string name="tts_engine_header">Заголовки запроса</string>
+    <string name="tts_engine_disabled">Движок отключён</string>
+    <string name="tts_engine_missing">Конфигурация движка удалена</string>
+    <string name="tts_engine_invalid">Проверьте код движка и настройки запроса.</string>
+    <string name="tts_engine_add_speaker">Новый голос</string>
+    <string name="tts_engine_voices">Связанные голоса</string>
+    <string name="tts_engine_delete">Удалить движок</string>
+    <string name="tts_engine_reset">Сбросить настройки</string>
+    <string name="tts_engine_empty">Импортируйте пакет голосов или добавьте HTTP-движок.</string>
+    <string name="tts_engine_no_speakers">Голосов пока нет</string>
+    <string name="tts_engine_impact">Изменение затронет следующие голоса:</string>
+    <string name="tts_engine_delete_warning">Эти голоса станут недоступны. Их настройки сохранятся для восстановления движка.</string>
+    <string name="tts_engine_choose_model">Пакет голосов</string>
+    <string name="tts_engine_import_model">Сначала импортируйте пакет голосов для этого движка.</string>
+    <string name="tts_engine_repair">Восстановить движок</string>
+    <string name="tts_engine_search">Поиск движков</string>
 </resources>

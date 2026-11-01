@@ -31,10 +31,13 @@ class HttpVoiceEditorViewModel @Inject constructor(
     private var loadingControls: Job? = null
     val hasParameters get() = source?.importedEngineCode != null
 
-    fun load(id: String, copyPattern: String? = null, cachedSource: SavedHttpSpeechSource? = null) {
+    fun load(id: String, copyPattern: String? = null, cachedSource: SavedHttpSpeechSource? = null, engineCode: String? = null) {
         if (source != null) return
         work {
-            val selected = cachedSource ?: repository.sources().single { it.definition.id == id }
+            val selected = cachedSource ?: withContext(Dispatchers.IO) {
+                if (engineCode != null) newHttpVoice(repository.engines().single { it.code == engineCode && !it.deleted })
+                else repository.sources().single { it.definition.id == id }
+            }
             val restored = saved.get<String>("voice.draft")
             val prepared = withContext(Dispatchers.IO) {
                 val data = selected.speakerData()
@@ -46,7 +49,8 @@ class HttpVoiceEditorViewModel @Inject constructor(
                 val voice = InstalledOfflineVoice(OfflineVoiceRef(id, "http"), selected.definition.name, emptyMap(), configuration = config,
                     enabled = selected.enabled, metadata = OfflineVoiceMetadata(text("note"), text("desc"), text("avatar")))
                 val draft = restored?.let { runCatching { Json.decodeFromString<OfflineVoiceDraft>(it) }.getOrNull() }
-                    ?: OfflineVoiceDraft.from(voice).let { if (copyPattern == null) it else it.copy(name = String.format(copyPattern, it.name)) }
+                    ?: OfflineVoiceDraft.from(voice).let { if (engineCode != null) it.copy(name = "", code = "")
+                        else if (copyPattern == null) it else it.copy(name = String.format(copyPattern, it.name)) }
                 OfflineVoiceEditorState(voice, draft, busy = true, packageAvatar = repository.avatar(selected)?.path,
                     controls = runCatching { speechExtensionControls(draft.extensions) }.getOrNull(),
                     availability = OfflineAvailability(if (selected.isConfigured) R.string.tts_offline_unverified else R.string.tts_needs_key,

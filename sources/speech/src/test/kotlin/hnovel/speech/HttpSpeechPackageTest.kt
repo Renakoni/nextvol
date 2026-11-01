@@ -37,6 +37,11 @@ class HttpSpeechPackageTest {
             .replace("{{java.encodeURI(speakText)}}", "{{(function(){throw 'not during preview';})()}}"))
         val converted = previewHttpSpeechPackage(engine)
         assertNull(converted.error)
+        val engineOnly = previewHttpSpeechPackage(SpeechPackageEngine(engine.code, engine.name, engine.type, engine.raw,
+            emptyList(), engine.support, engine.notices, emptyList()))
+        assertNull(engineOnly.error)
+        assertTrue(engineOnly.sources.isEmpty())
+        assertEquals(engine.code, engineOnly.engine!!.code)
         assertEquals(2, converted.sources.size)
         assertTrue(converted.hasLocalAudioSettings)
         assertEquals(converted.sources.map { it.id }, previewHttpSpeechPackage(engine).sources.map { it.id })

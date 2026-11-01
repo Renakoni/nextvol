@@ -13,6 +13,7 @@ class HttpSpeechPackageImport(
     val sources: List<HttpSpeechDefinition> = emptyList(),
     val error: HttpSpeechPackageError? = null,
     val hasLocalAudioSettings: Boolean = false,
+    val engine: SpeechEngineConfig? = null,
 )
 
 /** Converts request data only. Scripts still run exclusively through HttpSpeechClient after explicit playback. */
@@ -21,7 +22,7 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
     if (engine.type != "http") return failed(HttpSpeechPackageError.UnsupportedEngine)
     val definition = engine.raw ?: return failed(HttpSpeechPackageError.InvalidConfiguration)
     val template = definition.values["url"].text()?.trim().orEmpty()
-    if (template.isEmpty() || engine.voices.isEmpty() || engine.voices.any { it.code.isBlank() })
+    if (template.isEmpty() || engine.voices.any { it.code.isBlank() })
         return failed(HttpSpeechPackageError.InvalidConfiguration)
     if (engine.voices.any { voice ->
         listOf("param", "extendUI").any { voice.raw.values[it]?.let { value -> value !is SpeechPackageValue.Scalar } == true }
@@ -63,7 +64,10 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
                 })
             })
         }.distinctBy { it.id }
-        HttpSpeechPackageImport(sources, hasLocalAudioSettings = engine.voices.any { voice ->
+        val configuration = SpeechEngineConfig(engine.code, engine.name, "http",
+            definition.values["param"].text().orEmpty(), definition.values["note"].text().orEmpty(), template, header,
+            raw = definition.jsonData().jsonObject)
+        HttpSpeechPackageImport(sources, engine = configuration, hasLocalAudioSettings = engine.voices.any { voice ->
             listOf("speed", "volume", "pitch").any { field ->
                 voice.raw.values[field].text()?.toDoubleOrNull()?.let { it != 1.0 } == true
             }

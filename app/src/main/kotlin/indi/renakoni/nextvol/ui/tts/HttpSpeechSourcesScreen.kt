@@ -58,11 +58,9 @@ fun HttpSpeechSourcesScreen(
     catalogReady: Boolean = true,
     onOfflineGroup: (String?) -> Unit = {},
     offlineSettings: (LazyListScope.(String, String) -> Unit)? = null,
+    onEngine: (String) -> Unit = {},
     onVoiceEditor: ((SavedHttpSpeechSource, Boolean) -> Unit)? = null,
     onEnableVoice: (SavedHttpSpeechSource, Boolean) -> Unit = { _, _ -> },
-    initialEditId: String? = null,
-    onInitialEditorClosed: () -> Unit = {},
-    onEditEngine: (SavedHttpSpeechSource, String, String, String) -> Unit = onEdit,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -72,40 +70,25 @@ fun HttpSpeechSourcesScreen(
     var editing by remember { mutableStateOf<SavedHttpSpeechSource?>(null) }
     var sites by remember { mutableStateOf("") }
     var definition by remember { mutableStateOf<SavedHttpSpeechSource?>(null) }
-    var readOnly by remember { mutableStateOf<SavedHttpSpeechSource?>(null) }
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var header by remember { mutableStateOf("") }
-    var openedInitialEditor by remember(initialEditId) { mutableStateOf(false) }
-    LaunchedEffect(initialEditId, state.sources) {
-        if (!openedInitialEditor && initialEditId != null) {
-            state.sources.find { it.definition.id == initialEditId }?.let { source ->
-                openedInitialEditor = true
-                if (source.isBuiltIn && source.credentialKeys.isNotEmpty()) configuring = source
-                else if (!source.isBuiltIn) {
-                    definition = source
-                    val engine = source.importedEngine.takeIf { source.importedEngineCode != null }
-                    name = (engine?.get("name") as? JsonPrimitive)?.contentOrNull ?: source.definition.name
-                    url = (engine?.get("url") as? JsonPrimitive)?.contentOrNull ?: source.definition.url
-                    header = (engine?.get("header") as? JsonPrimitive)?.contentOrNull ?: source.definition.text("header")
-                } else readOnly = source
-            }
-        }
-    }
     val sourceRow: @Composable (SavedHttpSpeechSource) -> Unit = { source ->
         val metadata = source.speakerData()
-        SpeechSourceRow(source.definition.name, state.selected == source.definition.id, !state.busy && source.enabled,
+        SpeechSourceRow(source.definition.name, state.selected == source.definition.id, !state.busy && source.available,
             onClick = { if (source.isConfigured) onSelect(source.definition.id) else configuring = source },
             avatar = {
                 SpeechAvatar((metadata["avatar"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
                     (metadata["gender"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
                     Modifier.size(40.dp), state.avatars[source.definition.id])
             }, onPreview = onPreview?.let { { it(source.definition.id) } },
-            previewEnabled = !state.busy && source.enabled && source.isConfigured,
+            previewEnabled = !state.busy && source.available && source.isConfigured,
             description = (metadata["desc"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank {
                 (metadata["code"] as? JsonPrimitive)?.contentOrNull.orEmpty()
             },
             problem = when {
+                source.engineDeleted -> stringResource(R.string.tts_engine_missing)
+                !source.engineEnabled -> stringResource(R.string.tts_engine_disabled)
                 !source.enabled -> stringResource(R.string.tts_voice_disabled)
                 !source.isConfigured -> stringResource(R.string.tts_needs_key)
                 else -> null
@@ -119,6 +102,10 @@ fun HttpSpeechSourcesScreen(
                         DropdownMenu(menu, { menu = false }) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { menu = false; onVoiceEditor(source, false) })
                             DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { menu = false; onVoiceEditor(source, true) })
+                            source.importedEngineCode?.let { code ->
+                                DropdownMenuItem(text = { Text(stringResource(if (source.engineDeleted) R.string.tts_engine_repair else R.string.tts_engine_edit)) },
+                                    onClick = { menu = false; onEngine(code) })
+                            }
                             DropdownMenuItem(text = { Text(stringResource(if (source.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
                                 onClick = { menu = false; onEnableVoice(source, !source.enabled) })
                             if (!source.isBuiltIn) {
@@ -211,23 +198,13 @@ fun HttpSpeechSourcesScreen(
         SpeechCredentialsDialog(source, state.busy, state.error,
             onSave = { values -> onConfigure(source, values) }, onDismiss = {
                 configuring = null
-                if (source.definition.id == initialEditId) onInitialEditorClosed()
             })
         val savedAtOpen = remember(source.definition.id) { state.configurationSaved }
         LaunchedEffect(state.configurationSaved) {
             if (state.configurationSaved != savedAtOpen) {
                 configuring = null
-                if (source.definition.id == initialEditId) onInitialEditorClosed()
             }
         }
-    }
-    readOnly?.let { source ->
-        val close = { readOnly = null; onInitialEditorClosed() }
-        AlertDialog(onDismissRequest = close, title = { Text(source.category ?: source.definition.name) },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.tts_engine_preset_online))
-                if (source.origins.isNotEmpty()) Text(source.origins.joinToString("\n"), style = MaterialTheme.typography.bodySmall)
-            } }, confirmButton = { TextButton(onClick = close) { Text(stringResource(R.string.confirm)) } })
     }
     state.pending?.let { pending ->
         AlertDialog(onDismissRequest = onDismissImport, title = { Text(pluralStringResource(R.plurals.tts_import_count, pending.size, pending.size)) },
@@ -266,28 +243,19 @@ fun HttpSpeechSourcesScreen(
             dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel)) } })
     }
     definition?.let { source ->
-        val close = {
-            definition = null
-            if (source.definition.id == initialEditId) onInitialEditorClosed()
-        }
-        val savedAtOpen = remember(source.definition.id) { state.configurationSaved }
-        LaunchedEffect(state.configurationSaved) {
-            if (source.definition.id == initialEditId && state.configurationSaved != savedAtOpen) close()
-        }
+        val close = { definition = null }
         AlertDialog(onDismissRequest = { if (!state.busy) close() }, title = {
-            Text(stringResource(if (source.definition.id == initialEditId) R.string.tts_engine_edit else R.string.tts_edit_source))
+            Text(stringResource(R.string.tts_edit_source))
         },
             text = {
                 Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.tts_source_name)) }, singleLine = true)
                     OutlinedTextField(url, { url = it }, label = { Text(stringResource(R.string.tts_source_request)) }, minLines = 2, maxLines = 5)
                     OutlinedTextField(header, { header = it }, label = { Text(stringResource(R.string.tts_source_headers)) }, minLines = 2, maxLines = 5)
-                    if (source.definition.id == initialEditId) state.error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
                 }
             }, confirmButton = { TextButton(onClick = {
-                if (source.definition.id == initialEditId && source.importedEngineCode != null) onEditEngine(source, name, url, header)
-                else onEdit(source, name, url, header)
-                if (source.definition.id != initialEditId) definition = null
+                onEdit(source, name, url, header)
+                definition = null
             }, enabled = !state.busy && name.isNotBlank() && url.isNotBlank()) {
                 Text(stringResource(R.string.confirm))
             } }, dismissButton = { TextButton(onClick = close, enabled = !state.busy) { Text(stringResource(R.string.cancel)) } })

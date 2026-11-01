@@ -7,7 +7,7 @@ import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
-import hnovel.speech.OfflineEngineConfig
+import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.OfflineVoiceConfig
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -125,11 +125,14 @@ class SpeechSettingsViewModelTest {
     }
 
     @Test fun editingOfflineParametersStopsAnAffectedPreviewButRenamingDoesNot() = runTest {
-        val configuration = OfflineEngineConfig("msctts", "MSC")
+        val configuration = SpeechEngineConfig("msctts", "MSC")
         val reference = OfflineVoiceRef("voice", "revision")
         val offline = mockk<OfflineSpeechRepository>()
         coEvery { offline.voices() } returns listOf(InstalledOfflineVoice(reference, "Voice", emptyMap(),
             configuration = OfflineVoiceConfig("msctts", "voice")))
+        every { offline.changes } returns MutableStateFlow(0L)
+        coEvery { http.engines() } returns emptyList()
+        every { http.synthesisResults } returns MutableStateFlow(emptyMap())
         val catalog = mockk<OfflineEngineRepository>()
         every { catalog.changes } returns MutableStateFlow(0L)
         coEvery { catalog.all() } returns listOf(configuration)
@@ -139,13 +142,15 @@ class SpeechSettingsViewModelTest {
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState(
             SpeechRequest("", "", "Sample", SpeechSettings(offlineVoice = reference)), SpeechPhase.Playing))
-        val editor = SpeechEnginesViewModel(catalog, http, offline, repository, controller)
+        val availability = mockk<indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker>()
+        every { availability.changes } returns MutableStateFlow(0L)
+        val editor = SpeechEnginesViewModel(catalog, http, offline, repository, controller, availability)
         try {
             runCurrent()
-            editor.save(configuration.copy(name = "Renamed")) {}
+            editor.save(configuration.copy(name = "Renamed"), false) {}
             runCurrent()
             verify(exactly = 0) { controller.command(any()) }
-            editor.save(configuration.copy(parameters = "{\"region\":\"bj\"}")) {}
+            editor.save(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) {}
             runCurrent()
             verify(exactly = 1) { controller.command(SpeechAction.Stop) }
             coVerify { catalog.save(configuration.copy(parameters = "{\"region\":\"bj\"}")) }

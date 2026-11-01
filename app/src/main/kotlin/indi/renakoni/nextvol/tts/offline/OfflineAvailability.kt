@@ -56,7 +56,9 @@ class OfflineAvailabilityChecker internal constructor(
 
     internal fun installed(voice: InstalledOfflineVoice, repository: OfflineSpeechRepository): OfflineAvailability {
         if (!voice.enabled) return OfflineAvailability(R.string.tts_voice_disabled, canRun = false)
-        val configuration = repository.configuration(voice)
+        val engine = repository.engineConfiguration(voice)
+        if (engine?.enabled == false) return OfflineAvailability(R.string.tts_engine_disabled, canRun = false)
+        val configuration = repository.configuration(voice, engine)
         val directory = repository.directory(voice.resourceReference)
         val result = inspect(configuration, voice.sizes.keys) { path -> File(directory, path).inputStream() }
         if (!result.canRun) return result

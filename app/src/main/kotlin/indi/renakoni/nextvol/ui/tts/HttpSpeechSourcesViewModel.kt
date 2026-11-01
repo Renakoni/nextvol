@@ -63,13 +63,13 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     }
 
     fun select(id: String?) = work {
-        require(id == null || state.value.sources.any { it.definition.id == id && it.isConfigured && it.enabled })
+        require(id == null || state.value.sources.any { it.definition.id == id && it.isConfigured && it.available })
         settings.update { it.copy(httpSource = id, offlineVoice = null) }
     }
 
     fun previewVoice(id: String?, text: String) {
         val selected = selectedSettings ?: return
-        if (state.value.busy || id != null && state.value.sources.none { it.definition.id == id && it.isConfigured && it.enabled }) return
+        if (state.value.busy || id != null && state.value.sources.none { it.definition.id == id && it.isConfigured && it.available }) return
         controller.preview(text, selected.copy(httpSource = id, offlineVoice = null))
     }
 
@@ -195,13 +195,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         require(preview.issues.isEmpty())
         if (isInUse(source.definition.id)) controller.command(SpeechAction.Stop)
         repository.saveVoice(source.copy(definition = preview.sources.single()))
-        mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
-    }
-
-    fun editEngine(source: SavedHttpSpeechSource, name: String, url: String, header: String) = work(R.string.tts_source_invalid) {
-        val code = requireNotNull(source.importedEngineCode)
-        if (state.value.sources.any { it.importedEngineCode == code && isInUse(it.definition.id) }) controller.command(SpeechAction.Stop)
-        repository.editImportedEngine(code, name, url, header)
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }
 
