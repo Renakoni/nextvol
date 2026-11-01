@@ -87,8 +87,6 @@ Java_indi_renakoni_nextvol_tts_names_NameModelNative_predict(JNIEnv *env, jobjec
     const char *inputs[] = {"input_float"};
     const char *outputs[] = {"output_label"};
     auto values = reinterpret_cast<Ort::Session *>(handle)->Run(Ort::RunOptions{nullptr}, inputs, &tensor, 1, outputs, 1);
-    if (values[0].GetTensorTypeAndShapeInfo().GetShape() != std::vector<int64_t>{1})
-      throw std::runtime_error("NGR model: expected output_label [1]");
     return static_cast<jint>(values[0].GetTensorData<int64_t>()[0]);
   } catch (const std::exception &error) { Fail(env, error); return 0; }
 }
