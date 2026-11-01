@@ -41,11 +41,9 @@ class ReadAloudSmokeTest : UiAutomatorTest() {
         scrollTo(By.desc("Voice options"))
         clickDescription("Voice options")
         clickText("Remove voice")
-        clickText("Delete and use system speech")
-        assertTrue(device.wait(Until.gone(By.text("Delete and use system speech")), TIMEOUT))
+        // Narrator selection no longer changes the legacy system/default voice.
+        clickText("Confirm")
         assertTrue(device.wait(Until.gone(By.text("Imported test voice")), TIMEOUT))
-        device.pressBack()
-        assertTextContains("System speech")
     }
 
     private fun openImportedVoices() {

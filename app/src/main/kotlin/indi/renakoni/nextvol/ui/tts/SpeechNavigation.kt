@@ -280,6 +280,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
         val context = LocalContext.current
+        val systemSpeechLabel = stringResource(R.string.tts_system_speech)
         val selectDialogue: (SpeechVoiceRef) -> Unit = { voice ->
             settingsViewModel.toggleVoice(true, voice) {
                 Toast.makeText(context, R.string.tts_voice_enable_dialogue, Toast.LENGTH_SHORT).show()
@@ -287,7 +288,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         }
         val httpVoice: (String?) -> SpeechVoiceRef = { id ->
             if (id == null) SpeechVoiceRef(engine = settings.settings.engine, voice = settings.settings.voice,
-                label = context.getString(R.string.tts_system_speech))
+                label = systemSpeechLabel)
             else SpeechVoiceRef(httpSource = id, label = state.sources.find { it.definition.id == id }?.definition?.name.orEmpty())
         }
         var deleting by remember { mutableStateOf<List<InstalledOfflineVoice>>(emptyList()) }
