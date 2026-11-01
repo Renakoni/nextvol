@@ -26,7 +26,6 @@
     <string name="tts_playback_settings">Playback</string>
     <string name="tts_synthesis_settings">Audio generation</string>
     <string name="tts_preferences">Voice settings</string>
-    <string name="tts_preferences_description">Playback and voice parameters</string>
     <string name="tts_settings_description">Voices and reading speed</string>
     <string name="tts_engine">Speech engine</string>
     <string name="tts_voice">Voice</string>
@@ -63,7 +62,7 @@
     <string name="tts_previous_passage">Previous passage</string>
     <string name="tts_next_passage">Next passage</string>
     <string name="tts_passage">Passage %1$d of %2$d</string>
-    <string name="tts_refresh">Refresh engines and voices</string>
+    <string name="tts_refresh">Reload data</string>
     <string name="tts_error_no_engine">No speech engine was found. Install and configure an engine in system settings, then retry.</string>
     <string name="tts_error_engine">The selected speech engine is unavailable. Check the engine in settings.</string>
     <string name="tts_error_voice">This voice is unavailable. Choose another voice or use the engine settings.</string>
@@ -112,7 +111,6 @@
     <string name="tts_source_default">Source default</string>
     <string name="tts_library_actions">Library options</string>
     <string name="tts_needs_key">Set up Key</string>
-    <string name="tts_configure_service">Configure %1$s</string>
     <string name="tts_clear_credentials">Clear credentials</string>
     <plurals name="tts_voice_count"><item quantity="one">%1$d voice</item><item quantity="other">%1$d voices</item></plurals>
 </resources>

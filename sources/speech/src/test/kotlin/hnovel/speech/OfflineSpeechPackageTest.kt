@@ -1,10 +1,26 @@
 package hnovel.speech
 
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 import org.junit.Assert.*
 import org.junit.Test
 
 class OfflineSpeechPackageTest {
+    @Test fun extensionValuesPreserveUnknownDataAndReplaceOnlyCompleteParameterReferences() {
+        val definition = """[{"code":"sid","name":"Speaker","value":"","candidate":{"0":"First","7":"Second"},"vendor":{"keep":true}}]"""
+        assertEquals("0", speechExtensionControls(definition).single().value.content)
+        val edited = updateSpeechExtension(definition, "sid", "7")
+        assertEquals(Json.parseToJsonElement(definition).jsonArray[0].jsonObject["vendor"],
+            Json.parseToJsonElement(edited).jsonArray[0].jsonObject["vendor"])
+        val parameters = Json.parseToJsonElement(resolveOfflineParameters("""{"speakerId":"@sid","label":"email@sid","nested":["@sid"]}""", edited)).jsonObject
+        assertEquals("7", parameters.getValue("speakerId").jsonPrimitive.content)
+        assertEquals("email@sid", parameters.getValue("label").jsonPrimitive.content)
+        assertEquals(JsonArray(listOf(JsonPrimitive("7"))), parameters["nested"])
+        assertThrows(OfflinePackageFailure::class.java) { resolveOfflineParameters("@missing", edited) }
+        assertThrows(OfflinePackageFailure::class.java) { resolveOfflineParameters("[".repeat(1000) + "0" + "]".repeat(1000), "") }
+        assertTrue(speechExtensionControls("""[{"code":"x","type":"vendor-widget","value":"a"}]""").single().supported)
+        assertThrows(IllegalArgumentException::class.java) { updateSpeechExtension(definition, "sid", "8") }
+    }
+
     @Test fun engineMetadataIsPreservedSeparatelyFromVoiceParameters() {
         fun fields(vararg values: Pair<String, String>) = SpeechPackageValue.Mapping(values.associate { (key, value) ->
             key to SpeechPackageValue.Scalar(value, "tag:yaml.org,2002:str", false)
@@ -20,6 +36,14 @@ class OfflineSpeechPackageTest {
             plan.engineConfiguration)
         assertEquals("4", plan.configuration.parameters)
         assertEquals("", plan.configuration.engineParameters)
+        assertEquals(16000, plan.configuration.sampleRate)
+        assertEquals(0f, plan.configuration.speed)
+        assertEquals(0f, plan.configuration.volume)
+        assertEquals("en-US", plan.configuration.locale)
+        val defaults = SpeechPackageVoice("zh-CN-Voice", "Voice", fields("sampleRate" to "0", "pitch" to "0")).withImportDefaults("microsoft")
+        assertEquals("16000", defaults.raw.values["sampleRate"].text())
+        assertEquals("1.0", defaults.raw.values["pitch"].text())
+        assertEquals("zh-CN", defaults.raw.values["locale"].text())
     }
 
     private fun preview(engineCode: String, param: String = "", paths: List<String>, extra: Map<String, String> = emptyMap()): OfflinePackagePreview {
@@ -40,7 +64,7 @@ class OfflineSpeechPackageTest {
         val plan = preview("isstts", "62915", paths).plan!!
         assertEquals("isstts\u0000voice", plan.id)
         assertEquals(paths.map { "isstts/$it" }, plan.resources.map { it.path })
-        val config = OfflineVoiceConfig("isstts", "voice", "62915", "en-US", 48000, .8f, 1.2f, 3f, 2, gender = 2)
+        val config = OfflineVoiceConfig("isstts", "voice", "62915", "en-US", 48000, .8f, 1.2f, 3f, 2, gender = 2, rawParameters = "62915")
         assertEquals(config, Json.decodeFromString<OfflineVoiceConfig>(Json.encodeToString(plan.configuration)))
         val sherpa = preview("sherpa", paths = listOf("voice/model.onnx", "voice/tokens.txt"),
             param = """{"speakerId":"@sid"}""", extra = mapOf("extendUI" to """[{"code":"sid","value":"7"}]""")).plan!!
@@ -54,7 +78,10 @@ class OfflineSpeechPackageTest {
                 "6082724/acoustic/base.ext.dat", "6082724/acoustic/voice.res.dat", "6082724/acoustic/other.voc.dat")).plan!!
         assertEquals(5, baidu.resources.size)
         assertFalse(baidu.resources.any { it.path.endsWith("other.voc.dat") })
-        val sogou = preview("sougou", paths = listOf("dict_zh.dat", "engdict.dat", "acoustic/voice.bin", "acoustic/other.bin")).plan!!
+        val sogou = preview("sougou", paths = listOf("dict_zh.dat", "engdict.dat", "acoustic/voice.bin", "acoustic/other.bin", "avatar/voice.png"),
+            extra = mapOf("avatar" to "voice.png")).plan!!
+        assertEquals(SpeechPackageResource("sougou/avatar/voice.png", 100), sogou.avatar)
+        assertNull(speechPackageAvatarPath("sougou", "../outside"))
         assertEquals(3, sogou.resources.size)
         assertEquals("sougou", sogou.configuration.engine)
         val missing = preview("sougou", paths = listOf("dict_zh.dat", "acoustic/voice.bin"))

@@ -25,6 +25,7 @@ data class SpeechSettings(
     val httpSource: String? = null,
     val playbackSpeed: Float = 1f,
     val offlineVoice: OfflineVoiceRef? = null,
+    val httpRevision: String = "",
     val replacements: List<SpeechReplacementRule> = emptyList(),
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault
@@ -35,6 +36,7 @@ data class SpeechSettings(
         pitch = pitch?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
         playbackSpeed = playbackSpeed.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f) ?: 1f,
         httpSource = httpSource.takeIf { offlineVoice == null },
+        httpRevision = httpRevision.takeIf { offlineVoice == null && httpSource != null }.orEmpty(),
         text = text.validated(),
     )
 }

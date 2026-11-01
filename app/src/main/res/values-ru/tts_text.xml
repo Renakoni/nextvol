@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="tts_playback_preferences">Настройки воспроизведения</string>
     <string name="tts_text_dialogue">Синтез диалогов</string>
     <string name="tts_text_record_voice">Запоминать последние голоса</string>
     <string name="tts_text_record_text">Запоминать предыдущие абзацы</string>

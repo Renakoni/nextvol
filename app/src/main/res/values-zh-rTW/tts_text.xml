@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="tts_playback_preferences">播放設定</string>
     <string name="tts_text_dialogue">合成對話</string>
     <string name="tts_text_record_voice">記錄最近聲音</string>
     <string name="tts_text_record_text">記錄上文段落</string>

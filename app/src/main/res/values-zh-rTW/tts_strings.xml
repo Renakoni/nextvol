@@ -25,7 +25,6 @@
     <string name="tts_playback_settings">播放</string>
     <string name="tts_synthesis_settings">語音合成</string>
     <string name="tts_preferences">語音設定</string>
-    <string name="tts_preferences_description">播放與語音參數</string>
     <string name="tts_settings_description">音源、音色與朗讀語速</string>
     <string name="tts_engine">語音引擎</string>
     <string name="tts_voice">音色</string>
@@ -62,7 +61,7 @@
     <string name="tts_previous_passage">上一段</string>
     <string name="tts_next_passage">下一段</string>
     <string name="tts_passage">第 %1$d / %2$d 段</string>
-    <string name="tts_refresh">重新整理引擎和音色</string>
+    <string name="tts_refresh">重新載入資料</string>
     <string name="tts_error_no_engine">未找到語音引擎。請先安裝並在系統設定中配置引擎，再重試。</string>
     <string name="tts_error_engine">所選語音引擎無法使用，請在設定中檢查引擎。</string>
     <string name="tts_error_voice">此音色已無法使用，請選擇其他音色或沿用引擎設定。</string>
@@ -105,7 +104,6 @@
     <string name="tts_source_default">音源預設</string>
     <string name="tts_library_actions">音源庫選項</string>
     <string name="tts_needs_key">待設定 Key</string>
-    <string name="tts_configure_service">設定%1$s</string>
     <string name="tts_clear_credentials">清除憑證</string>
     <plurals name="tts_voice_count"><item quantity="one">%1$d 種音色</item><item quantity="other">%1$d 種音色</item></plurals>
 </resources>

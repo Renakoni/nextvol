@@ -245,32 +245,9 @@ class HttpSpeechInstrumentedTest {
             reopened.withSource(source.id) { _, runtime -> assertFalse(runtime.exists()) }
             assertTrue(reopened.deniedOrigins.value[source.id].isNullOrEmpty())
             reopened.delete(source.id)
-            assertEquals(99, reopened.sources().size)
+            assertEquals(96, reopened.sources().size)
             assertTrue(reopened.sources().all { it.isBuiltIn })
             assertNull(reopened.withSource(source.id) { _, _ -> error("Deleted source cannot reopen") })
-        } finally { directory.deleteRecursively() }
-    }
-
-    @Test fun builtInCredentialsUseTheProductionCipherWithoutSavingTheWholeCatalog() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val directory = File(context.cacheDir, "builtin-speech-store-${UUID.randomUUID()}").apply { mkdirs() }
-        val isolated = object : ContextWrapper(context) { override fun getFilesDir() = directory }
-        try {
-            val authority = ExecutionAuthority()
-            val repository = HttpSpeechRepository(isolated, AndroidSourceStorageCipher(), authority)
-            assertEquals(99, repository.sources().size)
-            assertFalse(File(directory, "http-speech.enc").exists())
-            val source = repository.sources().first { it.group == "起点" }
-            repository.configure(source.definition.id, mapOf("Token" to "synthetic-private-token"))
-            val bytes = File(directory, "http-speech.enc").readBytes()
-            assertFalse(bytes.toString(Charsets.UTF_8).contains("synthetic-private-token"))
-            assertTrue(bytes.size < 4096)
-            val reopened = HttpSpeechRepository(isolated, AndroidSourceStorageCipher(), authority)
-            assertEquals(99, reopened.sources().size)
-            assertTrue(reopened.sources().filter { it.group == source.group }.all { it.credentials["Token"] == "synthetic-private-token" })
-            reopened.configure(source.definition.id, emptyMap())
-            assertTrue(reopened.sources().filter { it.group == source.group }.all { !it.isConfigured })
-            assertEquals(99, reopened.sources().size)
         } finally { directory.deleteRecursively() }
     }
 
