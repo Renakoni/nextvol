@@ -69,8 +69,3 @@ Java_indi_renakoni_nextvol_tts_names_NameModelNative_emissions(JNIEnv *env, jobj
     return result;
   } catch (const std::exception &error) { Fail(env, error); return nullptr; }
 }
-
-extern "C" JNIEXPORT void JNICALL
-Java_indi_renakoni_nextvol_tts_names_NameModelNative_destroy(JNIEnv *, jobject, jlong handle) {
-  delete reinterpret_cast<Ort::Session *>(handle);
-}

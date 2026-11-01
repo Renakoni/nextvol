@@ -10,5 +10,4 @@ internal object NameModelNative {
     external fun create(model: ByteArray): Long
     external fun transitions(handle: Long): DoubleArray
     external fun emissions(handle: Long, input: IntArray): FloatArray
-    external fun destroy(handle: Long)
 }
