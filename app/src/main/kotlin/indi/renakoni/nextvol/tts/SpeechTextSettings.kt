@@ -17,6 +17,7 @@ data class SpeechTextSettings(
     val separateEnglish: Boolean = true,
     val filterUnspoken: Boolean = true,
     val nameDiscoveryAlgorithm: Int = 101,
+    val personNameRegex: String? = null,
     @EncodeDefault
     val maleNameRegex: String = if (Locale.getDefault().language == "zh") SpeechNamePatterns.MALE else "",
     @EncodeDefault

@@ -71,7 +71,7 @@ class SpeechNameTestViewModel @Inject constructor(private val recognizer: Speech
 internal fun SpeechNameTestScreen(onBack: () -> Unit) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     val saved = rememberSaveableStateHolder()
-    val tabs = listOf(R.string.tts_name_ner, R.string.tts_name_classification_tab)
+    val tabs = listOf(R.string.tts_name_ner, R.string.tts_new_word_algorithm, R.string.tts_name_classification_tab)
     Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_name_test, onBack) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             PrimaryScrollableTabRow(selectedTabIndex = selected, edgePadding = 20.dp) {
@@ -82,7 +82,8 @@ internal fun SpeechNameTestScreen(onBack: () -> Unit) {
             saved.SaveableStateProvider(selected) {
                 when (selected) {
                     0 -> SpeechNameRecognitionContent()
-                    1 -> SpeechNameClassificationContent()
+                    1 -> SpeechNewWordTestContent()
+                    2 -> SpeechNameClassificationContent()
                 }
             }
         }
