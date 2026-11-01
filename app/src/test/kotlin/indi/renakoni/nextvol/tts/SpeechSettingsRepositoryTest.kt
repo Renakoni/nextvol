@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
+import java.util.Locale
 
 class SpeechSettingsRepositoryTest {
     @Test fun legacySettingsAndOfflineSelectionSurviveSavingAndReopening() = runBlocking {
@@ -56,6 +57,13 @@ class SpeechSettingsRepositoryTest {
         coEvery { dao.insert("tts.settings", any(), "String", any()) } answers { stored.value = arg(3) }
         val data = UserDataRepository(dao)
         val repository = SpeechSettingsRepository(data)
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
+            repository.update { it.copy(text = SpeechTextSettings()) }
+            Locale.setDefault(Locale.ENGLISH)
+            assertEquals(60, SpeechSettingsRepository(data).get().text.maxSentenceLength)
+        } finally { Locale.setDefault(previousLocale) }
         val rules = listOf(
             SpeechReplacementRule("first", "引号", "人物", "「", "“<<张三>>"),
             SpeechReplacementRule("second", "纠音", "草稿", "(", "$1", regex = true, activate = false),

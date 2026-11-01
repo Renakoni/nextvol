@@ -45,4 +45,22 @@ class SpeechTextPipelineTest {
         assertTrue(changed.segments.none { it.dialogue })
         assertEquals(0, changed.startIndex(saved))
     }
+
+    @Test fun localeChangeRebuildsEmojiSegmentsAndResumesAtOriginalOffset() = runBlocking {
+        val previousLocale = Locale.getDefault()
+        try {
+            val chapter = SpeechChapter("book", "one", "", "", "😀".repeat(10))
+            val settings = SpeechSettings(text = SpeechTextSettings(replaceEmoji = true,
+                filterUnspoken = false, maxSentenceLength = 32))
+            Locale.setDefault(Locale.ENGLISH)
+            val english = prepareSpeechPlan(chapter, settings) {}
+            val saved = english.bookmark(english.segments[1].start, 1)
+            assertEquals(1, english.startIndex(saved))
+            Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
+            val chinese = prepareSpeechPlan(chapter, settings) {}
+            assertEquals("[嘿嘿]".repeat(10), chinese.segments.single().text)
+            assertEquals(0, chinese.startIndex(saved))
+            assertFalse(english.matches(chapter, settings, SpeechContext(), Int.MAX_VALUE))
+        } finally { Locale.setDefault(previousLocale) }
+    }
 }

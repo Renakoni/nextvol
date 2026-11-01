@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.tts
 
 import kotlinx.serialization.json.Json
+import java.util.Locale
 
 /** One chapter's synthesis input and original UTF-16 ranges, shared by every session consumer. */
 class SpeechPlan internal constructor(
@@ -12,10 +13,12 @@ class SpeechPlan internal constructor(
     val context: SpeechContext = SpeechContext(),
     val nextContext: SpeechContext = context,
     private val maxInputLength: Int = Int.MAX_VALUE,
+    private val locale: Locale = Locale.getDefault(),
 ) {
-    private val replacementKey = synthesis.textProcessingKey(maxInputLength)
+    private val replacementKey = synthesis.textProcessingKey(maxInputLength, locale)
     internal fun matches(chapter: SpeechChapter, synthesis: SpeechSettings, context: SpeechContext, maxInputLength: Int) =
-        this.chapter == chapter && this.synthesis == synthesis && this.context == context && this.maxInputLength == maxInputLength
+        this.chapter == chapter && this.synthesis == synthesis && this.context == context &&
+            this.maxInputLength == maxInputLength && locale == Locale.getDefault()
 
     internal fun startIndex(saved: SpeechBookmark?): Int {
         val matching = saved?.takeIf { it.bookId == chapter.bookId && it.chapterId == chapter.id &&
@@ -50,10 +53,11 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     checkCancelled()
     if (chapter.text.length > 1_000_000) throw SpeechException(SpeechError.UnsupportedContent)
     val settings = synthesis.text
+    val locale = Locale.getDefault()
     val original = speechTrim(SpeechMappedText.original(chapter.text))
     // The original service filters before normalization, replacement and emoji expansion.
     if (settings.filterUnspoken && speechIsUnspoken(original.text))
-        return SpeechPlan(chapter, synthesis, emptyList(), "", context = context, maxInputLength = maxInputLength)
+        return SpeechPlan(chapter, synthesis, emptyList(), "", context = context, maxInputLength = maxInputLength, locale = locale)
     val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
     val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
     val structure = speechStructure(structured, settings, context, checkCancelled = checkCancelled)
@@ -63,9 +67,9 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
         checkCancelled()
         for (language in speechLatinSegments(part.content, settings.separateEnglish, checkCancelled)) {
             var corrected = replacements.apply(language.content, wholeText = false)
-            if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled)
+            if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
             for (sentence in speechSentenceChunks(corrected, settings.maxSentenceLength, settings.filterUnspoken,
-                checkCancelled = checkCancelled)) {
+                locale, checkCancelled)) {
                 for (mapped in speechHardChunks(sentence, maxInputLength, checkCancelled)) {
                     if (mapped.text.all { Character.isWhitespace(it) } || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
                     val (start, end) = mapped.range()
@@ -79,11 +83,12 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
             }
         }
     }
-    return SpeechPlan(chapter, synthesis, segments, structured.text, mappings, context, structure.nextContext, maxInputLength)
+    return SpeechPlan(chapter, synthesis, segments, structured.text, mappings, context, structure.nextContext, maxInputLength, locale)
 }
 
-internal fun SpeechSettings.textProcessingKey(maxInputLength: Int) = speechDigest("speech-text-v2\u0000" +
-    Json.encodeToString(replacements) + "\u0000" + Json.encodeToString(text) + "\u0000" + maxInputLength)
+internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
+    speechDigest("speech-text-v2\u0000" + Json.encodeToString(replacements) + "\u0000" +
+        Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag())
 
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {

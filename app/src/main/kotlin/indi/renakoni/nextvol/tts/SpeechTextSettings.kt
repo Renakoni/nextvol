@@ -1,5 +1,7 @@
 package indi.renakoni.nextvol.tts
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import java.util.Locale
 
@@ -12,6 +14,8 @@ data class SpeechTextSettings(
     val replaceEmoji: Boolean = false,
     val separateEnglish: Boolean = true,
     val filterUnspoken: Boolean = true,
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault
     val maxSentenceLength: Int = when (Locale.getDefault().language) {
         "zh" -> 60
         "tr" -> 200
