@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 
@@ -36,10 +37,12 @@ internal fun SpeechSourceRow(name: String, selected: Boolean, enabled: Boolean, 
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f).padding(end = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(name, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                color = if (enabled) colors.onSurface else colors.onSurfaceVariant)
-            if (description.isNotBlank()) Text(description, style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    color = if (enabled) colors.onSurface else colors.onSurfaceVariant)
+                if (description.isNotBlank()) Text(description, Modifier.weight(1.6f), style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
             if (problem != null) Text(problem, style = MaterialTheme.typography.bodySmall, color = colors.error)
         }
         if (onPreview != null) SpeechPreviewButton(name, previewEnabled, onPreview)

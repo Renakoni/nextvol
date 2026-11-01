@@ -121,6 +121,12 @@ declarations without initializing the SDK. On first use, Sherpa fills missing
 speaker choices and the model sample rate, as MultiTTS does; package-defined
 choices remain intact.
 
+Editors reuse the loaded voice catalog and prepare form data off the UI thread.
+Opening or typing does not recheck package files or validate the complete voice;
+configuration validation runs on save. Extension controls are parsed only when
+their definition changes, and offline parameter normalization belongs to the
+repository save operation.
+
 `param` and `extendUI` preserve unknown control fields. Their raw editors are
 hidden by default and enabled separately in Playback settings. The compact voice
 form shows package-defined choices directly; it has no nested advanced sections.

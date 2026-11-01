@@ -101,7 +101,9 @@ fun HttpSpeechSourcesScreen(
                     Modifier.size(40.dp), state.avatars[source.definition.id])
             }, onPreview = onPreview?.let { { it(source.definition.id) } },
             previewEnabled = !state.busy && source.enabled && source.isConfigured,
-            description = (metadata["desc"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            description = (metadata["desc"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank {
+                (metadata["code"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+            },
             problem = when {
                 !source.enabled -> stringResource(R.string.tts_voice_disabled)
                 !source.isConfigured -> stringResource(R.string.tts_needs_key)

@@ -12,7 +12,6 @@ import indi.renakoni.nextvol.tts.offline.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -35,7 +34,6 @@ data class OfflineVoiceDraft(
         require(sampleRate.matches(Regex("[0-9]{4,5}")))
         require(listOf(parameters, extensions, note, description, avatar).all { it.length <= 64 * 1024 })
         val original = requireNotNull(voice.configuration)
-        require(original.engine == "http" || safeSpeechPackagePath(code))
         if (locale.isNotEmpty()) {
             val parts = locale.split('-')
             require(parts.size == 2)
@@ -48,11 +46,8 @@ data class OfflineVoiceDraft(
         val candidate = original.copy(code = code, locale = language, rawParameters = parameters, extendUI = extensions,
             speed = speed.toFloat(), pitch = pitch.toFloat(), volume = volume.toFloat(), sampleRate = sampleRate.toInt(),
             gender = gender.toInt(), type = type.toInt())
-        require(candidate.speed.isFinite() && candidate.speed >= 0 && candidate.pitch.isFinite() && candidate.pitch > 0)
-        require(candidate.volume.isFinite() && candidate.volume >= 0 && candidate.sampleRate >= 0)
-        val configuration = if (candidate.engine == "http") candidate else normalizeOfflineVoice(candidate, voice.sizes.keys)
-        require(configuration.engine != "microsoft" || configuration.type == 0)
-        return voice.copy(name = name, configuration = configuration, enabled = enabled,
+        require(candidate.engine != "microsoft" || candidate.type == 0)
+        return voice.copy(name = name, configuration = candidate, enabled = enabled,
             metadata = OfflineVoiceMetadata(note, description, avatar.trim()))
     }
 
@@ -69,67 +64,54 @@ data class OfflineVoiceDraft(
 data class OfflineVoiceEditorState(
     val voice: InstalledOfflineVoice? = null, val draft: OfflineVoiceDraft? = null,
     val busy: Boolean = false, val error: Int? = null, val availability: OfflineAvailability? = null,
-    val valid: Boolean = false,
     val packageAvatar: String? = null,
+    val controls: List<SpeechExtensionControl>? = emptyList(),
+    val loadingControls: Boolean = false,
 )
 
 @HiltViewModel
 class OfflineVoiceEditorViewModel @Inject constructor(
     private val repository: OfflineSpeechRepository,
     private val settings: SpeechSettingsRepository,
-    private val availability: OfflineAvailabilityChecker,
     private val saved: SavedStateHandle,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(OfflineVoiceEditorState())
     val state = mutableState.asStateFlow()
     private var loaded: String? = null
-    private var checking: Job? = null
+    private var loadingControls: Job? = null
 
-    init {
-        viewModelScope.launch { availability.changes.collectLatest { checkDraft() } }
-
-    }
-
-    fun load(id: String, copyPattern: String? = null) {
+    fun load(id: String, copyPattern: String? = null, cachedVoice: InstalledOfflineVoice? = null) {
         if (loaded == id) return
         loaded = id
         work {
-            val installed = repository.voices().single { it.reference.id == id }
-            val voice = withContext(Dispatchers.IO) { installed.copy(configuration = repository.configuration(installed).copy(engineParameters = "")) }
-            val draft = saved.get<String>("voice.draft")?.let { runCatching { Json.decodeFromString<OfflineVoiceDraft>(it) }.getOrNull() }
-                ?: OfflineVoiceDraft.from(voice).let { if (copyPattern == null) it else it.copy(name = String.format(copyPattern, it.name)) }
-            mutableState.value = OfflineVoiceEditorState(voice, draft, busy = true,
-                packageAvatar = repository.avatar(voice)?.path)
-            checkDraft()
+            val restored = saved.get<String>("voice.draft")
+            mutableState.value = withContext(Dispatchers.IO) {
+                val installed = cachedVoice ?: repository.voices().single { it.reference.id == id }
+                val voice = installed.copy(configuration = (installed.configuration ?: repository.configuration(installed)).copy(engineParameters = ""))
+                val draft = restored?.let { runCatching { Json.decodeFromString<OfflineVoiceDraft>(it) }.getOrNull() }
+                    ?: OfflineVoiceDraft.from(voice).let { if (copyPattern == null) it else it.copy(name = String.format(copyPattern, it.name)) }
+                OfflineVoiceEditorState(voice, draft, busy = true,
+                    packageAvatar = repository.avatar(voice)?.path,
+                    controls = runCatching { speechExtensionControls(draft.extensions) }.getOrNull())
+            }
         }
     }
 
     fun edit(draft: OfflineVoiceDraft) {
+        val extensionsChanged = state.value.draft?.extensions != draft.extensions
         saved["voice.draft"] = Json.encodeToString(draft)
-        mutableState.update { it.copy(draft = draft, error = null) }
-        checking?.cancel()
-        checking = viewModelScope.launch { delay(150); checkDraft() }
-    }
-
-    private suspend fun checkDraft() {
-        val snapshot = state.value
-        val original = snapshot.voice ?: return
-        val draft = snapshot.draft ?: return
-        val (valid, status) = withContext(Dispatchers.IO) {
-            val candidate = runCatching { draft.applyTo(original) }.getOrNull()
-            val result = candidate?.let {
-                try { availability.installed(it.copy(enabled = true), repository) }
-                catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { OfflineAvailability(R.string.tts_voice_save_failed, canRun = false) }
-            }
-            (candidate != null) to result
+        mutableState.update { it.copy(draft = draft, loadingControls = extensionsChanged || it.loadingControls, error = null) }
+        if (!extensionsChanged) return
+        loadingControls?.cancel()
+        loadingControls = viewModelScope.launch {
+            val controls = withContext(Dispatchers.Default) { runCatching { speechExtensionControls(draft.extensions) }.getOrNull() }
+            mutableState.update { if (it.draft?.extensions == draft.extensions) it.copy(controls = controls, loadingControls = false) else it }
         }
-        mutableState.update { if (it.draft == draft) it.copy(valid = valid, availability = status) else it }
     }
 
     fun save(copy: Boolean, onSaved: () -> Unit) = work {
         val current = state.value
-        val edited = requireNotNull(current.draft).applyTo(requireNotNull(current.voice))
+        val edited = withContext(Dispatchers.Default) { requireNotNull(current.draft).applyTo(requireNotNull(current.voice)) }
         withContext(NonCancellable) {
             val result = repository.save(edited, copy)
             if (!copy) settings.update { if (it.offlineVoice?.id == result.reference.id) it.copy(offlineVoice = result.reference) else it }
@@ -142,6 +124,7 @@ class OfflineVoiceEditorViewModel @Inject constructor(
         mutableState.update { it.copy(busy = true, error = null) }
         try { action() }
         catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: IllegalArgumentException) { mutableState.update { it.copy(error = R.string.tts_voice_invalid) } }
         catch (_: Exception) { mutableState.update { it.copy(error = R.string.tts_voice_save_failed) } }
         finally { mutableState.update { it.copy(busy = false) } }
     }

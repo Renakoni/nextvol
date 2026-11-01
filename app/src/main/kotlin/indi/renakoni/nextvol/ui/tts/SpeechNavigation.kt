@@ -201,10 +201,12 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val route = entry.toRoute<OfflineVoiceEditorRoute>()
         val viewModel = hiltViewModel<OfflineVoiceEditorViewModel>()
+        val settingsEntry = remember(entry) { nav.getBackStackEntry<SpeechSettingsRoute>() }
+        val library = hiltViewModel<OfflineSpeechSourcesViewModel>(settingsEntry)
         val state by viewModel.state.collectAsStateWithLifecycle()
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val copyPattern = if (route.copy) stringResource(R.string.tts_voice_copy_suffix) else null
-        LaunchedEffect(route.id) { viewModel.load(route.id, copyPattern) }
+        LaunchedEffect(route.id) { viewModel.load(route.id, copyPattern, library.state.value.voices.find { it.reference.id == route.id }) }
         OfflineVoiceEditorScreen(state, route.copy, viewModel::edit, onSave = { viewModel.save(route.copy, nav::popBackStackIfResumed) },
             onBack = nav::popBackStackIfResumed,
             showParameters = preferences.showParameters, showExtensions = preferences.showExtensions)
@@ -214,10 +216,12 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val route = entry.toRoute<HttpVoiceEditorRoute>()
         val viewModel = hiltViewModel<HttpVoiceEditorViewModel>()
+        val settingsEntry = remember(entry) { nav.getBackStackEntry<SpeechSettingsRoute>() }
+        val library = hiltViewModel<HttpSpeechSourcesViewModel>(settingsEntry)
         val state by viewModel.state.collectAsStateWithLifecycle()
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val copyPattern = if (route.copy) stringResource(R.string.tts_voice_copy_suffix) else null
-        LaunchedEffect(route.id) { viewModel.load(route.id, copyPattern) }
+        LaunchedEffect(route.id) { viewModel.load(route.id, copyPattern, library.state.value.sources.find { it.definition.id == route.id }) }
         OfflineVoiceEditorScreen(state, route.copy, viewModel::edit, onSave = { viewModel.save(route.copy, nav::popBackStackIfResumed) },
             onBack = nav::popBackStackIfResumed, parametersSupported = viewModel.hasParameters,
             showParameters = preferences.showParameters, showExtensions = preferences.showExtensions)
