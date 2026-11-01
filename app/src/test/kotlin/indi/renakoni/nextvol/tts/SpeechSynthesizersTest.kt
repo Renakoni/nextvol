@@ -35,11 +35,12 @@ class SpeechSynthesizersTest {
             every { anyConstructed<SourceBroker>().close() } just Runs
             every { anyConstructed<HttpSpeechClient>().cancel() } just Runs
             every { anyConstructed<HttpSpeechClient>().close() } throws IOException("close failed")
-            coEvery { anyConstructed<HttpSpeechClient>().synthesize(any(), any()) } coAnswers {
+            coEvery { anyConstructed<HttpSpeechClient>().synthesize(any(), any(), any()) } coAnswers {
                 assertNotSame("HTTP synthesis can close regional TLS connections", caller, Thread.currentThread())
                 throw HttpSpeechException(HttpSpeechError.Network)
             }
-            val provider = SpeechSynthesizers(mockk(), repository, StorageCipher.Plain, ExecutionAuthority(), mockk(), mockk(), mockk(), mockk()).synthesizer()
+            val provider = SpeechSynthesizers(mockk(), repository, StorageCipher.Plain, ExecutionAuthority(), mockk(), mockk(), mockk(), mockk(),
+                mockk(relaxed = true)).synthesizer()
             assertEquals("Voice", provider.open(SpeechSettings(httpSource = definition.id)))
             try { provider.synthesize("Preview", File(files.root, "preview.wav")); fail("Expected network failure") }
             catch (failure: SpeechException) { assertEquals(SpeechError.Network, failure.error) }

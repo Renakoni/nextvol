@@ -183,7 +183,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
-            onPlaybackSpeed = viewModel::setPlaybackSpeed)
+            onPlaybackSpeed = viewModel::setPlaybackSpeed,
+            onHttpVolume = viewModel::setHttpVolume)
     }
     composable<SpeechEnginesRoute> {
         HideReadAloudOverlay()

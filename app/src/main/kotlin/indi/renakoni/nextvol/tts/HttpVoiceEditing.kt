@@ -99,12 +99,7 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
     // Labels/notes do not rebuild a request or invalidate its authorization.
     if ((old["url"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.url ||
         (old["header"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.header) {
-        val voice = speakerData()
-        val converted = previewHttpSpeechPackage(SpeechPackageEngine(engine.code, engine.name, "http", data.packageValue(),
-            listOf(SpeechPackageVoice(voice.getValue("code").jsonPrimitive.content, definition.name, voice.packageValue())),
-            SpeechPackageSupport.HttpAdapter, emptyList(), emptyList()))
-        require(converted.error == null && converted.sources.size == 1)
-        raw["url"] = converted.sources.single().raw.getValue("url")
+        raw["url"] = JsonPrimitive(engine.url.trim())
         if (engine.header.isBlank()) raw.remove("header") else raw["header"] = JsonPrimitive(engine.header)
     }
     return copy(definition = previewHttpSpeech(JsonObject(raw).toString()).sources.single())
@@ -112,6 +107,10 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
 
 internal fun SavedHttpSpeechSource.sameExecution(other: SavedHttpSpeechSource): Boolean {
     val fields = setOf("url", "header", "jsLib", "contentType", "loginUrl", "loginUi", "loginCheckJs", "concurrentRate", "enabledCookieJar", "speed")
+    val voiceFields = setOf("code", "param", "extendUI")
+    val multiTts = definition.usesMultiTts
     return definition.raw.filterKeys { it in fields } == other.definition.raw.filterKeys { it in fields } &&
+        multiTts == other.definition.usesMultiTts && (!multiTts ||
+            speakerData().filterKeys { it in voiceFields } == other.speakerData().filterKeys { it in voiceFields }) &&
         origins == other.origins && credentials == other.credentials && available == other.available
 }

@@ -97,8 +97,8 @@ internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Local
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
     val selected = validated().copy(playbackSpeed = 1f)
     return when {
-        selected.offlineVoice != null -> selected.copy(engine = "", voice = "", pitch = null, rate = selected.rate ?: 1f)
+        selected.offlineVoice != null -> selected.copy(engine = "", voice = "", pitch = null, rate = selected.rate ?: 1f, httpVolume = 1f)
         selected.httpSource != null -> selected.copy(engine = "", voice = "", pitch = null)
-        else -> selected
+        else -> selected.copy(httpVolume = 1f)
     }
 }

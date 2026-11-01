@@ -1,8 +1,8 @@
 <resources>
     <string name="tts_package_cannot_import">Импорт пока не поддерживается</string>
     <string name="tts_package_local_audio">Локальные эффекты скорости, усиления громкости и высоты тона из пакета не применяются.</string>
-    <string name="tts_package_http_request_unsupported">Пакету нужна дополнительная обработка запросов или заголовков, которая пока не подключена.</string>
-    <string name="tts_package_http_parameters_required">Пакету нужна настройка дополнительных параметров, которая пока не подключена.</string>
+    <string name="tts_package_http_request_unsupported">Неверный формат настроек заголовков запроса.</string>
+    <string name="tts_package_http_parameters_required">Неверный формат параметров голоса или дополнительных элементов управления.</string>
     <string name="tts_package_preview">Просмотр голосового пакета</string>
     <string name="tts_package_reading">Чтение голосового пакета…</string>
     <string name="tts_package_unknown">Тип пакета не распознан</string>

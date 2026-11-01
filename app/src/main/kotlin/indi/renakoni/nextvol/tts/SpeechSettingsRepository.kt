@@ -30,11 +30,13 @@ data class SpeechSettings(
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault
     val text: SpeechTextSettings = SpeechTextSettings(),
+    val httpVolume: Float = 1f,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
         pitch = pitch?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
         playbackSpeed = playbackSpeed.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f) ?: 1f,
+        httpVolume = httpVolume.takeIf { it.isFinite() }?.coerceIn(0f, 2f) ?: 1f,
         httpSource = httpSource.takeIf { offlineVoice == null },
         httpRevision = httpRevision.takeIf { offlineVoice == null && httpSource != null }.orEmpty(),
         text = text.validated(),

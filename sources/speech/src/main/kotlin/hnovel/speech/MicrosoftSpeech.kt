@@ -75,7 +75,7 @@ internal class MicrosoftSpeechClient(
             response = audio(active, text, rate)
         }
         if (response.status == 401) token = null
-        if (response.status !in 200..299) throw HttpSpeechException(HttpSpeechError.Network, statusCode = response.status)
+        if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
         return response.body.also(::checkSpeechAudioContainer)
     }
 
@@ -83,7 +83,7 @@ internal class MicrosoftSpeechClient(
         val response = execute(BrokerRequest("microsoft-token", AUTH_URL, method = "POST", body = "",
             headers = configuration.headers + ("X-MT-Signature" to signature(configuration.key)), kind = ResourceKind.Api,
             followRedirects = false, maxResponseBytes = 64 * 1024))
-        if (response.status !in 200..299) throw HttpSpeechException(HttpSpeechError.Network, statusCode = response.status)
+        if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
         return try {
             val result = Json.parseToJsonElement(BridgeWire.validate(response.body, 64 * 1024)).jsonObject
             val region = result.getValue("r").jsonPrimitive.content

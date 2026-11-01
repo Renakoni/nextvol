@@ -13,6 +13,7 @@ val SpeechError.messageResource: Int
         SpeechError.SynthesisTimeout -> R.string.tts_error_synthesis_timeout
         SpeechError.SynthesisFailed -> R.string.tts_error_synthesis
         SpeechError.Network -> R.string.tts_error_network
+        SpeechError.NetworkUnavailable -> R.string.tts_error_http_network_unavailable
         SpeechError.InvalidAudio -> R.string.tts_error_audio
         SpeechError.Storage -> R.string.tts_error_storage
         SpeechError.SourceUnavailable -> R.string.tts_error_source
@@ -25,6 +26,8 @@ val SpeechError.messageResource: Int
         SpeechError.HttpPermission -> R.string.tts_error_http_permission
         SpeechError.HttpUnsupported -> R.string.tts_error_http_unsupported
         SpeechError.HttpLogin -> R.string.tts_error_http_login
+        SpeechError.HttpConfiguration -> R.string.tts_error_http_configuration
+        SpeechError.HttpAuthentication -> R.string.tts_error_http_authentication
         SpeechError.OfflineUnavailable -> R.string.tts_offline_unavailable
         SpeechError.ReplacementRule -> R.string.tts_replace_failed
     }

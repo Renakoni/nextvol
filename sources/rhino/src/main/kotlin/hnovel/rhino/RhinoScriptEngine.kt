@@ -10,7 +10,7 @@ fun interface HostBridge {
     companion object { val None = HostBridge { _, _ -> error("No host broker") } }
 }
 
-private class BridgeRejected(value: Any, val hostCall: ScriptHostCall?) : JavaScriptException(value, "host-bridge", 1)
+internal class BridgeRejected(value: Any, val hostCall: ScriptHostCall?) : JavaScriptException(value, "host-bridge", 1)
 private class RequestRejected(value: Any, val hostCall: ScriptHostCall?) : JavaScriptException(value, "request-options", 1)
 
 internal val bridgeLimitKey = Any()
@@ -21,7 +21,7 @@ private class ScriptBridge(private val bridge: HostBridge, private val rules: Sc
     private val resources = ScriptResources(bridge, requests, archives)
     private val fonts = ScriptFonts(resources::download)
     private val knownMethods = mutableSetOf("java.setContent", "java.put", "java.toast", "java.longToast",
-        "cache.getFile", "cache.putFile", "request.prepare", "request.speech", "request.headers", "response.view")
+        "cache.getFile", "cache.putFile", "request.prepare", "request.speech", "request.multitts", "request.headers", "response.view")
 
     private fun describe(name: String, args: Array<out Any?>): ScriptHostCall? =
         if (name !in knownMethods) null else ScriptHostCall(name, args.size, args.take(8).map { value -> when (value) {
@@ -56,6 +56,7 @@ private class ScriptBridge(private val bridge: HostBridge, private val rules: Sc
                     return ScriptCryptoObjects.create(cx, scope, name.removePrefix("java."), arguments)
                 val result = if (name == "request.prepare") JsonArray(requests.prepare(cx, "java.connect", arguments))
                 else if (name == "request.speech") requests.speech(cx, arguments)
+                else if (name == "request.multitts") requests.multiTts(cx, bridge, arguments)
                 else if (name == "request.headers") { require(arguments.isEmpty()); requests.headers(cx) }
                 else if (name == "java.readTxtFile") resources.text(cx, arguments)
                 else if (name.startsWith("java.") && name.substringAfter("java.") in resources.methods) resources.archive(cx, name.substringAfter("java."), arguments)
@@ -82,6 +83,7 @@ private class ScriptBridge(private val bridge: HostBridge, private val rules: Sc
                 catch (large: ResultTooLarge) { if (large.hostCall == null) large.hostCall = describe(name, args); throw large }
                 catch (unsupported: UnsupportedResult) { if (unsupported.hostCall == null) unsupported.hostCall = describe(name, args); throw unsupported }
                 catch (cancelled: java.util.concurrent.CancellationException) { throw ScriptCancelled() }
+                catch (unsupported: UnsupportedSpeechOption) { throw unsupported }
                 catch (_: RequestOptionsException) {
                     if (Thread.currentThread().isInterrupted) throw ScriptCancelled()
                     throw RequestRejected(realm.errorIn(scope, "invalid request options"), describe(name, args))
@@ -89,7 +91,7 @@ private class ScriptBridge(private val bridge: HostBridge, private val rules: Sc
                 catch (rejected: RequestRejected) { throw rejected }
                 // request.prepare can evaluate nested source code. Preserve its script/bridge
                 // exception instead of relabelling a caught network error followed by a source error.
-                catch (error: JavaScriptException) { throw error }
+                catch (error: RhinoException) { throw error }
                 catch (_: Exception) {
                     if (Thread.currentThread().isInterrupted) throw ScriptCancelled()
                     if (pureTool || name.removePrefix("java.") in ScriptCryptoObjects.factories) throw JavaScriptException(realm.errorIn(scope, "invalid tool argument"), "script-tool", 1)
@@ -354,6 +356,7 @@ class RhinoScriptEngine(private val bridge: HostBridge, private val limits: Scri
                 ScriptResult.Success(json)
             }
         } catch (_: ScriptBudgetExceeded) { ScriptResult.Failure(FailureCode.Timeout, "execution budget exceeded") }
+          catch (_: UnsupportedSpeechOption) { ScriptResult.Failure(FailureCode.UnsupportedDependency, "unsupported speech request option") }
           catch (_: ScriptCancelled) { ScriptResult.Failure(FailureCode.Cancelled, "script cancelled") }
           catch (_: SerializationCancelled) { ScriptResult.Failure(FailureCode.Cancelled, "script cancelled") }
           catch (failure: ResultTooLarge) { ScriptResult.Failure(FailureCode.ResultTooLarge, "result too large", hostCall = failure.hostCall) }
