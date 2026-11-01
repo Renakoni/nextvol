@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.tts
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -7,7 +8,7 @@ class SpeechStructureTest {
     private val dialogue = SpeechTextSettings(dialogue = true)
     private val first = SpeechPersonVoice("甲", "voice-a")
     private val second = SpeechPersonVoice("乙", "voice-b")
-    private val names: (String, SpeechContextDirection) -> SpeechPersonVoice? = { text, direction ->
+    private val names: suspend (String, SpeechContextDirection) -> SpeechPersonVoice? = { text, direction ->
         if (direction == SpeechContextDirection.Explicit) when (text) {
             "甲" -> first
             "乙" -> second
@@ -17,8 +18,9 @@ class SpeechStructureTest {
 
     private fun structure(text: String, settings: SpeechTextSettings = dialogue,
         incoming: SpeechContext = SpeechContext(),
-        resolve: ((String, SpeechContextDirection) -> SpeechPersonVoice?)? = null) =
+        resolve: (suspend (String, SpeechContextDirection) -> SpeechPersonVoice?)? = null) = runBlocking {
         speechStructure(SpeechMappedText.original(text), settings, incoming, resolve) {}
+    }
 
     @Test fun disabledDialogueAndEmptyInputLeaveContextUntouched() {
         val context = SpeechContext(true, listOf(SpeechContextText("上一句", true, first)), listOf(null, "voice-a"))
@@ -96,7 +98,7 @@ class SpeechStructureTest {
 
     @Test fun contextPrefersPrecedingNarrationAndPropagatesFollowingPersonBackward() {
         val calls = mutableListOf<Pair<String, SpeechContextDirection>>()
-        val resolver: (String, SpeechContextDirection) -> SpeechPersonVoice? = { text, direction ->
+        val resolver: suspend (String, SpeechContextDirection) -> SpeechPersonVoice? = { text, direction ->
             calls += text to direction
             when (text to direction) {
                 "甲说：" to SpeechContextDirection.Previous -> first
@@ -119,7 +121,7 @@ class SpeechStructureTest {
     @Test fun textMemoryStoresTrailingNarrationInReverseAndOnlyResolvesFirstStructuralPart() {
         val context = structure("前“中”甲说：").nextContext
         assertEquals(listOf("甲说：", "“中”", "前"), context.previousText.map { it.text })
-        val resolver: (String, SpeechContextDirection) -> SpeechPersonVoice? = { text, direction ->
+        val resolver: suspend (String, SpeechContextDirection) -> SpeechPersonVoice? = { text, direction ->
             first.takeIf { text == "甲说：" && direction == SpeechContextDirection.Next }
         }
         assertNull(structure("“你好”", incoming = context, resolve = resolver).parts.single().speaker)

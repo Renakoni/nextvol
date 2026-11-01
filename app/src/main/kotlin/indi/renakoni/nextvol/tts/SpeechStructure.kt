@@ -25,11 +25,11 @@ private enum class QuoteState { DialogueBefore, DialogueStart, DialogueEnd, Narr
 internal val speechControlMark = Regex("\\[\\[.*?\\]\\]")
 
 /** MultiTTS's five quote states; role rules supply the optional resolver in the role pipeline. */
-internal fun speechStructure(
+internal suspend fun speechStructure(
     input: SpeechMappedText,
     settings: SpeechTextSettings,
     incoming: SpeechContext = SpeechContext(),
-    resolve: ((String, SpeechContextDirection) -> SpeechPersonVoice?)? = null,
+    resolve: (suspend (String, SpeechContextDirection) -> SpeechPersonVoice?)? = null,
     checkCancelled: () -> Unit,
 ): SpeechStructureResult {
     checkCancelled()

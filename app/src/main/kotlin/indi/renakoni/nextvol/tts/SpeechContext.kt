@@ -21,12 +21,12 @@ data class SpeechPersonVoice(val person: String, val voice: String)
 
 private val speakerMarker = Regex("<<.*?>>")
 
-internal fun resolveSpeechContext(
+internal suspend fun resolveSpeechContext(
     parts: MutableList<SpeechStructure>,
     settings: SpeechTextSettings,
     incoming: SpeechContext,
     unfinished: Boolean,
-    resolve: ((String, SpeechContextDirection) -> SpeechPersonVoice?)?,
+    resolve: (suspend (String, SpeechContextDirection) -> SpeechPersonVoice?)?,
     checkCancelled: () -> Unit,
 ): SpeechStructureResult {
     var nextVoice = incoming.recentVoices.getOrNull(0)
@@ -42,7 +42,7 @@ internal fun resolveSpeechContext(
             if (part.changeVoice) break
         }
     }
-    fun search(indices: IntProgression, direction: SpeechContextDirection): SpeechPersonVoice? {
+    suspend fun search(indices: IntProgression, direction: SpeechContextDirection): SpeechPersonVoice? {
         for (index in indices) {
             checkCancelled()
             val part = parts[index]
