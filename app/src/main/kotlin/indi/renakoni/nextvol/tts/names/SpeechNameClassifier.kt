@@ -65,7 +65,7 @@ class SpeechNameClassifier @Inject constructor(@ApplicationContext private val c
     private suspend fun matches(name: String, pattern: String, field: String): Boolean {
         if (pattern.isEmpty()) return false
         return when (val result = executor.execute(ruleIdentity, ExecutionTask.RegexMatch(name, pattern, RuleLocation(field)),
-            ExecutionLimits(timeoutMillis = 10_000, maxRequests = 0))) {
+            ExecutionLimits(timeoutMillis = 2500, maxRequests = 0))) {
             is ExecutionResult.Success -> result.output.toBooleanStrict()
             is ExecutionResult.Failure -> {
                 val error = result.ruleError

@@ -125,7 +125,7 @@ call without publishing a result or discarding resources used by other requests.
 
 Fallback regex compilation and full matching run in the existing independent
 isolated worker pool, without scripts or a host broker. Each nonempty rule has a
-10-second execution budget; male and female rules remain sequential and stop at
+2.5-second execution budget; male and female rules remain sequential and stop at
 the first match. Android service startup has the executor's separate 15-second
 readiness budget. Cancellation or budget expiry retires the worker via its
 termination Binder call and waits up to two seconds for Binder death. A live
@@ -162,10 +162,12 @@ Binder workers. Warm-worker timings include encoding, transport and matching:
 | 1,000,001 | 44 ms | 239 ms |
 | 4,000,001 | 180 ms | 744 ms |
 
-The high-backtracking female rule returned `femaleNameRegex: Timeout` after
-10,058 ms with its Binder already dead. Through the actual classification UI,
+With the probe's 10-second budget, the high-backtracking female rule returned
+`femaleNameRegex: Timeout` after 10,058 ms with its Binder already dead. Through the actual classification UI,
 cancel, input edit and leaving the tab terminated the old workers in 83, 481 and
 388 ms respectively, measured from the UI action to observed Binder death.
 Each action was followed by a fresh successful classification without a stale
 result. These are device observations, not universal latency guarantees. The
 temporary measurement harness is not shipped or retained in the test suite.
+The final 2.5-second budget is a constant-only adjustment; these device timings
+were collected before that adjustment.
