@@ -23,5 +23,5 @@
     <string name="tts_offline_parameters">Недопустимый или ненастроенный параметр голоса: %1$s</string>
     <string name="tts_offline_path">Каталог модели должен быть безопасным относительным путём.</string>
     <string name="tts_offline_ambiguous">Голос или ресурсы модели определены неоднозначно.</string>
-    <string name="tts_offline_unavailable">Офлайн-голос недоступен. Проверьте ресурсы и поддержку устройства в списке голосов.</string>
+    <string name="tts_offline_unavailable">Офлайн-голос недоступен.</string>
 </resources>

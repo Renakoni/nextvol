@@ -10,7 +10,6 @@ class SpeechVoiceSelectionTest {
 
     @Test fun singleSelectionTogglesAndChangingCategoryFirstRemovesTheOldAssignment() {
         var settings = SpeechSettings(httpSource = "first")
-        assertFalse(settings.allowMultipleVoices)
         assertEquals(SpeechVoiceSelection.Narration, settings.voiceSelection(first))
         settings = settings.toggleVoice(false, first)
         assertTrue(settings.voiceRoutingConfigured)

@@ -1,4 +1,5 @@
 <resources>
+    <string name="tts_voice_error">%1$s：%2$s</string>
     <string name="tts_voice_none">未選擇聲音</string>
     <string name="tts_assign_voice">指定聲音</string>
     <string name="tts_voice_enable_dialogue">請先啟動「合成對話」功能</string>

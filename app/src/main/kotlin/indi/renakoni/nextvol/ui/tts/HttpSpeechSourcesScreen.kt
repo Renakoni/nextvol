@@ -67,6 +67,9 @@ fun HttpSpeechSourcesScreen(
     selection: SpeechSettings = SpeechSettings(),
     onDialogue: (String?) -> Unit = {},
     onSystemGroup: () -> Unit = {},
+    focusVoiceKey: String? = null,
+    focusOfflineEngine: String? = null,
+    configureCredentials: Boolean = false,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -143,6 +146,23 @@ fun HttpSpeechSourcesScreen(
     val pager = rememberPagerState { pagerGroups.size }
     val scope = rememberCoroutineScope()
     val currentGroup = groups[pager.currentPage.coerceIn(groups.indices)].first
+    var focusHandled by rememberSaveable(focusVoiceKey) { mutableStateOf(false) }
+    LaunchedEffect(catalogReady, focusVoiceKey, focusOfflineEngine) {
+        if (catalogReady && focusVoiceKey != null && !focusHandled) {
+            val source = state.sources.find { "http:${it.definition.id}" == focusVoiceKey }
+            val group = when {
+                source != null -> "http:${groupId(source)}"
+                focusOfflineEngine != null -> "offline:$focusOfflineEngine"
+                focusVoiceKey.startsWith("http:") -> groups.firstOrNull { it.first.startsWith("http:") }?.first
+                focusVoiceKey.startsWith("offline:") -> groups.firstOrNull { it.first.startsWith("offline:") }?.first
+                else -> "system"
+            }
+            val page = groups.indexOfFirst { it.first == group }
+            if (page >= 0) pager.scrollToPage(page)
+            if (configureCredentials && source?.credentialKeys?.isNotEmpty() == true) configuring = source
+            focusHandled = true
+        }
+    }
     val closeSearch = { searching = false; query = "" }
     BackHandler(searching, closeSearch)
     LaunchedEffect(currentGroup) { query = "" }

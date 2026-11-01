@@ -23,5 +23,5 @@
     <string name="tts_offline_parameters">Invalid or unresolved voice parameter: %1$s</string>
     <string name="tts_offline_path">The model directory is not a safe relative path.</string>
     <string name="tts_offline_ambiguous">This voice or its model resources are ambiguous.</string>
-    <string name="tts_offline_unavailable">The offline voice is unavailable. Check its resources and device support in Voices.</string>
+    <string name="tts_offline_unavailable">Offline voice unavailable.</string>
 </resources>
