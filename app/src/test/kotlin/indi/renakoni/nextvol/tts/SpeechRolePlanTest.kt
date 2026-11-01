@@ -35,7 +35,7 @@ class SpeechRolePlanTest {
     }
 
     @Test fun matchedPeopleAndOriginsSurvivePronunciationReplacementAndBackendSplitting() = runBlocking {
-        val concrete = role("甲").copy(regex = "阿甲|甲", bookId = "book")
+        val concrete = role("甲").copy(regex = "阿甲|甲")
         val abstract = role("家人", second).copy(regex = "小乙|小丙", isAbstract = true)
         val configured = settings.copy(roleRules = listOf(concrete, abstract), replacements = listOf(
             SpeechReplacementRule(source = "甲", target = "发"),
@@ -63,8 +63,8 @@ class SpeechRolePlanTest {
         assertEquals("𠀀", input.text.substring(original.start, original.end))
     }
 
-    @Test fun bookScopeAndMissingRoleSourcesNeverChooseAnotherConfiguredVoice() = runBlocking {
-        val local = role("甲").copy(bookId = "book")
+    @Test fun globalRulesAndMissingSourcesNeverChooseAnotherConfiguredVoice() = runBlocking {
+        val local = role("甲")
         val missing = role("乙", null)
         val unavailable = role("丙", second)
         val configured = settings.copy(roleRules = listOf(local, missing, unavailable))
@@ -80,10 +80,10 @@ class SpeechRolePlanTest {
         assertEquals(second.key, deleted.selectedVoice!!.reference.key)
         assertEquals(SpeechError.HttpSourceUnavailable, deleted.selectedVoice!!.error)
         val otherBook = prepareSpeechPlan(chapter("“<<甲>>你好。”", book = "other"), configured, voices = voices) {}
-        assertNull(otherBook.segments.single().roleMatch)
-        assertNull(otherBook.segments.single().speaker)
-        assertTrue("<<甲>>" in otherBook.segments.single().text)
-        assertEquals(narrator.key, otherBook.segments.single().selectedVoice!!.reference.key)
+        assertEquals(local.id, otherBook.segments.single().roleMatch?.ruleId)
+        assertEquals("甲", otherBook.segments.single().speaker)
+        assertFalse("<<甲>>" in otherBook.segments.single().text)
+        assertEquals(first.key, otherBook.segments.single().selectedVoice!!.reference.key)
     }
 
     @Test fun roleRulesOverrideExplicitAssignmentsAndTheirContinuedContext() = runBlocking {

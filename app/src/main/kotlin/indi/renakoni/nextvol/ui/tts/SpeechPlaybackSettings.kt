@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.ui.tts
 
 import androidx.annotation.StringRes
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
@@ -35,11 +36,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import java.util.regex.Pattern
+import java.util.regex.PatternSyntaxException
 import kotlin.math.roundToInt
 
 data class SpeechPlaybackSettingsState(
     val settings: SpeechTextSettings? = null,
     val allowMultipleVoices: Boolean = false,
+    val roleContextPattern: String = "__ROLE__",
     val error: SpeechError? = null,
 )
 
@@ -55,7 +59,8 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.changes.collect { settings -> mutableState.update {
-                it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices)
+                it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
+                    roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
         }
     }
@@ -63,6 +68,20 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun update(change: (SpeechTextSettings) -> SpeechTextSettings) = updateSettings { it.copy(text = change(it.text)) }
 
     fun allowMultipleVoices(enabled: Boolean) = updateSettings { it.copy(allowMultipleVoices = enabled) }
+
+    fun roleContextPattern(pattern: String) = updateSettings { it.copy(roleContextPattern = pattern) }
+
+    // MultiTTS seeds the localized default on the first visit to software settings.
+    fun initializeRoleContext(default: String) {
+        viewModelScope.launch {
+            try {
+                if (repository.get().roleContextPattern == null) repository.update {
+                    it.copy(roleContextPattern = it.roleContextPattern ?: default)
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.Storage) } }
+        }
+    }
 
     private fun updateSettings(change: (SpeechSettings) -> SpeechSettings) {
         viewModelScope.launch {
@@ -90,8 +109,12 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
-    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit) {
+    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
+    onContextPattern: (String) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
+    var editingContext by rememberSaveable { mutableStateOf(false) }
+    var contextPattern by rememberSaveable { mutableStateOf("") }
+    var contextError by remember { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
     val defaultText = stringResource(R.string.tts_preview_text)
     Scaffold(topBar = {
@@ -116,6 +139,19 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     state.allowMultipleVoices, onMultipleVoices) }
                 item { SpeechTextSwitch(R.drawable.tts_text_dialogue, R.string.tts_text_dialogue, R.string.tts_text_dialogue_description,
                     settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
+                item {
+                    Row(Modifier.fillMaxWidth().clickable {
+                        contextPattern = state.roleContextPattern; contextError = false; editingContext = true
+                    }.heightIn(min = 68.dp).padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(R.drawable.tts_text_role_matching), null, Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f).padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(stringResource(R.string.tts_role_context_template), style = MaterialTheme.typography.headlineSmall)
+                            Text(state.roleContextPattern, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
                 item { SpeechTextSwitch(R.drawable.tts_text_record_voice, R.string.tts_text_record_voice, R.string.tts_text_record_voice_description,
                     settings.recordVoice) { onUpdate { old -> old.copy(recordVoice = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_record_text, R.string.tts_text_record_text, R.string.tts_text_record_text_description,
@@ -181,6 +217,19 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
         confirmButton = { TextButton(onClick = { preferences.auditionData.asynchronousSet(text.trim()); editing = false }) {
             Text(stringResource(R.string.tts_engine_save))
         } }, dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } })
+    if (editingContext) AlertDialog(onDismissRequest = { editingContext = false },
+        title = { Text(stringResource(R.string.tts_role_context_template)) },
+        text = { ReplacementField(contextPattern, { contextPattern = it; contextError = false }, stringResource(R.string.tts_role_context_template),
+            error = if (contextError) stringResource(R.string.tts_replace_error_pattern) else null) },
+        confirmButton = { TextButton(onClick = {
+            try {
+                Pattern.compile(contextPattern)
+                onContextPattern(contextPattern.replace("__ALLROLE__", "__OTHER__"))
+                editingContext = false
+            } catch (_: PatternSyntaxException) { contextError = true }
+        }) {
+            Text(stringResource(R.string.confirm))
+        } }, dismissButton = { TextButton(onClick = { editingContext = false }) { Text(stringResource(R.string.cancel)) } })
 }
 
 @Composable

@@ -39,7 +39,7 @@ data class SpeechSettings(
     val voiceRoutingConfigured: Boolean = false,
     val allowMultipleVoices: Boolean = false,
     val roleRules: List<SpeechRoleRule> = emptyList(),
-    val roleContextPattern: String = "__ROLE__",
+    val roleContextPattern: String? = null,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),

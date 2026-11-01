@@ -1,10 +1,11 @@
 package indi.renakoni.nextvol.ui.tts
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -13,160 +14,158 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
-import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SpeechRolesScreen(state: SpeechRolesState, onBack: () -> Unit, onEdit: (String?, Boolean) -> Unit,
-    onToggle: (String, Boolean) -> Unit, onMove: (String, Int) -> Unit, onDelete: (String) -> Unit,
-    onAudition: (SpeechRoleRule) -> Unit, onPreview: () -> Unit, onContext: () -> Unit, onSources: () -> Unit,
-    playback: ReadAloudState, onCommand: (SpeechAction) -> Unit) {
-    var bookOnly by rememberSaveable { mutableStateOf(state.bookId != null) }
+internal fun SpeechRolesScreen(state: SpeechRolesState, onBack: () -> Unit, onEdit: (String?) -> Unit,
+    onToggle: (Set<String>, Boolean) -> Unit, onOrder: (List<SpeechRoleRule>) -> Unit,
+    onDelete: (Set<String>) -> Unit, onRename: (Set<String>, String) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
-    var menu by remember { mutableStateOf(false) }
-    var showPlayback by remember { mutableStateOf(false) }
-    val rules = state.settings.roleRules.filter { rule ->
-        (if (bookOnly) state.bookId != null && (rule.bookId == null || rule.bookId == state.bookId) else rule.bookId == null) &&
-            (query.isBlank() || listOf(rule.name, rule.regex, rule.group, rule.note).any { it.contains(query, true) })
+    var submitted by rememberSaveable { mutableStateOf("") }
+    var excluded by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf<List<String>?>(null) }
+    var ordered by remember(state.settings.roleRules) { mutableStateOf(state.settings.roleRules) }
+    var deleting by remember { mutableStateOf<Pair<String, Set<String>>?>(null) }
+    var renaming by remember { mutableStateOf<Set<String>?>(null) }
+    var groupName by remember { mutableStateOf("") }
+    val closeSearch = {
+        if (query.isNotEmpty()) query = ""
+        else { searching = false; submitted = ""; excluded = emptyList() }
     }
+    BackHandler(searching, closeSearch)
+    // MultiTTS keeps the submitted result until the next search; edits and new roles stay visible.
+    val visible = ordered.filterNot { it.id in excluded }
+    val groups = visible.groupBy { it.group }
+    val open = expanded ?: groups.keys.take(1)
+    val lazyState = rememberLazyListState()
+    val reorderState = rememberReorderableLazyListState(lazyState) { from, to ->
+        val first = from.key as String
+        val second = to.key as String
+        val moved = moveSpeechRoles(ordered, first, second)
+        if (moved != ordered) {
+            if (first.startsWith("group:")) expanded = open - first.removePrefix("group:") - second.removePrefix("group:")
+            ordered = moved
+        }
+    }
+    val deleteLabel = stringResource(R.string.tts_replace_delete)
+    val defaultGroup = stringResource(R.string.tts_replace_ungrouped)
     Scaffold(topBar = {
-        TopAppBar(title = { Text(stringResource(R.string.tts_roles), style = MaterialTheme.typography.displayLarge,
-            maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
-            IconButton(onBack) { Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back)) }
-        }, actions = {
-            IconButton(onClick = { onEdit(null, bookOnly) }, enabled = !state.loading && !state.saving) {
-                Icon(painterResource(R.drawable.add_circle_24px), stringResource(R.string.tts_role_add))
-            }
-            Box {
-                IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_role_menu)) }
-                DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_role_preview)) }, onClick = { menu = false; onPreview() })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_role_context_template)) }, onClick = { menu = false; onContext() })
+        SpeechRolesTopBar(query, { query = it }, searching, { searching = true }, closeSearch,
+            onSubmit = {
+                if (query.isNotBlank()) {
+                    submitted = query
+                    val matching = filterSpeechRoles(ordered, query).map { it.id }.toSet()
+                    excluded = ordered.map { it.id }.filterNot { it in matching }
                 }
-            }
-        })
-    }, bottomBar = {
-        if (playback.request != null && playback.phase != SpeechPhase.Stopped)
-            SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
+            }, suggestions = speechRoleSearchSuggestions(ordered), onBack = onBack,
+            busy = state.loading || state.catalogLoading || state.saving, onAdd = { onEdit(null) })
     }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-roles-list"), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item {
-                Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(!bookOnly, { bookOnly = false }, label = { Text(stringResource(R.string.tts_role_global)) })
-                        FilterChip(bookOnly, { bookOnly = true }, enabled = state.bookId != null,
-                            label = { Text(stringResource(R.string.tts_role_this_book)) })
-                    }
-                    if (bookOnly) Text(state.bookTitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ReplacementField(query, { query = it }, stringResource(R.string.tts_role_search), singleLine = true)
-                }
-            }
+        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-roles-list"), state = lazyState,
+            contentPadding = PaddingValues(bottom = 24.dp)) {
             if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            state.error?.let { error -> item { RoleError(error, onSources, Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) } }
-            if (!state.loading && rules.isEmpty()) item {
-                Text(stringResource(if (query.isEmpty()) R.string.tts_role_empty else R.string.search_no_results),
+            state.error?.let { error -> item {
+                Text(stringResource(error.messageResource), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error)
+            } }
+            if (!state.loading && visible.isEmpty()) item {
+                Text(stringResource(if (submitted.isEmpty()) R.string.tts_role_empty else R.string.search_no_results),
                     Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            itemsIndexed(rules, key = { _, rule -> rule.id }) { index, rule ->
-                var actions by remember { mutableStateOf(false) }
-                val order = state.settings.roleRules.indexOf(rule)
-                ListItem(headlineContent = {
-                    Text(stringResource(R.string.tts_voice_segment, order + 1, rule.label), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                },
-                    supportingContent = {
-                        Text(listOf(rule.group, stringResource(if (rule.bookId == null) R.string.tts_role_global else R.string.tts_role_this_book),
-                            stringResource(if (rule.mode == 0) R.string.tts_role_mode_text else if (rule.isAbstract)
-                            R.string.tts_role_abstract else R.string.tts_role_concrete),
-                            rule.speaker?.label ?: stringResource(R.string.tts_role_voice_missing)).filter { it.isNotEmpty() }.joinToString(" · "))
-                    }, trailingContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(rule.activate, { onToggle(rule.id, it) }, enabled = !state.saving,
-                                modifier = Modifier.semantics { contentDescription = rule.label })
-                            Box {
-                                IconButton(onClick = { actions = true }, enabled = !state.saving) {
-                                    Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_replace_actions, rule.label))
-                                }
-                                DropdownMenu(actions, { actions = false }) {
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_replace_edit)) },
-                                        onClick = { actions = false; onEdit(rule.id, bookOnly) })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_preview)) },
-                                        onClick = { actions = false; onAudition(rule) })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_replace_up)) }, enabled = index > 0,
-                                        onClick = { actions = false; onMove(rule.id, state.settings.roleRules.indexOf(rules[index - 1]) - order) })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_replace_down)) }, enabled = index < rules.lastIndex,
-                                        onClick = { actions = false; onMove(rule.id, state.settings.roleRules.indexOf(rules[index + 1]) - order) })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_replace_delete)) },
-                                        onClick = { actions = false; onDelete(rule.id) })
+            groups.forEach { (group, rules) ->
+                val ids = rules.map { it.id }.toSet()
+                val label = group.ifEmpty { defaultGroup }
+                val enabledCount = rules.count { it.activate }
+                item(key = "group:$group") {
+                    ReorderableItem(reorderState, key = "group:$group") { dragging ->
+                        RoleSwipeRow({ deleting = label to ids }) {
+                            Surface(color = MaterialTheme.colorScheme.surfaceContainer,
+                                shadowElevation = if (dragging) 4.dp else 0.dp) {
+                                Row(Modifier.fillMaxWidth().longPressDraggableHandle(enabled = !state.saving,
+                                    onDragStopped = { if (ordered != state.settings.roleRules) onOrder(ordered) })
+                                    .clickable { expanded = if (group in open) open - group else open + group }
+                                    .semantics { customActions = listOf(CustomAccessibilityAction(deleteLabel) { deleting = label to ids; true }) }
+                                    .padding(start = 20.dp, end = 12.dp).heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(painterResource(if (group in open) R.drawable.keyboard_arrow_up_24px else R.drawable.arrow_right_24px),
+                                        stringResource(if (group in open) R.string.tts_replace_collapse else R.string.tts_replace_expand))
+                                    Text(stringResource(R.string.tts_role_group_count, label, enabledCount, rules.size),
+                                        Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall)
+                                    IconButton(onClick = { groupName = label; renaming = ids }, enabled = !state.saving) {
+                                        Icon(painterResource(R.drawable.edit_square_24px), stringResource(R.string.tts_role_edit_group))
+                                    }
+                                    Checkbox(enabledCount != 0, { onToggle(ids, it) }, enabled = !state.saving,
+                                        modifier = Modifier.semantics { contentDescription = label })
                                 }
                             }
                         }
-                    }, modifier = Modifier.clickable(enabled = !state.saving) { onEdit(rule.id, bookOnly) }
-                        .testTag("speech-role-${rule.id}"))
+                    }
+                }
+                if (group in open) items(rules, key = { "role:${it.id}" }) { rule ->
+                    ReorderableItem(reorderState, key = "role:${rule.id}") { dragging ->
+                        RoleSwipeRow({ deleting = rule.label to setOf(rule.id) }) {
+                            Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = if (dragging) 4.dp else 0.dp) {
+                                Row(Modifier.fillMaxWidth().longPressDraggableHandle(enabled = !state.saving,
+                                    onDragStopped = { if (ordered != state.settings.roleRules) onOrder(ordered) })
+                                    // Original row toggles only its UI cache; persist the same action like its checkbox.
+                                    .clickable(enabled = !state.saving) { onToggle(setOf(rule.id), !rule.activate) }
+                                    .testTag("speech-role-${rule.id}")
+                                    .semantics { customActions = listOf(CustomAccessibilityAction(deleteLabel) {
+                                        deleting = rule.label to setOf(rule.id); true
+                                    }) }
+                                    .padding(start = 24.dp, end = 12.dp).heightIn(min = 64.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(rule.label, Modifier.weight(1f).padding(end = 12.dp), style = MaterialTheme.typography.bodyLarge,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(rule.speaker?.label ?: stringResource(R.string.tts_role_voice_missing), Modifier.weight(1.5f),
+                                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    IconButton(onClick = { onEdit(rule.id) }, enabled = !state.saving && !state.catalogLoading) {
+                                        Icon(painterResource(R.drawable.edit_square_24px), stringResource(R.string.tts_replace_edit))
+                                    }
+                                    Checkbox(rule.activate, { onToggle(setOf(rule.id), it) }, enabled = !state.saving,
+                                        modifier = Modifier.semantics { contentDescription = rule.label })
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
-    if (showPlayback) ReadAloudSheet(playback, onCommand, onSettings = null, onDismiss = { showPlayback = false })
+    deleting?.let { (name, ids) ->
+        AlertDialog(onDismissRequest = { deleting = null }, title = { Text(stringResource(R.string.tts_replace_delete)) },
+            text = { Text(stringResource(R.string.tts_role_delete_confirm, name)) },
+            confirmButton = { TextButton(onClick = { onDelete(ids); deleting = null }) { Text(stringResource(R.string.confirm)) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.cancel)) } })
+    }
+    renaming?.let { ids ->
+        AlertDialog(onDismissRequest = { renaming = null }, title = { Text(stringResource(R.string.tts_role_edit_group)) },
+            text = { ReplacementField(groupName, { groupName = it }, stringResource(R.string.tts_replace_group), singleLine = true) },
+            confirmButton = { TextButton(onClick = { onRename(ids, groupName); renaming = null }) { Text(stringResource(R.string.confirm)) } },
+            dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(R.string.cancel)) } })
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SpeechRolePreviewScreen(state: SpeechRolesState, onBack: () -> Unit,
-    onPreview: (String, Boolean) -> Unit, onClear: () -> Unit, onRule: (String) -> Unit, onSources: () -> Unit) {
-    var text by rememberSaveable { mutableStateOf("") }
-    DisposableEffect(Unit) { onDispose(onClear) }
-    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_role_preview, onBack) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(), contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { ReplacementField(text, { text = it; onClear() }, stringResource(R.string.tts_replace_input), minLines = 3) }
-            item {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onPreview(text, false) }, enabled = !state.previewing && !state.loading) {
-                        Text(stringResource(R.string.tts_replace_run_preview))
-                    }
-                    TextButton(onClick = { onPreview("", true) }, enabled = state.bookId != null && !state.previewing) {
-                        Text(stringResource(R.string.tts_role_current_chapter))
-                    }
-                    if (state.previewing) TextButton(onClear) { Text(stringResource(R.string.cancel)) }
-                }
-            }
-            rolePreview(state, onSources, onRule)
+private fun RoleSwipeRow(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val swipe = rememberSwipeToDismissBoxState(confirmValueChange = {
+        if (it != SwipeToDismissBoxValue.Settled) onDelete()
+        false
+    })
+    SwipeToDismissBox(swipe, backgroundContent = {
+        Box(Modifier.fillMaxSize().padding(horizontal = 24.dp),
+            contentAlignment = if (swipe.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd) {
+            Icon(painterResource(R.drawable.delete_forever_24px), null, tint = MaterialTheme.colorScheme.error)
         }
-    }
-}
-
-internal fun LazyListScope.rolePreview(state: SpeechRolesState, onSources: () -> Unit, onRule: ((String) -> Unit)? = null) {
-    if (state.previewing) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-    state.failure?.let { failure -> item {
-        SpeechRoleError(failure)
-        if (onRule != null) TextButton(onClick = { onRule(failure.ruleId) }) { Text(stringResource(R.string.tts_replace_edit)) }
-    } }
-    state.error?.let { error -> item { RoleError(error, onSources) } }
-    state.preview?.let { plan ->
-        if (plan.segments.isEmpty()) item { Text(stringResource(R.string.tts_replace_no_speech)) }
-        itemsIndexed(plan.segments) { _, segment ->
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                val match = segment.roleMatch
-                Text(match?.let { stringResource(R.string.tts_role_match, it.ruleName, it.person) }
-                    ?: stringResource(R.string.tts_role_no_match), style = MaterialTheme.typography.titleSmall,
-                    color = if (match == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
-                Text(segment.selectedVoice?.label.orEmpty(), style = MaterialTheme.typography.labelLarge)
-                Text(segment.text)
-                if (segment.beforeText.isNotEmpty() || segment.rememberedText.isNotEmpty()) Text(
-                    stringResource(R.string.tts_role_context_before, (segment.beforeText.ifEmpty { segment.rememberedText }).asReversed().joinToString("")),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (segment.afterText.isNotEmpty()) Text(stringResource(R.string.tts_role_context_after, segment.afterText.joinToString("")),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                segment.selectedVoice?.error?.let { error -> RoleError(error, onSources) }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            }
-        }
-    }
+    }) { content() }
 }
 
 @Composable
@@ -177,12 +176,4 @@ internal fun SpeechRoleError(failure: SpeechRoleFailure) {
         SpeechReplacementProblem.Budget -> R.string.tts_replace_error_budget
     })
     Text(stringResource(R.string.tts_replace_error_rule, failure.ruleName, reason), color = MaterialTheme.colorScheme.error)
-}
-
-@Composable
-internal fun RoleError(error: SpeechError, onSources: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(stringResource(error.messageResource), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-        TextButton(onSources) { Text(stringResource(R.string.tts_sources)) }
-    }
 }

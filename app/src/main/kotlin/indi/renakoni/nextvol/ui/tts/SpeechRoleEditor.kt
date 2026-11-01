@@ -1,139 +1,146 @@
 package indi.renakoni.nextvol.ui.tts
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechRoleRule
-import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
+import indi.renakoni.nextvol.tts.messageResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SpeechRoleEditorScreen(state: SpeechRolesState, onBack: () -> Unit, onSave: () -> Unit,
-    onEdit: ((SpeechRoleRule) -> SpeechRoleRule) -> Unit, onChooseVoice: () -> Unit,
-    onPreview: (String) -> Unit, onClearPreview: () -> Unit, onSources: () -> Unit) {
-    val draft = state.draft
-    var sample by rememberSaveable(draft?.id) { mutableStateOf("") }
-    val back = { if (!state.saving) onBack() }
+internal fun SpeechRoleEditorScreen(state: SpeechRolesState, onBack: () -> Unit, onSave: (String) -> Unit,
+    onEdit: ((SpeechRoleRule) -> SpeechRoleRule) -> Unit, onEngine: (String) -> Unit) {
     BackHandler(enabled = state.saving) { }
-    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_role_edit, back) },
-        bottomBar = {
-            if (draft != null) RoleSaveBar(state.saving, back, onSave)
-        }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding().testTag("speech-role-editor"),
-            contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (state.loading || draft == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            if (draft != null) {
-                item { ReplacementField(draft.name, { value -> onEdit { it.copy(name = value) } },
-                    stringResource(R.string.tts_replace_name), singleLine = true) }
-                item { ReplacementField(draft.regex, { value -> onEdit { it.copy(regex = value) } },
-                    stringResource(R.string.tts_role_regex), Modifier.testTag("speech-role-regex")) }
-                item {
-                    Text(stringResource(R.string.tts_role_regex_hint), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Surface(Modifier.padding(24.dp).widthIn(max = 560.dp).fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
+        val draft = state.draft
+        if (state.loading || draft == null) {
+            LinearProgressIndicator(Modifier.padding(24.dp))
+            return@Surface
+        }
+        val modes = listOf(0 to stringResource(R.string.tts_role_mode_text),
+            2 to stringResource(R.string.tts_role_mode_character))
+        val engine = state.engines.find { it.key == state.engineKey }
+        val groups = state.settings.roleRules.map { it.group }.filter { it.isNotEmpty() }.distinct()
+        var groupsOpen by remember { mutableStateOf(false) }
+        val defaultGroup = stringResource(R.string.tts_replace_ungrouped)
+        val existing = state.settings.roleRules.any { it.id == draft.id }
+        Column(Modifier.testTag("speech-role-editor")) {
+            Text(stringResource(if (existing) R.string.tts_role_edit else R.string.tts_role_add),
+                Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp),
+                style = MaterialTheme.typography.headlineSmall)
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                RoleDropdown(modes.find { it.first == draft.mode }?.second.orEmpty(), stringResource(R.string.tts_role_mode),
+                    modes, { it.second }, { mode -> onEdit { it.copy(mode = mode.first) } }, enabled = !state.saving)
+                ReplacementField(draft.name, { value -> onEdit { it.copy(name = value) } },
+                    stringResource(R.string.tts_role_name), singleLine = true, readOnly = state.saving)
+                ReplacementField(draft.regex, { value -> onEdit { it.copy(regex = value) } },
+                    stringResource(R.string.tts_role_regex), Modifier.testTag("speech-role-regex"), readOnly = state.saving)
+                RoleDropdown(engine?.name.orEmpty(), stringResource(R.string.tts_role_engine),
+                    state.engines, { it.name }, { onEngine(it.key) }, filterable = true,
+                    enabled = !state.saving && !state.catalogLoading)
+                key(state.engineKey) {
+                    RoleDropdown(draft.speaker?.label.orEmpty(), stringResource(R.string.tts_role_voice),
+                        engine?.voices.orEmpty(), { it.label }, { voice -> onEdit { it.copy(speaker = voice) } },
+                        filterable = true, enabled = !state.saving && !state.catalogLoading)
                 }
-                item {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(draft.mode == 2, { onEdit { it.copy(mode = 2) } }, label = { Text(stringResource(R.string.tts_role_mode_character)) })
-                        FilterChip(draft.mode == 0, { onEdit { it.copy(mode = 0) } }, label = { Text(stringResource(R.string.tts_role_mode_text)) })
+                if (state.catalogLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                ExposedDropdownMenuBox(groupsOpen, { if (!state.saving && groups.isNotEmpty()) groupsOpen = it }) {
+                    ReplacementField(draft.group, { value -> onEdit { it.copy(group = value) } },
+                        stringResource(R.string.tts_role_group),
+                        Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = !state.saving),
+                        singleLine = true, readOnly = state.saving,
+                        trailingIcon = if (groups.isEmpty()) null else {
+                            { ExposedDropdownMenuDefaults.TrailingIcon(groupsOpen,
+                                Modifier.menuAnchor(ExposedDropdownMenuAnchorType.SecondaryEditable, enabled = !state.saving)) }
+                        })
+                    ExposedDropdownMenu(groupsOpen, { groupsOpen = false }) {
+                        groups.forEach { value -> DropdownMenuItem(text = { Text(value) },
+                            onClick = { onEdit { it.copy(group = value) }; groupsOpen = false }) }
                     }
                 }
-                if (draft.mode == 2) item {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(!draft.isAbstract, { onEdit { it.copy(isAbstract = false) } }, label = { Text(stringResource(R.string.tts_role_concrete)) })
-                        FilterChip(draft.isAbstract, { onEdit { it.copy(isAbstract = true) } }, label = { Text(stringResource(R.string.tts_role_abstract)) })
-                    }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    RoleCheckbox(stringResource(R.string.tts_role_abstract), draft.isAbstract, !state.saving,
+                        Modifier.weight(1f)) { value -> onEdit { it.copy(isAbstract = value) } }
+                    RoleCheckbox(stringResource(R.string.tts_role_activate), draft.activate, !state.saving,
+                        Modifier.weight(1f)) { value -> onEdit { it.copy(activate = value) } }
                 }
-                item {
-                    Row(Modifier.fillMaxWidth().clickable(enabled = !state.saving, onClick = onChooseVoice).heightIn(min = 64.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(stringResource(R.string.tts_assign_voice), style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(draft.speaker?.label ?: stringResource(R.string.tts_role_voice_missing),
-                                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                        }
-                        Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp))
-                    }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    RoleCheckbox(stringResource(R.string.tts_role_before), draft.matchBefore, !state.saving,
+                        Modifier.weight(1f)) { value -> onEdit { it.copy(matchBefore = value) } }
+                    RoleCheckbox(stringResource(R.string.tts_role_after), draft.matchAfter, !state.saving,
+                        Modifier.weight(1f)) { value -> onEdit { it.copy(matchAfter = value) } }
                 }
-                item { ReplacementField(draft.group, { value -> onEdit { it.copy(group = value) } },
-                    stringResource(R.string.tts_replace_group), singleLine = true) }
-                item {
-                    Text(stringResource(R.string.tts_role_scope), style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(draft.bookId == null, { onEdit { it.copy(bookId = null) } }, label = { Text(stringResource(R.string.tts_role_global)) })
-                        FilterChip(draft.bookId != null, { onEdit { it.copy(bookId = state.bookId) } }, enabled = state.bookId != null,
-                            label = { Text(stringResource(R.string.tts_role_this_book)) })
-                    }
+                state.saveError?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+                state.error?.let { Text(stringResource(it.messageResource), color = MaterialTheme.colorScheme.error) }
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { onEdit { it.copy(isAbstract = false, activate = true, matchBefore = true, matchAfter = true) } },
+                    enabled = !state.saving) { Text(stringResource(R.string.tts_role_defaults)) }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onBack, enabled = !state.saving) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { onSave(defaultGroup) }, enabled = !state.saving) {
+                    Text(stringResource(R.string.confirm))
                 }
-                if (draft.mode == 2) item {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        RoleCheckbox(stringResource(R.string.tts_role_before), draft.matchBefore) { value -> onEdit { it.copy(matchBefore = value) } }
-                        RoleCheckbox(stringResource(R.string.tts_role_after), draft.matchAfter) { value -> onEdit { it.copy(matchAfter = value) } }
-                    }
-                }
-                item { RoleCheckbox(stringResource(R.string.tts_replace_enabled), draft.activate) { value -> onEdit { it.copy(activate = value) } } }
-                item { ReplacementField(draft.note, { value -> onEdit { it.copy(note = value) } }, stringResource(R.string.tts_role_note)) }
-                item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-                item { ReplacementField(sample, { sample = it; onClearPreview() }, stringResource(R.string.tts_replace_test_input), minLines = 2) }
-                item {
-                    Button(onClick = { if (state.previewing) onClearPreview() else onPreview(sample) }, enabled = !state.saving) {
-                        Text(stringResource(if (state.previewing) R.string.cancel else R.string.tts_role_test_draft))
-                    }
-                }
-                rolePreview(state, { if (!state.saving) onSources() })
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> RoleDropdown(value: String, label: String, options: List<T>, optionLabel: (T) -> String,
+    onSelect: (T) -> Unit, filterable: Boolean = false, enabled: Boolean = true) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember(value) { mutableStateOf(value) }
+    var filter by remember(value) { mutableStateOf<String?>(null) }
+    val matches = filter?.let { text -> options.filter { optionLabel(it).contains(text, ignoreCase = true) } } ?: options
+    ExposedDropdownMenuBox(expanded, { open ->
+        if (enabled) {
+            expanded = open
+            query = value
+            filter = null
+        }
+    }) {
+        ReplacementField(if (expanded) query else value, { text ->
+            query = text
+            filter = text
+            expanded = true
+        }, label,
+            Modifier.onFocusChanged { if (filterable && !it.isFocused) expanded = false }
+                .menuAnchor(if (filterable) ExposedDropdownMenuAnchorType.PrimaryEditable
+                else ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = enabled),
+            singleLine = true, readOnly = !filterable || !enabled,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded,
+                if (filterable) Modifier.menuAnchor(ExposedDropdownMenuAnchorType.SecondaryEditable, enabled = enabled)
+                else Modifier) })
+        ExposedDropdownMenu(expanded && matches.isNotEmpty(), { expanded = false }) {
+            matches.forEach { option ->
+                DropdownMenuItem(text = { Text(optionLabel(option)) },
+                    onClick = { onSelect(option); expanded = false })
             }
         }
     }
 }
 
 @Composable
-private fun RoleCheckbox(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox, onValueChange = onChange),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Checkbox(checked, null)
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun SpeechRoleContextScreen(state: SpeechRolesState, onBack: () -> Unit, onSave: (String) -> Unit) {
-    var pattern by rememberSaveable(state.settings.roleContextPattern) { mutableStateOf(state.settings.roleContextPattern) }
-    val back = { if (!state.saving) onBack() }
-    BackHandler(enabled = state.saving) { }
-    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_role_context_template, back) },
-        bottomBar = { RoleSaveBar(state.saving, back) { onSave(pattern) } }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(), contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { ReplacementField(pattern, { pattern = it }, stringResource(R.string.tts_role_context_template), minLines = 3) }
-            item { Text(stringResource(R.string.tts_role_context_hint), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            if (state.error != null) item { Text(stringResource(R.string.save_failed), color = MaterialTheme.colorScheme.error) }
-        }
-    }
-}
-
-@Composable
-private fun RoleSaveBar(saving: Boolean, onBack: () -> Unit, onSave: () -> Unit) {
-    Surface {
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 22.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)) {
-            TextButton(onBack, enabled = !saving) { Text(stringResource(R.string.cancel)) }
-            Button(onSave, enabled = !saving) { Text(stringResource(R.string.tts_engine_save)) }
-        }
+private fun RoleCheckbox(label: String, checked: Boolean, enabled: Boolean, modifier: Modifier,
+    onChange: (Boolean) -> Unit) {
+    Row(modifier.heightIn(min = 48.dp).toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Checkbox(checked, null, enabled = enabled)
     }
 }

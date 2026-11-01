@@ -1,90 +1,105 @@
 package indi.renakoni.nextvol.ui.tts
 
 import androidx.lifecycle.viewModelScope
+import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Test
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class SpeechRolesViewModelTest {
-    @Test fun savingDoesNotExecuteRulesAndDraftPreviewDoesNotPublishChanges() = runTest {
+    @Test fun editorKeepsEngineVoiceSelectionAndSavesOnlyTheConfirmedDraft() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val voice = SpeechVoiceRef(httpSource = "voice", label = "Voice")
-        val otherBook = SpeechRoleRule(id = "other", name = "Other", bookId = "other-book")
-        val original = SpeechSettings(rate = 1.2f, roleRules = listOf(otherBook))
-        val stored = MutableStateFlow(original)
-        val observed = MutableSharedFlow<SpeechSettings>(replay = 1)
+        val first = SpeechVoiceRef(httpSource = "first", label = "First")
+        val second = SpeechVoiceRef(httpSource = "second", label = "Second")
+        val original = SpeechRoleRule(id = "original", name = "Original", group = "Friends", speaker = first)
+        val stored = MutableStateFlow(SpeechSettings(rate = 1.2f, roleRules = listOf(original)))
         val repository = mockk<SpeechSettingsRepository>()
-        every { repository.changes } returns observed
+        every { repository.changes } returns stored
         coEvery { repository.update(any()) } coAnswers {
             stored.value = firstArg<(SpeechSettings) -> SpeechSettings>()(stored.value)
-            observed.emit(stored.value)
         }
         val catalog = mockk<SpeechVoiceCatalog>()
-        coEvery { catalog.choices() } returns listOf(voice)
-        val plans = mockk<SpeechPlanPreparer>()
-        coEvery { plans.prepare(any(), any(), any(), any()) } coAnswers {
-            SpeechPlan(firstArg(), secondArg(), emptyList(), "", emptyList(), context = thirdArg())
-        }
-        val controller = mockk<ReadAloudController>(relaxed = true)
-        every { controller.state } returns MutableStateFlow(ReadAloudState(SpeechRequest("book", "chapter"), bookTitle = "Book"))
-        val chapters = mockk<SpeechChapterSource>()
-        val model = SpeechRolesViewModel(repository, catalog, plans, chapters, controller)
+        coEvery { catalog.roleEngines() } returns listOf(
+            SpeechRoleEngine("first", "Engine one", listOf(first)),
+            SpeechRoleEngine("second", "Engine two", listOf(second)))
+        val model = SpeechRolesViewModel(repository, catalog)
         try {
             runCurrent()
-            assertFalse(model.state.value.catalogLoading)
-            assertTrue(model.state.value.loading)
-            observed.emit(original)
+            model.editRule(null)
+            assertEquals(first, model.state.value.draft!!.speaker)
+            assertEquals("Friends", model.state.value.draft!!.group)
+            model.selectEngine("second")
+            assertEquals(second, model.state.value.draft!!.speaker)
+            model.edit { it.copy(name = "Friends", regex = "[", isAbstract = true, matchAfter = false) }
+            model.save("Default") { fail("Invalid pattern must stay in the editor") }
+            assertEquals(R.string.tts_replace_error_pattern, model.state.value.saveError)
+            coVerify(exactly = 0) { repository.update(any()) }
+            model.edit { it.copy(regex = "", group = "") }
+            var saved = false
+            model.save("Default") { saved = true }
             runCurrent()
-            assertFalse(model.state.value.loading)
-            model.editRule(null, true)
-            model.edit { it.copy(name = "朋友", regex = "[", group = "同伴", activate = false,
-                isAbstract = true, matchBefore = false, matchAfter = true, speaker = voice, note = "备注") }
-            val saved = model.state.value.draft!!
-            model.save {}
+            assertTrue(saved)
+            val rule = stored.value.roleRules.last()
+            assertEquals("Friends", rule.regex)
+            assertEquals("Default", rule.group)
+            assertEquals(second, rule.speaker)
+            assertTrue(rule.isAbstract)
+            assertFalse(rule.matchAfter)
+            assertEquals(1.2f, stored.value.rate)
+            model.editRule(rule.id)
+            assertEquals(rule, model.state.value.draft)
+            assertEquals("second", model.state.value.engineKey)
+
+            // A removed voice remains identifiable; opening its rule must not silently choose another.
+            stored.value = stored.value.copy(roleRules = listOf(rule.copy(speaker = SpeechVoiceRef(httpSource = "gone"))))
             runCurrent()
-            assertEquals(original.copy(roleRules = listOf(otherBook, saved)), stored.value)
-            assertEquals("book", saved.bookId)
-            coVerify(exactly = 0) { plans.prepare(any(), any(), any(), any()) }
+            model.editRule(rule.id)
+            assertEquals("gone", model.state.value.draft!!.speaker!!.httpSource)
+            assertNull(model.state.value.engineKey)
+        } finally {
+            model.viewModelScope.cancel()
+            Dispatchers.resetMain()
+        }
+    }
 
-            model.edit { it.copy(regex = "张三|小张") }
-            model.preview("张三说：“你好。”", draft = true)
-            val result = withContext(Dispatchers.Default) { withTimeout(5000) { model.state.first { it.preview != null } } }
-            assertEquals(saved.copy(regex = "张三|小张", activate = true), result.preview!!.synthesis.roleRules.last())
-            assertEquals(listOf(otherBook, saved), stored.value.roleRules)
-            coVerify(exactly = 1) { repository.update(any()) }
-            verify(exactly = 0) { controller.preview(any(), any()) }
-
-            model.editRule(saved.id, false)
-            assertEquals(saved, model.state.value.draft)
-            model.audition(saved, "试听")
-            verify { controller.preview("试听", stored.value.forVoice(voice)) }
-
-            val first = saved.copy(id = "first", group = "a")
-            val last = saved.copy(id = "last", group = "b")
-            val global = otherBook.copy(id = "global", bookId = null)
-            stored.value = stored.value.copy(roleRules = listOf(first, otherBook, global, last))
-            model.move(last.id, -3)
+    @Test fun filteredGroupActionsOnlyChangeTheirVisibleMembers() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val visible = SpeechRoleRule(id = "visible", name = "Visible", group = "Group")
+        val hidden = visible.copy(id = "hidden", name = "Hidden")
+        val stored = MutableStateFlow(SpeechSettings(roleRules = listOf(visible, hidden)))
+        val repository = mockk<SpeechSettingsRepository>()
+        every { repository.changes } returns stored
+        coEvery { repository.update(any()) } coAnswers {
+            stored.value = firstArg<(SpeechSettings) -> SpeechSettings>()(stored.value)
+        }
+        val catalog = mockk<SpeechVoiceCatalog>()
+        coEvery { catalog.roleEngines() } returns emptyList()
+        val model = SpeechRolesViewModel(repository, catalog)
+        try {
             runCurrent()
-            // Moving across filtered groups preserves the relative order of every other rule.
-            assertEquals(listOf(last, first, otherBook, global), stored.value.roleRules)
+            val ids = filterSpeechRoles(stored.value.roleRules, "Visible").map { it.id }.toSet()
+            model.toggle(ids, false)
+            runCurrent()
+            model.renameGroup(ids, "Renamed")
+            runCurrent()
+            assertEquals(visible.copy(activate = false, group = "Renamed"), stored.value.roleRules.first())
+            assertEquals(hidden, stored.value.roleRules.last())
+            model.delete(ids)
+            runCurrent()
+            assertEquals(listOf(hidden), stored.value.roleRules)
         } finally {
             model.viewModelScope.cancel()
             Dispatchers.resetMain()

@@ -20,8 +20,6 @@ data class SpeechRoleRule(
     val matchBefore: Boolean = true,
     val matchAfter: Boolean = true,
     val speaker: SpeechVoiceRef? = null,
-    val bookId: String? = null,
-    val note: String = "",
 ) {
     val pattern: String get() = regex.ifEmpty { name }
     val label: String get() = name.ifEmpty { regex }
@@ -40,11 +38,11 @@ internal class SpeechRoleException(val failure: SpeechRoleFailure) : Exception()
 internal data class SpeechRoleText(val content: SpeechMappedText, val match: SpeechRoleMatch? = null)
 
 /** MultiTTS O6.f: direction-specific candidates, context template, then the first matching rule. */
-internal class SpeechRoleRules(rules: List<SpeechRoleRule>, bookId: String,
+internal class SpeechRoleRules(rules: List<SpeechRoleRule>,
     private val contextPattern: String = "__ROLE__",
     private val replaceRegex: (suspend (String, String, String) -> List<ReplacementPart>)? = null,
     private val checkCancelled: () -> Unit) {
-    private val active = rules.filter { it.activate && it.pattern.isNotEmpty() && (it.bookId == null || it.bookId == bookId) }
+    private val active = rules.filter { it.activate && it.pattern.isNotEmpty() }
     private val roles = active.filter { it.mode != 0 && it.mode != 1 && !it.pattern.startsWith("lang:") }
 
     suspend fun refresh(match: SpeechRoleMatch): SpeechRoleMatch? {

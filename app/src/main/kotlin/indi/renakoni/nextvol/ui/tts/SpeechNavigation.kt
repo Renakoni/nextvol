@@ -78,16 +78,7 @@ object SpeechReplacementPreviewRoute
 object SpeechRolesRoute
 
 @Serializable
-data class SpeechRoleEditorRoute(val ruleId: String? = null, val bookOnly: Boolean = false)
-
-@Serializable
-object SpeechRoleVoiceRoute
-
-@Serializable
-object SpeechRolePreviewRoute
-
-@Serializable
-object SpeechRoleContextRoute
+data class SpeechRoleEditorRoute(val ruleId: String? = null)
 
 @Serializable
 data class SpeechPackagePreviewRoute(val uri: String)
@@ -133,65 +124,24 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechRolesViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
-        val playback by viewModel.controller.state.collectAsStateWithLifecycle()
-        val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
-        val sample = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
-        LaunchedEffect(Unit) { viewModel.refresh() }
         SpeechRolesScreen(state, nav::popBackStackIfResumed,
-            onEdit = { id, bookOnly -> viewModel.editRule(id, bookOnly); nav.navigate(SpeechRoleEditorRoute(id, bookOnly)) },
-            onToggle = viewModel::toggle, onMove = viewModel::move, onDelete = viewModel::delete,
-            onAudition = { viewModel.audition(it, sample) },
-            onPreview = { nav.navigate(SpeechRolePreviewRoute) }, onContext = { nav.navigate(SpeechRoleContextRoute) },
-            onSources = { nav.navigate(HttpSpeechSourcesRoute) }, playback = playback, onCommand = viewModel.controller::command)
+            onEdit = { id -> viewModel.editRule(id); nav.navigate(SpeechRoleEditorRoute(id)) },
+            onToggle = viewModel::toggle, onOrder = viewModel::order, onDelete = viewModel::delete,
+            onRename = viewModel::renameGroup)
     }
-    composable<SpeechRoleEditorRoute> { entry ->
+    dialog<SpeechRoleEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val owner = remember(entry) { nav.getBackStackEntry<SpeechRolesRoute>() }
         val viewModel = hiltViewModel<SpeechRolesViewModel>(owner)
         val state by viewModel.state.collectAsStateWithLifecycle()
         val route = entry.toRoute<SpeechRoleEditorRoute>()
-        LaunchedEffect(state.loading) {
-            if (!state.loading && state.draft == null) viewModel.editRule(route.ruleId, route.bookOnly)
+        LaunchedEffect(state.loading, state.catalogLoading) {
+            if (!state.loading && !state.catalogLoading && state.draft == null) viewModel.editRule(route.ruleId)
         }
         SpeechRoleEditorScreen(state, nav::popBackStackIfResumed,
-            onSave = { viewModel.save(nav::popBackStackIfResumed) }, onEdit = viewModel::edit,
-            onChooseVoice = { nav.navigate(SpeechRoleVoiceRoute) },
-            onPreview = { viewModel.preview(it, draft = true) }, onClearPreview = viewModel::clearPreview,
-            onSources = { nav.navigate(HttpSpeechSourcesRoute) })
-    }
-    composable<SpeechRoleVoiceRoute> { entry ->
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val owner = remember(entry) { nav.getBackStackEntry<SpeechRolesRoute>() }
-        val viewModel = hiltViewModel<SpeechRolesViewModel>(owner)
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        LaunchedEffect(Unit) { viewModel.refresh() }
-        SpeechSingleVoicePickerScreen(state.choices, state.draft?.speaker, state.draft?.label.orEmpty(),
-            R.string.tts_role_voice_missing, state.loading || state.catalogLoading, state.error, nav::popBackStackIfResumed,
-            onSelect = { voice -> viewModel.edit { it.copy(speaker = voice) }; nav.popBackStackIfResumed() },
-            onSources = { nav.navigate(HttpSpeechSourcesRoute) })
-    }
-    composable<SpeechRolePreviewRoute> { entry ->
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val owner = remember(entry) { nav.getBackStackEntry<SpeechRolesRoute>() }
-        val viewModel = hiltViewModel<SpeechRolesViewModel>(owner)
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        LaunchedEffect(Unit) { viewModel.clearPreview() }
-        SpeechRolePreviewScreen(state, nav::popBackStackIfResumed,
-            onPreview = { text, current -> viewModel.preview(text, currentChapter = current) }, onClear = viewModel::clearPreview,
-            onRule = { viewModel.editRule(it, false); nav.navigate(SpeechRoleEditorRoute(it)) },
-            onSources = { nav.navigate(HttpSpeechSourcesRoute) })
-    }
-    composable<SpeechRoleContextRoute> { entry ->
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val owner = remember(entry) { nav.getBackStackEntry<SpeechRolesRoute>() }
-        val viewModel = hiltViewModel<SpeechRolesViewModel>(owner)
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechRoleContextScreen(state, nav::popBackStackIfResumed,
-            onSave = { viewModel.saveContext(it, nav::popBackStackIfResumed) })
+            onSave = { viewModel.save(it, nav::popBackStackIfResumed) }, onEdit = viewModel::edit,
+            onEngine = viewModel::selectEngine)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()
@@ -226,7 +176,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed, viewModel::update, viewModel::allowMultipleVoices)
+        val defaultContext = stringResource(R.string.tts_role_context_default)
+        LaunchedEffect(Unit) { viewModel.initializeRoleContext(defaultContext) }
+        SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
+            viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()
