@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_replacements">Правила замены</string>
+    <string name="tts_replace_add">Добавить правило</string>
+    <string name="tts_replace_preview">Просмотр замен</string>
+    <string name="tts_replace_ungrouped">Группа по умолчанию</string>
+    <string name="tts_replace_empty">Правил пока нет</string>
+    <string name="tts_replace_regex">Регулярное выражение</string>
+    <string name="tts_replace_actions">Действия: %1$s</string>
+    <string name="tts_replace_edit">Изменить правило</string>
+    <string name="tts_replace_up">Выше</string>
+    <string name="tts_replace_down">Ниже</string>
+    <string name="tts_replace_delete">Удалить правило</string>
+    <string name="tts_replace_name">Название правила</string>
+    <string name="tts_replace_group">Группа</string>
+    <string name="tts_replace_enabled">Включено</string>
+    <string name="tts_replace_source">Найти</string>
+    <string name="tts_replace_target">Заменить на</string>
+    <string name="tts_replace_sample">Она сказала: 「Привет.」</string>
+    <string name="tts_replace_input">Исходный текст</string>
+    <string name="tts_replace_run_preview">Выполнить</string>
+    <string name="tts_replace_after_whole">После замены во всём тексте</string>
+    <string name="tts_replace_after_normal">Отрывки для синтеза</string>
+    <string name="tts_replace_no_speech">Нет текста для озвучивания.</string>
+    <string name="tts_replace_failed">Ошибка правила замены. Подготовка озвучивания остановлена.</string>
+    <string name="tts_replace_error_pattern">Недопустимое регулярное выражение</string>
+    <string name="tts_replace_error_target">Недопустимая замена или ссылка на группу</string>
+    <string name="tts_replace_error_budget">Превышен предел выполнения; правило остановлено</string>
+    <string name="tts_replace_error_rule">%1$s: %2$s</string>
+    <string name="tts_replace_title">Правила</string>
+    <string name="tts_replace_search">Поиск правил</string>
+    <string name="tts_replace_menu">Меню правил</string>
+    <string name="tts_replace_sort">Сортировка</string>
+    <string name="tts_replace_sort_ascending">По названию А–Я</string>
+    <string name="tts_replace_sort_descending">По названию Я–А</string>
+    <string name="tts_replace_no_results">Совпадений нет</string>
+    <string name="tts_replace_collapse">Свернуть группу</string>
+    <string name="tts_replace_expand">Развернуть группу</string>
+    <string name="tts_replace_test_input">Текст для теста</string>
+    <string name="tts_replace_test_output">Результат теста</string>
+    <string name="tts_replace_test">Тест</string>
+    <string name="tts_replace_name_required">Введите название</string>
+    <string name="tts_replace_source_required">Введите искомый текст</string>
+</resources>

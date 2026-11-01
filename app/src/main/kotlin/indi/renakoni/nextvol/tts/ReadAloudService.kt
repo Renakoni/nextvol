@@ -44,6 +44,7 @@ class ReadAloudService : MediaSessionService() {
     @Inject lateinit var settings: SpeechSettingsRepository
     @Inject lateinit var progress: SpeechProgressStore
     @Inject lateinit var synthesizers: SpeechSynthesizers
+    @Inject lateinit var plans: SpeechPlanPreparer
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
     private lateinit var speech: ReadAloudSession
@@ -68,7 +69,7 @@ class ReadAloudService : MediaSessionService() {
             setHandleAudioBecomingNoisy(true)
         }
         speech = ReadAloudSession(scope, chapters, settings::get, progress, synthesizers::synthesizer,
-            ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"))
+            ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"), preparePlan = plans::prepare)
         sleepTimer = SpeechSleepTimer(scope, SystemClock::elapsedRealtime,
             onChanged = { deadline ->
                 if (!shuttingDown && speech.state.value.request != null)

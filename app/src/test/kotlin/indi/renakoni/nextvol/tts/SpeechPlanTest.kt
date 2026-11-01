@@ -1,11 +1,12 @@
 package indi.renakoni.nextvol.tts
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechPlanTest {
-    @Test fun identityPlanResumesUsingOriginalUtf16RangesAndRejectsStaleBookmarks() {
+    @Test fun identityPlanResumesUsingOriginalUtf16RangesAndRejectsStaleBookmarks() = runBlocking {
         val chapter = SpeechChapter("book", "chapter", "Book", "Chapter",
             "  𠀀说：你好！\n\n" + "长句𠀁".repeat(100), nextId = "next")
         val plan = prepareSpeechPlan(chapter, SpeechSettings()) {}
@@ -30,12 +31,12 @@ class SpeechPlanTest {
 
     @Test fun preparationRejectsOversizedChaptersAndCooperatesWithCancellationDuringSegmentation() {
         val oversized = SpeechChapter("book", "chapter", "", "", "字".repeat(1_000_001))
-        val failure = assertThrows(SpeechException::class.java) { prepareSpeechPlan(oversized, SpeechSettings()) {} }
+        val failure = assertThrows(SpeechException::class.java) { runBlocking { prepareSpeechPlan(oversized, SpeechSettings()) {} } }
         assertEquals(SpeechError.UnsupportedContent, failure.error)
         var checks = 0
         val chapter = oversized.copy(text = "下一句。\n".repeat(1000))
         assertThrows(CancellationException::class.java) {
-            prepareSpeechPlan(chapter, SpeechSettings()) { if (++checks == 20) throw CancellationException("Stopped") }
+            runBlocking { prepareSpeechPlan(chapter, SpeechSettings()) { if (++checks == 20) throw CancellationException("Stopped") } }
         }
         assertEquals(20, checks)
     }

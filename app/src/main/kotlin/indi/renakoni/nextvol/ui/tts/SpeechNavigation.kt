@@ -20,6 +20,8 @@ import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.toRoute
 import android.net.Uri
 import indi.renakoni.nextvol.R
@@ -54,10 +56,28 @@ data class OfflineVoiceEditorRoute(val id: String, val copy: Boolean = false, va
 data class HttpVoiceEditorRoute(val id: String = "", val copy: Boolean = false, val engineCode: String? = null)
 
 @Serializable
+object SpeechPreferencesRoute
+
+@Serializable
 object SpeechPlaybackSettingsRoute
 
 @Serializable
-object SpeechPreferencesRoute
+object SpeechReplacementsRoute
+
+@Serializable
+data class SpeechReplacementEditorRoute(val ruleId: String? = null)
+
+@Serializable
+object SpeechReplacementPreviewRoute
+
+@Serializable
+object SpeechReplacementsRoute
+
+@Serializable
+data class SpeechReplacementEditorRoute(val ruleId: String? = null)
+
+@Serializable
+object SpeechReplacementPreviewRoute
 
 @Serializable
 data class SpeechPackagePreviewRoute(val uri: String)
@@ -92,15 +112,73 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
+            onReplacements = { nav.navigate(SpeechReplacementsRoute) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer)
+    }
+    composable<SpeechReplacementsRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechReplacementsScreen(state, nav::popBackStackIfResumed,
+            onEdit = { nav.navigate(SpeechReplacementEditorRoute(it)) { launchSingleTop = true } },
+            onToggle = viewModel::toggle, onMove = viewModel::move, onDelete = viewModel::delete,
+            onPreview = { nav.navigate(SpeechReplacementPreviewRoute) { launchSingleTop = true } },
+            onSort = viewModel::sort, onToggleGroup = viewModel::toggleGroup)
+    }
+    dialog<SpeechReplacementEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechReplacementEditorScreen(state, entry.toRoute<SpeechReplacementEditorRoute>().ruleId, nav::popBackStackIfResumed,
+            onSave = { viewModel.save(it, nav::popBackStackIfResumed) }, onPreview = viewModel::preview,
+            onClearPreview = viewModel::clearPreview, onClearSaveError = viewModel::clearSaveError)
+    }
+    composable<SpeechReplacementPreviewRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechReplacementPreviewScreen(state, nav::popBackStackIfResumed,
+            onPreview = { viewModel.preview(it) }, onClearPreview = viewModel::clearPreview)
     }
     composable<SpeechPlaybackSettingsRoute> {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
-        SpeechPlaybackSettingsScreen(viewModel.preferences, nav::popBackStackIfResumed)
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed, viewModel::update)
+    }
+    composable<SpeechReplacementsRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechReplacementsScreen(state, nav::popBackStackIfResumed,
+            onEdit = { nav.navigate(SpeechReplacementEditorRoute(it)) { launchSingleTop = true } },
+            onToggle = viewModel::toggle, onMove = viewModel::move, onDelete = viewModel::delete,
+            onPreview = { nav.navigate(SpeechReplacementPreviewRoute) { launchSingleTop = true } },
+            onSort = viewModel::sort, onToggleGroup = viewModel::toggleGroup)
+    }
+    dialog<SpeechReplacementEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechReplacementEditorScreen(state, entry.toRoute<SpeechReplacementEditorRoute>().ruleId, nav::popBackStackIfResumed,
+            onSave = { viewModel.save(it, nav::popBackStackIfResumed) }, onPreview = viewModel::preview,
+            onClearPreview = viewModel::clearPreview, onClearSaveError = viewModel::clearSaveError)
+    }
+    composable<SpeechReplacementPreviewRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechReplacementPreviewScreen(state, nav::popBackStackIfResumed,
+            onPreview = { viewModel.preview(it) }, onClearPreview = viewModel::clearPreview)
     }
     composable<SpeechPreferencesRoute> {
         HideReadAloudOverlay()

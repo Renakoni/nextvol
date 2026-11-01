@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_text_dialogue">Synthesize dialogue</string>
+    <string name="tts_text_record_voice">Remember recent voices</string>
+    <string name="tts_text_record_text">Remember previous passages</string>
+    <string name="tts_text_continue_dialogue">Continue unfinished dialogue</string>
+    <string name="tts_text_replace_emoji">Replace emoji</string>
+    <string name="tts_text_separate_english">Separate English</string>
+    <string name="tts_text_filter_unspoken">Filter punctuation-only text</string>
+    <string name="tts_text_sentence_length">Sentence length</string>
+    <string name="tts_text_dialogue_description">Separate narration from quoted dialogue</string>
+    <string name="tts_text_record_voice_description">Remember recent voice matches for later dialogue</string>
+    <string name="tts_text_record_text_description">Use the preceding passage when matching characters</string>
+    <string name="tts_text_continue_dialogue_description">Carry unfinished dialogue into the next passage</string>
+    <string name="tts_text_replace_emoji_description">Replace emoji with text before speech synthesis</string>
+    <string name="tts_text_separate_english_description">Split English from text in other languages</string>
+    <string name="tts_text_filter_unspoken_description">Skip text containing only punctuation or symbols</string>
+    <string name="tts_text_sentence_length_description">Shorter synthesis requests usually respond faster</string>
+</resources>

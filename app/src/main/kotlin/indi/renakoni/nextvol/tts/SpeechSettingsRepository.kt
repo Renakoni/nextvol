@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -24,6 +26,10 @@ data class SpeechSettings(
     val playbackSpeed: Float = 1f,
     val offlineVoice: OfflineVoiceRef? = null,
     val httpRevision: String = "",
+    val replacements: List<SpeechReplacementRule> = emptyList(),
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault
+    val text: SpeechTextSettings = SpeechTextSettings(),
     val httpVolume: Float = 1f,
 ) {
     fun validated() = copy(
@@ -33,6 +39,7 @@ data class SpeechSettings(
         httpVolume = httpVolume.takeIf { it.isFinite() }?.coerceIn(0f, 2f) ?: 1f,
         httpSource = httpSource.takeIf { offlineVoice == null },
         httpRevision = httpRevision.takeIf { offlineVoice == null && httpSource != null }.orEmpty(),
+        text = text.validated(),
     )
 }
 
