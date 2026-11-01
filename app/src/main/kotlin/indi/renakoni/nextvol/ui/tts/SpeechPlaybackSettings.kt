@@ -147,6 +147,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     }
                 }
             }
+            item { HorizontalDivider(Modifier.padding(start = 60.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)) }
             state.settings?.let { settings -> item {
                 val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner)) {} }
                 SettingsMenuEntry(painter = painterResource(R.drawable.group_24px),
