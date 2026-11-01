@@ -53,8 +53,9 @@ fun HttpSpeechSourcesScreen(
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
     systemSettings: (@Composable (String) -> Unit)? = null,
-    onPackagePreview: (() -> Unit)? = null,
     offlineGroups: Map<String, String> = emptyMap(),
+    catalogReady: Boolean = true,
+    onOfflineGroup: (String?) -> Unit = {},
     offlineSettings: (LazyListScope.(String, String) -> Unit)? = null,
     onVoiceEditor: ((SavedHttpSpeechSource, Boolean) -> Unit)? = null,
     onEnableVoice: (SavedHttpSpeechSource, Boolean) -> Unit = { _, _ -> },
@@ -141,11 +142,12 @@ fun HttpSpeechSourcesScreen(
     val pager = rememberPagerState { pagerGroups.size }
     val scope = rememberCoroutineScope()
     val currentGroup = groups[pager.currentPage.coerceIn(groups.indices)].first
-    val account = if (currentGroup.startsWith("http:"))
-        httpGroups[currentGroup.removePrefix("http:")]?.firstOrNull { it.credentialKeys.isNotEmpty() } else null
     val closeSearch = { searching = false; query = "" }
     BackHandler(searching, closeSearch)
     LaunchedEffect(currentGroup) { query = "" }
+    LaunchedEffect(catalogReady, currentGroup) {
+        if (catalogReady) onOfflineGroup(currentGroup.takeIf { it.startsWith("offline:") }?.removePrefix("offline:"))
+    }
     val searchQuery = query.trim()
     val filteredSources = state.sources.filter { source ->
         val metadata = source.speakerData()
@@ -155,12 +157,12 @@ fun HttpSpeechSourcesScreen(
     }
     Scaffold(topBar = {
         SpeechSourcesTopBar(query, { query = it }, searching, { searching = true }, closeSearch, onBack, state.busy,
-            onImport, onRefresh, onPackagePreview, onConfigure = account?.let { { configuring = it } },
-            configurationName = account?.category.orEmpty())
+            onImport, onRefresh)
     }, bottomBar = {
         if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            if (!catalogReady) return@Column
             PrimaryScrollableTabRow(selectedTabIndex = pager.currentPage.coerceIn(groups.indices), edgePadding = 16.dp, divider = {},
                 modifier = Modifier.testTag("speech-source-tabs").semantics { testTagsAsResourceId = true }) {
                 groups.forEachIndexed { index, (_, title) ->
@@ -169,7 +171,6 @@ fun HttpSpeechSourcesScreen(
                         text = { Text(title, Modifier.widthIn(max = 160.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) })
                 }
             }
-            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             HorizontalPager(pager, Modifier.weight(1f), key = { pagerGroups[it].first }) { page ->
                 val group = pagerGroups.getOrNull(page)?.first ?: return@HorizontalPager
                 LazyColumn(Modifier.fillMaxSize().selectableGroup().testTag("speech-sources-list"),

@@ -34,8 +34,8 @@ class BuiltInSpeechSourcesTest {
 
     @Test fun freshInstallReopenAndResetKeepTheCompleteCatalogWithoutImporting() = runBlocking {
         val initial = repository().sources()
-        assertEquals(99, initial.size)
-        assertEquals(96, initial.count { it.isConfigured })
+        assertEquals(96, initial.size)
+        assertTrue(initial.all { it.isConfigured })
         assertEquals(26, initial.count { it.definition.usesMicrosoftTranslator })
         assertTrue(initial.all { it.isBuiltIn && it.origins.isNotEmpty() && it.origins.all { origin -> sourceOrigin(origin) == origin } })
         assertEquals(initial.size, initial.map { it.definition.id }.toSet().size)
@@ -56,43 +56,11 @@ class BuiltInSpeechSourcesTest {
         val restored = repository().sources().single { !it.isBuiltIn }
         assertEquals(imported.definition.raw, restored.definition.raw)
         assertEquals(imported.origins, restored.origins)
-        assertEquals(100, repository.sources().size)
+        assertEquals(97, repository.sources().size)
         try { repository.save(listOf(repository.sources().first())); fail("Built-in IDs must be reserved") }
         catch (_: IllegalArgumentException) { }
         repository.delete(source.id)
-        assertEquals(99, repository.sources().size)
-    }
-
-    @Test fun credentialsApplyToTheServiceAndChangesRevokeSessionsAndCachedTokens() = runBlocking {
-        val repository = repository()
-        val source = repository.sources().first { it.group == "起点" }
-        assertEquals(SpeechError.HttpLogin, assertThrows(SpeechException::class.java) { source.playbackDefinition() }.error)
-        val token = "synthetic'\"&token"
-        repository.configure(source.definition.id, mapOf("Token" to token))
-        val configured = repository.sources().first { it.definition.id == source.definition.id }
-        val copy = editHttpVoice(configured, buildJsonObject { put("name", "My copy") }, enabled = false, copy = true)
-        repository.saveVoice(copy)
-        val reopenedCopy = repository().sources().single { it.definition.id == copy.definition.id }
-        assertFalse(reopenedCopy.enabled)
-        assertEquals("My copy", reopenedCopy.definition.name)
-        assertEquals(source.definition.id, reopenedCopy.engineReference)
-        assertEquals(source.origins, reopenedCopy.origins)
-        assertEquals(token, reopenedCopy.credentials["Token"])
-        assertTrue(repository().sources().filter { it.group == source.group }.all { it.isConfigured && it.credentials["Token"] == token })
-        assertFalse(repository().sources().joinToString().contains(token))
-        val ticket = repository.withSource(source.definition.id) { saved, runtime ->
-            runtime.mkdirs(); File(runtime, "token").writeText("cached")
-            authority.issue(saved.definition.id, "http-tts", saved.playbackDefinition().revision, "speech")
-        }!!
-        repository.configure(copy.definition.id, emptyMap())
-        assertFalse(authority.accepts(ticket))
-        repository.withSource(source.definition.id) { _, runtime -> assertFalse(runtime.exists()) }
-        assertTrue(repository().sources().filter { it.group == source.group }.all { !it.isConfigured })
-        val resetCopy = repository().sources().single { it.definition.id == copy.definition.id }
-        assertFalse(resetCopy.isConfigured)
-        assertFalse(resetCopy.enabled)
-        assertEquals("My copy", resetCopy.definition.name)
-        assertEquals(100, repository.sources().size)
+        assertEquals(96, repository.sources().size)
     }
 
     @Test fun refreshedPackageKeepsEditedSpeakerIdentityAndDoesNotOverwriteIndependentCopies() = runBlocking {
@@ -154,18 +122,6 @@ class BuiltInSpeechSourcesTest {
         assertEquals(imported.origins, restored.origins)
     }
 
-    @Test fun partialOrUnexpectedKeysDoNotReplaceSavedCredentials() = runBlocking {
-        val repository = repository()
-        val source = repository.sources().single { it.group == "阿里云" }
-        val valid = mapOf("AppKey" to "test-app", "AccessKeyId" to "test-id", "AccessKeySecret" to "test-secret")
-        repository.configure(source.definition.id, valid)
-        for (invalid in listOf(mapOf("AppKey" to "partial"), valid + ("unexpected" to "value"), valid + ("AccessKeySecret" to "bad\nvalue"))) {
-            try { repository.configure(source.definition.id, invalid); fail("Invalid credentials must fail before writing") }
-            catch (_: IllegalArgumentException) { }
-            assertEquals(valid, repository().sources().single { it.definition.id == source.definition.id }.credentials)
-        }
-    }
-
     @Test fun importedEngineEditUpdatesAllItsVoicesAndKeepsTheirIndependentSettings() = runBlocking {
         MockWebServer().use { server ->
             server.start()
@@ -190,7 +146,7 @@ class BuiltInSpeechSourcesTest {
             val restored = repository().sources()
             assertFalse(authority.accepts(oldTicket))
             assertEquals(originals[2].definition.raw, restored.single { it.definition.id == "c" }.definition.raw)
-            assertEquals(99, restored.count { it.isBuiltIn })
+            assertEquals(96, restored.count { it.isBuiltIn })
             for (original in originals.take(2)) {
                 val source = restored.single { it.definition.id == original.definition.id }
                 assertEquals("Edited engine", source.category)
@@ -209,71 +165,6 @@ class BuiltInSpeechSourcesTest {
                 assertEquals(source.definition.id, request.requestUrl!!.queryParameter("voice"))
                 assertEquals("正文", request.requestUrl!!.queryParameter("text"))
                 assertEquals("edited", request.getHeader("X-Engine"))
-            }
-        }
-    }
-
-    @Test fun proxyCredentialsAndTextAreDataRatherThanScriptOrQueryParameters() = runBlocking {
-        val original = repository().sources().first { it.group == "起点" }
-        MockWebServer().use { server ->
-            server.start()
-            val base = server.url("/").toString().removeSuffix("/")
-            val raw = JsonObject(original.definition.raw + ("url" to JsonPrimitive(original.definition.url.replace("https://shenmobook.top", base))))
-            val token = "'\";throw new Error(1);//&v=unexpected"
-            val text = "中文 {{40+2}} &t=other"
-            val configured = original.copy(definition = previewHttpSpeech(raw.toString()).sources.single(), credentials = mapOf("Token" to token))
-            val audio = "RIFFxxxxWAVE".toByteArray() + ByteArray(100)
-            server.enqueue(MockResponse().setBody(okio.Buffer().write(audio)))
-            SourceBroker(directory.newFolder("proxy").toPath()).use { owner ->
-                HttpSpeechClient(configured.playbackDefinition(), owner, listOf(NetworkGrant(base, true)), authority) { identity, task, limits, broker ->
-                    ExecutionWire.decodeResult(WorkerMain.executeSerialized(ExecutionWire.encode(identity, task, limits).toString(Charsets.UTF_8),
-                        HostBridge { name, args -> runBlocking { broker.call(name, args) } }).toByteArray(Charsets.UTF_8))
-                }.use { client ->
-                    assertArrayEquals(audio, client.synthesize(text))
-                    val request = server.takeRequest(3, TimeUnit.SECONDS)!!.requestUrl!!
-                    assertEquals(token, request.queryParameter("token"))
-                    assertEquals(text, request.queryParameter("t"))
-                    assertEquals(listOf("6001"), request.queryParameterValues("v"))
-                }
-            }
-        }
-    }
-
-    @Test fun aliyunUsesSignedTokenExchangeCachesItAndPreservesLiteralText() = runBlocking {
-        val original = repository().sources().single { it.group == "阿里云" }
-        MockWebServer().use { server ->
-            server.start()
-            val base = server.url("/").toString().removeSuffix("/")
-            val raw = JsonObject(original.definition.raw + ("url" to JsonPrimitive(original.definition.url
-                .replace("https://nls-meta.cn-shanghai.aliyuncs.com", base)
-                .replace("https://nls-gateway.cn-shanghai.aliyuncs.com", base))))
-            val configured = original.copy(definition = previewHttpSpeech(raw.toString()).sources.single(),
-                credentials = mapOf("AppKey" to "test-app", "AccessKeyId" to "test-id", "AccessKeySecret" to "test-secret"))
-            val audio = "RIFFxxxxWAVE".toByteArray() + ByteArray(100)
-            server.enqueue(MockResponse().setBody("""{"Token":{"Id":"synthetic-token","ExpireTime":4102444800}}"""))
-            repeat(2) { server.enqueue(MockResponse().setBody(okio.Buffer().write(audio))) }
-            SourceBroker(directory.newFolder("runtime").toPath()).use { owner ->
-                HttpSpeechClient(configured.playbackDefinition(), owner, listOf(NetworkGrant(base, true)), authority) { identity, task, limits, broker ->
-                    ExecutionWire.decodeResult(WorkerMain.executeSerialized(ExecutionWire.encode(identity, task, limits).toString(Charsets.UTF_8),
-                        HostBridge { name, args -> runBlocking { broker.call(name, args) } }).toByteArray(Charsets.UTF_8))
-                }.use { client ->
-                    val text = "中文 \" & {{40+2}} @js:literal"
-                    assertArrayEquals(audio, client.synthesize(text, 1f))
-                    val authentication = server.takeRequest(3, TimeUnit.SECONDS)!!
-                    assertEquals("CreateToken", authentication.requestUrl!!.queryParameter("Action"))
-                    assertFalse(authentication.path!!.contains("test-secret"))
-                    assertFalse(authentication.requestUrl!!.queryParameter("Signature").isNullOrBlank())
-                    val first = server.takeRequest(3, TimeUnit.SECONDS)!!
-                    assertEquals("synthetic-token", first.getHeader("X-NLS-Token"))
-                    val body = Json.parseToJsonElement(first.body.readUtf8()).jsonObject
-                    assertEquals(text, body.getValue("text").jsonPrimitive.content)
-                    assertEquals(0, body.getValue("speech_rate").jsonPrimitive.int)
-                    assertArrayEquals(audio, client.synthesize(text, 2f))
-                    val second = server.takeRequest(3, TimeUnit.SECONDS)!!
-                    assertEquals("/stream/v1/tts", second.path)
-                    assertEquals(500, Json.parseToJsonElement(second.body.readUtf8()).jsonObject.getValue("speech_rate").jsonPrimitive.int)
-                    assertEquals(3, server.requestCount)
-                }
             }
         }
     }

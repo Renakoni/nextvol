@@ -24,8 +24,7 @@ import indi.renakoni.nextvol.R
 @Composable
 internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searching: Boolean,
     onSearch: () -> Unit, onCloseSearch: () -> Unit, onBack: () -> Unit, busy: Boolean,
-    onImport: () -> Unit, onRefresh: (() -> Unit)?, onPackagePreview: (() -> Unit)?,
-    onConfigure: (() -> Unit)? = null, configurationName: String = "") {
+    onImport: () -> Unit, onRefresh: (() -> Unit)?) {
     var menu by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -71,12 +70,8 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
             DropdownMenu(menu, { menu = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.tts_import_sources)) }, enabled = !busy,
                     onClick = { menu = false; onImport() })
-                if (onPackagePreview != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_package_open)) }, enabled = !busy,
-                    onClick = { menu = false; onPackagePreview() })
                 if (onRefresh != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_refresh)) }, enabled = !busy,
                     onClick = { menu = false; onRefresh() })
-                if (onConfigure != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_configure_service, configurationName)) }, enabled = !busy,
-                    onClick = { menu = false; onConfigure() })
             }
         }
     })

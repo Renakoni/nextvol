@@ -46,6 +46,7 @@ class SpeechSettingsViewModelTest {
     @Before fun create() {
         Dispatchers.setMain(StandardTestDispatcher())
         every { repository.changes } returns settings
+        every { http.changes } returns MutableStateFlow(0L)
         coEvery { engines.installed() } returns emptyList()
         coEvery { engines.inspect(any()) } throws SpeechException(SpeechError.NoEngine)
         model = SpeechSettingsViewModel(repository, engines, mockk(), http, mockk())

@@ -4,7 +4,6 @@
     <string name="tts_package_http_request_unsupported">This package needs additional request or header handling that is not connected yet.</string>
     <string name="tts_package_http_parameters_required">This package needs a custom parameter setup that is not connected yet.</string>
     <string name="tts_package_preview">Voice package preview</string>
-    <string name="tts_package_open">Preview ZIP or YAML package</string>
     <string name="tts_package_reading">Reading package information…</string>
     <string name="tts_package_unknown">Unrecognized package type</string>
     <string name="tts_package_counts">%1$d engines · %2$d voices · %3$d resource files</string>

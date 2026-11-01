@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.ui.tts
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,6 +32,7 @@ data class HttpSpeechSourcesState(
     val selected: String? = null,
     val offlineSelected: Boolean = false,
     val busy: Boolean = false,
+    val loaded: Boolean = false,
     val pending: List<SavedHttpSpeechSource>? = null,
     val invalid: Int = 0,
     val configurationSaved: Long = 0,
@@ -51,6 +54,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
 
     init {
         work { refreshSources() }
+        viewModelScope.launch { repository.changes.drop(1).collect { refresh() } }
         viewModelScope.launch { settings.changes.collect { value ->
             selectedSettings = value
             mutableState.update { it.copy(selected = value.httpSource, offlineSelected = value.offlineVoice != null) }
@@ -80,10 +84,19 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }
 
-    fun preview(uri: Uri) = work(R.string.tts_import_failed) {
+    fun preview(uri: Uri, onPackage: (Uri) -> Unit) = work(R.string.tts_import_failed) {
         packageUri = null
         val preview = withContext(Dispatchers.IO) {
-            val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
+            val resolver = context.contentResolver
+            val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+            }.orEmpty()
+            val input = resolver.openInputStream(uri)?.buffered() ?: error("Unreadable import")
+            input.use {
+                input.mark(4)
+                val zip = input.read() == 0x50 && input.read() == 0x4b
+                input.reset()
+                if (zip || name.substringAfterLast('.').lowercase() in setOf("yaml", "yml")) return@withContext null
                 val output = ByteArrayOutputStream()
                 val buffer = ByteArray(8192)
                 while (true) {
@@ -92,9 +105,12 @@ class HttpSpeechSourcesViewModel @Inject constructor(
                     require(output.size() + count <= 4 * 1024 * 1024)
                     output.write(buffer, 0, count)
                 }
-                output.toByteArray()
-            } ?: error("Unreadable import")
-            previewHttpSpeech(bytes.toString(Charsets.UTF_8))
+                previewHttpSpeech(output.toString(Charsets.UTF_8.name()))
+            }
+        }
+        if (preview == null) {
+            onPackage(uri)
+            return@work
         }
         val sources = preview.sources.map { SavedHttpSpeechSource(it, SourceOriginCandidates.speech(it.raw).map { site -> site.origin }.distinct()) }
         mutableState.update { it.copy(pending = sources, invalid = preview.issues.size) }
@@ -193,8 +209,9 @@ class HttpSpeechSourcesViewModel @Inject constructor(
 
     private suspend fun refreshSources() {
         val sources = repository.sources()
+        mutableState.update { it.copy(sources = sources, loaded = true) }
         val avatars = withContext(Dispatchers.IO) { sources.filter { it.packageAvatar != null }.mapNotNull { source -> repository.avatar(source)?.path?.let { source.definition.id to it } }.toMap() }
-        mutableState.update { it.copy(sources = sources, avatars = avatars) }
+        mutableState.update { it.copy(avatars = avatars) }
     }
 
     private fun work(error: Int = R.string.tts_error_storage, action: suspend () -> Unit) {
@@ -203,7 +220,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         viewModelScope.launch {
             try { action() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { mutableState.update { it.copy(error = error) } }
+            catch (_: Exception) { mutableState.update { it.copy(error = error, loaded = true) } }
             finally { mutableState.update { it.copy(busy = false) } }
         }
     }

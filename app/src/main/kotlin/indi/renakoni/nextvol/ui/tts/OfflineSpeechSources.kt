@@ -23,6 +23,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,6 +36,7 @@ data class OfflineSpeechState(
     val selected: OfflineVoiceRef? = null,
     val availability: Map<OfflineVoiceRef, OfflineAvailability> = emptyMap(),
     val error: Boolean = false,
+    val loaded: Boolean = false,
 )
 
 @HiltViewModel
@@ -47,19 +49,47 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(OfflineSpeechState())
     private var refreshing: Job? = null
+    private var inspecting: Job? = null
+    private var activeEngine: String? = null
+    private val inspectedEngines = mutableSetOf<String>()
     val state = mutableState.asStateFlow()
     init {
         viewModelScope.launch { settings.changes.collect { value -> mutableState.update { it.copy(selected = value.offlineVoice) } } }
-        viewModelScope.launch { combine(repository.changes, availability.changes, engines.changes) { _, _, _ -> Unit }.collect { refresh() } }
+        viewModelScope.launch { combine(repository.changes, engines.changes) { _, _ -> Unit }.collect { refresh() } }
+        viewModelScope.launch { availability.changes.drop(1).collect { inspectedEngines.clear(); refreshDetails() } }
     }
     fun refresh() {
         refreshing?.cancel()
         refreshing = work {
             val voices = repository.voices()
-            val results = withContext(Dispatchers.IO) { voices.associate { it.reference to availability.installed(it, repository) } }
-            val avatars = withContext(Dispatchers.IO) { voices.mapNotNull { voice -> repository.avatar(voice)?.path?.let { voice.reference.id to it } }.toMap() }
             val engineNames = engines.all().associate { it.code to it.name }
-            mutableState.update { it.copy(voices = voices, availability = results, avatars = avatars, engineNames = engineNames) }
+            mutableState.update { it.copy(voices = voices, engineNames = engineNames, loaded = true,
+                availability = it.availability.filterKeys { ref -> voices.any { voice -> voice.reference == ref } },
+                avatars = it.avatars.filterKeys { id -> voices.any { voice -> voice.reference.id == id } }) }
+            inspectedEngines.clear()
+            refreshDetails()
+        }
+    }
+    fun openEngine(engine: String?) {
+        if (activeEngine == engine) return
+        activeEngine = engine
+        refreshDetails()
+    }
+    private fun refreshDetails() {
+        inspecting?.cancel()
+        val engine = activeEngine ?: return
+        if (engine in inspectedEngines) return
+        val voices = state.value.voices.filter { (it.configuration?.engine ?: "sherpa") == engine }
+        if (voices.isEmpty()) return
+        inspecting = work {
+            val results = withContext(Dispatchers.IO) { voices.associate { ensureActive(); it.reference to availability.installed(it, repository) } }
+            val avatars = withContext(Dispatchers.IO) { voices.mapNotNull { voice ->
+                ensureActive()
+                repository.avatar(voice)?.path?.let { voice.reference.id to it }
+            }.toMap() }
+            mutableState.update { it.copy(availability = it.availability + results,
+                avatars = it.avatars - voices.map { voice -> voice.reference.id }.toSet() + avatars) }
+            inspectedEngines += engine
         }
     }
     fun refreshCatalog() = work { repository.refreshCatalog(); refresh() }
@@ -105,7 +135,7 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
         mutableState.update { it.copy(error = false) }
         try { action() }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { mutableState.update { it.copy(error = true) } }
+        catch (_: Exception) { mutableState.update { it.copy(error = true, loaded = true) } }
     }
 }
 
@@ -115,7 +145,6 @@ internal fun LazyListScope.offlineSpeechSources(
     onEdit: (InstalledOfflineVoice, Boolean) -> Unit, onEnable: (List<InstalledOfflineVoice>, Boolean) -> Unit,
     onDelete: (List<InstalledOfflineVoice>) -> Unit,
 ) {
-    if (state.error) item { Text(stringResource(R.string.tts_error_storage), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.error) }
     val voices = state.voices.filter { voice ->
         (voice.configuration?.engine ?: "sherpa") == engine &&
             listOf(voice.name, voice.configuration?.locale.orEmpty(), voice.metadata.note, voice.metadata.description)

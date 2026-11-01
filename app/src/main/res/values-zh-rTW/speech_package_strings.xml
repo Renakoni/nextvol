@@ -4,7 +4,6 @@
     <string name="tts_package_http_request_unsupported">此套件需要額外的請求方式或請求標頭處理，暫未接入。</string>
     <string name="tts_package_http_parameters_required">此套件需要自訂參數設定，暫未接入。</string>
     <string name="tts_package_preview">語音包預覽</string>
-    <string name="tts_package_open">預覽 ZIP / YAML 語音包</string>
     <string name="tts_package_reading">正在讀取語音包…</string>
     <string name="tts_package_unknown">暫未識別此套件類型</string>
     <string name="tts_package_counts">引擎 %1$d · 聲音 %2$d · 資源檔案 %3$d</string>

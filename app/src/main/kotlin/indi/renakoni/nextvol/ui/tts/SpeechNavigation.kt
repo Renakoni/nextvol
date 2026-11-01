@@ -13,11 +13,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -81,9 +78,12 @@ fun NavGraphBuilder.speechSettingsDestination() {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechSettingsViewModel>()
+        // Keep the lightweight voice catalogs ready across visits to the library.
+        hiltViewModel<HttpSpeechSourcesViewModel>()
+        hiltViewModel<OfflineSpeechSourcesViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
-        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
+        LaunchedEffect(Unit) { viewModel.refresh() }
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
             onSources = { nav.navigate(HttpSpeechSourcesRoute()) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
@@ -105,7 +105,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val viewModel = hiltViewModel<SpeechSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
-        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
+        LaunchedEffect(Unit) { viewModel.refresh() }
         SpeechPreferencesScreen(state, playback, nav::popBackStackIfResumed,
             viewModel::setRate, viewModel::setPitch,
             onCommand = viewModel.controller::command,
@@ -118,7 +118,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechEnginesViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
-        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
+        LaunchedEffect(Unit) { viewModel.refresh() }
         SpeechEnginesScreen(state, nav::popBackStackIfResumed,
             onEdit = { nav.navigate(SpeechEngineEditorRoute(it)) { launchSingleTop = true } },
             onHttp = { nav.navigate(HttpSpeechSourcesRoute(editId = it)) { launchSingleTop = true } })
@@ -135,10 +135,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
     composable<HttpSpeechSourcesRoute> { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
-        val context = LocalContext.current
-        val viewModel = hiltViewModel<HttpSpeechSourcesViewModel>()
-        val settingsViewModel = hiltViewModel<SpeechSettingsViewModel>()
-        val offlineViewModel = hiltViewModel<OfflineSpeechSourcesViewModel>()
+        val settingsEntry = remember(entry) { nav.getBackStackEntry<SpeechSettingsRoute>() }
+        val viewModel = hiltViewModel<HttpSpeechSourcesViewModel>(settingsEntry)
+        val settingsViewModel = hiltViewModel<SpeechSettingsViewModel>(settingsEntry)
+        val offlineViewModel = hiltViewModel<OfflineSpeechSourcesViewModel>(settingsEntry)
         val offline by offlineViewModel.state.collectAsStateWithLifecycle()
         val settings by settingsViewModel.state.collectAsStateWithLifecycle()
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -147,18 +147,22 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
         var deleting by remember { mutableStateOf<List<InstalledOfflineVoice>>(emptyList()) }
         var deletingHttp by remember { mutableStateOf<List<SavedHttpSpeechSource>>(emptyList()) }
-        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { settingsViewModel.refresh(); offlineViewModel.refresh(); viewModel.refresh() }
-        val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::preview) }
-        val packagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            uri?.let { nav.navigate(SpeechPackagePreviewRoute(it.toString())) { launchSingleTop = true } }
+        val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let { viewModel.preview(it) { file ->
+                nav.navigate(SpeechPackagePreviewRoute(file.toString())) { launchSingleTop = true }
+            } }
         }
-        HttpSpeechSourcesScreen(state, nav::popBackStackIfResumed,
+        val systemSettingsPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { settingsViewModel.refresh() }
+        HttpSpeechSourcesScreen(if (offline.error) state.copy(error = R.string.tts_error_storage) else state, nav::popBackStackIfResumed,
+            catalogReady = state.loaded && offline.loaded,
+            onOfflineGroup = offlineViewModel::openEngine,
             onVoiceEditor = { source, copy -> nav.navigate(HttpVoiceEditorRoute(source.definition.id, copy)) },
             onEnableVoice = { source, enabled -> viewModel.enable(listOf(source), enabled) },
             initialEditId = entry.toRoute<HttpSpeechSourcesRoute>().editId,
             onInitialEditorClosed = nav::popBackStackIfResumed,
             onEditEngine = viewModel::editEngine,
-            onImport = { picker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+            onImport = { picker.launch(arrayOf("application/json", "application/zip", "application/x-zip-compressed",
+                "application/yaml", "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
             onSelect = viewModel::select, onDelete = { deletingHttp = listOf(it) }, onSites = viewModel::sites,
             onConfirmImport = viewModel::confirmImport, onDismissImport = viewModel::dismissPreview, onEdit = viewModel::edit,
             onConfigure = viewModel::configure, onPreview = { viewModel.previewVoice(it, preview) },
@@ -166,8 +170,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onRefresh = { offlineViewModel.refreshCatalog(); settingsViewModel.refresh(); viewModel.refresh() },
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
-            onPackagePreview = { packagePicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/yaml",
-                "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
             offlineGroups = offline.voices.map { it.configuration?.engine ?: "sherpa" }.distinct()
                 .associateWith { offline.engineNames[it] ?: it },
             offlineSettings = { engine, query -> offlineSpeechSources(offline, engine, query, onSelect = offlineViewModel::select,
@@ -179,8 +181,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
                     onEngine = settingsViewModel::selectEngine, onVoice = settingsViewModel::selectVoice,
                     onPreviewVoice = { viewModel.controller.preview(preview, settings.settings.copy(httpSource = null, voice = it, offlineVoice = null)) },
                     onSystemSettings = {
-                        try { context.startActivity(Intent("com.android.settings.TTS_SETTINGS")) }
-                        catch (_: ActivityNotFoundException) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                        try { systemSettingsPicker.launch(Intent("com.android.settings.TTS_SETTINGS")) }
+                        catch (_: ActivityNotFoundException) { systemSettingsPicker.launch(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
                     })
             })
         if (deleting.isNotEmpty() || deletingHttp.isNotEmpty()) {
@@ -224,7 +226,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechPackagePreviewViewModel>()
-        val sourceEntry = remember(entry) { nav.getBackStackEntry<HttpSpeechSourcesRoute>() }
+        val sourceEntry = remember(entry) { nav.getBackStackEntry<SpeechSettingsRoute>() }
         val sourcesViewModel = hiltViewModel<HttpSpeechSourcesViewModel>(sourceEntry)
         val state by viewModel.state.collectAsStateWithLifecycle()
         val uri = entry.toRoute<SpeechPackagePreviewRoute>().uri

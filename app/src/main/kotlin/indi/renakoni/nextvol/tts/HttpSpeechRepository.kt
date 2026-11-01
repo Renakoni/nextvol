@@ -83,6 +83,8 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         }.also { sources -> require(sources.map { it.definition.id }.distinct().size == sources.size) }
     }
     private val mutex = Mutex()
+    private val mutableChanges = MutableStateFlow(0L)
+    val changes = mutableChanges.asStateFlow()
     private val mutableDeniedOrigins = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val deniedOrigins = mutableDeniedOrigins.asStateFlow()
 
@@ -207,6 +209,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             mutableDeniedOrigins.update { denied -> denied.mapNotNull { (id, origins) ->
                 sources.find { it.definition.id == id }?.let { source -> id to (origins - source.origins.toSet()) }
             }.toMap() }
+            mutableChanges.update { it + 1 }
         }
     }
 

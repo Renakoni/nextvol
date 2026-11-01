@@ -316,43 +316,6 @@ class SpeechControlsTest {
         compose.onNodeWithContentDescription("Preview candidate").assertDoesNotExist()
     }
 
-    @Test fun builtInVoicesAreSelectableAndKeysHaveASeparateMaskedEditor() {
-        val definition = hnovel.speech.previewHttpSpeech("""{"id":"builtin-test","name":"Test voice","url":"https://example.org"}""").sources.single()
-        val ready = SavedHttpSpeechSource(definition, listOf("https://example.org:443"), group = "Built-in service")
-        val locked = ready.copy(definition = hnovel.speech.previewHttpSpeech("""{"id":"key-test","name":"Key voice","url":"https://example.org"}""").sources.single(),
-            group = "Key service", credentialKeys = listOf("Token"))
-        var selected: String? = null
-        var previewed: String? = null
-        var saved: Map<String, String>? = null
-        val state = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState(sources = listOf(ready, locked)))
-        activity.get().setContent {
-            MaterialTheme { HttpSpeechSourcesScreen(state.value,
-                {}, {}, { selected = it }, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
-                onConfigure = { _, values ->
-                    saved = values
-                    state.value = state.value.copy(configurationSaved = state.value.configurationSaved + 1)
-                }, onPreview = { previewed = it }) }
-        }
-        compose.onNodeWithText("Import voices").assertDoesNotExist()
-        compose.onNodeWithText("Built-in service").performClick()
-        compose.onNodeWithContentDescription("Preview Test voice").performClick()
-        assertEquals("builtin-test", previewed)
-        assertNull(selected)
-        compose.onNodeWithText("Test voice").performClick()
-        assertEquals("builtin-test", selected)
-        compose.onNodeWithText("Remove voice").assertDoesNotExist()
-        compose.onNodeWithText("Key service").performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Library options").performClick()
-        compose.onNodeWithText("Configure Key service").performClick()
-        compose.onNodeWithText("Confirm").assertIsNotEnabled()
-        compose.onNode(hasSetTextAction()).performTextInput("test-token")
-        compose.onNodeWithText("Confirm").performClick()
-        assertEquals(mapOf("Token" to "test-token"), saved)
-        compose.onNodeWithText("Token").assertDoesNotExist()
-        assertEquals("builtin-test", selected)
-        compose.onNodeWithContentDescription("Preview Key voice").assertIsNotEnabled()
-    }
-
     @Test
     @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h640dp")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
