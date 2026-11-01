@@ -37,6 +37,7 @@ internal val ExecutionLimits.scriptDataLimit: Int get() = maxDataBytes ?: maxOut
  @Serializable data class Echo(val value: String): ExecutionTask
  @Serializable data class Sleep(val millis: Long): ExecutionTask
  @Serializable data class RegexReplacement(val input: String, val source: String, val target: String): ExecutionTask
+ @Serializable data class RegexMatch(val input: String, val pattern: String, val location: RuleLocation): ExecutionTask
  @Serializable data class ContentMarkup(val html: String,
   val location: RuleLocation = RuleLocation("ruleContent.parts"), val formatted: Boolean = false) : ExecutionTask
  @Serializable data class DiscoveryReadPlan(val urls: List<String>, val header: String, val rules: List<String>) : ExecutionTask
@@ -259,6 +260,7 @@ class WorkerRuntime(private val archives: hnovel.rhino.ArchiveDecoder = hnovel.r
    return kotlinx.serialization.json.Json.encodeToString(ExecutionResult.serializer(), ExecutionResult.Failure(FailureCode.InvalidTask))
   val result = when (val task = wire.task) {
    is ExecutionTask.RegexReplacement -> WorkerRegexReplacement.evaluate(task, wire.limits)
+   is ExecutionTask.RegexMatch -> WorkerRegexMatch.evaluate(task, wire.limits)
    is ExecutionTask.ContentMarkup -> WorkerContentMarkup.evaluate(task, wire.limits)
    is ExecutionTask.DiscoveryReadPlan -> WorkerDiscoveryReadPlan.evaluate(task, wire.limits)
    is ExecutionTask.DirectoryPages -> WorkerDirectoryPages.evaluate(task, wire.limits)
