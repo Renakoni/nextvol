@@ -1,0 +1,13 @@
+<resources>
+    <string name="tts_name_algorithm">Алгоритм поиска имён</string>
+    <string name="tts_name_ner">NER (китайский)</string>
+    <string name="tts_name_test">Проверка распознавания имён</string>
+    <string name="tts_name_scope">Находит возможные имена в китайском тексте. Модель может пропускать имена или ошибаться.</string>
+    <string name="tts_name_input">Текст</string>
+    <string name="tts_name_run">Распознать имена</string>
+    <string name="tts_name_results">Распознанные имена</string>
+    <string name="tts_name_empty">Имена не найдены.</string>
+    <string name="tts_name_unavailable">Для NER нужны Android 8 или новее и встроенная библиотека arm64.</string>
+    <string name="tts_name_error">Не удалось распознать имена: %1$s</string>
+    <string name="tts_name_sample">王小明和欧阳娜娜正在交谈。小红走了过来。</string>
+</resources>

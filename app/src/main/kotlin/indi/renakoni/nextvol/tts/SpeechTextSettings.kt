@@ -14,6 +14,7 @@ data class SpeechTextSettings(
     val replaceEmoji: Boolean = false,
     val separateEnglish: Boolean = true,
     val filterUnspoken: Boolean = true,
+    val nameDiscoveryAlgorithm: Int = 101,
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault
     val maxSentenceLength: Int = when (Locale.getDefault().language) {
