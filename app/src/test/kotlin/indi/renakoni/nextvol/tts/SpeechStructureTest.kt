@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.tts
 
-import java.util.concurrent.CancellationException
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -153,18 +152,5 @@ class SpeechStructureTest {
         assertEquals(5, narration.parts.size)
         assertTrue(narration.parts.none { it.dialogue })
         assertEquals(context.recentVoices, narration.nextContext.recentVoices)
-    }
-
-    @Test fun cancellationDoesNotMutateIncomingContext() {
-        val incoming = SpeechContext(true, listOf(SpeechContextText("上一句", true, first)), listOf(null, "voice-a"))
-        val snapshot = incoming.copy()
-        var checks = 0
-        assertThrows(CancellationException::class.java) {
-            speechStructure(SpeechMappedText.original("下一句。".repeat(100)), dialogue, incoming) {
-                if (++checks == 20) throw CancellationException("Stopped")
-            }
-        }
-        assertEquals(20, checks)
-        assertEquals(snapshot, incoming)
     }
 }

@@ -6,7 +6,8 @@ import java.util.Locale
 import java.util.regex.Pattern
 
 private val unspokenText = Pattern.compile("^[\\s\\p{C}\\p{P}\\p{Z}\\p{S}]+$")
-private val latinText = Pattern.compile("[\\p{IsLatin}\\p{P}0-9\\s]*\\p{IsLatin}[\\p{IsLatin}\\p{P}0-9\\s]*")
+private val latinText = Pattern.compile("[\\p{script=Latin}\\p{P}0-9\\s]+")
+private val latinLetter = Pattern.compile("\\p{script=Latin}")
 private val atomicMarks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]")
 private val wordWhitespace = Pattern.compile("\\s+")
 private val chineseEnglishSentence = Pattern.compile(
@@ -58,6 +59,7 @@ internal fun speechLatinSegments(
     if (input.text.isEmpty()) return emptyList()
     if (!enabled) return listOf(SpeechLanguageSegment(input, null))
     val result = mutableListOf<SpeechLanguageSegment>()
+    val letters = latinLetter.matcher(input.text)
     var copied = 0
     fun add(start: Int, end: Int, language: String?) {
         if (start < end) result += SpeechLanguageSegment(input.slice(start, end), language)
@@ -66,6 +68,8 @@ internal fun speechLatinSegments(
         val matches = latinText.matcher(input.text).region(start, end)
         while (matches.find()) {
             checkCancelled()
+            // Scan each candidate run once; a long digit-only run must not retry every suffix.
+            if (!letters.region(matches.start(), matches.end()).find()) continue
             add(copied, matches.start(), null)
             add(matches.start(), matches.end(), "lang:latin")
             copied = matches.end()

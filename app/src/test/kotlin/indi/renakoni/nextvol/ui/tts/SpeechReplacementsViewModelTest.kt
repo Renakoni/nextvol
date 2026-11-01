@@ -20,7 +20,8 @@ class SpeechReplacementsViewModelTest {
         val first = SpeechReplacementRule(id = "one", group = "a", name = "中", source = "甲", target = "乙")
         val second = SpeechReplacementRule(id = "two", group = "b", name = "A", source = "甲", target = "丙")
         val hidden = first.copy(id = "hidden", name = "Hidden")
-        val selected = SpeechSettings(httpSource = "selected", rate = 1.2f, replacements = listOf(first, second, hidden))
+        val selected = SpeechSettings(httpSource = "selected", rate = 1.2f, replacements = listOf(first, second, hidden),
+            text = SpeechTextSettings(separateEnglish = false))
         val stored = MutableStateFlow(selected)
         val repository = mockk<SpeechSettingsRepository>()
         every { repository.changes } returns stored
@@ -37,9 +38,9 @@ class SpeechReplacementsViewModelTest {
             assertNull(preview.preview)
             assertEquals(selected, stored.value)
             coVerify(exactly = 0) { repository.update(any()) }
-            model.preview("甲")
+            model.preview("甲 hello")
             val combined = withContext(Dispatchers.Default) { withTimeout(5000) { model.state.first { it.preview != null } } }
-            assertEquals("乙", combined.preview!!.segments.single().text)
+            assertEquals("乙 hello", combined.preview!!.segments.single().text)
             assertNull(combined.rulePreview)
             model.sort(descending = false)
             runCurrent()

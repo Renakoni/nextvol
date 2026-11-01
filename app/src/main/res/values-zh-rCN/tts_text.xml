@@ -16,4 +16,12 @@
     <string name="tts_text_dialogue_passage">对话</string>
     <string name="tts_text_latin_script">拉丁字母</string>
     <string name="tts_text_previous_passage">上文：%1$s</string>
+    <string name="tts_text_dialogue_description">区分旁白与引号内的对话</string>
+    <string name="tts_text_record_voice_description">记住最近匹配的声音，供后续对话使用</string>
+    <string name="tts_text_record_text_description">匹配角色时参考上一段文字</string>
+    <string name="tts_text_continue_dialogue_description">对话未结束时，在下一段继续</string>
+    <string name="tts_text_replace_emoji_description">合成语音前将表情替换为文本</string>
+    <string name="tts_text_separate_english_description">将英文与其他语言分段处理</string>
+    <string name="tts_text_filter_unspoken_description">合成前跳过只有标点或符号的内容</string>
+    <string name="tts_text_sentence_length_description">控制单次合成的句长，值越小响应越快</string>
 </resources>

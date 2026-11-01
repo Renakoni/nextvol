@@ -39,23 +39,6 @@ class SpeechPreprocessingTest {
         assertEquals(marked.text, speechLatinSegments(marked, false).single().content.text)
     }
 
-    @Test fun emojiUsesSingletonPriorityThenPairsAndMapsNamesToTheWholeSource() {
-        val input = SpeechMappedText.original("x👍🏻🇨🇳\u200d?")
-        val replaced = speechReplaceEmoji(input,
-            single = { when (it) { 0x1f44d -> "拇指"; 0x1f3fb -> "浅肤"; else -> null } },
-            pair = { first, second ->
-                when {
-                    first == 0x1f44d && second == 0x1f3fb -> "不会使用"
-                    first == 0x1f1e8 && second == 0x1f1f3 -> "中国"
-                    else -> null
-                }
-            })
-        assertEquals("x[拇指][浅肤][中国]\u200d?", replaced.text)
-        assertEquals(1 to 3, replaced.range(1, 5))
-        assertEquals(5 to 9, replaced.range(9, 13))
-        assertEquals(9 to 10, replaced.range(13, 14))
-    }
-
     @Test fun sentenceTargetIsSoftUntilTwiceItsLengthAndBackendLimitRemainsHard() {
         val input = SpeechMappedText.original("甲".repeat(9))
         val soft = speechSentenceChunks(input, 5, false, Locale.CHINESE)

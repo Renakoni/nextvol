@@ -67,7 +67,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
             for (sentence in speechSentenceChunks(corrected, settings.maxSentenceLength, settings.filterUnspoken,
                 checkCancelled = checkCancelled)) {
                 for (mapped in speechHardChunks(sentence, maxInputLength, checkCancelled)) {
-                    if (speechTrim(mapped).text.isEmpty() || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
+                    if (mapped.text.all { Character.isWhitespace(it) } || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
                     val (start, end) = mapped.range()
                     if (start < end) {
                         segments += SpeechSegment(start, end, mapped.text, part.dialogue, part.speaker,

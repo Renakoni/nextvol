@@ -16,4 +16,12 @@
     <string name="tts_text_dialogue_passage">Диалог</string>
     <string name="tts_text_latin_script">Латиница</string>
     <string name="tts_text_previous_passage">Предыдущий абзац: %1$s</string>
+    <string name="tts_text_dialogue_description">Разделять повествование и реплики в кавычках</string>
+    <string name="tts_text_record_voice_description">Сохранять последние подобранные голоса для следующих реплик</string>
+    <string name="tts_text_record_text_description">Учитывать предыдущий абзац при определении персонажей</string>
+    <string name="tts_text_continue_dialogue_description">Продолжать незавершённый диалог в следующем абзаце</string>
+    <string name="tts_text_replace_emoji_description">Заменять эмодзи текстом перед синтезом речи</string>
+    <string name="tts_text_separate_english_description">Отделять английский текст от других языков</string>
+    <string name="tts_text_filter_unspoken_description">Пропускать текст, состоящий только из знаков и символов</string>
+    <string name="tts_text_sentence_length_description">Короткие запросы синтеза обычно обрабатываются быстрее</string>
 </resources>

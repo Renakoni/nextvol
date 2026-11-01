@@ -5,8 +5,6 @@ import com.xiaomi.ai.local.JniTts
 import com.xiaomi.ai.local.TtsOptions
 import hnovel.speech.OfflineVoiceConfig
 import indi.renakoni.nextvol.tts.offline.OfflineEngine
-import indi.renakoni.nextvol.tts.SpeechMappedText
-import indi.renakoni.nextvol.tts.speechHardChunks
 import kotlinx.coroutines.CancellationException
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
@@ -39,23 +37,20 @@ internal class XiaomiEngine(@Suppress("UNUSED_PARAMETER") context: Context, dire
         check(handle != 0L) { "Xiaomi engine is closed" }
         cancelled = false
         val outputFailure = AtomicReference<Throwable?>()
-        // The original adapter bounds Xiaomi requests to 250 UTF-16 units.
-        for (segment in speechHardChunks(SpeechMappedText.original(text), 250)) {
-            if (cancelled) throw CancellationException("Xiaomi synthesis cancelled")
-            val success = JniTts.synthesis(handle, segment.text) { bytes, _ ->
-                if (cancelled) 1 else try {
-                    emit(bytes, bytes.size)
-                    0
-                } catch (failure: Throwable) {
-                    outputFailure.compareAndSet(null, failure)
-                    cancelled = true
-                    1
-                }
+        // SpeechPlan already applies this backend's 250 UTF-16-unit cap.
+        val success = JniTts.synthesis(handle, text) { bytes, _ ->
+            if (cancelled) 1 else try {
+                emit(bytes, bytes.size)
+                0
+            } catch (failure: Throwable) {
+                outputFailure.compareAndSet(null, failure)
+                cancelled = true
+                1
             }
-            outputFailure.get()?.let { throw it }
-            if (cancelled) throw CancellationException("Xiaomi synthesis cancelled")
-            check(success) { "Xiaomi synthesis failed" }
         }
+        outputFailure.get()?.let { throw it }
+        if (cancelled) throw CancellationException("Xiaomi synthesis cancelled")
+        check(success) { "Xiaomi synthesis failed" }
     }
 
     override fun cancel() { cancelled = true }

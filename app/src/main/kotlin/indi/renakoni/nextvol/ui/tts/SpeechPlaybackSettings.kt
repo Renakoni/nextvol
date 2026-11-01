@@ -1,18 +1,23 @@
 package indi.renakoni.nextvol.ui.tts
 
 import androidx.annotation.StringRes
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -21,7 +26,6 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
-import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -118,32 +122,50 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, on
             TextButton(onClick = onPreview) { Text(stringResource(R.string.tts_text_preview_action)) }
         })
     }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(vertical = 16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
             if (state.settings == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             state.error?.let { error -> item {
                 Text(stringResource(error.messageResource), Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
                     color = MaterialTheme.colorScheme.error)
             } }
             state.settings?.let { settings ->
-                item { SpeechTextSwitch(R.string.tts_text_dialogue, settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
-                item { SpeechTextSwitch(R.string.tts_text_record_voice, settings.recordVoice) { onUpdate { old -> old.copy(recordVoice = it) } } }
-                item { SpeechTextSwitch(R.string.tts_text_record_text, settings.recordText) { onUpdate { old -> old.copy(recordText = it) } } }
-                item { SpeechTextSwitch(R.string.tts_text_continue_dialogue, settings.continueDialogue) { onUpdate { old -> old.copy(continueDialogue = it) } } }
-                item { HorizontalDivider(Modifier.padding(horizontal = 22.dp, vertical = 12.dp)) }
-                item { SpeechTextSwitch(R.string.tts_text_replace_emoji, settings.replaceEmoji) { onUpdate { old -> old.copy(replaceEmoji = it) } } }
-                item { SpeechTextSwitch(R.string.tts_text_separate_english, settings.separateEnglish) { onUpdate { old -> old.copy(separateEnglish = it) } } }
-                item { SpeechTextSwitch(R.string.tts_text_filter_unspoken, settings.filterUnspoken) { onUpdate { old -> old.copy(filterUnspoken = it) } } }
+                item { SpeechTextSwitch(R.drawable.tts_text_dialogue, R.string.tts_text_dialogue, R.string.tts_text_dialogue_description,
+                    settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
+                item { SpeechTextSwitch(R.drawable.tts_text_record_voice, R.string.tts_text_record_voice, R.string.tts_text_record_voice_description,
+                    settings.recordVoice) { onUpdate { old -> old.copy(recordVoice = it) } } }
+                item { SpeechTextSwitch(R.drawable.tts_text_record_text, R.string.tts_text_record_text, R.string.tts_text_record_text_description,
+                    settings.recordText) { onUpdate { old -> old.copy(recordText = it) } } }
+                item { SpeechTextSwitch(R.drawable.tts_text_continue_dialogue, R.string.tts_text_continue_dialogue, R.string.tts_text_continue_dialogue_description,
+                    settings.continueDialogue) { onUpdate { old -> old.copy(continueDialogue = it) } } }
+                item { HorizontalDivider(Modifier.padding(start = 60.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)) }
+                item { SpeechTextSwitch(R.drawable.tts_text_replace_emoji, R.string.tts_text_replace_emoji, R.string.tts_text_replace_emoji_description,
+                    settings.replaceEmoji) { onUpdate { old -> old.copy(replaceEmoji = it) } } }
+                item { SpeechTextSwitch(R.drawable.tts_text_separate_english, R.string.tts_text_separate_english, R.string.tts_text_separate_english_description,
+                    settings.separateEnglish) { onUpdate { old -> old.copy(separateEnglish = it) } } }
+                item { SpeechTextSwitch(R.drawable.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken_description,
+                    settings.filterUnspoken) { onUpdate { old -> old.copy(filterUnspoken = it) } } }
                 item {
                     var length by remember(settings.maxSentenceLength) { mutableFloatStateOf(settings.maxSentenceLength.toFloat()) }
                     val title = stringResource(R.string.tts_text_sentence_length)
-                    Column(Modifier.padding(horizontal = 22.dp, vertical = 12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
-                            Text(length.roundToInt().toString(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+                        Icon(painterResource(R.drawable.tts_text_sentence_length), null,
+                            Modifier.padding(top = 2.dp).size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
+                                Text(length.roundToInt().toString(), style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(stringResource(R.string.tts_text_sentence_length_description),
+                                Modifier.padding(top = 3.dp), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Slider(length, { length = it }, valueRange = 32f..256f,
+                                onValueChangeFinished = { onUpdate { it.copy(maxSentenceLength = length.roundToInt()) } },
+                                modifier = Modifier.semantics { contentDescription = title },
+                                thumb = { Surface(Modifier.size(16.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {} },
+                                track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
+                                    trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
                         }
-                        Slider(length, { length = it }, valueRange = 32f..256f,
-                            onValueChangeFinished = { onUpdate { it.copy(maxSentenceLength = length.roundToInt()) } },
-                            modifier = Modifier.semantics { contentDescription = title })
                     }
                 }
             }
@@ -152,9 +174,18 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, on
 }
 
 @Composable
-private fun SpeechTextSwitch(@StringRes title: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
-    SettingsClickableEntry(title = stringResource(title),
-        trailingContent = { Switch(checked, onChange) }, onClick = { onChange(!checked) })
+private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
+    checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChange)
+        .heightIn(min = 68.dp).padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(icon), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(stringResource(title), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(description), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked, onCheckedChange = null, modifier = Modifier.scale(0.8f))
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

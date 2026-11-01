@@ -424,6 +424,7 @@ class ReadAloudSessionTest {
 
     @Test fun realPlaybackBoundariesHighlightASentenceAndKeepItsMovingAnchorAcrossPause() = runTest {
         val env = Environment(this)
+        env.inputLimit = 9
         env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "甲乙丙。丁戊己。\n庚辛壬。") }
         env.timings = listOf(SpeechTiming(0, 0, 1))
         try {
@@ -454,6 +455,7 @@ class ReadAloudSessionTest {
 
     @Test fun estimatedFollowingKeepsTheClipHighlightAndNeverChangesDurableProgress() = runTest {
         val env = Environment(this)
+        env.inputLimit = 10
         env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "甲乙丙丁戊己庚辛。\n下一段还有正文。") }
         try {
             env.session.start(SpeechRequest("book", "chapter"))
@@ -482,6 +484,7 @@ class ReadAloudSessionTest {
 
     @Test fun speedChangesKeepPausedAudioAndPrefetchAndSurvivePassageAndChapterTransitions() = runTest {
         val env = Environment(this)
+        env.inputLimit = 15
         env.configuration = SpeechSettings(rate = 1.2f, pitch = 0.8f, playbackSpeed = 1.5f)
         env.load = { book, chapter ->
             SpeechChapter(book, chapter, "Book", chapter,
@@ -962,6 +965,7 @@ class ReadAloudSessionTest {
         var onClose: () -> Unit = {}
         var timings = emptyList<SpeechTiming>()
         var configuration = SpeechSettings()
+        var inputLimit = Int.MAX_VALUE
         val synthesized = mutableListOf<String>()
         val opened = mutableListOf<SpeechSettings>()
         val directory = files.newFolder()
@@ -970,6 +974,7 @@ class ReadAloudSessionTest {
         val session = ReadAloudSession(scope, SpeechChapterSource { book, chapter -> load(book, chapter) },
             { val snapshot = configuration; beforeSettings(); snapshot }, progress, {
                 object : SpeechSynthesizer {
+                    override val maxInputLength get() = inputLimit
                     override suspend fun open(settings: SpeechSettings): String { opened += settings; return "Test voice" }
                     override suspend fun synthesize(text: String, output: File): List<SpeechTiming> {
                         synthesized += text

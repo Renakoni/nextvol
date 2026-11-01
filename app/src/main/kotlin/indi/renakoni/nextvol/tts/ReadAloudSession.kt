@@ -274,6 +274,8 @@ class ReadAloudSession(
     private suspend fun stream(token: Long, request: SpeechRequest, provider: SpeechSynthesizer,
         directory: File, saved: SpeechBookmark?, synthesis: SpeechSettings, reusablePlan: SpeechPlan?,
         initialContext: SpeechContext) = coroutineScope {
+        val maxInputLength = provider.maxInputLength
+        val processingKey = synthesis.textProcessingKey(maxInputLength)
         // At most one playing file, two buffered files and one synthesis in flight.
         val queue = Channel<Step>(capacity = 2, onUndeliveredElement = { (it as? Step.Ready)?.clip?.file?.delete() })
         launch {
@@ -283,7 +285,7 @@ class ReadAloudSession(
             var position = 0
             // A failed chapter load has no fingerprint yet; retain its input seed for another retry.
             var context = saved?.takeIf { !request.isPreview && it.bookId == request.bookId &&
-                it.chapterId == request.chapterId && it.replacementKey == synthesis.textProcessingKey(provider.maxInputLength) }
+                it.chapterId == request.chapterId && it.replacementKey == processingKey }
                 ?.context ?: initialContext
             try {
                 var first = true
@@ -297,9 +299,9 @@ class ReadAloudSession(
                     if (first) context = saved?.takeIf { !target.isPreview && it.bookId == loaded.bookId &&
                         it.chapterId == loaded.id && (it.fingerprint == loaded.fingerprint ||
                             it.fingerprint.isEmpty() && it.offset == 0) &&
-                        it.replacementKey == synthesis.textProcessingKey(provider.maxInputLength) }?.context ?: initialContext
-                    plan = reusablePlan?.takeIf { it.matches(loaded, synthesis, context, provider.maxInputLength) } ?: withContext(ioDispatcher) {
-                        preparePlan(loaded, synthesis, context, provider.maxInputLength)
+                        it.replacementKey == processingKey }?.context ?: initialContext
+                    plan = reusablePlan?.takeIf { it.matches(loaded, synthesis, context, maxInputLength) } ?: withContext(ioDispatcher) {
+                        preparePlan(loaded, synthesis, context, maxInputLength)
                     }
                     val segments = plan.segments
                     if (segments.isEmpty()) {
@@ -357,7 +359,7 @@ class ReadAloudSession(
                             ?: currentBoundary?.takeIf { it.chapterId == failed?.id && it.fingerprint == failed.fingerprint }
                             ?: SpeechBookmark(request.bookId,
                             step.request.chapterId, failed?.fingerprint.orEmpty(), 0, bookTitle, failed?.title.orEmpty(),
-                            replacementKey = synthesis.textProcessingKey(provider.maxInputLength), context = step.context)
+                            replacementKey = processingKey, context = step.context)
                         if (!request.isPreview) save(currentBoundary!!)
                         publish(token) { it.copy(request = step.request, bookTitle = bookTitle, chapterTitle = failed?.title.orEmpty(),
                             segmentIndex = step.index, segmentCount = step.plan?.segments?.size ?: 0, currentText = segment?.text.orEmpty(),
