@@ -279,10 +279,12 @@ class ReadAloudSessionTest {
 
     @Test fun enteringABookResumesItsListeningChapterAfterTheCompletedSegment() = runTest {
         val env = Environment(this)
-        val text = "第一段。\n\n  第二段。\n第三段。"
+        val text = listOf("第一段" + "甲".repeat(28) + "。", "第二段" + "乙".repeat(28) + "。",
+            "第三段" + "丙".repeat(28) + "。").joinToString("\n")
+        env.configuration = SpeechSettings(text = SpeechTextSettings(maxSentenceLength = 32))
         env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", chapter, text) }
         val chapter = env.load("book", "two")
-        val segments = speechSegments(text)
+        val segments = prepareSpeechPlan(chapter, env.configuration) {}.segments
         env.progress.saved["book"] = SpeechBookmark("book", "two", chapter.fingerprint, segments.first().end)
         try {
             env.session.start(SpeechRequest("book", "one"))
@@ -730,10 +732,13 @@ class ReadAloudSessionTest {
 
     @Test fun skippingAndResumingUseThePlayingPlanEvenWhenAFutureChapterHasBeenPrepared() = runTest {
         val env = Environment(this)
+        val text = listOf("𠀀第一段" + "甲".repeat(25) + "。", "第二段" + "乙".repeat(28) + "。",
+            "第三段" + "丙".repeat(28) + "。").joinToString("\n")
+        env.configuration = SpeechSettings(text = SpeechTextSettings(maxSentenceLength = 32))
         var loaded = 0
         env.load = { book, chapter ->
             loaded++
-            SpeechChapter(book, chapter, "Book", chapter, "𠀀第一段。\n\n  第二段。\n第三段。",
+            SpeechChapter(book, chapter, "Book", chapter, text,
                 nextId = if (chapter == "one") "two" else null)
         }
         try {
@@ -796,21 +801,24 @@ class ReadAloudSessionTest {
 
     @Test fun replacementsSharePlaybackMappingAcrossOnlineAndOfflineAndInvalidatePrefetchWhilePaused() = runTest {
         val env = Environment(this)
-        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "甲😀乙\n甲😀乙") }
+        val suffix = "字".repeat(28) + "。"
+        val paragraph = "甲😀乙$suffix"
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "$paragraph\n$paragraph") }
         val rule = SpeechReplacementRule(id = "expand", source = "甲", target = "一二三")
-        env.configuration = SpeechSettings(httpSource = "online", replacements = listOf(rule))
+        env.configuration = SpeechSettings(httpSource = "online", replacements = listOf(rule),
+            text = SpeechTextSettings(maxSentenceLength = 32))
         try {
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
-            assertEquals("一二三😀乙", env.player.started.single().segment.text)
+            assertEquals("一二三😀乙$suffix\n", env.player.started.single().segment.text)
             env.player.estimatedAnchorCallback!!.invoke(4)
             assertEquals(1, env.session.state.value.position!!.anchor)
             assertEquals(0, env.session.state.value.position!!.start)
-            assertEquals(4, env.session.state.value.position!!.end)
+            assertEquals(paragraph.length + 1, env.session.state.value.position!!.end)
             env.session.skipSegment(1)
             runCurrent()
             assertEquals(1, env.player.started.last().index)
-            assertEquals(5, env.progress.saved.getValue("book").offset)
+            assertEquals(paragraph.length + 1, env.progress.saved.getValue("book").offset)
             env.session.pause()
             val previous = env.player.started.last()
             env.configuration = env.configuration.copy(httpSource = null,
@@ -818,8 +826,8 @@ class ReadAloudSessionTest {
             env.session.updateSettings(env.configuration)
             runCurrent()
             val current = env.player.started.last()
-            assertEquals("四😀乙", current.segment.text)
-            assertEquals(5, current.segment.start)
+            assertEquals("四😀乙$suffix", current.segment.text)
+            assertEquals(paragraph.length + 1, current.segment.start)
             assertFalse(env.player.playing)
             assertFalse(previous.file.exists())
             assertNotSame(previous.plan, current.plan)
@@ -853,6 +861,95 @@ class ReadAloudSessionTest {
             assertEquals(SpeechError.ReplacementRule, env.session.state.value.error)
             assertEquals("invalid", env.session.state.value.replacementFailure?.ruleId)
             assertTrue(env.synthesized.isEmpty())
+        } finally { env.stop() }
+    }
+
+    @Test fun contextFollowsConsumedPlansThroughPrefetchSkipBookSwitchAndFreshStart() = runTest {
+        val env = Environment(this)
+        env.configuration = SpeechSettings(text = SpeechTextSettings(dialogue = true, continueDialogue = true, recordText = true))
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", chapter,
+            when (chapter) { "one" -> "“没说完"; "two" -> "接着说完。” “另一句。”"; else -> "旁白。" },
+            nextId = when (chapter) { "one" -> "two"; "two" -> "three"; else -> null }) }
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            val first = env.player.started.single()
+            assertTrue(first.plan.nextContext.openDialogue)
+            assertFalse(env.progress.saved.getValue("book").context.openDialogue)
+            env.player.finish()
+            runCurrent()
+            val second = env.player.started.last()
+            assertEquals("two", second.chapter.id)
+            assertTrue(second.plan.context.openDialogue)
+            assertFalse(second.segment.changeVoice)
+            env.session.skipSegment(1)
+            runCurrent()
+            assertSame(second.plan, env.player.started.last().plan)
+            assertEquals(1, env.player.started.last().index)
+            assertTrue(env.progress.saved.getValue("book").context.openDialogue)
+            env.session.start(SpeechRequest("other", "three"))
+            runCurrent()
+            assertEquals(SpeechContext(), env.player.started.last().plan.context)
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            assertEquals("two", env.player.started.last().chapter.id)
+            assertTrue(env.player.started.last().plan.context.openDialogue)
+            assertEquals(1, env.player.started.last().index)
+            env.stop()
+            env.session.resume()
+            runCurrent()
+            assertTrue(env.player.started.last().plan.context.openDialogue)
+            env.session.start(SpeechRequest("book", "two"), resumeSaved = false)
+            runCurrent()
+            assertEquals(SpeechContext(), env.player.started.last().plan.context)
+            env.session.start(SpeechRequest("book", "one"), resumeSaved = false)
+            runCurrent()
+            env.session.skipSegment(1)
+            runCurrent()
+            assertEquals("two", env.player.started.last().chapter.id)
+            assertTrue(env.player.started.last().plan.context.openDialogue)
+        } finally { env.stop() }
+    }
+
+    @Test fun retryAndPreviewReturnRestoreTheChapterInputContext() = runTest {
+        val env = Environment(this)
+        env.configuration = SpeechSettings(text = SpeechTextSettings(dialogue = true, continueDialogue = true))
+        var failLoad = true
+        env.load = { book, chapter ->
+            if (failLoad && chapter == "two") throw IOException("load")
+            SpeechChapter(book, chapter, "Book", chapter,
+                if (chapter == "one") "“没说完" else "还在说", nextId = if (chapter == "one") "two" else null)
+        }
+        var fail = true
+        env.beforeSynthesis = { if (fail && env.synthesized.last() == "还在说") throw IOException("synthesis") }
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            env.player.finish()
+            runCurrent()
+            assertEquals(SpeechPhase.Failed, env.session.state.value.phase)
+            assertTrue(env.progress.saved.getValue("book").context.openDialogue)
+            failLoad = false
+            env.session.resume()
+            runCurrent()
+            assertEquals(SpeechPhase.Failed, env.session.state.value.phase)
+            assertTrue(env.progress.saved.getValue("book").context.openDialogue)
+            fail = false
+            env.session.resume()
+            runCurrent()
+            val resumed = env.player.started.last()
+            assertTrue(resumed.plan.context.openDialogue)
+            assertTrue(resumed.segment.dialogue)
+            env.session.start(SpeechRequest("", "", previewText = "独立试听"))
+            runCurrent()
+            assertEquals(SpeechContext(), env.player.started.last().plan.context)
+            assertFalse(env.player.started.last().segment.dialogue)
+            env.player.finish()
+            runCurrent()
+            assertTrue(env.session.restoreAfterPreview())
+            runCurrent()
+            assertSame(resumed.plan, env.player.started.last().plan)
+            assertTrue(env.player.started.last().plan.context.openDialogue)
         } finally { env.stop() }
     }
 

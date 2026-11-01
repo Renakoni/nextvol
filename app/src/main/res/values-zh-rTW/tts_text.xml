@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_playback_preferences">播放設定</string>
+    <string name="tts_text_dialogue">合成對話</string>
+    <string name="tts_text_record_voice">記錄最近聲音</string>
+    <string name="tts_text_record_text">記錄上文段落</string>
+    <string name="tts_text_continue_dialogue">繼續未完對話</string>
+    <string name="tts_text_replace_emoji">替換表情</string>
+    <string name="tts_text_separate_english">分開英文</string>
+    <string name="tts_text_filter_unspoken">過濾純標點</string>
+    <string name="tts_text_sentence_length">句長限制</string>
+    <string name="tts_text_preview">文字預覽</string>
+    <string name="tts_text_preview_action">預覽</string>
+    <string name="tts_text_preview_input">輸入文字，空行分請求</string>
+    <string name="tts_text_narration">旁白</string>
+    <string name="tts_text_dialogue_passage">對話</string>
+    <string name="tts_text_latin_script">拉丁字母</string>
+    <string name="tts_text_previous_passage">上文：%1$s</string>
+</resources>

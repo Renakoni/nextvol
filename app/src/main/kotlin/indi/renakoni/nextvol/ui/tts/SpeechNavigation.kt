@@ -46,6 +46,12 @@ data class SpeechEngineEditorRoute(val code: String)
 object SpeechPreferencesRoute
 
 @Serializable
+object SpeechPlaybackSettingsRoute
+
+@Serializable
+object SpeechTextPreviewRoute
+
+@Serializable
 object SpeechReplacementsRoute
 
 @Serializable
@@ -82,11 +88,27 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
             onSources = { nav.navigate(HttpSpeechSourcesRoute()) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
+            onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
             onReplacements = { nav.navigate(SpeechReplacementsRoute) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer)
+    }
+    composable<SpeechPlaybackSettingsRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechPlaybackSettingsScreen(state, nav::popBackStackIfResumed, viewModel::update,
+            onPreview = { nav.navigate(SpeechTextPreviewRoute) { launchSingleTop = true } })
+    }
+    composable<SpeechTextPreviewRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechTextPreviewScreen(state, nav::popBackStackIfResumed, viewModel::preview, viewModel::clearPreview)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()

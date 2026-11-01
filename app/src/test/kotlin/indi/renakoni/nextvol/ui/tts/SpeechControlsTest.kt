@@ -214,7 +214,7 @@ class SpeechControlsTest {
         }
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.onNodeWithContentDescription("Stop").assertDoesNotExist()
-        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("Playback settings"))
+        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("Voice settings"))
         compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasTestTag("speech-engines-entry"))
         compose.onNodeWithTag("speech-engines-entry").performClick()
         assertEquals(1, enginesOpened)

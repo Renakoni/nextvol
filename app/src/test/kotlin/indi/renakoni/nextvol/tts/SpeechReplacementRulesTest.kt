@@ -49,13 +49,17 @@ class SpeechReplacementRulesTest {
         for (source in listOf("(?<person>甲)", "(?=甲)", "甲")) assertFalse(literal(source, "<<张三>>").wholeText)
         val open = literal("「", "“<<张三>>").copy(group = "书中人物")
         val rules = listOf(literal("重庆", "崇庆"), open, literal("」", "”"))
-        val chapter = SpeechChapter("book", "chapter", "", "", "旁白。\n「重庆」")
-        val plan = prepareSpeechPlan(chapter, SpeechSettings(replacements = rules)) {}
-        assertEquals("旁白。\n“<<张三>>重庆”", plan.structuredText)
+        val chapter = SpeechChapter("book", "chapter", "", "", "旁白。 「重庆」")
+        val disabled = prepareSpeechPlan(chapter, SpeechSettings(replacements = rules)) {}
+        assertTrue(disabled.segments.none { it.dialogue || it.speaker != null || it.speakerHint != null })
+        val plan = prepareSpeechPlan(chapter, SpeechSettings(replacements = rules,
+            text = SpeechTextSettings(dialogue = true))) {}
+        assertEquals("旁白。 “<<张三>>重庆”", plan.structuredText)
         val dialogue = plan.segments.last()
         assertTrue(dialogue.dialogue)
-        assertEquals("张三", dialogue.speaker)
-        assertEquals("“崇庆”", dialogue.text)
+        assertNull(dialogue.speaker)
+        assertEquals("张三", dialogue.speakerHint)
+        assertEquals("“<<张三>>崇庆”", dialogue.text)
         assertEquals(4, dialogue.start)
         assertEquals(8, dialogue.end)
         assertEquals(chapter.fingerprint, plan.position(1).fingerprint)

@@ -24,6 +24,7 @@ class SpeechSettingsRepositoryTest {
             val repository = SpeechSettingsRepository(data)
             val old = repository.get()
             assertNull(old.offlineVoice)
+            assertEquals(SpeechTextSettings(), old.text)
             assertEquals(if (legacy.contains("old-http-id")) "old-http-id" else null, old.httpSource)
             assertEquals(1f, old.playbackSpeed)
             assertEquals(if (legacy.contains("1.5")) 1.5f else null, old.rate)
@@ -59,9 +60,12 @@ class SpeechSettingsRepositoryTest {
             SpeechReplacementRule("first", "引号", "人物", "「", "“<<张三>>"),
             SpeechReplacementRule("second", "纠音", "草稿", "(", "$1", regex = true, activate = false),
         )
-        repository.update { it.copy(replacements = rules, httpSource = "online") }
+        val text = SpeechTextSettings(dialogue = true, recordVoice = true, recordText = true,
+            continueDialogue = true, replaceEmoji = true, separateEnglish = false, filterUnspoken = false, maxSentenceLength = 72)
+        repository.update { it.copy(replacements = rules, httpSource = "online", text = text) }
         repository.update { it.copy(offlineVoice = OfflineVoiceRef("a".repeat(64), "b".repeat(64))) }
         assertEquals(rules, SpeechSettingsRepository(data).get().replacements)
+        assertEquals(text, SpeechSettingsRepository(data).get().text)
         repository.update { it.copy(replacements = it.replacements.reversed()) }
         assertEquals(rules.reversed(), repository.changes.first().replacements)
     }

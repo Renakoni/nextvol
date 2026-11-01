@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_playback_preferences">Настройки воспроизведения</string>
+    <string name="tts_text_dialogue">Синтез диалогов</string>
+    <string name="tts_text_record_voice">Запоминать последние голоса</string>
+    <string name="tts_text_record_text">Запоминать предыдущие абзацы</string>
+    <string name="tts_text_continue_dialogue">Продолжать незавершённый диалог</string>
+    <string name="tts_text_replace_emoji">Заменять эмодзи</string>
+    <string name="tts_text_separate_english">Отделять английский текст</string>
+    <string name="tts_text_filter_unspoken">Пропускать текст только со знаками препинания</string>
+    <string name="tts_text_sentence_length">Длина предложения</string>
+    <string name="tts_text_preview">Предпросмотр текста</string>
+    <string name="tts_text_preview_action">Предпросмотр</string>
+    <string name="tts_text_preview_input">Введите текст; пустые строки разделяют запросы</string>
+    <string name="tts_text_narration">Повествование</string>
+    <string name="tts_text_dialogue_passage">Диалог</string>
+    <string name="tts_text_latin_script">Латиница</string>
+    <string name="tts_text_previous_passage">Предыдущий абзац: %1$s</string>
+</resources>

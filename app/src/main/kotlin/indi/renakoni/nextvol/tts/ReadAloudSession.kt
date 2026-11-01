@@ -49,9 +49,9 @@ class ReadAloudSession(
     private val playback: SpeechPlayback,
     private val cacheRoot: File,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val preparePlan: suspend (SpeechChapter, SpeechSettings) -> SpeechPlan = { chapter, synthesis ->
+    private val preparePlan: suspend (SpeechChapter, SpeechSettings, SpeechContext, Int) -> SpeechPlan = { chapter, synthesis, context, limit ->
         val task = currentCoroutineContext()
-        prepareSpeechPlan(chapter, synthesis) { task.ensureActive() }
+        prepareSpeechPlan(chapter, synthesis, context = context, maxInputLength = limit) { task.ensureActive() }
     },
 ) {
     private val mutableState = MutableStateFlow(ReadAloudState())
@@ -70,7 +70,7 @@ class ReadAloudSession(
     private var suspendedBook: SuspendedBook? = null
 
     fun start(request: SpeechRequest, resumeSaved: Boolean = true, boundary: SpeechBookmark? = null, playing: Boolean = true,
-        sleepTimerChapters: Int? = null) {
+        sleepTimerChapters: Int? = null, initialContext: SpeechContext = SpeechContext()) {
         val current = state.value
         if (!request.isPreview) suspendedBook = null
         else if (current.request?.isPreview == false && (current.isActive || current.phase == SpeechPhase.Paused)) {
@@ -123,7 +123,8 @@ class ReadAloudSession(
                 currentCoroutineContext().ensureActive()
                 currentBoundary = boundary ?: saved
                 publish(token) { it.copy(request = target) }
-                stream(token, target, provider, directory, boundary ?: saved, synthesis, reusablePlan)
+                stream(token, target, provider, directory, boundary ?: saved, synthesis, reusablePlan,
+                    if (request.isPreview) SpeechContext() else initialContext)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -227,7 +228,9 @@ class ReadAloudSession(
         val current = state.value
         val id = (if (next) current.nextChapterId else current.previousChapterId) ?: return
         val request = current.request ?: return
-        start(request.copy(chapterId = id), resumeSaved = false, playing = wantsPlay)
+        val context = currentPlan?.takeIf { next && it.chapter.bookId == request.bookId &&
+            it.chapter.id == request.chapterId }?.nextContext ?: SpeechContext()
+        start(request.copy(chapterId = id), resumeSaved = false, playing = wantsPlay, initialContext = context)
     }
 
     fun skipSegment(delta: Int) {
@@ -264,11 +267,13 @@ class ReadAloudSession(
         data class Ready(val clip: SpeechClip) : Step
         data class Skipped(val plan: SpeechPlan) : Step
         data class Failed(val error: SpeechError, val request: SpeechRequest, val chapter: SpeechChapter?,
-            val plan: SpeechPlan?, val index: Int, val replacementFailure: SpeechReplacementFailure? = null) : Step
+            val plan: SpeechPlan?, val index: Int, val context: SpeechContext,
+            val replacementFailure: SpeechReplacementFailure? = null) : Step
     }
 
     private suspend fun stream(token: Long, request: SpeechRequest, provider: SpeechSynthesizer,
-        directory: File, saved: SpeechBookmark?, synthesis: SpeechSettings, reusablePlan: SpeechPlan?) = coroutineScope {
+        directory: File, saved: SpeechBookmark?, synthesis: SpeechSettings, reusablePlan: SpeechPlan?,
+        initialContext: SpeechContext) = coroutineScope {
         // At most one playing file, two buffered files and one synthesis in flight.
         val queue = Channel<Step>(capacity = 2, onUndeliveredElement = { (it as? Step.Ready)?.clip?.file?.delete() })
         launch {
@@ -276,6 +281,10 @@ class ReadAloudSession(
             var chapter: SpeechChapter? = null
             var plan: SpeechPlan? = null
             var position = 0
+            // A failed chapter load has no fingerprint yet; retain its input seed for another retry.
+            var context = saved?.takeIf { !request.isPreview && it.bookId == request.bookId &&
+                it.chapterId == request.chapterId && it.replacementKey == synthesis.textProcessingKey(provider.maxInputLength) }
+                ?.context ?: initialContext
             try {
                 var first = true
                 while (true) {
@@ -285,12 +294,15 @@ class ReadAloudSession(
                     chapter = if (target.isPreview) SpeechChapter("", "", "", "", target.previewText.orEmpty())
                         else loadChapter(target)
                     val loaded = chapter
-                    plan = reusablePlan?.takeIf { it.matches(loaded, synthesis) } ?: withContext(ioDispatcher) {
-                        preparePlan(loaded, synthesis)
+                    if (first) context = saved?.takeIf { !target.isPreview && it.bookId == loaded.bookId &&
+                        it.chapterId == loaded.id && (it.fingerprint == loaded.fingerprint ||
+                            it.fingerprint.isEmpty() && it.offset == 0) &&
+                        it.replacementKey == synthesis.textProcessingKey(provider.maxInputLength) }?.context ?: initialContext
+                    plan = reusablePlan?.takeIf { it.matches(loaded, synthesis, context, provider.maxInputLength) } ?: withContext(ioDispatcher) {
+                        preparePlan(loaded, synthesis, context, provider.maxInputLength)
                     }
                     val segments = plan.segments
                     if (segments.isEmpty()) {
-                        if (synthesis.replacements.none { it.activate }) throw SpeechException(SpeechError.EmptyText)
                         queue.send(Step.Skipped(plan))
                     }
                     val startIndex = plan.startIndex(saved.takeIf { first })
@@ -309,12 +321,13 @@ class ReadAloudSession(
                     val next = chapter.nextId ?: break
                     if (next == chapter.id) throw SpeechException(SpeechError.SourceUnavailable)
                     target = target.copy(chapterId = next)
+                    context = plan.nextContext
                     first = false
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                queue.send(Step.Failed(failure.speechError(SpeechError.SynthesisFailed), target, chapter, plan, position,
+                queue.send(Step.Failed(failure.speechError(SpeechError.SynthesisFailed), target, chapter, plan, position, context,
                     (failure as? SpeechReplacementException)?.failure))
             } finally { queue.close() }
         }
@@ -343,7 +356,8 @@ class ReadAloudSession(
                         currentBoundary = step.plan?.bookmark(segment?.start ?: 0, step.index)
                             ?: currentBoundary?.takeIf { it.chapterId == failed?.id && it.fingerprint == failed.fingerprint }
                             ?: SpeechBookmark(request.bookId,
-                            step.request.chapterId, failed?.fingerprint.orEmpty(), 0, bookTitle, failed?.title.orEmpty())
+                            step.request.chapterId, failed?.fingerprint.orEmpty(), 0, bookTitle, failed?.title.orEmpty(),
+                            replacementKey = synthesis.textProcessingKey(provider.maxInputLength), context = step.context)
                         if (!request.isPreview) save(currentBoundary!!)
                         publish(token) { it.copy(request = step.request, bookTitle = bookTitle, chapterTitle = failed?.title.orEmpty(),
                             segmentIndex = step.index, segmentCount = step.plan?.segments?.size ?: 0, currentText = segment?.text.orEmpty(),
