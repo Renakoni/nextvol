@@ -65,7 +65,7 @@ than recording it as a baseline exception.
   behavior in the isolated execution service also remains a visible warning for
   that subsystem's lifecycle/performance work.
 - PluralsCandidate and Chinese unused `one` branches need language-specific
-  judgement; working Russian plurals are covered by #327 tests. UnusedResources,
+  judgement. UnusedResources,
   logging/style/KTX suggestions and dependency updates remain visible; this
   change does not mechanically delete resources or update dependencies to
   reduce the warning count.

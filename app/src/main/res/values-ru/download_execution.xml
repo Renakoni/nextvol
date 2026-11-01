@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="download_submission_accepted">Загрузка добавлена в очередь · %1$s</string>
-    <string name="download_task_waiting_network">Ожидание подключения к сети</string>
-    <string name="download_task_waiting_scheduler">В очереди · ожидание запуска системой</string>
-    <string name="download_error_scheduling">Не удалось поставить загрузку в очередь. Повторите попытку.</string>
-</resources>

@@ -1,7 +1,0 @@
-<resources>
-    <string name="filter_completed">Завершено</string>
-    <string name="filter_word_limit">Ограничение по числу слов</string>
-    <string name="filter_word_count">Число слов</string>
-    <string name="filter_word_limit_description">Показывать книги, в которых не меньше указанного числа слов. Значение 0 — без ограничений.</string>
-    <string name="filter_no_limit">Без ограничений</string>
-</resources>

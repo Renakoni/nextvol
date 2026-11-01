@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 
 LANGUAGES = {'values': {'one', 'other'}, 'values-zh-rCN': {'other'},
-             'values-zh-rTW': {'other'}, 'values-ru': {'one', 'few', 'many', 'other'}}
+             'values-zh-rTW': {'other'}}
 RESOURCE_TYPES = {'string', 'plurals', 'string-array'}
 FORMAT = re.compile(r'%(?:(\d+)\$)?([-#+ 0,(<]*)(\d+)?(?:\.(\d+))?([tT])?([a-zA-Z%])')
 
@@ -113,18 +113,13 @@ def check(res):
     default = read_resources(res / 'values', errors)
     if not default:
         return [f'{res}: no default string resources found']
-    # Russian translations must be available to generic ru; regional-only keys cannot fill gaps.
-    directories = dict(LANGUAGES)
-    if (res / 'values-ru-rRU').is_dir():
-        directories['values-ru-rRU'] = LANGUAGES['values-ru']
-    for directory, required_quantities in directories.items():
+    for directory, required_quantities in LANGUAGES.items():
         translated = default if directory == 'values' else read_resources(res / directory, errors)
         for key, (reference, _) in default.items():
             if reference.get('translatable') == 'false':
                 continue
             if key not in translated:
-                if directory != 'values-ru-rRU':
-                    errors.append(f'{directory}: missing {key}')
+                errors.append(f'{directory}: missing {key}')
                 continue
             node, path = translated[key]
             try:

@@ -21,8 +21,6 @@ class DirectorySearchResourcesTest {
             "en" to "Chapter title or number",
             "zh-CN" to "搜索章节名或编号",
             "zh-TW" to "搜尋章節名或編號",
-            "ru" to "Название или номер главы",
-            "ru-RU" to "Название или номер главы",
         )) {
             val config = Configuration(app.resources.configuration).apply { setLocale(Locale.forLanguageTag(language)) }
             val resources = app.createConfigurationContext(config).resources
@@ -32,11 +30,6 @@ class DirectorySearchResourcesTest {
             for (count in listOf(0, 1, 2, 5, 21)) {
                 val expected = when {
                     language.startsWith("zh") -> "找到 $count 章"
-                    language.startsWith("ru") -> when (count) {
-                        1, 21 -> "Найдена $count глава"
-                        2 -> "Найдено $count главы"
-                        else -> "Найдено $count глав"
-                    }
                     count == 1 -> "1 chapter found"
                     else -> "$count chapters found"
                 }

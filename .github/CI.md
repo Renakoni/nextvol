@@ -472,7 +472,7 @@ no Lint report; the Actions step log remains the evidence in that case.
 | Scope | Coverage |
 | --- | --- |
 | App Debug | Full Android Lint, including main/Debug resources and the configured test source analysis |
-| App translations | Default/en, Simplified Chinese, Traditional Chinese, generic Russian and existing ru-RU overrides; see [resource contracts](RESOURCE_CONTRACTS.md) |
+| App translations | Default/en, Simplified Chinese and Traditional Chinese; see [resource contracts](RESOURCE_CONTRACTS.md) |
 | `:api` | Dependency model/class information used by app analysis; no independent `:api:lintDebug` scan |
 | `:benchmark` | Android test module, exercised by the existing minified device job; not independently linted |
 | App Release/snapshot/benchmark | No full variant Lint here; Release assembly/lintVital and minified runtime remain separate checks |

@@ -93,21 +93,20 @@ class LocalBookRelinkUiTest {
         compose.onNodeWithText("重新关联原文件").assertIsDisplayed().performClick()
         assertTrue(selected)
     }
-    @Test fun matchAndScopeMessagesResolveInAllFourLanguagesAndRussianRegion() {
+    @Test fun matchAndScopeMessagesResolveInAllSupportedLanguages() {
         val keys = listOf(R.string.local_file_backup_scope, R.string.local_file_missing_body,
             R.string.local_file_relink_preserves, R.string.local_file_match_exact, R.string.local_file_match_legacy,
             R.string.local_file_match_different_file, R.string.local_file_match_different_mapping,
             R.string.local_file_match_missing_mapping, R.string.local_file_legacy_confirmation)
         val context = RuntimeEnvironment.getApplication()
-        val messages = listOf("en", "zh-CN", "zh-TW", "ru", "ru-RU").associateWith { locale ->
+        val messages = listOf("en", "zh-CN", "zh-TW").associateWith { locale ->
             val localized = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
                 setLocale(Locale.forLanguageTag(locale))
             })
             keys.map { localized.getString(it) }
         }
-        for (locale in listOf("zh-CN", "zh-TW", "ru")) keys.indices.forEach { index ->
+        for (locale in listOf("zh-CN", "zh-TW")) keys.indices.forEach { index ->
             assertNotEquals(messages.getValue("en")[index], messages.getValue(locale)[index])
         }
-        assertEquals(messages.getValue("ru"), messages.getValue("ru-RU"))
     }
 }

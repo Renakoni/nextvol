@@ -171,8 +171,8 @@ class ReaderBookmarksUiTest {
         }
     }
 
-    @Test fun resourcesFormatInFourLanguagesAndRegionalRussian() {
-        for (language in listOf("en", "zh-CN", "zh-TW", "ru", "ru-RU")) {
+    @Test fun resourcesFormatInAllSupportedLanguages() {
+        for (language in listOf("en", "zh-CN", "zh-TW")) {
             val localized = activity.get().createConfigurationContext(Configuration(activity.get().resources.configuration).apply {
                 setLocale(Locale.forLanguageTag(language))
             })
