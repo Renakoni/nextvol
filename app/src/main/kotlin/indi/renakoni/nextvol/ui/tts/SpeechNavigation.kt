@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.ui.tts
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.widget.Toast
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +15,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -27,6 +29,8 @@ import android.net.Uri
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechRequest
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
+import indi.renakoni.nextvol.tts.SpeechVoiceRef
+import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import io.nightfish.lightnovelreader.api.Route
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
@@ -69,15 +73,6 @@ data class SpeechReplacementEditorRoute(val ruleId: String? = null)
 
 @Serializable
 object SpeechReplacementPreviewRoute
-
-@Serializable
-object SpeechVoiceRoutingRoute
-
-@Serializable
-data class SpeechVoicePickerRoute(val dialogue: Boolean = false, val person: String? = null)
-
-@Serializable
-object SpeechVoicePlanRoute
 
 @Serializable
 object SpeechRolesRoute
@@ -128,7 +123,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
             onReplacements = { nav.navigate(SpeechReplacementsRoute) { launchSingleTop = true } },
-            onVoiceRouting = { nav.navigate(SpeechVoiceRoutingRoute) { launchSingleTop = true } },
             onRoles = { nav.navigate(SpeechRolesRoute) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
@@ -199,47 +193,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechRoleContextScreen(state, nav::popBackStackIfResumed,
             onSave = { viewModel.saveContext(it, nav::popBackStackIfResumed) })
     }
-    composable<SpeechVoiceRoutingRoute> {
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechVoiceRoutingViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechVoiceRoutingScreen(state, nav::popBackStackIfResumed,
-            onCandidates = { nav.navigate(SpeechVoicePickerRoute(dialogue = it)) },
-            onPlan = { nav.navigate(SpeechVoicePlanRoute) },
-            onSources = { nav.navigate(HttpSpeechSourcesRoute) },
-            onRoles = { nav.navigate(SpeechRolesRoute) })
-    }
-    composable<SpeechVoicePickerRoute> { entry ->
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val owner = remember(entry) { nav.getBackStackEntry<SpeechVoiceRoutingRoute>() }
-        val viewModel = hiltViewModel<SpeechVoiceRoutingViewModel>(owner)
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        val route = entry.toRoute<SpeechVoicePickerRoute>()
-        LaunchedEffect(Unit) { viewModel.refresh() }
-        SpeechVoicePickerScreen(state, route.dialogue, route.person, nav::popBackStackIfResumed,
-            onSelect = { voice ->
-                if (route.person != null) viewModel.assign(route.person, voice) {
-                    if (nav.currentBackStackEntry === entry) nav.popBackStackIfResumed()
-                }
-                else voice?.let { viewModel.toggle(route.dialogue, it) }
-            }, onSources = { nav.navigate(HttpSpeechSourcesRoute) },
-            onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) },
-            onRoles = { nav.navigate(SpeechRolesRoute) })
-    }
-    composable<SpeechVoicePlanRoute> { entry ->
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val owner = remember(entry) { nav.getBackStackEntry<SpeechVoiceRoutingRoute>() }
-        val viewModel = hiltViewModel<SpeechVoiceRoutingViewModel>(owner)
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        LaunchedEffect(Unit) { viewModel.loadPlan() }
-        SpeechVoicePlanScreen(state, nav::popBackStackIfResumed,
-            onPerson = { nav.navigate(SpeechVoicePickerRoute(person = it)) },
-            onSources = { nav.navigate(HttpSpeechSourcesRoute) },
-            onRoles = { nav.navigate(SpeechRolesRoute) })
-    }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
@@ -273,7 +226,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed, viewModel::update)
+        SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed, viewModel::update, viewModel::allowMultipleVoices)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()
@@ -373,6 +326,17 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
+        val context = LocalContext.current
+        val selectDialogue: (SpeechVoiceRef) -> Unit = { voice ->
+            settingsViewModel.toggleVoice(true, voice) {
+                Toast.makeText(context, R.string.tts_voice_enable_dialogue, Toast.LENGTH_SHORT).show()
+            }
+        }
+        val httpVoice: (String?) -> SpeechVoiceRef = { id ->
+            if (id == null) SpeechVoiceRef(engine = settings.settings.engine, voice = settings.settings.voice,
+                label = context.getString(R.string.tts_system_speech))
+            else SpeechVoiceRef(httpSource = id, label = state.sources.find { it.definition.id == id }?.definition?.name.orEmpty())
+        }
         var deleting by remember { mutableStateOf<List<InstalledOfflineVoice>>(emptyList()) }
         var deletingHttp by remember { mutableStateOf<List<SavedHttpSpeechSource>>(emptyList()) }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -381,7 +345,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
             } }
         }
         val systemSettingsPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { settingsViewModel.refresh() }
-        HttpSpeechSourcesScreen(if (offline.error) state.copy(error = R.string.tts_error_storage) else state, nav::popBackStackIfResumed,
+        HttpSpeechSourcesScreen(if (offline.error || settings.error == SpeechError.Storage)
+            state.copy(error = R.string.tts_error_storage) else state, nav::popBackStackIfResumed,
+            selection = settings.settings, onDialogue = { selectDialogue(httpVoice(it)) },
+            onSystemGroup = { settingsViewModel.refresh(systemCatalog = true) },
             catalogReady = state.loaded && offline.loaded,
             onOfflineGroup = offlineViewModel::openEngine,
             onEngine = { nav.navigate(SpeechEngineEditorRoute(it, "http")) },
@@ -389,7 +356,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onEnableVoice = { source, enabled -> viewModel.enable(listOf(source), enabled) },
             onImport = { picker.launch(arrayOf("application/json", "application/zip", "application/x-zip-compressed",
                 "application/yaml", "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
-            onSelect = viewModel::select, onDelete = { deletingHttp = listOf(it) }, onSites = viewModel::sites,
+            onSelect = { settingsViewModel.toggleVoice(false, httpVoice(it)) }, onDelete = { deletingHttp = listOf(it) }, onSites = viewModel::sites,
             onConfirmImport = viewModel::confirmImport, onDismissImport = viewModel::dismissPreview, onEdit = viewModel::edit,
             onConfigure = viewModel::configure, onPreview = { viewModel.previewVoice(it, preview) },
             playback = playback, onCommand = viewModel.controller::command,
@@ -398,13 +365,17 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
             offlineGroups = offline.voices.map { it.configuration?.engine ?: "sherpa" }.distinct()
                 .associateWith { offline.engineNames[it] ?: it },
-            offlineSettings = { engine, query -> offlineSpeechSources(offline, engine, query, onSelect = offlineViewModel::select,
+            offlineSettings = { engine, query -> offlineSpeechSources(offline, engine, query, selection = settings.settings,
+                onSelect = { settingsViewModel.toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
+                onDialogue = { selectDialogue(SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                 onPreview = { offlineViewModel.preview(it, preview) }, onDelete = { deleting = it }, onEnable = offlineViewModel::enable,
                 onEdit = { voice, copy -> nav.navigate(OfflineVoiceEditorRoute(voice.reference.id, copy)) }) },
             systemSettings = { query ->
                 SystemSpeechSettings(settings.copy(loading = settings.loading || state.busy,
                     voices = settings.voices.filter { it.id.contains(query, true) || it.locale.contains(query, true) }),
-                    onEngine = settingsViewModel::selectEngine, onVoice = settingsViewModel::selectVoice,
+                    onEngine = settingsViewModel::selectEngine,
+                    onVoice = { settingsViewModel.toggleVoice(false, SpeechVoiceRef(engine = settings.settings.engine, voice = it, label = it)) },
+                    onDialogue = { selectDialogue(SpeechVoiceRef(engine = settings.settings.engine, voice = it, label = it)) },
                     onPreviewVoice = { viewModel.controller.preview(preview, settings.settings.copy(httpSource = null, voice = it, offlineVoice = null)) },
                     onSystemSettings = {
                         try { systemSettingsPicker.launch(Intent("com.android.settings.TTS_SETTINGS")) }

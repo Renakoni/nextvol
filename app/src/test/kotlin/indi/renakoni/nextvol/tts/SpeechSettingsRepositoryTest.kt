@@ -29,6 +29,7 @@ class SpeechSettingsRepositoryTest {
         coEvery { dao.insert("tts.settings", any(), "String", any()) } answers { stored.value = arg(3) }
         val data = UserDataRepository(dao)
         val repository = SpeechSettingsRepository(data)
+        assertFalse(repository.get().allowMultipleVoices)
         val previousLocale = Locale.getDefault()
         try {
             Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
@@ -43,11 +44,11 @@ class SpeechSettingsRepositoryTest {
         val text = SpeechTextSettings(dialogue = true, recordVoice = true, recordText = true,
             continueDialogue = true, replaceEmoji = true, separateEnglish = false, filterUnspoken = false, maxSentenceLength = 72)
         repository.update { it.copy(replacements = rules, httpSource = "online", text = text,
-            rate = 1.5f, pitch = 0.8f, playbackSpeed = 2f) }
+            rate = 1.5f, pitch = 0.8f, playbackSpeed = 2f, allowMultipleVoices = true) }
         val local = OfflineVoiceRef("a".repeat(64), "b".repeat(64))
         repository.update { it.copy(offlineVoice = local) }
         val expected = SpeechSettings(replacements = rules, offlineVoice = local, text = text,
-            rate = 1.5f, pitch = 0.8f, playbackSpeed = 2f)
+            rate = 1.5f, pitch = 0.8f, playbackSpeed = 2f, allowMultipleVoices = true)
         assertEquals(expected, SpeechSettingsRepository(data).get())
         repository.update { it.copy(replacements = it.replacements.reversed()) }
         assertEquals(rules.reversed(), repository.changes.first().replacements)

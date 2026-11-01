@@ -1,4 +1,5 @@
 <resources>
+    <string name="tts_voice_segment">%1$d · %2$s</string>
     <string name="tts_roles">角色管理</string>
     <string name="tts_roles_failed">角色規則執行失敗，可前往角色管理修改。</string>
     <string name="tts_role_add">新增角色規則</string>

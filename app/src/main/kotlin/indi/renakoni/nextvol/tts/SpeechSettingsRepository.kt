@@ -37,6 +37,7 @@ data class SpeechSettings(
     val speakerBookId: String = "",
     val voiceRevision: String = "",
     val voiceRoutingConfigured: Boolean = false,
+    val allowMultipleVoices: Boolean = false,
     val roleRules: List<SpeechRoleRule> = emptyList(),
     val roleContextPattern: String = "__ROLE__",
 ) {

@@ -25,6 +25,34 @@ data class SpeechResolvedVoice(val reference: SpeechVoiceRef, val settings: Spee
 
 enum class SpeechVoiceReason { Narration, Dialogue, Explicit, Remembered, Continued }
 
+enum class SpeechVoiceSelection { Narration, Dialogue }
+
+internal val SpeechSettings.selectedNarrators get() =
+    narrationVoices.ifEmpty { if (voiceRoutingConfigured) emptyList() else listOf(voiceReference()) }
+
+internal fun SpeechSettings.voiceSelection(voice: SpeechVoiceRef): SpeechVoiceSelection? = when {
+    selectedNarrators.any { it.key == voice.key } -> SpeechVoiceSelection.Narration
+    dialogueVoices.any { it.key == voice.key } -> SpeechVoiceSelection.Dialogue
+    else -> null
+}
+
+/** MultiTTS Z6.x.w/x: remove the opposite assignment before selecting a new one. */
+internal fun SpeechSettings.toggleVoice(dialogue: Boolean, voice: SpeechVoiceRef): SpeechSettings {
+    val configured = copy(voiceRoutingConfigured = true, narrationVoices = selectedNarrators)
+    val current = if (dialogue) configured.dialogueVoices else configured.narrationVoices
+    val other = if (dialogue) configured.narrationVoices else configured.dialogueVoices
+    if (other.any { it.key == voice.key }) {
+        return if (dialogue) configured.copy(narrationVoices = other.filterNot { it.key == voice.key })
+            else configured.copy(dialogueVoices = other.filterNot { it.key == voice.key })
+    }
+    val selected = when {
+        current.any { it.key == voice.key } -> current.filterNot { it.key == voice.key }
+        allowMultipleVoices -> current + voice
+        else -> listOf(voice)
+    }
+    return if (dialogue) configured.copy(dialogueVoices = selected) else configured.copy(narrationVoices = selected)
+}
+
 internal fun SpeechSettings.voiceReference() = SpeechVoiceRef(engine, voice, httpSource, offlineVoice)
 
 internal fun SpeechSettings.forVoice(reference: SpeechVoiceRef) = copy(

@@ -16,6 +16,9 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.ReadAloudController
 import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.searchVoice
+import indi.renakoni.nextvol.tts.SpeechSettings
+import indi.renakoni.nextvol.tts.SpeechVoiceRef
+import indi.renakoni.nextvol.tts.voiceSelection
 import indi.renakoni.nextvol.tts.matcha.*
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
@@ -138,11 +141,13 @@ internal fun LazyListScope.offlineSpeechSources(
     onSelect: (InstalledOfflineVoice) -> Unit, onPreview: (InstalledOfflineVoice) -> Unit,
     onEdit: (InstalledOfflineVoice, Boolean) -> Unit, onEnable: (List<InstalledOfflineVoice>, Boolean) -> Unit,
     onDelete: (List<InstalledOfflineVoice>) -> Unit,
+    selection: SpeechSettings,
+    onDialogue: (InstalledOfflineVoice) -> Unit,
 ) {
     val search = hnovel.speech.SpeechVoiceSearch(query)
     val voices = state.voices.filter { voice ->
         (voice.configuration?.engine ?: "sherpa") == engine &&
-            search.matches(voice.searchVoice(state.selected?.id == voice.reference.id))
+            search.matches(voice.searchVoice(selection.voiceSelection(SpeechVoiceRef(offlineVoice = voice.reference)) != null))
     }
     if (voices.isEmpty() && query.isNotEmpty()) item {
         Text(stringResource(R.string.search_no_results), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -150,7 +155,9 @@ internal fun LazyListScope.offlineSpeechSources(
     items(voices, key = { "offline:${it.reference.id}" }) { voice ->
         val status = state.availability[voice.reference]
         var actions by remember { mutableStateOf(false) }
-        SpeechSourceRow(voice.name, state.selected?.id == voice.reference.id, status?.canRun == true,
+        val selected = selection.voiceSelection(SpeechVoiceRef(offlineVoice = voice.reference))
+        SpeechSourceRow(voice.name, selected != null, status?.canRun == true || selected != null,
+            selection = selected, onLongClick = { onDialogue(voice) }, previewEnabled = status?.canRun == true,
             onClick = { onSelect(voice) }, avatar = {
                 SpeechAvatar(voice.metadata.avatar, voice.configuration?.gender ?: 0,
                     Modifier.size(40.dp), state.avatars[voice.reference.id])
