@@ -1,7 +1,7 @@
 <resources>
     <string name="tts_name_algorithm">Name discovery algorithm</string>
     <string name="tts_name_ner">NER (Chinese)</string>
-    <string name="tts_name_test">Name recognition test</string>
+    <string name="tts_name_test">Name analysis test</string>
     <string name="tts_name_input">Text</string>
     <string name="tts_name_run">Recognize names</string>
     <string name="tts_name_results">Recognized names</string>

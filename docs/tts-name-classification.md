@@ -53,8 +53,10 @@ changes do not rebuild it.
 
 This implementation preserves model priority. If no vocabulary token matches, or
 the device has no supported native runtime, it checks the male rule, then the
-female rule, using full matches. Male wins when both rules match. The defaults are
-empty. Rules are evaluated from the current request; invalid expressions surface
+female rule, using full matches. Male wins when both rules match. Chinese defaults come from the original
+`male_name_regex_dft` and `female_name_regex_dft` resources referenced by
+`root_preferences`; other locales default to empty. Saved values, including an
+explicitly cleared rule, remain unchanged when the locale changes. Rules are evaluated from the current request; invalid expressions surface
 as errors when that rule path is used.
 
 The following differences are explicit:
@@ -74,6 +76,8 @@ availability only. Rule-based classification remains usable on other devices.
 ## Evidence and validation
 
 REA evidence establishes the Java routing and native implementation:
+
+- Localized rule defaults: `ev_5649353b43375df1ab2855a86123626dc0813050884235c0d60495b192f45a48`.
 
 - Pair/model/rule order: `ev_ae86be4bbac1a67e69f8cb2b8c8badedac77d41d098b34a22c4a52a817b1cfdc`.
 - Discarded female regex in raw smali: `ev_dfaa217732f0f8930f435f507f7a343484004432e23ec39badaef0d809f35a55`.

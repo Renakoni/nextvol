@@ -85,8 +85,7 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
-    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onNameTest: () -> Unit,
-    onNameClassification: () -> Unit) {
+    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onNameTest: () -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingMaleRule by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var text by rememberSaveable { mutableStateOf("") }
@@ -163,18 +162,17 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             }
             state.settings?.let { settings ->
                 item {
-                    SettingsClickableEntry(title = stringResource(R.string.tts_name_male_rule),
+                    SettingsClickableEntry(painter = painterResource(R.drawable.male_24px),
+                        title = stringResource(R.string.tts_name_male_rule),
                         option = settings.maleNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
                         onClick = { text = settings.maleNameRegex; editingMaleRule = true })
                 }
                 item {
-                    SettingsClickableEntry(title = stringResource(R.string.tts_name_female_rule),
+                    SettingsClickableEntry(painter = painterResource(R.drawable.female_24px),
+                        title = stringResource(R.string.tts_name_female_rule),
                         option = settings.femaleNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
                         onClick = { text = settings.femaleNameRegex; editingMaleRule = false })
                 }
-            }
-            item {
-                SettingsClickableEntry(title = stringResource(R.string.tts_name_classification_test), onClick = onNameClassification)
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_audition_text),
@@ -204,18 +202,12 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             Text(stringResource(R.string.tts_engine_save))
         } }, dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } })
     editingMaleRule?.let { male ->
-        AlertDialog(onDismissRequest = { editingMaleRule = null },
-            title = { Text(stringResource(if (male) R.string.tts_name_male_rule else R.string.tts_name_female_rule)) },
-            text = {
-                OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), minLines = 2, maxLines = 6,
-                    supportingText = { Text(stringResource(R.string.tts_name_rule_scope)) })
-            },
-            confirmButton = { TextButton(onClick = {
+        SpeechNameRuleDialog(stringResource(if (male) R.string.tts_name_male_rule else R.string.tts_name_female_rule),
+            text, { text = it }, onSave = {
                 val pattern = text
                 onUpdate { if (male) it.copy(maleNameRegex = pattern) else it.copy(femaleNameRegex = pattern) }
                 editingMaleRule = null
-            }) { Text(stringResource(R.string.tts_engine_save)) } },
-            dismissButton = { TextButton(onClick = { editingMaleRule = null }) { Text(stringResource(R.string.cancel)) } })
+            }, onDismiss = { editingMaleRule = null })
     }
 }
 

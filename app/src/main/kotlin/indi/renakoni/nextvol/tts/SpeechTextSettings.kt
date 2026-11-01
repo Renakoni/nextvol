@@ -4,7 +4,9 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import java.util.Locale
+import indi.renakoni.nextvol.tts.names.SpeechNamePatterns
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class SpeechTextSettings(
     val dialogue: Boolean = false,
@@ -15,9 +17,10 @@ data class SpeechTextSettings(
     val separateEnglish: Boolean = true,
     val filterUnspoken: Boolean = true,
     val nameDiscoveryAlgorithm: Int = 101,
-    val maleNameRegex: String = "",
-    val femaleNameRegex: String = "",
-    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault
+    val maleNameRegex: String = if (Locale.getDefault().language == "zh") SpeechNamePatterns.MALE else "",
+    @EncodeDefault
+    val femaleNameRegex: String = if (Locale.getDefault().language == "zh") SpeechNamePatterns.FEMALE else "",
     @EncodeDefault
     val maxSentenceLength: Int = when (Locale.getDefault().language) {
         "zh" -> 60

@@ -2,9 +2,6 @@
     <string name="tts_name_male_rule">Male name pattern</string>
     <string name="tts_name_female_rule">Female name pattern</string>
     <string name="tts_name_rule_empty">Not set</string>
-    <string name="tts_name_rule_scope">When the Chinese model cannot classify a name, match the entire name against these expressions. Male rules take precedence over female rules. Leave empty to disable.</string>
-    <string name="tts_name_classification_test">Name classification test</string>
-    <string name="tts_name_classification_scope">Provides a voice-selection hint from the Chinese name model, then the configured name patterns. This does not establish a character’s gender.</string>
     <string name="tts_name_classification_input">Name</string>
     <string name="tts_name_classification_run">Classify name</string>
     <string name="tts_name_classification_unavailable">The Chinese model needs Android 8 or later and the built-in arm64 runtime. Name patterns remain available.</string>
@@ -16,4 +13,5 @@
     <string name="tts_name_basis_male">Matched the male name pattern</string>
     <string name="tts_name_basis_female">Matched the female name pattern</string>
     <string name="tts_name_basis_none">No model or name-pattern evidence</string>
+    <string name="tts_name_classification_tab">Classification</string>
 </resources>
