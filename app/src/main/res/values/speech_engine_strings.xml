@@ -6,7 +6,6 @@
     <string name="tts_engine_parameters">Engine parameters</string>
     <string name="tts_engine_note">Notes</string>
     <string name="tts_engine_save">Save</string>
-    <string name="tts_engine_preset_online">This online engine uses preset connection settings. Choose and preview its voices in Voice sources.</string>
     <string name="tts_engine_new">New engine</string>
     <string name="tts_engine_code">Code</string>
     <string name="tts_engine_type">Type</string>

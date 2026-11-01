@@ -169,12 +169,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
 
     suspend fun delete(ids: Set<String>) = change { current -> current.filterNot { it.definition.id in ids && !it.definition.id.startsWith(BUILT_IN_PREFIX) } }
 
-    /** Rebuild each voice's request from the shared template while preserving its identity and local settings. */
-    suspend fun editImportedEngine(code: String, name: String, url: String, header: String) {
-        val engine = engines().single { it.code == code }
-        saveEngine(engine.copy(name = name.trim(), url = url.trim(), header = header))
-    }
-
     suspend fun configure(id: String, credentials: Map<String, String>) = change { current ->
         val requested = combined(current).first { it.definition.id == id }
         val source = builtIns.first { it.definition.id == (requested.engineReference ?: id) }
@@ -192,7 +186,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         val retained = store.engines.map { old ->
             if (old.deleted) imported.find { it.code == old.code }?.copy(order = old.order) ?: old else old
         }
-        val engines = retained + (imported + changed.mapNotNull { it.httpEngine() })
+        val engines = retained + imported
             .distinctBy { it.code }.filter { incoming -> store.engines.none { it.code == incoming.code } }
         HttpSpeechStore(changed.map { source -> engines.find { it.code == source.importedEngineCode }
             ?.let { source.withHttpEngine(it) } ?: source }, engines)
@@ -220,7 +214,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 put("sources", entries)
                 put("engines", Json.encodeToJsonElement(updatedStore.engines))
             }.toString().toByteArray(Charsets.UTF_8)
-            require(raw.size <= MAX_BYTES)
             BridgeWire.validate(raw, MAX_BYTES)
             val encrypted = cipher.seal(raw, IDENTITY)
             val output = file.startWrite()
@@ -280,8 +273,8 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             bytes.toByteArray()
         }
         val raw = cipher.open(encrypted, IDENTITY)
-        val document = Json.parseToJsonElement(BridgeWire.validate(raw, MAX_BYTES))
-        val entries = if (document is JsonArray) document else document.jsonObject.getValue("sources").jsonArray
+        val document = Json.parseToJsonElement(BridgeWire.validate(raw, MAX_BYTES)).jsonObject
+        val entries = document.getValue("sources").jsonArray
         require(entries.size <= 512)
         val preview = previewHttpSpeech(JsonArray(entries.map { it.jsonObject.getValue("definition") }).toString())
         require(preview.issues.isEmpty() && preview.sources.size == entries.size)
@@ -295,8 +288,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 isVoiceCopy = entry.jsonObject["isVoiceCopy"]?.jsonPrimitive?.booleanOrNull == true,
                 packageAvatar = entry.jsonObject["packageAvatar"]?.jsonPrimitive?.contentOrNull)
         }
-        val engines = if (document is JsonObject) Json.decodeFromJsonElement<List<SpeechEngineConfig>>(document.getValue("engines"))
-            else sources.mapNotNull { it.httpEngine() }.distinctBy { it.code }
+        val engines = Json.decodeFromJsonElement<List<SpeechEngineConfig>>(document.getValue("engines"))
         return HttpSpeechStore(sources, engines)
     }
 

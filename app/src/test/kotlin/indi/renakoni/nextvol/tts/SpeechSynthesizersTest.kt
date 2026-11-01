@@ -28,6 +28,7 @@ class SpeechSynthesizersTest {
             secondArg<(SavedHttpSpeechSource, File) -> String>()(source, files.root)
         }
         every { repository.recordDeniedOrigins(any(), any()) } just Runs
+        every { repository.recordSynthesis(any(), any()) } just Runs
         mockkConstructor(SourceBroker::class, HttpSpeechClient::class)
         try {
             every { anyConstructed<SourceBroker>().open(any(), any()) } returns mockk(relaxed = true)

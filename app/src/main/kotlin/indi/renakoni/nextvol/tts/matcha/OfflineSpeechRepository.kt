@@ -283,20 +283,22 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
 
     internal fun acquire(reference: OfflineVoiceRef): Lease = lock.withLock {
         val voice = read().single { it.reference == reference }
-        check(voice.enabled && engineEnabled(voice))
+        check(voice.enabled)
+        val engine = engineConfiguration(voice)
+        check(engine?.enabled != false)
         check(problem(voice) == null)
-        val configuration = configuration(voice)
+        val configuration = configuration(voice, engine)
         val resource = voice.resourceReference
         leases[resource] = (leases[resource] ?: 0) + 1
         Lease(voice, directory(resource), configuration)
     }
 
-    internal fun engineEnabled(voice: InstalledOfflineVoice): Boolean =
-        engines?.get(voice.configuration?.engine ?: "sherpa")?.enabled != false
+    internal fun engineConfiguration(voice: InstalledOfflineVoice): SpeechEngineConfig? =
+        engines?.get(voice.configuration?.engine ?: "sherpa")
 
-    internal fun configuration(voice: InstalledOfflineVoice): OfflineVoiceConfig {
+    internal fun configuration(voice: InstalledOfflineVoice, engine: SpeechEngineConfig? = engineConfiguration(voice)): OfflineVoiceConfig {
         val stored = voice.configuration ?: OfflineVoiceConfig("sherpa", "", sherpa = discoverSherpaVoiceConfig(voice.sizes.keys))
-        return stored.copy(engineParameters = engines?.get(stored.engine)?.parameters ?: stored.engineParameters)
+        return stored.copy(engineParameters = engine?.parameters ?: stored.engineParameters)
     }
 
     internal inner class Lease(val voice: InstalledOfflineVoice, val directory: File, val configuration: OfflineVoiceConfig) : AutoCloseable {

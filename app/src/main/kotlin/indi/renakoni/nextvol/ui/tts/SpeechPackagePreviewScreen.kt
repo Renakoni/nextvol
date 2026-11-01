@@ -92,7 +92,7 @@ fun SpeechPackagePreviewScreen(
                         val localVoices = offline.offlineImports.filterKeys { it.first == engineIndex }.values
                         val hasOffline = localVoices.any { it.plan != null }
                         val offlineResolved = localVoices.isNotEmpty() && localVoices.all { it.plan != null }
-                        if (!hasOffline && httpImport?.sources.isNullOrEmpty()) Text(stringResource(if (httpImport != null) {
+                        if (!hasOffline && httpImport?.sources.isNullOrEmpty() && httpImport?.engine == null) Text(stringResource(if (httpImport != null) {
                             R.string.tts_package_cannot_import
                         } else when (engine.support) {
                             SpeechPackageSupport.HttpAdapter -> R.string.tts_package_http_adapter

@@ -6,7 +6,6 @@
     <string name="tts_engine_parameters">Параметры движка</string>
     <string name="tts_engine_note">Примечания</string>
     <string name="tts_engine_save">Сохранить</string>
-    <string name="tts_engine_preset_online">Этот онлайн-движок использует готовые настройки подключения. Выбор и прослушивание голосов доступны в разделе источников речи.</string>
     <string name="tts_engine_new">Новый движок</string>
     <string name="tts_engine_code">Код</string>
     <string name="tts_engine_type">Тип</string>
