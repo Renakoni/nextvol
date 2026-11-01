@@ -1,5 +1,5 @@
 <resources>
-    <string name="tts_voice_none">Голос рассказчика не выбран</string>
+    <string name="tts_voice_none">Голос не выбран</string>
     <string name="tts_assign_voice">Назначить голос</string>
     <string name="tts_voice_enable_dialogue">Сначала включите синтез диалогов.</string>
     <string name="tts_voice_narrator">Рассказчик</string>

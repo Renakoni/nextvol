@@ -65,7 +65,8 @@ import indi.renakoni.nextvol.tts.messageResource
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.SpeechVoiceSelection
 import indi.renakoni.nextvol.tts.voiceSelection
-import indi.renakoni.nextvol.tts.hasVoiceRouting
+import indi.renakoni.nextvol.tts.selectedNarrators
+import indi.renakoni.nextvol.tts.voiceReference
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,13 +112,13 @@ fun SpeechSettingsScreen(
                     val selectedSource = state.httpSources.find { it.definition.id == state.settings.httpSource }
                     val engine = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
                         else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
-                    val current = if (state.settings.hasVoiceRouting)
-                        state.settings.narrationVoices.joinToString("、") { it.label.ifBlank { it.voice.ifBlank { engine } } }
-                            .ifEmpty { stringResource(R.string.tts_voice_none) }
-                        else if (state.settings.offlineVoice != null) state.offlineName ?: stringResource(R.string.tts_voice_unavailable)
+                    val legacyVoice = if (state.settings.offlineVoice != null) state.offlineName ?: stringResource(R.string.tts_voice_unavailable)
                         else if (state.settings.httpSource == null)
                         listOf(stringResource(R.string.tts_system_speech), engine, state.settings.voice).filter(String::isNotEmpty).joinToString(" · ")
                         else selectedSource?.definition?.name ?: stringResource(R.string.tts_voice_unavailable)
+                    val current = state.settings.selectedNarrators.joinToString("、") { voice -> voice.label.ifBlank {
+                        if (voice.key == state.settings.voiceReference().key) legacyVoice else voice.voice.ifBlank { engine }
+                    } }.ifEmpty { stringResource(R.string.tts_voice_none) }
                     SettingsClickableEntry(
                         modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-sources-entry"),
                         painter = painterResource(R.drawable.headphones_24px),
@@ -245,14 +246,9 @@ internal fun SystemSpeechSettings(
     val name = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
         else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
     SpeechSetting(stringResource(R.string.tts_engine), name) { choice = "engine" }
-    val voice = if (state.settings.hasVoiceRouting)
-        (state.settings.narrationVoices + state.settings.dialogueVoices)
+    val voice = (state.settings.selectedNarrators + state.settings.dialogueVoices)
             .filter { it.httpSource == null && it.offlineVoice == null && it.engine == state.settings.engine }
             .joinToString("、") { it.voice.ifBlank { name } }.ifEmpty { stringResource(R.string.tts_voice_none) }
-        else if (state.settings.voice.isEmpty()) stringResource(R.string.tts_engine_default)
-        else state.voices.find { it.id == state.settings.voice }?.let {
-            Locale.forLanguageTag(it.locale).getDisplayName(locale) + " · " + it.id
-        } ?: stringResource(R.string.tts_voice_unavailable)
     SpeechSetting(stringResource(R.string.tts_voice), voice, enabled = !state.loading) { choice = "voice" }
     SpeechSetting(stringResource(R.string.tts_system_settings), onClick = onSystemSettings)
     state.error?.let { error ->
@@ -340,8 +336,9 @@ private fun SpeechChoiceDialog(
                         SpeechSourceRow(option.title, selected != null, option.enabled || selected != null,
                             onClick = { onChoose(option.id) }, onLongClick = onDialogue?.let { { it(option.id) } }, selection = selected,
                             avatar = { Icon(painterResource(R.drawable.headphones_24px), null, Modifier.size(40.dp)) },
-                            onPreview = onPreview?.let { { it(option.id) } }, previewEnabled = option.enabled,
-                            description = option.description)
+                            onPreview = null, description = option.description, actions = {
+                                if (onPreview != null) SpeechPreviewButton(option.id.ifEmpty { option.title }, option.enabled) { onPreview(option.id) }
+                            })
                     } else {
                     Row(
                         Modifier.fillMaxWidth().selectable(

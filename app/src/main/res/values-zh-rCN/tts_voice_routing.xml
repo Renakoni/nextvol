@@ -1,5 +1,5 @@
 <resources>
-    <string name="tts_voice_none">未选择旁白发音人</string>
+    <string name="tts_voice_none">未选择声音</string>
     <string name="tts_assign_voice">指定声音</string>
     <string name="tts_voice_enable_dialogue">请先启动“合成对话”功能</string>
     <string name="tts_voice_narrator">旁白</string>
