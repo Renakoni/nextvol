@@ -794,6 +794,68 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
+    @Test fun replacementsSharePlaybackMappingAcrossOnlineAndOfflineAndInvalidatePrefetchWhilePaused() = runTest {
+        val env = Environment(this)
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "甲😀乙\n甲😀乙") }
+        val rule = SpeechReplacementRule(id = "expand", source = "甲", target = "一二三")
+        env.configuration = SpeechSettings(httpSource = "online", replacements = listOf(rule))
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            assertEquals("一二三😀乙", env.player.started.single().segment.text)
+            env.player.estimatedAnchorCallback!!.invoke(4)
+            assertEquals(1, env.session.state.value.position!!.anchor)
+            assertEquals(0, env.session.state.value.position!!.start)
+            assertEquals(4, env.session.state.value.position!!.end)
+            env.session.skipSegment(1)
+            runCurrent()
+            assertEquals(1, env.player.started.last().index)
+            assertEquals(5, env.progress.saved.getValue("book").offset)
+            env.session.pause()
+            val previous = env.player.started.last()
+            env.configuration = env.configuration.copy(httpSource = null,
+                offlineVoice = OfflineVoiceRef("a".repeat(64), "b".repeat(64)), replacements = listOf(rule.copy(target = "四")))
+            env.session.updateSettings(env.configuration)
+            runCurrent()
+            val current = env.player.started.last()
+            assertEquals("四😀乙", current.segment.text)
+            assertEquals(5, current.segment.start)
+            assertFalse(env.player.playing)
+            assertFalse(previous.file.exists())
+            assertNotSame(previous.plan, current.plan)
+        } finally { env.stop() }
+    }
+
+    @Test fun aDeletedChapterSendsNoEmptyAudioAndContinuesWithoutLosingTheOriginalBookmark() = runTest {
+        val env = Environment(this)
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", chapter,
+            if (chapter == "one") "广告" else "正文", nextId = if (chapter == "one") "two" else null) }
+        env.configuration = SpeechSettings(replacements = listOf(SpeechReplacementRule(source = "广告", target = "")))
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            assertEquals(listOf("正文"), env.synthesized)
+            assertEquals("two", env.player.started.single().chapter.id)
+            assertEquals("two", env.progress.saved.getValue("book").chapterId)
+            env.player.finish()
+            runCurrent()
+            assertTrue(env.progress.saved.getValue("book").completed)
+        } finally { env.stop() }
+    }
+
+    @Test fun failingReplacementNamesTheEntryBeforeAnyAudioIsSynthesized() = runTest {
+        val env = Environment(this)
+        env.configuration = SpeechSettings(replacements = listOf(SpeechReplacementRule(id = "invalid", source = "(", regex = true)))
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            assertEquals(SpeechPhase.Failed, env.session.state.value.phase)
+            assertEquals(SpeechError.ReplacementRule, env.session.state.value.error)
+            assertEquals("invalid", env.session.state.value.replacementFailure?.ruleId)
+            assertTrue(env.synthesized.isEmpty())
+        } finally { env.stop() }
+    }
+
     private inner class Environment(val scope: TestScope) {
         val text = "这是正常的小说内容，保留顺序并且持续朗读。".repeat(100)
         var load: suspend (String, String) -> SpeechChapter = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", text) }

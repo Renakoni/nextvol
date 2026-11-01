@@ -5,7 +5,8 @@ import java.text.BreakIterator
 import java.util.Locale
 
 /** Offsets refer to the processed chapter text, before any speech-only transformations. */
-data class SpeechSegment(val start: Int, val end: Int, val text: String)
+data class SpeechSegment(val start: Int, val end: Int, val text: String,
+    val dialogue: Boolean = false, val speaker: String? = null)
 
 internal fun speechDigest(text: String): String = MessageDigest.getInstance("SHA-256")
     .digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }

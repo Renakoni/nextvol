@@ -26,6 +26,7 @@ val SpeechError.messageResource: Int
         SpeechError.HttpUnsupported -> R.string.tts_error_http_unsupported
         SpeechError.HttpLogin -> R.string.tts_error_http_login
         SpeechError.OfflineUnavailable -> R.string.tts_offline_unavailable
+        SpeechError.ReplacementRule -> R.string.tts_replace_failed
     }
 
 val SpeechPhase.labelResource: Int
