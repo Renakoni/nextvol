@@ -75,6 +75,7 @@ fun SpeechSettingsScreen(
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
     onReplacements: (() -> Unit)? = null,
+    onVoiceRouting: (() -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -123,6 +124,15 @@ fun SpeechSettingsScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-engines-entry"),
                             painter = painterResource(R.drawable.outline_settings_24px),
                             title = stringResource(R.string.tts_engines),
+                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            onClick = open,
+                        )
+                    }
+                    onVoiceRouting?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-voice-routing-entry"),
+                            painter = painterResource(R.drawable.tts_text_dialogue),
+                            title = stringResource(R.string.tts_voice_routing),
                             trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                             onClick = open,
                         )

@@ -1,0 +1,22 @@
+<resources>
+    <string name="tts_voice_routing">Voice assignment</string>
+    <string name="tts_narration_voices">Narration voices</string>
+    <string name="tts_dialogue_voices">Dialogue voices</string>
+    <string name="tts_voice_inherit">Use the current voice</string>
+    <string name="tts_voice_none">No voice selected</string>
+    <string name="tts_voice_rotation">Voices rotate in selection order when narration or dialogue changes. An assigned character voice takes priority.</string>
+    <string name="tts_voice_plan">Reading plan</string>
+    <string name="tts_assign_voice">Assign voice</string>
+    <string name="tts_voice_use_dialogue">Use dialogue voices</string>
+    <string name="tts_voice_plan_empty">Start listening to a book to view its chapter plan and assign character voices.</string>
+    <string name="tts_voice_explicit_people">Characters marked in this chapter</string>
+    <string name="tts_voice_segment">%1$d · %2$s</string>
+    <string name="tts_voice_reason_narration">Narration candidate</string>
+    <string name="tts_voice_reason_dialogue">Dialogue candidate</string>
+    <string name="tts_voice_reason_explicit">Assigned character voice</string>
+    <string name="tts_voice_reason_remembered">Remembered dialogue voice</string>
+    <string name="tts_voice_reason_continued">Continued voice</string>
+    <string name="tts_voice_enable_dialogue">Enable Synthesize dialogue to select dialogue voices.</string>
+    <string name="tts_voice_from_narration">Used for narration. Tap to remove it there before selecting it for dialogue.</string>
+    <string name="tts_voice_from_dialogue">Used for dialogue. Tap to remove it there before selecting it for narration.</string>
+</resources>

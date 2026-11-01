@@ -1,0 +1,22 @@
+<resources>
+    <string name="tts_voice_routing">Назначение голосов</string>
+    <string name="tts_narration_voices">Голоса рассказчика</string>
+    <string name="tts_dialogue_voices">Голоса диалогов</string>
+    <string name="tts_voice_inherit">Использовать текущий голос</string>
+    <string name="tts_voice_none">Голос не выбран</string>
+    <string name="tts_voice_rotation">Голоса чередуются в порядке выбора при смене повествования или диалога. Назначенный персонажу голос имеет приоритет.</string>
+    <string name="tts_voice_plan">План озвучивания</string>
+    <string name="tts_assign_voice">Назначить голос</string>
+    <string name="tts_voice_use_dialogue">Использовать голоса диалогов</string>
+    <string name="tts_voice_plan_empty">Начните прослушивание книги, чтобы увидеть план главы и назначить голоса персонажам.</string>
+    <string name="tts_voice_explicit_people">Персонажи с явной пометкой в главе</string>
+    <string name="tts_voice_segment">%1$d · %2$s</string>
+    <string name="tts_voice_reason_narration">Голос рассказчика</string>
+    <string name="tts_voice_reason_dialogue">Голос диалога</string>
+    <string name="tts_voice_reason_explicit">Назначенный голос персонажа</string>
+    <string name="tts_voice_reason_remembered">Сохранённый голос диалога</string>
+    <string name="tts_voice_reason_continued">Продолжение тем же голосом</string>
+    <string name="tts_voice_enable_dialogue">Включите синтез диалогов, чтобы выбрать их голоса.</string>
+    <string name="tts_voice_from_narration">Используется рассказчиком. Нажмите, чтобы убрать, затем выберите для диалогов.</string>
+    <string name="tts_voice_from_dialogue">Используется в диалогах. Нажмите, чтобы убрать, затем выберите для рассказчика.</string>
+</resources>

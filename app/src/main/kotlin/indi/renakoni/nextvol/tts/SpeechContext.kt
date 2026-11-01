@@ -9,6 +9,8 @@ data class SpeechContext(
     val previousText: List<SpeechContextText> = emptyList(),
     /** Two dialogue voice slots, with the next slot first. Null slots are significant. */
     val recentVoices: List<String?> = emptyList(),
+    val narrationIndex: Int = -1,
+    val dialogueIndex: Int = -1,
 )
 
 @Serializable

@@ -71,6 +71,15 @@ data class SpeechReplacementEditorRoute(val ruleId: String? = null)
 object SpeechReplacementPreviewRoute
 
 @Serializable
+object SpeechVoiceRoutingRoute
+
+@Serializable
+data class SpeechVoicePickerRoute(val dialogue: Boolean = false, val person: String? = null)
+
+@Serializable
+object SpeechVoicePlanRoute
+
+@Serializable
 data class SpeechPackagePreviewRoute(val uri: String)
 
 fun NavController.navigateToSpeechSettings() = navigate(SpeechSettingsRoute) { launchSingleTop = true }
@@ -104,9 +113,46 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
             onReplacements = { nav.navigate(SpeechReplacementsRoute) { launchSingleTop = true } },
+            onVoiceRouting = { nav.navigate(SpeechVoiceRoutingRoute) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer)
+    }
+    composable<SpeechVoiceRoutingRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechVoiceRoutingViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechVoiceRoutingScreen(state, nav::popBackStackIfResumed,
+            onCandidates = { nav.navigate(SpeechVoicePickerRoute(dialogue = it)) },
+            onPlan = { nav.navigate(SpeechVoicePlanRoute) },
+            onSources = { nav.navigate(HttpSpeechSourcesRoute) })
+    }
+    composable<SpeechVoicePickerRoute> { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val owner = remember(entry) { nav.getBackStackEntry<SpeechVoiceRoutingRoute>() }
+        val viewModel = hiltViewModel<SpeechVoiceRoutingViewModel>(owner)
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val route = entry.toRoute<SpeechVoicePickerRoute>()
+        LaunchedEffect(Unit) { viewModel.refresh() }
+        SpeechVoicePickerScreen(state, route.dialogue, route.person, nav::popBackStackIfResumed,
+            onSelect = { voice ->
+                if (route.person != null) viewModel.assign(route.person, voice, nav::popBackStackIfResumed)
+                else voice?.let { viewModel.toggle(route.dialogue, it) }
+            }, onSources = { nav.navigate(HttpSpeechSourcesRoute) },
+            onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) })
+    }
+    composable<SpeechVoicePlanRoute> { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val owner = remember(entry) { nav.getBackStackEntry<SpeechVoiceRoutingRoute>() }
+        val viewModel = hiltViewModel<SpeechVoiceRoutingViewModel>(owner)
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { viewModel.loadPlan() }
+        SpeechVoicePlanScreen(state, nav::popBackStackIfResumed,
+            onPerson = { nav.navigate(SpeechVoicePickerRoute(person = it)) },
+            onSources = { nav.navigate(HttpSpeechSourcesRoute) })
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()

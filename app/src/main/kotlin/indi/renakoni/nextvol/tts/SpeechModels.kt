@@ -63,6 +63,8 @@ data class ReadAloudState(
     /** Frozen duration while paused; sleepTimerDeadline is present only during book playback. */
     val sleepTimerRemainingMillis: Long? = null,
     val replacementFailure: SpeechReplacementFailure? = null,
+    val planContext: SpeechContext = SpeechContext(),
+    val failedVoice: SpeechVoiceRef? = null,
 ) {
     val isActive get() = phase in setOf(SpeechPhase.Preparing, SpeechPhase.Playing, SpeechPhase.Buffering)
 }
