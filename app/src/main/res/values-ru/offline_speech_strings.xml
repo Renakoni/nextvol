@@ -1,4 +1,15 @@
 <resources>
+    <string name="tts_offline_unverified">Требования устройства проверены; синтез ещё не выполнялся.</string>
+    <string name="tts_offline_check_incomplete">Не все условия удалось проверить. Попробуйте прослушать голос.</string>
+    <string name="tts_offline_runtime_missing">В APK отсутствует необходимая библиотека: %1$s</string>
+    <string name="tts_offline_android">Для этого голоса требуется Android API %1$s или новее.</string>
+    <string name="tts_offline_abi">Голосу нужен процесс, совместимый с %1$s.</string>
+    <string name="tts_offline_package_abi">В пакете нет библиотеки движка для текущего процесса (%1$s).</string>
+    <string name="tts_offline_pages">Библиотека несовместима с размером страниц памяти устройства: %1$s</string>
+    <string name="tts_offline_initialization_failed">Последняя инициализация не удалась. Проверьте настройки движка и ресурсы, затем повторите попытку.</string>
+    <string name="tts_offline_synthesis_failed">Последний синтез не удался. Проверьте параметры и ресурсы голоса, затем повторите попытку.</string>
+    <string name="tts_offline_verified">Этот голос успешно синтезировал аудио в текущем сеансе приложения.</string>
+    <string name="tts_offline_install_only">Ресурсы можно установить, но голос пока недоступен на этом устройстве.</string>
     <string name="tts_offline_sources">Офлайн-голоса</string>
     <string name="tts_offline_device">Для этого голоса нужен встроенный движок, доступный на устройстве.</string>
     <string name="tts_offline_empty">Откройте ZIP-пакет через меню, чтобы установить офлайн-голос.</string>

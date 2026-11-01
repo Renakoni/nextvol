@@ -166,10 +166,14 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
     internal fun acquire(reference: OfflineVoiceRef): Lease = lock.withLock {
         val voice = read().single { it.reference == reference }
         check(problem(voice) == null)
-        val stored = voice.configuration ?: OfflineVoiceConfig("sherpa", "", sherpa = discoverSherpaVoiceConfig(voice.sizes.keys))
-        val configuration = stored.copy(engineParameters = engines?.get(stored.engine)?.parameters ?: stored.engineParameters)
+        val configuration = configuration(voice)
         leases[reference] = (leases[reference] ?: 0) + 1
         Lease(voice, directory(reference), configuration)
+    }
+
+    internal fun configuration(voice: InstalledOfflineVoice): OfflineVoiceConfig {
+        val stored = voice.configuration ?: OfflineVoiceConfig("sherpa", "", sherpa = discoverSherpaVoiceConfig(voice.sizes.keys))
+        return stored.copy(engineParameters = engines?.get(stored.engine)?.parameters ?: stored.engineParameters)
     }
 
     internal inner class Lease(val voice: InstalledOfflineVoice, val directory: File, val configuration: OfflineVoiceConfig) : AutoCloseable {
@@ -192,7 +196,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
         if (reference !in leases && directory(reference).deleteRecursively()) retired -= reference
     }
 
-    private fun directory(reference: OfflineVoiceRef): File {
+    internal fun directory(reference: OfflineVoiceRef): File {
         require(listOf(reference.id, reference.revision).all { it.matches(installationName) })
         val result = File(root, "${reference.id}/${reference.revision}")
         check(result.canonicalFile == result.absoluteFile)

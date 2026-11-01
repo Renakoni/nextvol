@@ -16,6 +16,8 @@ import indi.renakoni.nextvol.tts.matcha.MatchaResources
 import indi.renakoni.nextvol.tts.matcha.MatchaSpeechSynthesizer
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
+import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
+import indi.renakoni.nextvol.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -33,6 +35,7 @@ class SpeechSynthesizers @Inject constructor(
     private val runner: RuleTaskRunner,
     private val offline: OfflineSpeechRepository,
     @ApplicationContext private val context: Context,
+    private val availability: OfflineAvailabilityChecker,
 ) {
     /** Development entry for an already installed Sherpa model. */
     fun matcha(resources: MatchaResources): SpeechSynthesizer = MatchaSpeechSynthesizer(resources)
@@ -63,22 +66,48 @@ class SpeechSynthesizers @Inject constructor(
         private var lease: OfflineSpeechRepository.Lease? = null
         @Volatile private var delegate: SpeechSynthesizer? = null
         override suspend fun open(settings: SpeechSettings): String {
+            var attempted = false
             try {
                 withContext(Dispatchers.IO) {
                     lease = offline.acquire(requireNotNull(settings.offlineVoice))
                     val active = checkNotNull(lease)
+                    val status = availability.inspect(active.configuration, active.voice.sizes.keys) {
+                        File(active.directory, it).inputStream()
+                    }
+                    if (!status.canRun) throw SpeechException(SpeechError.OfflineUnavailable)
+                    attempted = true
                     delegate = if (active.configuration.engine == "sherpa") MatchaSpeechSynthesizer(active.resources)
                         else OfflineSpeechSynthesizer(context, active.directory, active.configuration)
                 }
                 delegate!!.open(settings.copy(httpSource = null, voice = "", pitch = null))
                 return lease!!.voice.name
-            } catch (error: Exception) {
-                withContext(NonCancellable + Dispatchers.IO) { close() }
+            } catch (error: Throwable) {
+                if (attempted && error !is CancellationException && (error is Exception || error is LinkageError)) {
+                    lease?.let { availability.record(it.voice.reference, it.configuration, R.string.tts_offline_initialization_failed) }
+                }
+                withContext(NonCancellable) { withContext(Dispatchers.IO) {
+                    try { close() } catch (cleanup: Throwable) { if (cleanup !== error) error.addSuppressed(cleanup) }
+                } }
                 if (error is CancellationException || error is SpeechException) throw error
-                throw SpeechException(SpeechError.OfflineUnavailable).apply { initCause(error) }
+                if (error is Exception || error is LinkageError)
+                    throw SpeechException(SpeechError.OfflineUnavailable).apply { initCause(error) }
+                throw error
             }
         }
-        override suspend fun synthesize(text: String, output: File) = checkNotNull(delegate).synthesize(text, output)
+        override suspend fun synthesize(text: String, output: File): List<SpeechTiming> {
+            val active = checkNotNull(lease)
+            try {
+                val result = checkNotNull(delegate).synthesize(text, output)
+                currentCoroutineContext().ensureActive()
+                availability.record(active.voice.reference, active.configuration, R.string.tts_offline_verified)
+                return result
+            } catch (failure: Throwable) {
+                if (failure !is CancellationException && (failure is Exception || failure is LinkageError))
+                    availability.record(active.voice.reference, active.configuration, R.string.tts_offline_synthesis_failed)
+                if (failure is LinkageError) throw SpeechException(SpeechError.OfflineUnavailable).apply { initCause(failure) }
+                throw failure
+            }
+        }
         override fun cancel() { delegate?.cancel() }
         override fun close() {
             try { delegate?.close() } finally {

@@ -1,4 +1,15 @@
 <resources>
+    <string name="tts_offline_unverified">Device requirements checked; synthesis has not been tried.</string>
+    <string name="tts_offline_check_incomplete">Some runtime requirements could not be checked. Try this voice to confirm.</string>
+    <string name="tts_offline_runtime_missing">This APK is missing a required runtime: %1$s</string>
+    <string name="tts_offline_android">This voice requires Android API %1$s or later.</string>
+    <string name="tts_offline_abi">This voice requires a process compatible with %1$s.</string>
+    <string name="tts_offline_package_abi">The voice package has no engine library for this process (%1$s).</string>
+    <string name="tts_offline_pages">This runtime is incompatible with the device memory page size: %1$s</string>
+    <string name="tts_offline_initialization_failed">The last initialization failed. Check engine settings and resources, then retry.</string>
+    <string name="tts_offline_synthesis_failed">The last synthesis failed. Check this voice’s parameters and resources, then retry.</string>
+    <string name="tts_offline_verified">This voice has synthesized audio successfully in this app session.</string>
+    <string name="tts_offline_install_only">You can install these resources, but cannot use this voice on this device yet.</string>
     <string name="tts_offline_sources">Offline voices</string>
     <string name="tts_offline_device">This voice needs its embedded engine on this device.</string>
     <string name="tts_offline_empty">Open a ZIP voice package from the menu to install an offline voice.</string>
