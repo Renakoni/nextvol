@@ -80,7 +80,7 @@ class OfflineVoiceEditorViewModel @Inject constructor(
     private var loaded: String? = null
     private var loadingControls: Job? = null
 
-    fun load(id: String, copyPattern: String? = null, cachedVoice: InstalledOfflineVoice? = null) {
+    fun load(id: String, copyPattern: String? = null, cachedVoice: InstalledOfflineVoice? = null, newVoice: Boolean = false) {
         if (loaded == id) return
         loaded = id
         work {
@@ -89,7 +89,8 @@ class OfflineVoiceEditorViewModel @Inject constructor(
                 val installed = cachedVoice ?: repository.voices().single { it.reference.id == id }
                 val voice = installed.copy(configuration = (installed.configuration ?: repository.configuration(installed)).copy(engineParameters = ""))
                 val draft = restored?.let { runCatching { Json.decodeFromString<OfflineVoiceDraft>(it) }.getOrNull() }
-                    ?: OfflineVoiceDraft.from(voice).let { if (copyPattern == null) it else it.copy(name = String.format(copyPattern, it.name)) }
+                    ?: OfflineVoiceDraft.from(voice).let { if (newVoice) it.copy(name = "", note = "", description = "", avatar = "", enabled = true)
+                        else if (copyPattern == null) it else it.copy(name = String.format(copyPattern, it.name)) }
                 OfflineVoiceEditorState(voice, draft, busy = true,
                     packageAvatar = repository.avatar(voice)?.path,
                     controls = runCatching { speechExtensionControls(draft.extensions) }.getOrNull())

@@ -58,6 +58,7 @@ fun HttpSpeechSourcesScreen(
     catalogReady: Boolean = true,
     onOfflineGroup: (String?) -> Unit = {},
     offlineSettings: (LazyListScope.(String, String) -> Unit)? = null,
+    onEngine: (String) -> Unit = {},
     onVoiceEditor: ((SavedHttpSpeechSource, Boolean) -> Unit)? = null,
     onEnableVoice: (SavedHttpSpeechSource, Boolean) -> Unit = { _, _ -> },
     initialEditId: String? = null,
@@ -94,18 +95,20 @@ fun HttpSpeechSourcesScreen(
     }
     val sourceRow: @Composable (SavedHttpSpeechSource) -> Unit = { source ->
         val metadata = source.speakerData()
-        SpeechSourceRow(source.definition.name, state.selected == source.definition.id, !state.busy && source.enabled,
+        SpeechSourceRow(source.definition.name, state.selected == source.definition.id, !state.busy && source.available,
             onClick = { if (source.isConfigured) onSelect(source.definition.id) else configuring = source },
             avatar = {
                 SpeechAvatar((metadata["avatar"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
                     (metadata["gender"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
                     Modifier.size(40.dp), state.avatars[source.definition.id])
             }, onPreview = onPreview?.let { { it(source.definition.id) } },
-            previewEnabled = !state.busy && source.enabled && source.isConfigured,
+            previewEnabled = !state.busy && source.available && source.isConfigured,
             description = (metadata["desc"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank {
                 (metadata["code"] as? JsonPrimitive)?.contentOrNull.orEmpty()
             },
             problem = when {
+                source.engineDeleted -> stringResource(R.string.tts_engine_missing)
+                !source.engineEnabled -> stringResource(R.string.tts_engine_disabled)
                 !source.enabled -> stringResource(R.string.tts_voice_disabled)
                 !source.isConfigured -> stringResource(R.string.tts_needs_key)
                 else -> null
@@ -119,6 +122,10 @@ fun HttpSpeechSourcesScreen(
                         DropdownMenu(menu, { menu = false }) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { menu = false; onVoiceEditor(source, false) })
                             DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { menu = false; onVoiceEditor(source, true) })
+                            source.importedEngineCode?.let { code ->
+                                DropdownMenuItem(text = { Text(stringResource(if (source.engineDeleted) R.string.tts_engine_repair else R.string.tts_engine_edit)) },
+                                    onClick = { menu = false; onEngine(code) })
+                            }
                             DropdownMenuItem(text = { Text(stringResource(if (source.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
                                 onClick = { menu = false; onEnableVoice(source, !source.enabled) })
                             if (!source.isBuiltIn) {

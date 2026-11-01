@@ -24,14 +24,15 @@ import indi.renakoni.nextvol.R
 @Composable
 internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searching: Boolean,
     onSearch: () -> Unit, onCloseSearch: () -> Unit, onBack: () -> Unit, busy: Boolean,
-    onImport: () -> Unit, onRefresh: (() -> Unit)?) {
+    onImport: () -> Unit, onRefresh: (() -> Unit)?, title: Int = R.string.tts_sources,
+    searchLabel: Int = R.string.tts_voice_search, onAdd: (() -> Unit)? = null) {
     var menu by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(searching) { if (searching) focus.requestFocus() }
     TopAppBar(title = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.tts_sources), style = MaterialTheme.typography.displayLarge,
+            Text(stringResource(title), style = MaterialTheme.typography.displayLarge,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (searching) Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1f)) {
@@ -43,7 +44,7 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
                         keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
                         decorationBox = { field ->
                             Box {
-                                if (query.isEmpty()) Text(stringResource(R.string.tts_voice_search),
+                                if (query.isEmpty()) Text(stringResource(searchLabel),
                                     style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 field()
@@ -61,9 +62,11 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
         }
     }, actions = {
         if (!searching) IconButton(onClick = onSearch) {
-            Icon(painterResource(R.drawable.search_24px), stringResource(R.string.tts_voice_search))
+            Icon(painterResource(R.drawable.search_24px), stringResource(searchLabel))
         }
-        Box {
+        if (onAdd != null) IconButton(onClick = onAdd, enabled = !busy) {
+            Icon(painterResource(R.drawable.add_circle_24px), stringResource(R.string.tts_engine_new))
+        } else Box {
             IconButton(onClick = { menu = true }) {
                 Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_library_actions))
             }

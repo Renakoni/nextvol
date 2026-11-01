@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.network.StorageCipher
-import hnovel.speech.OfflineEngineConfig
+import hnovel.speech.SpeechEngineConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,40 +24,42 @@ class OfflineEngineRepository @Inject constructor(@ApplicationContext context: C
     private val mutableChanges = MutableStateFlow(0L)
     val changes = mutableChanges.asStateFlow()
 
-    suspend fun all(): List<OfflineEngineConfig> = withContext(Dispatchers.IO) { lock.withLock { combined(read()) } }
+    suspend fun all(): List<SpeechEngineConfig> = withContext(Dispatchers.IO) { lock.withLock { read() } }
 
-    fun get(code: String): OfflineEngineConfig? = lock.withLock { combined(read()).find { it.code == code } }
+    fun get(code: String): SpeechEngineConfig? = lock.withLock { read().find { it.code == code } }
 
     /** Importing another voice from an engine preserves the user's existing engine settings. */
-    suspend fun register(configuration: OfflineEngineConfig) = withContext(Dispatchers.IO) {
+    suspend fun register(configuration: SpeechEngineConfig) { registerAll(listOf(configuration)) }
+
+    internal suspend fun registerAll(configurations: List<SpeechEngineConfig>): List<SpeechEngineConfig> = withContext(Dispatchers.IO) {
         lock.withLock {
             val current = read()
-            if (current.none { it.code == configuration.code }) write(current + configuration)
+            val additions = configurations.filter { candidate -> current.none { it.code == candidate.code } }.distinctBy { it.code }
+            (current + additions).also { if (additions.isNotEmpty()) write(it) }
         }
     }
 
-    suspend fun save(configuration: OfflineEngineConfig) = withContext(Dispatchers.IO) {
+    suspend fun save(configuration: SpeechEngineConfig) = withContext(Dispatchers.IO) {
         lock.withLock {
             require(configuration.name.isNotBlank())
             val current = read()
-            val previous = combined(current).single { it.code == configuration.code }
+            val previous = current.single { it.code == configuration.code }
             require(configuration.type == previous.type)
-            write(current.filterNot { it.code == configuration.code } + configuration)
+            write(current.map { if (it.code == configuration.code) configuration else it })
         }
     }
 
-    private fun combined(stored: List<OfflineEngineConfig>): List<OfflineEngineConfig> {
-        val overrides = stored.associateBy { it.code }
-        return defaults.map { overrides[it.code] ?: it } + stored.filter { item -> defaults.none { it.code == item.code } }
+    suspend fun order(ranks: Map<String, Int>) = withContext(Dispatchers.IO) {
+        lock.withLock { write(read().map { it.copy(order = ranks["inner:${it.code}"] ?: it.order) }) }
     }
 
-    private fun read(): List<OfflineEngineConfig> {
+    private fun read(): List<SpeechEngineConfig> {
         if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()) return emptyList()
         val bytes = file.openRead().use { it.readBytes() }
         return Json.decodeFromString(cipher.open(bytes, IDENTITY).toString(Charsets.UTF_8))
     }
 
-    private fun write(configurations: List<OfflineEngineConfig>) {
+    private fun write(configurations: List<SpeechEngineConfig>) {
         val bytes = cipher.seal(Json.encodeToString(configurations).toByteArray(Charsets.UTF_8), IDENTITY)
         val output = file.startWrite()
         try { output.write(bytes); file.finishWrite(output) }
@@ -67,10 +69,5 @@ class OfflineEngineRepository @Inject constructor(@ApplicationContext context: C
 
     companion object {
         private const val IDENTITY = "offline-speech-engines-v1"
-        private val defaults = listOf("audio" to "Audio", "acapela" to "Acapela", "bdetts" to "BDeTTS",
-            "cereproc" to "CereProc", "google" to "Google", "isstts" to "IssTTS", "larktts" to "LarkTTS",
-            "msctts" to "MscTTS", "sherpa" to "Sherpa-ONNX", "vcstts" to "VcsTTS", "vocalizer" to "Vocalizer",
-            "weread" to "WeRead", "samsung" to "Samsung", "xiaomi" to "Xiaomi", "microsoft" to "Microsoft",
-            "sougou" to "Sogou").map { (code, name) -> OfflineEngineConfig(code, name) }
     }
 }

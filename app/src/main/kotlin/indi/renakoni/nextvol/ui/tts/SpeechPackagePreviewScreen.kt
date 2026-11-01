@@ -48,6 +48,7 @@ fun SpeechPackagePreviewScreen(
     preview: SpeechPackagePreview?,
     httpImports: Map<Int, HttpSpeechPackageImport> = emptyMap(),
     onImport: ((List<HttpSpeechDefinition>) -> Unit)? = null,
+    onImportEngine: ((hnovel.speech.SpeechEngineConfig) -> Unit)? = null,
     onBack: () -> Unit,
     offline: SpeechPackagePreviewState = SpeechPackagePreviewState(),
     onInstall: (OfflinePackagePlan) -> Unit = {},
@@ -109,6 +110,12 @@ fun SpeechPackagePreviewScreen(
                         if (httpImport?.hasLocalAudioSettings == true) {
                             Text(stringResource(R.string.tts_package_local_audio), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (httpImport?.error == null && httpImport?.sources?.isEmpty() == true && onImportEngine != null) {
+                            httpImport.engine?.let { configuration ->
+                                FilledTonalButton(onClick = { onImportEngine(configuration) }, enabled = !offline.installing,
+                                    modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.tts_import_sources)) }
+                            }
                         }
                         if (onImport != null && !httpImport?.sources.isNullOrEmpty()) {
                             FilledTonalButton(onClick = { onImport(httpImport.sources) }, modifier = Modifier.fillMaxWidth()) {

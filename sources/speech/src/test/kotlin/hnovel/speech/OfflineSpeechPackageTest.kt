@@ -32,7 +32,7 @@ class OfflineSpeechPackageTest {
         val preview = SpeechPackagePreview("package", engines = listOf(engine),
             resources = listOf(SpeechPackageResource("xiaomi/voice/model.bin", 100)))
         val plan = previewOfflineVoice(preview, engine, voice).plan!!
-        assertEquals(OfflineEngineConfig("xiaomi", "My Xiaomi", parameters = "{\"shared\":true}", note = "A saved note"),
+        assertEquals(SpeechEngineConfig("xiaomi", "My Xiaomi", parameters = "{\"shared\":true}", note = "A saved note"),
             plan.engineConfiguration)
         assertEquals("4", plan.configuration.parameters)
         assertEquals("", plan.configuration.engineParameters)

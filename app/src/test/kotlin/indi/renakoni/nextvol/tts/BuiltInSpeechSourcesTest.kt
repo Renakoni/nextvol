@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import hnovel.execution.*
 import hnovel.network.*
 import hnovel.rhino.HostBridge
+import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.HttpSpeechClient
 import hnovel.speech.previewHttpSpeech
 import kotlinx.coroutines.runBlocking
@@ -154,4 +155,55 @@ class BuiltInSpeechSourcesTest {
             }
         }
     }
+    @Test fun engineCanExistWithoutSpeakersAndEditsPreserveAuthorizationUntilExecutionChanges() = runBlocking {
+        val repository = repository()
+        val engine = SpeechEngineConfig("http_shared", "Shared", "http", url = "https://example.org/audio?voice={{voiceCode}}")
+        repository.saveEngine(engine, creating = true)
+        assertEquals(listOf(engine), repository().engines())
+        assertTrue(repository.sources().all { it.isBuiltIn })
+        val first = newHttpVoice(engine)
+        assertEquals(1f, first.speakerData().getValue("volume").jsonPrimitive.float)
+        assertEquals(1, first.speakerData().getValue("type").jsonPrimitive.int)
+        repository.saveVoice(first)
+        repository.saveVoice(editHttpVoice(first, buildJsonObject { put("name", "Second"); put("code", "second") }, true, true))
+        val ticket = repository.withSource(first.definition.id) { source, _ ->
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        val renamed = engine.copy(name = "Renamed", note = "Notes", order = 3)
+        repository.saveEngine(renamed)
+        assertTrue(authority.accepts(ticket))
+        assertTrue(repository.sources().filterNot { it.isBuiltIn }.all { it.category == "Renamed" })
+        repository.saveEngine(renamed.copy(enabled = false))
+        assertFalse(authority.accepts(ticket))
+        assertTrue(repository().sources().filterNot { it.isBuiltIn }.all { it.enabled && !it.available })
+        repository.saveEngine(renamed.copy(deleted = true, enabled = false))
+        assertEquals(2, repository().sources().count { it.engineDeleted })
+        repository.saveEngine(renamed)
+        assertTrue(repository().sources().filterNot { it.isBuiltIn }.all { it.available })
+        repository.delete(repository.sources().filterNot { it.isBuiltIn }.map { it.definition.id }.toSet())
+        assertEquals(listOf(renamed), repository().engines())
+    }
+
+    @Test fun legacyStoreMigratesSharedEnginesAndReimportRetainsUserSettings() = runBlocking {
+        val engine = SpeechEngineConfig("http_legacy", "Package", "http", url = "https://example.org/old")
+        val voice = newHttpVoice(engine).copy(isVoiceCopy = false)
+        File(directory.root, "http-speech.enc").writeText(JsonArray(listOf(buildJsonObject {
+            put("definition", voice.definition.raw); put("origins", JsonArray(emptyList()))
+        })).toString())
+        val repository = repository()
+        val migrated = repository.engines().single()
+        val edited = migrated.copy(name = "Mine", url = "https://example.org/edited", header = "{\"X-Test\":\"custom\"}")
+        repository.saveEngine(edited)
+        repository.save(listOf(voice))
+        assertEquals(edited, repository().engines().single())
+        val updated = repository.sources().single { !it.isBuiltIn }
+        assertEquals(voice.definition.id, updated.definition.id)
+        assertTrue(updated.definition.url.contains("/edited"))
+        repository.saveEngine(edited.copy(header = ""))
+        assertFalse(repository.sources().single { !it.isBuiltIn }.definition.raw.containsKey("header"))
+        repository.saveEngine(edited.copy(deleted = true, enabled = false))
+        repository.save(listOf(voice))
+        assertTrue(repository().sources().single { !it.isBuiltIn }.available)
+    }
+
 }

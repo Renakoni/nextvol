@@ -32,7 +32,7 @@ internal fun OfflineVoiceEditorScreen(
     state: OfflineVoiceEditorState, copy: Boolean,
     onEdit: (OfflineVoiceDraft) -> Unit, onSave: () -> Unit, onBack: () -> Unit,
     parametersSupported: Boolean = true,
-    showParameters: Boolean = false, showExtensions: Boolean = false,
+    showParameters: Boolean = false, showExtensions: Boolean = false, newVoice: Boolean = false,
 ) {
     val draft = state.draft
     val voice = state.voice
@@ -52,7 +52,7 @@ internal fun OfflineVoiceEditorScreen(
     BackHandler(onBack = back)
     val canSave = !state.busy
     Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(),
-        if (copy) R.string.tts_voice_copy else R.string.tts_edit_source, back) }, bottomBar = {
+        if (newVoice) R.string.tts_engine_add_speaker else if (copy) R.string.tts_voice_copy else R.string.tts_edit_source, back) }, bottomBar = {
         if (draft != null) Surface {
             Row(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 22.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)) {
@@ -147,7 +147,7 @@ private fun VoiceNumber(value: String, label: Int, enabled: Boolean, onChange: (
 }
 
 @Composable
-private fun voiceFieldColors() = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent,
+internal fun voiceFieldColors() = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent,
     unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent)
 
 @Composable

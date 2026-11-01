@@ -4,17 +4,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
 @Serializable
-data class OfflineEngineConfig(
-    val code: String,
-    val name: String,
-    val type: String = "inner",
-    val parameters: String = "",
-    val note: String = "",
-) {
-    override fun toString() = "OfflineEngineConfig(code=$code)"
-}
-
-@Serializable
 data class OfflineVoiceConfig(
     val engine: String,
     val code: String,
@@ -41,7 +30,7 @@ data class OfflinePackagePlan(
     val directory: String,
     val resources: List<SpeechPackageResource>,
     val configuration: OfflineVoiceConfig,
-    val engineConfiguration: OfflineEngineConfig = OfflineEngineConfig(configuration.engine, configuration.engine),
+    val engineConfiguration: SpeechEngineConfig = SpeechEngineConfig(configuration.engine, configuration.engine),
     val metadata: OfflineVoiceMetadata = OfflineVoiceMetadata(),
     val avatar: SpeechPackageResource? = null,
 )
@@ -64,7 +53,7 @@ fun previewOfflineVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngi
             if (value !is SpeechPackageValue.Scalar) configurationFailure(MatchaPackageError.Parameters, "engine.$key")
             return value.text().orEmpty()
         }
-        val engineConfiguration = OfflineEngineConfig(engine.code, engine.name, engine.type ?: "inner",
+        val engineConfiguration = SpeechEngineConfig(engine.code, engine.name, engine.type ?: "inner",
             engineText("param"), engineText("note"))
         val raw = voice.withImportDefaults(engine.code).raw.values
         fun scalar(key: String): String {

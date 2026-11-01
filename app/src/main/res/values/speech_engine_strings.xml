@@ -1,13 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tts_engines">Engines</string>
-    <string name="tts_engines_builtin">Built-in engines</string>
-    <string name="tts_engines_http">Online engine settings</string>
     <string name="tts_engine_edit">Edit engine</string>
     <string name="tts_engine_name">Engine name</string>
     <string name="tts_engine_parameters">Engine parameters</string>
     <string name="tts_engine_note">Notes</string>
     <string name="tts_engine_save">Save</string>
-    <string name="tts_engine_parameters_hint">Only parameters used by this engine apply. Individual voice parameters stay separate.</string>
     <string name="tts_engine_preset_online">This online engine uses preset connection settings. Choose and preview its voices in Voice sources.</string>
+    <string name="tts_engine_new">New engine</string>
+    <string name="tts_engine_code">Code</string>
+    <string name="tts_engine_type">Type</string>
+    <string name="tts_engine_url">URL</string>
+    <string name="tts_engine_header">Request headers</string>
+    <string name="tts_engine_disabled">Engine disabled</string>
+    <string name="tts_engine_missing">Engine configuration removed</string>
+    <string name="tts_engine_invalid">Check the engine code and request configuration.</string>
+    <string name="tts_engine_add_speaker">New speaker</string>
+    <string name="tts_engine_voices">Speakers</string>
+    <string name="tts_engine_delete">Delete engine</string>
+    <string name="tts_engine_reset">Reset configuration</string>
+    <string name="tts_engine_empty">Import a voice package or add an HTTP engine.</string>
+    <string name="tts_engine_no_speakers">No speakers yet</string>
+    <string name="tts_engine_impact">This change affects these speakers:</string>
+    <string name="tts_engine_delete_warning">These speakers will become unavailable. Their settings are kept so the engine can be restored.</string>
+    <string name="tts_engine_choose_model">Voice package</string>
+    <string name="tts_engine_import_model">Import a voice package for this engine first.</string>
+    <string name="tts_engine_repair">Repair engine</string>
+    <string name="tts_engine_search">Search engines</string>
 </resources>

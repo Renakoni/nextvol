@@ -1,13 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tts_engines">引擎</string>
-    <string name="tts_engines_builtin">内置引擎</string>
-    <string name="tts_engines_http">在线引擎配置</string>
     <string name="tts_engine_edit">编辑引擎</string>
     <string name="tts_engine_name">引擎名称</string>
     <string name="tts_engine_parameters">引擎参数</string>
     <string name="tts_engine_note">备注</string>
     <string name="tts_engine_save">保存</string>
-    <string name="tts_engine_parameters_hint">仅该引擎实际支持的参数生效，不替代单个音源的参数。</string>
     <string name="tts_engine_preset_online">此在线引擎使用预置连接配置，可在音源中选择和试听发音人。</string>
+    <string name="tts_engine_new">新建引擎</string>
+    <string name="tts_engine_code">代号</string>
+    <string name="tts_engine_type">类型</string>
+    <string name="tts_engine_url">URL</string>
+    <string name="tts_engine_header">请求头</string>
+    <string name="tts_engine_disabled">引擎已禁用</string>
+    <string name="tts_engine_missing">引擎配置已删除</string>
+    <string name="tts_engine_invalid">请检查引擎代号和请求配置。</string>
+    <string name="tts_engine_add_speaker">新建发音人</string>
+    <string name="tts_engine_voices">关联发音人</string>
+    <string name="tts_engine_delete">删除引擎</string>
+    <string name="tts_engine_reset">重置配置</string>
+    <string name="tts_engine_empty">导入语音包或新建 HTTP 引擎。</string>
+    <string name="tts_engine_no_speakers">尚无发音人</string>
+    <string name="tts_engine_impact">此操作将影响以下发音人：</string>
+    <string name="tts_engine_delete_warning">以下发音人将无法使用。保留声音配置，恢复引擎后可继续使用。</string>
+    <string name="tts_engine_choose_model">选择语音包</string>
+    <string name="tts_engine_import_model">请先导入此引擎的语音包。</string>
+    <string name="tts_engine_repair">修复引擎</string>
+    <string name="tts_engine_search">搜索引擎</string>
 </resources>

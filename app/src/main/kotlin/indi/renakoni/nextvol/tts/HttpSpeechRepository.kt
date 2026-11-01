@@ -7,15 +7,12 @@ import hnovel.execution.BridgeWire
 import hnovel.execution.ExecutionAuthority
 import hnovel.network.StorageCipher
 import hnovel.network.sourceOrigin
+import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.HttpSpeechDefinition
-import hnovel.speech.SpeechPackageEngine
-import hnovel.speech.SpeechPackageSupport
 import hnovel.speech.SpeechPackageValue
-import hnovel.speech.SpeechPackageVoice
 import hnovel.speech.previewHttpSpeech
 import hnovel.speech.speechPackageAvatarPath
 import hnovel.speech.safeSpeechPackagePath
-import hnovel.speech.previewHttpSpeechPackage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,8 +38,11 @@ data class SavedHttpSpeechSource(
     val speakerDefaults: JsonObject? = null,
     val isVoiceCopy: Boolean = false,
     val packageAvatar: String? = null,
+    val engineEnabled: Boolean = true,
+    val engineDeleted: Boolean = false,
 ) {
     val enabled: Boolean get() = (definition.raw["nextvolEnabled"] as? JsonPrimitive)?.booleanOrNull != false
+    val available: Boolean get() = enabled && engineEnabled && !engineDeleted
     val isBuiltIn: Boolean get() = group != null
     val importedEngine: JsonObject? get() = if (isBuiltIn) null else
         (definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject
@@ -64,6 +64,10 @@ data class SavedHttpSpeechSource(
         return previewHttpSpeech(raw.toString()).sources.single()
     }
 }
+
+internal data class HttpSynthesisResult(val source: SavedHttpSpeechSource, val message: Int)
+
+private data class HttpSpeechStore(val sources: List<SavedHttpSpeechSource> = emptyList(), val engines: List<SpeechEngineConfig> = emptyList())
 
 /** User-imported definitions can contain credentials. Persist them with the existing Keystore cipher. */
 @Singleton
@@ -87,10 +91,37 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     val changes = mutableChanges.asStateFlow()
     private val mutableDeniedOrigins = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val deniedOrigins = mutableDeniedOrigins.asStateFlow()
+    private val mutableSynthesisResults = MutableStateFlow<Map<String, HttpSynthesisResult>>(emptyMap())
+    internal val synthesisResults = mutableSynthesisResults.asStateFlow()
+
+    internal fun recordSynthesis(source: SavedHttpSpeechSource, message: Int) {
+        mutableSynthesisResults.update { it + (source.definition.id to HttpSynthesisResult(source, message)) }
+    }
 
     internal fun recordDeniedOrigins(id: String, origins: List<String>) {
         val safe = origins.filter { sourceOrigin(it) == it }.distinct().take(32)
         if (safe.isNotEmpty()) mutableDeniedOrigins.update { (it + (id to safe)).entries.toList().takeLast(512).associate { entry -> entry.toPair() } }
+    }
+
+    suspend fun registerEngine(engine: SpeechEngineConfig) = change(listOf(engine)) { it }
+
+    suspend fun engines(): List<SpeechEngineConfig> = withContext(Dispatchers.IO) { mutex.withLock { readStored().engines } }
+
+    suspend fun saveEngine(engine: SpeechEngineConfig, creating: Boolean = false) = changeStore { store ->
+        require(engine.type == "http" && engine.name.isNotBlank() && engine.code.isNotBlank() && engine.code.none(Char::isISOControl))
+        val previous = store.engines.find { it.code == engine.code }
+        require(!creating || previous != null || engine.code.startsWith("http_") && engine.code.length > 5)
+        require(!creating || previous == null || previous.deleted)
+        require(creating || previous != null)
+        val related = store.sources.filter { it.importedEngineCode == engine.code }
+        if (related.isEmpty() && !engine.deleted && (previous == null || previous.url != engine.url || previous.header != engine.header))
+            newHttpVoice(engine)
+        val sources = store.sources.map { if (it.importedEngineCode == engine.code) it.withHttpEngine(engine) else it }
+        HttpSpeechStore(sources, if (previous == null) store.engines + engine else store.engines.map { if (it.code == engine.code) engine else it })
+    }
+
+    suspend fun orderEngines(ranks: Map<String, Int>) = changeStore { store ->
+        store.copy(engines = store.engines.map { it.copy(order = ranks["http:${it.code}"] ?: it.order) })
     }
 
     suspend fun sources(): List<SavedHttpSpeechSource> = withContext(Dispatchers.IO) { mutex.withLock { read() } }
@@ -106,7 +137,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         safeSpeechPackagePath(it) && '/' !in it
     }?.let { File(avatarRoot, it).takeIf { file -> file.canonicalFile == file.absoluteFile && file.isFile } }
 
-    suspend fun save(sources: List<SavedHttpSpeechSource>, archive: File? = null) = change { current ->
+    suspend fun save(sources: List<SavedHttpSpeechSource>, archive: File? = null) = change(sources.mapNotNull { it.httpEngine() }) { current ->
         require(sources.none { it.definition.id.startsWith(BUILT_IN_PREFIX) })
         val merged = current.toMutableList()
         val avatars = if (archive == null) emptyMap() else importAvatars(archive, sources)
@@ -139,28 +170,9 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     suspend fun delete(ids: Set<String>) = change { current -> current.filterNot { it.definition.id in ids && !it.definition.id.startsWith(BUILT_IN_PREFIX) } }
 
     /** Rebuild each voice's request from the shared template while preserving its identity and local settings. */
-    suspend fun editImportedEngine(code: String, name: String, url: String, header: String) = change { current ->
-        require(name.isNotBlank() && current.any { it.importedEngineCode == code })
-        current.map { source ->
-            if (source.importedEngineCode != code) source else {
-                val metadata = source.definition.raw.getValue("multiTts").jsonObject
-                val engine = JsonObject(requireNotNull(source.importedEngine) + mapOf(
-                    "name" to JsonPrimitive(name.trim()), "url" to JsonPrimitive(url.trim()), "header" to JsonPrimitive(header)))
-                val voice = metadata.getValue("voice").jsonObject
-                val converted = previewHttpSpeechPackage(SpeechPackageEngine(code, name.trim(), "http", engine.packageValue(),
-                    listOf(SpeechPackageVoice(voice.getValue("code").jsonPrimitive.content, source.definition.name, voice.packageValue())),
-                    SpeechPackageSupport.HttpAdapter, emptyList(), emptyList()))
-                require(converted.error == null && converted.sources.size == 1)
-                val generated = converted.sources.single()
-                val raw = source.definition.raw.toMutableMap().apply {
-                    put("id", JsonPrimitive(source.definition.id))
-                    put("url", generated.raw.getValue("url"))
-                    if (header.isBlank()) remove("header") else put("header", JsonPrimitive(header))
-                    put("multiTts", JsonObject(metadata + ("engine" to engine)))
-                }
-                source.copy(definition = previewHttpSpeech(JsonObject(raw).toString()).sources.single())
-            }
-        }
+    suspend fun editImportedEngine(code: String, name: String, url: String, header: String) {
+        val engine = engines().single { it.code == code }
+        saveEngine(engine.copy(name = name.trim(), url = url.trim(), header = header))
     }
 
     suspend fun configure(id: String, credentials: Map<String, String>) = change { current ->
@@ -175,13 +187,25 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         current.filterNot { it.definition.id in ids } + combined(current).filter { it.definition.id in ids }.map { it.copy(credentials = values) }
     }
 
-    private suspend fun change(update: (List<SavedHttpSpeechSource>) -> List<SavedHttpSpeechSource>) = withContext(Dispatchers.IO) {
+    private suspend fun change(imported: List<SpeechEngineConfig> = emptyList(), update: (List<SavedHttpSpeechSource>) -> List<SavedHttpSpeechSource>) = changeStore { store ->
+        val changed = update(store.sources)
+        val retained = store.engines.map { old ->
+            if (old.deleted) imported.find { it.code == old.code }?.copy(order = old.order) ?: old else old
+        }
+        val engines = retained + (imported + changed.mapNotNull { it.httpEngine() })
+            .distinctBy { it.code }.filter { incoming -> store.engines.none { it.code == incoming.code } }
+        HttpSpeechStore(changed.map { source -> engines.find { it.code == source.importedEngineCode }
+            ?.let { source.withHttpEngine(it) } ?: source }, engines)
+    }
+
+    private suspend fun changeStore(update: (HttpSpeechStore) -> HttpSpeechStore) = withContext(Dispatchers.IO) {
         mutex.withLock {
             val stored = readStored()
-            val previous = combined(stored)
-            val updated = update(stored)
+            val previous = combined(stored.sources, stored.engines)
+            val updatedStore = update(stored)
+            val updated = updatedStore.sources
             require(updated.size <= 512 && updated.map { it.definition.id }.distinct().size == updated.size)
-            val raw = JsonArray(updated.map { source ->
+            val entries = JsonArray(updated.map { source ->
                 require(source.origins.size <= 32 && source.origins.all { sourceOrigin(it) == it })
                 buildJsonObject {
                     put("definition", source.definition.raw); put("origins", JsonArray(source.origins.map(::JsonPrimitive)))
@@ -191,7 +215,11 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                     if (source.isVoiceCopy) put("isVoiceCopy", true)
                     source.packageAvatar?.let { put("packageAvatar", it) }
                 }
-            }).toString().toByteArray(Charsets.UTF_8)
+            })
+            val raw = buildJsonObject {
+                put("sources", entries)
+                put("engines", Json.encodeToJsonElement(updatedStore.engines))
+            }.toString().toByteArray(Charsets.UTF_8)
             require(raw.size <= MAX_BYTES)
             BridgeWire.validate(raw, MAX_BYTES)
             val encrypted = cipher.seal(raw, IDENTITY)
@@ -199,13 +227,16 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
             cleanAvatars(updated)
-            val sources = combined(updated)
+            val sources = combined(updated, updatedStore.engines)
             previous.filter { old -> sources.none { it.definition.id == old.definition.id &&
-                it.definition.revision == old.definition.revision && it.origins == old.origins && it.credentials == old.credentials } }.forEach { old ->
+                old.sameExecution(it) } }.forEach { old ->
                 authority.revokeSource(old.definition.id, "speech")
                 val runtime = runtimeDirectory(old.definition.id)
                 if (runtime.exists() && !runtime.deleteRecursively()) throw java.io.IOException("Speech runtime cleanup failed")
             }
+            mutableSynthesisResults.update { results -> results.filter { (id, result) ->
+                sources.any { it.definition.id == id && result.source.sameExecution(it) }
+            } }
             mutableDeniedOrigins.update { denied -> denied.mapNotNull { (id, origins) ->
                 sources.find { it.definition.id == id }?.let { source -> id to (origins - source.origins.toSet()) }
             }.toMap() }
@@ -216,11 +247,11 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     private var recoveredAvatars = false
 
     private fun read() = readStored().let {
-        if (!recoveredAvatars) { cleanAvatars(it); recoveredAvatars = true }
-        combined(it)
+        if (!recoveredAvatars) { cleanAvatars(it.sources); recoveredAvatars = true }
+        combined(it.sources, it.engines)
     }
 
-    private fun combined(stored: List<SavedHttpSpeechSource>): List<SavedHttpSpeechSource> {
+    private fun combined(stored: List<SavedHttpSpeechSource>, engines: List<SpeechEngineConfig> = emptyList()): List<SavedHttpSpeechSource> {
         val overrides = stored.associateBy { it.definition.id }
         val presets = builtIns.map { preset -> overrides[preset.definition.id]?.let {
             preset.copy(definition = it.definition, credentials = it.credentials, speakerDefaults = it.speakerDefaults, packageAvatar = it.packageAvatar)
@@ -228,12 +259,15 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         return presets + stored.filterNot { it.definition.id.startsWith(BUILT_IN_PREFIX) }.map { source ->
             presets.find { it.definition.id == source.engineReference }?.let { engine ->
                 source.copy(credentialKeys = engine.credentialKeys, credentials = engine.credentials)
-            } ?: source
+            } ?: source.let {
+                val engine = engines.find { engine -> engine.code == source.importedEngineCode }
+                if (engine == null) it else it.copy(engineEnabled = engine.enabled, engineDeleted = engine.deleted)
+            }
         }
     }
 
-    private fun readStored(): List<SavedHttpSpeechSource> {
-        if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()) return emptyList()
+    private fun readStored(): HttpSpeechStore {
+        if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()) return HttpSpeechStore()
         val encrypted = file.openRead().use { input ->
             val bytes = java.io.ByteArrayOutputStream()
             val buffer = ByteArray(8192)
@@ -246,11 +280,12 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             bytes.toByteArray()
         }
         val raw = cipher.open(encrypted, IDENTITY)
-        val entries = Json.parseToJsonElement(BridgeWire.validate(raw, MAX_BYTES)).jsonArray
+        val document = Json.parseToJsonElement(BridgeWire.validate(raw, MAX_BYTES))
+        val entries = if (document is JsonArray) document else document.jsonObject.getValue("sources").jsonArray
         require(entries.size <= 512)
         val preview = previewHttpSpeech(JsonArray(entries.map { it.jsonObject.getValue("definition") }).toString())
         require(preview.issues.isEmpty() && preview.sources.size == entries.size)
-        return preview.sources.zip(entries) { source, entry ->
+        val sources = preview.sources.zip(entries) { source, entry ->
             val origins = entry.jsonObject.getValue("origins").jsonArray.map { it.jsonPrimitive.content }
             require(origins.size <= 32 && origins.all { sourceOrigin(it) == it })
             val credentials = entry.jsonObject["credentials"]?.jsonObject?.mapValues { it.value.jsonPrimitive.content }.orEmpty()
@@ -260,6 +295,9 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 isVoiceCopy = entry.jsonObject["isVoiceCopy"]?.jsonPrimitive?.booleanOrNull == true,
                 packageAvatar = entry.jsonObject["packageAvatar"]?.jsonPrimitive?.contentOrNull)
         }
+        val engines = if (document is JsonObject) Json.decodeFromJsonElement<List<SpeechEngineConfig>>(document.getValue("engines"))
+            else sources.mapNotNull { it.httpEngine() }.distinctBy { it.code }
+        return HttpSpeechStore(sources, engines)
     }
 
     private fun cleanAvatars(sources: List<SavedHttpSpeechSource>) {
