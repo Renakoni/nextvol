@@ -35,6 +35,9 @@ import indi.renakoni.nextvol.tts.SpeechAction
 import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.speakerData
 import indi.renakoni.nextvol.tts.searchVoice
+import indi.renakoni.nextvol.tts.SpeechSettings
+import indi.renakoni.nextvol.tts.SpeechVoiceRef
+import indi.renakoni.nextvol.tts.voiceSelection
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.coroutines.launch
@@ -61,6 +64,9 @@ fun HttpSpeechSourcesScreen(
     onEngine: (String) -> Unit = {},
     onVoiceEditor: ((SavedHttpSpeechSource, Boolean) -> Unit)? = null,
     onEnableVoice: (SavedHttpSpeechSource, Boolean) -> Unit = { _, _ -> },
+    selection: SpeechSettings = SpeechSettings(),
+    onDialogue: (String?) -> Unit = {},
+    onSystemGroup: () -> Unit = {},
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -75,8 +81,10 @@ fun HttpSpeechSourcesScreen(
     var header by remember { mutableStateOf("") }
     val sourceRow: @Composable (SavedHttpSpeechSource) -> Unit = { source ->
         val metadata = source.speakerData()
-        SpeechSourceRow(source.definition.name, state.selected == source.definition.id, !state.busy && source.available,
-            onClick = { if (source.isConfigured) onSelect(source.definition.id) else configuring = source },
+        val selected = selection.voiceSelection(SpeechVoiceRef(httpSource = source.definition.id))
+        SpeechSourceRow(source.definition.name, selected != null, !state.busy && (source.available || selected != null),
+            onClick = { if (source.isConfigured || selected != null) onSelect(source.definition.id) else configuring = source },
+            onLongClick = { onDialogue(source.definition.id) }, selection = selected,
             avatar = {
                 SpeechAvatar((metadata["avatar"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
                     (metadata["gender"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
@@ -140,11 +148,12 @@ fun HttpSpeechSourcesScreen(
     LaunchedEffect(currentGroup) { query = "" }
     LaunchedEffect(catalogReady, currentGroup) {
         if (catalogReady) onOfflineGroup(currentGroup.takeIf { it.startsWith("offline:") }?.removePrefix("offline:"))
+        if (catalogReady && currentGroup == "system") onSystemGroup()
     }
     val searchQuery = query.trim()
-    val filteredSources = remember(state.sources, state.selected, searchQuery) {
+    val filteredSources = remember(state.sources, selection, searchQuery) {
         val search = hnovel.speech.SpeechVoiceSearch(searchQuery)
-        state.sources.filter { search.matches(it.searchVoice(state.selected == it.definition.id)) }
+        state.sources.filter { search.matches(it.searchVoice(selection.voiceSelection(SpeechVoiceRef(httpSource = it.definition.id)) != null)) }
     }
     Scaffold(topBar = {
         SpeechSourcesTopBar(query, { query = it }, searching, { searching = true }, closeSearch, onBack, state.busy,
@@ -169,13 +178,14 @@ fun HttpSpeechSourcesScreen(
                     state.error?.let { message -> item { Text(stringResource(message), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(22.dp)) } }
                     when {
                         group == "system" -> item {
-                            SpeechSourceRow(stringResource(R.string.tts_system_speech), state.selected == null && !state.offlineSelected,
-                                !state.busy, { onSelect(null) }, avatar = {
+                            val selected = selection.voiceSelection(SpeechVoiceRef(engine = selection.engine, voice = selection.voice))
+                            SpeechSourceRow(stringResource(R.string.tts_system_speech), selected != null,
+                                !state.busy, { onSelect(null) }, onLongClick = { onDialogue(null) }, selection = selected, avatar = {
                                     Surface(Modifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                                         Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.headphones_24px), null) }
                                     }
                                 }, onPreview = onPreview?.let { { it(null) } })
-                            if (state.selected == null && !state.offlineSelected) Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                 systemSettings?.invoke(searchQuery)
                             }
                         }

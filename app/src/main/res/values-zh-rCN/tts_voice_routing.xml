@@ -1,22 +1,12 @@
 <resources>
-    <string name="tts_voice_routing">声音分配</string>
-    <string name="tts_narration_voices">旁白声音</string>
-    <string name="tts_dialogue_voices">对话声音</string>
-    <string name="tts_voice_inherit">使用当前音源</string>
-    <string name="tts_voice_none">未选择声音</string>
-    <string name="tts_voice_rotation">旁白或对话切换时，按选择顺序轮换声音。人物指定的声音优先。</string>
-    <string name="tts_voice_plan">朗读计划</string>
+    <string name="tts_voice_none">未选择旁白发音人</string>
     <string name="tts_assign_voice">指定声音</string>
-    <string name="tts_voice_use_dialogue">跟随对话声音</string>
-    <string name="tts_voice_plan_empty">开始听书后，可查看本章朗读计划并为人物指定声音。</string>
-    <string name="tts_voice_explicit_people">本章显式标记的人物</string>
-    <string name="tts_voice_segment">%1$d · %2$s</string>
-    <string name="tts_voice_reason_narration">旁白候选声音</string>
-    <string name="tts_voice_reason_dialogue">对话候选声音</string>
-    <string name="tts_voice_reason_explicit">人物指定声音</string>
-    <string name="tts_voice_reason_remembered">沿用记忆的对话声音</string>
-    <string name="tts_voice_reason_continued">延续上一声音</string>
-    <string name="tts_voice_enable_dialogue">开启“合成对话”后，可选择对话声音。</string>
-    <string name="tts_voice_from_narration">已用于旁白。点击先移除，再选择加入对话。</string>
-    <string name="tts_voice_from_dialogue">已用于对话。点击先移除，再选择加入旁白。</string>
+    <string name="tts_voice_enable_dialogue">请先启动“合成对话”功能</string>
+    <string name="tts_voice_narrator">旁白</string>
+    <string name="tts_voice_dialogue">对话</string>
+    <string name="tts_voice_select_narrator">选择或取消旁白发音人</string>
+    <string name="tts_voice_select_dialogue">选择或取消对话发音人</string>
+    <string name="tts_voice_multiple">允许多选</string>
+    <string name="tts_voice_multiple_on">已启用，允许选择多个发音人</string>
+    <string name="tts_voice_multiple_off">已禁用，只能选择单个发音人</string>
 </resources>

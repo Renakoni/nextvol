@@ -37,6 +37,7 @@ data class SpeechSettings(
     val speakerBookId: String = "",
     val voiceRevision: String = "",
     val voiceRoutingConfigured: Boolean = false,
+    val allowMultipleVoices: Boolean = false,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),

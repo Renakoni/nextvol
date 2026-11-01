@@ -283,16 +283,17 @@ class SpeechControlsTest {
         }
     }
 
-    @Test fun systemVoicePreviewLeavesTheSelectionDialogOpenUntilAChoiceIsMade() {
+    @Test fun systemVoiceAuditionAndSelectionKeepTheDialogOpenForFurtherGestures() {
         var selected: String? = null
         var previewed: String? = null
+        var dialogue: String? = null
         activity.get().setContent {
             MaterialTheme {
                 HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
                     systemSettings = {
                         SystemSpeechSettings(SpeechSettingsUiState(loading = false,
                             voices = listOf(SpeechVoice("candidate", "en-US", false, true))), {}, { selected = it }, {},
-                            onPreviewVoice = { previewed = it })
+                            onPreviewVoice = { previewed = it }, onDialogue = { dialogue = it })
                     })
             }
         }
@@ -302,7 +303,9 @@ class SpeechControlsTest {
         assertNull(selected)
         compose.onNodeWithText("candidate · Offline").performClick()
         assertEquals("candidate", selected)
-        compose.onNodeWithContentDescription("Preview candidate").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Preview candidate").assertIsDisplayed()
+        compose.onNodeWithText("candidate · Offline").performTouchInput { longClick() }
+        assertEquals("candidate", dialogue)
     }
 
     @Test

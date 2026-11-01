@@ -5,4 +5,5 @@ package indi.renakoni.nextvol.tts
 @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
 interface SpeechDebugEntryPoint {
     fun controller(): ReadAloudController
+    fun voices(): SpeechVoiceCatalog
 }

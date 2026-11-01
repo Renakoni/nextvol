@@ -106,7 +106,7 @@ internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Local
 
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
-    val selected = validated().copy(playbackSpeed = 1f)
+    val selected = validated().copy(playbackSpeed = 1f, allowMultipleVoices = false)
     if (selected.hasVoiceRouting) return selected
     return when {
         selected.offlineVoice != null -> selected.copy(engine = "", voice = "", pitch = null, rate = selected.rate ?: 1f, httpVolume = 1f)

@@ -57,6 +57,30 @@ class SpeechSettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
+    @Test fun dialogueSelectionRequiresDialogueSynthesisButNarrationRemainsAvailable() = runTest {
+        coEvery { repository.update(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
+        }
+        runCurrent()
+        val voice = SpeechVoiceRef(httpSource = "voice")
+        var prompted = false
+        model.toggleVoice(true, voice) { prompted = true }
+        runCurrent()
+        assertTrue(prompted)
+        coVerify(exactly = 0) { repository.update(any()) }
+        model.toggleVoice(false, voice)
+        runCurrent()
+        assertEquals(listOf(voice), settings.value.narrationVoices)
+        model.toggleVoice(false, voice)
+        runCurrent()
+        assertTrue(settings.value.narrationVoices.isEmpty())
+        settings.value = settings.value.copy(text = settings.value.text.copy(dialogue = true))
+        runCurrent()
+        model.toggleVoice(true, voice)
+        runCurrent()
+        assertEquals(listOf(voice), settings.value.dialogueVoices)
+    }
+
     @Test fun playbackSpeedIsSavedWithoutChangingSynthesisOrRefreshingTheVoiceCatalog() = runTest {
         coEvery { repository.update(any()) } coAnswers {
             settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value).validated()
