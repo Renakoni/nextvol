@@ -66,6 +66,8 @@
     <string name="tts_error_no_engine">No speech engine was found. Install and configure an engine in system settings, then retry.</string>
     <string name="tts_error_engine">The selected speech engine is unavailable. Check the engine in settings.</string>
     <string name="tts_error_voice">This voice is unavailable. Choose another voice or use the engine settings.</string>
+    <string name="tts_error_narration_voice">No narration voice selected!</string>
+    <string name="tts_error_dialogue_voice">No dialogue voice selected!</string>
     <string name="tts_error_language">This voice needs language data. Open system speech settings to prepare it.</string>
     <string name="tts_error_init_timeout">The speech engine did not respond. Check its settings and retry.</string>
     <string name="tts_error_synthesis_timeout">Audio preparation timed out. Your position is saved; retry to continue.</string>

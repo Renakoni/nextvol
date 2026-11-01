@@ -79,6 +79,17 @@ class SpeechSettingsViewModelTest {
         model.toggleVoice(true, voice)
         runCurrent()
         assertEquals(listOf(voice), settings.value.dialogueVoices)
+        settings.value = settings.value.copy(text = settings.value.text.copy(dialogue = false))
+        runCurrent()
+        prompted = false
+        model.toggleVoice(false, voice) { prompted = true }
+        runCurrent()
+        assertTrue(prompted)
+        assertEquals(listOf(voice), settings.value.dialogueVoices)
+        val narrator = SpeechVoiceRef(httpSource = "narrator")
+        model.toggleVoice(false, narrator)
+        runCurrent()
+        assertEquals(listOf(narrator), settings.value.narrationVoices)
     }
 
     @Test fun playbackSpeedIsSavedWithoutChangingSynthesisOrRefreshingTheVoiceCatalog() = runTest {
@@ -93,9 +104,16 @@ class SpeechSettingsViewModelTest {
         coVerify(exactly = 1) { engines.inspect(any()) }
     }
 
-    @Test fun auditioningAnOnlineVoiceDoesNotSaveItAndRemovingItStopsTheSample() = runTest {
+    @Test fun auditionPreservesSelectionAndDeletingTheVoiceClearsOnlyItsCandidates() = runTest {
         val source = SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
             """{"id":"candidate","name":"Candidate","url":"https://example.org"}""").sources.single(), listOf("https://example.org:443"))
+        val candidate = SpeechVoiceRef(httpSource = "candidate")
+        val other = SpeechVoiceRef(httpSource = "other")
+        settings.value = SpeechSettings(voiceRoutingConfigured = true, narrationVoices = listOf(candidate),
+            dialogueVoices = listOf(other), speakerVoices = mapOf("甲" to candidate))
+        coEvery { repository.update(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
+        }
         coEvery { http.sources() } returns listOf(source)
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         coEvery { http.delete(setOf(source.definition.id)) } returns Unit
@@ -113,7 +131,9 @@ class SpeechSettingsViewModelTest {
             library.delete(source)
             library.state.first { !it.busy }
             verify { controller.command(SpeechAction.Stop) }
-            coVerify(exactly = 0) { repository.update(any()) }
+            assertTrue(settings.value.selectedNarrators.isEmpty())
+            assertEquals(listOf(other), settings.value.dialogueVoices)
+            assertEquals(candidate, settings.value.speakerVoices["甲"])
         } finally { library.viewModelScope.cancel() }
     }
 
@@ -184,7 +204,9 @@ class SpeechSettingsViewModelTest {
     @Test fun leavingTheVoiceLibraryDuringDeletionStillClearsTheSelectedReference() = runTest {
         val reference = OfflineVoiceRef("voice", "revision")
         val voice = InstalledOfflineVoice(reference, "Voice", emptyMap())
-        settings.value = SpeechSettings(offlineVoice = reference)
+        val narrator = SpeechVoiceRef(httpSource = "narrator")
+        settings.value = SpeechSettings(offlineVoice = reference, voiceRoutingConfigured = true,
+            narrationVoices = listOf(narrator), dialogueVoices = listOf(SpeechVoiceRef(offlineVoice = reference)))
         val offline = mockk<OfflineSpeechRepository>()
         every { offline.changes } returns MutableStateFlow(0L)
         coEvery { offline.voices() } returns emptyList()
@@ -211,6 +233,8 @@ class SpeechSettingsViewModelTest {
             release.complete(Unit)
             deletion.join()
             assertNull(settings.value.offlineVoice)
+            assertEquals(listOf(narrator), settings.value.narrationVoices)
+            assertTrue(settings.value.dialogueVoices.isEmpty())
         } finally { release.complete(Unit); library.viewModelScope.cancel() }
     }
 

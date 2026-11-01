@@ -171,7 +171,10 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         if (ids.any(::isInUse)) controller.command(SpeechAction.Stop)
         withContext(NonCancellable) {
             repository.delete(ids)
-            if (state.value.selected in ids) settings.update { if (it.httpSource in ids) it.copy(httpSource = null, offlineVoice = null) else it }
+            settings.update { current ->
+                val selected = current.removeVoiceSelections { it.httpSource in ids }
+                if (selected.httpSource in ids) selected.copy(httpSource = null, offlineVoice = null) else selected
+            }
         }
     }
 

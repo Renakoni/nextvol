@@ -73,7 +73,7 @@ class SpeechVoiceRoutingTest {
         assertEquals(SpeechContext(), first.context)
     }
 
-    @Test fun emptyRememberedSlotsUseCandidatesButMissingReferencesAndClearedCandidatesStayVisible() = runBlocking {
+    @Test fun emptyRememberedSlotsUseCandidatesButMissingReferencesStayVisible() = runBlocking {
         val chapter = SpeechChapter("book", "one", "", "", "“未识别。”")
         val configured = settings.copy(text = settings.text.copy(recordVoice = true))
         val empty = prepareSpeechPlan(chapter, configured,
@@ -84,12 +84,31 @@ class SpeechVoiceRoutingTest {
         val missing = prepareSpeechPlan(chapter, configured,
             context = SpeechContext(recentVoices = listOf("http:removed", null))) {}
         assertEquals(SpeechError.MissingVoice, missing.segments.single().selectedVoice!!.error)
-        val cleared = prepareSpeechPlan(chapter, configured.copy(dialogueVoices = emptyList())) {}
-        assertEquals(SpeechError.MissingVoice, cleared.segments.single().selectedVoice!!.error)
         val otherBook = prepareSpeechPlan(chapter.copy(bookId = "other", text = "“<<甲>>你好。”"), configured) {}
         assertNull(otherBook.segments.single().speaker)
         assertEquals("“<<甲>>你好。”", otherBook.segments.single().text)
         assertEquals(alternate.key, otherBook.segments.single().selectedVoice!!.reference.key)
+    }
+
+    @Test fun missingSelectionsFailBeforeParsingWhileSingleVoicePlaybackAndFilteredTextRemainIndependent() = runBlocking {
+        val chapter = SpeechChapter("book", "one", "", "", "只有旁白。")
+        val missingDialogue = settings.copy(dialogueVoices = emptyList())
+        val dialogueFailure = assertThrows(SpeechException::class.java) { runBlocking {
+            prepareSpeechPlan(chapter, missingDialogue) {}
+        } }
+        assertEquals(SpeechError.MissingDialogueVoice, dialogueFailure.error)
+        val narrationFailure = assertThrows(SpeechException::class.java) { runBlocking {
+            prepareSpeechPlan(chapter.copy(text = "“<<甲>>只有对话。”"),
+                missingDialogue.copy(narrationVoices = emptyList())) {}
+        } }
+        assertEquals(SpeechError.MissingNarrationVoice, narrationFailure.error)
+        val narrationOnly = prepareSpeechPlan(chapter, missingDialogue.copy(text = settings.text.copy(dialogue = false))) {}
+        assertEquals(narrator.key, narrationOnly.segments.single().selectedVoice!!.reference.key)
+        val preview = prepareSpeechPlan(chapter, missingDialogue.forVoice(online)) {}
+        assertEquals(online.key, preview.segments.single().selectedVoice!!.reference.key)
+        val filtered = prepareSpeechPlan(chapter.copy(text = "……"),
+            missingDialogue.copy(narrationVoices = emptyList())) {}
+        assertTrue(filtered.segments.isEmpty())
     }
 
     @Test fun rebindingAnExplicitPersonUpdatesAnUnfinishedDialogueAndItsRememberedVoice() = runBlocking {

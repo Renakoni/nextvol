@@ -65,6 +65,8 @@
     <string name="tts_error_no_engine">未找到语音引擎。请先安装并在系统设置中配置引擎，再重试。</string>
     <string name="tts_error_engine">所选语音引擎不可用，请在设置中检查引擎。</string>
     <string name="tts_error_voice">此音色已不可用，请选择其他音色或沿用引擎设置。</string>
+    <string name="tts_error_narration_voice">未设置旁白发音人！</string>
+    <string name="tts_error_dialogue_voice">未设置对话发音人！</string>
     <string name="tts_error_language">此音色缺少语音数据，请前往系统语音设置完成准备。</string>
     <string name="tts_error_init_timeout">语音引擎没有响应，请检查引擎设置后重试。</string>
     <string name="tts_error_synthesis_timeout">准备声音超时，已保留听书位置，可以重试继续。</string>

@@ -58,6 +58,11 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     // The original service filters before normalization, replacement and emoji expansion.
     if (settings.filterUnspoken && speechIsUnspoken(original.text))
         return SpeechPlan(chapter, synthesis, emptyList(), "", emptyList(), context = context, maxInputLength = maxInputLength, locale = locale)
+    // R6.i.b requires both selections before parsing any dialogue; i.g only requires narration.
+    if (synthesis.hasVoiceRouting) {
+        if (synthesis.selectedNarrators.isEmpty()) throw SpeechException(SpeechError.MissingNarrationVoice)
+        if (settings.dialogue && synthesis.dialogueVoices.isEmpty()) throw SpeechException(SpeechError.MissingDialogueVoice)
+    }
     val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
     val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
     val routing = SpeechVoiceRouting(synthesis, chapter.bookId, voices, context, maxInputLength)

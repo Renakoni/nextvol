@@ -291,8 +291,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
         val context = LocalContext.current
         val systemSpeechLabel = stringResource(R.string.tts_system_speech)
-        val selectDialogue: (SpeechVoiceRef) -> Unit = { voice ->
-            settingsViewModel.toggleVoice(true, voice) {
+        val toggleVoice: (Boolean, SpeechVoiceRef) -> Unit = { dialogue, voice ->
+            settingsViewModel.toggleVoice(dialogue, voice) {
                 Toast.makeText(context, R.string.tts_voice_enable_dialogue, Toast.LENGTH_SHORT).show()
             }
         }
@@ -311,7 +311,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val systemSettingsPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { settingsViewModel.refresh() }
         HttpSpeechSourcesScreen(if (offline.error || settings.error == SpeechError.Storage)
             state.copy(error = R.string.tts_error_storage) else state, nav::popBackStackIfResumed,
-            selection = settings.settings, onDialogue = { selectDialogue(httpVoice(it)) },
+            selection = settings.settings, onDialogue = { toggleVoice(true, httpVoice(it)) },
             onSystemGroup = { settingsViewModel.refresh(systemCatalog = true) },
             catalogReady = state.loaded && offline.loaded,
             onOfflineGroup = offlineViewModel::openEngine,
@@ -320,7 +320,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onEnableVoice = { source, enabled -> viewModel.enable(listOf(source), enabled) },
             onImport = { picker.launch(arrayOf("application/json", "application/zip", "application/x-zip-compressed",
                 "application/yaml", "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
-            onSelect = { settingsViewModel.toggleVoice(false, httpVoice(it)) }, onDelete = { deletingHttp = listOf(it) }, onSites = viewModel::sites,
+            onSelect = { toggleVoice(false, httpVoice(it)) }, onDelete = { deletingHttp = listOf(it) }, onSites = viewModel::sites,
             onConfirmImport = viewModel::confirmImport, onDismissImport = viewModel::dismissPreview, onEdit = viewModel::edit,
             onConfigure = viewModel::configure, onPreview = { viewModel.previewVoice(it, preview) },
             playback = playback, onCommand = viewModel.controller::command,
@@ -330,16 +330,16 @@ fun NavGraphBuilder.speechSettingsDestination() {
             offlineGroups = offline.voices.map { it.configuration?.engine ?: "sherpa" }.distinct()
                 .associateWith { offline.engineNames[it] ?: it },
             offlineSettings = { engine, query -> offlineSpeechSources(offline, engine, query, selection = settings.settings,
-                onSelect = { settingsViewModel.toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
-                onDialogue = { selectDialogue(SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
+                onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
+                onDialogue = { toggleVoice(true, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                 onPreview = { offlineViewModel.preview(it, preview) }, onDelete = { deleting = it }, onEnable = offlineViewModel::enable,
                 onEdit = { voice, copy -> nav.navigate(OfflineVoiceEditorRoute(voice.reference.id, copy)) }) },
             systemSettings = { query ->
                 SystemSpeechSettings(settings.copy(loading = settings.loading || state.busy,
                     voices = settings.voices.filter { it.id.contains(query, true) || it.locale.contains(query, true) }),
                     onEngine = settingsViewModel::selectEngine,
-                    onVoice = { settingsViewModel.toggleVoice(false, SpeechVoiceRef(engine = settings.settings.engine, voice = it, label = it)) },
-                    onDialogue = { selectDialogue(SpeechVoiceRef(engine = settings.settings.engine, voice = it, label = it)) },
+                    onVoice = { toggleVoice(false, SpeechVoiceRef(engine = settings.settings.engine, voice = it, label = it)) },
+                    onDialogue = { toggleVoice(true, SpeechVoiceRef(engine = settings.settings.engine, voice = it, label = it)) },
                     onPreviewVoice = { viewModel.controller.preview(preview, settings.settings.copy(httpSource = null, voice = it, offlineVoice = null)) },
                     onSystemSettings = {
                         try { systemSettingsPicker.launch(Intent("com.android.settings.TTS_SETTINGS")) }
@@ -347,13 +347,11 @@ fun NavGraphBuilder.speechSettingsDestination() {
                     })
             })
         if (deleting.isNotEmpty() || deletingHttp.isNotEmpty()) {
-            val current = deleting.any { it.reference.id == offline.selected?.id } || deletingHttp.any { it.definition.id == state.selected }
             val dismiss = { deleting = emptyList(); deletingHttp = emptyList() }
             AlertDialog(onDismissRequest = dismiss, title = { Text(stringResource(R.string.tts_remove_source)) },
-                text = { Text(stringResource(R.string.tts_voice_delete_confirm, deleting.size + deletingHttp.size) +
-                    if (current) "\n\n" + stringResource(R.string.tts_voice_delete_selected) else "") },
+                text = { Text(stringResource(R.string.tts_voice_delete_confirm, deleting.size + deletingHttp.size)) },
                 confirmButton = { TextButton(onClick = { offlineViewModel.delete(deleting); viewModel.delete(deletingHttp); dismiss() }) {
-                    Text(stringResource(if (current) R.string.tts_voice_delete_system else R.string.confirm))
+                    Text(stringResource(R.string.confirm))
                 } }, dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } })
         }
     }
