@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -68,8 +69,23 @@ class SpeechNameTestViewModel @Inject constructor(private val recognizer: Speech
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechNameTestScreen(onBack: () -> Unit) {
+    var selected by rememberSaveable { mutableIntStateOf(0) }
+    val saved = rememberSaveableStateHolder()
+    val tabs = listOf(R.string.tts_name_ner, R.string.tts_name_classification_tab)
     Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_name_test, onBack) }) { padding ->
-        SpeechNameRecognitionContent(Modifier.padding(padding))
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            PrimaryScrollableTabRow(selectedTabIndex = selected, edgePadding = 20.dp) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(selected == index, onClick = { selected = index }, text = { Text(stringResource(title)) })
+                }
+            }
+            saved.SaveableStateProvider(selected) {
+                when (selected) {
+                    0 -> SpeechNameRecognitionContent()
+                    1 -> SpeechNameClassificationContent()
+                }
+            }
+        }
     }
 }
 

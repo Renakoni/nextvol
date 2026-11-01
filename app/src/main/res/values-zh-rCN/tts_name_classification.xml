@@ -1,0 +1,18 @@
+<resources>
+    <string name="tts_name_male_rule">男性名称正则</string>
+    <string name="tts_name_female_rule">女性名称正则</string>
+    <string name="tts_name_classification_input">姓名</string>
+    <string name="tts_name_classification_run">测试分类</string>
+    <string name="tts_name_classification_unavailable">中文模型需要 Android 8 或更高版本，以及内置的 arm64 运行库。名称规则仍可使用。</string>
+    <string name="tts_name_classification_error">姓名分类失败：%1$s</string>
+    <string name="tts_name_hint_male">男性线索</string>
+    <string name="tts_name_hint_female">女性线索</string>
+    <string name="tts_name_hint_unknown">未知</string>
+    <string name="tts_name_basis_model">依据：中文姓名模型</string>
+    <string name="tts_name_basis_male">依据：男性名称正则</string>
+    <string name="tts_name_basis_female">依据：女性名称正则</string>
+    <string name="tts_name_basis_none">没有可用的模型或名称规则依据</string>
+    <string name="tts_name_classification_tab">姓名分类</string>
+    <string name="tts_name_male_rule_description">用于自动分配声音时判断男性角色</string>
+    <string name="tts_name_female_rule_description">用于自动分配声音时判断女性角色</string>
+</resources>

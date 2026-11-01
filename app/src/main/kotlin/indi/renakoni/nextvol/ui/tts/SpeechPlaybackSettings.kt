@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.ui.tts
 
 import androidx.annotation.StringRes
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
@@ -87,6 +88,7 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onNameTest: () -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
+    var editingMaleRule by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var text by rememberSaveable { mutableStateOf("") }
     val defaultText = stringResource(R.string.tts_preview_text)
     Scaffold(topBar = {
@@ -160,6 +162,16 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                     onClick = onNameTest)
             }
+            state.settings?.let { settings ->
+                item {
+                    SpeechTextEntry(R.drawable.male_24px, R.string.tts_name_male_rule, R.string.tts_name_male_rule_description,
+                        Modifier.clickable { text = settings.maleNameRegex; editingMaleRule = true })
+                }
+                item {
+                    SpeechTextEntry(R.drawable.female_24px, R.string.tts_name_female_rule, R.string.tts_name_female_rule_description,
+                        Modifier.clickable { text = settings.femaleNameRegex; editingMaleRule = false })
+                }
+            }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_audition_text),
                     option = preferences.auditionText.ifBlank { defaultText },
@@ -187,12 +199,28 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
         confirmButton = { TextButton(onClick = { preferences.auditionData.asynchronousSet(text.trim()); editing = false }) {
             Text(stringResource(R.string.tts_engine_save))
         } }, dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } })
+    editingMaleRule?.let { male ->
+        SpeechNameRuleDialog(stringResource(if (male) R.string.tts_name_male_rule else R.string.tts_name_female_rule),
+            text, { text = it }, onSave = {
+                val pattern = text
+                onUpdate { if (male) it.copy(maleNameRegex = pattern) else it.copy(femaleNameRegex = pattern) }
+                editingMaleRule = null
+            }, onDismiss = { editingMaleRule = null })
+    }
 }
 
 @Composable
 private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
     checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChange)
+    SpeechTextEntry(icon, title, description, Modifier.toggleable(checked, role = Role.Switch, onValueChange = onChange)) {
+        PlaybackSwitch(checked)
+    }
+}
+
+@Composable
+private fun SpeechTextEntry(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
+    modifier: Modifier, trailingContent: @Composable () -> Unit = {}) {
+    Row(modifier.fillMaxWidth()
         .heightIn(min = 68.dp).padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -200,7 +228,7 @@ private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @Str
             Text(stringResource(description), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        PlaybackSwitch(checked)
+        trailingContent()
     }
 }
 

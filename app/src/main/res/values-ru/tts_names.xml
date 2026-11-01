@@ -1,7 +1,7 @@
 <resources>
     <string name="tts_name_algorithm">Алгоритм поиска имён</string>
     <string name="tts_name_ner">NER (китайский)</string>
-    <string name="tts_name_test">Проверка распознавания имён</string>
+    <string name="tts_name_test">Проверка анализа имён</string>
     <string name="tts_name_input">Текст</string>
     <string name="tts_name_run">Распознать имена</string>
     <string name="tts_name_results">Распознанные имена</string>
