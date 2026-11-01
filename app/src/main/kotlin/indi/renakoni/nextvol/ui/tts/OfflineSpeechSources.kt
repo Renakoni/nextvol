@@ -1,12 +1,10 @@
 package indi.renakoni.nextvol.ui.tts
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -33,6 +31,7 @@ import javax.inject.Inject
 data class OfflineSpeechState(
     val voices: List<InstalledOfflineVoice> = emptyList(),
     val avatars: Map<String, String> = emptyMap(),
+    val engineNames: Map<String, String> = emptyMap(),
     val selected: OfflineVoiceRef? = null,
     val availability: Map<OfflineVoiceRef, OfflineAvailability> = emptyMap(),
     val error: Boolean = false,
@@ -59,7 +58,8 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
             val voices = repository.voices()
             val results = withContext(Dispatchers.IO) { voices.associate { it.reference to availability.installed(it, repository) } }
             val avatars = withContext(Dispatchers.IO) { voices.mapNotNull { voice -> repository.avatar(voice)?.path?.let { voice.reference.id to it } }.toMap() }
-            mutableState.update { it.copy(voices = voices, availability = results, avatars = avatars) }
+            val engineNames = engines.all().associate { it.code to it.name }
+            mutableState.update { it.copy(voices = voices, availability = results, avatars = avatars, engineNames = engineNames) }
         }
     }
     fun refreshCatalog() = work { repository.refreshCatalog(); refresh() }
@@ -101,9 +101,6 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
         if (!enabled && (state.value.selected?.id in ids || controller.state.value.request?.previewSettings?.offlineVoice?.id in ids))
             controller.command(indi.renakoni.nextvol.tts.SpeechAction.Stop)
     }
-    fun copy(voices: List<InstalledOfflineVoice>, pattern: String) = work {
-        if (voices.isNotEmpty()) repository.copyVoices(voices.map { it.reference }.toSet()) { String.format(pattern, it) }
-    }
     private fun work(action: suspend () -> Unit) = viewModelScope.launch {
         mutableState.update { it.copy(error = false) }
         try { action() }
@@ -113,53 +110,41 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
 }
 
 internal fun LazyListScope.offlineSpeechSources(
-    state: OfflineSpeechState, voices: List<InstalledOfflineVoice>, group: Int, chosen: Set<String>, selecting: Boolean,
-    onChoose: (String) -> Unit, onSelect: (InstalledOfflineVoice) -> Unit, onPreview: (InstalledOfflineVoice) -> Unit,
+    state: OfflineSpeechState, engine: String, query: String,
+    onSelect: (InstalledOfflineVoice) -> Unit, onPreview: (InstalledOfflineVoice) -> Unit,
     onEdit: (InstalledOfflineVoice, Boolean) -> Unit, onEnable: (List<InstalledOfflineVoice>, Boolean) -> Unit,
     onDelete: (List<InstalledOfflineVoice>) -> Unit,
 ) {
     if (state.error) item { Text(stringResource(R.string.tts_error_storage), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.error) }
-    if (state.voices.isEmpty()) item { Text(stringResource(R.string.tts_offline_empty), Modifier.padding(22.dp)) }
-    voices.groupBy { when (group) { 1 -> it.configuration?.locale.orEmpty(); 2 -> ""; else -> it.configuration?.engine ?: "sherpa" } }
-        .forEach { (title, grouped) ->
-            item(key = "offline-group:$title") {
-                Text(title.ifBlank { stringResource(R.string.tts_offline_sources) }, Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
-                    style = MaterialTheme.typography.titleMedium)
-            }
-            items(grouped, key = { "offline:${it.reference.id}" }) { voice ->
-                val status = state.availability[voice.reference]
-                var actions by remember { mutableStateOf(false) }
-                Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        SpeechAvatar(voice.metadata.avatar, voice.configuration?.gender ?: 0,
-                            Modifier.padding(start = 12.dp).size(36.dp), state.avatars[voice.reference.id])
-                        if (selecting) Row(Modifier.weight(1f).clickable { onChoose(voice.reference.id) }.padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(voice.reference.id in chosen, { onChoose(voice.reference.id) })
-                            Text(voice.name, style = MaterialTheme.typography.bodyLarge)
-                        } else SourceChoice(voice.name, state.selected?.id == voice.reference.id, status?.canRun == true,
-                            { onSelect(voice) }, Modifier.weight(1f), onPreview = { onPreview(voice) }, previewEnabled = status?.canRun == true)
-                        Box {
-                            IconButton(onClick = { actions = true }) {
-                                Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions))
-                            }
-                            DropdownMenu(actions, { actions = false }) {
-                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { actions = false; onEdit(voice, false) })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { actions = false; onEdit(voice, true) })
-                                DropdownMenuItem(text = { Text(stringResource(if (voice.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
-                                    onClick = { actions = false; onEnable(listOf(voice), !voice.enabled) })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { actions = false; onDelete(listOf(voice)) })
-                            }
-                        }
+    val voices = state.voices.filter { voice ->
+        (voice.configuration?.engine ?: "sherpa") == engine &&
+            listOf(voice.name, voice.configuration?.locale.orEmpty(), voice.metadata.note, voice.metadata.description)
+                .any { it.contains(query, ignoreCase = true) }
+    }
+    if (voices.isEmpty() && query.isNotEmpty()) item {
+        Text(stringResource(R.string.search_no_results), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    items(voices, key = { "offline:${it.reference.id}" }) { voice ->
+        val status = state.availability[voice.reference]
+        var actions by remember { mutableStateOf(false) }
+        SpeechSourceRow(voice.name, state.selected?.id == voice.reference.id, status?.canRun == true,
+            onClick = { onSelect(voice) }, avatar = {
+                SpeechAvatar(voice.metadata.avatar, voice.configuration?.gender ?: 0,
+                    Modifier.size(40.dp), state.avatars[voice.reference.id])
+            }, onPreview = { onPreview(voice) }, description = voice.metadata.description,
+            problem = status?.takeUnless { it.canRun }?.let { stringResource(it.message, it.detail) }, actions = {
+                Box {
+                    IconButton(onClick = { actions = true }) {
+                        Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions))
                     }
-                    if (voice.metadata.description.isNotBlank()) Text(voice.metadata.description, Modifier.padding(horizontal = 22.dp),
-                        style = MaterialTheme.typography.bodySmall, maxLines = 3)
-                    status?.takeUnless { it.canRun }?.let {
-                        Text(stringResource(it.message, it.detail), Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (it.canRun) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
+                    DropdownMenu(actions, { actions = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { actions = false; onEdit(voice, false) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { actions = false; onEdit(voice, true) })
+                        DropdownMenuItem(text = { Text(stringResource(if (voice.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
+                            onClick = { actions = false; onEnable(listOf(voice), !voice.enabled) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { actions = false; onDelete(listOf(voice)) })
                     }
                 }
-            }
-        }
+            })
+    }
 }

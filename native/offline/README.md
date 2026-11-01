@@ -110,8 +110,9 @@ Missing these paths can surface as `WRONG_DECRYPTION_KEY` from the native SDK.
 
 ## Voice editing
 
-The voice library supports search, engine/language grouping, name sorting,
-enable/disable, copying and batch management. A voice has a stable ID distinct
+The voice library uses scrollable engine tabs and toolbar search within the
+current tab. Each voice supports editing, enable/disable and copying. Refresh
+and imports live in the toolbar menu. A voice has a stable ID distinct
 from its engine and resource revision. Copies share model files; deletion waits
 for the last referencing voice and active lease. Package refreshes retain user
 speaker overrides, including values changed back to 1, while adopting untouched

@@ -214,7 +214,6 @@ class SpeechControlsTest {
         }
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.onNodeWithContentDescription("Stop").assertDoesNotExist()
-        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("Playback settings"))
         compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasTestTag("speech-engines-entry"))
         compose.onNodeWithTag("speech-engines-entry").performClick()
         assertEquals(1, enginesOpened)
@@ -282,7 +281,8 @@ class SpeechControlsTest {
             val error = activity.get().getString(SpeechError.NoEngine.messageResource)
             compose.onNodeWithText(error).assertIsDisplayed()
             coEvery { engines.inspect("") } coAnswers { inspection.await() }
-            compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
+            compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_library_actions)).performClick()
+            compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
             waitUntil { model.state.value.loading }
             compose.onNodeWithText(error).assertIsDisplayed()
             compose.onNodeWithText("Voice").assertIsNotEnabled()
@@ -341,14 +341,15 @@ class SpeechControlsTest {
         compose.onNodeWithText("Test voice").performClick()
         assertEquals("builtin-test", selected)
         compose.onNodeWithText("Remove voice").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Configure Key service").performClick()
+        compose.onNodeWithText("Key service").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Library options").performClick()
+        compose.onNodeWithText("Configure Key service").performClick()
         compose.onNodeWithText("Confirm").assertIsNotEnabled()
         compose.onNode(hasSetTextAction()).performTextInput("test-token")
         compose.onNodeWithText("Confirm").performClick()
         assertEquals(mapOf("Token" to "test-token"), saved)
         compose.onNodeWithText("Token").assertDoesNotExist()
         assertEquals("builtin-test", selected)
-        compose.onNodeWithText("Key service").performClick()
         compose.onNodeWithContentDescription("Preview Key voice").assertIsNotEnabled()
     }
 

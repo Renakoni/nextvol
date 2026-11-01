@@ -10,7 +10,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -29,9 +28,6 @@ import android.net.Uri
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechRequest
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
-import indi.renakoni.nextvol.tts.speakerData
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import io.nightfish.lightnovelreader.api.Route
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
@@ -149,44 +145,14 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
-        val copyPattern = stringResource(R.string.tts_voice_copy_suffix)
-        var query by rememberSaveable { mutableStateOf("") }
-        var group by rememberSaveable { mutableStateOf(0) }
-        var descending by rememberSaveable { mutableStateOf(false) }
-        var selecting by rememberSaveable { mutableStateOf(false) }
-        var chosen by rememberSaveable { mutableStateOf(listOf<String>()) }
         var deleting by remember { mutableStateOf<List<InstalledOfflineVoice>>(emptyList()) }
         var deletingHttp by remember { mutableStateOf<List<SavedHttpSpeechSource>>(emptyList()) }
-        fun choose(id: String) { chosen = if (id in chosen) chosen - id else chosen + id }
-        val voices = offline.voices.filter { voice ->
-            listOf(voice.name, voice.configuration?.engine.orEmpty(), voice.configuration?.locale.orEmpty(),
-                voice.metadata.note, voice.metadata.description).any { it.contains(query, ignoreCase = true) }
-        }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }).let { if (descending) it.reversed() else it }
-        val selectedVoices = offline.voices.filter { "offline:${it.reference.id}" in chosen }
-        val selectedHttp = state.sources.filter { "http:${it.definition.id}" in chosen }
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { settingsViewModel.refresh(); offlineViewModel.refresh(); viewModel.refresh() }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::preview) }
         val packagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let { nav.navigate(SpeechPackagePreviewRoute(it.toString())) { launchSingleTop = true } }
         }
-        val http = state.sources.filter { source ->
-            val metadata = source.speakerData()
-            (listOf(source.definition.name, source.category.orEmpty()) + listOf("locale", "note", "desc").map {
-                (metadata[it] as? JsonPrimitive)?.contentOrNull.orEmpty()
-            }).any { it.contains(query, true) }
-        }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.definition.name }).let { if (descending) it.reversed() else it }
-        HttpSpeechSourcesScreen(state.copy(sources = http), nav::popBackStackIfResumed,
-            libraryControls = { SpeechLibraryControls(query, { query = it }, group, { group = it }, descending, { descending = !descending },
-                selecting, selectedVoices.size + selectedHttp.size, { selecting = !selecting; chosen = emptyList() },
-                onSelectAll = { chosen = voices.map { "offline:${it.reference.id}" } + http.map { "http:${it.definition.id}" } },
-                onEnable = { offlineViewModel.enable(selectedVoices, it); viewModel.enable(selectedHttp, it) },
-                onCopy = { offlineViewModel.copy(selectedVoices, copyPattern); viewModel.copy(selectedHttp); chosen = emptyList() },
-                onDelete = { deleting = selectedVoices; deletingHttp = selectedHttp.filterNot { it.isBuiltIn } },
-                deleteCount = selectedVoices.size + selectedHttp.count { !it.isBuiltIn },
-                noResults = query.isNotBlank() && voices.isEmpty() && http.isEmpty() && !state.busy &&
-                    settings.voices.none { it.id.contains(query, true) || it.locale.contains(query, true) }) },
-            searchActive = query.isNotBlank(),
-            selecting = selecting, chosen = selectedHttp.map { it.definition.id }.toSet(), onChoose = { choose("http:$it") }, grouping = group,
+        HttpSpeechSourcesScreen(state, nav::popBackStackIfResumed,
             onVoiceEditor = { source, copy -> nav.navigate(HttpVoiceEditorRoute(source.definition.id, copy)) },
             onEnableVoice = { source, enabled -> viewModel.enable(listOf(source), enabled) },
             initialEditId = entry.toRoute<HttpSpeechSourcesRoute>().editId,
@@ -202,11 +168,12 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
             onPackagePreview = { packagePicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/yaml",
                 "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
-            offlineSettings = { offlineSpeechSources(offline, voices, group, selectedVoices.map { it.reference.id }.toSet(), selecting,
-                onChoose = { choose("offline:$it") }, onSelect = offlineViewModel::select,
+            offlineGroups = offline.voices.map { it.configuration?.engine ?: "sherpa" }.distinct()
+                .associateWith { offline.engineNames[it] ?: it },
+            offlineSettings = { engine, query -> offlineSpeechSources(offline, engine, query, onSelect = offlineViewModel::select,
                 onPreview = { offlineViewModel.preview(it, preview) }, onDelete = { deleting = it }, onEnable = offlineViewModel::enable,
                 onEdit = { voice, copy -> nav.navigate(OfflineVoiceEditorRoute(voice.reference.id, copy)) }) },
-            systemSettings = {
+            systemSettings = { query ->
                 SystemSpeechSettings(settings.copy(loading = settings.loading || state.busy,
                     voices = settings.voices.filter { it.id.contains(query, true) || it.locale.contains(query, true) }),
                     onEngine = settingsViewModel::selectEngine, onVoice = settingsViewModel::selectVoice,
@@ -222,7 +189,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             AlertDialog(onDismissRequest = dismiss, title = { Text(stringResource(R.string.tts_remove_source)) },
                 text = { Text(stringResource(R.string.tts_voice_delete_confirm, deleting.size + deletingHttp.size) +
                     if (current) "\n\n" + stringResource(R.string.tts_voice_delete_selected) else "") },
-                confirmButton = { TextButton(onClick = { offlineViewModel.delete(deleting); viewModel.delete(deletingHttp); dismiss(); chosen = emptyList() }) {
+                confirmButton = { TextButton(onClick = { offlineViewModel.delete(deleting); viewModel.delete(deletingHttp); dismiss() }) {
                     Text(stringResource(if (current) R.string.tts_voice_delete_system else R.string.confirm))
                 } }, dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } })
         }

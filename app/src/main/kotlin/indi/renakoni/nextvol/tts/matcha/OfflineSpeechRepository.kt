@@ -245,18 +245,6 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
         }
     }
 
-    suspend fun copyVoices(references: Set<OfflineVoiceRef>, name: (String) -> String) = withContext(Dispatchers.IO) {
-        lock.withLock {
-            val current = read()
-            val copies = current.filter { it.reference in references }.map { voice ->
-                voice.copy(reference = OfflineVoiceRef(UUID.randomUUID().toString(), UUID.randomUUID().toString()),
-                    name = name(voice.name), sourceKey = "", resourceReference = voice.resourceReference)
-            }
-            write(current + copies)
-            mutableChanges.value++
-        }
-    }
-
     /** Copies only speaker settings; shared model files stay leased until their final speaker is removed. */
     suspend fun save(edited: InstalledOfflineVoice, copy: Boolean = false): InstalledOfflineVoice = withContext(Dispatchers.IO) {
         lock.withLock {

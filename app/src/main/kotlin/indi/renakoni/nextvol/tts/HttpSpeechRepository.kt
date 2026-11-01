@@ -136,12 +136,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
 
     suspend fun delete(ids: Set<String>) = change { current -> current.filterNot { it.definition.id in ids && !it.definition.id.startsWith(BUILT_IN_PREFIX) } }
 
-    suspend fun copyVoices(ids: Set<String>, name: (String) -> String) = change { current ->
-        current + combined(current).filter { it.definition.id in ids }.map { source ->
-            editHttpVoice(source, buildJsonObject { put("name", name(source.definition.name)) }, source.enabled, copy = true)
-        }
-    }
-
     /** Rebuild each voice's request from the shared template while preserving its identity and local settings. */
     suspend fun editImportedEngine(code: String, name: String, url: String, header: String) = change { current ->
         require(name.isNotBlank() && current.any { it.importedEngineCode == code })

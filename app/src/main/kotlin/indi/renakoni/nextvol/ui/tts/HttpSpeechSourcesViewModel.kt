@@ -155,12 +155,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         refreshSources()
     }
 
-    fun copy(sources: List<SavedHttpSpeechSource>) = work {
-        if (sources.isEmpty()) return@work
-        repository.copyVoices(sources.map { it.definition.id }.toSet()) { context.getString(R.string.tts_voice_copy_suffix, it) }
-        refreshSources()
-    }
-
     fun sites(source: SavedHttpSpeechSource, text: String) = work(R.string.tts_source_sites_invalid) {
         val origins = text.lineSequence().map(String::trim).filter(String::isNotEmpty).map {
             requireNotNull(sourceOrigin(it))
