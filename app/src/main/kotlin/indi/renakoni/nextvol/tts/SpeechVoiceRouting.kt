@@ -55,6 +55,14 @@ internal fun SpeechSettings.toggleVoice(dialogue: Boolean, voice: SpeechVoiceRef
 
 internal fun SpeechSettings.voiceReference() = SpeechVoiceRef(engine, voice, httpSource, offlineVoice)
 
+/** Y6.f removes deleted speakers from both candidate sets, retaining explicit role references. */
+internal fun SpeechSettings.removeVoiceSelections(deleted: (SpeechVoiceRef) -> Boolean): SpeechSettings {
+    val narrators = selectedNarrators.filterNot(deleted)
+    val dialogue = dialogueVoices.filterNot(deleted)
+    return if (narrators == selectedNarrators && dialogue == dialogueVoices) this
+        else copy(narrationVoices = narrators, dialogueVoices = dialogue, voiceRoutingConfigured = true)
+}
+
 internal fun SpeechSettings.forVoice(reference: SpeechVoiceRef) = copy(
     engine = reference.engine, voice = reference.voice, httpSource = reference.httpSource,
     offlineVoice = reference.offlineVoice, narrationVoices = emptyList(), dialogueVoices = emptyList(),
@@ -108,8 +116,6 @@ internal class SpeechVoiceRouting(private val settings: SpeechSettings, private 
         val candidates = (if (part.dialogue) settings.dialogueVoices else settings.narrationVoices)
             .ifEmpty { if (settings.voiceRoutingConfigured) emptyList() else listOf(settings.voiceReference()) }
         val reason = if (part.dialogue) SpeechVoiceReason.Dialogue else SpeechVoiceReason.Narration
-        if (candidates.isEmpty()) return SpeechResolvedVoice(settings.voiceReference(), settings,
-            defaultLimit, error = SpeechError.MissingVoice) to reason
         var index = if (part.dialogue) dialogueIndex else narrationIndex
         // Control spans are handled before R6.p.d and must not consume a candidate turn.
         if (part.controlMark) return resolve(candidates[maxOf(0, index) % candidates.size]) to reason

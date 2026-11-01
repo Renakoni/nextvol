@@ -24,7 +24,7 @@ data class SpeechChapter(
 enum class SpeechPhase { Stopped, Preparing, Playing, Paused, Buffering, Completed, Failed }
 
 enum class SpeechError {
-    NoEngine, EngineUnavailable, MissingVoice, MissingLanguageData, InitializationTimeout,
+    NoEngine, EngineUnavailable, MissingVoice, MissingNarrationVoice, MissingDialogueVoice, MissingLanguageData, InitializationTimeout,
     SynthesisTimeout, SynthesisFailed, Network, NetworkUnavailable, InvalidAudio, Storage, SourceUnavailable,
     SourceTimeout, EmptyText, UnsupportedContent, Playback, ServiceUnavailable,
     HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, HttpConfiguration, HttpAuthentication, OfflineUnavailable, ReplacementRule,

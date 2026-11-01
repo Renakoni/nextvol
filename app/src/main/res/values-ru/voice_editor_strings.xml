@@ -19,8 +19,6 @@
     <string name="tts_voice_enable">Включить</string>
     <string name="tts_voice_disable">Отключить</string>
     <string name="tts_voice_delete_confirm">Удалить голоса (%1$d)?</string>
-    <string name="tts_voice_delete_selected">Выбран текущий голос. Сначала выберите другой или подтвердите удаление с переходом на системную речь.</string>
-    <string name="tts_voice_delete_system">Удалить и включить системную речь</string>
     <string name="tts_voice_copy_suffix">%1$s (копия)</string>
     <string name="tts_playback_preferences">Настройки воспроизведения</string>
     <string name="tts_voice_show_parameters">Показывать редактор параметров</string>

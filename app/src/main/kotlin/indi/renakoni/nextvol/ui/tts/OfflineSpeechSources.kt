@@ -19,6 +19,7 @@ import indi.renakoni.nextvol.tts.searchVoice
 import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.voiceSelection
+import indi.renakoni.nextvol.tts.removeVoiceSelections
 import indi.renakoni.nextvol.tts.matcha.*
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
@@ -114,7 +115,10 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
             controller.command(indi.renakoni.nextvol.tts.SpeechAction.Stop)
         withContext(NonCancellable) {
             repository.delete(voices.map { it.reference }.toSet())
-            settings.update { if (it.offlineVoice?.id in ids) it.copy(offlineVoice = null, httpSource = null) else it }
+            settings.update { current ->
+                val selected = current.removeVoiceSelections { it.offlineVoice?.id in ids }
+                if (selected.offlineVoice?.id in ids) selected.copy(offlineVoice = null, httpSource = null) else selected
+            }
         }
     }
     fun enable(voices: List<InstalledOfflineVoice>, enabled: Boolean) = work {
