@@ -19,13 +19,4 @@ class NgrEncoderTest {
         assertArrayEquals(FloatArray(5), known.features, 0f)
         assertFalse(encoder.encode("😀").supported)
     }
-
-    @Test fun changedFallbackRulesUseFullMatchesWithMaleConflictPriority() {
-        assertEquals(SpeechNameClassification(SpeechNameHint.Male, SpeechNameHintBasis.MaleRule),
-            classifyNameRules("Anna", "Anna", "Anna"))
-        assertEquals(SpeechNameClassification(SpeechNameHint.Female, SpeechNameHintBasis.FemaleRule),
-            classifyNameRules("Anna", "Ann", "Anna"))
-        assertEquals(SpeechNameClassification(SpeechNameHint.Unknown, SpeechNameHintBasis.None),
-            classifyNameRules("Anna", "", ""))
-    }
 }

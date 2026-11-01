@@ -297,7 +297,7 @@ class AndroidIsolatedExecutor @Inject constructor(@ApplicationContext context: C
     private suspend fun <T> withWorker(identity: ExecutionIdentity, task: ExecutionTask, block: suspend (WorkerSlot) -> T): T {
         val independent = when (task) {
             is ExecutionTask.ContentMarkup, is ExecutionTask.BookOverviews, is ExecutionTask.SearchBooks, is ExecutionTask.DiscoveryReadPlan,
-            is ExecutionTask.RegexReplacement -> true
+            is ExecutionTask.RegexReplacement, is ExecutionTask.RegexMatch -> true
             is ExecutionTask.Rule -> task.readOnly
             else -> false
         }
