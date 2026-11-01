@@ -29,6 +29,9 @@ punctuation splitting and full padded-sequence Viterbi decoder
 `ev_75ad22dcd85324d538e98de12cee2a774ca07b3aa1cd20b1a7d19227ba8f180b`,
 `ev_4a813a97007c65ce2a0cc133c27a83cfac01abe186ccddc7b35aac458c2077e2`).
 Supplemental Ghidra pseudocode was checked against those assembly observations.
+Inference writes directly into a fixed `[1,30,3]` float tensor, as in the original
+(`ev_e260de6f7890aff4b98c9e6407a8e3f0de95488410aec3d3ec60fdbdb2b9a20d`),
+without querying and rechecking the same output shape for every text window.
 
 The original JNI widens each UTF-16 unit, including individual surrogate halves
 (`ev_fbeb7be27481b886dcc220596e9247ca7fdd375d78dc449f35feb82a82d2959a`).
@@ -51,11 +54,15 @@ checks the delivered inference/decoder sources separately from the Python refere
 
 ## Lifetime and mapping
 
-Each request reads the bundled resources and owns its model session until `finally`
-releases it. No candidate cache or shared book state is kept. Resource revisions
-therefore cannot reuse old results. Cancellation is checked before model loading,
+The original body-discovery path lazily creates the static `O6.f.f2990c` NER
+instance and reuses it (`ev_f3f240ae509eb69af065f914622e9a37f488f82fd0c1fb868fef638f79ba2f9e`).
+The built-in recognizer likewise owns its vocabulary, model session and decoder
+for the process lifetime, loading them once on first use. Bundled model resources
+change with an application update and the new process loads the new resources.
+There is no candidate-result cache or shared book state. Each request keeps its
+own decode buffers and candidates. Cancellation is checked before initialization,
 between bounded 30-slot inferences and before publishing results. Editing, leaving
-or cancelling the test discards its pending result.
+or cancelling the test discards its pending result without discarding the model.
 
 Ranges are reconstructed from decoded spans, not by searching for the first
 matching name. Repeated names retain distinct ranges. The `SpeechMappedText`

@@ -1,6 +1,5 @@
 #include <jni.h>
 #include <array>
-#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -59,20 +58,16 @@ Java_indi_renakoni_nextvol_tts_names_NameModelNative_emissions(JNIEnv *env, jobj
     std::array<int64_t, 2> shape{1, 30};
     auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     auto tensor = Ort::Value::CreateTensor<int32_t>(memory, ids.data(), ids.size(), shape.data(), shape.size());
+    std::array<float, 90> scores{};
+    std::array<int64_t, 3> output_shape{1, 30, 3};
+    auto output = Ort::Value::CreateTensor<float>(memory, scores.data(), scores.size(), output_shape.data(), output_shape.size());
     const char *inputs[] = {"input_int32"};
     const char *outputs[] = {"output_float"};
-    auto values = reinterpret_cast<Ort::Session *>(handle)->Run(Ort::RunOptions{nullptr}, inputs, &tensor, 1, outputs, 1);
-    if (values[0].GetTensorTypeAndShapeInfo().GetShape() != std::vector<int64_t>{1, 30, 3})
-      throw std::runtime_error("NER model: expected output_float [1,30,3]");
-    auto result = env->NewFloatArray(90);
-    if (result) env->SetFloatArrayRegion(result, 0, 90, values[0].GetTensorData<float>());
+    reinterpret_cast<Ort::Session *>(handle)->Run(Ort::RunOptions{nullptr}, inputs, &tensor, 1, outputs, &output, 1);
+    auto result = env->NewFloatArray(scores.size());
+    if (result) env->SetFloatArrayRegion(result, 0, scores.size(), scores.data());
     return result;
   } catch (const std::exception &error) { Fail(env, error); return nullptr; }
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_indi_renakoni_nextvol_tts_names_NameModelNative_destroy(JNIEnv *, jobject, jlong handle) {
-  delete reinterpret_cast<Ort::Session *>(handle);
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -87,8 +82,6 @@ Java_indi_renakoni_nextvol_tts_names_NameModelNative_predict(JNIEnv *env, jobjec
     const char *inputs[] = {"input_float"};
     const char *outputs[] = {"output_label"};
     auto values = reinterpret_cast<Ort::Session *>(handle)->Run(Ort::RunOptions{nullptr}, inputs, &tensor, 1, outputs, 1);
-    if (values[0].GetTensorTypeAndShapeInfo().GetShape() != std::vector<int64_t>{1})
-      throw std::runtime_error("NGR model: expected output_label [1]");
     return static_cast<jint>(values[0].GetTensorData<int64_t>()[0]);
   } catch (const std::exception &error) { Fail(env, error); return 0; }
 }
