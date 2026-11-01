@@ -23,8 +23,8 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
     val template = definition.values["url"].text()?.trim().orEmpty()
     if (template.isEmpty() || engine.voices.isEmpty() || engine.voices.any { it.code.isBlank() })
         return failed(HttpSpeechPackageError.InvalidConfiguration)
-    if (definition.values["param"].requiresInput() || engine.voices.any {
-        it.raw.values["param"].requiresInput() || it.raw.values["extendUI"].requiresInput()
+    if (engine.voices.any { voice ->
+        listOf("param", "extendUI").any { voice.raw.values[it]?.let { value -> value !is SpeechPackageValue.Scalar } == true }
     }) return failed(HttpSpeechPackageError.RequiresParameters)
     val rawHeader = definition.values["header"]
     if (rawHeader != null && rawHeader !is SpeechPackageValue.Scalar)
@@ -39,11 +39,19 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: RuntimeException) { return failed(HttpSpeechPackageError.UnsupportedRequest) }
     return try {
-        val sources = engine.voices.map { voice ->
+        val sources = engine.voices.map { imported ->
+            val voice = imported.withImportDefaults(engine.code)
+            val defaults = offlineControlDefaults(voice.raw.values["extendUI"].text())
+            val rawParameters = voice.raw.values["param"].text().orEmpty()
+            val parameters = if (rawParameters.isBlank()) emptyList() else rawParameters.split(',').map { parameter ->
+                val value = parameter.trim()
+                if (value.startsWith('@')) defaults[value.drop(1)]?.content
+                    ?: configurationFailure(MatchaPackageError.Parameters, value) else value
+            }
             // The existing 1x binding is 10; MultiTTS's request defaults are speed=50 and volume=50.
             // Speaker speed/volume/pitch are separate local audio effects, retained below as data.
             val script = "@js:(function(speakText,speakSpeed){" +
-                "var voiceCode=${JsonPrimitive(voice.code)},params=[],speakVolume=50;" +
+                "var voiceCode=${JsonPrimitive(voice.code)},params=${JsonArray(parameters.map(::JsonPrimitive))},speakVolume=50;" +
                 "speakSpeed=speakSpeed*5;return $expression;})(speakText,speakSpeed)"
             HttpSpeechDefinition.parse(buildJsonObject {
                 put("name", voice.name.ifBlank { voice.code })
@@ -61,13 +69,11 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
             }
         })
     } catch (cancelled: CancellationException) { throw cancelled }
+    catch (_: OfflinePackageFailure) { failed(HttpSpeechPackageError.RequiresParameters) }
     catch (_: IllegalArgumentException) { failed(HttpSpeechPackageError.InvalidConfiguration) }
     // YAML preview is iterative, but the existing HTTP JSON representation uses recursive serialization.
     catch (_: StackOverflowError) { failed(HttpSpeechPackageError.InvalidConfiguration) }
 }
-
-private fun SpeechPackageValue?.requiresInput(): Boolean =
-    this != null && (this !is SpeechPackageValue.Scalar || !text().isNullOrBlank())
 
 /** Reuses balanced template scanning, but leaves every expression unevaluated until the worker runs it. */
 private fun packageGetExpression(template: String): String {

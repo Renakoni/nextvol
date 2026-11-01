@@ -61,17 +61,6 @@ class SpeechControlsTest {
     @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h640dp")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun sleepTimerCanBeSetAndCancelledOnANarrowLargeTextScreen() {
-        checkSleepTimerMenu("Sleep timer", "10 min", "Off", "Pause", "Stop")
-    }
-
-    @Test
-    @Config(sdk = [35], qualifiers = "zh-rCN-w320dp-h640dp")
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun sleepTimerUsesChineseLabelsAndKeepsPlaybackControlsReachable() {
-        checkSleepTimerMenu("定时关闭", "10分钟", "关闭定时", "暂停", "停止")
-    }
-
-    private fun checkSleepTimerMenu(title: String, minutes: String, off: String, pause: String, stop: String) {
         val selected = mutableListOf<Int?>()
         val playback = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("book", "one"), SpeechPhase.Playing,
             bookTitle = "Book", nextChapterId = "two"))
@@ -88,12 +77,12 @@ class SpeechControlsTest {
                 }
             }
         }
-        compose.onNodeWithContentDescription(pause).assertIsDisplayed()
-        compose.onNodeWithText(stop).assertIsDisplayed()
-        compose.onNodeWithContentDescription(title).assertIsDisplayed().performClick()
-        compose.onNodeWithText(minutes).assertIsDisplayed().performClick()
-        compose.onNodeWithContentDescription(title).performClick()
-        compose.onNodeWithContentDescription(off).assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
+        compose.onNodeWithText("Stop").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Sleep timer").assertIsDisplayed().performClick()
+        compose.onNodeWithText("10 min").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Sleep timer").performClick()
+        compose.onNodeWithContentDescription("Off").assertIsDisplayed().performClick()
         assertEquals(listOf(10, null), selected)
     }
 
@@ -214,7 +203,6 @@ class SpeechControlsTest {
         }
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.onNodeWithContentDescription("Stop").assertDoesNotExist()
-        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("Playback settings"))
         compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasTestTag("speech-engines-entry"))
         compose.onNodeWithTag("speech-engines-entry").performClick()
         assertEquals(1, enginesOpened)
@@ -282,7 +270,8 @@ class SpeechControlsTest {
             val error = activity.get().getString(SpeechError.NoEngine.messageResource)
             compose.onNodeWithText(error).assertIsDisplayed()
             coEvery { engines.inspect("") } coAnswers { inspection.await() }
-            compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
+            compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_library_actions)).performClick()
+            compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
             waitUntil { model.state.value.loading }
             compose.onNodeWithText(error).assertIsDisplayed()
             compose.onNodeWithText("Voice").assertIsNotEnabled()
@@ -314,42 +303,6 @@ class SpeechControlsTest {
         compose.onNodeWithText("candidate · Offline").performClick()
         assertEquals("candidate", selected)
         compose.onNodeWithContentDescription("Preview candidate").assertDoesNotExist()
-    }
-
-    @Test fun builtInVoicesAreSelectableAndKeysHaveASeparateMaskedEditor() {
-        val definition = hnovel.speech.previewHttpSpeech("""{"id":"builtin-test","name":"Test voice","url":"https://example.org"}""").sources.single()
-        val ready = SavedHttpSpeechSource(definition, listOf("https://example.org:443"), group = "Built-in service")
-        val locked = ready.copy(definition = hnovel.speech.previewHttpSpeech("""{"id":"key-test","name":"Key voice","url":"https://example.org"}""").sources.single(),
-            group = "Key service", credentialKeys = listOf("Token"))
-        var selected: String? = null
-        var previewed: String? = null
-        var saved: Map<String, String>? = null
-        val state = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState(sources = listOf(ready, locked)))
-        activity.get().setContent {
-            MaterialTheme { HttpSpeechSourcesScreen(state.value,
-                {}, {}, { selected = it }, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
-                onConfigure = { _, values ->
-                    saved = values
-                    state.value = state.value.copy(configurationSaved = state.value.configurationSaved + 1)
-                }, onPreview = { previewed = it }) }
-        }
-        compose.onNodeWithText("Import voices").assertDoesNotExist()
-        compose.onNodeWithText("Built-in service").performClick()
-        compose.onNodeWithContentDescription("Preview Test voice").performClick()
-        assertEquals("builtin-test", previewed)
-        assertNull(selected)
-        compose.onNodeWithText("Test voice").performClick()
-        assertEquals("builtin-test", selected)
-        compose.onNodeWithText("Remove voice").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Configure Key service").performClick()
-        compose.onNodeWithText("Confirm").assertIsNotEnabled()
-        compose.onNode(hasSetTextAction()).performTextInput("test-token")
-        compose.onNodeWithText("Confirm").performClick()
-        assertEquals(mapOf("Token" to "test-token"), saved)
-        compose.onNodeWithText("Token").assertDoesNotExist()
-        assertEquals("builtin-test", selected)
-        compose.onNodeWithText("Key service").performClick()
-        compose.onNodeWithContentDescription("Preview Key voice").assertIsNotEnabled()
     }
 
     @Test

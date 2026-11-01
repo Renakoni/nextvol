@@ -55,7 +55,7 @@ class SpeechEnginesViewModel @Inject constructor(
         try {
             val engines = repository.all()
             val online = http.sources().distinctBy { source -> when {
-                source.isBuiltIn -> "builtin" to source.group
+                source.isBuiltIn || source.engineReference != null -> "builtin" to source.category
                 source.importedEngineCode != null -> "engine" to source.importedEngineCode
                 else -> "source" to source.definition.id
             } }

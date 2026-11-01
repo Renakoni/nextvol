@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.benchmark.tts
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.Until
 import indi.renakoni.nextvol.benchmark.ui.UiAutomatorTest
 import org.junit.Assert.assertFalse
@@ -22,6 +23,7 @@ class ReadAloudSmokeTest : UiAutomatorTest() {
         // Await the settings screen before opening the voice library.
         clickText("Voice sources")
         assertDescription("Library options")
+        openImportedVoices()
         scrollToText("Imported test voice")
         clickText("Imported test voice")
         pressBack()
@@ -29,6 +31,7 @@ class ReadAloudSmokeTest : UiAutomatorTest() {
         assertText("Imported test voice")
         clickText("Voice sources")
         assertDescription("Library options")
+        openImportedVoices()
         // A wrapped voice name can enter the viewport before its action buttons.
         scrollTo(By.desc("Preview Imported test voice"))
         clickDescription("Preview Imported test voice")
@@ -38,9 +41,23 @@ class ReadAloudSmokeTest : UiAutomatorTest() {
         scrollTo(By.desc("Voice options"))
         clickDescription("Voice options")
         clickText("Remove voice")
+        clickText("Delete and use system speech")
+        assertTrue(device.wait(Until.gone(By.text("Delete and use system speech")), TIMEOUT))
         assertTrue(device.wait(Until.gone(By.text("Imported test voice")), TIMEOUT))
         device.pressBack()
         assertTextContains("System speech")
+    }
+
+    private fun openImportedVoices() {
+        val tabs = device.wait(Until.findObject(By.res("speech-source-tabs")), TIMEOUT)
+        repeat(12) {
+            if (device.findObject(By.text("Voices"))?.visibleBounds?.isEmpty == false) {
+                clickText("Voices")
+                return
+            }
+            tabs.scroll(Direction.RIGHT, 0.8f)
+        }
+        clickText("Voices")
     }
 
     private fun assertServiceStopped() {
