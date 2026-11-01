@@ -60,18 +60,19 @@ class SpeechEnginesViewModel @Inject constructor(
     }
 
     private suspend fun refresh() {
+        val previous = state.value
         val voices = offline.voices()
-        // Older installations may predate the engine repository; migrate only their actual engines.
-        val installed = repository.registerAll(voices.distinctBy { it.configuration?.engine ?: "sherpa" }.map { voice ->
-            val code = voice.configuration?.engine ?: "sherpa"
-            SpeechEngineConfig(code, code, parameters = voice.configuration?.engineParameters.orEmpty())
-        })
+        val installed = repository.all()
         val sources = http.sources()
         val engines = (installed + http.engines()).filter { engine ->
             !engine.deleted || sources.any { it.importedEngineCode == engine.code }
         }.sortedBy { it.order }
         mutableState.update { it.copy(engines = engines, offline = voices, http = sources, loading = false, httpResults = httpResults(sources)) }
-        inspected?.let { inspect(it) }
+        inspected?.let { code ->
+            val before = previous.engines.find { it.type == "inner" && it.code == code }
+            val after = engines.find { it.type == "inner" && it.code == code }
+            if (previous.offline != voices || before?.enabled != after?.enabled || before?.parameters != after?.parameters) inspect(code)
+        }
     }
 
     private fun httpResults(sources: List<SavedHttpSpeechSource>): Map<String, Int> = http.synthesisResults.value.mapNotNull { (id, result) ->

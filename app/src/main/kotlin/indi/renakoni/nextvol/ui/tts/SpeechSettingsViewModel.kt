@@ -82,7 +82,7 @@ class SpeechSettingsViewModel @Inject constructor(
                     val sources = http.sources()
                     val source = sources.find { it.definition.id == selected }
                     val error = when {
-                        source == null || !source.enabled -> SpeechError.HttpSourceUnavailable
+                        source == null || !source.available -> SpeechError.HttpSourceUnavailable
                         !source.isConfigured -> SpeechError.HttpLogin
                         else -> null
                     }

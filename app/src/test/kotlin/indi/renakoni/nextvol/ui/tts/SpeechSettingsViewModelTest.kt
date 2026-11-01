@@ -135,7 +135,7 @@ class SpeechSettingsViewModelTest {
         every { http.synthesisResults } returns MutableStateFlow(emptyMap())
         val catalog = mockk<OfflineEngineRepository>()
         every { catalog.changes } returns MutableStateFlow(0L)
-        coEvery { catalog.registerAll(any()) } returns listOf(configuration)
+        coEvery { catalog.all() } returns listOf(configuration)
         coEvery { catalog.save(any()) } returns Unit
         coEvery { repository.get() } returns settings.value
         coEvery { http.sources() } returns emptyList()

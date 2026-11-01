@@ -29,13 +29,10 @@ class OfflineEngineRepository @Inject constructor(@ApplicationContext context: C
     fun get(code: String): SpeechEngineConfig? = lock.withLock { read().find { it.code == code } }
 
     /** Importing another voice from an engine preserves the user's existing engine settings. */
-    suspend fun register(configuration: SpeechEngineConfig) { registerAll(listOf(configuration)) }
-
-    internal suspend fun registerAll(configurations: List<SpeechEngineConfig>): List<SpeechEngineConfig> = withContext(Dispatchers.IO) {
+    suspend fun register(configuration: SpeechEngineConfig) = withContext(Dispatchers.IO) {
         lock.withLock {
             val current = read()
-            val additions = configurations.filter { candidate -> current.none { it.code == candidate.code } }.distinctBy { it.code }
-            (current + additions).also { if (additions.isNotEmpty()) write(it) }
+            if (current.none { it.code == configuration.code }) write(current + configuration)
         }
     }
 

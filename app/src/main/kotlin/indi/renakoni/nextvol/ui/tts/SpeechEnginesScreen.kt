@@ -114,7 +114,9 @@ internal fun SpeechEngineEditorScreen(configuration: SpeechEngineConfig?, creati
     val title = if (creating) R.string.tts_engine_new else R.string.tts_engine_edit
     // Restore the draft after its engine is loaded, so the placeholder cannot reset saved edits.
     if (!creating && state.loading) {
-        Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), title, onBack) }) { _ -> }
+        Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), title, onBack) }) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding))
+        }
         return
     }
     val original = configuration ?: SpeechEngineConfig("", "", "http")
@@ -194,7 +196,7 @@ internal fun SpeechEngineVoicesScreen(engine: SpeechEngineConfig?, state: Speech
                         R.string.tts_offline_verified, R.string.tts_offline_initialization_failed, R.string.tts_offline_synthesis_failed) }
                     ListItem(headlineContent = { Text(voice.name) }, modifier = Modifier.clickable { onOffline(voice) },
                         supportingContent = status?.let { result -> ({ Text(stringResource(result.message, result.detail),
-                            color = if (result.canRun) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error) }) })
+                            color = if (result.message == R.string.tts_offline_verified) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error) }) })
                 }
                 if (state.voices(engine).isEmpty()) item { Text(stringResource(R.string.tts_engine_no_speakers), Modifier.padding(22.dp)) }
             }

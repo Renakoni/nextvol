@@ -36,7 +36,7 @@ import kotlinx.serialization.Serializable
 object SpeechSettingsRoute
 
 @Serializable
-data class HttpSpeechSourcesRoute(val editId: String? = null)
+object HttpSpeechSourcesRoute
 
 @Serializable
 object SpeechEnginesRoute
@@ -88,7 +88,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
         LaunchedEffect(Unit) { viewModel.refresh() }
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
-            onSources = { nav.navigate(HttpSpeechSourcesRoute()) { launchSingleTop = true } },
+            onSources = { nav.navigate(HttpSpeechSourcesRoute) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
@@ -186,9 +186,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onEngine = { nav.navigate(SpeechEngineEditorRoute(it, "http")) },
             onVoiceEditor = { source, copy -> nav.navigate(HttpVoiceEditorRoute(source.definition.id, copy)) },
             onEnableVoice = { source, enabled -> viewModel.enable(listOf(source), enabled) },
-            initialEditId = entry.toRoute<HttpSpeechSourcesRoute>().editId,
-            onInitialEditorClosed = nav::popBackStackIfResumed,
-            onEditEngine = viewModel::editEngine,
             onImport = { picker.launch(arrayOf("application/json", "application/zip", "application/x-zip-compressed",
                 "application/yaml", "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
             onSelect = viewModel::select, onDelete = { deletingHttp = listOf(it) }, onSites = viewModel::sites,

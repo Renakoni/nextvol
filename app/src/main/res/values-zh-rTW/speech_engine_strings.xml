@@ -6,7 +6,6 @@
     <string name="tts_engine_parameters">引擎參數</string>
     <string name="tts_engine_note">備註</string>
     <string name="tts_engine_save">儲存</string>
-    <string name="tts_engine_preset_online">此線上引擎使用預設連線設定，可在音源中選擇和試聽發音人。</string>
     <string name="tts_engine_new">新增引擎</string>
     <string name="tts_engine_code">代號</string>
     <string name="tts_engine_type">類型</string>
