@@ -50,9 +50,9 @@ internal fun SpeechReplacementEditorScreen(state: SpeechReplacementsState, ruleI
         DisposableEffect(Unit) { onDispose(onClearPreview) }
         Column(Modifier.testTag("speech-replacement-editor")) {
             Text(stringResource(if (ruleId == null) R.string.tts_replace_add else R.string.tts_replace_edit),
-                Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp), style = MaterialTheme.typography.headlineSmall)
+                Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp), style = MaterialTheme.typography.headlineSmall)
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 ReplacementField(name, { name = it }, stringResource(R.string.tts_replace_name), singleLine = true,
                     error = if (state.saveError == SpeechReplacementSaveError.Name) stringResource(R.string.tts_replace_name_required) else null)
                 ReplacementField(source, { source = it }, stringResource(R.string.tts_replace_source), Modifier.testTag("replace-source"),
@@ -91,7 +91,7 @@ internal fun SpeechReplacementEditorScreen(state: SpeechReplacementsState, ruleI
                 }
                 if (state.storageFailed) Text(stringResource(R.string.save_failed), color = MaterialTheme.colorScheme.error)
             }
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp), horizontalArrangement = Arrangement.End) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onBack, enabled = !state.saving) { Text(stringResource(R.string.cancel)) }
                 TextButton(onClick = { onSave(draft.copy(group = group.ifEmpty { defaultGroup })) }, enabled = !state.saving) {
                     Text(stringResource(R.string.tts_engine_save))
@@ -117,7 +117,7 @@ internal fun ReplacementField(value: String, onChange: (String) -> Unit, label: 
     trailingIcon: @Composable (() -> Unit)? = null, error: String? = null) {
     val interaction = remember { MutableInteractionSource() }
     val colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
-        unfocusedIndicatorColor = Color.Transparent,
+        unfocusedIndicatorColor = if (readOnly) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
         focusedIndicatorColor = if (readOnly) Color.Transparent else MaterialTheme.colorScheme.primary)
     BasicTextField(value, onChange, modifier.fillMaxWidth().defaultMinSize(minHeight = TextFieldDefaults.MinHeight),
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
