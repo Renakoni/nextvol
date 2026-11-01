@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.ui.tts
 
 import androidx.annotation.StringRes
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
@@ -163,16 +164,12 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             }
             state.settings?.let { settings ->
                 item {
-                    SettingsClickableEntry(painter = painterResource(R.drawable.male_24px),
-                        title = stringResource(R.string.tts_name_male_rule),
-                        option = settings.maleNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
-                        onClick = { text = settings.maleNameRegex; editingMaleRule = true })
+                    SpeechTextEntry(R.drawable.male_24px, R.string.tts_name_male_rule, R.string.tts_name_male_rule_description,
+                        Modifier.clickable { text = settings.maleNameRegex; editingMaleRule = true })
                 }
                 item {
-                    SettingsClickableEntry(painter = painterResource(R.drawable.female_24px),
-                        title = stringResource(R.string.tts_name_female_rule),
-                        option = settings.femaleNameRegex.ifEmpty { stringResource(R.string.tts_name_rule_empty) },
-                        onClick = { text = settings.femaleNameRegex; editingMaleRule = false })
+                    SpeechTextEntry(R.drawable.female_24px, R.string.tts_name_female_rule, R.string.tts_name_female_rule_description,
+                        Modifier.clickable { text = settings.femaleNameRegex; editingMaleRule = false })
                 }
             }
             item {
@@ -215,7 +212,15 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
 @Composable
 private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
     checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChange)
+    SpeechTextEntry(icon, title, description, Modifier.toggleable(checked, role = Role.Switch, onValueChange = onChange)) {
+        PlaybackSwitch(checked)
+    }
+}
+
+@Composable
+private fun SpeechTextEntry(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
+    modifier: Modifier, trailingContent: @Composable () -> Unit = {}) {
+    Row(modifier.fillMaxWidth()
         .heightIn(min = 68.dp).padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -223,7 +228,7 @@ private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @Str
             Text(stringResource(description), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        PlaybackSwitch(checked)
+        trailingContent()
     }
 }
 
