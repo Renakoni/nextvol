@@ -104,9 +104,17 @@ test executes the bundled model and checks its priority over fallback rules.
 
 ## Ownership and cancellation
 
-Each request reads the packaged resources and owns its model session until a
-`finally` block releases it. There is no shared result cache or book state, so
-resource revisions and rule edits cannot reuse stale classifications. Cancellation
-is checked after preparation, after model loading and before returning inference
-results; a cancelled inference finishes its single bounded five-feature call and
-releases the handle without publishing a result.
+The classifier is a process singleton. Thread-safe lazy initialization loads the
+immutable vocabulary and surname set once, and loads the model only for the first
+supported name. Later requests reuse those resources. This follows the original
+realtime `O6.j.g` path, which creates its static Ngr instance only when absent.
+The separate original batch path creates one instance for the whole batch and
+releases it afterward; direct release references were confirmed by REA
+`ev_904ead8a9a56973e6bad61887945ba4e8a42aa1d9ada3df7b41c473c64d439e1`.
+
+The fixed packaged resources remain owned until process exit; installing updated
+assets restarts the application process. There is no result cache or book state,
+and rules remain request arguments, so edits take effect on the next request.
+Cancellation is checked after preparation, after model loading and before returning
+inference results. A cancelled inference finishes its single bounded five-feature
+call without publishing a result or discarding resources used by other requests.
