@@ -1,0 +1,11 @@
+<resources>
+    <string name="tts_new_word_algorithm">New word discovery</string>
+    <string name="tts_new_word_pattern">Name pattern</string>
+    <string name="tts_new_word_run">Discover new words</string>
+    <string name="tts_new_word_candidates">Candidate</string>
+    <string name="tts_new_word_score">Statistical score</string>
+    <string name="tts_new_word_empty">No candidates found. Try a passage where names recur in different contexts.</string>
+    <string name="tts_new_word_error">New-word discovery failed: %1$s</string>
+    <string name="tts_new_word_sample">林逸来到门前。林逸转身离开。林逸笑着点头。林逸站在窗边。</string>
+    <string name="tts_new_word_pattern_description">Used to filter characters in text character analysis</string>
+</resources>
