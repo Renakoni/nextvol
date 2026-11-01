@@ -32,8 +32,8 @@ class SpeechNameClassifier @Inject constructor(@ApplicationContext private val c
             if (name.isEmpty()) return@withContext SpeechNameClassification(SpeechNameHint.Unknown, SpeechNameHintBasis.None)
             if (available) {
                 val input = encoder.encode(name)
-                ensureActive()
                 if (input.supported) {
+                    ensureActive()
                     val handle = modelHandle
                     ensureActive()
                     val label = NameModelNative.predict(handle, input.features)
