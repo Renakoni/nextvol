@@ -22,6 +22,7 @@ data class SpeechBookmark(
     val completed: Boolean = false,
     val replacementKey: String? = null,
     val segmentIndex: Int? = null,
+    val context: SpeechContext = SpeechContext(),
 )
 
 interface SpeechProgressStore {

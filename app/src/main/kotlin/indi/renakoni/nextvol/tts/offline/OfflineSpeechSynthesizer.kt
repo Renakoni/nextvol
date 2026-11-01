@@ -24,6 +24,11 @@ internal class OfflineSpeechSynthesizer(
     private val voice: OfflineVoiceConfig,
     private val engineFactory: () -> OfflineEngine = { createEngine(context, directory, voice) },
 ) : SpeechSynthesizer {
+    override val maxInputLength get() = when (voice.engine) {
+        "xiaomi" -> 250
+        "vocalizer" -> 200
+        else -> Int.MAX_VALUE
+    }
     private val lock = ReentrantLock()
     private val cancelled = AtomicBoolean()
     private val opened = AtomicBoolean()

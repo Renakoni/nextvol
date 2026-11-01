@@ -1,62 +1,129 @@
 package indi.renakoni.nextvol.tts
 
-internal data class SpeechStructure(val content: SpeechMappedText, val dialogue: Boolean, val speaker: String? = null)
+internal data class SpeechStructure(
+    val content: SpeechMappedText,
+    val dialogue: Boolean,
+    val changeVoice: Boolean = true,
+    val speakerHint: String? = null,
+    val personVoice: SpeechPersonVoice? = null,
+    val beforeText: List<String> = emptyList(),
+    val afterText: List<String> = emptyList(),
+    val rememberedText: List<String> = emptyList(),
+    /** A remembered voice suggestion, without inventing a person for an unresolved dialogue. */
+    val previousVoice: String? = null,
+    val controlMark: Boolean = false,
+) {
+    val speaker get() = personVoice?.person?.takeIf { it.isNotEmpty() }
+}
 
-/** Basic quote/explicit-name boundary between replacement stages. Contextual dialogue belongs to #807. */
-internal fun speechStructure(input: SpeechMappedText, checkCancelled: () -> Unit): List<SpeechStructure> {
+internal data class SpeechStructureResult(val parts: List<SpeechStructure>, val nextContext: SpeechContext)
+
+internal enum class SpeechContextDirection { Explicit, Previous, Next }
+
+private enum class QuoteState { DialogueBefore, DialogueStart, DialogueEnd, NarrationStart, NarrationQuote }
+
+internal val speechControlMark = Regex("\\[\\[.*?\\]\\]")
+
+/** MultiTTS's five quote states; role rules supply the optional resolver in the role pipeline. */
+internal fun speechStructure(
+    input: SpeechMappedText,
+    settings: SpeechTextSettings,
+    incoming: SpeechContext = SpeechContext(),
+    resolve: ((String, SpeechContextDirection) -> SpeechPersonVoice?)? = null,
+    checkCancelled: () -> Unit,
+): SpeechStructureResult {
+    checkCancelled()
+    if (input.text.isEmpty()) return SpeechStructureResult(emptyList(), incoming)
+
     val result = mutableListOf<SpeechStructure>()
     var start = 0
-    var dialogue = false
-    fun add(end: Int) {
-        if (start == end) return
-        var content = input.slice(start, end)
-        var speaker: String? = null
-        if (dialogue) {
-            val first = content.text.indexOf("<<")
-            val last = if (first >= 0) content.text.indexOf(">>", first + 2) else -1
-            speaker = if (last >= 0) content.text.substring(first + 2, last).trim().takeIf { it.isNotEmpty() } else null
-            if (speaker != null) {
-                val output = SpeechMappedText.Builder(content.text.length)
-                var copied = 0
-                var markerStart = first
-                var markerEnd = last
-                while (markerStart >= 0 && markerEnd >= 0) {
-                    checkCancelled()
-                    output.append(content, copied, markerStart)
-                    copied = markerEnd + 2
-                    markerStart = content.text.indexOf("<<", copied)
-                    markerEnd = if (markerStart >= 0) content.text.indexOf(">>", markerStart + 2) else -1
-                }
-                output.append(content, copied, content.text.length)
-                content = output.build(content)
-            }
-        }
-        result += SpeechStructure(content, dialogue, speaker)
+    var state = if (incoming.openDialogue) QuoteState.DialogueStart else QuoteState.DialogueBefore
+    var changeDialogue = !incoming.openDialogue
+    var changeNarration = true
+    val controls = speechControlMark.findAll(input.text).iterator()
+    var control = if (controls.hasNext()) controls.next() else null
+    fun emit(end: Int, dialogue: Boolean) {
+        result += SpeechStructure(input.slice(start, end), dialogue,
+            changeVoice = if (dialogue) changeDialogue else changeNarration)
+        start = end
     }
     for (index in input.text.indices) {
         checkCancelled()
-        when (input.text[index]) {
-            '“', '"' -> if (!dialogue) {
-                add(index)
-                start = index
-                dialogue = true
-            } else if (input.text[index] == '"') {
-                add(index + 1)
-                start = index + 1
-                dialogue = false
+        if (control != null && index > control.range.last) control = if (controls.hasNext()) controls.next() else null
+        if (control?.range?.contains(index) == true) {
+            if (index == control.range.first) {
+                if (start < index) {
+                    val dialogue = settings.dialogue && state == QuoteState.DialogueStart
+                    emit(index, dialogue)
+                    changeDialogue = !dialogue
+                    if (!dialogue) changeNarration = false
+                }
+                val end = control.range.last + 1
+                result += SpeechStructure(input.slice(index, end), false, changeVoice = false, controlMark = true)
+                start = end
             }
-            '”' -> if (dialogue) {
-                add(index + 1)
-                start = index + 1
-                dialogue = false
+            continue
+        }
+        if (!settings.dialogue) continue
+        val char = input.text[index]
+        if (char == ' ' || char == '\u3000') continue
+        when (state) {
+            QuoteState.DialogueBefore -> when (char) {
+                '"', '“' -> {
+                    state = QuoteState.DialogueStart
+                    if (start < index) {
+                        emit(index, false)
+                        changeNarration = false
+                        changeDialogue = true
+                    }
+                }
+                '”' -> {
+                    emit(index + 1, true)
+                    changeDialogue = true
+                }
+                else -> state = QuoteState.NarrationStart
             }
-            '\n' -> {
-                add(index)
-                start = index + 1
-                dialogue = false
+            QuoteState.DialogueStart -> if (char == '"' || char == '”') {
+                emit(index + 1, true)
+                state = QuoteState.DialogueEnd
+                changeDialogue = true
+            }
+            QuoteState.DialogueEnd -> state = when (char) {
+                '"', '“' -> QuoteState.DialogueStart
+                in ":,;.!?：，；。！？" -> QuoteState.DialogueBefore
+                else -> QuoteState.NarrationStart
+            }
+            QuoteState.NarrationStart -> when (char) {
+                '”' -> {
+                    emit(index + 1, true)
+                    state = QuoteState.DialogueEnd
+                    changeDialogue = true
+                }
+                '"', '“' -> {
+                    if (start < index) emit(index, false)
+                    state = QuoteState.NarrationQuote
+                    changeNarration = true
+                    changeDialogue = true
+                }
+                in ":,;.!?：，；。！？" -> state = QuoteState.DialogueBefore
+            }
+            QuoteState.NarrationQuote -> when (char) {
+                ':', '：' -> state = QuoteState.DialogueBefore
+                '"', '”' -> {
+                    emit(index + 1, false)
+                    state = QuoteState.NarrationStart
+                    changeNarration = true
+                    changeDialogue = true
+                }
             }
         }
     }
-    add(input.text.length)
-    return result
+    val unfinished = settings.dialogue && (state == QuoteState.DialogueStart || state == QuoteState.NarrationQuote)
+    if (start < input.text.length) emit(input.text.length, unfinished)
+    // Tagged control spans bypass the quote FSM and the original contextual-text list.
+    val contextual = result.filterNot { it.controlMark }.toMutableList()
+    if (!settings.dialogue || contextual.isEmpty()) return SpeechStructureResult(result, incoming)
+    val resolved = resolveSpeechContext(contextual, settings, incoming, unfinished, resolve, checkCancelled)
+    val parts = resolved.parts.iterator()
+    return SpeechStructureResult(result.map { if (it.controlMark) it else parts.next() }, resolved.nextContext)
 }

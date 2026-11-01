@@ -16,9 +16,10 @@ import javax.inject.Inject
 /** Android ICU ignores CharSequence checks; the existing isolated worker enforces a hard deadline. */
 class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolatedExecutor,
     private val authority: ExecutionAuthority) {
-    suspend fun prepare(chapter: SpeechChapter, settings: SpeechSettings): SpeechPlan = withRegexWorker { replace ->
+    suspend fun prepare(chapter: SpeechChapter, settings: SpeechSettings, context: SpeechContext = SpeechContext(),
+        maxInputLength: Int = Int.MAX_VALUE): SpeechPlan = withRegexWorker { replace ->
         val task = currentCoroutineContext()
-        prepareSpeechPlan(chapter, settings, replace) { task.ensureActive() }
+        prepareSpeechPlan(chapter, settings, replace, context, maxInputLength) { task.ensureActive() }
     }
 
     suspend fun previewRule(text: String, rule: SpeechReplacementRule): String = withRegexWorker { replace ->

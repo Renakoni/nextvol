@@ -35,13 +35,15 @@ class SpeechReplacementsViewModel @Inject constructor(private val repository: Sp
     private val mutableState = MutableStateFlow(SpeechReplacementsState())
     val state = mutableState.asStateFlow()
     private var previewJob: Job? = null
+    private var textSettings = SpeechTextSettings()
 
     init {
         viewModelScope.launch {
-            repository.changes.map { it.replacements }.distinctUntilChanged().catch {
+            repository.changes.map { it.replacements to it.text }.distinctUntilChanged().catch {
                 mutableState.update { it.copy(loading = false, storageFailed = true) }
-            }.collect { rules ->
+            }.collect { (rules, text) ->
                 clearPreview()
+                textSettings = text
                 mutableState.update { it.copy(rules = rules, loading = false, storageFailed = false) }
             }
         }
@@ -100,6 +102,7 @@ class SpeechReplacementsViewModel @Inject constructor(private val repository: Sp
     fun preview(text: String, draft: SpeechReplacementRule? = null) {
         clearPreview()
         val rules = state.value.rules
+        val settings = SpeechSettings(replacements = rules, text = textSettings)
         mutableState.update { it.copy(previewing = true) }
         previewJob = viewModelScope.launch {
             try {
@@ -108,7 +111,7 @@ class SpeechReplacementsViewModel @Inject constructor(private val repository: Sp
                     mutableState.update { it.copy(rulePreview = output, previewing = false) }
                 } else {
                     val plan = withContext(Dispatchers.Default) {
-                        plans.prepare(SpeechChapter("", "", "", "", text), SpeechSettings(replacements = rules))
+                        plans.prepare(SpeechChapter("", "", "", "", text), settings)
                     }
                     mutableState.update { it.copy(preview = plan, previewing = false) }
                 }
