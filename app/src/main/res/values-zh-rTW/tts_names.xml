@@ -1,0 +1,12 @@
+<resources>
+    <string name="tts_name_algorithm">人名發現演算法</string>
+    <string name="tts_name_ner">NER（中文）</string>
+    <string name="tts_name_test">人名識別測試</string>
+    <string name="tts_name_input">待識別文字</string>
+    <string name="tts_name_run">識別人名</string>
+    <string name="tts_name_results">識別結果</string>
+    <string name="tts_name_empty">未識別到人名。</string>
+    <string name="tts_name_unavailable">NER 需要 Android 8 或更新版本，以及內建的 arm64 執行程式庫。</string>
+    <string name="tts_name_error">人名識別失敗：%1$s</string>
+    <string name="tts_name_sample">王小明和欧阳娜娜正在交谈。小红走了过来。</string>
+</resources>

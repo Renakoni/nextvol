@@ -28,6 +28,8 @@ import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.data.setting.AbstractSettingState
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
+import indi.renakoni.nextvol.ui.components.MenuOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -83,7 +85,7 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
-    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit) {
+    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onNameTest: () -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
     val defaultText = stringResource(R.string.tts_preview_text)
@@ -143,6 +145,20 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         }
                     }
                 }
+            }
+            item { HorizontalDivider(Modifier.padding(start = 60.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)) }
+            state.settings?.let { settings -> item {
+                val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner)) {} }
+                SettingsMenuEntry(painter = painterResource(R.drawable.group_24px),
+                    title = stringResource(R.string.tts_name_algorithm), options = algorithms,
+                    selectedOptionKey = settings.nameDiscoveryAlgorithm.toString(),
+                    onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
+            } }
+            item {
+                SettingsClickableEntry(painter = painterResource(R.drawable.search_24px),
+                    title = stringResource(R.string.tts_name_test),
+                    trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                    onClick = onNameTest)
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_audition_text),
