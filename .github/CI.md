@@ -248,8 +248,9 @@ keys together when upgrading. Automatic Gradle JDK/SDK provisioning is disabled.
 | Cache | Consumers | Contents / writer |
 | --- | --- | --- |
 | Gradle (`setup-gradle`) | All build/test checks | Wrapper, dependencies, transforms, local build cache; only the serialized main warmer writes |
-| Variant task outputs | Release and Minified checks | Separate Release/benchmark outputs; latest snapshot per ref and variant, saved after a successful APK build |
+| Variant task outputs | Release/Minified checks and signed releases | Separate Release/benchmark outputs; latest snapshot per ref and variant, saved after a successful APK build |
 | ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref |
+| Embedded offline SDK | APK builds and signed releases | ZIP pinned by URL/SHA-256; main writes one shared archive, PRs only restore |
 | SDK | All checks | Platform, Build Tools, adb; main publishes one shared version |
 | Emulator + one API image | Device checks only | Main publishes separate API 24 and API 35 entries |
 | Robolectric SDKs | JVM check only | Main publishes Android runtime jars under `~/.m2/repository/org/robolectric` |
@@ -265,7 +266,8 @@ main outputs and preserve each variant's own entries. The minified cache is save
 before device tests so a test failure does not discard successful compilation.
 Cache keys include the variant and commit; restore prefixes allow reuse after
 source edits, with Gradle checking the actual task inputs. Closed PR cache entries
-are removed by `cleanup-pr-caches.yml`. After Release workflow completion, it also
+are removed by `cleanup-pr-caches.yml`. After Release checks or signed release
+workflow completion, it also
 retains only the latest snapshot for each ref/variant and removes redundant PR
 tool copies once a main entry exists for that tool. It checks out only main code,
 never the completed workflow's head or its artifacts, with `actions: write`.
@@ -274,8 +276,13 @@ Caches are disposable acceleration: misses fall back to normal dependency or
 fixed tool downloads. AboutLibraries uses local license texts instead of making
 per-library license/funding requests during APK builds.
 
+Signed releases save their Release task cache immediately after a successful APK
+build, before signing or uploading attachments. This supplies main's shared Release
+outputs without adding R8 to the ordinary cache warmer.
+
 `gradle-cache.yml` refreshes main's compilation caches after build/environment
-configuration or `native/onnxruntime/**` changes, a manual main run, or daily maintenance at 09:17 UTC.
+configuration, `native/onnxruntime/**`, or the offline SDK descriptor/downloader
+changes, a manual main run, or daily maintenance at 09:17 UTC.
 Ordinary source, test, documentation
 and template changes do not trigger it. A lightweight selector compares the
 push's `before` SHA with the checked-out commit and reuses the ordinary scope
@@ -308,9 +315,16 @@ Cache hits remove the repeated
 ORT compilation, not the existing checks or Matcha build. Main/PR retention keeps
 each ref's newest ORT entry; main's different input key never replaces a PR's entry.
 
-JVM and Lint jobs skip native tool preparation and exclude only
-`:app:buildMatchaNative`; their Kotlin build flags and existing test/lint coverage
-remain the same. Host JVM tests cannot load the Android ARM64 library and use the
+The embedded SDK uses a separate cache containing only its compressed ZIP. APK
+jobs verify the pinned SHA-256, extract and validate the libraries, then supply
+`offlineRuntimeDir` to Gradle. Main publishes the archive after successful
+preparation; PR misses download locally. Neither Kotlin changes nor runner image
+updates invalidate these pinned bytes. The extracted directory is not added to
+the Gradle task cache, and SDK changes do not invalidate the ORT cache.
+
+JVM and Lint jobs skip native tool/SDK preparation and exclude
+`:app:buildMatchaNative` and `:app:prepareOfflineRuntime`; their Kotlin build flags
+and existing test/lint coverage remain the same. Host JVM tests cannot load the Android ARM64 library and use the
 existing native test doubles. The APK jobs retain the source build, ELF checks,
 native libraries and license/manifest packaging. The minified APK producer saves
 its caches before the independent device job starts, including when tests later fail.

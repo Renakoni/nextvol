@@ -25,16 +25,19 @@ val offlineRuntime = suppliedOfflineRuntime ?: layout.buildDirectory.dir("offlin
 if (suppliedOfflineRuntime != null) {
     require(offlineRuntime.resolve("jniLibs").isDirectory) { "offlineRuntimeDir must contain jniLibs" }
 } else {
-    val runtimeUrl = providers.gradleProperty("offlineRuntimeUrl").getOrElse(
-        "https://github.com/Renakoni/nextvol/releases/download/offline-runtime-1/offline-runtime-arm64-v1.zip")
+    val runtimeSpec = groovy.json.JsonSlurper().parse(rootProject.file("native/offline/runtime.json")) as Map<*, *>
+    val runtimeUrl = providers.gradleProperty("offlineRuntimeUrl").getOrElse(runtimeSpec["url"] as String)
+    val runtimeSha256 = providers.gradleProperty("offlineRuntimeSha256").getOrElse(runtimeSpec["sha256"] as String)
     val prepareOfflineRuntime by tasks.registering(Exec::class) {
         inputs.property("runtimeUrl", runtimeUrl)
+        inputs.property("runtimeSha256", runtimeSha256)
         inputs.file(rootProject.file("native/offline/fetch_runtime.py"))
         outputs.dir(offlineRuntime)
         commandLine(
             providers.gradleProperty("matchaPython").getOrElse("python"),
             rootProject.file("native/offline/fetch_runtime.py"),
             "--url", runtimeUrl,
+            "--sha256", runtimeSha256,
             "--output", offlineRuntime,
         )
     }

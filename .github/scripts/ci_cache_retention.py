@@ -25,6 +25,8 @@ def fixed_tool(key):
         return f'api-{match[1]}'
     if key.startswith('robolectric-linux-'):
         return 'robolectric'
+    if key.startswith('offline-sdk-v1-'):
+        return 'offline-sdk'
     return None
 
 
