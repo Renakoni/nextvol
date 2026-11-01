@@ -135,7 +135,11 @@ internal fun SpeechEngineEditorScreen(configuration: SpeechEngineConfig?, creati
                 }
             }
         }) { padding ->
-        if (!creating && configuration == null) return@Scaffold
+        if (!creating && configuration == null) {
+            Text(stringResource(state.error ?: R.string.tts_engine_missing), Modifier.padding(padding).padding(22.dp),
+                color = MaterialTheme.colorScheme.error)
+            return@Scaffold
+        }
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 22.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { EngineField(draft.name, R.string.tts_engine_name, !state.saving) { draft = draft.copy(name = it) } }
