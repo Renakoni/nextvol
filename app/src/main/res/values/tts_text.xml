@@ -9,13 +9,6 @@
     <string name="tts_text_separate_english">Separate English</string>
     <string name="tts_text_filter_unspoken">Filter punctuation-only text</string>
     <string name="tts_text_sentence_length">Sentence length</string>
-    <string name="tts_text_preview">Text preview</string>
-    <string name="tts_text_preview_action">Preview</string>
-    <string name="tts_text_preview_input">Enter text; blank lines separate requests</string>
-    <string name="tts_text_narration">Narration</string>
-    <string name="tts_text_dialogue_passage">Dialogue</string>
-    <string name="tts_text_latin_script">Latin script</string>
-    <string name="tts_text_previous_passage">Previous passage: %1$s</string>
     <string name="tts_text_dialogue_description">Separate narration from quoted dialogue</string>
     <string name="tts_text_record_voice_description">Remember recent voice matches for later dialogue</string>
     <string name="tts_text_record_text_description">Use the preceding passage when matching characters</string>

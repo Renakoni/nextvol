@@ -4,16 +4,13 @@ import androidx.annotation.StringRes
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -26,34 +23,25 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
-import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
 data class SpeechPlaybackSettingsState(
     val settings: SpeechTextSettings? = null,
     val error: SpeechError? = null,
-    val previewing: Boolean = false,
-    val segments: List<SpeechSegment>? = null,
-    val failure: SpeechReplacementFailure? = null,
 )
 
 @HiltViewModel
 class SpeechPlaybackSettingsViewModel @Inject constructor(
     private val repository: SpeechSettingsRepository,
-    private val preparer: SpeechPlanPreparer,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPlaybackSettingsState())
     val state = mutableState.asStateFlow()
-    private var previewJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -70,46 +58,12 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
             catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.Storage) } }
         }
     }
-
-    fun clearPreview() {
-        previewJob?.cancel()
-        mutableState.update { it.copy(previewing = false, segments = null, error = null, failure = null) }
-    }
-
-    fun preview(text: String) {
-        clearPreview()
-        mutableState.update { it.copy(previewing = true) }
-        previewJob = viewModelScope.launch {
-            try {
-                val settings = repository.get()
-                val segments = withContext(Dispatchers.Default) {
-                    var context = SpeechContext()
-                    val result = mutableListOf<SpeechSegment>()
-                    for (request in text.split(Regex("\\r?\\n[\\t ]*\\r?\\n(?:[\\t ]*\\r?\\n)*"))) {
-                        if (request.isBlank()) continue
-                        val plan = preparer.prepare(SpeechChapter("", "", "", "", request), settings, context)
-                        result += plan.segments
-                        context = plan.nextContext
-                    }
-                    result.toList()
-                }
-                mutableState.update { it.copy(previewing = false, segments = segments) }
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: SpeechReplacementException) {
-                mutableState.update { it.copy(previewing = false, failure = failure.failure) }
-            } catch (failure: SpeechException) {
-                mutableState.update { it.copy(previewing = false, error = failure.error) }
-            } catch (_: Exception) {
-                mutableState.update { it.copy(previewing = false, error = SpeechError.Storage) }
-            }
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, onBack: () -> Unit,
-    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onPreview: () -> Unit) {
+    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit) {
     Scaffold(topBar = {
         TopAppBar(title = {
             Text(stringResource(R.string.tts_playback_preferences), style = MaterialTheme.typography.displayLarge,
@@ -118,8 +72,6 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, on
             IconButton(onClick = onBack) {
                 Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back))
             }
-        }, actions = {
-            TextButton(onClick = onPreview) { Text(stringResource(R.string.tts_text_preview_action)) }
         })
     }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
@@ -185,57 +137,5 @@ private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @Str
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked, onCheckedChange = null, modifier = Modifier.scale(0.8f))
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun SpeechTextPreviewScreen(state: SpeechPlaybackSettingsState, onBack: () -> Unit,
-    onPreview: (String) -> Unit, onClearPreview: () -> Unit) {
-    var text by remember { mutableStateOf("") }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val inputLabel = stringResource(R.string.tts_text_preview_input)
-    DisposableEffect(Unit) { onDispose(onClearPreview) }
-    val segments = state.segments.orEmpty()
-    val showDialogue = segments.any { it.dialogue }
-    val showLanguage = segments.map { it.language }.distinct().size > 1
-    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_text_preview, onBack) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(), contentPadding = PaddingValues(22.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item {
-                TextField(text, { text = it; onClearPreview() },
-                    Modifier.fillMaxWidth().semantics { contentDescription = inputLabel }, minLines = 4,
-                    placeholder = { Text(inputLabel) })
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { keyboard?.hide(); onPreview(text) }, enabled = text.isNotBlank() && !state.previewing) {
-                        Text(stringResource(R.string.tts_text_preview_action))
-                    }
-                    if (state.previewing) TextButton(onClick = onClearPreview) { Text(stringResource(R.string.cancel)) }
-                }
-            }
-            if (state.previewing) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            state.failure?.let { failure -> item { SpeechReplacementError(failure) } }
-            state.error?.let { error -> item { Text(stringResource(error.messageResource), color = MaterialTheme.colorScheme.error) } }
-            if (state.segments?.isEmpty() == true) item { Text(stringResource(R.string.tts_replace_no_speech)) }
-            itemsIndexed(segments) { index, segment ->
-                SelectionContainer {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        val metadata = buildList {
-                            if (showDialogue) add(stringResource(if (segment.dialogue) R.string.tts_text_dialogue_passage else R.string.tts_text_narration))
-                            if (showLanguage && segment.language == "lang:latin") add(stringResource(R.string.tts_text_latin_script))
-                        }
-                        if (metadata.isNotEmpty()) Text(metadata.joinToString(" · "), style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (segment.rememberedText.isNotEmpty() && segment.rememberedText != segments.getOrNull(index - 1)?.rememberedText) {
-                            Text(stringResource(R.string.tts_text_previous_passage, segment.rememberedText.joinToString("\n")),
-                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Text(segment.text, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        }
     }
 }

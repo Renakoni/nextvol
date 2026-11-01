@@ -9,13 +9,6 @@
     <string name="tts_text_separate_english">分開英文</string>
     <string name="tts_text_filter_unspoken">過濾純標點</string>
     <string name="tts_text_sentence_length">句長限制</string>
-    <string name="tts_text_preview">文字預覽</string>
-    <string name="tts_text_preview_action">預覽</string>
-    <string name="tts_text_preview_input">輸入文字，空行分請求</string>
-    <string name="tts_text_narration">旁白</string>
-    <string name="tts_text_dialogue_passage">對話</string>
-    <string name="tts_text_latin_script">拉丁字母</string>
-    <string name="tts_text_previous_passage">上文：%1$s</string>
     <string name="tts_text_dialogue_description">區分旁白與引號內的對話</string>
     <string name="tts_text_record_voice_description">記住最近匹配的聲音，供後續對話使用</string>
     <string name="tts_text_record_text_description">匹配角色時參考上一段文字</string>
