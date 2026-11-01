@@ -38,14 +38,19 @@ class ScriptRequestTemplatesTest {
         }, Json.parseToJsonElement(request.getValue("body").jsonPrimitive.content))
         val failing = RhinoScriptEngine(HostBridge { _, _ -> error("private network details") })
         val fallback = JsonObject(input + ("url" to JsonPrimitive("""@js:
-            try { java.ajax('https://auth.invalid') } catch(e) {
+            try { java.ajax(new String('https://auth.invalid')) } catch(e) {
                 if (!(e instanceof Error) || String(e).indexOf('private') >= 0) throw Error('unsafe error');
-                'https://audio.invalid/fallback'
+                new String('https://audio.invalid/fallback')
             }
         """.trimIndent())))
         val recovered = failing.evaluate("host.call('request.multitts',result)", frame.copy(
             variables = mapOf("result" to fallback), speakText = spoken)) as ScriptResult.Success
         assertEquals("https://audio.invalid/fallback", Json.parseToJsonElement(recovered.json).jsonObject.getValue("url").jsonPrimitive.content)
+        val malformed = JsonObject(input + ("url" to JsonPrimitive(
+            "@js:try { java.ajax('https://auth.invalid') } catch(e) {} JSON.parse('invalid')")))
+        val failed = failing.evaluate("host.call('request.multitts',result)", frame.copy(
+            variables = mapOf("result" to malformed), speakText = spoken)) as ScriptResult.Failure
+        assertEquals(FailureCode.Runtime, failed.code)
     }
 
     @Test fun sourceKeyPropertyUsesTheSameHostIdentityAsItsGetter() {

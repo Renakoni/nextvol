@@ -28,7 +28,7 @@ internal class MultiTtsRequests(private val cx: Context, private val bridge: Hos
             java.put(name, java, realm.method(scope) { _, _, args -> call(args) })
         }
         for (name in listOf("ajax", "fetch")) method(name) { args ->
-            require(args.size in 1..2 && args.all { it is CharSequence })
+            require(args.size in 1..2)
             val rule = Context.toString(args[0]) + if (args.size == 2) "," + Context.toString(args[1]) else ""
             // Arguments have already been evaluated. Never reinterpret book text as code.
             val request = request(bounded(rule), emptyMap(), "application/json")
@@ -68,7 +68,6 @@ internal class MultiTtsRequests(private val cx: Context, private val bridge: Hos
     private fun evaluate(code: String, emptyNull: Boolean): String {
         val value = evaluateGlobal(cx, scope, code, "multitts-request")
         if (value == null) return if (emptyNull) "" else "null"
-        if (!Undefined.isUndefined(value)) BoundedJsonResult(limit).encode(value)
         return bounded(Context.toString(value))
     }
 

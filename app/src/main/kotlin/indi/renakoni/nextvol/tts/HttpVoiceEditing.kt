@@ -99,12 +99,7 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
     // Labels/notes do not rebuild a request or invalidate its authorization.
     if ((old["url"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.url ||
         (old["header"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.header) {
-        val voice = speakerData()
-        val converted = previewHttpSpeechPackage(SpeechPackageEngine(engine.code, engine.name, "http", data.packageValue(),
-            listOf(SpeechPackageVoice(voice.getValue("code").jsonPrimitive.content, definition.name, voice.packageValue())),
-            SpeechPackageSupport.HttpAdapter, emptyList(), emptyList()))
-        require(converted.error == null && converted.sources.size == 1)
-        raw["url"] = converted.sources.single().raw.getValue("url")
+        raw["url"] = JsonPrimitive(engine.url.trim())
         if (engine.header.isBlank()) raw.remove("header") else raw["header"] = JsonPrimitive(engine.header)
     }
     return copy(definition = previewHttpSpeech(JsonObject(raw).toString()).sources.single())

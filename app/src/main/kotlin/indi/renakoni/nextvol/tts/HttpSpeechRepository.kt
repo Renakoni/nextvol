@@ -113,8 +113,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         require(!creating || previous != null || engine.code.startsWith("http_") && engine.code.length > 5)
         require(!creating || previous == null || previous.deleted)
         require(creating || previous != null)
-        val related = store.sources.filter { it.importedEngineCode == engine.code }
-        if (related.isEmpty() && !engine.deleted && (previous == null || previous.url != engine.url || previous.header != engine.header))
+        if (!engine.deleted && (previous == null || previous.url != engine.url || previous.header != engine.header))
             newHttpVoice(engine)
         val sources = store.sources.map { if (it.importedEngineCode == engine.code) it.withHttpEngine(engine) else it }
         HttpSpeechStore(sources, if (previous == null) store.engines + engine else store.engines.map { if (it.code == engine.code) engine else it })

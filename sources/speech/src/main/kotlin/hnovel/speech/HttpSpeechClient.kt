@@ -45,7 +45,6 @@ class HttpSpeechClient(
     // A client owns one immutable source revision; static bindings need parsing only once.
     private val multiTtsRequest: JsonObject? by lazy {
         source.multiTts?.let { metadata ->
-            val engine = metadata.getValue("engine").jsonObject
             val voice = metadata.getValue("voice").jsonObject
             fun JsonObject.text(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
             val defaults = mutableMapOf<String, JsonPrimitive>()
@@ -64,13 +63,13 @@ class HttpSpeechClient(
                     val value = parameter.trim { Character.isWhitespace(it) }
                     if (value.startsWith('@')) defaults[value] ?: JsonNull else JsonPrimitive(value)
                 }
-            val headers = engine.text("header").takeIf(String::isNotBlank)?.let { RequestOptionsJson.parse(it).jsonObject }
+            val headers = source.text("header").takeIf(String::isNotBlank)?.let { RequestOptionsJson.parse(it).jsonObject }
                 .orEmpty().mapValues { (_, value) ->
                     require(value != JsonNull)
                     JsonPrimitive(if (value is JsonPrimitive) value.content else value.toString())
                 }
             buildJsonObject {
-                put("url", engine.text("url")); put("headers", JsonObject(headers))
+                put("url", source.url); put("headers", JsonObject(headers))
                 put("voiceCode", voice.text("code")); put("params", JsonArray(parameters))
             }
         }

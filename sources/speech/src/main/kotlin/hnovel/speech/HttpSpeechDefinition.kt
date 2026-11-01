@@ -13,10 +13,7 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
     val usesMicrosoftTranslator: Boolean get() = microsoft != null
     internal val multiTts: JsonObject? get() = (raw["multiTts"] as? JsonObject)?.takeIf { metadata ->
         val engine = metadata["engine"] as? JsonObject
-        val voice = metadata["voice"] as? JsonObject
-        (engine?.get("type") as? JsonPrimitive)?.contentOrNull == "http" &&
-            !(engine?.get("url") as? JsonPrimitive)?.contentOrNull.isNullOrBlank() &&
-            !(voice?.get("code") as? JsonPrimitive)?.contentOrNull.isNullOrBlank()
+        (engine?.get("type") as? JsonPrimitive)?.contentOrNull == "http"
     }
     val usesMultiTts: Boolean get() = multiTts != null
     val unknownFields: Set<String> get() = raw.keys - fields

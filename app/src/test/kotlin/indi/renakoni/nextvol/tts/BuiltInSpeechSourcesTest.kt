@@ -99,7 +99,7 @@ class BuiltInSpeechSourcesTest {
         assertEquals("1", refreshed.speakerData().getValue("volume").jsonPrimitive.content)
         assertEquals(1, refreshed.speakerData().getValue("type").jsonPrimitive.int)
         assertEquals("New note", refreshed.speakerData().getValue("note").jsonPrimitive.content)
-        assertTrue(refreshed.definition.url.contains("edited"))
+        assertEquals("edited", refreshed.speakerData().getValue("param").jsonPrimitive.content)
         assertEquals("3", refreshed.speakerDefaults!!.getValue("volume").jsonPrimitive.content)
         assertEquals(copy.definition.raw, voices.single { it.definition.id == copy.definition.id }.definition.raw)
         assertEquals(image, repository.avatar(refreshed))
