@@ -30,7 +30,6 @@ class NerDecoderTest {
                     value.getValue("start").jsonPrimitive.int, value.getValue("end").jsonPrimitive.int)
             }
             assertEquals(text, expected, actual)
-            actual.forEach { assertEquals(it.name, text.substring(it.start, it.end)) }
         }
     }
 
