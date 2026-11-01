@@ -34,6 +34,7 @@ import indi.renakoni.nextvol.tts.ReadAloudState
 import indi.renakoni.nextvol.tts.SpeechAction
 import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.speakerData
+import indi.renakoni.nextvol.tts.searchVoice
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.coroutines.launch
@@ -136,9 +137,12 @@ fun HttpSpeechSourcesScreen(
             })
     }
     val onlineTitle = stringResource(R.string.tts_online_sources)
-    val httpGroups = state.sources.groupBy { it.category ?: onlineTitle }
+    fun groupId(source: SavedHttpSpeechSource) = source.importedEngineCode?.let { "engine:$it" }
+        ?: source.category?.let { "category:$it" } ?: "custom"
+    val httpGroups = state.sources.groupBy(::groupId)
     val groups = listOf("system" to stringResource(R.string.tts_system_speech)) +
-        offlineGroups.map { (code, name) -> "offline:$code" to name } + httpGroups.keys.map { "http:$it" to it }
+        offlineGroups.map { (code, name) -> "offline:$code" to name } +
+        httpGroups.map { (id, sources) -> "http:$id" to (sources.first().category ?: onlineTitle) }
     // Pager's count and key callbacks must observe the same asynchronously loaded catalog.
     val pagerGroups by rememberUpdatedState(groups)
     val pager = rememberPagerState { pagerGroups.size }
@@ -151,11 +155,9 @@ fun HttpSpeechSourcesScreen(
         if (catalogReady) onOfflineGroup(currentGroup.takeIf { it.startsWith("offline:") }?.removePrefix("offline:"))
     }
     val searchQuery = query.trim()
-    val filteredSources = state.sources.filter { source ->
-        val metadata = source.speakerData()
-        (listOf(source.definition.name, source.category.orEmpty()) + listOf("locale", "note", "desc").map {
-            (metadata[it] as? JsonPrimitive)?.contentOrNull.orEmpty()
-        }).any { it.contains(searchQuery, true) }
+    val filteredSources = remember(state.sources, state.selected, searchQuery) {
+        val search = hnovel.speech.SpeechVoiceSearch(searchQuery)
+        state.sources.filter { search.matches(it.searchVoice(state.selected == it.definition.id)) }
     }
     Scaffold(topBar = {
         SpeechSourcesTopBar(query, { query = it }, searching, { searching = true }, closeSearch, onBack, state.busy,
@@ -192,7 +194,7 @@ fun HttpSpeechSourcesScreen(
                         }
                         group.startsWith("offline:") -> offlineSettings?.invoke(this, group.removePrefix("offline:"), searchQuery)
                         else -> {
-                            val sources = filteredSources.filter { "http:${it.category ?: onlineTitle}" == group }
+                            val sources = filteredSources.filter { "http:${groupId(it)}" == group }
                             if (sources.isEmpty() && searchQuery.isNotEmpty() && !state.busy) item {
                                 Text(stringResource(R.string.search_no_results), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }

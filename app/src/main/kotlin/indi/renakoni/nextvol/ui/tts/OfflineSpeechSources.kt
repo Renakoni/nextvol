@@ -15,6 +15,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.ReadAloudController
 import indi.renakoni.nextvol.tts.SpeechSettingsRepository
+import indi.renakoni.nextvol.tts.searchVoice
 import indi.renakoni.nextvol.tts.matcha.*
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
@@ -145,10 +146,10 @@ internal fun LazyListScope.offlineSpeechSources(
     onEdit: (InstalledOfflineVoice, Boolean) -> Unit, onEnable: (List<InstalledOfflineVoice>, Boolean) -> Unit,
     onDelete: (List<InstalledOfflineVoice>) -> Unit,
 ) {
+    val search = hnovel.speech.SpeechVoiceSearch(query)
     val voices = state.voices.filter { voice ->
         (voice.configuration?.engine ?: "sherpa") == engine &&
-            listOf(voice.name, voice.configuration?.locale.orEmpty(), voice.metadata.note, voice.metadata.description)
-                .any { it.contains(query, ignoreCase = true) }
+            search.matches(voice.searchVoice(state.selected?.id == voice.reference.id))
     }
     if (voices.isEmpty() && query.isNotEmpty()) item {
         Text(stringResource(R.string.search_no_results), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)

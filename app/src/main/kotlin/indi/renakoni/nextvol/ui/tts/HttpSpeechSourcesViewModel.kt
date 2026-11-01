@@ -15,10 +15,10 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -51,10 +51,10 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     val state = mutableState.asStateFlow()
     private var packageUri: Uri? = null
     private var selectedSettings: SpeechSettings? = null
+    private var refreshing: Job? = null
 
     init {
-        work { refreshSources() }
-        viewModelScope.launch { repository.changes.drop(1).collect { refresh() } }
+        viewModelScope.launch { repository.changes.collect { refresh() } }
         viewModelScope.launch { settings.changes.collect { value ->
             selectedSettings = value
             mutableState.update { it.copy(selected = value.httpSource, offlineSelected = value.offlineVoice != null) }
@@ -63,7 +63,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     }
 
     fun select(id: String?) = work {
-        require(id == null || repository.sources().any { it.definition.id == id && it.isConfigured && it.enabled })
+        require(id == null || state.value.sources.any { it.definition.id == id && it.isConfigured && it.enabled })
         settings.update { it.copy(httpSource = id, offlineVoice = null) }
     }
 
@@ -80,7 +80,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         if (state.value.sources.any { isInUse(it.definition.id) && (it.definition.id in related || it.engineReference in related) })
             controller.command(SpeechAction.Stop)
         repository.configure(source.definition.id, credentials)
-        refreshSources()
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }
 
@@ -141,13 +140,20 @@ class HttpSpeechSourcesViewModel @Inject constructor(
             }
             if (state.value.selected in affected) settings.update { if (it.httpSource in affected) it.copy(httpRevision = java.util.UUID.randomUUID().toString()) else it }
         }
-        refreshSources()
         mutableState.update { it.copy(pending = null, invalid = 0) }
     }
 
     fun delete(source: SavedHttpSpeechSource) = delete(listOf(source))
 
-    fun refresh() = work { refreshSources() }
+    fun refresh() {
+        refreshing?.cancel()
+        refreshing = viewModelScope.launch {
+            mutableState.update { it.copy(error = null) }
+            try { refreshSources() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(error = R.string.tts_error_storage, loaded = true) } }
+        }
+    }
 
     fun enable(sources: List<SavedHttpSpeechSource>, enabled: Boolean) = work {
         if (sources.isEmpty()) return@work
@@ -157,7 +163,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
             repository.enable(ids, enabled)
             settings.update { if (it.httpSource in ids) it.copy(httpRevision = java.util.UUID.randomUUID().toString()) else it }
         }
-        refreshSources()
     }
 
     fun delete(sources: List<SavedHttpSpeechSource>) = work {
@@ -168,7 +173,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
             repository.delete(ids)
             if (state.value.selected in ids) settings.update { if (it.httpSource in ids) it.copy(httpSource = null, offlineVoice = null) else it }
         }
-        refreshSources()
     }
 
     fun sites(source: SavedHttpSpeechSource, text: String) = work(R.string.tts_source_sites_invalid) {
@@ -178,7 +182,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         require(origins.size <= 32)
         if (isInUse(source.definition.id)) controller.command(SpeechAction.Stop)
         repository.saveVoice(source.copy(origins = origins))
-        refreshSources()
     }
 
     fun edit(source: SavedHttpSpeechSource, name: String, url: String, header: String) = work(R.string.tts_source_invalid) {
@@ -192,7 +195,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         require(preview.issues.isEmpty())
         if (isInUse(source.definition.id)) controller.command(SpeechAction.Stop)
         repository.saveVoice(source.copy(definition = preview.sources.single()))
-        refreshSources()
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }
 
@@ -200,7 +202,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         val code = requireNotNull(source.importedEngineCode)
         if (state.value.sources.any { it.importedEngineCode == code && isInUse(it.definition.id) }) controller.command(SpeechAction.Stop)
         repository.editImportedEngine(code, name, url, header)
-        refreshSources()
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }
 

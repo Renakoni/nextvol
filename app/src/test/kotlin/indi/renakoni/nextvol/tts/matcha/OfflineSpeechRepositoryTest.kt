@@ -38,6 +38,7 @@ class OfflineSpeechRepositoryTest {
         val repository = OfflineSpeechRepository(root)
         val input = archive(speed = 1.3f)
         val original = repository.install(input, plan(input))
+        assertEquals(original, OfflineSpeechRepository(root).voices().single())
         assertEquals(24000, original.configuration!!.sampleRate)
         assertEquals("image fixture", repository.avatar(original)!!.readText())
         repository.recordRuntimeInfo(original.reference, OfflineVoiceRuntimeInfo(original.configuration, 3, 22050))
@@ -61,22 +62,28 @@ class OfflineSpeechRepositoryTest {
         val disabled = repository.voices().single { it.reference.id == copy.reference.id }
         assertThrows(IllegalStateException::class.java) { repository.acquire(disabled.reference) }
         val replacement = archive("after!", speed = 1.5f)
-        val imported = repository.install(replacement, plan(replacement))
+        // Same-sized resource changes are accepted without a model digest comparison.
+        val imported = repository.install(replacement, plan(archive("tokens", speed = 1.5f)))
         assertEquals("My voice", imported.name)
         assertEquals(1f, imported.configuration!!.speed)
         assertEquals(1f, imported.configuration.sherpa!!.speed)
         assertEquals(1.5f, imported.defaults!!.configuration.speed)
         assertEquals(original.reference.id, imported.reference.id)
         assertEquals("tokens", File(lease.directory, "tokens.txt").readText())
+        repository.acquire(imported.reference).use { assertEquals("after!", File(it.directory, "tokens.txt").readText()) }
         val reopened = OfflineSpeechRepository(root).voices()
         assertEquals(2, reopened.size)
         assertTrue(reopened.all { repository.avatar(it)?.readText() == "image fixture" })
         assertTrue(lease.directory.exists())
         repository.delete(setOf(disabled.reference, imported.reference))
         assertTrue(repository.voices().isEmpty())
+        assertThrows(NoSuchElementException::class.java) { repository.acquire(imported.reference) }
         assertTrue(lease.directory.exists())
         lease.close()
         assertFalse(lease.directory.exists())
+        val reimported = repository.install(replacement, plan(replacement))
+        assertNotEquals(imported.reference.revision, reimported.reference.revision)
+        repository.acquire(reimported.reference).use { assertTrue(it.directory.isDirectory) }
     }
 
     @Test fun googleDirectoryRefreshAddsDeclaredSpeakersWithoutReplacingEditsOrCopyingModels() = runBlocking {
@@ -106,36 +113,6 @@ class OfflineSpeechRepositoryTest {
     private fun plan(file: File): OfflinePackagePlan {
         val preview = previewSpeechPackage(file)
         return previewOfflineVoice(preview, preview.engines.single(), preview.engines.single().voices.single()).plan!!
-    }
-
-    @Test fun replacementAndDeletionRetainLeasedResourcesUntilCloseAndPersistSelectionIdentity() = runBlocking {
-        val root = files.newFolder()
-        val repository = OfflineSpeechRepository(root)
-        val firstPackage = archive()
-        val first = repository.install(firstPackage, plan(firstPackage))
-        assertEquals(first, OfflineSpeechRepository(root).voices().single())
-        val lease = repository.acquire(first.reference)
-        // Same-sized replacement content is accepted without a model digest comparison.
-        val replacement = archive("after!")
-        val next = repository.install(replacement, plan(firstPackage))
-        assertEquals(first.reference.id, next.reference.id)
-        assertNotEquals(first.reference.revision, next.reference.revision)
-        assertEquals("tokens", File(lease.resources.directory, "tokens.txt").readText())
-        lease.close()
-        assertFalse(lease.resources.directory.exists())
-        val current = repository.acquire(next.reference)
-        assertEquals("after!", File(current.resources.directory, "tokens.txt").readText())
-        repository.delete(next.reference)
-        assertTrue(repository.voices().isEmpty())
-        assertTrue(current.resources.directory.isDirectory)
-        assertThrows(NoSuchElementException::class.java) { repository.acquire(next.reference) }
-        val reimported = repository.install(replacement, plan(replacement))
-        assertNotEquals(next.reference.revision, reimported.reference.revision)
-        current.close()
-        assertFalse(current.resources.directory.exists())
-        repository.acquire(reimported.reference).use { assertTrue(it.resources.directory.isDirectory) }
-        repository.delete(reimported.reference)
-        assertTrue(repository.voices().isEmpty())
     }
 
     @Test fun changedPreviewAndEscapedArchiveNeverPublishOrLeaveStagingFiles() = runBlocking {

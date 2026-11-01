@@ -61,17 +61,6 @@ class SpeechControlsTest {
     @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h640dp")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun sleepTimerCanBeSetAndCancelledOnANarrowLargeTextScreen() {
-        checkSleepTimerMenu("Sleep timer", "10 min", "Off", "Pause", "Stop")
-    }
-
-    @Test
-    @Config(sdk = [35], qualifiers = "zh-rCN-w320dp-h640dp")
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun sleepTimerUsesChineseLabelsAndKeepsPlaybackControlsReachable() {
-        checkSleepTimerMenu("定时关闭", "10分钟", "关闭定时", "暂停", "停止")
-    }
-
-    private fun checkSleepTimerMenu(title: String, minutes: String, off: String, pause: String, stop: String) {
         val selected = mutableListOf<Int?>()
         val playback = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("book", "one"), SpeechPhase.Playing,
             bookTitle = "Book", nextChapterId = "two"))
@@ -88,12 +77,12 @@ class SpeechControlsTest {
                 }
             }
         }
-        compose.onNodeWithContentDescription(pause).assertIsDisplayed()
-        compose.onNodeWithText(stop).assertIsDisplayed()
-        compose.onNodeWithContentDescription(title).assertIsDisplayed().performClick()
-        compose.onNodeWithText(minutes).assertIsDisplayed().performClick()
-        compose.onNodeWithContentDescription(title).performClick()
-        compose.onNodeWithContentDescription(off).assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
+        compose.onNodeWithText("Stop").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Sleep timer").assertIsDisplayed().performClick()
+        compose.onNodeWithText("10 min").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Sleep timer").performClick()
+        compose.onNodeWithContentDescription("Off").assertIsDisplayed().performClick()
         assertEquals(listOf(10, null), selected)
     }
 

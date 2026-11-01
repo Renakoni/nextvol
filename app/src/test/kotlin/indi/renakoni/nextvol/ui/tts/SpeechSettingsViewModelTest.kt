@@ -80,7 +80,7 @@ class SpeechSettingsViewModelTest {
         every { controller.state } returns playback
         val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
         try {
-            library.state.first { !it.busy }
+            library.state.first { it.loaded }
             library.previewVoice("candidate", "Sample.")
             verify { controller.preview("Sample.", settings.value.copy(httpSource = "candidate")) }
             coVerify(exactly = 0) { repository.update(any()) }
@@ -97,14 +97,16 @@ class SpeechSettingsViewModelTest {
         val definition = hnovel.speech.previewHttpSpeech(
             """{"name":"Package voice","url":"https://speech.example.invalid/audio"}""").sources.single()
         var saved = emptyList<SavedHttpSpeechSource>()
+        val changes = MutableStateFlow(0L)
+        every { http.changes } returns changes
         coEvery { http.sources() } coAnswers { saved }
-        coEvery { http.save(any()) } coAnswers { saved = firstArg() }
+        coEvery { http.save(any()) } coAnswers { saved = firstArg(); changes.value++ }
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
         val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
         try {
-            library.state.first { !it.busy }
+            library.state.first { it.loaded }
             library.previewPackage(listOf(definition), null)
             assertEquals(definition.id, library.state.value.pending!!.single().definition.id)
             assertEquals(listOf("https://speech.example.invalid:443"), library.state.value.pending!!.single().origins)
@@ -113,7 +115,7 @@ class SpeechSettingsViewModelTest {
             assertNull(library.state.value.pending)
             library.previewPackage(listOf(definition), null)
             library.confirmImport()
-            library.state.first { !it.busy }
+            library.state.first { !it.busy && it.sources.isNotEmpty() }
             coVerify(exactly = 1) { http.save(any()) }
             assertNull(library.state.value.pending)
             assertEquals(definition.id, library.state.value.sources.single().definition.id)

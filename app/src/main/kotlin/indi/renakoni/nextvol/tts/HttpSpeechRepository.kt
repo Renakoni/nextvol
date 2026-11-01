@@ -121,9 +121,9 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     suspend fun saveVoice(source: SavedHttpSpeechSource) = change { current ->
-        require(source.definition.id in combined(current).map { it.definition.id } || !source.definition.id.startsWith(BUILT_IN_PREFIX))
-        val credentials = combined(current).find { it.definition.id == source.definition.id }?.credentials ?: source.credentials
-        current.filterNot { it.definition.id == source.definition.id } + source.copy(credentials = credentials)
+        val previous = combined(current).find { it.definition.id == source.definition.id }
+        require(previous != null || !source.definition.id.startsWith(BUILT_IN_PREFIX))
+        current.filterNot { it.definition.id == source.definition.id } + source.copy(credentials = previous?.credentials ?: source.credentials)
     }
 
     suspend fun enable(ids: Set<String>, enabled: Boolean) = change { current ->
@@ -213,7 +213,12 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         }
     }
 
-    private fun read() = readStored().let { cleanAvatars(it); combined(it) }
+    private var recoveredAvatars = false
+
+    private fun read() = readStored().let {
+        if (!recoveredAvatars) { cleanAvatars(it); recoveredAvatars = true }
+        combined(it)
+    }
 
     private fun combined(stored: List<SavedHttpSpeechSource>): List<SavedHttpSpeechSource> {
         val overrides = stored.associateBy { it.definition.id }
