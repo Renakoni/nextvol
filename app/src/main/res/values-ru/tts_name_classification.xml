@@ -1,0 +1,19 @@
+<resources>
+    <string name="tts_name_male_rule">Шаблон мужских имён</string>
+    <string name="tts_name_female_rule">Шаблон женских имён</string>
+    <string name="tts_name_rule_empty">Не задан</string>
+    <string name="tts_name_rule_scope">Если китайская модель не может классифицировать имя, выражение должно совпасть с ним целиком. Мужской шаблон имеет приоритет. Пустой шаблон отключён.</string>
+    <string name="tts_name_classification_test">Проверка классификации имён</string>
+    <string name="tts_name_classification_scope">Подсказка для выбора голоса: сначала китайская модель имён, затем заданные шаблоны. Результат не определяет пол персонажа.</string>
+    <string name="tts_name_classification_input">Имя</string>
+    <string name="tts_name_classification_run">Классифицировать</string>
+    <string name="tts_name_classification_unavailable">Китайской модели нужны Android 8 или новее и встроенная библиотека arm64. Шаблоны имён доступны.</string>
+    <string name="tts_name_classification_error">Не удалось классифицировать имя: %1$s</string>
+    <string name="tts_name_hint_male">Мужская подсказка</string>
+    <string name="tts_name_hint_female">Женская подсказка</string>
+    <string name="tts_name_hint_unknown">Неизвестно</string>
+    <string name="tts_name_basis_model">Основание: китайская модель имён</string>
+    <string name="tts_name_basis_male">Совпадение с мужским шаблоном</string>
+    <string name="tts_name_basis_female">Совпадение с женским шаблоном</string>
+    <string name="tts_name_basis_none">Нет данных модели или совпадения с шаблоном</string>
+</resources>

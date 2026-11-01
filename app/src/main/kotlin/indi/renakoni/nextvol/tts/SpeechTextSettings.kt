@@ -15,6 +15,8 @@ data class SpeechTextSettings(
     val separateEnglish: Boolean = true,
     val filterUnspoken: Boolean = true,
     val nameDiscoveryAlgorithm: Int = 101,
+    val maleNameRegex: String = "",
+    val femaleNameRegex: String = "",
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault
     val maxSentenceLength: Int = when (Locale.getDefault().language) {

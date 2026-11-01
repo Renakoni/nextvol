@@ -74,3 +74,21 @@ extern "C" JNIEXPORT void JNICALL
 Java_indi_renakoni_nextvol_tts_names_NameModelNative_destroy(JNIEnv *, jobject, jlong handle) {
   delete reinterpret_cast<Ort::Session *>(handle);
 }
+
+extern "C" JNIEXPORT jint JNICALL
+Java_indi_renakoni_nextvol_tts_names_NameModelNative_predict(JNIEnv *env, jobject, jlong handle, jfloatArray input) {
+  try {
+    std::array<float, 5> scores{};
+    env->GetFloatArrayRegion(input, 0, scores.size(), scores.data());
+    if (env->ExceptionCheck()) return 0;
+    std::array<int64_t, 2> shape{1, 5};
+    auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    auto tensor = Ort::Value::CreateTensor<float>(memory, scores.data(), scores.size(), shape.data(), shape.size());
+    const char *inputs[] = {"input_float"};
+    const char *outputs[] = {"output_label"};
+    auto values = reinterpret_cast<Ort::Session *>(handle)->Run(Ort::RunOptions{nullptr}, inputs, &tensor, 1, outputs, 1);
+    if (values[0].GetTensorTypeAndShapeInfo().GetShape() != std::vector<int64_t>{1})
+      throw std::runtime_error("NGR model: expected output_label [1]");
+    return static_cast<jint>(values[0].GetTensorData<int64_t>()[0]);
+  } catch (const std::exception &error) { Fail(env, error); return 0; }
+}
