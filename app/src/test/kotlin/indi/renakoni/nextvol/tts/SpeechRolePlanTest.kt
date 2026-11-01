@@ -34,6 +34,21 @@ class SpeechRolePlanTest {
         assertFalse(plan.nextContext.openDialogue)
     }
 
+    @Test fun textRulesKeepMixedLanguageCorrectionsIntactWhileUnclaimedTextStillSeparates() = runBlocking {
+        val rule = role("甲hello乙").copy(mode = 0)
+        val configured = settings.copy(roleRules = listOf(rule),
+            text = settings.text.copy(separateEnglish = true),
+            replacements = listOf(SpeechReplacementRule(source = "hello乙", target = "好了")))
+        val plan = prepareSpeechPlan(chapter("甲hello乙丙world丁"), configured) {}
+        val matched = plan.segments.single { it.roleMatch?.ruleId == rule.id }
+        assertEquals("甲好了", matched.text)
+        assertEquals(first.key, matched.selectedVoice!!.reference.key)
+        assertNull(matched.language)
+        assertEquals(0 to 7, matched.start to matched.end)
+        assertEquals("甲好了丙world丁", plan.segments.joinToString("") { it.text })
+        assertEquals("world", plan.segments.single { it.language == "lang:latin" }.text)
+    }
+
     @Test fun matchedPeopleAndOriginsSurvivePronunciationReplacementAndBackendSplitting() = runBlocking {
         val concrete = role("甲").copy(regex = "阿甲|甲")
         val abstract = role("家人", second).copy(regex = "小乙|小丙", isAbstract = true)

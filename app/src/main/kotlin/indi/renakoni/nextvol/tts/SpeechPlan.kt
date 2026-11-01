@@ -80,7 +80,8 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
         checkCancelled()
         val (voice, reason) = routing.select(part)
         val languages = if (part.controlMark) listOf(SpeechLanguageSegment(part.content, "lang:mark"))
-            else speechLatinSegments(part.content, settings.separateEnglish, checkCancelled)
+            // P.f.i applies Latin separation only to spans not claimed by a text rule.
+            else speechLatinSegments(part.content, settings.separateEnglish && part.textRule == null, checkCancelled)
         for (language in languages) {
             var corrected = language.content
             if (!part.controlMark) {
@@ -108,7 +109,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
 }
 
 internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
-    speechDigest("speech-text-v3\u0000" + Json.encodeToString(replacements) + "\u0000" +
+    speechDigest("speech-text-v4\u0000" + Json.encodeToString(replacements) + "\u0000" +
         Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag() +
         "\u0000" + Json.encodeToString(narrationVoices) + Json.encodeToString(dialogueVoices) +
         Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured +
