@@ -32,6 +32,15 @@ data class SpeechReplacementFailure(val ruleId: String, val ruleName: String, va
 internal class SpeechReplacementException(val failure: SpeechReplacementFailure) : Exception()
 internal class SpeechRegexException(val problem: SpeechReplacementProblem) : Exception()
 
+/** MultiTTS's editor tests only its draft, including disabled rules, without structural processing. */
+internal suspend fun previewSpeechReplacement(text: String, rule: SpeechReplacementRule,
+    replaceRegex: (suspend (String, String, String) -> List<ReplacementPart>)? = null,
+    checkCancelled: () -> Unit): String {
+    if (text.isEmpty() || rule.source.isEmpty()) return text
+    return SpeechReplacements(listOf(rule.copy(activate = true)), replaceRegex, checkCancelled)
+        .apply(SpeechMappedText.original(text), rule.wholeText).text
+}
+
 /** Compiled only for explicit preview or playback. Loading and saving settings never execute rules. */
 internal class SpeechReplacements(rules: List<SpeechReplacementRule>,
     private val replaceRegex: (suspend (String, String, String) -> List<ReplacementPart>)? = null,

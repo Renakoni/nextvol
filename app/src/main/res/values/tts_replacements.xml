@@ -3,11 +3,8 @@
     <string name="tts_replacements">Replacement rules</string>
     <string name="tts_replace_add">Add rule</string>
     <string name="tts_replace_preview">Preview replacements</string>
-    <string name="tts_replace_ungrouped">Ungrouped</string>
-    <string name="tts_replace_all_groups">All groups</string>
+    <string name="tts_replace_ungrouped">Default group</string>
     <string name="tts_replace_empty">No rules yet</string>
-    <string name="tts_replace_whole">Whole-text replacement</string>
-    <string name="tts_replace_normal">Normal replacement</string>
     <string name="tts_replace_regex">Regular expression</string>
     <string name="tts_replace_actions">Actions for %1$s</string>
     <string name="tts_replace_edit">Edit rule</string>
@@ -30,4 +27,18 @@
     <string name="tts_replace_error_target">Invalid replacement or capture reference</string>
     <string name="tts_replace_error_budget">Execution limit reached; the rule was stopped</string>
     <string name="tts_replace_error_rule">%1$s: %2$s</string>
+    <string name="tts_replace_title">Rules</string>
+    <string name="tts_replace_search">Search rules</string>
+    <string name="tts_replace_menu">Rule options</string>
+    <string name="tts_replace_sort">Sort</string>
+    <string name="tts_replace_sort_ascending">Name, ascending</string>
+    <string name="tts_replace_sort_descending">Name, descending</string>
+    <string name="tts_replace_no_results">No matching rules</string>
+    <string name="tts_replace_collapse">Collapse group</string>
+    <string name="tts_replace_expand">Expand group</string>
+    <string name="tts_replace_test_input">Test text</string>
+    <string name="tts_replace_test_output">Test output</string>
+    <string name="tts_replace_test">Test</string>
+    <string name="tts_replace_name_required">Enter a name</string>
+    <string name="tts_replace_source_required">Enter text to find</string>
 </resources>

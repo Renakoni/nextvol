@@ -16,11 +16,20 @@ import javax.inject.Inject
 /** Android ICU ignores CharSequence checks; the existing isolated worker enforces a hard deadline. */
 class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolatedExecutor,
     private val authority: ExecutionAuthority) {
-    suspend fun prepare(chapter: SpeechChapter, settings: SpeechSettings): SpeechPlan {
+    suspend fun prepare(chapter: SpeechChapter, settings: SpeechSettings): SpeechPlan = withRegexWorker { replace ->
         val task = currentCoroutineContext()
+        prepareSpeechPlan(chapter, settings, replace) { task.ensureActive() }
+    }
+
+    suspend fun previewRule(text: String, rule: SpeechReplacementRule): String = withRegexWorker { replace ->
+        val task = currentCoroutineContext()
+        previewSpeechReplacement(text, rule, replace) { task.ensureActive() }
+    }
+
+    private suspend fun <T> withRegexWorker(block: suspend (suspend (String, String, String) -> List<ReplacementPart>) -> T): T {
         val identity = authority.issue("speech-replacements", "builtin", "1", namespace = "tts")
         try {
-            return prepareSpeechPlan(chapter, settings, replaceRegex = { input, source, target ->
+            return block { input, source, target ->
                 when (val result = executor.execute(identity, ExecutionTask.RegexReplacement(input, source, target),
                     ExecutionLimits(timeoutMillis = 2000, maxOutputBytes = 16 * 1024 * 1024, maxRequests = 0))) {
                     is ExecutionResult.Success -> Json.decodeFromString<List<ReplacementPart>>(result.output)
@@ -31,7 +40,7 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
                         else -> throw SpeechException(SpeechError.ServiceUnavailable)
                     })
                 }
-            }) { task.ensureActive() }
+            }
         } finally { authority.revoke(identity) }
     }
 }

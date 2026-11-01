@@ -12,6 +12,13 @@ class SpeechReplacementRulesTest {
         SpeechReplacements(rules) {}.apply(SpeechMappedText.original(text), wholeText)
     }
 
+    @Test fun editorTestsDisabledDraftWithoutStructuralProcessingAndSkipsEmptySource() = runBlocking {
+        val draft = regex("(重庆)", "<<人物>>$1").copy(activate = false)
+        assertEquals("「<<人物>>重庆」", previewSpeechReplacement("「重庆」", draft) {})
+        assertEquals("原文", previewSpeechReplacement("原文", draft.copy(source = "", target = "插入")) {})
+        assertEquals("", previewSpeechReplacement("", draft.copy(source = "[")) {})
+    }
+
     @Test fun literalBatchMatchesOriginalReplayAndRegexAlwaysFollowsIt() {
         // MultiTTS 1.8.3 p096n6.a.a: earliest input match, list order breaks ties, no rescan.
         assertEquals("乙丙", apply("甲乙", listOf(literal("甲", "乙"), literal("乙", "丙"))).text)
