@@ -187,11 +187,16 @@ class BuiltInSpeechSourcesTest {
     @Test fun legacyStoreMigratesSharedEnginesAndReimportRetainsUserSettings() = runBlocking {
         val engine = SpeechEngineConfig("http_legacy", "Package", "http", url = "https://example.org/old")
         val voice = newHttpVoice(engine).copy(isVoiceCopy = false)
+        val metadata = voice.definition.raw.getValue("multiTts").jsonObject
+        val incomplete = JsonObject(voice.definition.raw + ("multiTts" to JsonObject(metadata +
+            ("engine" to JsonObject(metadata.getValue("engine").jsonObject - "url")))))
         File(directory.root, "http-speech.enc").writeText(JsonArray(listOf(buildJsonObject {
-            put("definition", voice.definition.raw); put("origins", JsonArray(emptyList()))
+            put("definition", incomplete); put("origins", JsonArray(emptyList()))
         })).toString())
         val repository = repository()
         val migrated = repository.engines().single()
+        repository.saveEngine(migrated.copy(enabled = false))
+        assertFalse(repository.sources().single { !it.isBuiltIn }.available)
         val edited = migrated.copy(name = "Mine", url = "https://example.org/edited", header = "{\"X-Test\":\"custom\"}")
         repository.saveEngine(edited)
         repository.save(listOf(voice))

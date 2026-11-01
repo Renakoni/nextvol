@@ -97,7 +97,8 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
     val raw = definition.raw.toMutableMap()
     raw["multiTts"] = JsonObject(metadata + ("engine" to data))
     // Labels/notes do not rebuild a request or invalidate its authorization.
-    if (old["url"] != data["url"] || old["header"] != data["header"]) {
+    if ((old["url"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.url ||
+        (old["header"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.header) {
         val voice = speakerData()
         val converted = previewHttpSpeechPackage(SpeechPackageEngine(engine.code, engine.name, "http", data.packageValue(),
             listOf(SpeechPackageVoice(voice.getValue("code").jsonPrimitive.content, definition.name, voice.packageValue())),
