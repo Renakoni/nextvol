@@ -28,6 +28,8 @@ import androidx.navigation.toRoute
 import android.net.Uri
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechRequest
+import indi.renakoni.nextvol.tts.ReadAloudState
+import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.SpeechError
@@ -42,7 +44,7 @@ import kotlinx.serialization.Serializable
 object SpeechSettingsRoute
 
 @Serializable
-object HttpSpeechSourcesRoute
+data class HttpSpeechSourcesRoute(val voiceKey: String? = null, val configureCredentials: Boolean = false)
 
 @Serializable
 object SpeechEnginesRoute
@@ -88,6 +90,15 @@ data class SpeechPackagePreviewRoute(val uri: String)
 
 fun NavController.navigateToSpeechSettings() = navigate(SpeechSettingsRoute) { launchSingleTop = true }
 
+fun NavController.navigateToSpeechSettings(playback: ReadAloudState) {
+    navigateToSpeechSettings()
+    if (playback.phase == SpeechPhase.Failed && (playback.failedVoice != null ||
+            playback.error == SpeechError.MissingNarrationVoice || playback.error == SpeechError.MissingDialogueVoice)) {
+        navigate(HttpSpeechSourcesRoute(playback.failedVoice?.key,
+            playback.error == SpeechError.HttpLogin || playback.error == SpeechError.HttpAuthentication)) { launchSingleTop = true }
+    }
+}
+
 internal fun NavController.navigateToReadAloudBook(request: SpeechRequest) {
     if (request.isPreview || !isResumed()) return
     navigate(Route.Book.Reader(request.bookId, request.chapterId)) {
@@ -112,7 +123,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
         LaunchedEffect(Unit) { viewModel.refresh() }
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
-            onSources = { nav.navigate(HttpSpeechSourcesRoute) { launchSingleTop = true } },
+            onSources = { nav.navigate(HttpSpeechSourcesRoute()) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
@@ -279,6 +290,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
     composable<HttpSpeechSourcesRoute> { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
+        val route = entry.toRoute<HttpSpeechSourcesRoute>()
         val settingsEntry = remember(entry) { nav.getBackStackEntry<SpeechSettingsRoute>() }
         val viewModel = hiltViewModel<HttpSpeechSourcesViewModel>(settingsEntry)
         val settingsViewModel = hiltViewModel<SpeechSettingsViewModel>(settingsEntry)
@@ -312,6 +324,9 @@ fun NavGraphBuilder.speechSettingsDestination() {
         HttpSpeechSourcesScreen(if (offline.error || settings.error == SpeechError.Storage)
             state.copy(error = R.string.tts_error_storage) else state, nav::popBackStackIfResumed,
             selection = settings.settings, onDialogue = { toggleVoice(true, httpVoice(it)) },
+            focusVoiceKey = route.voiceKey, configureCredentials = route.configureCredentials,
+            focusOfflineEngine = offline.voices.find { "offline:${it.reference.id}" == route.voiceKey }
+                ?.let { it.configuration?.engine ?: "sherpa" },
             onSystemGroup = { settingsViewModel.refresh(systemCatalog = true) },
             catalogReady = state.loaded && offline.loaded,
             onOfflineGroup = offlineViewModel::openEngine,

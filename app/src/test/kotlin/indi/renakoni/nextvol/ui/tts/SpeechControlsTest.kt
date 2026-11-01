@@ -21,6 +21,11 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.ui.book.reader.ReaderTopBar
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
@@ -149,19 +154,63 @@ class SpeechControlsTest {
         assertEquals(listOf(SpeechAction.Resume), actions)
     }
 
-    @Test fun loadingCanBePausedAndFailedPlaybackCanRetry() {
+    @Test fun loadingCanPauseAndFailedVoiceCanRetryOrOpenItsCredentials() {
         val actions = mutableListOf<SpeechAction>()
         val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Preparing))
+        val sources = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState())
+        val definition = hnovel.speech.previewHttpSpeech(
+            """{"id":"cloud-voice","name":"Cloud voice","url":"https://example.org"}""",
+        ).sources.single()
+        val source = SavedHttpSpeechSource(definition, listOf("https://example.org:443"),
+            group = "Cloud engine", credentialKeys = listOf("AppKey"))
+        var configured: Map<String, String>? = null
+        lateinit var nav: NavHostController
         activity.get().setContent {
-            MaterialTheme { ReadAloudControls(state.value, { actions += it }) }
+            MaterialTheme {
+                nav = rememberNavController()
+                NavHost(nav, startDestination = "reader",
+                    enterTransition = { androidx.compose.animation.EnterTransition.None },
+                    exitTransition = { androidx.compose.animation.ExitTransition.None }) {
+                    composable("reader") {
+                        ReadAloudControls(state.value, { actions += it },
+                            onSettings = { nav.navigateToSpeechSettings(state.value) })
+                    }
+                    composable<SpeechSettingsRoute> { androidx.compose.material3.Text("Listening settings") }
+                    composable<HttpSpeechSourcesRoute> { entry ->
+                        val route = entry.toRoute<HttpSpeechSourcesRoute>()
+                        HttpSpeechSourcesScreen(sources.value, {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                            focusVoiceKey = route.voiceKey, configureCredentials = route.configureCredentials,
+                            catalogReady = sources.value.loaded, onConfigure = { target, values ->
+                                assertEquals(source.definition.id, target.definition.id)
+                                configured = values
+                                sources.value = sources.value.copy(configurationSaved = 1)
+                            })
+                    }
+                }
+            }
         }
         compose.mainClock.autoAdvance = false
         compose.onNodeWithContentDescription("Pause").performClick()
-        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.NoEngine) }
+        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.HttpLogin,
+            failedVoice = SpeechVoiceRef(httpSource = source.definition.id, label = source.definition.name)) }
         compose.mainClock.autoAdvance = true
         compose.onNodeWithContentDescription("Retry").performClick()
         assertEquals(listOf(SpeechAction.Pause, SpeechAction.Resume), actions)
         compose.onNodeWithContentDescription("Next passage").assertIsNotEnabled()
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
+            source.definition.name, activity.get().getString(SpeechError.HttpLogin.messageResource))).assertIsDisplayed()
+        compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
+        compose.onNodeWithText("AppKey").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(HttpSpeechSourcesRoute("http:${source.definition.id}", true), nav.currentBackStackEntry!!.toRoute<HttpSpeechSourcesRoute>())
+            nav.getBackStackEntry<SpeechSettingsRoute>()
+            sources.value = sources.value.copy(sources = listOf(source), loaded = true)
+        }
+        compose.onNodeWithText("AppKey").assertIsDisplayed().performTextInput("account-key")
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.confirm)).performClick()
+        assertEquals(mapOf("AppKey" to "account-key"), configured)
+        compose.onNodeWithText("Cloud engine").assertIsSelected()
+        compose.onNodeWithText(source.definition.name).assertIsDisplayed()
     }
 
     @Test
