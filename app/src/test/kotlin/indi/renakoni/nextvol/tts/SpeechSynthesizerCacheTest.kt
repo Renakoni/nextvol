@@ -88,7 +88,7 @@ class SpeechSynthesizerCacheTest {
         } finally { cache.close() }
     }
 
-    @Test fun expiredVoicesAndChangedRevisionsAreNeverReturnedAsCacheHits() = runBlocking {
+    @Test fun changedRevisionsAndResumingAnExpiredVoiceOpenANewEngine() = runBlocking {
         var time = 0L
         val engines = mutableListOf<Engine>()
         val cache = CachedSpeechSynthesizer(SpeechSynthesizerCaches(), {
@@ -100,7 +100,7 @@ class SpeechSynthesizerCacheTest {
             cache.open(first.copy(httpRevision = "2"))
             assertEquals(2, engines.size)
             time = 300_000L
-            cache.open(first.copy(httpRevision = "2"))
+            cache.synthesize("resume", File("unused.wav"))
             assertEquals(listOf(1, 1, 0), engines.map { it.closes })
         } finally { cache.close() }
     }

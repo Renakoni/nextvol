@@ -58,7 +58,6 @@ internal class CachedSpeechSynthesizer(
     private val mutex = Mutex()
     private val cancelled = AtomicBoolean()
     @Volatile private var active: SpeechSynthesizer? = null
-    private var selected: Entry? = null
     private var settings: SpeechSettings? = null
     private var closed = false
     private var inputLimit = Int.MAX_VALUE
@@ -77,7 +76,6 @@ internal class CachedSpeechSynthesizer(
         evict(entries.values.filter { time - it.accessed >= 5 * 60_000L })
         entries[settings]?.let { entry ->
             entry.accessed = time
-            selected = entry
             active = entry.runtime.synthesizer
             inputLimit = active!!.maxInputLength
             trace("hit", settings, entry.runtime.exclusiveGroup, 0)
@@ -101,7 +99,6 @@ internal class CachedSpeechSynthesizer(
             if (cancelled.get()) throw CancellationException("Speech cache cancelled")
             val entry = Entry(settings, runtime, label, now())
             entries[settings] = entry
-            selected = entry
             inputLimit = runtime.synthesizer.maxInputLength
             caches.update(this, entries.size)
             trace("open", settings, runtime.exclusiveGroup, now() - started)
@@ -117,9 +114,7 @@ internal class CachedSpeechSynthesizer(
     }
 
     override suspend fun synthesize(text: String, output: File): List<SpeechTiming> = mutex.withLock {
-        val entry = selected ?: select(checkNotNull(settings))
-        if (cancelled.get()) throw CancellationException("Speech cache cancelled")
-        entry.accessed = now()
+        val entry = select(checkNotNull(settings))
         entry.runtime.synthesizer.synthesize(text, output).also { entry.accessed = now() }
     }
 
@@ -153,7 +148,7 @@ internal class CachedSpeechSynthesizer(
             var failure: Throwable? = null
             for (entry in removed) {
                 entries.remove(entry.settings)
-                if (selected === entry) { selected = null; active = null }
+                if (active === entry.runtime.synthesizer) active = null
                 val started = now()
                 try { entry.runtime.synthesizer.close() }
                 catch (error: Throwable) {
