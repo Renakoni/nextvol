@@ -79,8 +79,10 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
                     leadingIcon = { Icon(painterResource(R.drawable.checklist_24px), null) }, enabled = !busy,
                     onClick = { menu = false; onManage() })
                 DropdownMenuItem(text = { Text(stringResource(R.string.tts_import_sources)) }, enabled = !busy,
+                    leadingIcon = { Icon(painterResource(R.drawable.input_24px), null) },
                     onClick = { menu = false; onImport() })
                 if (onRefresh != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_refresh)) }, enabled = !busy,
+                    leadingIcon = { Icon(painterResource(R.drawable.refresh_24px), null) },
                     onClick = { menu = false; onRefresh() })
             }
         }

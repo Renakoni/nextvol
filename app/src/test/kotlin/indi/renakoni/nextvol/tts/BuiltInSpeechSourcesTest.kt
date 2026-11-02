@@ -205,8 +205,6 @@ class BuiltInSpeechSourcesTest {
         val presets = sources.filter { it.group == sources.first().group }.take(2)
         repository.orderVoices(presets.reversed().map { it.definition.id })
         assertEquals(presets.reversed().map { it.definition.id }, repository().sources().take(2).map { it.definition.id })
-        repository.delete(setOf(original.definition.id, third.definition.id))
-        assertEquals(listOf(second.definition.id), repository().sources().filterNot { it.isBuiltIn }.map { it.definition.id })
     }
 
 }

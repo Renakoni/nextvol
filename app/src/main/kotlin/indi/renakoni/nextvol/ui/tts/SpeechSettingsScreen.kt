@@ -297,12 +297,10 @@ internal fun SystemSpeechSettings(
 }
 
 @Composable
-internal fun SpeechPlaybackBar(state: ReadAloudState, onCommand: (SpeechAction) -> Unit, onOpen: () -> Unit,
-    navigationPadding: Boolean = true) {
+internal fun SpeechPlaybackBar(state: ReadAloudState, onCommand: (SpeechAction) -> Unit, onOpen: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
-            Modifier.fillMaxWidth().then(if (navigationPadding) Modifier.navigationBarsPadding() else Modifier)
-                .padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {

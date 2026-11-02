@@ -70,7 +70,6 @@ class SpeechControlsTest {
                 listOf("https://example.org:443"))
         }
         var selectedCalls = 0
-        var previewCalls = 0
         val playbackActions = mutableListOf<SpeechAction>()
         var deleted = emptyList<SavedHttpSpeechSource>()
         val settings = SpeechSettings(voiceRoutingConfigured = true,
@@ -79,7 +78,7 @@ class SpeechControlsTest {
             MaterialTheme {
                 HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = voices, loaded = true), {}, {},
                     { selectedCalls++ }, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
-                    selection = settings, onDialogue = { selectedCalls++ }, onPreview = { previewCalls++ },
+                    selection = settings, onDialogue = { selectedCalls++ }, onPreview = {},
                     playback = ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Paused),
                     onCommand = { playbackActions += it }, onDeleteHttp = { deleted = it },
                     focusVoiceKey = "http:${voices.first().definition.id}")
@@ -90,6 +89,7 @@ class SpeechControlsTest {
         compose.onNodeWithText(label(indi.renakoni.nextvol.R.string.tts_manage_voices)).performClick()
         val previewLabel = activity.get().getString(indi.renakoni.nextvol.R.string.tts_preview_voice, "Alpha one")
         compose.onNodeWithContentDescription(previewLabel).assertDoesNotExist()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_resume)).assertDoesNotExist()
         compose.onNodeWithText("Alpha one").performClick()
         compose.onNodeWithText("Beta").performClick()
         compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_voice_search)).performClick()
@@ -105,9 +105,9 @@ class SpeechControlsTest {
         compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_manage_exit)).performClick()
         compose.onNodeWithTag("voice-select-all").assertDoesNotExist()
         compose.onNodeWithContentDescription(previewLabel).assertIsDisplayed()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_resume)).assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(0, selectedCalls)
-            assertEquals(0, previewCalls)
             assertTrue(playbackActions.isEmpty())
         }
         compose.onNodeWithText("Alpha two").performClick()

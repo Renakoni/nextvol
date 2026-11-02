@@ -193,9 +193,9 @@ internal fun HttpSpeechSourcesScreen(
     }
     val currentHttp = filteredSources.filter { "http:${groupId(it)}" == currentGroup }
     val currentOffline = filteredOffline.filter { "offline:${it.configuration?.engine ?: "sherpa"}" == currentGroup }
-    val selectableKeys = currentHttp.filterNot { it.isBuiltIn }.map { "http:${it.definition.id}" } +
-        currentOffline.map { "offline:${it.reference.id}" }
-    val visibleChecked = selectableKeys.filter { it in checked }
+    val selectableKeys = (currentHttp.filterNot { it.isBuiltIn }.map { "http:${it.definition.id}" } +
+        currentOffline.map { "offline:${it.reference.id}" }).toSet()
+    val visibleChecked = checked.intersect(selectableKeys)
     LaunchedEffect(state.sources, offlineVoices) {
         val existing = state.sources.map { "http:${it.definition.id}" } + offlineVoices.map { "offline:${it.reference.id}" }
         checked = checked.intersect(existing.toSet())
@@ -205,16 +205,14 @@ internal fun HttpSpeechSourcesScreen(
             onImport, onRefresh, onManage = if (currentGroup != "system") ({ managing = true }) else null,
             selectedCount = if (managing) visibleChecked.size else null, onExitManagement = exitManagement)
     }, bottomBar = {
-        Column {
-            if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true }, navigationPadding = !managing)
-            if (managing) SpeechVoiceManagementBar(selectableKeys.isNotEmpty(), checked.isNotEmpty(), visibleChecked.isNotEmpty(),
-                state.busy, onAll = { checked = selectableKeys.toSet() }, onNone = { checked = emptySet() },
-                onInverse = { checked = (checked - selectableKeys.toSet()) + (selectableKeys.toSet() - checked) },
-                onDelete = {
-                    onDeleteHttp(currentHttp.filter { "http:${it.definition.id}" in visibleChecked })
-                    onDeleteOffline(currentOffline.filter { "offline:${it.reference.id}" in visibleChecked })
-                })
-        }
+        if (managing) SpeechVoiceManagementBar(selectableKeys.isNotEmpty(), checked.isNotEmpty(), visibleChecked.isNotEmpty(),
+            state.busy, onAll = { checked = selectableKeys }, onNone = { checked = emptySet() },
+            onInverse = { checked = (checked - selectableKeys) + (selectableKeys - checked) },
+            onDelete = {
+                if (currentGroup.startsWith("offline:")) onDeleteOffline(currentOffline.filter { "offline:${it.reference.id}" in visibleChecked })
+                else onDeleteHttp(currentHttp.filter { "http:${it.definition.id}" in visibleChecked })
+            })
+        else if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (!catalogReady) return@Column

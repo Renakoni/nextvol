@@ -203,6 +203,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val previous = combined(stored.sources, stored.engines)
             val updatedStore = update(stored)
             val updated = updatedStore.sources
+            val sources = combined(updated, updatedStore.engines)
             require(updated.size <= 512 && updated.map { it.definition.id }.distinct().size == updated.size)
             val entries = JsonArray(updated.map { source ->
                 require(source.origins.size <= 32 && source.origins.all { sourceOrigin(it) == it })
@@ -218,7 +219,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val raw = buildJsonObject {
                 put("sources", entries)
                 put("engines", Json.encodeToJsonElement(updatedStore.engines))
-                val ids = combined(updated, updatedStore.engines).map { it.definition.id }.toSet()
+                val ids = sources.map { it.definition.id }.toSet()
                 put("voiceOrder", Json.encodeToJsonElement(updatedStore.voiceOrder.filter { it in ids }))
             }.toString().toByteArray(Charsets.UTF_8)
             BridgeWire.validate(raw, MAX_BYTES)
@@ -227,7 +228,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
             cleanAvatars(updated)
-            val sources = combined(updated, updatedStore.engines)
             previous.filter { old -> sources.none { it.definition.id == old.definition.id &&
                 old.sameExecution(it) } }.forEach { old ->
                 authority.revokeSource(old.definition.id, "speech")

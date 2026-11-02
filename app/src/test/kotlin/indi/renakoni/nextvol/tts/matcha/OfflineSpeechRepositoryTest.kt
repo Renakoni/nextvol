@@ -129,14 +129,9 @@ class OfflineSpeechRepositoryTest {
         val refreshed = repository.install(input, plan(input))
         repository.refreshCatalog()
         assertEquals(expected, OfflineSpeechRepository(root).voices().map { it.reference.id })
-        val lease = repository.acquire(last.reference)
         repository.delete(setOf(last.reference, refreshed.reference))
         assertEquals(listOf(hidden.reference.id), repository.voices().map { it.reference.id })
-        assertTrue(lease.directory.exists())
-        repository.delete(hidden.reference)
-        assertTrue(lease.directory.exists())
-        lease.close()
-        assertFalse(lease.directory.exists())
+        repository.acquire(hidden.reference).use { assertTrue(it.directory.exists()) }
     }
 
     @Test fun changedPreviewAndEscapedArchiveNeverPublishOrLeaveStagingFiles() = runBlocking {

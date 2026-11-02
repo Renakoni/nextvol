@@ -375,7 +375,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
             val dismiss = { deleting = emptyList(); deletingHttp = emptyList() }
             AlertDialog(onDismissRequest = dismiss, title = { Text(stringResource(R.string.tts_remove_source)) },
                 text = { Text(stringResource(R.string.tts_voice_delete_confirm, deleting.size + deletingHttp.size)) },
-                confirmButton = { TextButton(onClick = { offlineViewModel.delete(deleting); viewModel.delete(deletingHttp); dismiss() }) {
+                confirmButton = { TextButton(onClick = {
+                    if (deleting.isNotEmpty()) offlineViewModel.delete(deleting) else viewModel.delete(deletingHttp)
+                    dismiss()
+                }) {
                     Text(stringResource(R.string.confirm))
                 } }, dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } })
         }
