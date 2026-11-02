@@ -1,6 +1,7 @@
 package hnovel.speech
 
 import hnovel.execution.BridgeWire
+import hnovel.rules.RequestOptionsJson
 import kotlinx.serialization.json.*
 
 internal fun speechParameterJson(text: String, field: String): JsonElement = try {
@@ -18,7 +19,7 @@ data class SpeechExtensionControl(
 
 fun speechExtensionControls(text: String): List<SpeechExtensionControl> {
     if (text.isBlank()) return emptyList()
-    val array = speechParameterJson(text, "extendUI") as? JsonArray
+    val array = RequestOptionsJson.parse(text) as? JsonArray
         ?: configurationFailure(MatchaPackageError.Parameters, "extendUI")
     return speechExtensionControls(array)
 }
@@ -42,7 +43,7 @@ private fun speechExtensionControls(array: JsonArray): List<SpeechExtensionContr
 }
 
 fun updateSpeechExtension(text: String, code: String, value: String): String {
-    val array = speechParameterJson(text, "extendUI") as? JsonArray
+    val array = RequestOptionsJson.parse(text) as? JsonArray
         ?: configurationFailure(MatchaPackageError.Parameters, "extendUI")
     val controls = speechExtensionControls(array)
     val control = controls.single { it.code == code }

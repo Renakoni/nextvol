@@ -91,8 +91,8 @@ internal fun describeSpeechPackage(
         if (definition == null) notices += SpeechPackageNotice.MissingEngine
         if (speakers.isEmpty()) notices += SpeechPackageNotice.MissingVoices
         if (speakers.any { it.code.isBlank() }) notices += SpeechPackageNotice.ConfigurationRequired
-        if (type == "http") {
-            if (definition?.values?.get("url").text().isNullOrBlank()) notices += SpeechPackageNotice.MissingRequest
+        if (isOnlineSpeechEngine(code, type)) {
+            if (type == "http" && definition?.values?.get("url").text().isNullOrBlank()) notices += SpeechPackageNotice.MissingRequest
             notices += SpeechPackageNotice.ImportPending
         } else notices += SpeechPackageNotice.UnsupportedEngine
         if (code == "sherpa") speakers.forEach { speaker ->
@@ -122,7 +122,7 @@ internal fun describeSpeechPackage(
         val missing = notices.any { it in setOf(SpeechPackageNotice.MissingEngine, SpeechPackageNotice.MissingVoices,
             SpeechPackageNotice.MissingRequest, SpeechPackageNotice.ConfigurationRequired) }
         SpeechPackageEngine(code, definition?.values?.get("name").text() ?: code, type, definition, speakers,
-            when { missing -> SpeechPackageSupport.NeedsConfiguration; type == "http" -> SpeechPackageSupport.HttpAdapter
+            when { missing -> SpeechPackageSupport.NeedsConfiguration; isOnlineSpeechEngine(code, type) -> SpeechPackageSupport.HttpAdapter
                 else -> SpeechPackageSupport.Unsupported }, notices.toList(), required.distinct())
     }
     if (kinds.isEmpty()) kinds += SpeechPackageKind.Unknown

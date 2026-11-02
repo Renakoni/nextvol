@@ -9,11 +9,18 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
     val name: String get() = raw.getValue("name").jsonPrimitive.content
     val url: String get() = raw.getValue("url").jsonPrimitive.content
     val revision: String = digest(raw.canonical().toString())
-    internal val microsoft: MicrosoftSpeechConfiguration? by lazy { MicrosoftSpeechConfiguration.recognize(this) }
-    val usesMicrosoftTranslator: Boolean get() = microsoft != null
+    internal val microsoft: MicrosoftSpeechConfiguration? by lazy {
+        if (nativeEngine == "mstrans") MicrosoftSpeechConfiguration.fromPackage(requireNotNull(multiTts))
+        else MicrosoftSpeechConfiguration.recognize(this)
+    }
+    val usesMicrosoftTranslator: Boolean get() = nativeEngine == "mstrans" || microsoft != null
     internal val multiTts: JsonObject? get() = (raw["multiTts"] as? JsonObject)?.takeIf { metadata ->
         val engine = metadata["engine"] as? JsonObject
-        (engine?.get("type") as? JsonPrimitive)?.contentOrNull == "http"
+        engine != null && isOnlineSpeechEngine((engine["code"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            (engine["type"] as? JsonPrimitive)?.contentOrNull)
+    }
+    internal val nativeEngine: String? get() = multiTts?.get("engine")?.jsonObject?.let {
+        if ((it["type"] as? JsonPrimitive)?.contentOrNull == "http") null else it["code"]?.jsonPrimitive?.contentOrNull
     }
     val usesMultiTts: Boolean get() = multiTts != null
     val unknownFields: Set<String> get() = raw.keys - fields
@@ -84,7 +91,7 @@ fun previewHttpSpeech(text: String): SpeechImportPreview {
         is JsonArray -> element.toList()
         else -> return failed(SpeechImportError.InvalidJson)
     }
-    if (entries.size > 512) return failed(SpeechImportError.TooLarge)
+    if (entries.size > 1024) return failed(SpeechImportError.TooLarge)
     val sources = mutableListOf<HttpSpeechDefinition>()
     val issues = mutableListOf<SpeechImportIssue>()
     val seen = mutableSetOf<String>()

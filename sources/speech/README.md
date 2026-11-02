@@ -4,7 +4,7 @@ This module imports HTTP TTS definitions and returns bounded audio bytes. Androi
 
 ## Definitions and requests
 
-- Import previews accept an object or a list (4 MiB, 512 entries, bounded JSON depth). IDs remain exact strings, including large numeric IDs; definitions without IDs receive a canonical SHA-256 identity. Unknown fields and original scripts survive saving and editing.
+- Import previews accept an object or a list (4 MiB, 1024 entries, bounded JSON depth). IDs remain exact strings, including large numeric IDs; definitions without IDs receive a canonical SHA-256 identity. Unknown fields and original scripts survive saving and editing.
 - `speakText` and `speakSpeed` are bound only for speech execution. The reference configuration's `speed=5` maps to script `speakSpeed=10`; an application rate of 1.0 maps to 10. Each provider's script still determines what that value means to its service.
 - Original static expressions or a terminal `@js:`/`<js>` rule execute in the existing isolated worker. Generated request strings, nested requests and substituted book text are data, not another round of templates. Speech requests do not expand book-source page alternatives.
 - Requests use `SourceBroker` origin grants, cancellation, cookies, pacing and redirect checks. A redirect or dynamically returned audio origin can require a separate user grant. Denial diagnostics contain origins only, never paths, queries or credentials.
@@ -20,6 +20,25 @@ The adapter obtains its signing material from the selected definition. It genera
 Approving the Translator origin also approves this adapter's regional Microsoft speech service, as shown during import and website editing. The authentication response supplies a validated region label, never an arbitrary URL. Only a host-owned request receives the derived exact HTTPS origin; general source scripts do not receive that grant. Authentication and synthesis redirects are disabled.
 
 This compatibility path is distinct from Edge WebSocket and Azure subscription-key authentication. Its fixed protocol signing constant is not an Azure subscription key or a user account.
+
+## MultiTTS mstrans packages
+
+The dedicated `code: mstrans`, `type: inner` adapter imports the Chinese/English and all-language packages directly. It retains every locale, voice code, parameter and extension control. Engine and speaker edits, reimport identity, encrypted storage (1024 imported entries), previews and chapter playback use the existing online catalog and session. Importing and opening the preview perform no authentication, network, script or native execution.
+
+The mapping follows MultiTTS 1.8.3 (84), APK SHA-256 `d3f7736b1bf162829677c0772a344696f8f5940e99f45879aa5e26070d0416af`: REA `F6.o` constructor (`ev_50c75d67760c889816fc9ccb2045d37169aac3a9c50b74dfb9b375fc83591370`) and synthesis (`ev_68f71924ec7ff85a02e02612a9b62debd4969cd0e6bad05bde4a0a53909385ac`), `F6.b.g` authentication (`ev_69a126911aa5e274ebfeb0667eb9332fa3cadb232a33916a86422cbef3bf7438`), and `R6.i.f` input units (`ev_4915b8b1c919d040d5be6052c705f29c402f97795c3a45954d32e7bab268218c`). These are static observations, not APK runtime captures.
+
+| Field | Execution |
+| --- | --- |
+| Engine `param.authHost` | HTTPS authentication host; defaults to dev.microsofttranslator.com. Its origin needs approval before connecting; only its successful response derives the bounded Microsoft regional grant. |
+| Engine `param.audioFormat` | Sent as X-Microsoft-OutputFormat; defaults to audio-24khz-48kbitrate-mono-mp3. Raw PCM formats cannot be played by the current container-based player. |
+| Speaker `code`, `locale` | Code identifies the saved speaker; locale supplies SSML xml:lang, without a zh/en allowlist. |
+| Speaker `param` | Ordered voice name, role, style, style degree, optional language skill. Defaults: Default, Default, 1.0, no lang wrapper. Optional slots resolve @extendUI values; an empty slot ends optional parsing as in the original. |
+| Application synthesis rate/volume | Native SSML: int(rate × 40)%, int(volume × 50), with pitch 0%. Thus default 1.0 maps to 40% / 50, independently of the audited script recipes. |
+| Speaker speed/volume/pitch/sampleRate | Preserved for common audio processing #814; not applied by this native backend or claimed as implemented effects. |
+
+The native adapter shares the existing session-local token cache, one refresh on 401, origin/address policy, timeout, cancellation, response limit and player. Fixed client-protocol signing material comes from the original adapter; no account credential or token is persisted in logs. Original random X-Forwarded-For spoofing is not needed for the observed service requests and is omitted. Editable SSML attributes and book text are escaped, avoiding the original attribute interpolation defect.
+
+On 2026-11-01 the actual Kotlin adapter statically imported 163 and 579 voices from the local packages and synthesized Chinese special-character text, Japanese and German through SourceBroker. The three results were MP3, 24 kHz, mono. This records public-service behavior at that time, separately from deterministic tests; it does not guarantee every catalog voice remains available from Microsoft.
 
 ## Verification
 

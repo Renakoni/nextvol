@@ -20,8 +20,27 @@ import kotlin.math.roundToInt
 /** Compatibility with two audited Translator recipes, not permission to run arbitrary Java code. */
 internal class MicrosoftSpeechConfiguration private constructor(
     val voice: String, val language: String, val key: ByteArray, val headers: Map<String, String>,
+    val authUrl: String = MicrosoftSpeechClient.AUTH_URL,
+    val outputFormat: String = "audio-24khz-160kbitrate-mono-mp3",
+    val packageVoice: MicrosoftPackageVoice? = null,
 ) {
     companion object {
+        fun fromPackage(metadata: JsonObject): MicrosoftSpeechConfiguration {
+            val engine = metadata.getValue("engine").jsonObject
+            val parameters = engine.string("param")
+            val speaker = MicrosoftPackageVoice(metadata.getValue("voice").jsonObject)
+            val locale = Locale.getDefault()
+            return MicrosoftSpeechConfiguration(speaker.name, speaker.language,
+                Base64.getDecoder().decode("oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw=="),
+                mapOf("Accept-Language" to locale.language, "X-ClientVersion" to "4.0.542a 2b44aba7",
+                    "X-UserId" to "697359b46d2cc641", "X-HomeGeographicRegion" to "${locale.language}-${locale.country}",
+                    "X-ClientTraceId" to UUID.randomUUID().toString(), "User-Agent" to "okhttp/4.5.0",
+                    "Content-Type" to "application/json; charset=utf-8"),
+                microsoftPackageAuthUrl(parameters),
+                microsoftPackageParameters(parameters)["audioFormat"]?.jsonPrimitive?.contentOrNull ?: "audio-24khz-48kbitrate-mono-mp3",
+                speaker)
+        }
+
         private const val FIXED_VOICE = "3a395afea23c8c4068dab8e305f2255838410becd7ab65c480722e0e5a0a3365"
         private const val HEADER_VOICE = "0e307b3c9f8956211e668a68ca097460141caef163f226b5f4a23a191f0f408d"
         private val parameters = listOf("(voiceName = )'([^']+)'", "(lang = )'([^']+)'",
@@ -65,14 +84,14 @@ internal class MicrosoftSpeechClient(
     private class Token(val region: String, val authorization: String, val receivedAt: Long)
     private var token: Token? = null
 
-    suspend fun synthesize(text: String, rate: Float): ByteArray {
+    suspend fun synthesize(text: String, rate: Float, volume: Float = 1f): ByteArray {
         var active = token?.takeIf { clock() - it.receivedAt in 0 until 480_000 } ?: authenticate().also { token = it }
-        var response = audio(active, text, rate)
+        var response = audio(active, text, rate, volume)
         // Expired credentials get one refresh. Do not retry rate limits or arbitrary service errors.
         if (response.status == 401) {
             token = null
             active = authenticate().also { token = it }
-            response = audio(active, text, rate)
+            response = audio(active, text, rate, volume)
         }
         if (response.status == 401) token = null
         if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
@@ -80,7 +99,7 @@ internal class MicrosoftSpeechClient(
     }
 
     private suspend fun authenticate(): Token {
-        val response = execute(BrokerRequest("microsoft-token", AUTH_URL, method = "POST", body = "",
+        val response = execute(BrokerRequest("microsoft-token", configuration.authUrl, method = "POST", body = "",
             headers = configuration.headers + ("X-MT-Signature" to signature(configuration.key)), kind = ResourceKind.Api,
             followRedirects = false, maxResponseBytes = 64 * 1024))
         if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
@@ -94,11 +113,11 @@ internal class MicrosoftSpeechClient(
         } catch (_: IllegalArgumentException) { throw HttpSpeechException(HttpSpeechError.InvalidSource) }
     }
 
-    private suspend fun audio(token: Token, text: String, rate: Float) = execute(BrokerRequest("microsoft-audio",
+    private suspend fun audio(token: Token, text: String, rate: Float, volume: Float) = execute(BrokerRequest("microsoft-audio",
         "https://${token.region}.tts.speech.microsoft.com/cognitiveservices/v1", method = "POST",
         headers = mapOf("Authorization" to token.authorization, "Content-Type" to "application/ssml+xml",
-            "X-Microsoft-OutputFormat" to "audio-24khz-160kbitrate-mono-mp3"),
-        body = ssml(configuration.voice, configuration.language, text, rate), kind = ResourceKind.Api,
+            "X-Microsoft-OutputFormat" to configuration.outputFormat),
+        body = configuration.packageVoice?.ssml(text, rate, volume) ?: ssml(configuration.voice, configuration.language, text, rate), kind = ResourceKind.Api,
         followRedirects = false, maxResponseBytes = MAX_AUDIO_BYTES))
 
     companion object {

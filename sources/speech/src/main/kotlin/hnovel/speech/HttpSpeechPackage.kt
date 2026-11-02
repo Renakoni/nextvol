@@ -16,9 +16,12 @@ class HttpSpeechPackageImport(
 /** Converts request data only. Scripts still run exclusively through HttpSpeechClient after explicit playback. */
 fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImport {
     fun failed(error: HttpSpeechPackageError) = HttpSpeechPackageImport(error = error)
-    if (engine.type != "http") return failed(HttpSpeechPackageError.UnsupportedEngine)
+    if (!engine.isOnline) return failed(HttpSpeechPackageError.UnsupportedEngine)
     val definition = engine.raw ?: return failed(HttpSpeechPackageError.InvalidConfiguration)
-    val template = definition.values["url"].text()?.trim().orEmpty()
+    val template = try {
+        if (engine.type == "http") definition.values["url"].text()?.trim().orEmpty()
+        else microsoftPackageAuthUrl(definition.values["param"].text().orEmpty())
+    } catch (_: IllegalArgumentException) { return failed(HttpSpeechPackageError.InvalidConfiguration) }
     if (template.isEmpty() || engine.voices.any { it.code.isBlank() })
         return failed(HttpSpeechPackageError.InvalidConfiguration)
     if (engine.voices.any { voice ->
@@ -46,7 +49,7 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
                 })
             })
         }.distinctBy { it.id }
-        val configuration = SpeechEngineConfig(engine.code, engine.name, "http",
+        val configuration = SpeechEngineConfig(engine.code, engine.name, engine.type ?: "inner",
             definition.values["param"].text().orEmpty(), definition.values["note"].text().orEmpty(), template, header,
             raw = definition.jsonData().jsonObject)
         HttpSpeechPackageImport(sources, engine = configuration, hasLocalAudioSettings = engine.voices.any { voice ->

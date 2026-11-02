@@ -59,7 +59,7 @@ class HttpSpeechDefinitionTest {
         assertTrue(previewHttpSpeech(quotedBraces).issues.isEmpty())
         assertEquals(SpeechImportError.InvalidJson, previewHttpSpeech("{secret").issues.single().error)
         assertEquals(SpeechImportError.TooLarge, previewHttpSpeech("x".repeat(4 * 1024 * 1024 + 1)).issues.single().error)
-        assertEquals(SpeechImportError.TooLarge, previewHttpSpeech(List(513) { "{}" }.joinToString(",", "[", "]")).issues.single().error)
+        assertEquals(SpeechImportError.TooLarge, previewHttpSpeech(List(1025) { "{}" }.joinToString(",", "[", "]")).issues.single().error)
         val preview = previewHttpSpeech("""{"name":"Voice","url":42,"header":"private"}""")
         assertEquals("url", preview.issues.single().field)
         assertFalse(preview.issues.toString().contains("private"))

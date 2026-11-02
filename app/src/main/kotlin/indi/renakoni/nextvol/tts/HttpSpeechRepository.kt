@@ -8,6 +8,7 @@ import hnovel.execution.ExecutionAuthority
 import hnovel.network.StorageCipher
 import hnovel.network.sourceOrigin
 import hnovel.speech.SpeechEngineConfig
+import hnovel.speech.isOnlineSpeechEngine
 import hnovel.speech.HttpSpeechDefinition
 import hnovel.speech.SpeechPackageValue
 import hnovel.speech.previewHttpSpeech
@@ -46,7 +47,9 @@ data class SavedHttpSpeechSource(
     val isBuiltIn: Boolean get() = group != null
     val importedEngine: JsonObject? get() = if (isBuiltIn) null else
         (definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject
-    val importedEngineCode: String? get() = importedEngine?.takeIf { (it["type"] as? JsonPrimitive)?.contentOrNull == "http" }
+    val importedEngineCode: String? get() = importedEngine?.takeIf {
+        isOnlineSpeechEngine((it["code"] as? JsonPrimitive)?.contentOrNull.orEmpty(), (it["type"] as? JsonPrimitive)?.contentOrNull)
+    }
         ?.get("code")?.let { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }
     val category: String? get() = group ?: (definition.raw["nextvolEngineName"] as? JsonPrimitive)?.contentOrNull
         ?: ((definition.raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject)
@@ -108,19 +111,19 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     suspend fun engines(): List<SpeechEngineConfig> = withContext(Dispatchers.IO) { mutex.withLock { readStored().engines } }
 
     suspend fun saveEngine(engine: SpeechEngineConfig, creating: Boolean = false) = changeStore { store ->
-        require(engine.type == "http" && engine.name.isNotBlank() && engine.code.isNotBlank() && engine.code.none(Char::isISOControl))
+        require(engine.isOnline && engine.name.isNotBlank() && engine.code.isNotBlank() && engine.code.none(Char::isISOControl))
         val previous = store.engines.find { it.code == engine.code }
         require(!creating || previous != null || engine.code.startsWith("http_") && engine.code.length > 5)
         require(!creating || previous == null || previous.deleted)
         require(creating || previous != null)
-        if (!engine.deleted && (previous == null || previous.url != engine.url || previous.header != engine.header))
+        if (!engine.deleted && (previous == null || previous.url != engine.url || previous.header != engine.header || previous.parameters != engine.parameters))
             newHttpVoice(engine)
         val sources = store.sources.map { if (it.importedEngineCode == engine.code) it.withHttpEngine(engine) else it }
         HttpSpeechStore(sources, if (previous == null) store.engines + engine else store.engines.map { if (it.code == engine.code) engine else it })
     }
 
     suspend fun orderEngines(ranks: Map<String, Int>) = changeStore { store ->
-        store.copy(engines = store.engines.map { it.copy(order = ranks["http:${it.code}"] ?: it.order) })
+        store.copy(engines = store.engines.map { it.copy(order = ranks["${it.type}:${it.code}"] ?: it.order) })
     }
 
     suspend fun sources(): List<SavedHttpSpeechSource> = withContext(Dispatchers.IO) { mutex.withLock { read() } }
@@ -197,7 +200,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val previous = combined(stored.sources, stored.engines)
             val updatedStore = update(stored)
             val updated = updatedStore.sources
-            require(updated.size <= 512 && updated.map { it.definition.id }.distinct().size == updated.size)
+            require(updated.size <= 1024 && updated.map { it.definition.id }.distinct().size == updated.size)
             val entries = JsonArray(updated.map { source ->
                 require(source.origins.size <= 32 && source.origins.all { sourceOrigin(it) == it })
                 buildJsonObject {
@@ -274,7 +277,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         val raw = cipher.open(encrypted, IDENTITY)
         val document = Json.parseToJsonElement(BridgeWire.validate(raw, MAX_BYTES)).jsonObject
         val entries = document.getValue("sources").jsonArray
-        require(entries.size <= 512)
+        require(entries.size <= 1024)
         val preview = previewHttpSpeech(JsonArray(entries.map { it.jsonObject.getValue("definition") }).toString())
         require(preview.issues.isEmpty() && preview.sources.size == entries.size)
         val sources = preview.sources.zip(entries) { source, entry ->
