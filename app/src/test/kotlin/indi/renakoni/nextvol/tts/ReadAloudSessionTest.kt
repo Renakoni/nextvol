@@ -956,17 +956,114 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
+    @Test fun mixedVoicesReachSynthesisAndRevisionChangesPreservePausedPreviewReturn() = runTest {
+        val env = Environment(this)
+        val narration = SpeechVoiceRef(engine = "system", voice = "narration")
+        val first = SpeechVoiceRef(httpSource = "person-a")
+        val second = SpeechVoiceRef(offlineVoice = OfflineVoiceRef("person-b", "model-v1"))
+        val third = SpeechVoiceRef(offlineVoice = OfflineVoiceRef("person-c", "model-v1"))
+        env.configuration = SpeechSettings(voiceRoutingConfigured = true, narrationVoices = listOf(narration),
+            dialogueVoices = listOf(first), speakerBookId = "book",
+            speakerVoices = mapOf("甲" to first, "乙" to second, "丙" to third), voiceRevision = "v1",
+            text = SpeechTextSettings(dialogue = true, separateEnglish = false))
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter",
+            "序。“<<甲>>第一句。”“<<乙>>第二句。”“<<丙>>第三句。”“<<甲>>重逢。”") }
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            repeat(3) { env.player.finish(); runCurrent() }
+            assertEquals(listOf(narration.key, first.key, second.key, third.key, first.key),
+                env.synthesizedSettings.map { it.voiceReference().key })
+            assertEquals(third.key, env.session.state.value.voiceLabel)
+            assertEquals(listOf(narration.key, first.key, second.key, third.key),
+                env.player.started.map { it.segment.selectedVoice!!.reference.key })
+            env.session.pause()
+            val previous = env.player.started.last()
+            val revised = third.copy(offlineVoice = third.offlineVoice!!.copy(revision = "model-v2"))
+            env.configuration = env.configuration.copy(voiceRevision = "v2",
+                speakerVoices = env.configuration.speakerVoices + ("丙" to revised))
+            env.session.updateSettings(env.configuration)
+            runCurrent()
+            val current = env.player.started.last()
+            assertNotSame(previous.plan, current.plan)
+            assertEquals(previous.segment.start, current.segment.start)
+            assertEquals(revised.offlineVoice, current.segment.selectedVoice!!.settings.offlineVoice)
+            assertFalse(previous.file.parentFile!!.exists())
+            assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
+            assertFalse(env.player.playing)
+            val bookmark = env.progress.saved.getValue("book")
+            val openedBeforePreview = env.opened.size
+            env.session.start(SpeechRequest("", "", "“<<甲>>试听。”", env.configuration.copy(httpSource = "audition")))
+            runCurrent()
+            assertEquals(listOf("audition"), env.opened.drop(openedBeforePreview).map { it.httpSource })
+            assertTrue(env.opened.drop(openedBeforePreview).none { it.hasVoiceRouting })
+            assertEquals("“<<甲>>试听。”", env.player.started.last().segment.text)
+            assertEquals(bookmark, env.progress.saved.getValue("book"))
+            env.player.finish()
+            runCurrent()
+            assertTrue(env.session.restoreAfterPreview())
+            runCurrent()
+            assertSame(current.plan, env.player.started.last().plan)
+            assertEquals(revised.offlineVoice, env.player.started.last().segment.selectedVoice!!.settings.offlineVoice)
+            assertFalse(env.player.playing)
+            assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
+            assertTrue(env.audioFiles() <= 4)
+        } finally { env.stop() }
+    }
+
+    @Test fun cancellingDuringAVoiceSwitchWaitsForOldSynthesisBeforeOpeningTheReplacement() = runTest {
+        val env = Environment(this)
+        val gate = CompletableDeferred<Unit>()
+        val first = SpeechVoiceRef(httpSource = "first")
+        val second = SpeechVoiceRef(offlineVoice = OfflineVoiceRef("second", "model-v1"))
+        val narration = SpeechVoiceRef(engine = "system", voice = "new-book")
+        env.configuration = SpeechSettings(voiceRoutingConfigured = true, narrationVoices = listOf(narration),
+            dialogueVoices = listOf(first), speakerBookId = "old", speakerVoices = mapOf("甲" to first, "乙" to second),
+            text = SpeechTextSettings(dialogue = true))
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter",
+            if (book == "old") "“<<甲>>第一句。”“<<乙>>第二句。”“不该继续。”" else "新书正文。") }
+        val events = mutableListOf<String>()
+        env.onOpen = { events += "open:${it.voiceReference().key}" }
+        env.onClose = { events += "close" }
+        env.beforeSynthesis = {
+            if (env.synthesizedSettings.last().voiceReference().key == second.key) {
+                withContext(NonCancellable) { gate.await() }
+                events += "old-finished"
+            }
+        }
+        try {
+            env.session.start(SpeechRequest("old", "one"))
+            runCurrent()
+            assertEquals(first.key, env.player.started.single().segment.selectedVoice!!.reference.key)
+            env.session.start(SpeechRequest("middle", "one"))
+            env.session.start(SpeechRequest("new", "one"))
+            runCurrent()
+            assertEquals(listOf("open:${first.key}", "open:${second.key}"), events)
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(listOf("open:${first.key}", "open:${second.key}", "old-finished", "close",
+                "open:${narration.key}"), events)
+            assertEquals(listOf("old", "new"), env.player.started.map { it.chapter.bookId })
+            assertEquals(listOf(first.key, second.key, narration.key), env.synthesizedSettings.map { it.voiceReference().key })
+            assertEquals("new", env.session.state.value.request?.bookId)
+            assertFalse(env.progress.saved.containsKey("middle"))
+        } finally { gate.complete(Unit); env.stop() }
+        assertEquals(0, env.audioFiles())
+    }
+
     private inner class Environment(val scope: TestScope) {
         val text = "这是正常的小说内容，保留顺序并且持续朗读。".repeat(100)
         var load: suspend (String, String) -> SpeechChapter = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", text) }
         var beforeSynthesis: suspend () -> Unit = {}
         var beforeSettings: suspend () -> Unit = {}
+        var onOpen: suspend (SpeechSettings) -> Unit = {}
         var onCancel: () -> Unit = {}
         var onClose: () -> Unit = {}
         var timings = emptyList<SpeechTiming>()
         var configuration = SpeechSettings()
         var inputLimit = Int.MAX_VALUE
         val synthesized = mutableListOf<String>()
+        val synthesizedSettings = mutableListOf<SpeechSettings>()
         val opened = mutableListOf<SpeechSettings>()
         val directory = files.newFolder()
         val progress = MemoryProgress()
@@ -974,10 +1071,17 @@ class ReadAloudSessionTest {
         val session = ReadAloudSession(scope, SpeechChapterSource { book, chapter -> load(book, chapter) },
             { val snapshot = configuration; beforeSettings(); snapshot }, progress, {
                 object : SpeechSynthesizer {
+                    private var activeSettings = SpeechSettings()
                     override val maxInputLength get() = inputLimit
-                    override suspend fun open(settings: SpeechSettings): String { opened += settings; return "Test voice" }
+                    override suspend fun open(settings: SpeechSettings): String {
+                        opened += settings
+                        activeSettings = settings
+                        onOpen(settings)
+                        return settings.voiceReference().key
+                    }
                     override suspend fun synthesize(text: String, output: File): List<SpeechTiming> {
                         synthesized += text
+                        synthesizedSettings += activeSettings
                         beforeSynthesis()
                         output.writeText(text)
                         return timings

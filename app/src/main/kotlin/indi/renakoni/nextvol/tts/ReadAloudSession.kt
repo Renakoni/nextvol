@@ -22,7 +22,8 @@ import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.util.UUID
 
-data class SpeechClip(val plan: SpeechPlan, val index: Int, val file: File, val timings: List<SpeechTiming> = emptyList()) {
+data class SpeechClip(val plan: SpeechPlan, val index: Int, val file: File, val timings: List<SpeechTiming> = emptyList(),
+    val voiceLabel: String = "") {
     val chapter get() = plan.chapter
     val segment get() = plan.segments[index]
     val count get() = plan.segments.size
@@ -112,10 +113,11 @@ class ReadAloudSession(
                     (currentSettings?.takeIf { it !== beforeRead } ?: stored).also { currentSettings = it }
                 }
                 playback.setSpeed(selected.playbackSpeed)
-                val synthesis = selected.synthesisSettings()
-                val voice = provider.open(synthesis)
+                val synthesis = if (request.isPreview) selected.forVoice(selected.voiceReference()) else selected.synthesisSettings()
+                val opened = synthesis.takeUnless { it.hasVoiceRouting }
+                val voice = opened?.let { provider.open(it) }.orEmpty()
+                val limit = if (opened == null) Int.MAX_VALUE else provider.maxInputLength
                 currentCoroutineContext().ensureActive()
-                publish(token) { it.copy(voiceLabel = voice) }
                 val saved = if (resumeSaved && !request.isPreview) progress.load(request.bookId)
                     ?.takeIf { it.bookId == request.bookId && !it.completed } else null
                 // The book entry resumes listening independently of the chapter open in the reader.
@@ -124,7 +126,7 @@ class ReadAloudSession(
                 currentBoundary = boundary ?: saved
                 publish(token) { it.copy(request = target) }
                 stream(token, target, provider, directory, boundary ?: saved, synthesis, reusablePlan,
-                    if (request.isPreview) SpeechContext() else initialContext)
+                    if (request.isPreview) SpeechContext() else initialContext, opened, voice, limit)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -259,8 +261,10 @@ class ReadAloudSession(
     fun reloadSettings() {
         val current = state.value
         if (current.request == null || current.request.isPreview || current.phase in setOf(SpeechPhase.Stopped, SpeechPhase.Completed)) return
-        start(current.request, boundary = currentClip?.let { it.bookmark(it.segment.start) }, playing = wantsPlay,
-            sleepTimerChapters = current.sleepTimerChapters)
+        val context = currentPlan?.context ?: currentBoundary?.context ?: SpeechContext()
+        currentPlan = null
+        start(current.request, boundary = currentClip?.let { it.bookmark(it.segment.start) } ?: currentBoundary, playing = wantsPlay,
+            sleepTimerChapters = current.sleepTimerChapters, initialContext = context)
     }
 
     private sealed interface Step {
@@ -273,12 +277,13 @@ class ReadAloudSession(
 
     private suspend fun stream(token: Long, request: SpeechRequest, provider: SpeechSynthesizer,
         directory: File, saved: SpeechBookmark?, synthesis: SpeechSettings, reusablePlan: SpeechPlan?,
-        initialContext: SpeechContext) = coroutineScope {
-        val maxInputLength = provider.maxInputLength
+        initialContext: SpeechContext, opened: SpeechSettings?, initialLabel: String, maxInputLength: Int) = coroutineScope {
         val processingKey = synthesis.textProcessingKey(maxInputLength)
         // At most one playing file, two buffered files and one synthesis in flight.
         val queue = Channel<Step>(capacity = 2, onUndeliveredElement = { (it as? Step.Ready)?.clip?.file?.delete() })
         launch {
+            var activeSettings = opened
+            var voiceLabel = initialLabel
             var target = request
             var chapter: SpeechChapter? = null
             var plan: SpeechPlan? = null
@@ -314,9 +319,17 @@ class ReadAloudSession(
                         val file = File(directory, UUID.randomUUID().toString() + ".wav")
                         var delivered = false
                         try {
+                            val selected = segment.selectedVoice
+                            selected?.error?.let { throw SpeechException(it) }
+                            val parameters = selected?.settings ?: synthesis
+                            if (activeSettings != parameters) {
+                                // The router closes the previous runtime before acquiring another vendor permit.
+                                voiceLabel = provider.open(parameters)
+                                activeSettings = parameters
+                            }
                             val timings = provider.synthesize(segment.text, file)
                             currentCoroutineContext().ensureActive()
-                            queue.send(Step.Ready(SpeechClip(plan, index, file, timings)))
+                            queue.send(Step.Ready(SpeechClip(plan, index, file, timings, voiceLabel)))
                             delivered = true
                         } finally { if (!delivered) file.delete() }
                     }
@@ -346,6 +359,7 @@ class ReadAloudSession(
                         publish(token) { it.copy(request = request.copy(chapterId = skipped.chapter.id),
                             bookTitle = skipped.chapter.bookTitle, chapterTitle = skipped.chapter.title,
                             segmentIndex = 0, segmentCount = 0, currentText = "", position = null,
+                            planContext = skipped.context,
                             previousChapterId = skipped.chapter.previousId, nextChapterId = skipped.chapter.nextId) }
                         if (!request.isPreview && finishTimerChapter()) return@coroutineScope
                     }
@@ -366,7 +380,9 @@ class ReadAloudSession(
                             position = if (request.isPreview || failed == null || segment == null) null else SpeechPosition(
                                 failed.bookId, failed.id, failed.fingerprint, segment.start, segment.end),
                             previousChapterId = failed?.previousId, nextChapterId = failed?.nextId,
-                            phase = SpeechPhase.Failed, error = step.error, replacementFailure = step.replacementFailure) }
+                            phase = SpeechPhase.Failed, error = step.error, replacementFailure = step.replacementFailure,
+                            planContext = step.plan?.context ?: step.context, failedVoice = segment?.selectedVoice?.reference,
+                            voiceLabel = segment?.selectedVoice?.label.orEmpty()) }
                         return@coroutineScope
                     }
                     is Step.Ready -> {
@@ -378,6 +394,7 @@ class ReadAloudSession(
                             request = request.copy(chapterId = clip.chapter.id), bookTitle = clip.chapter.bookTitle,
                             chapterTitle = clip.chapter.title, segmentIndex = clip.index, segmentCount = clip.count,
                             currentText = clip.segment.text, previousChapterId = clip.chapter.previousId,
+                            voiceLabel = clip.voiceLabel, planContext = clip.plan.context, failedVoice = null,
                             nextChapterId = clip.chapter.nextId,
                             phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused, error = null, replacementFailure = null,
                         ) }

@@ -31,6 +31,13 @@ data class SpeechSettings(
     @EncodeDefault
     val text: SpeechTextSettings = SpeechTextSettings(),
     val httpVolume: Float = 1f,
+    val narrationVoices: List<SpeechVoiceRef> = emptyList(),
+    val dialogueVoices: List<SpeechVoiceRef> = emptyList(),
+    val speakerVoices: Map<String, SpeechVoiceRef> = emptyMap(),
+    val speakerBookId: String = "",
+    val voiceRevision: String = "",
+    val voiceRoutingConfigured: Boolean = false,
+    val allowMultipleVoices: Boolean = false,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
@@ -42,6 +49,9 @@ data class SpeechSettings(
         text = text.validated(),
     )
 }
+
+internal val SpeechSettings.hasVoiceRouting get() =
+    voiceRoutingConfigured || narrationVoices.isNotEmpty() || dialogueVoices.isNotEmpty() || speakerVoices.isNotEmpty()
 
 @Singleton
 class SpeechSettingsRepository @Inject constructor(userData: UserDataRepository) {

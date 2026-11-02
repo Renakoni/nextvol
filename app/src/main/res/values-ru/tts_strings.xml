@@ -78,6 +78,8 @@
     <string name="tts_error_no_engine">Синтезатор речи не найден. Установите и настройте его в системных настройках, затем повторите попытку.</string>
     <string name="tts_error_engine">Выбранный синтезатор речи недоступен. Проверьте его настройки.</string>
     <string name="tts_error_voice">Этот голос недоступен. Выберите другой голос или откройте настройки синтезатора.</string>
+    <string name="tts_error_narration_voice">Не выбран голос рассказчика!</string>
+    <string name="tts_error_dialogue_voice">Не выбран голос диалога!</string>
     <string name="tts_error_language">Для этого голоса нужны языковые данные. Подготовьте их в системных настройках речи.</string>
     <string name="tts_error_init_timeout">Синтезатор речи не ответил. Проверьте настройки и повторите попытку.</string>
     <string name="tts_error_synthesis_timeout">Время подготовки аудио истекло. Позиция сохранена; повторите попытку, чтобы продолжить.</string>

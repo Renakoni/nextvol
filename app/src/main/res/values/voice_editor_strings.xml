@@ -19,8 +19,6 @@
     <string name="tts_voice_enable">Enable</string>
     <string name="tts_voice_disable">Disable</string>
     <string name="tts_voice_delete_confirm">Delete %1$d voice(s)?</string>
-    <string name="tts_voice_delete_selected">The current voice is included. Choose another voice first, or explicitly switch to system speech when deleting.</string>
-    <string name="tts_voice_delete_system">Delete and use system speech</string>
     <string name="tts_voice_copy_suffix">%1$s (copy)</string>
     <string name="tts_playback_preferences">Playback settings</string>
     <string name="tts_voice_show_parameters">Show parameter editor</string>

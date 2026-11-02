@@ -19,8 +19,6 @@
     <string name="tts_voice_enable">启用</string>
     <string name="tts_voice_disable">停用</string>
     <string name="tts_voice_delete_confirm">删除 %1$d 个音源？</string>
-    <string name="tts_voice_delete_selected">包含当前音源。请先选择其他音源，或确认删除并切换到系统语音。</string>
-    <string name="tts_voice_delete_system">删除并使用系统语音</string>
     <string name="tts_voice_copy_suffix">%1$s（副本）</string>
     <string name="tts_playback_preferences">播放设置</string>
     <string name="tts_voice_show_parameters">显示参数编辑</string>

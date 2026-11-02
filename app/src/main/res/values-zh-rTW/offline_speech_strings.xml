@@ -23,5 +23,5 @@
     <string name="tts_offline_parameters">聲音參數無效或尚未設定：%1$s</string>
     <string name="tts_offline_path">模型目錄不是安全的相對路徑。</string>
     <string name="tts_offline_ambiguous">聲音或模型資源不唯一，無法確定要安裝的內容。</string>
-    <string name="tts_offline_unavailable">離線聲音無法使用，請在音源頁檢查資源和裝置支援情況。</string>
+    <string name="tts_offline_unavailable">離線聲音無法使用。</string>
 </resources>

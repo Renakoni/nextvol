@@ -43,6 +43,7 @@ import kotlin.math.roundToInt
 
 data class SpeechPlaybackSettingsState(
     val settings: SpeechTextSettings? = null,
+    val allowMultipleVoices: Boolean = false,
     val defaultNamePattern: String? = null,
     val error: SpeechError? = null,
 )
@@ -59,7 +60,9 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.changes.collect { settings -> mutableState.update { it.copy(settings = settings.text) } }
+            repository.changes.collect { settings -> mutableState.update {
+                it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices)
+            } }
         }
         viewModelScope.launch {
             try {
@@ -70,10 +73,14 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
         }
     }
 
-    fun update(change: (SpeechTextSettings) -> SpeechTextSettings) {
+    fun update(change: (SpeechTextSettings) -> SpeechTextSettings) = updateSettings { it.copy(text = change(it.text)) }
+
+    fun allowMultipleVoices(enabled: Boolean) = updateSettings { it.copy(allowMultipleVoices = enabled) }
+
+    private fun updateSettings(change: (SpeechSettings) -> SpeechSettings) {
         viewModelScope.launch {
             try {
-                repository.update { it.copy(text = change(it.text)) }
+                repository.update(change)
                 mutableState.update { it.copy(error = null) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.Storage) } }
@@ -96,7 +103,8 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
-    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onNameTest: () -> Unit) {
+    onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
+    onNameTest: () -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingMaleRule by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var editingPersonRule by rememberSaveable { mutableStateOf(false) }
@@ -119,6 +127,9 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     color = MaterialTheme.colorScheme.error)
             } }
             state.settings?.let { settings ->
+                item { SpeechTextSwitch(R.drawable.tts_text_multiple_voices, R.string.tts_voice_multiple,
+                    if (state.allowMultipleVoices) R.string.tts_voice_multiple_on else R.string.tts_voice_multiple_off,
+                    state.allowMultipleVoices, onMultipleVoices) }
                 item { SpeechTextSwitch(R.drawable.tts_text_dialogue, R.string.tts_text_dialogue, R.string.tts_text_dialogue_description,
                     settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_record_voice, R.string.tts_text_record_voice, R.string.tts_text_record_voice_description,

@@ -143,8 +143,10 @@ fun ReadAloudControls(
                 }
             }
             state.error?.takeIf { state.replacementFailure == null }?.let {
+                val voice = state.failedVoice?.label.orEmpty().ifBlank { state.voiceLabel }
+                val reason = stringResource(it.messageResource)
                 Text(
-                    stringResource(it.messageResource),
+                    if (voice.isBlank()) reason else stringResource(R.string.tts_voice_error, voice, reason),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )

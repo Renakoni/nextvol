@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -45,6 +46,7 @@ class ReadAloudService : MediaSessionService() {
     @Inject lateinit var progress: SpeechProgressStore
     @Inject lateinit var synthesizers: SpeechSynthesizers
     @Inject lateinit var plans: SpeechPlanPreparer
+    @Inject lateinit var voices: SpeechVoiceCatalog
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
     private lateinit var speech: ReadAloudSession
@@ -68,7 +70,7 @@ class ReadAloudService : MediaSessionService() {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             setHandleAudioBecomingNoisy(true)
         }
-        speech = ReadAloudSession(scope, chapters, settings::get, progress, synthesizers::synthesizer,
+        speech = ReadAloudSession(scope, chapters, { voices.revised(settings.get()) }, progress, synthesizers::synthesizer,
             ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"), preparePlan = plans::prepare)
         sleepTimer = SpeechSleepTimer(scope, SystemClock::elapsedRealtime,
             onChanged = { deadline ->
@@ -137,7 +139,8 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            settings.changes.collect(speech::updateSettings)
+            combine(settings.changes, voices.changes) { settings, _ -> voices.revised(settings) }
+                .collect(speech::updateSettings)
         }
     }
 

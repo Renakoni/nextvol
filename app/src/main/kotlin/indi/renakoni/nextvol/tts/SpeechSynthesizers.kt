@@ -130,7 +130,7 @@ class SpeechSynthesizers @Inject constructor(
     }
 
     private fun http(): SpeechSynthesizer = object : SpeechSynthesizer {
-        override val maxInputLength = 65536
+        override val maxInputLength = SPEECH_HTTP_INPUT_LIMIT
         @Volatile private var owner: SourceBroker? = null
         @Volatile private var client: HttpSpeechClient? = null
         private var rate: Float? = null
