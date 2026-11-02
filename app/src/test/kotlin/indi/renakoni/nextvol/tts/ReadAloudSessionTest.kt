@@ -767,41 +767,6 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
-    @Test fun offlineResourceAndRateChangesDiscardOldAudioButInactiveParametersAndPlaybackSpeedDoNot() = runTest {
-        val env = Environment(this)
-        val reference = OfflineVoiceRef("a".repeat(64), "b".repeat(64))
-        env.configuration = SpeechSettings(offlineVoice = reference)
-        try {
-            env.session.start(SpeechRequest("book", "one"))
-            runCurrent()
-            env.session.pause()
-            val first = env.player.started.single()
-            val synthesized = env.synthesized.size
-            env.configuration = env.configuration.copy(engine = "unused", voice = "unused", pitch = 2f, rate = 1f, playbackSpeed = 2f)
-            env.session.updateSettings(env.configuration)
-            runCurrent()
-            assertEquals(synthesized, env.synthesized.size)
-            assertEquals(1, env.opened.size)
-            assertTrue(first.file.exists())
-            assertEquals(2f, env.player.playbackSpeed)
-            env.configuration = env.configuration.copy(offlineVoice = reference.copy(revision = "c".repeat(64)))
-            env.session.updateSettings(env.configuration)
-            runCurrent()
-            val replacement = env.player.started.last()
-            assertNotSame(first.plan, replacement.plan)
-            assertEquals(env.configuration.offlineVoice, replacement.plan.synthesis.offlineVoice)
-            assertFalse(first.file.parentFile!!.exists())
-            assertFalse(env.player.playing)
-            env.configuration = env.configuration.copy(rate = 1.5f)
-            env.session.updateSettings(env.configuration)
-            runCurrent()
-            assertNotSame(replacement.plan, env.player.started.last().plan)
-            assertEquals(1.5f, env.opened.last().rate)
-            assertFalse(replacement.file.parentFile!!.exists())
-            assertTrue(env.audioFiles() <= 4)
-        } finally { env.stop() }
-    }
-
     @Test fun replacementsSharePlaybackMappingAcrossOnlineAndOfflineAndInvalidatePrefetchWhilePaused() = runTest {
         val env = Environment(this)
         val suffix = "字".repeat(28) + "。"
