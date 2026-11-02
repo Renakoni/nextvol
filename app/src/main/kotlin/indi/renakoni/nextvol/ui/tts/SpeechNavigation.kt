@@ -153,8 +153,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechVoicePoolScreen(state, nav::popBackStackIfResumed,
             onEditItem = viewModel::editItem, onEditPair = viewModel::editPair,
             onToggle = viewModel::toggle, onOrder = viewModel::order, onDeleteItems = viewModel::deleteItems, onDeletePairs = viewModel::deletePairs,
-            onReassign = viewModel::reassign, onClearPairs = viewModel::clearPairs,
-            onAutoAssign = viewModel::autoAssign, onCacheLimit = viewModel::cacheLimit)
+            onReassign = viewModel::reassign, onClearPairs = viewModel::clearPairs)
         SpeechVoicePoolEditor(state, viewModel::dismissEditor, viewModel::edit, viewModel::selectEngine, viewModel::selectGroup, viewModel::save)
     }
     composable<SpeechRolesRoute> {
@@ -219,7 +218,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         LaunchedEffect(Unit) { viewModel.initializeRoleContext(defaultContext) }
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
             viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern,
-            onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } })
+            onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } },
+            onAutoAssign = viewModel::autoAssign, onCacheLimit = viewModel::cacheLimit)
     }
     composable<SpeechNameTestRoute> {
         HideReadAloudOverlay()

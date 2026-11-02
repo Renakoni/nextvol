@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -13,6 +15,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -21,7 +26,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
@@ -35,25 +39,25 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
     onEditItem: (SpeechVoiceItem?) -> Unit, onEditPair: (SpeechVoicePair) -> Unit,
     onToggle: (Set<String>, Boolean) -> Unit, onOrder: (List<SpeechVoiceItem>) -> Unit, onDeleteItems: (Set<String>) -> Unit,
     onDeletePairs: (Set<String>) -> Unit, onReassign: (Set<String>) -> Unit,
-    onClearPairs: (String?) -> Unit, onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit) {
+    onClearPairs: (String?) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    var menu by remember { mutableStateOf(false) }
     var collapsed by rememberSaveable { mutableStateOf(emptyList<String>()) }
-    var capacity by remember { mutableStateOf(false) }
     var deletingItems by remember { mutableStateOf(emptySet<String>()) }
     var deletingPairs by remember { mutableStateOf(emptySet<String>()) }
     var clearing by remember { mutableStateOf(false) }
     var ordered by remember(state.settings.voiceItems) { mutableStateOf(state.settings.voiceItems) }
-    val closeSearch = { searching = false; query = "" }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = remember { FocusRequester() }
+    val closeSearch = { searching = false; query = ""; keyboard?.hide(); Unit }
+    LaunchedEffect(searching) { if (searching) focus.requestFocus() }
     BackHandler(searching, closeSearch)
     val male = stringResource(R.string.tts_pool_male)
     val female = stringResource(R.string.tts_pool_female)
     val label: (String) -> String = { when (it) { SPEECH_POOL_MALE -> male; SPEECH_POOL_FEMALE -> female; else -> it } }
     val visible = remember(ordered, query, male, female) { filterSpeechVoicePool(ordered, query, label) }
     val pairs = remember(state.pairs, query, male, female) { filterSpeechVoicePairs(state.pairs, query, label) }
-    val keyboard = LocalSoftwareKeyboardController.current
     val listState = rememberLazyListState()
     val reorder = rememberReorderableLazyListState(listState) { from, to ->
         ordered = moveSpeechVoicePool(ordered, from.key as String, to.key as String)
@@ -61,14 +65,23 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
     val saveOrder = { if (ordered != state.settings.voiceItems) onOrder(ordered) }
     Scaffold(topBar = {
         TopAppBar(title = {
-            if (searching) TextField(query, { query = it }, singleLine = true,
-                placeholder = { Text(stringResource(R.string.tts_pool_search)) },
-                modifier = Modifier.fillMaxWidth().testTag("speech-pool-search"),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
-                trailingIcon = { IconButton(onClick = { query = "" }) {
-                    Icon(painterResource(R.drawable.close_24px), stringResource(R.string.search_clear_query))
-                } })
+            if (searching) Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Row(Modifier.heightIn(min = 40.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BasicTextField(query, { query = it }, Modifier.weight(1f).focusRequester(focus).testTag("speech-pool-search"),
+                        singleLine = true, textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
+                        decorationBox = { field -> Box {
+                            if (query.isEmpty()) Text(stringResource(R.string.tts_pool_search), style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            field()
+                        } })
+                    IconButton(onClick = { if (query.isNotEmpty()) query = "" else closeSearch() }) {
+                        Icon(painterResource(R.drawable.close_24px), stringResource(if (query.isNotEmpty()) R.string.search_clear_query else R.string.close))
+                    }
+                }
+            }
             else Text(stringResource(R.string.tts_pool_title), style = MaterialTheme.typography.displayLarge,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }, navigationIcon = { IconButton(onClick = { if (searching) closeSearch() else onBack() }) {
@@ -77,14 +90,10 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
             if (!searching) IconButton(onClick = { searching = true }) {
                 Icon(painterResource(R.drawable.search_24px), stringResource(R.string.tts_pool_search))
             }
-            Box {
-                IconButton(onClick = { menu = true }) { Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_replace_menu)) }
-                DropdownMenu(menu, { menu = false }) {
-                    if (tab == 0) DropdownMenuItem(text = { Text(stringResource(R.string.tts_pool_add)) }, enabled = !state.loading && !state.catalogLoading && !state.saving,
-                        onClick = { menu = false; onEditItem(null) })
-                    else DropdownMenuItem(text = { Text(stringResource(R.string.tts_pool_clear_pairs)) }, enabled = state.pairs.isNotEmpty() && !state.saving,
-                        onClick = { menu = false; clearing = true })
-                }
+            if (tab == 0) IconButton(onClick = { onEditItem(null) }, enabled = !state.loading && !state.catalogLoading && !state.saving) {
+                Icon(painterResource(R.drawable.add_circle_24px), stringResource(R.string.tts_pool_add))
+            } else IconButton(onClick = { clearing = true }, enabled = state.pairs.isNotEmpty() && !state.saving) {
+                Icon(painterResource(R.drawable.delete_forever_24px), stringResource(R.string.tts_pool_clear_pairs))
             }
         })
     }) { padding ->
@@ -98,16 +107,6 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
             LazyColumn(Modifier.fillMaxSize().testTag("speech-voice-pool"), state = listState, contentPadding = PaddingValues(bottom = 16.dp)) {
                 state.error?.let { error -> item { Text(stringResource(error), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error) } }
                 if (tab == 0) {
-                    if (!searching) {
-                        item { ListItem(headlineContent = { Text(stringResource(R.string.tts_pool_auto_assign)) },
-                            supportingContent = { Text(stringResource(if (state.settings.autoAssignRole) R.string.tts_pool_auto_on else R.string.tts_pool_auto_off)) },
-                            trailingContent = { Switch(state.settings.autoAssignRole, onAutoAssign, enabled = !state.loading && !state.saving) }) }
-                        item { ListItem(headlineContent = { Text(stringResource(R.string.tts_pool_cache_limit)) },
-                            supportingContent = { Text(state.settings.maxCacheVoiceNum.toString()) },
-                            trailingContent = { Icon(painterResource(R.drawable.arrow_right_24px), null) },
-                            modifier = Modifier.clickable(enabled = !state.loading && !state.saving) { capacity = true }) }
-                        item { HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) }
-                    }
                     if (!state.loading && visible.isEmpty()) item { PoolEmpty(query, R.string.tts_pool_empty) }
                     visible.groupBy { it.group }.forEach { (group, voices) ->
                         val expanded = query.isNotEmpty() || group !in collapsed
@@ -115,7 +114,6 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
                         val ids = voices.map { it.id }.toSet()
                         item(key = "group:$group") {
                             ReorderableItem(reorder, "group:$group") {
-                                var groupMenu by remember { mutableStateOf(false) }
                                 Row(Modifier.fillMaxWidth().longPressDraggableHandle(enabled = !state.saving, onDragStopped = saveOrder)
                                     .clickable { collapsed = if (group in collapsed) collapsed - group else collapsed + group }
                                     .padding(start = 20.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -126,14 +124,8 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
                                     TriStateCheckbox(when (enabled) { 0 -> ToggleableState.Off; voices.size -> ToggleableState.On; else -> ToggleableState.Indeterminate },
                                         { onToggle(ids, enabled != voices.size) }, enabled = !state.saving,
                                         modifier = Modifier.semantics { contentDescription = label(group) })
-                                    Box {
-                                        IconButton(onClick = { groupMenu = true }, enabled = !state.saving) {
-                                            Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_replace_actions, label(group)))
-                                        }
-                                        DropdownMenu(groupMenu, { groupMenu = false }) {
-                                            DropdownMenuItem(text = { Text(stringResource(R.string.tts_replace_delete)) },
-                                                onClick = { groupMenu = false; deletingItems = ids })
-                                        }
+                                    IconButton(onClick = { deletingItems = ids }, enabled = !state.saving) {
+                                        Icon(painterResource(R.drawable.delete_forever_24px), stringResource(R.string.tts_manage_delete))
                                     }
                                 }
                             }
@@ -167,19 +159,9 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
             }
         }
     }
-    if (capacity) {
-        var value by remember { mutableStateOf(state.settings.maxCacheVoiceNum.toString()) }
-        AlertDialog(onDismissRequest = { capacity = false }, title = { Text(stringResource(R.string.tts_pool_cache_limit)) },
-            text = { OutlinedTextField(value, { value = it }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                supportingText = { Text(stringResource(R.string.tts_pool_cache_hint)) }) },
-            confirmButton = { TextButton(onClick = { value.toIntOrNull()?.let(onCacheLimit); capacity = false },
-                enabled = value.toIntOrNull()?.let { it >= 0 } == true) { Text(stringResource(R.string.confirm)) } },
-            dismissButton = { TextButton(onClick = { capacity = false }) { Text(stringResource(R.string.cancel)) } })
-    }
     if (deletingItems.isNotEmpty() || deletingPairs.isNotEmpty() || clearing) {
         val close = { deletingItems = emptySet<String>(); deletingPairs = emptySet<String>(); clearing = false }
-        AlertDialog(onDismissRequest = close, title = { Text(stringResource(if (clearing) R.string.tts_pool_clear_pairs else R.string.tts_replace_delete)) },
+        AlertDialog(onDismissRequest = close, title = { Text(stringResource(if (clearing) R.string.tts_pool_clear_pairs else R.string.tts_manage_delete)) },
             text = { Text(stringResource(if (deletingItems.isNotEmpty()) R.string.tts_pool_delete_items_confirm else R.string.tts_pool_delete_pairs_confirm)) },
             confirmButton = { TextButton(onClick = {
                 when { clearing -> onClearPairs(null); deletingItems.isNotEmpty() -> onDeleteItems(deletingItems); else -> onDeletePairs(deletingPairs) }
@@ -199,9 +181,9 @@ private fun PoolItemMenu(enabled: Boolean, onEdit: () -> Unit, onDelete: () -> U
     Box {
         IconButton(onClick = { menu = true }, enabled = enabled) { Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions)) }
         DropdownMenu(menu, { menu = false }) {
-            DropdownMenuItem(text = { Text(stringResource(R.string.tts_replace_edit)) }, onClick = { menu = false; onEdit() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.tts_pool_edit)) }, onClick = { menu = false; onEdit() })
             onReassign?.let { action -> DropdownMenuItem(text = { Text(stringResource(R.string.tts_pool_reassign)) }, onClick = { menu = false; action() }) }
-            DropdownMenuItem(text = { Text(stringResource(R.string.tts_replace_delete)) }, onClick = { menu = false; onDelete() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.tts_manage_delete)) }, onClick = { menu = false; onDelete() })
         }
     }
 }

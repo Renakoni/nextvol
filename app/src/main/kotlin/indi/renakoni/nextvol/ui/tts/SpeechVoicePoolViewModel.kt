@@ -129,8 +129,6 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
     }
     internal fun deletePairs(ids: Set<String>) = work { repository.remove(ids) }
     internal fun clearPairs(bookId: String?) = work { repository.clear(bookId) }
-    internal fun autoAssign(enabled: Boolean) = work { settings.update { it.copy(autoAssignRole = enabled) } }
-    internal fun cacheLimit(limit: Int) = work { settings.update { it.copy(maxCacheVoiceNum = limit) } }
 
     internal fun reassign(ids: Set<String>) = work {
         val current = settings.get()

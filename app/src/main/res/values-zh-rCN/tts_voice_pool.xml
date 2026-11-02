@@ -12,7 +12,6 @@
     <string name="tts_pool_auto_on">已启用，未匹配的人物也会自动分配声音</string>
     <string name="tts_pool_auto_off">已关闭，未匹配的人物不自动分配声音</string>
     <string name="tts_pool_cache_limit">缓存声音上限</string>
-    <string name="tts_pool_cache_hint">内存中保留的人物配对数量，不会删除已保存的配对。</string>
     <string name="tts_pool_empty">为抽象角色添加声音，也可在音源中多选后加入声音池。</string>
     <string name="tts_pool_pairs_empty">正文朗读时的人物声音配对会显示在这里。</string>
     <string name="tts_pool_clear_pairs">清空分配表</string>
