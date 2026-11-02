@@ -24,7 +24,8 @@ import javax.inject.Inject
 class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolatedExecutor,
     private val authority: ExecutionAuthority, private val voices: SpeechVoiceCatalog,
     private val pairs: SpeechVoicePoolRepository, private val recognizer: SpeechNameRecognizer,
-    private val discovery: SpeechNewWordDiscovery, private val classifier: SpeechNameClassifier) {
+    private val discovery: SpeechNewWordDiscovery, private val classifier: SpeechNameClassifier,
+    private val languages: SpeechLanguageDetection) {
     private var discoveryKey: String? = null
     private var discoverySession: SpeechNewWordSession? = null
 
@@ -71,7 +72,8 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
                         saved += value
                     }
                 }, checkCancelled = { task.ensureActive() }) else null
-            prepareSpeechPlan(chapter, settings, replace, context, maxInputLength, catalog, characters) { task.ensureActive() }
+            prepareSpeechPlan(chapter, settings, replace, context, maxInputLength, catalog, characters,
+                detectLanguage = { text, candidates -> languages.detect(text, settings.text.languageDetector, candidates) }) { task.ensureActive() }
         }
     }
 

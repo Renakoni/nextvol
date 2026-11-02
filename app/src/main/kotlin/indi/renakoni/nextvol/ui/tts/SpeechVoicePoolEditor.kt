@@ -31,7 +31,8 @@ internal fun SpeechVoicePoolEditor(state: SpeechVoicePoolState, onDismiss: () ->
                     state.engines, { it.name }, !state.saving && !state.catalogLoading) { onEngine(it.key) }
                 key(state.engineKey) {
                     PoolDropdown(draft.voice?.label.orEmpty(), stringResource(R.string.tts_role_voice),
-                        engine?.voices.orEmpty(), { it.label }, !state.saving && !state.catalogLoading) { voice -> onEdit { it.copy(voice = voice) } }
+                        (engine?.candidates.orEmpty() + listOfNotNull(draft.voice)).distinctBy { it.key },
+                        { it.label }, !state.saving && !state.catalogLoading) { voice -> onEdit { it.copy(voice = voice) } }
                 }
                 if (state.catalogLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 state.error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }

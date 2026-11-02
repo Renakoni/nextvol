@@ -28,6 +28,7 @@ enum class SpeechError {
     SynthesisTimeout, SynthesisFailed, Network, NetworkUnavailable, InvalidAudio, Storage, SourceUnavailable,
     SourceTimeout, EmptyText, UnsupportedContent, Playback, ServiceUnavailable,
     HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, HttpConfiguration, HttpAuthentication, OfflineUnavailable, ReplacementRule, RoleRule,
+    LanguageDetectorUnavailable,
 }
 
 class SpeechException(val error: SpeechError) : Exception(error.name)

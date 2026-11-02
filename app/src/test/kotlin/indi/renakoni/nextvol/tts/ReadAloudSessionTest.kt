@@ -777,7 +777,8 @@ class ReadAloudSessionTest {
             env.session.pause()
             val first = env.player.started.single()
             val synthesized = env.synthesized.size
-            env.configuration = env.configuration.copy(engine = "unused", voice = "unused", pitch = 2f, rate = 1f, playbackSpeed = 2f)
+            env.configuration = env.configuration.copy(engine = "unused", voice = "unused", pitch = 2f, rate = 1f, playbackSpeed = 2f,
+                text = env.configuration.text.copy(filterLanguage = true))
             env.session.updateSettings(env.configuration)
             runCurrent()
             assertEquals(synthesized, env.synthesized.size)

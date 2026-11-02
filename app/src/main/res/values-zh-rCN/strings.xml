@@ -646,4 +646,16 @@
     <string name="tts_manage_exit">退出管理</string>
     <string name="tts_voice_reorder">拖动排序：%1$s</string>
     <string name="tts_manage_search_scope">数量与删除仅针对当前搜索结果</string>
+    <string name="tts_detect_language">检测语言</string>
+    <string name="tts_detect_language_description">按已启用的语言规则，为正文各段选择声音。</string>
+    <string name="tts_language_detector">语言检测算法</string>
+    <string name="tts_language_optimaize">Optimaize</string>
+    <string name="tts_language_media_pipe">Media Pipe</string>
+    <string name="tts_filter_language">过滤语言</string>
+    <string name="tts_filter_language_description">发音人列表显示当前语言、地区和英语，关闭后显示全部语言。</string>
+    <string name="tts_role_mode_language">语言</string>
+    <string name="tts_role_secondary_language">备选语言</string>
+    <string name="tts_role_language_required">请选择当前检测算法支持的语言。</string>
+    <string name="tts_language_detector_unavailable">所选语言检测器或模型无法加载，请检查语言规则和语言检测算法。</string>
+    <string name="tts_segment_language">语言：%1$s</string>
 </resources>

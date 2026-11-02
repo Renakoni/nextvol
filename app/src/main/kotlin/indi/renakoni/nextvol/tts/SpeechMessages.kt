@@ -33,6 +33,7 @@ val SpeechError.messageResource: Int
         SpeechError.OfflineUnavailable -> R.string.tts_offline_unavailable
         SpeechError.ReplacementRule -> R.string.tts_replace_failed
         SpeechError.RoleRule -> R.string.tts_roles_failed
+        SpeechError.LanguageDetectorUnavailable -> R.string.tts_language_detector_unavailable
     }
 
 val SpeechPhase.labelResource: Int

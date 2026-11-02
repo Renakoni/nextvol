@@ -23,7 +23,7 @@ data class SpeechResolvedVoice(val reference: SpeechVoiceRef, val settings: Spee
     val maxInputLength: Int, val label: String = reference.label, val revision: String = "",
     val error: SpeechError? = null)
 
-enum class SpeechVoiceReason { Narration, Dialogue, Explicit, Remembered, Continued }
+enum class SpeechVoiceReason { Narration, Dialogue, Explicit, Remembered, Continued, Language }
 
 enum class SpeechVoiceSelection { Narration, Dialogue }
 

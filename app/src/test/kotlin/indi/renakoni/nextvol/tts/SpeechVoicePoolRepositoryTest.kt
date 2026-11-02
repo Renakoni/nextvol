@@ -12,6 +12,57 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechVoicePoolRepositoryTest {
+    @Test fun languageDefaultsKeepManualPairsWithinTheirGroupsWithoutBecomingPeopleOrOverridingConcreteVoices() = runBlocking {
+        val fallback = SpeechVoiceRef(httpSource = "fallback")
+        val english = SpeechVoiceRef(httpSource = "english")
+        val japanese = SpeechVoiceRef(httpSource = "japanese")
+        val french = SpeechVoiceRef(httpSource = "french")
+        val englishPair = SpeechVoicePair("book", SPEECH_LANGUAGE_PERSON, "English", fallback)
+        val japanesePair = SpeechVoicePair("book", SPEECH_LANGUAGE_PERSON, "日本語", fallback)
+        val automaticPair = SpeechVoicePair("book", SPEECH_LANGUAGE_PERSON, "Français", fallback)
+        val stored = MutableStateFlow<String?>(Json.encodeToString(listOf(englishPair, japanesePair, automaticPair)))
+        val dao = mockk<UserDataDao>()
+        coEvery { dao.get("tts.voicePairs") } answers { stored.value }
+        every { dao.getFlow("tts.voicePairs") } returns stored
+        coEvery { dao.insert("tts.voicePairs", any(), "String", any()) } answers { stored.value = arg(3) }
+        val data = UserDataRepository(dao)
+        val repository = SpeechVoicePoolRepository(data)
+        repository.setManual(englishPair.copy(value = english))
+        repository.setManual(japanesePair.copy(value = japanese))
+        val reopened = SpeechVoicePoolRepository(data)
+        val saved = reopened.pairs("book")
+        assertEquals(listOf(englishPair.copy(value = english, manual = true),
+            japanesePair.copy(value = japanese, manual = true), automaticPair), saved)
+
+        val settings = SpeechSettings(voiceRoutingConfigured = true, narrationVoices = listOf(fallback),
+            text = SpeechTextSettings(detectLanguage = true, separateEnglish = false), roleRules = listOf(
+                SpeechRoleRule(name = "English", regex = "lang:en", mode = 1, isAbstract = true, speaker = fallback),
+                SpeechRoleRule(name = "日本語", regex = "lang:ja", mode = 1, isAbstract = true, speaker = fallback),
+                SpeechRoleRule(name = "Français", regex = "lang:fr", mode = 1, speaker = french)))
+        val catalog = listOf(fallback, english, japanese, french).associate { it.key to
+            SpeechResolvedVoice(it, settings.forVoice(it), 256) }
+        val chapter = SpeechChapter("book", "one", "", "", "Hello!こんにちは。Bonjour!")
+        val assignments = mutableListOf<String>()
+        val characters = SpeechCharacterAssignment(settings, chapter, saved, catalog,
+            recognize = { error("Automatic discovery is off") }, newWords = { _, _, _ -> error("Automatic discovery is off") },
+            classify = { error("Automatic discovery is off") },
+            existing = { _, _ -> error("Language defaults are not people") },
+            assign = { name, group ->
+                assignments += group
+                reopened.assign("book", name, group, emptyList(), catalog, 50)
+            }, checkCancelled = {})
+        assertNull(characters.resolve(SPEECH_LANGUAGE_PERSON, SpeechContextDirection.Explicit, "name",
+            SpeechRoleRules(settings.roleRules, checkCancelled = {})))
+        val plan = prepareSpeechPlan(chapter, settings, voices = catalog, characters = characters,
+            detectLanguage = { text, _ -> when {
+                text.startsWith("Hello") -> "en"
+                text.startsWith("Bonjour") -> "fr"
+                else -> "ja"
+            } }) {}
+        assertEquals(listOf(english.key, japanese.key, french.key), plan.segments.map { it.selectedVoice!!.reference.key })
+        assertEquals(listOf("English", "日本語"), assignments)
+    }
+
     @Test fun editingIntoAnExistingPersonAndGroupReplacesConflictsAndSurvivesReopening() = runBlocking {
         val first = SpeechVoiceRef(httpSource = "first")
         val second = SpeechVoiceRef(httpSource = "second")

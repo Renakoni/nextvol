@@ -50,6 +50,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     context: SpeechContext = SpeechContext(), maxInputLength: Int = Int.MAX_VALUE,
     voices: Map<String, SpeechResolvedVoice> = emptyMap(),
     characters: SpeechCharacterAssignment? = null,
+    detectLanguage: (suspend (String, Set<String>) -> String?)? = null,
     checkCancelled: () -> Unit): SpeechPlan {
     checkCancelled()
     if (chapter.text.length > 1_000_000) throw SpeechException(SpeechError.UnsupportedContent)
@@ -67,6 +68,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
     val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
     val routing = SpeechVoiceRouting(synthesis, chapter.bookId, voices, context, maxInputLength)
+    val languageRouting = SpeechLanguageRouting(synthesis.roleRules, settings.detectLanguage, detectLanguage)
     val roles = SpeechRoleRules(synthesis.roleRules, synthesis.roleContextPattern ?: "__ROLE__", replaceRegex, checkCancelled)
     suspend fun resolve(name: String, direction: SpeechContextDirection, key: String): SpeechPersonVoice? =
         if (characters != null) characters.resolve(name, direction, key, roles)
@@ -88,26 +90,38 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val mappings = mutableListOf<SpeechMappedText>()
     for (part in structure.parts) {
         checkCancelled()
-        val (voice, reason) = routing.select(part)
+        var fallback: Pair<SpeechResolvedVoice, SpeechVoiceReason>? = null
+        val manual = part.dialogue && (part.personVoice?.roleMatch?.origin == SpeechPersonOrigin.Manual ||
+            synthesis.speakerBookId == chapter.bookId && part.speaker in synthesis.speakerVoices)
+        val detect = languageRouting.active && !part.controlMark && part.textRule == null && !manual
         val languages = if (part.controlMark) listOf(SpeechLanguageSegment(part.content, "lang:mark"))
             // P.f.i applies Latin separation only to spans not claimed by a text rule.
             else speechLatinSegments(part.content, settings.separateEnglish && part.textRule == null, checkCancelled)
         for (language in languages) {
-            var corrected = language.content
-            if (!part.controlMark) {
-                corrected = replacements.apply(corrected, wholeText = false)
-                if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
-            }
-            for (sentence in speechSentenceChunks(corrected, settings.maxSentenceLength, locale, checkCancelled)) {
-                for (mapped in speechHardChunks(sentence, voice.maxInputLength, checkCancelled)) {
-                    if (mapped.text.all { Character.isWhitespace(it) } || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
-                    val (start, end) = mapped.range()
-                    if (start < end) {
-                        segments += SpeechSegment(start, end, mapped.text, part.dialogue, part.speaker,
-                            part.speakerHint, language.language, part.beforeText, part.afterText,
-                            part.rememberedText, part.previousVoice, part.changeVoice, voice, reason,
-                            part.textRule ?: part.personVoice?.roleMatch?.takeIf { part.dialogue })
-                        mappings += mapped
+            val units = if (detect) languageRouting.split(language.content, locale, checkCancelled)
+                else listOf(language.content to null)
+            for ((unit, detected) in units) {
+                checkCancelled()
+                val languageMatch = detected?.role?.let { characters?.allocateLanguage(it) ?: it }
+                val (voice, reason) = if (languageMatch != null)
+                    routing.select(part.copy(textRule = languageMatch)).first to SpeechVoiceReason.Language
+                else fallback ?: routing.select(part).also { fallback = it }
+                var corrected = unit
+                if (!part.controlMark) {
+                    corrected = replacements.apply(corrected, wholeText = false)
+                    if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
+                }
+                for (sentence in speechSentenceChunks(corrected, settings.maxSentenceLength, locale, checkCancelled)) {
+                    for (mapped in speechHardChunks(sentence, voice.maxInputLength, checkCancelled)) {
+                        if (mapped.text.all { Character.isWhitespace(it) } || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
+                        val (start, end) = mapped.range()
+                        if (start < end) {
+                            segments += SpeechSegment(start, end, mapped.text, part.dialogue, part.speaker,
+                                part.speakerHint, detected?.let { "lang:${it.language}" } ?: language.language, part.beforeText, part.afterText,
+                                part.rememberedText, part.previousVoice, part.changeVoice, voice, reason,
+                                languageMatch ?: part.textRule ?: part.personVoice?.roleMatch?.takeIf { part.dialogue })
+                            mappings += mapped
+                        }
                     }
                 }
             }
@@ -127,7 +141,8 @@ internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Local
 
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
-    val selected = validated().copy(playbackSpeed = 1f, allowMultipleVoices = false)
+    val selected = validated().let { it.copy(playbackSpeed = 1f, allowMultipleVoices = false,
+        text = it.text.copy(filterLanguage = false)) }
     if (selected.hasVoiceRouting) return selected
     return when {
         selected.offlineVoice != null -> selected.copy(engine = "", voice = "", pitch = null, rate = selected.rate ?: 1f, httpVolume = 1f)

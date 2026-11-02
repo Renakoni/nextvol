@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechRoleRule
 import indi.renakoni.nextvol.tts.messageResource
+import indi.renakoni.nextvol.tts.speechDetectionLanguages
+import indi.renakoni.nextvol.tts.speechLanguageLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,7 +30,10 @@ internal fun SpeechRoleEditorScreen(state: SpeechRolesState, onBack: () -> Unit,
             return@Surface
         }
         val modes = listOf(0 to stringResource(R.string.tts_role_mode_text),
+            1 to stringResource(R.string.tts_role_mode_language),
             2 to stringResource(R.string.tts_role_mode_character))
+        val languageMode = draft.mode == 1 || draft.mode != 0 && draft.pattern.startsWith("lang:")
+        val language = draft.regex.removePrefix("lang:")
         val engine = state.engines.find { it.key == state.engineKey }
         val groups = state.settings.roleRules.map { it.group }.filter { it.isNotEmpty() }.distinct()
         var groupsOpen by remember { mutableStateOf(false) }
@@ -40,18 +45,26 @@ internal fun SpeechRoleEditorScreen(state: SpeechRolesState, onBack: () -> Unit,
                 style = MaterialTheme.typography.headlineSmall)
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                RoleDropdown(modes.find { it.first == draft.mode }?.second.orEmpty(), stringResource(R.string.tts_role_mode),
-                    modes, { it.second }, { mode -> onEdit { it.copy(mode = mode.first) } }, enabled = !state.saving)
+                RoleDropdown(modes.find { it.first == if (languageMode) 1 else draft.mode }?.second.orEmpty(), stringResource(R.string.tts_role_mode),
+                    modes, { it.second }, { mode -> onEdit { it.copy(mode = mode.first,
+                        regex = if (mode.first == 1) it.regex.takeIf { value -> value.startsWith("lang:") }.orEmpty()
+                            else it.regex.removePrefix("lang:")) } }, enabled = !state.saving)
                 ReplacementField(draft.name, { value -> onEdit { it.copy(name = value) } },
                     stringResource(R.string.tts_role_name), singleLine = true, readOnly = state.saving)
-                ReplacementField(draft.regex, { value -> onEdit { it.copy(regex = value) } },
+                if (languageMode) {
+                    RoleDropdown(if (language.isEmpty()) "" else speechLanguageLabel(language), stringResource(R.string.tts_role_secondary_language),
+                        speechDetectionLanguages(state.settings.text.languageDetector), { speechLanguageLabel(it) },
+                        { code -> onEdit { it.copy(mode = 1, regex = "lang:$code", name = it.name.ifEmpty { speechLanguageLabel(code) }) } },
+                        filterable = true, enabled = !state.saving)
+                } else ReplacementField(draft.regex, { value -> onEdit { it.copy(regex = value) } },
                     stringResource(R.string.tts_role_regex), Modifier.testTag("speech-role-regex"), readOnly = state.saving)
                 RoleDropdown(engine?.name.orEmpty(), stringResource(R.string.tts_role_engine),
                     state.engines, { it.name }, { onEngine(it.key) }, filterable = true,
                     enabled = !state.saving && !state.catalogLoading)
                 key(state.engineKey) {
                     RoleDropdown(draft.speaker?.label.orEmpty(), stringResource(R.string.tts_role_voice),
-                        engine?.voices.orEmpty(), { it.label }, { voice -> onEdit { it.copy(speaker = voice) } },
+                        (engine?.candidates.orEmpty() + listOfNotNull(draft.speaker)).distinctBy { it.key },
+                        { it.label }, { voice -> onEdit { it.copy(speaker = voice) } },
                         filterable = true, enabled = !state.saving && !state.catalogLoading)
                 }
                 if (state.catalogLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -75,7 +88,7 @@ internal fun SpeechRoleEditorScreen(state: SpeechRolesState, onBack: () -> Unit,
                     RoleCheckbox(stringResource(R.string.tts_role_activate), draft.activate, !state.saving,
                         Modifier.weight(1f)) { value -> onEdit { it.copy(activate = value) } }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (!languageMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     RoleCheckbox(stringResource(R.string.tts_role_before), draft.matchBefore, !state.saving,
                         Modifier.weight(1f)) { value -> onEdit { it.copy(matchBefore = value) } }
                     RoleCheckbox(stringResource(R.string.tts_role_after), draft.matchAfter, !state.saving,

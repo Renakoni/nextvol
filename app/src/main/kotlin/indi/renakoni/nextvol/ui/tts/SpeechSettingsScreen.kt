@@ -67,6 +67,7 @@ import indi.renakoni.nextvol.tts.SpeechVoiceSelection
 import indi.renakoni.nextvol.tts.voiceSelection
 import indi.renakoni.nextvol.tts.selectedNarrators
 import indi.renakoni.nextvol.tts.voiceReference
+import indi.renakoni.nextvol.tts.speechVoiceLanguageMatches
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -281,7 +282,9 @@ internal fun SystemSpeechSettings(
         val options = if (engine) {
             listOf(Choice("", stringResource(R.string.tts_system_default))) + state.engines.map { Choice(it.packageName, it.name) }
         } else {
-            listOf(Choice("", stringResource(R.string.tts_engine_default))) + state.voices.sortedBy {
+            listOf(Choice("", stringResource(R.string.tts_engine_default))) + state.voices.filter {
+                !state.settings.text.filterLanguage || speechVoiceLanguageMatches(it.locale, locale)
+            }.sortedBy {
                 if (Locale.forLanguageTag(it.locale).language == locale.language) 0 else 1
             }.map {
                 Choice(

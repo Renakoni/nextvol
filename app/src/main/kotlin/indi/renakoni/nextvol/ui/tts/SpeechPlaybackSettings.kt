@@ -188,6 +188,18 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     settings.replaceEmoji) { onUpdate { old -> old.copy(replaceEmoji = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_separate_english, R.string.tts_text_separate_english, R.string.tts_text_separate_english_description,
                     settings.separateEnglish) { onUpdate { old -> old.copy(separateEnglish = it) } } }
+                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_detect_language, R.string.tts_detect_language_description,
+                    settings.detectLanguage) { onUpdate { old -> old.copy(detectLanguage = it) } } }
+                item {
+                    val algorithms = remember { object : MenuOptions(Option("300", R.string.tts_language_optimaize),
+                        Option("301", R.string.tts_language_media_pipe)) {} }
+                    SettingsMenuEntry(painter = painterResource(R.drawable.language_24px),
+                        title = stringResource(R.string.tts_language_detector), options = algorithms,
+                        selectedOptionKey = settings.languageDetector.toString(),
+                        onOptionChange = { key -> onUpdate { it.copy(languageDetector = key.toInt()) } })
+                }
+                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_filter_language, R.string.tts_filter_language_description,
+                    settings.filterLanguage) { onUpdate { old -> old.copy(filterLanguage = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken_description,
                     settings.filterUnspoken) { onUpdate { old -> old.copy(filterUnspoken = it) } } }
                 item {
