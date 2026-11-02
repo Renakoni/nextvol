@@ -16,7 +16,7 @@ internal fun editHttpVoice(source: SavedHttpSpeechSource, fields: JsonObject, en
     val generated = if (metadata != null && source.importedEngineCode != null) {
         val engine = requireNotNull(source.importedEngine)
         val code = requireNotNull(source.importedEngineCode)
-        val converted = previewHttpSpeechPackage(SpeechPackageEngine(code, source.category.orEmpty(), "http", engine.packageValue(),
+        val converted = previewHttpSpeechPackage(SpeechPackageEngine(code, source.category.orEmpty(), engine.httpEngine().type, engine.packageValue(),
             listOf(SpeechPackageVoice(voice.getValue("code").jsonPrimitive.content, name, voice.packageValue())),
             SpeechPackageSupport.HttpAdapter, emptyList(), emptyList()))
         require(converted.error == null && converted.sources.size == 1)
@@ -59,7 +59,8 @@ internal fun mergeHttpVoice(previous: SavedHttpSpeechSource?, incoming: SavedHtt
 }
 
 internal fun SpeechEngineConfig.httpData(): JsonObject = JsonObject(raw.orEmpty() + buildJsonObject {
-    put("code", code); put("name", name); put("type", "http"); put("url", url)
+    put("code", code); put("name", name); put("type", type)
+    if (type == "http") put("url", url)
     if (parameters.isNotEmpty() || raw?.containsKey("param") == true) put("param", parameters)
     if (note.isNotEmpty() || raw?.containsKey("note") == true) put("note", note)
     if (header.isNotEmpty() || raw?.containsKey("header") == true) put("header", header)
@@ -69,7 +70,7 @@ internal fun SavedHttpSpeechSource.httpEngine(): SpeechEngineConfig? = importedE
 
 internal fun JsonObject.httpEngine(): SpeechEngineConfig {
     fun text(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
-    return SpeechEngineConfig(text("code"), text("name"), "http", text("param"), text("note"),
+    return SpeechEngineConfig(text("code"), text("name"), text("type").ifEmpty { "inner" }, text("param"), text("note"),
         text("url"), text("header"), raw = this)
 }
 
@@ -81,7 +82,7 @@ internal fun newHttpVoice(engine: SpeechEngineConfig): SavedHttpSpeechSource {
         put("speed", 1f); put("volume", 1f); put("pitch", 1f); put("sampleRate", 16000)
         put("locale", java.util.Locale.getDefault().let { "${it.language}-${it.country}" })
     }
-    val converted = previewHttpSpeechPackage(SpeechPackageEngine(engine.code, engine.name, "http", data.packageValue(),
+    val converted = previewHttpSpeechPackage(SpeechPackageEngine(engine.code, engine.name, engine.type, data.packageValue(),
         listOf(SpeechPackageVoice("speaker", "speaker", voice.packageValue())), SpeechPackageSupport.HttpAdapter, emptyList(), emptyList()))
     require(converted.error == null && converted.sources.size == 1)
     val definition = converted.sources.single()
@@ -94,11 +95,15 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
     val data = engine.httpData()
     if (old == data) return this
     val metadata = definition.raw.getValue("multiTts").jsonObject
-    val raw = definition.raw.toMutableMap()
+    val raw = definition.raw.toMutableMap().apply { put("id", JsonPrimitive(definition.id)) }
     raw["multiTts"] = JsonObject(metadata + ("engine" to data))
     // Labels/notes do not rebuild a request or invalidate its authorization.
-    if ((old["url"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.url ||
-        (old["header"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.header) {
+    if (engine.type != "http" && old["param"] != data["param"]) {
+        return editHttpVoice(copy(definition = previewHttpSpeech(JsonObject(raw).toString()).sources.single()),
+            JsonObject(emptyMap()), enabled, copy = false)
+    }
+    if (engine.type == "http" && ((old["url"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.url ||
+        (old["header"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.header)) {
         raw["url"] = JsonPrimitive(engine.url.trim())
         if (engine.header.isBlank()) raw.remove("header") else raw["header"] = JsonPrimitive(engine.header)
     }
@@ -107,10 +112,11 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
 
 internal fun SavedHttpSpeechSource.sameExecution(other: SavedHttpSpeechSource): Boolean {
     val fields = setOf("url", "header", "jsLib", "contentType", "loginUrl", "loginUi", "loginCheckJs", "concurrentRate", "enabledCookieJar", "speed")
-    val voiceFields = setOf("code", "param", "extendUI")
+    val voiceFields = setOf("code", "param", "extendUI", "locale")
     val multiTts = definition.usesMultiTts
     return definition.raw.filterKeys { it in fields } == other.definition.raw.filterKeys { it in fields } &&
         multiTts == other.definition.usesMultiTts && (!multiTts ||
             speakerData().filterKeys { it in voiceFields } == other.speakerData().filterKeys { it in voiceFields }) &&
+        importedEngine?.get("param") == other.importedEngine?.get("param") &&
         origins == other.origins && credentials == other.credentials && available == other.available
 }

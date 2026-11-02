@@ -1,0 +1,15 @@
+{
+  "uniqueId": "rany2:edge-tts-gec",
+  "name": "edge-tts — Sec-MS-GEC v2",
+  "artifactVersion": "bd44c1d1aaebdc1db7f47456ee12431b42ec7cac",
+  "developers": [
+    {
+      "name": "rany"
+    }
+  ],
+  "description": "Kotlin adaptation of the Sec-MS-GEC v2 algorithm from edge-tts drm.py. Modified source and rebuild instructions: https://github.com/Renakoni/nextvol/blob/main/sources/speech/EDGE-TTS-NOTICE.md",
+  "website": "https://github.com/rany2/edge-tts",
+  "licenses": [
+    "edge-tts-lgpl-v3"
+  ]
+}

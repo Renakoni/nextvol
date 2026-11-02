@@ -290,6 +290,10 @@ composeCompiler {
     includeSourceInformation = true
 }
 
+aboutLibraries {
+    collect { configPath.set(layout.projectDirectory.dir("license-config")) }
+}
+
 tasks.withType<KotlinJvmCompile>().configureEach {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_21)

@@ -262,7 +262,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechEnginesScreen(state, nav::popBackStackIfResumed,
             onEdit = { nav.navigate(SpeechEngineEditorRoute(it?.code.orEmpty(), it?.type ?: "http")) },
             onVoices = { nav.navigate(SpeechEngineVoicesRoute(it.code, it.type)) },
-            onAddVoice = { if (it.type == "http") nav.navigate(HttpVoiceEditorRoute(engineCode = it.code)) else adding = it },
+            onAddVoice = { if (it.isOnline) nav.navigate(HttpVoiceEditorRoute(engineCode = it.code)) else adding = it },
             onSave = { viewModel.save(it, false) {} }, onOrder = viewModel::order)
         adding?.let { engine -> EngineSpeakerPicker(engine, state, { adding = null }) {
             adding = null; nav.navigate(OfflineVoiceEditorRoute(it.reference.id, copy = true, newVoice = true))
@@ -285,10 +285,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val route = entry.toRoute<SpeechEngineVoicesRoute>()
         val engine = state.engines.find { it.code == route.code && it.type == route.type }
         var adding by remember { mutableStateOf(false) }
-        LaunchedEffect(route.code) { if (route.type == "inner") viewModel.inspect(route.code) }
+        LaunchedEffect(route.code) { if (!hnovel.speech.isOnlineSpeechEngine(route.code, route.type)) viewModel.inspect(route.code) }
         SpeechEngineVoicesScreen(engine, state, nav::popBackStackIfResumed,
             onEdit = { nav.navigate(SpeechEngineEditorRoute(route.code, route.type)) },
-            onAdd = { if (route.type == "http") nav.navigate(HttpVoiceEditorRoute(engineCode = route.code)) else adding = true },
+            onAdd = { if (engine?.isOnline == true) nav.navigate(HttpVoiceEditorRoute(engineCode = route.code)) else adding = true },
             onOffline = { nav.navigate(OfflineVoiceEditorRoute(it.reference.id)) },
             onHttp = { nav.navigate(HttpVoiceEditorRoute(it.definition.id)) })
         if (adding && engine != null) EngineSpeakerPicker(engine, state, { adding = false }) {

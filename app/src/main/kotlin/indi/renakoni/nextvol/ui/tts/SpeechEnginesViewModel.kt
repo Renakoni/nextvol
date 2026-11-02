@@ -25,7 +25,7 @@ data class SpeechEnginesState(
     val httpResults: Map<String, Int> = emptyMap(),
     val loading: Boolean = true, val saving: Boolean = false, val error: Int? = null,
 ) {
-    fun voices(engine: SpeechEngineConfig): List<String> = if (engine.type == "http")
+    fun voices(engine: SpeechEngineConfig): List<String> = if (engine.isOnline)
         http.filter { it.importedEngineCode == engine.code }.map { it.definition.name }
         else offline.filter { (it.configuration?.engine ?: "sherpa") == engine.code }.map { it.name }
 }
@@ -102,7 +102,7 @@ class SpeechEnginesViewModel @Inject constructor(
         val executionChanged = old != null && (old.enabled != config.enabled || old.deleted != config.deleted ||
             old.url != config.url || old.header != config.header || old.parameters != config.parameters)
         withContext(NonCancellable) {
-            if (config.type == "http") http.saveEngine(config, creating) else repository.save(config)
+            if (config.isOnline) http.saveEngine(config, creating) else repository.save(config)
             if (executionChanged) stopAffected(config)
         }
         onSaved()
@@ -115,7 +115,7 @@ class SpeechEnginesViewModel @Inject constructor(
 
     private suspend fun stopAffected(engine: SpeechEngineConfig) {
         val active = controller.state.value.request?.previewSettings ?: settings.get()
-        val used = if (engine.type == "http") {
+        val used = if (engine.isOnline) {
             val ids = http.sources().filter { it.importedEngineCode == engine.code }.map { it.definition.id }.toSet()
             active.httpSource in ids
         } else {

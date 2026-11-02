@@ -427,6 +427,116 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     suspend fun execute(request: BrokerRequest, guard: RequestCommitGuard = RequestCommitGuard { it() }): BrokerResult =
         execute(request, guard, policy)
 
+    /** Host-only bounded WebSocket exchange. The protocol callback runs off the caller's thread. */
+    suspend fun <T> webSocket(request: BrokerRequest, guard: RequestCommitGuard = RequestCommitGuard { it() },
+        block: (BrokerWebSocket) -> T): T {
+        checkOpen()
+        val selectedRoute = runCatching { routes.snapshot() }
+        val snapshot = request.copy(headers = request.headers.toMap())
+        val work = lifetime.async {
+            try {
+                validate(snapshot)
+                require(snapshot.method == "GET" && snapshot.body == null && snapshot.browser == null &&
+                    snapshot.cache == CacheMode.Disabled && snapshot.retry == 0 && !snapshot.followRedirects)
+                withTimeout(snapshot.timeoutMillis) {
+                    val route = selectedRoute.getOrThrow()
+                    val url = snapshot.url.toHttpUrlOrNull() ?: throw BrokerFailure(RequestStage.Parse, FailureCode.InvalidRequest)
+                    policy.check(url)
+                    prepareUserAgent(url, snapshot.headers, policy)
+                    permits.withPermit {
+                        rate.withLock {
+                            val elapsed = (System.nanoTime() - lastStart) / 1_000_000
+                            if (lastStart != 0L && elapsed < limits.minIntervalMillis) delay(limits.minIntervalMillis - elapsed)
+                            sourcePacing.awaitAdmission()
+                            currentCoroutineContext().ensureActive()
+                            checkOpen()
+                            lastStart = System.nanoTime()
+                        }
+                        val transport = clientFor(route, url)
+                        val key = java.util.Base64.getEncoder().encodeToString(ByteArray(16).also(java.security.SecureRandom()::nextBytes))
+                        val call = transport.newBuilder().protocols(listOf(Protocol.HTTP_1_1))
+                            .dns(policy.dns(url, route.dns)).callTimeout(snapshot.timeoutMillis, TimeUnit.MILLISECONDS)
+                            .readTimeout(snapshot.timeoutMillis, TimeUnit.MILLISECONDS)
+                            .writeTimeout(snapshot.timeoutMillis, TimeUnit.MILLISECONDS)
+                            // OkHttp otherwise retries 503/Retry-After:0 even with connection retries disabled.
+                            .addNetworkInterceptor { chain -> chain.proceed(chain.request()).let { response ->
+                                if (response.code == 503) response.newBuilder().removeHeader("Retry-After").build() else response
+                            } }.build().newCall(Request.Builder().url(url).tag(NetworkPolicy::class.java, policy)
+                                .headers(headers(url, snapshot.headers, policy)).header("Connection", "Upgrade")
+                                .header("Upgrade", "websocket").header("Sec-WebSocket-Version", "13")
+                                .header("Sec-WebSocket-Key", key).removeHeader("Sec-WebSocket-Extensions").build())
+                        route.track(call)
+                        try { awaitWebSocket(call, key, guard,
+                            minOf(snapshot.maxResponseBytes ?: limits.maxResponseBytes, limits.maxResponseBytes), block)
+                            .also { route.checkAvailable() } }
+                        finally { route.finished(call, transport.connectionPool) }
+                    }
+                }
+            } catch (_: TimeoutCancellationException) {
+                throw BrokerWebSocketException(BrokerResult.Failure(RequestStage.Response, FailureCode.Timeout))
+            } catch (cancelled: CancellationException) { throw cancelled }
+              catch (failure: BrokerWebSocketException) { throw failure }
+              catch (failure: BrokerFailure) {
+                  var result: BrokerResult.Failure? = null
+                  guard.commit { result = permissionResult(failure, snapshot.kind) }
+                  throw BrokerWebSocketException(checkNotNull(result))
+              } catch (_: IllegalArgumentException) {
+                  throw BrokerWebSocketException(BrokerResult.Failure(RequestStage.Parse, FailureCode.InvalidRequest))
+              } catch (failure: IOException) {
+                  val route = selectedRoute.getOrNull()
+                  val rejected = generateSequence<Throwable>(failure) { it.cause }.take(16).filterIsInstance<RejectedCertificate>().firstOrNull()
+                  if (rejected != null) guard.commit { synchronized(this@SourceSession) { checkOpen(); certificates.remember(rejected.problem) } }
+                  throw BrokerWebSocketException(BrokerResult.Failure(RequestStage.Connect, when {
+                      route?.available == false -> FailureCode.RouteUnavailable
+                      rejected != null || failure is javax.net.ssl.SSLPeerUnverifiedException -> FailureCode.Certificate
+                      failure is java.net.UnknownHostException -> FailureCode.Dns
+                      failure is java.io.InterruptedIOException -> FailureCode.Timeout
+                      else -> FailureCode.Network
+                  }, certificate = rejected?.problem))
+              }
+        }
+        // Callback failures are unwrapped outside the transport mapping, preserving their identity.
+        return try { work.await().also { checkOpen() }.getOrThrow() } finally { work.cancel() }
+    }
+
+    private suspend fun <T> awaitWebSocket(call: Call, key: String, guard: RequestCommitGuard, maxResponseBytes: Int,
+        block: (BrokerWebSocket) -> T): Result<T> = suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation { call.cancel() }
+        val callback = object : Callback {
+            override fun onFailure(call: Call, e: IOException) { if (continuation.isActive) continuation.resumeWithException(e) }
+            override fun onResponse(call: Call, response: Response) {
+                try {
+                    if (!continuation.isActive) return
+                    if (response.headers.toString().length > 65536) throw BrokerFailure(RequestStage.Response, FailureCode.ResponseTooLarge)
+                    if (response.code != 101) throw BrokerWebSocketException(
+                        BrokerResult.Failure(RequestStage.Response, FailureCode.Network), response.code)
+                    val accept = java.util.Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-1")
+                        .digest((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").toByteArray(Charsets.US_ASCII)))
+                    if (!response.header("Connection").equals("Upgrade", true) || !response.header("Upgrade").equals("websocket", true) ||
+                        response.header("Sec-WebSocket-Accept") != accept || response.header("Sec-WebSocket-Extensions") != null)
+                        throw BrokerFailure(RequestStage.Response, FailureCode.Network)
+                    val socket = response.socket ?: throw BrokerFailure(RequestStage.Response, FailureCode.Network)
+                    val result = runCatching { block(BrokerWebSocket(socket, limits.maxRequestBytes, maxResponseBytes)) }
+                    guard.commit { synchronized(this@SourceSession) {
+                        checkOpen()
+                        if (continuation.isActive) continuation.resume(result)
+                    } }
+                } catch (failure: Exception) { if (continuation.isActive) continuation.resumeWithException(failure) }
+                finally {
+                    response.socket?.let { socket ->
+                        socket.cancel()
+                        // Cancellation interrupts I/O; closing both halves releases OkHttp's exchange ownership.
+                        runCatching { socket.source.close() }
+                        runCatching { socket.sink.close() }
+                    }
+                    response.close()
+                }
+            }
+        }
+        try { guard.commit { checkOpen(); if (continuation.isActive) call.enqueue(callback) } }
+        catch (failure: Exception) { if (continuation.isActive) continuation.resumeWithException(failure) }
+    }
+
     /** Host-owned response handoffs must remain on the same live route as their original read. */
     fun responseRoute(): SourceRouteReference? = runCatching {
         checkOpen(); routes.snapshot().reference.takeIf { it.available }

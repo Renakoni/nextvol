@@ -80,10 +80,10 @@ internal fun SpeechEnginesScreen(state: SpeechEnginesState, onBack: () -> Unit,
                                             val candidate = engine.copy(enabled = !engine.enabled)
                                             if (engine.enabled && state.voices(engine).isNotEmpty()) pending = candidate else onSave(candidate)
                                         })
-                                    DropdownMenuItem(text = { Text(stringResource(if (engine.type == "http") R.string.tts_engine_delete else R.string.tts_engine_reset)) },
+                                    DropdownMenuItem(text = { Text(stringResource(if (engine.isOnline) R.string.tts_engine_delete else R.string.tts_engine_reset)) },
                                         enabled = !state.saving && !engine.deleted, onClick = {
                                             menu = false
-                                            pending = if (engine.type == "http") engine.copy(enabled = false, deleted = true)
+                                            pending = if (engine.isOnline) engine.copy(enabled = false, deleted = true)
                                                 else engine.copy(name = engine.code, parameters = "", note = "")
                                         })
                                 }
@@ -153,7 +153,7 @@ internal fun SpeechEngineEditorScreen(configuration: SpeechEngineConfig?, creati
                 item { EngineField(draft.url, R.string.tts_engine_url, !state.saving, true) { draft = draft.copy(url = it) } }
                 item { EngineField(draft.header, R.string.tts_engine_header, !state.saving, true) { draft = draft.copy(header = it) } }
             }
-            if (draft.code == "msctts" && draft.type == "inner") item {
+            if (draft.type == "inner" && draft.code in setOf("msctts", "mstrans")) item {
                 EngineField(draft.parameters, R.string.tts_engine_parameters, !state.saving, true) { draft = draft.copy(parameters = it) }
             }
             item { EngineField(draft.note, R.string.tts_engine_note, !state.saving, true) { draft = draft.copy(note = it) } }
@@ -180,7 +180,7 @@ internal fun SpeechEngineVoicesScreen(engine: SpeechEngineConfig?, state: Speech
         }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(vertical = 12.dp)) {
             if (engine != null) {
-                if (engine.type == "http") items(state.http.filter { it.importedEngineCode == engine.code }, key = { it.definition.id }) { source ->
+                if (engine.isOnline) items(state.http.filter { it.importedEngineCode == engine.code }, key = { it.definition.id }) { source ->
                     val status = when {
                         source.engineDeleted -> R.string.tts_engine_missing
                         !source.engineEnabled -> R.string.tts_engine_disabled

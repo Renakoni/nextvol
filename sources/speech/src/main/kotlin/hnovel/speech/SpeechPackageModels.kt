@@ -46,6 +46,7 @@ class SpeechPackageEngine(
     val notices: List<SpeechPackageNotice>,
     val requiredResources: List<SpeechPackageResourceReference>,
 ) {
+    val isOnline: Boolean get() = isOnlineSpeechEngine(code, type)
     override fun toString() = "SpeechPackageEngine(code=$code, voices=${voices.size}, support=$support)"
 }
 

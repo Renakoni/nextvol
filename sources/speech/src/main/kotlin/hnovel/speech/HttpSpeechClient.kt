@@ -40,6 +40,8 @@ class HttpSpeechClient(
 
     private val identity = authority.issue(source.id, "http-tts", source.revision, "speech")
     private val microsoft = source.microsoft?.let { MicrosoftSpeechClient(it, ::executeMicrosoft) }
+    private val edge = if (source.nativeEngine == "edgetts") EdgeSpeechClient(
+        requireNotNull(source.multiTts).getValue("voice").jsonObject, ::executeEdge) else null
     @Volatile private var microsoftSession: SourceSession? = null
 
     // A client owns one immutable source revision; static bindings need parsing only once.
@@ -81,7 +83,8 @@ class HttpSpeechClient(
         try {
             withTimeout(60_000) {
                 val speed = source.scriptSpeed(rate)
-                val audio = microsoft?.synthesize(text, rate ?: speed / 10f) ?: request(text, speed, volume)
+                val audio = edge?.synthesize(text, rate ?: speed / 10f, volume)
+                    ?: microsoft?.synthesize(text, rate ?: speed / 10f, volume) ?: request(text, speed, volume)
                 currentCoroutineContext().ensureActive()
                 if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
                 audio
@@ -94,12 +97,21 @@ class HttpSpeechClient(
         }
     }
 
+    private suspend fun executeEdge(request: BrokerRequest, receive: (BrokerWebSocket) -> ByteArray): ByteArray = try {
+        session.webSocket(request, RequestCommitGuard { authority.authorized(identity, it) }, receive)
+    } catch (failure: BrokerWebSocketException) {
+        throw HttpSpeechException(failure.statusCode?.let(::httpStatusError) ?: failure.failure.code.speechError(),
+            statusCode = failure.statusCode, networkCode = failure.failure.code,
+            deniedOrigins = listOfNotNull(failure.failure.denial?.origin))
+    }
+
     private suspend fun executeMicrosoft(request: BrokerRequest): BrokerResponse {
         val guard = RequestCommitGuard { authority.authorized(identity, it) }
-        val received = if (request.url == MicrosoftSpeechClient.AUTH_URL) session.execute(request, guard) else {
+        val authUrl = requireNotNull(source.microsoft).authUrl
+        val received = if (request.url == authUrl) session.execute(request, guard) else {
             // The audited protocol derives only a regional Microsoft endpoint after successful auth.
             // This grant stays in the adapter's session; scripts never receive regional grants.
-            if (grants.none { sourceOrigin(it.origin) == MicrosoftSpeechClient.AUTH_ORIGIN })
+            if (grants.none { sourceOrigin(it.origin) == sourceOrigin(authUrl) })
                 throw HttpSpeechException(HttpSpeechError.PermissionDenied)
             var regional: SourceSession? = null
             guard.commit {
