@@ -81,7 +81,7 @@ class HttpSpeechClient(
         try {
             withTimeout(60_000) {
                 val speed = source.scriptSpeed(rate)
-                val audio = microsoft?.synthesize(text, rate ?: speed / 10f) ?: request(text, speed, volume)
+                val audio = microsoft?.synthesize(text, rate ?: speed / 10f, volume) ?: request(text, speed, volume)
                 currentCoroutineContext().ensureActive()
                 if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
                 audio
@@ -96,10 +96,11 @@ class HttpSpeechClient(
 
     private suspend fun executeMicrosoft(request: BrokerRequest): BrokerResponse {
         val guard = RequestCommitGuard { authority.authorized(identity, it) }
-        val received = if (request.url == MicrosoftSpeechClient.AUTH_URL) session.execute(request, guard) else {
+        val authUrl = requireNotNull(source.microsoft).authUrl
+        val received = if (request.url == authUrl) session.execute(request, guard) else {
             // The audited protocol derives only a regional Microsoft endpoint after successful auth.
             // This grant stays in the adapter's session; scripts never receive regional grants.
-            if (grants.none { sourceOrigin(it.origin) == MicrosoftSpeechClient.AUTH_ORIGIN })
+            if (grants.none { sourceOrigin(it.origin) == sourceOrigin(authUrl) })
                 throw HttpSpeechException(HttpSpeechError.PermissionDenied)
             var regional: SourceSession? = null
             guard.commit {

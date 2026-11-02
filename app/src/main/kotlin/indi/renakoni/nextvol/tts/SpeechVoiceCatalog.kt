@@ -25,7 +25,7 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
             !engine.deleted || online.any { it.importedEngineCode == engine.code }
         }.sortedBy { it.order }
         val groups = configurations.map { engine ->
-            val voices = if (engine.type == "http") online.filter { it.importedEngineCode == engine.code }
+            val voices = if (engine.isOnline) online.filter { it.importedEngineCode == engine.code }
                 .map { SpeechVoiceRef(httpSource = it.definition.id, label = it.definition.name) }
             else installed.filter { (it.configuration?.engine ?: "sherpa") == engine.code }
                 .map { SpeechVoiceRef(offlineVoice = it.reference, label = it.name) }

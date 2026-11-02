@@ -85,10 +85,10 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                 catch (_: Exception) { SpeechPackagePreview(name, error = SpeechPackageError.ReadFailed) }
                 val imports = preview.engines.mapIndexedNotNull { index, engine ->
                     task.ensureActive()
-                    if (engine.type == "http") index to previewHttpSpeechPackage(engine) else null
+                    if (engine.isOnline) index to previewHttpSpeechPackage(engine) else null
                 }.toMap()
                 val local = preview.engines.flatMapIndexed { index, engine ->
-                    if (engine.type != "http") engine.voices.mapIndexed { voiceIndex, voice ->
+                    if (!engine.isOnline) engine.voices.mapIndexed { voiceIndex, voice ->
                         task.ensureActive()
                         (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
                     } else emptyList()
