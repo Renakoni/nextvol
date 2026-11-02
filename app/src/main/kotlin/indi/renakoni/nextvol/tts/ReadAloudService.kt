@@ -143,10 +143,11 @@ class ReadAloudService : MediaSessionService() {
         scope.launch {
             combine(settings.changes, voices.changes, pairs.revisions) { settings, _, _ ->
                 pairs.setCacheLimit(settings.maxCacheVoiceNum)
-                if (!settings.text.detectLanguage || settings.roleRules.none { it.isLanguageRule }) languages.release()
                 voices.revised(settings)
+            }.collect { settings ->
+                speech.updateSettings(settings)
+                if (!settings.text.detectLanguage || settings.roleRules.none { it.isLanguageRule }) languages.release()
             }
-                .collect(speech::updateSettings)
         }
     }
 
