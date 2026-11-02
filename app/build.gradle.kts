@@ -95,10 +95,11 @@ val prepareSpeechAudioLicenses by tasks.registering(Sync::class) {
 // JVM checks do not package native libraries and do not need the Android NDK.
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("JniLibFolders") }
     .configureEach { dependsOn(buildSpeechAudioNative) }
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareSpeechAudioLicenses) }
 
 android {
     sourceSets.getByName("main").jniLibs.srcDir(audioOutput.resolve("jniLibs"))
-    sourceSets.getByName("main").assets.srcDir(prepareSpeechAudioLicenses.map { it.destinationDir.parentFile })
+    sourceSets.getByName("main").assets.srcDir(audioOutput.resolve("assets"))
     sourceSets.getByName("main").jniLibs.srcDir(offlineRuntime.resolve("jniLibs"))
     sourceSets.getByName("main").assets.srcDir(offlineRuntime.resolve("assets"))
     if (matchaNative) {
