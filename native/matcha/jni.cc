@@ -19,8 +19,6 @@ namespace {
 constexpr size_t kMaxSamples = (8 * 1024 * 1024 - 44) / 2;
 struct Instance {
   std::unique_ptr<sherpa_onnx::OfflineTts> engine;
-  int32_t speaker = 0;
-  float speed = 1, pitch = 1, volume = 1;
   ~Instance() { engine.reset(); sherpa_onnx::ReleaseEspeak(); }
 };
 
@@ -152,14 +150,6 @@ Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_create(JNIEnv *env, jobject, 
     if (!configuration) throw std::invalid_argument("Missing offline TTS configuration");
     Fields fields(env, configuration);
     auto instance = std::make_unique<Instance>();
-    instance->speaker = fields.Int("speakerId");
-    instance->speed = fields.Float("speed");
-    instance->pitch = fields.Float("pitch");
-    instance->volume = fields.Float("volume");
-    if (!std::isfinite(instance->speed) || instance->speed <= 0 ||
-        !std::isfinite(instance->pitch) || instance->pitch <= 0 ||
-        !std::isfinite(instance->volume) || instance->volume < 0)
-      throw std::invalid_argument("Invalid offline voice audio parameters");
     sherpa_onnx::OfflineTtsConfig config;
     config.model.num_threads = fields.Int("numThreads");
     config.model.provider = fields.String("provider");
@@ -184,9 +174,8 @@ Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_create(JNIEnv *env, jobject, 
     if (!config.Validate()) throw std::invalid_argument("Invalid offline model resources");
     instance->engine = std::make_unique<sherpa_onnx::OfflineTts>(config);
     const int32_t speakers = instance->engine->NumSpeakers();
-    if (instance->engine->SampleRate() <= 0 || speakers < 0 || instance->speaker < 0 ||
-        instance->speaker >= std::max(1, speakers))
-      throw std::invalid_argument("Invalid sample rate or selected speaker");
+    if (instance->engine->SampleRate() <= 0 || speakers < 0)
+      throw std::invalid_argument("Invalid sample rate or speaker count");
     return reinterpret_cast<jlong>(instance.release());
   } catch (const std::exception &error) { Fail(env, error); return 0; }
 }
@@ -205,9 +194,11 @@ Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_describe(JNIEnv *env, jobject
 
 extern "C" JNIEXPORT void JNICALL
 Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_generate(
-    JNIEnv *env, jobject, jlong handle, jstring text, jfloat speed, jstring path, jobject cancellation) {
+    JNIEnv *env, jobject, jlong handle, jstring text, jint speaker, jfloat speed,
+    jfloat pitch, jfloat volume, jstring path, jobject cancellation) {
   try {
     if (!handle || !std::isfinite(speed) || speed <= 0 ||
+        !std::isfinite(pitch) || pitch <= 0 || !std::isfinite(volume) || volume < 0 ||
         !text || env->GetStringLength(text) > 200 || !cancellation)
       throw std::invalid_argument("Invalid Matcha request");
     auto method = env->GetMethodID(env->GetObjectClass(cancellation), "isCancelled", "()Z");
@@ -216,17 +207,19 @@ Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_generate(
     if (cancelled()) return;
     size_t samples = 0;
     auto &instance = *reinterpret_cast<Instance *>(handle);
+    if (speaker < 0 || speaker >= std::max(1, instance.engine->NumSpeakers()))
+      throw std::invalid_argument("Invalid selected speaker");
     // Native speaking-rate adjustment compensates the pitch resampling duration.
-    const float synthesis_speed = speed * instance.speed / instance.pitch;
+    const float synthesis_speed = speed / pitch;
     if (!std::isfinite(synthesis_speed) || synthesis_speed <= 0)
       throw std::invalid_argument("Invalid effective speaking rate");
     auto audio = instance.engine->Generate(
-        Utf8(env, text), instance.speaker, synthesis_speed, [&](const float *, int32_t count, float) {
+        Utf8(env, text), speaker, synthesis_speed, [&](const float *, int32_t count, float) {
           if (count < 0 || (samples += count) > kMaxSamples)
             throw std::runtime_error("Oversized Matcha audio");
           return cancelled() ? 0 : 1;
         });
-    if (!cancelled()) WriteWav(audio, Utf8(env, path), instance.pitch, instance.volume);
+    if (!cancelled()) WriteWav(audio, Utf8(env, path), pitch, volume);
   } catch (const std::exception &error) { Fail(env, error); }
 }
 

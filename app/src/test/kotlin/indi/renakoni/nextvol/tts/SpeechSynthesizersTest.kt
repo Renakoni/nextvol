@@ -20,6 +20,8 @@ class SpeechSynthesizersTest {
     @get:Rule val files = TemporaryFolder()
 
     @Test fun httpWorkLeavesTheCallerThreadAndCleanupSurvivesFailure() = runBlocking {
+        mockkStatic(android.util.Log::class)
+        every { android.util.Log.d(any(), any()) } returns 0
         val caller = Thread.currentThread()
         val definition = previewHttpSpeech("""{"name":"Voice","url":"https://example.org/voice"}""").sources.single()
         val source = SavedHttpSpeechSource(definition, listOf("https://example.org:443"))
@@ -53,6 +55,9 @@ class SpeechSynthesizersTest {
             provider.cancel()
             verify(exactly = 1) { anyConstructed<HttpSpeechClient>().close() }
             verify(exactly = 1) { anyConstructed<SourceBroker>().close() }
-        } finally { unmockkConstructor(SourceBroker::class, HttpSpeechClient::class) }
+        } finally {
+            unmockkConstructor(SourceBroker::class, HttpSpeechClient::class)
+            unmockkStatic(android.util.Log::class)
+        }
     }
 }

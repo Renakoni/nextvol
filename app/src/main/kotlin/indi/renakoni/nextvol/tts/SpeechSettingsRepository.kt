@@ -40,6 +40,7 @@ data class SpeechSettings(
     val allowMultipleVoices: Boolean = false,
     val roleRules: List<SpeechRoleRule> = emptyList(),
     val roleContextPattern: String? = null,
+    val engineCacheCapacity: Int = 10,
     val voiceItems: List<SpeechVoiceItem> = emptyList(),
     val autoAssignRole: Boolean = false,
     val maxCacheVoiceNum: Int = 50,
@@ -52,6 +53,7 @@ data class SpeechSettings(
         httpSource = httpSource.takeIf { offlineVoice == null },
         httpRevision = httpRevision.takeIf { offlineVoice == null && httpSource != null }.orEmpty(),
         text = text.validated(),
+        engineCacheCapacity = engineCacheCapacity.coerceIn(3, 32),
         maxCacheVoiceNum = maxCacheVoiceNum.coerceAtLeast(0),
     )
 }

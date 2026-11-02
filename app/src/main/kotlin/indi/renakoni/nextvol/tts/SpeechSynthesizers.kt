@@ -14,10 +14,12 @@ import hnovel.speech.HttpSpeechError
 import hnovel.speech.HttpSpeechException
 import indi.renakoni.nextvol.tts.matcha.MatchaResources
 import indi.renakoni.nextvol.tts.matcha.MatchaSpeechSynthesizer
+import indi.renakoni.nextvol.tts.matcha.modelKey
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRuntimeInfo
 import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
+import indi.renakoni.nextvol.tts.offline.offlineSpeechExclusiveGroup
 import indi.renakoni.nextvol.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -38,32 +40,25 @@ class SpeechSynthesizers @Inject constructor(
     @ApplicationContext private val context: Context,
     private val availability: OfflineAvailabilityChecker,
     private val networkCheck: SpeechNetworkCheck,
+    private val caches: SpeechSynthesizerCaches = SpeechSynthesizerCaches(),
 ) {
     /** Development entry for an already installed Sherpa model. */
     fun matcha(resources: MatchaResources): SpeechSynthesizer = MatchaSpeechSynthesizer(resources)
 
-    fun synthesizer(): SpeechSynthesizer = object : SpeechSynthesizer {
-        @Volatile private var selected: SpeechSynthesizer? = null
-        override val maxInputLength get() = checkNotNull(selected).maxInputLength
-        override suspend fun open(settings: SpeechSettings): String {
-            withContext(NonCancellable + Dispatchers.IO) { close() }
-            currentCoroutineContext().ensureActive()
-            val provider = when {
-                settings.offlineVoice != null -> offline()
-                settings.httpSource != null -> http()
-                else -> system.synthesizer()
+    fun synthesizer(): SpeechSynthesizer = CachedSpeechSynthesizer(caches, create = { settings ->
+        when {
+            settings.offlineVoice != null -> {
+                val voice = offline.voices().find { it.reference == settings.offlineVoice }
+                    ?: throw SpeechException(SpeechError.OfflineUnavailable)
+                val configuration = offline.configuration(voice)
+                if (configuration.engine == "sherpa") SpeechRuntime(offline(), "sherpa",
+                    MatchaResources(offline.directory(voice.resourceReference), requireNotNull(configuration.sherpa)).modelKey)
+                else SpeechRuntime(offline(), offlineSpeechExclusiveGroup(configuration.engine))
             }
-            selected = provider
-            return provider.open(settings)
+            settings.httpSource != null -> SpeechRuntime(http())
+            else -> SpeechRuntime(system.synthesizer())
         }
-        override suspend fun synthesize(text: String, output: File) = checkNotNull(selected).synthesize(text, output)
-        override fun cancel() { selected?.cancel() }
-        override fun close() {
-            val previous = selected
-            selected = null
-            previous?.close()
-        }
-    }
+    })
 
     private fun offline(): SpeechSynthesizer = object : SpeechSynthesizer {
         private var lease: OfflineSpeechRepository.Lease? = null

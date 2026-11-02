@@ -220,6 +220,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
             viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern,
             onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } },
+            onEngineCacheCapacity = viewModel::engineCacheCapacity, onClearEngines = viewModel::clearEngines,
             onAutoAssign = viewModel::autoAssign, onCacheLimit = viewModel::cacheLimit)
     }
     composable<SpeechNameTestRoute> {

@@ -24,6 +24,26 @@ import java.util.concurrent.atomic.AtomicInteger
 class OfflineSpeechSynthesizerTest {
     @get:Rule val files = TemporaryFolder()
 
+    @Test fun independentBaiduAndSogouRuntimesStayOpenWhileSameFamilyWaits() = runBlocking {
+        val baidu = synthesizer { FakeEngine() }
+        val sogou = OfflineSpeechSynthesizer(mockk<Context>(), files.root, OfflineVoiceConfig("sougou", "test")) { FakeEngine() }
+        val nextEntered = CompletableDeferred<Unit>()
+        val nextBaidu = synthesizer { nextEntered.complete(Unit); FakeEngine() }
+        var opening: Job? = null
+        try {
+            baidu.open(SpeechSettings())
+            withTimeout(10_000) { assertEquals("sougou", sogou.open(SpeechSettings())) }
+            opening = launch(start = CoroutineStart.UNDISPATCHED) { nextBaidu.open(SpeechSettings()) }
+            assertFalse(nextEntered.isCompleted)
+            baidu.close()
+            withTimeout(10_000) { opening.join() }
+            assertTrue(nextEntered.isCompleted)
+        } finally {
+            opening?.cancelAndJoin()
+            baidu.close(); sogou.close(); nextBaidu.close()
+        }
+    }
+
     @Test fun cancelledInitializationKeepsItsSlotAndReleasesItEvenWhenTeardownThrows() = runBlocking {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
