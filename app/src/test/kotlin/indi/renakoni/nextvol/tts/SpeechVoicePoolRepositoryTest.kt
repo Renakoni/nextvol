@@ -31,8 +31,11 @@ class SpeechVoicePoolRepositoryTest {
         repository.setManual(changed)
         assertEquals(1L, repository.revisions.value)
         val reopened = SpeechVoicePoolRepository(data)
-        assertEquals(listOf(changed.copy(manual = true), otherBook, otherAutomatic), reopened.pairs())
+        val saved = reopened.pairs()
+        assertEquals(listOf(changed.copy(manual = true), otherBook, otherAutomatic), saved)
         val catalog = listOf(first, second).associate { it.key to SpeechResolvedVoice(it, SpeechSettings(), 100) }
-        assertEquals(second, reopened.existing("book", "新人物", listOf("其他分组"), reopened.pairs(), catalog - second.key, 1)!!.value)
+        assertEquals(second, reopened.existing("book", "新人物", listOf("其他分组"), saved, 0, catalog - second.key, 1)!!.value)
+        reopened.remove(setOf(changed.id))
+        assertEquals(first, reopened.existing("book", "新人物", listOf("其他分组"), saved, 0, catalog, 1)!!.value)
     }
 }

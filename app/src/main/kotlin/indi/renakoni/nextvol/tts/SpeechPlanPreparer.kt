@@ -35,12 +35,13 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
         withContext(Dispatchers.Default) {
             val task = currentCoroutineContext()
             val preview = chapter.bookId.isEmpty()
+            val pairRevision = pairs.revisions.value
             val saved = if (preview) mutableListOf() else pairs.pairs(chapter.bookId).toMutableList()
             val catalog = voices.resolve(settings, saved)
             val previewPool = if (preview) SpeechVoicePool() else null
             suspend fun existing(name: String, groups: List<String>): SpeechVoicePair? =
                 if (previewPool != null) previewPool.existing(chapter.bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum)
-                else pairs.existing(chapter.bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum)
+                else pairs.existing(chapter.bookId, name, groups, saved, pairRevision, catalog, settings.maxCacheVoiceNum)
             val key = chapter.bookId + "\u0000" + chapter.id + "\u0000" + settings.textProcessingKey(maxInputLength)
             if (!preview && (discoveryKey != key || !settings.autoAssignRole || settings.text.nameDiscoveryAlgorithm != 100)) {
                 reset()

@@ -30,10 +30,12 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
     }
 
     suspend fun existing(bookId: String, person: String, groups: List<String>, pairs: List<SpeechVoicePair>,
-        catalog: Map<String, SpeechResolvedVoice>, maxCache: Int): SpeechVoicePair? =
+        revision: Long, catalog: Map<String, SpeechResolvedVoice>, maxCache: Int): SpeechVoicePair? =
         mutex.withLock {
             // O6.j.l changes the draw bag, not existing pairs. Membership does not revoke a stable assignment.
-            pool.existing(bookId, person, groups, pairs, catalog, maxCache)
+            // An older plan must not repopulate the cache after a manual edit/removal cleared it.
+            val current = if (revision == revisions.value) pairs else withContext(Dispatchers.IO) { decode(stored.get()) }
+            pool.existing(bookId, person, groups, current, catalog, maxCache)
         }
 
     suspend fun assign(bookId: String, person: String, group: String, items: List<SpeechVoiceItem>,
