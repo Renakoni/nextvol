@@ -6,6 +6,14 @@ import hnovel.execution.*
 import hnovel.imports.LEGADO_PROFILE
 import hnovel.rules.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test
@@ -13,6 +21,22 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ScriptFailureInstrumentedTest {
+    @Test fun cancelledCallerStillClosesConnectedWorker() = runBlocking {
+        val worker = IsolatedWorkerConnection(InstrumentationRegistry.getInstrumentation().targetContext,
+            ExecutionAuthority(), IsolatedExecutionService::class.java)
+        try {
+            val binder = withTimeout(15000) { worker.connected.await() }.asBinder()
+            assertTrue(binder.isBinderAlive)
+            val closing = launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+                currentCoroutineContext().cancel()
+                worker.close()
+            }
+            closing.join()
+            withTimeout(5000) { worker.died.await() }
+            assertFalse(binder.isBinderAlive)
+        } finally { withContext(NonCancellable) { worker.close() } }
+    }
+
     @Test fun binderRetainsCallShapeWithoutPrivateArgumentsAndRecoversForTheNextTask() = runBlocking {
         val authority = ExecutionAuthority()
         val identity = authority.issue("fixture", LEGADO_PROFILE, "1")
