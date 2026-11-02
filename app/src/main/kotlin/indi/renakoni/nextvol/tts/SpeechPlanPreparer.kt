@@ -44,7 +44,7 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
                 discoveryKey = key
             }
             var session = if (preview) null else discoverySession
-            val characters = SpeechCharacterAssignment(settings, chapter, saved, catalog,
+            val characters = if (settings.hasVoiceRouting || saved.isNotEmpty()) SpeechCharacterAssignment(settings, chapter, saved, catalog,
                 recognize = { input -> recognizer.recognize(input).map { it.name } },
                 newWords = { input, unitKey, reverse ->
                     val active = session ?: discovery.newSession().also {
@@ -68,7 +68,7 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
                         saved.removeAll { it.id == value.id }
                         saved += value
                     }
-                }, checkCancelled = { task.ensureActive() })
+                }, checkCancelled = { task.ensureActive() }) else null
             prepareSpeechPlan(chapter, settings, replace, context, maxInputLength, catalog, characters) { task.ensureActive() }
         }
     }

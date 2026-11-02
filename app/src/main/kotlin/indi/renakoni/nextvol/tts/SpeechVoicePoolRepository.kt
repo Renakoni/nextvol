@@ -83,12 +83,7 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
         failed
     } }
 
-    suspend fun clearCache() = withContext(Dispatchers.IO) { mutex.withLock { pool.clearCache() } }
-
     suspend fun setCacheLimit(limit: Int) = withContext(Dispatchers.IO) { mutex.withLock { pool.setCacheLimit(limit) } }
-
-    /** Service shutdown discards draw bags and lookup entries, never saved assignments. */
-    suspend fun resetRuntime() = withContext(Dispatchers.IO) { mutex.withLock { pool.clear() } }
 
     private suspend fun change(update: (List<SpeechVoicePair>) -> List<SpeechVoicePair>) =
         withContext(Dispatchers.IO) { mutex.withLock {

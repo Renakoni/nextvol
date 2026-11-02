@@ -118,8 +118,8 @@ class SpeechReplacementsViewModel @Inject constructor(private val repository: Sp
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: SpeechReplacementException) {
                 mutableState.update { it.copy(failure = failure.failure, previewing = false) }
-            } catch (failure: SpeechException) {
-                mutableState.update { it.copy(previewError = failure.error, previewing = false) }
+            } catch (failure: Exception) {
+                mutableState.update { it.copy(previewError = failure.speechError(SpeechError.SynthesisFailed), previewing = false) }
             }
         }
     }
