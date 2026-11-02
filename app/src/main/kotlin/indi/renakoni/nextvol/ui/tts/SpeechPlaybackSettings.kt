@@ -46,6 +46,8 @@ import kotlin.math.roundToInt
 data class SpeechPlaybackSettingsState(
     val settings: SpeechTextSettings? = null,
     val allowMultipleVoices: Boolean = false,
+    val autoAssignRole: Boolean = false,
+    val maxCacheVoiceNum: Int = 50,
     val roleContextPattern: String = "__ROLE__",
     val defaultNamePattern: String? = null,
     val error: SpeechError? = null,
@@ -65,6 +67,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.changes.collect { settings -> mutableState.update {
                 it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
+                    autoAssignRole = settings.autoAssignRole, maxCacheVoiceNum = settings.maxCacheVoiceNum,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
         }
@@ -80,6 +83,10 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun update(change: (SpeechTextSettings) -> SpeechTextSettings) = updateSettings { it.copy(text = change(it.text)) }
 
     fun allowMultipleVoices(enabled: Boolean) = updateSettings { it.copy(allowMultipleVoices = enabled) }
+
+    fun autoAssign(enabled: Boolean) = updateSettings { it.copy(autoAssignRole = enabled) }
+
+    fun cacheLimit(limit: Int) = updateSettings { it.copy(maxCacheVoiceNum = limit) }
 
     fun roleContextPattern(pattern: String) = updateSettings { it.copy(roleContextPattern = pattern) }
 
@@ -122,7 +129,8 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
-    onContextPattern: (String) -> Unit, onNameTest: () -> Unit) {
+    onContextPattern: (String) -> Unit, onNameTest: () -> Unit,
+    onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingContext by rememberSaveable { mutableStateOf(false) }
     var contextPattern by rememberSaveable { mutableStateOf("") }
@@ -166,6 +174,9 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         }
                     }
                 }
+                item { SpeechTextSwitch(R.drawable.tts_text_auto_assign, R.string.tts_pool_auto_assign,
+                    if (state.autoAssignRole) R.string.tts_pool_auto_on else R.string.tts_pool_auto_off,
+                    state.autoAssignRole, onAutoAssign) }
                 item { SpeechTextSwitch(R.drawable.tts_text_record_voice, R.string.tts_text_record_voice, R.string.tts_text_record_voice_description,
                     settings.recordVoice) { onUpdate { old -> old.copy(recordVoice = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_record_text, R.string.tts_text_record_text, R.string.tts_text_record_text_description,
@@ -201,6 +212,25 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                                 track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
                                     trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
                         }
+                    }
+                }
+            }
+            if (state.settings != null) item {
+                var limit by remember(state.maxCacheVoiceNum) { mutableFloatStateOf(state.maxCacheVoiceNum.coerceIn(3, 300).toFloat()) }
+                val title = stringResource(R.string.tts_pool_cache_limit)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+                    Icon(painterResource(R.drawable.tts_text_cache_voice), null, Modifier.padding(top = 2.dp).size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                        Text(title, style = MaterialTheme.typography.headlineSmall)
+                        Text(limit.roundToInt().toString(), Modifier.padding(top = 3.dp), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Slider(limit, { limit = it }, valueRange = 3f..300f,
+                            onValueChangeFinished = { onCacheLimit(limit.roundToInt()) },
+                            modifier = Modifier.semantics { contentDescription = title },
+                            thumb = { Surface(Modifier.size(16.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {} },
+                            track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
+                                trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
                     }
                 }
             }

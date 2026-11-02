@@ -40,6 +40,9 @@ data class SpeechSettings(
     val allowMultipleVoices: Boolean = false,
     val roleRules: List<SpeechRoleRule> = emptyList(),
     val roleContextPattern: String? = null,
+    val voiceItems: List<SpeechVoiceItem> = emptyList(),
+    val autoAssignRole: Boolean = false,
+    val maxCacheVoiceNum: Int = 50,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
@@ -49,11 +52,12 @@ data class SpeechSettings(
         httpSource = httpSource.takeIf { offlineVoice == null },
         httpRevision = httpRevision.takeIf { offlineVoice == null && httpSource != null }.orEmpty(),
         text = text.validated(),
+        maxCacheVoiceNum = maxCacheVoiceNum.coerceAtLeast(0),
     )
 }
 
 internal val SpeechSettings.hasVoiceRouting get() =
-    voiceRoutingConfigured || narrationVoices.isNotEmpty() || dialogueVoices.isNotEmpty() || speakerVoices.isNotEmpty() || roleRules.any { it.activate }
+    voiceRoutingConfigured || narrationVoices.isNotEmpty() || dialogueVoices.isNotEmpty() || speakerVoices.isNotEmpty() || roleRules.any { it.activate } || autoAssignRole
 
 @Singleton
 class SpeechSettingsRepository @Inject constructor(userData: UserDataRepository) {

@@ -67,6 +67,18 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         settings.update { it.copy(httpSource = id, offlineVoice = null) }
     }
 
+    fun addToPool(group: String, voices: List<SpeechVoiceRef>, onAdded: (Int) -> Unit) = work {
+        var added = 0
+        settings.update { current ->
+            val existing = current.voiceItems.filter { it.group == group }.map { it.value.key }.toSet()
+            val items = voices.distinctBy { it.key }.filterNot { it.key in existing }
+                .map { SpeechVoiceItem(group = group, value = it, name = it.label) }
+            added = items.size
+            current.copy(voiceItems = current.voiceItems + items)
+        }
+        onAdded(added)
+    }
+
     fun previewVoice(id: String?, text: String) {
         val selected = selectedSettings ?: return
         if (state.value.busy || id != null && state.value.sources.none { it.definition.id == id && it.isConfigured && it.available }) return

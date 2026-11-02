@@ -28,7 +28,11 @@ data class SpeechRoleRule(
 /** Abstract matches keep the actual person; pool allocation consumes this identity separately. */
 @Serializable
 data class SpeechRoleMatch(val person: String, val ruleId: String, val ruleName: String,
-    val isAbstract: Boolean, val voiceRef: SpeechVoiceRef?)
+    val isAbstract: Boolean, val voiceRef: SpeechVoiceRef?, val poolGroup: String? = null,
+    val origin: SpeechPersonOrigin = SpeechPersonOrigin.Rule, val classification: String? = null)
+
+@Serializable
+enum class SpeechPersonOrigin { Rule, Manual, Pair, Ner, NewWord }
 
 internal fun SpeechRoleMatch.personVoice() = SpeechPersonVoice(person, voiceRef?.key ?: "role:$ruleId", this)
 
@@ -109,6 +113,20 @@ internal class SpeechRoleRules(rules: List<SpeechRoleRule>,
     private suspend fun person(name: String, rules: List<SpeechRoleRule>): SpeechRoleMatch? {
         for (rule in rules) {
             if (find(name, rule.pattern, rule).isNotEmpty()) return rule.match(name)
+        }
+        return null
+    }
+
+    /** O6.f.c uses names, not invented spans, for both NER and P6 context matching. */
+    suspend fun contextualName(text: String, candidates: List<String>): String? {
+        val diagnostic = SpeechRoleRule(name = "__ROLE__", regex = contextPattern)
+        for ((index, candidate) in candidates.withIndex()) {
+            checkCancelled()
+            var context = text
+            for ((other, name) in candidates.withIndex()) {
+                context = context.replace(name, if (other == index) "__ROLE__" else "__OTHER__")
+            }
+            if (find(context, contextPattern, diagnostic).isNotEmpty()) return candidate
         }
         return null
     }
