@@ -1,0 +1,27 @@
+<resources>
+    <string name="tts_pool_title">Voice pool</string>
+    <string name="tts_pool_tab">Voice pool</string>
+    <string name="tts_pool_pairs">Assignments</string>
+    <string name="tts_pool_search">Find a voice or role</string>
+    <string name="tts_pool_add">New voice</string>
+    <string name="tts_pool_edit">Edit voice</string>
+    <string name="tts_pool_person">Character name</string>
+    <string name="tts_pool_male">Unmatched male</string>
+    <string name="tts_pool_female">Unmatched female</string>
+    <string name="tts_pool_auto_assign">Automatically assign voices</string>
+    <string name="tts_pool_auto_on">Unmatched characters also receive a voice</string>
+    <string name="tts_pool_auto_off">Unmatched characters do not receive a voice automatically</string>
+    <string name="tts_pool_cache_limit">Voice cache limit</string>
+    <string name="tts_pool_cache_hint">Character assignments kept in memory. Saved assignments are retained.</string>
+    <string name="tts_pool_empty">Add voices for abstract roles, or select voices in Sources and choose Add to voice pool.</string>
+    <string name="tts_pool_pairs_empty">Character assignments appear here when reading aloud.</string>
+    <string name="tts_pool_clear_pairs">Clear assignments</string>
+    <string name="tts_pool_reassign">Reassign voice</string>
+    <string name="tts_pool_delete_items_confirm">Remove the selected voices from the pool?</string>
+    <string name="tts_pool_delete_pairs_confirm">Remove these assignments? Characters will receive new voices the next time they are matched.</string>
+    <string name="tts_pool_join">Add to voice pool</string>
+    <string name="tts_pool_added">Added %d voices to the pool</string>
+    <string name="tts_pool_group_required">Select an abstract role.</string>
+    <string name="tts_pool_duplicate">This voice already exists for this role.</string>
+    <string name="tts_pool_no_candidate">No available voice in this role’s pool. The previous assignment was retained.</string>
+</resources>

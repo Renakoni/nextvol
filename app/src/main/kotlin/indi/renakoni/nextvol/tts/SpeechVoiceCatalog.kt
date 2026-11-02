@@ -15,7 +15,8 @@ data class SpeechRoleEngine(val key: String, val name: String, val voices: List<
 /** Reads configuration only. Planning must not open models, run scripts or acquire runtime permits. */
 class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechRepository,
     private val offline: OfflineSpeechRepository, private val engines: OfflineEngineRepository,
-    private val settings: SpeechSettingsRepository, @ApplicationContext private val context: Context) {
+    private val settings: SpeechSettingsRepository, @ApplicationContext private val context: Context,
+    private val pairs: SpeechVoicePoolRepository) {
     val changes = combine(http.changes, offline.changes, engines.changes) { a, b, c -> Triple(a, b, c) }
 
     suspend fun roleEngines(): List<SpeechRoleEngine> {
@@ -47,7 +48,7 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
     suspend fun resolve(settings: SpeechSettings): Map<String, SpeechResolvedVoice> {
         val online = http.sources().associateBy { it.definition.id }
         val installed = offline.voices().associateBy { it.reference.id }
-        return settings.references().associate { reference ->
+        return (settings.references() + pairs.pairs().map { it.value }).distinctBy { it.key }.associate { reference ->
             val value = when {
                 reference.offlineVoice != null -> {
                     val voice = installed[reference.offlineVoice.id]
@@ -78,11 +79,12 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
     }
 
     suspend fun revised(settings: SpeechSettings): SpeechSettings = settings.copy(voiceRevision =
-        speechDigest(resolve(settings).values.joinToString("\u0000") { it.reference.key + it.revision + it.error }))
+        speechDigest(resolve(settings).values.joinToString("\u0000") { it.reference.key + it.revision + it.error }) + ":" + pairs.revisions.value)
 }
 
 internal fun SpeechSettings.references(): List<SpeechVoiceRef> =
-    (listOf(voiceReference()) + narrationVoices + dialogueVoices + speakerVoices.values + roleRules.mapNotNull { it.speaker }).distinctBy { it.key }
+    (listOf(voiceReference()) + narrationVoices + dialogueVoices + speakerVoices.values + roleRules.mapNotNull { it.speaker } +
+        voiceItems.map { it.value }).distinctBy { it.key }
 
 internal const val SPEECH_HTTP_INPUT_LIMIT = 65536
 

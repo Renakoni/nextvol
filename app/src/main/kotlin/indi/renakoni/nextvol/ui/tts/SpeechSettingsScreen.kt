@@ -81,6 +81,7 @@ fun SpeechSettingsScreen(
     onChapterSleepTimer: ((Int) -> Unit)? = null,
     onReplacements: (() -> Unit)? = null,
     onRoles: (() -> Unit)? = null,
+    onVoicePool: (() -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -150,6 +151,15 @@ fun SpeechSettingsScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-roles-entry"),
                             painter = painterResource(R.drawable.person_edit_24px),
                             title = stringResource(R.string.tts_roles),
+                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            onClick = open,
+                        )
+                    }
+                    onVoicePool?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-voice-pool-entry"),
+                            painter = painterResource(R.drawable.headphones_24px),
+                            title = stringResource(R.string.tts_pool_title),
                             trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                             onClick = open,
                         )

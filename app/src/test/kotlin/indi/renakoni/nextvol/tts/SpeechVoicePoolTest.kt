@@ -1,0 +1,66 @@
+package indi.renakoni.nextvol.tts
+
+import kotlinx.serialization.json.Json
+import org.junit.Assert.*
+import org.junit.Test
+import kotlin.random.Random
+
+class SpeechVoicePoolTest {
+    private val first = SpeechVoiceRef(httpSource = "first", label = "First")
+    private val second = SpeechVoiceRef(httpSource = "second", label = "Second")
+    private val third = SpeechVoiceRef(httpSource = "third", label = "Third")
+    private val group = "青年"
+    private val items = listOf(first, second).map { SpeechVoiceItem(group, it) }
+    private val catalog = listOf(first, second, third).associate { it.key to
+        SpeechResolvedVoice(it, SpeechSettings(httpSource = it.httpSource), 100) }
+
+    @Test fun randomRoundUsesEachEnabledCandidateOnceAndRefillsOnlyAfterExhaustion() {
+        val pool = SpeechVoicePool(Random(19))
+        val enabled = items + SpeechVoiceItem(group, third, activate = false)
+        val round = List(2) { pool.draw("book", group, enabled, catalog)!! }
+        assertEquals(setOf(first.key, second.key), round.map { it.key }.toSet())
+        val next = List(2) { pool.draw("book", group, enabled, catalog)!! }
+        assertEquals(setOf(first.key, second.key), next.map { it.key }.toSet())
+        assertNull(pool.draw("book", "空池", enabled, catalog))
+        assertNull(pool.draw("book", group, enabled.map { it.copy(activate = false) }, catalog))
+    }
+
+    @Test fun cacheEvictionAndRestartKeepDurablePairsWhileBooksRemainIndependent() {
+        val pool = SpeechVoicePool(Random(9))
+        var saved = emptyList<SpeechVoicePair>()
+        repeat(3) { index -> saved += pool.assign("book", "人物$index", group, saved, items, catalog, 1)!! }
+        saved.forEach { assertEquals(it.value, pool.existing("book", it.person, listOf(group), saved, catalog, 1)!!.value) }
+        assertEquals(1, pool.cacheSize)
+        pool.setCacheLimit(0)
+        assertEquals(0, pool.cacheSize)
+        val restored = Json.decodeFromString<List<SpeechVoicePair>>(Json.encodeToString(saved))
+        val restarted = SpeechVoicePool(Random(36))
+        assertEquals(saved.first().value,
+            restarted.assign("book", "人物0", group, restored, items, catalog, 1)!!.value)
+        assertNull(restarted.existing("another-book", "人物0", listOf(group), restored, catalog, 1))
+        assertEquals("another-book", restarted.assign("another-book", "人物0", group, restored, items, catalog, 1)!!.bookId)
+    }
+
+    @Test fun membershipChangesOnlyAffectFutureDrawsAndCatalogChangesRefreshOrReplaceAutomaticPairs() {
+        val pool = SpeechVoicePool(Random(3))
+        val assigned = pool.assign("book", "林飞", group, emptyList(), items, catalog, 5)!!
+        val disabled = items.map { it.copy(activate = false) } + SpeechVoiceItem(group, third)
+        assertEquals(assigned.value, pool.assign("book", "林飞", group, listOf(assigned), disabled, catalog, 5)!!.value)
+        assertEquals(third, pool.assign("book", "陈雨", group, listOf(assigned), disabled, catalog, 5)!!.value)
+        val revised = catalog + (assigned.value.key to catalog.getValue(assigned.value.key).copy(
+            reference = assigned.value.copy(label = "Renamed"), revision = "2"))
+        assertEquals("Renamed", pool.existing("book", "林飞", listOf(group), listOf(assigned), revised, 5)!!.value.label)
+        val removed = catalog - assigned.value.key
+        assertEquals(third, pool.assign("book", "林飞", group, listOf(assigned), disabled, removed, 5)!!.value)
+    }
+
+    @Test fun manualBindingWinsAcrossGroupsAndSurvivesUnavailableVoiceAndCacheClear() {
+        val manual = SpeechVoicePair("book", "林飞", SPEECH_POOL_MALE, first, manual = true)
+        val auto = SpeechVoicePair("book", "林飞", group, second)
+        val pool = SpeechVoicePool(Random(1))
+        assertEquals(manual, pool.existing("book", "林飞", listOf(group), listOf(auto, manual), catalog, 0))
+        assertEquals(0, pool.cacheSize)
+        pool.clearCache()
+        assertEquals(manual, pool.assign("book", "林飞", group, listOf(auto, manual), items, catalog - first.key, 1))
+    }
+}

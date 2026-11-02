@@ -102,7 +102,6 @@ class SpeechReplacementsViewModel @Inject constructor(private val repository: Sp
     fun preview(text: String, draft: SpeechReplacementRule? = null) {
         clearPreview()
         val rules = state.value.rules
-        val settings = SpeechSettings(replacements = rules, text = textSettings)
         mutableState.update { it.copy(previewing = true) }
         previewJob = viewModelScope.launch {
             try {
@@ -110,6 +109,7 @@ class SpeechReplacementsViewModel @Inject constructor(private val repository: Sp
                     val output = withContext(Dispatchers.Default) { plans.previewRule(text, draft) }
                     mutableState.update { it.copy(rulePreview = output, previewing = false) }
                 } else {
+                    val settings = repository.get().copy(replacements = rules, text = textSettings)
                     val plan = withContext(Dispatchers.Default) {
                         plans.prepare(SpeechChapter("", "", "", "", text), settings)
                     }

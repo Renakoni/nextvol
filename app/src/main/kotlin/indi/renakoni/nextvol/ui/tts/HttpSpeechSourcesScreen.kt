@@ -78,6 +78,7 @@ internal fun HttpSpeechSourcesScreen(
     focusVoiceKey: String? = null,
     focusOfflineEngine: String? = null,
     configureCredentials: Boolean = false,
+    onAddToPool: (List<SpeechVoiceRef>) -> Unit = {},
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -211,6 +212,12 @@ internal fun HttpSpeechSourcesScreen(
             onDelete = {
                 if (currentGroup.startsWith("offline:")) onDeleteOffline(currentOffline.filter { "offline:${it.reference.id}" in visibleChecked })
                 else onDeleteHttp(currentHttp.filter { "http:${it.definition.id}" in visibleChecked })
+            }, onAddToPool = {
+                onAddToPool(currentHttp.filter { "http:${it.definition.id}" in visibleChecked }.map {
+                    SpeechVoiceRef(httpSource = it.definition.id, label = it.definition.name)
+                } + currentOffline.filter { "offline:${it.reference.id}" in visibleChecked }.map {
+                    SpeechVoiceRef(offlineVoice = it.reference, label = it.name)
+                })
             })
         else if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
     }) { padding ->

@@ -67,6 +67,7 @@ internal fun SpeechSettings.forVoice(reference: SpeechVoiceRef) = copy(
     engine = reference.engine, voice = reference.voice, httpSource = reference.httpSource,
     offlineVoice = reference.offlineVoice, narrationVoices = emptyList(), dialogueVoices = emptyList(),
     speakerVoices = emptyMap(), speakerBookId = "", voiceRoutingConfigured = false, roleRules = emptyList(),
+    voiceItems = emptyList(), autoAssignRole = false,
 ).synthesisSettings()
 
 /** R6.p.d: separate round-robin cursors; an explicit/remembered voice does not advance either. */
