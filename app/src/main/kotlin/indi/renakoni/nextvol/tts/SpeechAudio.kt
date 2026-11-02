@@ -7,6 +7,7 @@ import java.io.RandomAccessFile
 interface SpeechSynthesizer : AutoCloseable {
     /** Backend request cap, independent of the user's soft sentence target. Read after open. */
     val maxInputLength: Int get() = Int.MAX_VALUE
+    val audioParameters: SpeechAudioParameters get() = SpeechAudioParameters()
     suspend fun open(settings: SpeechSettings): String
     /** Returns only after a complete, validated file is committed to [output]. */
     suspend fun synthesize(text: String, output: File): List<SpeechTiming>

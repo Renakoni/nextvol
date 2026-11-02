@@ -25,7 +25,7 @@ class SpeechPlanTest {
         assertEquals(system, system.copy(playbackSpeed = 2f).synthesisSettings())
         assertNotEquals(system, system.copy(pitch = 1f).synthesisSettings())
         val http = system.copy(httpSource = "http")
-        assertEquals(SpeechSettings(httpSource = "http", rate = 1.2f), http.synthesisSettings())
+        assertEquals(SpeechSettings(httpSource = "http", rate = 1.2f, pitch = 0.8f), http.synthesisSettings())
         assertNotEquals(http.synthesisSettings(), http.copy(httpSource = "other").synthesisSettings())
     }
 

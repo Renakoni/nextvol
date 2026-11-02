@@ -41,6 +41,7 @@ data class SpeechSettings(
     val roleRules: List<SpeechRoleRule> = emptyList(),
     val roleContextPattern: String? = null,
     val engineCacheCapacity: Int = 10,
+    val audio: SpeechAudioSettings = SpeechAudioSettings(),
     val voiceItems: List<SpeechVoiceItem> = emptyList(),
     val autoAssignRole: Boolean = false,
     val maxCacheVoiceNum: Int = 50,

@@ -45,7 +45,7 @@ class SpeechSynthesizers @Inject constructor(
     /** Development entry for an already installed Sherpa model. */
     fun matcha(resources: MatchaResources): SpeechSynthesizer = MatchaSpeechSynthesizer(resources)
 
-    fun synthesizer(): SpeechSynthesizer = CachedSpeechSynthesizer(caches, create = { settings ->
+    fun synthesizer(): SpeechSynthesizer = ProcessingSpeechSynthesizer(CachedSpeechSynthesizer(caches, create = { settings ->
         when {
             settings.offlineVoice != null -> {
                 val voice = offline.voices().find { it.reference == settings.offlineVoice }
@@ -58,11 +58,13 @@ class SpeechSynthesizers @Inject constructor(
             settings.httpSource != null -> SpeechRuntime(http())
             else -> SpeechRuntime(system.synthesizer())
         }
-    })
+    }))
 
     private fun offline(): SpeechSynthesizer = object : SpeechSynthesizer {
         private var lease: OfflineSpeechRepository.Lease? = null
         @Volatile private var delegate: SpeechSynthesizer? = null
+        override var audioParameters = SpeechAudioParameters()
+            private set
         override val maxInputLength get() = checkNotNull(delegate).maxInputLength
         override suspend fun open(settings: SpeechSettings): String {
             var attempted = false
@@ -70,6 +72,7 @@ class SpeechSynthesizers @Inject constructor(
                 withContext(Dispatchers.IO) {
                     lease = offline.acquire(requireNotNull(settings.offlineVoice))
                     val active = checkNotNull(lease)
+                    audioParameters = offlineAudioParameters(active.configuration, settings)
                     val status = availability.inspect(active.configuration, active.voice.sizes.keys) {
                         File(active.directory, it).inputStream()
                     }
@@ -132,6 +135,8 @@ class SpeechSynthesizers @Inject constructor(
         private var volume = 1f
         private var sourceId: String? = null
         private var selectedSource: SavedHttpSpeechSource? = null
+        override var audioParameters = SpeechAudioParameters()
+            private set
 
         override suspend fun open(settings: SpeechSettings): String {
             withContext(NonCancellable + Dispatchers.IO) { close() }
@@ -141,6 +146,7 @@ class SpeechSynthesizers @Inject constructor(
             return repository.withSource(requireNotNull(settings.httpSource)) { source, runtime ->
                 if (!source.available) throw SpeechException(SpeechError.HttpSourceUnavailable)
                 val definition = source.playbackDefinition()
+                audioParameters = httpAudioParameters(definition, settings)
                 sourceId = source.definition.id
                 selectedSource = source
                 val broker = SourceBroker(runtime.toPath(), cipher = cipher)

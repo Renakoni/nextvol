@@ -677,6 +677,21 @@
     <string name="tts_engine_cache_clear">Clear engine cache</string>
     <string name="tts_engine_cache_count">%1$d cached voices. Installed packages and reading progress are kept.</string>
     <string name="tts_engine_cache_clearing">Waiting for synthesis to finish and release engines…</string>
+    <string name="tts_audio_processor">Audio processor</string>
+    <string name="tts_audio_minimum_rate">Minimum sample rate</string>
+    <string name="tts_audio_check_silence">Detect silence</string>
+    <string name="tts_audio_check_silence_description">Shorten quiet audio blocks. Intentional pauses keep their duration.</string>
+    <string name="tts_error_audio_processing">Audio processing failed. Check the processor and voice parameters.</string>
+    <string name="tts_audio_sonic" translatable="false">Sonic</string>
+    <string name="tts_audio_soundtouch" translatable="false">SoundTouch</string>
+    <string name="tts_sample_rate_16000" translatable="false">16,000 Hz</string>
+    <string name="tts_sample_rate_22050" translatable="false">22,050 Hz</string>
+    <string name="tts_sample_rate_24000" translatable="false">24,000 Hz</string>
+    <string name="tts_sample_rate_32000" translatable="false">32,000 Hz</string>
+    <string name="tts_sample_rate_44100" translatable="false">44,100 Hz</string>
+    <string name="tts_sample_rate_48000" translatable="false">48,000 Hz</string>
+    <string name="tts_sample_rate_64000" translatable="false">64,000 Hz</string>
+    <string name="tts_sample_rate_96000" translatable="false">96,000 Hz</string>
     <string name="tts_detect_language">Detect language</string>
     <string name="tts_detect_language_description">Route each text segment through enabled language rules.</string>
     <string name="tts_language_detector">Language detection algorithm</string>

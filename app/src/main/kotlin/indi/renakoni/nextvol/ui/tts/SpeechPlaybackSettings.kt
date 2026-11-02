@@ -54,6 +54,7 @@ data class SpeechPlaybackSettingsState(
     val engineCacheCapacity: Int = 10,
     val cachedEngines: Int = 0,
     val clearingEngines: Boolean = false,
+    val audio: SpeechAudioSettings = SpeechAudioSettings(),
 )
 
 @HiltViewModel
@@ -72,6 +73,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
             repository.changes.collect { settings -> mutableState.update {
                 it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
                     engineCacheCapacity = settings.engineCacheCapacity,
+                    audio = settings.audio,
                     autoAssignRole = settings.autoAssignRole, maxCacheVoiceNum = settings.maxCacheVoiceNum,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
@@ -99,6 +101,8 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun roleContextPattern(pattern: String) = updateSettings { it.copy(roleContextPattern = pattern) }
 
     fun engineCacheCapacity(capacity: Int) = updateSettings { it.copy(engineCacheCapacity = capacity) }
+
+    fun audioSettings(audio: SpeechAudioSettings) = updateSettings { it.copy(audio = audio) }
 
     fun clearEngines() {
         if (state.value.clearingEngines) return
@@ -152,6 +156,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
     onContextPattern: (String) -> Unit, onNameTest: () -> Unit,
     onEngineCacheCapacity: (Int) -> Unit, onClearEngines: () -> Unit,
+    onAudioSettings: (SpeechAudioSettings) -> Unit,
     onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingContext by rememberSaveable { mutableStateOf(false) }
@@ -178,6 +183,30 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     color = MaterialTheme.colorScheme.error)
             } }
             state.settings?.let { settings ->
+                item {
+                    val processors = remember { object : MenuOptions(Option("200", R.string.tts_audio_sonic),
+                        Option("201", R.string.tts_audio_soundtouch)) {} }
+                    SettingsMenuEntry(title = stringResource(R.string.tts_audio_processor), options = processors,
+                        selectedOptionKey = state.audio.processor.toString(),
+                        onOptionChange = { onAudioSettings(state.audio.copy(processor = it.toInt())) })
+                }
+                item {
+                    val rates = remember { object : MenuOptions(Option("16000", R.string.tts_sample_rate_16000),
+                        Option("22050", R.string.tts_sample_rate_22050), Option("24000", R.string.tts_sample_rate_24000),
+                        Option("32000", R.string.tts_sample_rate_32000), Option("44100", R.string.tts_sample_rate_44100),
+                        Option("48000", R.string.tts_sample_rate_48000), Option("64000", R.string.tts_sample_rate_64000),
+                        Option("96000", R.string.tts_sample_rate_96000)) {} }
+                    SettingsMenuEntry(title = stringResource(R.string.tts_audio_minimum_rate), options = rates,
+                        selectedOptionKey = state.audio.minimumSampleRate.toString(),
+                        onOptionChange = { onAudioSettings(state.audio.copy(minimumSampleRate = it.toInt())) })
+                }
+                item {
+                    SettingsClickableEntry(title = stringResource(R.string.tts_audio_check_silence),
+                        option = stringResource(R.string.tts_audio_check_silence_description),
+                        trailingContent = { PlaybackSwitch(state.audio.checkSilence) {
+                            onAudioSettings(state.audio.copy(checkSilence = it))
+                        } }, onClick = { onAudioSettings(state.audio.copy(checkSilence = !state.audio.checkSilence)) })
+                }
                 item {
                     var capacity by remember(state.engineCacheCapacity) { mutableFloatStateOf(state.engineCacheCapacity.toFloat()) }
                     Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp)) {
