@@ -63,6 +63,57 @@ class SpeechControlsTest {
     }
     @After fun destroy() { activity.pause().stop().destroy() }
 
+    @Test fun voiceManagementFiltersBulkActionsWithoutChangingNarrationDialogueOrPlayback() {
+        val voices = listOf("Alpha one", "Alpha two", "Beta").mapIndexed { index, name ->
+            SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
+                """{"id":"manage-$index","name":"$name","url":"https://example.org"}""").sources.single(),
+                listOf("https://example.org:443"))
+        }
+        var selectedCalls = 0
+        var previewCalls = 0
+        val playbackActions = mutableListOf<SpeechAction>()
+        var deleted = emptyList<SavedHttpSpeechSource>()
+        val settings = SpeechSettings(voiceRoutingConfigured = true,
+            narrationVoices = listOf(SpeechVoiceRef(httpSource = voices.first().definition.id)))
+        activity.get().setContent {
+            MaterialTheme {
+                HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = voices, loaded = true), {}, {},
+                    { selectedCalls++ }, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                    selection = settings, onDialogue = { selectedCalls++ }, onPreview = { previewCalls++ },
+                    playback = ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Paused),
+                    onCommand = { playbackActions += it }, onDeleteHttp = { deleted = it },
+                    focusVoiceKey = "http:${voices.first().definition.id}")
+            }
+        }
+        fun label(id: Int) = activity.get().getString(id)
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_library_actions)).performClick()
+        compose.onNodeWithText(label(indi.renakoni.nextvol.R.string.tts_manage_voices)).performClick()
+        val previewLabel = activity.get().getString(indi.renakoni.nextvol.R.string.tts_preview_voice, "Alpha one")
+        compose.onNodeWithContentDescription(previewLabel).assertDoesNotExist()
+        compose.onNodeWithText("Alpha one").performClick()
+        compose.onNodeWithText("Beta").performClick()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_voice_search)).performClick()
+        compose.onNodeWithTag("voice-search-input").performTextInput("Alpha")
+        compose.onNodeWithTag("voice-select-inverse").performClick()
+        compose.onNodeWithTag("voice-delete-selected").performClick()
+        compose.runOnIdle { assertEquals(listOf(voices[1]), deleted) }
+        compose.onNodeWithTag("voice-select-all").performClick()
+        compose.onNodeWithTag("voice-delete-selected").performClick()
+        compose.runOnIdle { assertEquals(voices.take(2), deleted) }
+        compose.onNodeWithTag("voice-select-none").performClick()
+        compose.onNodeWithTag("voice-delete-selected").assertIsNotEnabled()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_manage_exit)).performClick()
+        compose.onNodeWithTag("voice-select-all").assertDoesNotExist()
+        compose.onNodeWithContentDescription(previewLabel).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(0, selectedCalls)
+            assertEquals(0, previewCalls)
+            assertTrue(playbackActions.isEmpty())
+        }
+        compose.onNodeWithText("Alpha two").performClick()
+        compose.runOnIdle { assertEquals(1, selectedCalls) }
+    }
+
     @Test
     @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h640dp")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)

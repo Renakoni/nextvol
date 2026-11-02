@@ -352,7 +352,9 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
             offlineGroups = offline.voices.map { it.configuration?.engine ?: "sherpa" }.distinct()
                 .associateWith { offline.engineNames[it] ?: it },
-            offlineSettings = { engine, query -> offlineSpeechSources(offline, engine, query, selection = settings.settings,
+            offlineVoices = offline.voices, onOrderHttp = viewModel::order, onOrderOffline = { offlineViewModel.order(it) },
+            onDeleteHttp = { deletingHttp = it }, onDeleteOffline = { deleting = it },
+            offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
                 onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                 onDialogue = { toggleVoice(true, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                 onPreview = { offlineViewModel.preview(it, preview) }, onDelete = { deleting = it }, onEnable = offlineViewModel::enable,

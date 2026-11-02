@@ -145,6 +145,8 @@ class HttpSpeechSourcesViewModel @Inject constructor(
 
     fun delete(source: SavedHttpSpeechSource) = delete(listOf(source))
 
+    fun order(ids: List<String>) = work { repository.orderVoices(ids) }
+
     fun refresh() {
         refreshing?.cancel()
         refreshing = viewModelScope.launch {

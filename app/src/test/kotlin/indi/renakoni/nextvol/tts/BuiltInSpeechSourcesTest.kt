@@ -184,4 +184,29 @@ class BuiltInSpeechSourcesTest {
         assertTrue(repository().sources().single { !it.isBuiltIn }.available)
     }
 
+    @Test fun filteredVoiceOrderSurvivesEditsReimportAndReopenWithoutRevokingPlayback() = runBlocking {
+        val repository = repository()
+        val engine = SpeechEngineConfig("http_order", "Order", "http", url = "https://example.org/audio?voice={{voiceCode}}")
+        val original = newHttpVoice(engine).copy(isVoiceCopy = false)
+        val second = editHttpVoice(original, buildJsonObject { put("name", "Second"); put("code", "second") }, true, true)
+        val third = editHttpVoice(original, buildJsonObject { put("name", "Third"); put("code", "third") }, true, true)
+        repository.save(listOf(original, second, third))
+        val ticket = repository.withSource(original.definition.id) { source, _ ->
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        repository.orderVoices(listOf(third.definition.id, original.definition.id))
+        val order = listOf(third.definition.id, second.definition.id, original.definition.id)
+        assertEquals(order, repository().sources().filterNot { it.isBuiltIn }.map { it.definition.id })
+        assertTrue(authority.accepts(ticket))
+        repository.enable(setOf(second.definition.id), false)
+        repository.save(listOf(original))
+        assertEquals(order, repository().sources().filterNot { it.isBuiltIn }.map { it.definition.id })
+        val sources = repository.sources()
+        val presets = sources.filter { it.group == sources.first().group }.take(2)
+        repository.orderVoices(presets.reversed().map { it.definition.id })
+        assertEquals(presets.reversed().map { it.definition.id }, repository().sources().take(2).map { it.definition.id })
+        repository.delete(setOf(original.definition.id, third.definition.id))
+        assertEquals(listOf(second.definition.id), repository().sources().filterNot { it.isBuiltIn }.map { it.definition.id })
+    }
+
 }

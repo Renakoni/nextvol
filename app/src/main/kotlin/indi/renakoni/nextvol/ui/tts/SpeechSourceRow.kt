@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -27,11 +28,13 @@ import indi.renakoni.nextvol.tts.SpeechVoiceSelection
 internal fun SpeechSourceRow(name: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit,
     avatar: @Composable () -> Unit, onPreview: (() -> Unit)?, previewEnabled: Boolean = enabled,
     description: String = "", problem: String? = null, actions: @Composable () -> Unit = {},
-    onLongClick: (() -> Unit)? = null, selection: SpeechVoiceSelection? = null) {
+    onLongClick: (() -> Unit)? = null, selection: SpeechVoiceSelection? = null, management: VoiceRowManagement? = null) {
     val colors = MaterialTheme.colorScheme
     val selectionLabel = selection?.let { stringResource(if (it == SpeechVoiceSelection.Narration)
         R.string.tts_voice_narrator else R.string.tts_voice_dialogue) }
-    val interaction = if (onLongClick == null) Modifier.selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+    val interaction = if (management != null) Modifier.toggleable(management.checked, enabled = management.selectable,
+        role = Role.Checkbox, onValueChange = { management.onToggle() })
+        else if (onLongClick == null) Modifier.selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
         else Modifier.combinedClickable(enabled = enabled, role = Role.Checkbox,
             onClickLabel = stringResource(R.string.tts_voice_select_narrator),
             onLongClickLabel = stringResource(R.string.tts_voice_select_dialogue),
@@ -40,13 +43,14 @@ internal fun SpeechSourceRow(name: String, selected: Boolean, enabled: Boolean, 
                 selectionLabel?.let { stateDescription = it }
             }
     Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))
-        .background(if (selected) colors.primary.copy(alpha = 0.10f) else colors.surface)
+        .background(if (management?.checked ?: selected) colors.primary.copy(alpha = 0.10f) else colors.surface)
         .then(interaction)
         .heightIn(min = 72.dp).padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(40.dp)) {
-            avatar()
-            if (selected) Box(Modifier.align(Alignment.BottomEnd).size(18.dp)
+        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            if (management != null) Checkbox(management.checked, onCheckedChange = null, enabled = management.selectable)
+            else avatar()
+            if (management == null && selected) Box(Modifier.align(Alignment.BottomEnd).size(18.dp)
                 .background(colors.surface, CircleShape).padding(2.dp).background(colors.primary, CircleShape),
                 contentAlignment = Alignment.Center) {
                 Icon(painterResource(R.drawable.check_24px), null, Modifier.size(12.dp), tint = colors.onPrimary)
@@ -63,7 +67,11 @@ internal fun SpeechSourceRow(name: String, selected: Boolean, enabled: Boolean, 
             if (selectionLabel != null) Text(selectionLabel, style = MaterialTheme.typography.labelMedium, color = colors.primary)
             if (problem != null) Text(problem, style = MaterialTheme.typography.bodySmall, color = colors.error)
         }
-        if (onPreview != null) SpeechPreviewButton(name, previewEnabled, onPreview)
-        actions()
+        if (management == null && onPreview != null) SpeechPreviewButton(name, previewEnabled, onPreview)
+        if (management == null) actions()
+        else IconButton(onClick = {}, modifier = management.dragHandle) {
+            Icon(painterResource(R.drawable.drag_indicator_24px), stringResource(R.string.tts_voice_reorder, name),
+                tint = colors.onSurfaceVariant)
+        }
     }
 }
