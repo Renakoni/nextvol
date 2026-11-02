@@ -35,6 +35,7 @@ class SpeechStructureTest {
             "他说：“你好。”" to listOf("他说：" to false, "“你好。”" to true),
             "所谓“高手”来了。" to listOf("所谓" to false, "“高手”" to false, "来了。" to false),
             "“第一行\n第二行”" to listOf("“第一行\n第二行”" to true),
+            "旁白。\n“第一句。”\n“第二句。”" to listOf("旁白。\n" to false, "“第一句。”" to true, "\n“第二句。”" to true),
             "“外“内”外”" to listOf("“外“内”" to true, "外”" to true),
             "未开头却结束”" to listOf("未开头却结束”" to true),
             "「你好」" to listOf("「你好」" to false),

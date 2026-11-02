@@ -66,7 +66,8 @@ internal fun speechStructure(
         }
         if (!settings.dialogue) continue
         val char = input.text[index]
-        if (char == ' ' || char == '\u3000') continue
+        // Chapters contain paragraph separators; they must not turn the next quote into narration.
+        if (char == ' ' || char == '\u3000' || char == '\n' || char == '\r') continue
         when (state) {
             QuoteState.DialogueBefore -> when (char) {
                 '"', '“' -> {
