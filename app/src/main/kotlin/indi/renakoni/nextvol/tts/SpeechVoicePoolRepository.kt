@@ -29,12 +29,12 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
         decode(stored.get()).filter { bookId == null || it.bookId == bookId }
     }
 
-    suspend fun existing(bookId: String, person: String, groups: List<String>,
+    suspend fun existing(bookId: String, person: String, groups: List<String>, pairs: List<SpeechVoicePair>,
         catalog: Map<String, SpeechResolvedVoice>, maxCache: Int): SpeechVoicePair? =
-        withContext(Dispatchers.IO) { mutex.withLock {
+        mutex.withLock {
             // O6.j.l changes the draw bag, not existing pairs. Membership does not revoke a stable assignment.
-            pool.existing(bookId, person, groups, decode(stored.get()), catalog, maxCache)
-        } }
+            pool.existing(bookId, person, groups, pairs, catalog, maxCache)
+        }
 
     suspend fun assign(bookId: String, person: String, group: String, items: List<SpeechVoiceItem>,
         catalog: Map<String, SpeechResolvedVoice>, maxCache: Int, bookTitle: String = ""): SpeechVoicePair? =
@@ -65,9 +65,8 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
 
     /** Returns the unchanged rows whose group has no available enabled candidate. */
     suspend fun reassign(ids: Set<String>, items: List<SpeechVoiceItem>,
-        catalog: Map<String, SpeechResolvedVoice>, maxCache: Int): Set<String> = withContext(Dispatchers.IO) { mutex.withLock {
+        catalog: Map<String, SpeechResolvedVoice>): Set<String> = withContext(Dispatchers.IO) { mutex.withLock {
         val failed = mutableSetOf<String>()
-        pool.setCacheLimit(maxCache)
         val pairs = decode(stored.get())
         val next = pairs.map { pair ->
             if (pair.id !in ids) pair else {

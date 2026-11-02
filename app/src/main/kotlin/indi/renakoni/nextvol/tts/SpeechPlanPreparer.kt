@@ -34,10 +34,13 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
         maxInputLength: Int = Int.MAX_VALUE): SpeechPlan = withRegexWorker { replace ->
         withContext(Dispatchers.Default) {
             val task = currentCoroutineContext()
-            val catalog = voices.resolve(settings)
             val preview = chapter.bookId.isEmpty()
             val saved = if (preview) mutableListOf() else pairs.pairs(chapter.bookId).toMutableList()
+            val catalog = voices.resolve(settings, saved)
             val previewPool = if (preview) SpeechVoicePool() else null
+            suspend fun existing(name: String, groups: List<String>): SpeechVoicePair? =
+                if (previewPool != null) previewPool.existing(chapter.bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum)
+                else pairs.existing(chapter.bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum)
             val key = chapter.bookId + "\u0000" + chapter.id + "\u0000" + settings.textProcessingKey(maxInputLength)
             if (!preview && (discoveryKey != key || !settings.autoAssignRole || settings.text.nameDiscoveryAlgorithm != 100)) {
                 reset()
@@ -55,11 +58,9 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
                         settings.text.personNameRegex ?: discovery.defaultNamePattern(), reverse).map { it.name }
                 },
                 classify = { classifier.classify(it, settings.text.maleNameRegex, settings.text.femaleNameRegex) },
-                existing = { name, groups ->
-                    previewPool?.existing(chapter.bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum)
-                        ?: if (!preview) pairs.existing(chapter.bookId, name, groups, catalog, settings.maxCacheVoiceNum) else null
-                },
-                assign = { name, group ->
+                existing = ::existing,
+                assign = assign@{ name, group ->
+                    existing(name, listOf(group))?.let { return@assign it }
                     val pair = if (previewPool != null) previewPool.assign(chapter.bookId, name, group, saved,
                         settings.voiceItems, catalog, settings.maxCacheVoiceNum)
                     else pairs.assign(chapter.bookId, name, group, settings.voiceItems, catalog,

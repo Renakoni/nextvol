@@ -39,7 +39,6 @@ internal class SpeechVoicePool(private val random: Random = Random.Default) {
 
     fun existing(bookId: String, person: String, groups: List<String>, pairs: List<SpeechVoicePair>,
         catalog: Map<String, SpeechResolvedVoice>, maxCache: Int): SpeechVoicePair? {
-        trim(maxCache)
         val lookup = Lookup(bookId, person, groups.toList())
         val manual = pairs.firstOrNull { it.bookId == bookId && it.person == person && it.manual }
         val cached = cache[lookup]
@@ -48,10 +47,8 @@ internal class SpeechVoicePool(private val random: Random = Random.Default) {
                 it.bookId == bookId && it.person == person && it.group == group && available(it, catalog)
             } }
         if (pair == null) cache.remove(lookup)
-        else {
-            cache[lookup] = pair
-            trim(maxCache)
-        }
+        else cache[lookup] = pair
+        trim(maxCache)
         // Cache identities, never resolved model/settings snapshots: every plan sees the current catalog revision.
         return pair?.let { it.copy(value = catalog[it.value.key]?.reference ?: it.value) }
     }
@@ -92,7 +89,7 @@ internal class SpeechVoicePool(private val random: Random = Random.Default) {
     }
 
     private fun available(pair: SpeechVoicePair, catalog: Map<String, SpeechResolvedVoice>) =
-        pair.manual || catalog[pair.value.key]?.error == null && catalog.containsKey(pair.value.key)
+        pair.manual || catalog[pair.value.key]?.let { it.error == null } == true
 
     private fun trim(limit: Int) {
         while (cache.size > limit.coerceAtLeast(0)) cache.remove(cache.keys.first())

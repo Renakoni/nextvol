@@ -17,8 +17,11 @@ internal class SpeechCharacterAssignment(
     private val assign: suspend (String, String) -> SpeechVoicePair?,
     private val checkCancelled: () -> Unit,
 ) {
-    private fun manual(person: String): SpeechVoiceRef? = pairs.firstOrNull { it.person == person && it.manual }?.value
-        ?: settings.speakerVoices.takeIf { settings.speakerBookId == chapter.bookId }?.get(person)
+    private val manualVoices = (pairs.filter { it.manual }.map { it.person to it.value } +
+        settings.speakerVoices.takeIf { settings.speakerBookId == chapter.bookId }.orEmpty().toList())
+        .distinctBy { it.first }.toMap()
+
+    private fun manual(person: String): SpeechVoiceRef? = manualVoices[person]
 
     suspend fun allocate(match: SpeechRoleMatch): SpeechRoleMatch {
         manual(match.person)?.let { return match.copy(voiceRef = it, origin = SpeechPersonOrigin.Manual) }
@@ -31,12 +34,7 @@ internal class SpeechCharacterAssignment(
     suspend fun resolve(text: String, direction: SpeechContextDirection, unitKey: String,
         rules: SpeechRoleRules): SpeechPersonVoice? {
         checkCancelled()
-        if (direction == SpeechContextDirection.Explicit) manual(text)?.let {
-            return SpeechPersonVoice(text, it.key, SpeechRoleMatch(text, "", "", false, it, origin = SpeechPersonOrigin.Manual))
-        }
-        val manualNames = (pairs.filter { it.manual }.map { it.person } +
-            settings.speakerVoices.takeIf { settings.speakerBookId == chapter.bookId }.orEmpty().keys).distinct()
-        known(text, direction, manualNames, rules)?.let { name ->
+        known(text, direction, manualVoices.keys.toList(), rules)?.let { name ->
             val voice = manual(name)!!
             return SpeechRoleMatch(name, "", "", false, voice, origin = SpeechPersonOrigin.Manual).personVoice()
         }

@@ -45,10 +45,10 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
         voice.voice.ifEmpty { voice.engine.ifEmpty { context.getString(R.string.tts_system_default) } }
     })
 
-    suspend fun resolve(settings: SpeechSettings): Map<String, SpeechResolvedVoice> {
+    suspend fun resolve(settings: SpeechSettings, savedPairs: List<SpeechVoicePair> = emptyList()): Map<String, SpeechResolvedVoice> {
         val online = http.sources().associateBy { it.definition.id }
         val installed = offline.voices().associateBy { it.reference.id }
-        return (settings.references() + pairs.pairs().map { it.value }).distinctBy { it.key }.associate { reference ->
+        return (settings.references() + savedPairs.map { it.value }).distinctBy { it.key }.associate { reference ->
             val value = when {
                 reference.offlineVoice != null -> {
                     val voice = installed[reference.offlineVoice.id]
@@ -79,12 +79,12 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
     }
 
     suspend fun revised(settings: SpeechSettings): SpeechSettings = settings.copy(voiceRevision =
-        speechDigest(resolve(settings).values.joinToString("\u0000") { it.reference.key + it.revision + it.error }) + ":" + pairs.revisions.value)
+        speechDigest(resolve(settings, pairs.pairs()).values.joinToString("\u0000") { it.reference.key + it.revision + it.error }) + ":" + pairs.revisions.value)
 }
 
 internal fun SpeechSettings.references(): List<SpeechVoiceRef> =
-    (listOf(voiceReference()) + narrationVoices + dialogueVoices + speakerVoices.values + roleRules.mapNotNull { it.speaker } +
-        voiceItems.map { it.value }).distinctBy { it.key }
+    listOf(voiceReference()) + narrationVoices + dialogueVoices + speakerVoices.values + roleRules.mapNotNull { it.speaker } +
+        voiceItems.map { it.value }
 
 internal const val SPEECH_HTTP_INPUT_LIMIT = 65536
 

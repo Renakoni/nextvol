@@ -75,20 +75,18 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
         }, error = null) }
     }
 
-    internal fun selectGroup(group: String) {
-        val draft = state.value.draft ?: return
+    internal fun selectGroup(group: String) = work {
+        val draft = state.value.draft ?: return@work
         edit { it.copy(group = group) }
-        if (draft.pair == null || draft.group == group) return
-        work {
-            val current = settings.get()
-            val voices = catalog.resolve(current)
-            // Original g7.d.i draws on role selection. Keep that draw in the draft until confirmation.
-            val candidate = current.voiceItems.filter { it.group == group && it.activate }
-                .mapNotNull { voices[it.value.key]?.takeIf { it.error == null }?.reference }
-                .distinctBy { it.key }.randomOrNull() ?: return@work
-            val engine = state.value.engines.find { it.voices.any { voice -> voice.key == candidate.key } }
-            mutableState.update { it.copy(draft = it.draft?.copy(voice = candidate), engineKey = engine?.key) }
-        }
+        if (draft.pair == null || draft.group == group) return@work
+        val current = settings.get()
+        val voices = catalog.resolve(current)
+        // Original g7.d.i draws on role selection. Keep that draw in the draft until confirmation.
+        val candidate = current.voiceItems.filter { it.group == group && it.activate }
+            .mapNotNull { voices[it.value.key]?.takeIf { it.error == null }?.reference }
+            .distinctBy { it.key }.randomOrNull() ?: return@work
+        val engine = state.value.engines.find { it.voices.any { voice -> voice.key == candidate.key } }
+        mutableState.update { it.copy(draft = it.draft?.copy(voice = candidate), engineKey = engine?.key) }
     }
 
     internal fun save() {
@@ -97,9 +95,6 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
             draft.pair != null && draft.person.isEmpty() -> R.string.tts_replace_name_required
             draft.group.isEmpty() -> R.string.tts_pool_group_required
             draft.voice == null -> R.string.tts_role_voice_required
-            draft.pair == null && state.value.settings.voiceItems.any {
-                it.id != draft.id && it.group == draft.group && it.value.key == draft.voice.key
-            } -> R.string.tts_pool_duplicate
             else -> null
         }
         mutableState.update { it.copy(error = error) }
@@ -107,12 +102,24 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
         val voice = draft.voice ?: return
         work {
             if (draft.pair != null) repository.setManual(draft.pair.copy(person = draft.person, group = draft.group, value = voice))
-            else settings.update { current ->
-                val existing = current.voiceItems.find { it.id == draft.id }
-                val saved = existing?.copy(group = draft.group, value = voice, name = voice.label)
-                    ?: SpeechVoiceItem(group = draft.group, value = voice, name = voice.label)
-                current.copy(voiceItems = if (existing == null) current.voiceItems + saved
-                    else current.voiceItems.map { if (it.id == saved.id) saved else it })
+            else {
+                var duplicate = false
+                settings.update { current ->
+                    duplicate = current.voiceItems.any {
+                        it.id != draft.id && it.group == draft.group && it.value.key == voice.key
+                    }
+                    if (duplicate) current else {
+                        val existing = current.voiceItems.find { it.id == draft.id }
+                        val saved = existing?.copy(group = draft.group, value = voice, name = voice.label)
+                            ?: SpeechVoiceItem(group = draft.group, value = voice, name = voice.label)
+                        current.copy(voiceItems = if (existing == null) current.voiceItems + saved
+                            else current.voiceItems.map { if (it.id == saved.id) saved else it })
+                    }
+                }
+                if (duplicate) {
+                    mutableState.update { it.copy(error = R.string.tts_pool_duplicate) }
+                    return@work
+                }
             }
             dismissEditor()
         }
@@ -132,7 +139,7 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
 
     internal fun reassign(ids: Set<String>) = work {
         val current = settings.get()
-        val failed = repository.reassign(ids, current.voiceItems, catalog.resolve(current), current.maxCacheVoiceNum)
+        val failed = repository.reassign(ids, current.voiceItems, catalog.resolve(current))
         if (failed.isNotEmpty()) mutableState.update { it.copy(error = R.string.tts_pool_no_candidate) }
     }
 

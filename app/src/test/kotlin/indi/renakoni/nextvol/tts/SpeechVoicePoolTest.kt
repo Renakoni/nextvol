@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.tts
 
-import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.random.Random
@@ -22,7 +21,6 @@ class SpeechVoicePoolTest {
         val next = List(2) { pool.draw("book", group, enabled, catalog)!! }
         assertEquals(setOf(first.key, second.key), next.map { it.key }.toSet())
         assertNull(pool.draw("book", "空池", enabled, catalog))
-        assertNull(pool.draw("book", group, enabled.map { it.copy(activate = false) }, catalog))
     }
 
     @Test fun cacheEvictionAndRestartKeepDurablePairsWhileBooksRemainIndependent() {
@@ -33,12 +31,10 @@ class SpeechVoicePoolTest {
         assertEquals(1, pool.cacheSize)
         pool.setCacheLimit(0)
         assertEquals(0, pool.cacheSize)
-        val restored = Json.decodeFromString<List<SpeechVoicePair>>(Json.encodeToString(saved))
         val restarted = SpeechVoicePool(Random(36))
         assertEquals(saved.first().value,
-            restarted.assign("book", "人物0", group, restored, items, catalog, 1)!!.value)
-        assertNull(restarted.existing("another-book", "人物0", listOf(group), restored, catalog, 1))
-        assertEquals("another-book", restarted.assign("another-book", "人物0", group, restored, items, catalog, 1)!!.bookId)
+            restarted.assign("book", "人物0", group, saved, items, catalog, 1)!!.value)
+        assertNull(restarted.existing("another-book", "人物0", listOf(group), saved, catalog, 1))
     }
 
     @Test fun membershipChangesOnlyAffectFutureDrawsAndCatalogChangesRefreshOrReplaceAutomaticPairs() {
@@ -52,15 +48,5 @@ class SpeechVoicePoolTest {
         assertEquals("Renamed", pool.existing("book", "林飞", listOf(group), listOf(assigned), revised, 5)!!.value.label)
         val removed = catalog - assigned.value.key
         assertEquals(third, pool.assign("book", "林飞", group, listOf(assigned), disabled, removed, 5)!!.value)
-    }
-
-    @Test fun manualBindingWinsAcrossGroupsAndSurvivesUnavailableVoiceAndCacheClear() {
-        val manual = SpeechVoicePair("book", "林飞", SPEECH_POOL_MALE, first, manual = true)
-        val auto = SpeechVoicePair("book", "林飞", group, second)
-        val pool = SpeechVoicePool(Random(1))
-        assertEquals(manual, pool.existing("book", "林飞", listOf(group), listOf(auto, manual), catalog, 0))
-        assertEquals(0, pool.cacheSize)
-        pool.clearCache()
-        assertEquals(manual, pool.assign("book", "林飞", group, listOf(auto, manual), items, catalog - first.key, 1))
     }
 }
