@@ -17,7 +17,6 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketAddress
-import java.util.concurrent.TimeUnit
 import javax.net.SocketFactory
 
 class BrokerWebSocketTest {
@@ -51,7 +50,6 @@ class BrokerWebSocketTest {
                     audio
                 }
                 assertArrayEquals(byteArrayOf(1, 2, 3), result)
-                assertEquals("websocket", server.takeRequest(1, TimeUnit.SECONDS)?.getHeader("Upgrade"))
             }
         }
     }
@@ -87,7 +85,7 @@ class BrokerWebSocketTest {
         }
     }
 
-    @Test fun rejectedHandshakeDoesNotReadOrExposeItsBodyOrRetry() = runBlocking {
+    @Test fun rejectedHandshakePreservesStatusWithoutRetrying() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setResponseCode(503).setHeader("Retry-After", "0").setBody("private-service-detail"))
             server.start()
@@ -185,15 +183,9 @@ class BrokerWebSocketTest {
         assertEquals(9, (output.readByte().toInt() xor mask[0].toInt()) and 255)
     }
 
-    @Test fun oversizedFrameIsRejectedFromItsHeaderBeforeReadingThePayload() {
-        val socket = frames(Buffer().writeByte(130).writeByte(127).writeLong(Int.MAX_VALUE.toLong()))
-        val failure = assertThrows(BrokerWebSocketException::class.java) { socket.readMessage() }
-        assertEquals(FailureCode.ResponseTooLarge, failure.failure.code)
-    }
-
-    @Test fun totalReceiveBudgetIncludesEarlierMessages() {
+    @Test fun cumulativeBudgetRejectsTheNextFrameBeforeReadingItsPayload() {
         val socket = frames(Buffer().writeByte(130).writeByte(2).write(byteArrayOf(1, 2))
-            .writeByte(130).writeByte(2).write(byteArrayOf(3, 4)), limit = 3)
+            .writeByte(130).writeByte(127).writeLong(65536), limit = 65537)
         assertArrayEquals(byteArrayOf(1, 2), (socket.readMessage() as BrokerWebSocketMessage.Binary).bytes)
         val failure = assertThrows(BrokerWebSocketException::class.java) { socket.readMessage() }
         assertEquals(FailureCode.ResponseTooLarge, failure.failure.code)

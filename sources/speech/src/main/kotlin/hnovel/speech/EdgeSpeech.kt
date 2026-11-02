@@ -1,7 +1,6 @@
 package hnovel.speech
 
 import hnovel.network.*
-import hnovel.rules.RequestOptionsJson
 import kotlinx.serialization.json.*
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
@@ -16,13 +15,7 @@ internal class EdgeSpeechClient(
 ) {
     private val name = java.util.regex.Pattern.compile(",").split(voice.string("param")).firstOrNull()
         .orEmpty().trim { Character.isWhitespace(it) }.let { parameter ->
-            if (!parameter.startsWith('@')) parameter else {
-                val extensions = voice.string("extendUI").takeIf(String::isNotBlank)
-                    ?.let { RequestOptionsJson.parse(it).jsonArray }.orEmpty()
-                extensions.filterIsInstance<JsonObject>().lastOrNull {
-                    it.string("name").isNotEmpty() && "@${it.string("code")}" == parameter
-                }?.get("value")?.jsonPrimitive?.contentOrNull.orEmpty()
-            }
+            if (!parameter.startsWith('@')) parameter else nativeSpeechExtensions(voice.string("extendUI"))[parameter].orEmpty()
         }
 
     suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray {
