@@ -48,6 +48,7 @@ class ReadAloudService : MediaSessionService() {
     @Inject lateinit var plans: SpeechPlanPreparer
     @Inject lateinit var voices: SpeechVoiceCatalog
     @Inject lateinit var pairs: SpeechVoicePoolRepository
+    @Inject lateinit var languages: SpeechLanguageDetection
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
     private lateinit var speech: ReadAloudSession
@@ -142,6 +143,7 @@ class ReadAloudService : MediaSessionService() {
         scope.launch {
             combine(settings.changes, voices.changes, pairs.revisions) { settings, _, _ ->
                 pairs.setCacheLimit(settings.maxCacheVoiceNum)
+                if (!settings.text.detectLanguage || settings.roleRules.none { it.isLanguageRule }) languages.release()
                 voices.revised(settings)
             }
                 .collect(speech::updateSettings)

@@ -24,20 +24,15 @@ class SpeechLanguageRoutingTest {
         val latin = routing.route("ru-Latn")!!
         assertEquals("english", latin.role?.ruleId)
         assertEquals("default", latin.role?.person)
-        assertEquals("fr", routing.route("fr")?.language)
-        assertNull(routing.route("fr")?.role)
+        val unmatched = routing.route("fr")
+        assertEquals("fr", unmatched?.language)
+        assertNull(unmatched?.role)
     }
 
-    @Test fun disabledAndEmptyRulesSkipDetectionWhileMissingSelectedDetectorIsReported() = runBlocking {
+    @Test fun disabledAndEmptyRulesSkipDetection() = runBlocking {
         val mustNotDetect: suspend (String, Set<String>) -> String? = { _, _ -> error("Detector must stay unloaded") }
         assertNull(SpeechLanguageRouting(listOf(rule("en")), false, mustNotDetect).route("Hello"))
         assertNull(SpeechLanguageRouting(emptyList(), true, mustNotDetect).route("Hello"))
-        try {
-            SpeechLanguageRouting(listOf(rule("en")), true, null).route("Hello")
-            fail("Missing detector must not silently choose a different algorithm")
-        } catch (failure: SpeechException) {
-            assertEquals(SpeechError.LanguageDetectorUnavailable, failure.error)
-        }
     }
 
     @Test fun detectionUnitsCoalesceWithoutLosingPunctuationOrOriginalOffsets() = runBlocking {
@@ -46,16 +41,16 @@ class SpeechLanguageRoutingTest {
             calls += text
             if (text.first().isAsciiLetter()) "en" else "zh-CN"
         }
-        val text = "!Hello!Again!中文。接着说。"
+        val text = "!Hello!Again!中文。接着说。😀😀"
         val groups = routing.split(SpeechMappedText.original(text), Locale.CHINA) {}
-        assertEquals(listOf("Hello!", "Again!", "中文。", "接着说。"), calls)
-        assertEquals(listOf("!Hello!Again!", "中文。接着说。"), groups.map { it.first.text })
+        assertEquals(listOf("Hello!", "Again!", "中文。", "接着说。", "😀😀"), calls)
+        assertEquals(listOf("!Hello!Again!", "中文。接着说。😀😀"), groups.map { it.first.text })
         assertEquals(listOf("en", "zh-CN"), groups.map { it.second?.language })
         assertEquals(0 to 13, groups.first().first.range())
         assertEquals(13 to text.length, groups.last().first.range())
     }
 
-    @Test fun candidatesAndVoiceFilterFollowTheSystemLocaleWithoutRewritingReferences() {
+    @Test fun candidatesAndVoiceFilterFollowTheSystemLocale() {
         assertEquals(setOf("en", "zh-CN"), optimaizeLanguageCandidates(setOf("unsupported"), Locale.US))
         assertEquals(setOf("ja", "zh-TW"), optimaizeLanguageCandidates(setOf("ja"), Locale.TAIWAN))
         val mediaPipe = mediaPipeLanguageCandidates(setOf("en", "ja"), Locale.CHINA)

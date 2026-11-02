@@ -31,6 +31,15 @@ class SpeechLanguageDetection @Inject constructor(@ApplicationContext private va
     private var optimaize: com.optimaize.langdetect.LanguageDetector? = null
     private var mediaPipe: LanguageDetector? = null
 
+    suspend fun release() = withContext(Dispatchers.Default) { mutex.withLock { clear() } }
+
+    private fun clear() {
+        mediaPipe?.close()
+        mediaPipe = null
+        optimaize = null
+        configuration = null
+    }
+
     suspend fun detect(text: String, algorithm: Int, languages: Set<String>, locale: Locale = Locale.getDefault()): String? =
         withContext(Dispatchers.Default) {
             mutex.withLock {
@@ -38,10 +47,7 @@ class SpeechLanguageDetection @Inject constructor(@ApplicationContext private va
                 try {
                     val requested = Configuration(algorithm, languages, locale.toLanguageTag())
                     if (configuration != requested) {
-                        mediaPipe?.close()
-                        mediaPipe = null
-                        optimaize = null
-                        configuration = null
+                        clear()
                         when (algorithm) {
                             300 -> optimaize = createOptimaizeLanguageDetector(languages, locale)
                             301 -> mediaPipe = LanguageDetector.createFromOptions(context,

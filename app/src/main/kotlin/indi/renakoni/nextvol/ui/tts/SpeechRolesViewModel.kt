@@ -38,7 +38,7 @@ class SpeechRolesViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.changes.collect { settings ->
-                val filterChanged = state.value.settings.text.filterLanguage != settings.text.filterLanguage
+                val filterChanged = !state.value.loading && state.value.settings.text.filterLanguage != settings.text.filterLanguage
                 mutableState.update { it.copy(settings = settings, loading = false) }
                 if (filterChanged) refresh()
             }
@@ -62,7 +62,7 @@ class SpeechRolesViewModel @Inject constructor(
         val engine = if (existing == null) state.engines.firstOrNull()
             else state.engines.find { group -> group.voices.any { it.key == existing.speaker?.key } }
         mutableState.update { it.copy(draft = existing ?: SpeechRoleRule(
-            group = state.settings.roleRules.firstOrNull()?.group.orEmpty(), speaker = engine?.voices?.firstOrNull()),
+            group = state.settings.roleRules.firstOrNull()?.group.orEmpty(), speaker = engine?.candidates?.firstOrNull()),
             engineKey = engine?.key, saveError = null, error = null) }
     }
 
@@ -74,7 +74,7 @@ class SpeechRolesViewModel @Inject constructor(
         val group = state.value.engines.find { it.key == key } ?: return
         mutableState.update { state -> state.copy(engineKey = key, saveError = null,
             draft = state.draft?.let { draft -> draft.copy(speaker =
-                group.voices.find { it.key == draft.speaker?.key } ?: group.voices.firstOrNull()) }) }
+                group.voices.find { it.key == draft.speaker?.key } ?: group.candidates.firstOrNull()) }) }
     }
 
     fun save(defaultGroup: String, onSaved: () -> Unit) {

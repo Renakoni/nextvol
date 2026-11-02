@@ -40,7 +40,8 @@ internal class SpeechVoicePool(private val random: Random = Random.Default) {
     fun existing(bookId: String, person: String, groups: List<String>, pairs: List<SpeechVoicePair>,
         catalog: Map<String, SpeechResolvedVoice>, maxCache: Int): SpeechVoicePair? {
         val lookup = Lookup(bookId, person, groups.toList())
-        val manual = pairs.firstOrNull { it.bookId == bookId && it.person == person && it.manual }
+        val manual = pairs.firstOrNull { it.bookId == bookId && it.person == person && it.manual &&
+            (person != SPEECH_LANGUAGE_PERSON || it.group in groups) }
         val cached = cache[lookup]
         val pair = manual ?: cached?.takeIf { available(it, catalog) }
             ?: groups.firstNotNullOfOrNull { group -> pairs.firstOrNull {

@@ -102,7 +102,8 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
         return buildList {
             for (old in pairs) {
                 val samePerson = old.bookId == pair.bookId && old.person == pair.person
-                if (old.id == pair.id || samePerson && (old.group == pair.group || pair.manual && old.manual)) {
+                if (old.id == pair.id || samePerson && (old.group == pair.group ||
+                    pair.person != SPEECH_LANGUAGE_PERSON && pair.manual && old.manual)) {
                     if (!inserted) { add(pair); inserted = true }
                 } else add(old)
             }

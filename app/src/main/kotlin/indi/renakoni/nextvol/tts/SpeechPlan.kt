@@ -102,7 +102,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
                 else listOf(language.content to null)
             for ((unit, detected) in units) {
                 checkCancelled()
-                val languageMatch = detected?.role?.let { characters?.allocate(it) ?: it }
+                val languageMatch = detected?.role?.let { characters?.allocateLanguage(it) ?: it }
                 val (voice, reason) = if (languageMatch != null)
                     routing.select(part.copy(textRule = languageMatch)).first to SpeechVoiceReason.Language
                 else fallback ?: routing.select(part).also { fallback = it }
@@ -141,7 +141,8 @@ internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Local
 
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
-    val selected = validated().copy(playbackSpeed = 1f, allowMultipleVoices = false)
+    val selected = validated().let { it.copy(playbackSpeed = 1f, allowMultipleVoices = false,
+        text = it.text.copy(filterLanguage = false)) }
     if (selected.hasVoiceRouting) return selected
     return when {
         selected.offlineVoice != null -> selected.copy(engine = "", voice = "", pitch = null, rate = selected.rate ?: 1f, httpVolume = 1f)

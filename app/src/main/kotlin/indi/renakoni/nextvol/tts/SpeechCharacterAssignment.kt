@@ -17,7 +17,7 @@ internal class SpeechCharacterAssignment(
     private val assign: suspend (String, String) -> SpeechVoicePair?,
     private val checkCancelled: () -> Unit,
 ) {
-    private val manualVoices = (pairs.filter { it.manual }.map { it.person to it.value } +
+    private val manualVoices = (pairs.filter { it.manual && it.person != SPEECH_LANGUAGE_PERSON }.map { it.person to it.value } +
         settings.speakerVoices.takeIf { settings.speakerBookId == chapter.bookId }.orEmpty().toList())
         .distinctBy { it.first }.toMap()
 
@@ -31,6 +31,14 @@ internal class SpeechCharacterAssignment(
         return match.copy(voiceRef = pair?.value ?: match.voiceRef, poolGroup = group)
     }
 
+    /** O6.f.b / O6.j.h: language defaults are paired within their own abstract role. */
+    suspend fun allocateLanguage(match: SpeechRoleMatch): SpeechRoleMatch {
+        if (!match.isAbstract) return match
+        val pair = assign(SPEECH_LANGUAGE_PERSON, match.ruleName)
+        return match.copy(voiceRef = pair?.value ?: match.voiceRef, poolGroup = match.ruleName,
+            origin = if (pair?.manual == true) SpeechPersonOrigin.Manual else match.origin)
+    }
+
     suspend fun resolve(text: String, direction: SpeechContextDirection, unitKey: String,
         rules: SpeechRoleRules): SpeechPersonVoice? {
         checkCancelled()
@@ -40,7 +48,8 @@ internal class SpeechCharacterAssignment(
         }
         rules.resolve(text, direction)?.let { return allocate(it).personVoice() }
         // Existing people remain recognisable when automatic discovery is switched off.
-        val known = known(text, direction, pairs.filter { !it.manual }.map { it.person }.distinct(), rules)
+        val known = known(text, direction, pairs.filter { !it.manual && it.person != SPEECH_LANGUAGE_PERSON }
+            .map { it.person }.distinct(), rules)
         if (known != null) {
             val groups = pairs.filter { it.person == known }.map { it.group }
             existing(known, groups)?.let { return it.match(SpeechPersonOrigin.Pair).personVoice() }
