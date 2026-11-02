@@ -109,7 +109,7 @@ internal suspend fun processSpeechAudio(
                     val samples = monoSpeechPcm(block, channels, encoding)
                     buffer.position(buffer.position() + size)
                     sourceFrames += samples.size
-                    write(checkNotNull(dsp).process(samples, samples.size))
+                    write(checkNotNull(dsp).process(samples))
                 }
             }
             try {
@@ -230,7 +230,6 @@ private class SpeechWaveFile(file: File, private val sampleRate: Int) : AutoClos
         output.writeBytes("RIFF"); u32(36 + bytes); output.writeBytes("WAVEfmt ")
         u32(16); u16(1); u16(1); u32(sampleRate.toLong()); u32(sampleRate * 2L); u16(2); u16(16)
         output.writeBytes("data"); u32(bytes)
-        output.fd.sync()
     }
 
     override fun close() = output.close()

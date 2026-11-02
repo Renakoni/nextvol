@@ -2,8 +2,8 @@ package indi.renakoni.nextvol.tts.audio
 
 import kotlin.math.abs
 
-/** One mono PCM16 stream. Feed bounded decoder blocks, then finish once at end of input. */
-class PcmAudioProcessor(
+/** One file-processing coroutine owns this stream; feed decoder blocks, then finish once. */
+internal class PcmAudioProcessor(
     private val inputSampleRate: Int,
     private val outputSampleRate: Int,
     private val processor: Int = 200,
@@ -15,8 +15,6 @@ class PcmAudioProcessor(
     private val bypass = inputSampleRate == outputSampleRate && speed == 1f && pitch == 1f && volume == 1f
     private var sonic: Sonic? = null
     private var nativeHandle = 0L
-    private var closed = false
-    private var finished = false
 
     /** Frames before silence compression, for this call's mapping back to speech timing. */
     var lastUncompressedFrames = 0
@@ -28,7 +26,12 @@ class PcmAudioProcessor(
             throw AudioProcessingException("Audio rates and pitch must be positive; volume must be nonnegative and finite")
         }
         if (!bypass) when (processor) {
-            200 -> sonic = newSonic()
+            200 -> sonic = Sonic(inputSampleRate, 1).apply {
+                setRate(inputSampleRate.toFloat() / outputSampleRate)
+                setSpeed(this@PcmAudioProcessor.speed)
+                setPitch(this@PcmAudioProcessor.pitch)
+                setVolume(this@PcmAudioProcessor.volume)
+            }
             201 -> try {
                 nativeHandle = SoundTouchNative.create(inputSampleRate, outputSampleRate, speed, pitch)
             } catch (failure: LinkageError) {
@@ -38,42 +41,19 @@ class PcmAudioProcessor(
         }
     }
 
-    private fun newSonic() = Sonic(inputSampleRate, 1).apply {
-        setRate(inputSampleRate.toFloat() / outputSampleRate)
-        setSpeed(this@PcmAudioProcessor.speed)
-        setPitch(this@PcmAudioProcessor.pitch)
-        setVolume(this@PcmAudioProcessor.volume)
-    }
-
-    @Synchronized
-    fun process(samples: ShortArray, count: Int = samples.size, intentionalPause: Boolean = false): ShortArray {
-        check(!closed && !finished)
-        require(count in 0..samples.size)
-        if (intentionalPause) {
-            // Finish buffered speech before inserting a pause in the output sample rate.
-            val tail = completeBlock(flush())
-            val uncompressed = lastUncompressedFrames
-            if (sonic != null) sonic = newSonic()
-            lastUncompressedFrames = uncompressed + count
-            return tail + samples.copyOf(count)
-        }
+    fun process(samples: ShortArray): ShortArray {
         val output = when {
-            bypass -> samples.copyOf(count)
+            bypass -> samples
             sonic != null -> {
-                sonic!!.writeShortToStream(samples, count)
+                sonic!!.writeShortToStream(samples, samples.size)
                 readSonic()
             }
-            else -> SoundTouchNative.process(nativeHandle, samples, count)
+            else -> SoundTouchNative.process(nativeHandle, samples, samples.size)
         }
         return completeBlock(output)
     }
 
-    @Synchronized
-    fun finish(): ShortArray {
-        check(!closed && !finished)
-        finished = true
-        return completeBlock(flush())
-    }
+    fun finish(): ShortArray = completeBlock(flush())
 
     private fun flush(): ShortArray = when {
         bypass -> shortArrayOf()
@@ -95,9 +75,7 @@ class PcmAudioProcessor(
         return if (checkSilence && output.all { abs(it.toInt()) <= 512 }) ShortArray(output.size / 4) else output
     }
 
-    @Synchronized
     override fun close() {
-        closed = true
         sonic = null
         if (nativeHandle != 0L) {
             val handle = nativeHandle

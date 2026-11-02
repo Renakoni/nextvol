@@ -30,8 +30,6 @@ class PcmAudioProcessorTest {
             assertEquals(8, it.lastUncompressedFrames)
             val audible = quiet.copyOf().apply { this[7] = 513 }
             assertArrayEquals(audible, it.process(audible))
-            assertArrayEquals(quiet, it.process(quiet, intentionalPause = true))
-            assertEquals(8, it.lastUncompressedFrames)
             assertTrue(it.finish().isEmpty())
         }
     }
@@ -59,13 +57,5 @@ class PcmAudioProcessorTest {
         assertEquals(480.0, frequency, 25.0)
         val rms = sqrt(middle.sumOf { it.toDouble() * it } / middle.size)
         assertEquals(10000 / sqrt(2.0) * 0.5, rms, 600.0)
-    }
-
-    @Test fun closeDiscardsBufferedAudioAndPreventsFurtherOutput() {
-        val processor = PcmAudioProcessor(16000, 24000, pitch = 1.2f)
-        processor.process(ShortArray(8) { 1000 })
-        processor.close()
-        processor.close()
-        assertThrows(IllegalStateException::class.java) { processor.finish() }
     }
 }
