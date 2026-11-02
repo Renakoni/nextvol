@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -326,6 +327,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
         val context = LocalContext.current
+        val resources = LocalResources.current
         val systemSpeechLabel = stringResource(R.string.tts_system_speech)
         val toggleVoice: (Boolean, SpeechVoiceRef) -> Unit = { dialogue, voice ->
             settingsViewModel.toggleVoice(dialogue, voice) {
@@ -393,7 +395,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onDismiss = { addingToPool = emptyList() }, onAdd = { group ->
                 viewModel.addToPool(group, addingToPool) { count ->
                     addingToPool = emptyList()
-                    Toast.makeText(context, context.getString(R.string.tts_pool_added, count), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, resources.getString(R.string.tts_pool_added, count), Toast.LENGTH_SHORT).show()
                 }
             })
         if (deleting.isNotEmpty() || deletingHttp.isNotEmpty()) {
