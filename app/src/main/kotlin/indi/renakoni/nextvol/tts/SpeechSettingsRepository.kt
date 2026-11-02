@@ -41,6 +41,7 @@ data class SpeechSettings(
     val roleRules: List<SpeechRoleRule> = emptyList(),
     val roleContextPattern: String? = null,
     val engineCacheCapacity: Int = 10,
+    val audio: SpeechAudioSettings = SpeechAudioSettings(),
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),

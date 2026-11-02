@@ -14,6 +14,7 @@ val SpeechError.messageResource: Int
         SpeechError.InitializationTimeout -> R.string.tts_error_init_timeout
         SpeechError.SynthesisTimeout -> R.string.tts_error_synthesis_timeout
         SpeechError.SynthesisFailed -> R.string.tts_error_synthesis
+        SpeechError.AudioProcessing -> R.string.tts_error_audio_processing
         SpeechError.Network -> R.string.tts_error_network
         SpeechError.NetworkUnavailable -> R.string.tts_error_http_network_unavailable
         SpeechError.InvalidAudio -> R.string.tts_error_audio

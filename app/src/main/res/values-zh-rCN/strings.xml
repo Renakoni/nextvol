@@ -650,4 +650,9 @@
     <string name="tts_engine_cache_clear">清理引擎缓存</string>
     <string name="tts_engine_cache_count">已缓存 %1$d 个声音。保留已安装语音包与阅读进度。</string>
     <string name="tts_engine_cache_clearing">正在等待合成结束并释放引擎…</string>
+    <string name="tts_audio_processor">音频处理器</string>
+    <string name="tts_audio_minimum_rate">最低采样率</string>
+    <string name="tts_audio_check_silence">静音检测</string>
+    <string name="tts_audio_check_silence_description">压短低音量音频块，有意插入的停顿保持原时长。</string>
+    <string name="tts_error_audio_processing">音频处理失败，请检查处理器和声音参数。</string>
 </resources>

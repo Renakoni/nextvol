@@ -62,7 +62,9 @@ internal class CachedSpeechSynthesizer(
     private var settings: SpeechSettings? = null
     private var closed = false
     private var inputLimit = Int.MAX_VALUE
+    private var selectedAudioParameters = SpeechAudioParameters()
     override val maxInputLength get() = inputLimit
+    override val audioParameters get() = selectedAudioParameters
 
     override suspend fun open(settings: SpeechSettings): String = mutex.withLock {
         this.settings = settings
@@ -80,6 +82,7 @@ internal class CachedSpeechSynthesizer(
             selected = entry
             active = entry.runtime.synthesizer
             inputLimit = active!!.maxInputLength
+            selectedAudioParameters = active!!.audioParameters
             trace("hit", settings, entry.runtime.exclusiveGroup, 0)
             return entry
         }
@@ -103,6 +106,7 @@ internal class CachedSpeechSynthesizer(
             entries[settings] = entry
             selected = entry
             inputLimit = runtime.synthesizer.maxInputLength
+            selectedAudioParameters = runtime.synthesizer.audioParameters
             caches.update(this, entries.size)
             trace("open", settings, runtime.exclusiveGroup, now() - started)
             return entry

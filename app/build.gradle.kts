@@ -67,7 +67,40 @@ if (matchaNative) {
     tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(buildMatchaNative) }
 }
 
+// Audio processing is independent of the arm64-only offline model runtime.
+val audioOutput = layout.buildDirectory.dir("speech-audio").get().asFile
+val buildSpeechAudioNative by tasks.registering(Exec::class) {
+    inputs.property("host", System.getProperty("os.name"))
+    inputs.files(rootProject.fileTree("native/audio") { exclude("build/**", "__pycache__/**") })
+    inputs.properties(listOf("matchaPython", "matchaNdk", "matchaCmake", "matchaNinja")
+        .associateWith { providers.gradleProperty(it).getOrElse("") })
+    outputs.dir(audioOutput.resolve("jniLibs"))
+    outputs.cacheIf { true }
+    commandLine(
+        providers.gradleProperty("matchaPython").getOrElse("python"),
+        rootProject.file("native/audio/build_android.py"),
+        "--ndk", providers.gradleProperty("matchaNdk").getOrElse(
+            androidComponents.sdkComponents.sdkDirectory.get().asFile.resolve("ndk/28.2.13676358").path),
+        "--cmake", providers.gradleProperty("matchaCmake").getOrElse("cmake"),
+        "--ninja", providers.gradleProperty("matchaNinja").getOrElse("ninja"),
+        "--output", audioOutput,
+    )
+}
+val prepareSpeechAudioLicenses by tasks.registering(Sync::class) {
+    from(rootProject.file("native/audio/Sonic-LICENSE"))
+    from(rootProject.file("native/audio/vendor/soundtouch/COPYING.TXT")) { rename { "SoundTouch-LICENSE" } }
+    from(rootProject.file("native/audio/sources.json"))
+    into(audioOutput.resolve("assets/audio-native"))
+}
+// JVM checks do not package native libraries and do not need the Android NDK.
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("JniLibFolders") }
+    .configureEach { dependsOn(buildSpeechAudioNative) }
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
+    .configureEach { dependsOn(prepareSpeechAudioLicenses) }
+
 android {
+    sourceSets.getByName("main").jniLibs.srcDir(audioOutput.resolve("jniLibs"))
+    sourceSets.getByName("main").assets.srcDir(audioOutput.resolve("assets"))
     sourceSets.getByName("main").jniLibs.srcDir(offlineRuntime.resolve("jniLibs"))
     sourceSets.getByName("main").assets.srcDir(offlineRuntime.resolve("assets"))
     if (matchaNative) {

@@ -125,8 +125,8 @@ internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
     val selected = validated().copy(playbackSpeed = 1f, allowMultipleVoices = false)
     if (selected.hasVoiceRouting) return selected
     return when {
-        selected.offlineVoice != null -> selected.copy(engine = "", voice = "", pitch = null, rate = selected.rate ?: 1f, httpVolume = 1f)
-        selected.httpSource != null -> selected.copy(engine = "", voice = "", pitch = null)
+        selected.offlineVoice != null -> selected.copy(engine = "", voice = "", rate = selected.rate ?: 1f, httpVolume = 1f)
+        selected.httpSource != null -> selected.copy(engine = "", voice = "")
         else -> selected.copy(httpVolume = 1f)
     }
 }

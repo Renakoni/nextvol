@@ -224,9 +224,7 @@ fun SpeechPreferencesScreen(
                                     SpeechParameter(stringResource(R.string.tts_http_volume), state.settings.httpVolume,
                                         { onHttpVolume(it ?: 1f) }, resetValue = 1f, valueRange = 0f..2f, steps = 19)
                                 }
-                                if (state.settings.httpSource == null && state.settings.offlineVoice == null) {
-                                    SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
-                                }
+                                SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
                             }
                         }
                     }
