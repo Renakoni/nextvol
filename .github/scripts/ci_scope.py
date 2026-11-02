@@ -58,6 +58,7 @@ EXTRA_24 = [
     ('speech', 'tts.ReadAloudBackgroundInstrumentedTest'),
     ('speech', 'tts.HttpSpeechInstrumentedTest'),
     ('speech', 'tts.SpeechReplacementInstrumentedTest'),
+    ('speech', 'tts.SpeechNameClassificationInstrumentedTest'),
 ]
 MINIFIED_SOURCE = PACKAGE + 'benchmark.explore.MinifiedSourceRuntimeTest'
 MINIFIED_SPEECH = PACKAGE + 'benchmark.tts.ReadAloudSmokeTest'
