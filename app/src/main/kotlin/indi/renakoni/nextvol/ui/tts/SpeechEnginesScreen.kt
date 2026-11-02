@@ -153,7 +153,7 @@ internal fun SpeechEngineEditorScreen(configuration: SpeechEngineConfig?, creati
                 item { EngineField(draft.url, R.string.tts_engine_url, !state.saving, true) { draft = draft.copy(url = it) } }
                 item { EngineField(draft.header, R.string.tts_engine_header, !state.saving, true) { draft = draft.copy(header = it) } }
             }
-            if (draft.type == "inner" && (draft.code == "msctts" || draft.isOnline)) item {
+            if (draft.type == "inner" && draft.code in setOf("msctts", "mstrans")) item {
                 EngineField(draft.parameters, R.string.tts_engine_parameters, !state.saving, true) { draft = draft.copy(parameters = it) }
             }
             item { EngineField(draft.note, R.string.tts_engine_note, !state.saving, true) { draft = draft.copy(note = it) } }
