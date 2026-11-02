@@ -10,6 +10,8 @@ import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.SpeechVoice
+import indi.renakoni.nextvol.tts.SpeechVoiceRef
+import indi.renakoni.nextvol.tts.toggleVoice
 import indi.renakoni.nextvol.tts.SystemSpeechEngines
 import indi.renakoni.nextvol.tts.HttpSpeechRepository
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
@@ -59,7 +61,7 @@ class SpeechSettingsViewModel @Inject constructor(
         }
     }
 
-    fun refresh() {
+    fun refresh(systemCatalog: Boolean = false) {
         val settings = state.value.settings
         val target = Triple(settings.engine, settings.httpSource, settings.offlineVoice)
         val changed = catalogSelection != target
@@ -71,14 +73,14 @@ class SpeechSettingsViewModel @Inject constructor(
         catalog = viewModelScope.launch {
             var installed = state.value.engines
             try {
-                if (settings.offlineVoice != null) {
+                if (!systemCatalog && settings.offlineVoice != null) {
                     val voice = offline.voices().find { it.reference == settings.offlineVoice }
                     if (current == request) mutableState.update { it.copy(offlineName = voice?.name,
                         error = if (voice == null || !voice.enabled) SpeechError.OfflineUnavailable else null) }
                     return@launch
                 }
                 val selected = settings.httpSource
-                if (selected != null) {
+                if (!systemCatalog && selected != null) {
                     val sources = http.sources()
                     val source = sources.find { it.definition.id == selected }
                     val error = when {
@@ -104,6 +106,14 @@ class SpeechSettingsViewModel @Inject constructor(
 
     fun selectEngine(engine: String) = update { it.copy(engine = engine, voice = "", httpSource = null, offlineVoice = null) }
     fun selectVoice(voice: String) = update { it.copy(voice = voice) }
+    fun toggleVoice(dialogue: Boolean, voice: SpeechVoiceRef, onDialogueDisabled: () -> Unit = {}) {
+        val selected = state.value.settings
+        if (!selected.text.dialogue && (dialogue || selected.dialogueVoices.any { it.key == voice.key })) {
+            onDialogueDisabled()
+            return
+        }
+        update { it.toggleVoice(dialogue, voice) }
+    }
     fun setRate(value: Float?) = update { it.copy(rate = value) }
     fun setPitch(value: Float?) = update { it.copy(pitch = value) }
     fun setHttpVolume(value: Float) = update { it.copy(httpVolume = value) }

@@ -23,7 +23,7 @@ class MatchaSpeechSynthesizer internal constructor(
     private val resources: MatchaResources,
     private val native: () -> MatchaNativeApi = { MatchaNative.apply { requireAvailable() } },
 ) : SpeechSynthesizer {
-    override val maxInputLength = 200
+    override val maxInputLength = indi.renakoni.nextvol.tts.speechOfflineInputLimit("sherpa")
     private val lock = ReentrantLock()
     private val cancelled = AtomicBoolean()
     private val opened = AtomicBoolean()

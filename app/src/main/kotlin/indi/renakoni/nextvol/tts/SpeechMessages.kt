@@ -8,6 +8,8 @@ val SpeechError.messageResource: Int
         SpeechError.NoEngine -> R.string.tts_error_no_engine
         SpeechError.EngineUnavailable -> R.string.tts_error_engine
         SpeechError.MissingVoice -> R.string.tts_error_voice
+        SpeechError.MissingNarrationVoice -> R.string.tts_error_narration_voice
+        SpeechError.MissingDialogueVoice -> R.string.tts_error_dialogue_voice
         SpeechError.MissingLanguageData -> R.string.tts_error_language
         SpeechError.InitializationTimeout -> R.string.tts_error_init_timeout
         SpeechError.SynthesisTimeout -> R.string.tts_error_synthesis_timeout
@@ -30,6 +32,7 @@ val SpeechError.messageResource: Int
         SpeechError.HttpAuthentication -> R.string.tts_error_http_authentication
         SpeechError.OfflineUnavailable -> R.string.tts_offline_unavailable
         SpeechError.ReplacementRule -> R.string.tts_replace_failed
+        SpeechError.RoleRule -> R.string.tts_roles_failed
     }
 
 val SpeechPhase.labelResource: Int

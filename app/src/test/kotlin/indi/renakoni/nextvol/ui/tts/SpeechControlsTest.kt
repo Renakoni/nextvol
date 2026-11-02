@@ -21,6 +21,12 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.ui.book.reader.ReaderTopBar
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
@@ -149,19 +155,83 @@ class SpeechControlsTest {
         assertEquals(listOf(SpeechAction.Resume), actions)
     }
 
-    @Test fun loadingCanBePausedAndFailedPlaybackCanRetry() {
+    @Test fun loadingCanPauseAndFailedRoleCanRetryOrOpenItsCredentialsOrEditor() {
         val actions = mutableListOf<SpeechAction>()
         val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Preparing))
+        val sources = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState())
+        val definition = hnovel.speech.previewHttpSpeech(
+            """{"id":"cloud-voice","name":"Cloud voice","url":"https://example.org"}""",
+        ).sources.single()
+        val source = SavedHttpSpeechSource(definition, listOf("https://example.org:443"),
+            group = "Cloud engine", credentialKeys = listOf("AppKey"))
+        val voice = SpeechVoiceRef(httpSource = source.definition.id, label = source.definition.name)
+        val role = SpeechRoleMatch("Alice", "character", "Female role", true, voice)
+        var configured: Map<String, String>? = null
+        lateinit var nav: NavHostController
         activity.get().setContent {
-            MaterialTheme { ReadAloudControls(state.value, { actions += it }) }
+            MaterialTheme {
+                nav = rememberNavController()
+                NavHost(nav, startDestination = "reader",
+                    enterTransition = { androidx.compose.animation.EnterTransition.None },
+                    exitTransition = { androidx.compose.animation.ExitTransition.None }) {
+                    composable("reader") {
+                        ReadAloudControls(state.value, { actions += it },
+                            onSettings = { nav.navigateToSpeechSettings(state.value) })
+                    }
+                    composable<SpeechSettingsRoute> { androidx.compose.material3.Text("Listening settings") }
+                    composable<SpeechRolesRoute> { androidx.compose.material3.Text("Roles") }
+                    dialog<SpeechRoleEditorRoute> { androidx.compose.material3.Text("Role editor") }
+                    composable<HttpSpeechSourcesRoute> { entry ->
+                        val route = entry.toRoute<HttpSpeechSourcesRoute>()
+                        HttpSpeechSourcesScreen(sources.value, {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                            focusVoiceKey = route.voiceKey, configureCredentials = route.configureCredentials,
+                            catalogReady = sources.value.loaded, onConfigure = { target, values ->
+                                assertEquals(source.definition.id, target.definition.id)
+                                configured = values
+                                sources.value = sources.value.copy(configurationSaved = 1)
+                            })
+                    }
+                }
+            }
         }
         compose.mainClock.autoAdvance = false
         compose.onNodeWithContentDescription("Pause").performClick()
-        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.NoEngine) }
+        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.HttpLogin,
+            failedVoice = voice, failedRole = role) }
         compose.mainClock.autoAdvance = true
         compose.onNodeWithContentDescription("Retry").performClick()
         assertEquals(listOf(SpeechAction.Pause, SpeechAction.Resume), actions)
         compose.onNodeWithContentDescription("Next passage").assertIsNotEnabled()
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
+            "Alice · Cloud voice", activity.get().getString(SpeechError.HttpLogin.messageResource))).assertIsDisplayed()
+        compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
+        compose.onNodeWithText("AppKey").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(HttpSpeechSourcesRoute("http:${source.definition.id}", true), nav.currentBackStackEntry!!.toRoute<HttpSpeechSourcesRoute>())
+            nav.getBackStackEntry<SpeechSettingsRoute>()
+            sources.value = sources.value.copy(sources = listOf(source), loaded = true)
+        }
+        compose.onNodeWithText("AppKey").assertIsDisplayed().performTextInput("account-key")
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.confirm)).performClick()
+        assertEquals(mapOf("AppKey" to "account-key"), configured)
+        compose.onNodeWithText("Cloud engine").assertIsSelected()
+        compose.onNodeWithText(source.definition.name).assertIsDisplayed()
+        compose.runOnIdle {
+            nav.popBackStack("reader", false)
+            state.value = state.value.copy(error = SpeechError.MissingVoice, failedRole = role.copy(voiceRef = null))
+        }
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
+            "Alice", activity.get().getString(indi.renakoni.nextvol.R.string.tts_role_voice_missing))).assertIsDisplayed()
+        compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
+        compose.runOnIdle {
+            assertEquals(SpeechRoleEditorRoute(role.ruleId), nav.currentBackStackEntry!!.toRoute<SpeechRoleEditorRoute>())
+            nav.getBackStackEntry<SpeechRolesRoute>()
+            nav.getBackStackEntry<SpeechSettingsRoute>()
+            nav.popBackStack("reader", false)
+            nav.navigateToSpeechSettings(state.value.copy(failedRole = null, failedVoice = null,
+                roleFailure = SpeechRoleFailure("invalid-pattern", "Broken role", SpeechReplacementProblem.Pattern)))
+            assertEquals(SpeechRoleEditorRoute("invalid-pattern"), nav.currentBackStackEntry!!.toRoute<SpeechRoleEditorRoute>())
+        }
     }
 
     @Test
@@ -283,16 +353,17 @@ class SpeechControlsTest {
         }
     }
 
-    @Test fun systemVoicePreviewLeavesTheSelectionDialogOpenUntilAChoiceIsMade() {
+    @Test fun systemVoiceAuditionAndSelectionKeepTheDialogOpenForFurtherGestures() {
         var selected: String? = null
         var previewed: String? = null
+        var dialogue: String? = null
         activity.get().setContent {
             MaterialTheme {
                 HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
                     systemSettings = {
                         SystemSpeechSettings(SpeechSettingsUiState(loading = false,
                             voices = listOf(SpeechVoice("candidate", "en-US", false, true))), {}, { selected = it }, {},
-                            onPreviewVoice = { previewed = it })
+                            onPreviewVoice = { previewed = it }, onDialogue = { dialogue = it })
                     })
             }
         }
@@ -302,7 +373,9 @@ class SpeechControlsTest {
         assertNull(selected)
         compose.onNodeWithText("candidate · Offline").performClick()
         assertEquals("candidate", selected)
-        compose.onNodeWithContentDescription("Preview candidate").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Preview candidate").assertIsDisplayed()
+        compose.onNodeWithText("candidate · Offline").performTouchInput { longClick() }
+        assertEquals("candidate", dialogue)
     }
 
     @Test

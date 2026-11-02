@@ -142,14 +142,20 @@ fun ReadAloudControls(
                     )
                 }
             }
-            state.error?.takeIf { state.replacementFailure == null }?.let {
+            state.error?.takeIf { state.replacementFailure == null && state.roleFailure == null }?.let {
+                val role = state.failedRole
+                val voice = state.failedVoice?.label.orEmpty().ifBlank { state.voiceLabel }
+                val subject = listOfNotNull(role?.let { match -> match.person.ifBlank { match.ruleName } },
+                    voice.takeIf { role == null || role.voiceRef != null }).filter { it.isNotBlank() }.joinToString(" · ")
+                val reason = stringResource(if (role != null && role.voiceRef == null) R.string.tts_role_voice_missing else it.messageResource)
                 Text(
-                    stringResource(it.messageResource),
+                    if (subject.isBlank()) reason else stringResource(R.string.tts_voice_error, subject, reason),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
             state.replacementFailure?.let { SpeechReplacementError(it) }
+            state.roleFailure?.let { SpeechRoleError(it) }
         }
         val canStep = state.segmentCount > 0 && state.phase in setOf(
             SpeechPhase.Playing, SpeechPhase.Paused, SpeechPhase.Buffering,

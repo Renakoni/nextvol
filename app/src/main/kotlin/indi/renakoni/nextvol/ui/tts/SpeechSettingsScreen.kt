@@ -62,6 +62,11 @@ import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.labelResource
 import indi.renakoni.nextvol.tts.messageResource
+import indi.renakoni.nextvol.tts.SpeechVoiceRef
+import indi.renakoni.nextvol.tts.SpeechVoiceSelection
+import indi.renakoni.nextvol.tts.voiceSelection
+import indi.renakoni.nextvol.tts.selectedNarrators
+import indi.renakoni.nextvol.tts.voiceReference
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,6 +80,7 @@ fun SpeechSettingsScreen(
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
     onReplacements: (() -> Unit)? = null,
+    onRoles: (() -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -107,10 +113,13 @@ fun SpeechSettingsScreen(
                     val selectedSource = state.httpSources.find { it.definition.id == state.settings.httpSource }
                     val engine = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
                         else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
-                    val current = if (state.settings.offlineVoice != null) state.offlineName ?: stringResource(R.string.tts_voice_unavailable)
+                    val legacyVoice = if (state.settings.offlineVoice != null) state.offlineName ?: stringResource(R.string.tts_voice_unavailable)
                         else if (state.settings.httpSource == null)
                         listOf(stringResource(R.string.tts_system_speech), engine, state.settings.voice).filter(String::isNotEmpty).joinToString(" · ")
                         else selectedSource?.definition?.name ?: stringResource(R.string.tts_voice_unavailable)
+                    val current = state.settings.selectedNarrators.joinToString("、") { voice -> voice.label.ifBlank {
+                        if (voice.key == state.settings.voiceReference().key) legacyVoice else voice.voice.ifBlank { engine }
+                    } }.ifEmpty { stringResource(R.string.tts_voice_none) }
                     SettingsClickableEntry(
                         modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-sources-entry"),
                         painter = painterResource(R.drawable.headphones_24px),
@@ -132,6 +141,15 @@ fun SpeechSettingsScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-replacements-entry"),
                             painter = painterResource(R.drawable.find_replace_24px),
                             title = stringResource(R.string.tts_replacements),
+                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            onClick = open,
+                        )
+                    }
+                    onRoles?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-roles-entry"),
+                            painter = painterResource(R.drawable.person_edit_24px),
+                            title = stringResource(R.string.tts_roles),
                             trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                             onClick = open,
                         )
@@ -231,16 +249,16 @@ internal fun SystemSpeechSettings(
     state: SpeechSettingsUiState,
     onEngine: (String) -> Unit, onVoice: (String) -> Unit, onSystemSettings: () -> Unit,
     onPreviewVoice: ((String) -> Unit)? = null,
+    onDialogue: ((String) -> Unit)? = null,
 ) {
     var choice by rememberSaveable { mutableStateOf<String?>(null) }
     val locale = LocalConfiguration.current.locales[0]
     val name = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
         else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
     SpeechSetting(stringResource(R.string.tts_engine), name) { choice = "engine" }
-    val voice = if (state.settings.voice.isEmpty()) stringResource(R.string.tts_engine_default)
-        else state.voices.find { it.id == state.settings.voice }?.let {
-            Locale.forLanguageTag(it.locale).getDisplayName(locale) + " · " + it.id
-        } ?: stringResource(R.string.tts_voice_unavailable)
+    val voice = (state.settings.selectedNarrators + state.settings.dialogueVoices)
+            .filter { it.httpSource == null && it.offlineVoice == null && it.engine == state.settings.engine }
+            .joinToString("、") { it.voice.ifBlank { name } }.ifEmpty { stringResource(R.string.tts_voice_none) }
     SpeechSetting(stringResource(R.string.tts_voice), voice, enabled = !state.loading) { choice = "voice" }
     SpeechSetting(stringResource(R.string.tts_system_settings), onClick = onSystemSettings)
     state.error?.let { error ->
@@ -269,9 +287,11 @@ internal fun SystemSpeechSettings(
         }
         SpeechChoiceDialog(
             stringResource(if (engine) R.string.tts_engine else R.string.tts_voice), current, options,
-            onChoose = { if (engine) onEngine(it) else onVoice(it); choice = null },
+            onChoose = { if (engine) { onEngine(it); choice = null } else onVoice(it) },
             onDismiss = { choice = null },
             onPreview = if (engine) null else onPreviewVoice,
+            selection = if (engine) null else { id -> state.settings.voiceSelection(SpeechVoiceRef(engine = state.settings.engine, voice = id)) },
+            onDialogue = if (engine) null else onDialogue,
         )
     }
 }
@@ -312,6 +332,8 @@ private data class Choice(val id: String, val title: String, val description: St
 private fun SpeechChoiceDialog(
     title: String, current: String, options: List<Choice>, onChoose: (String) -> Unit, onDismiss: () -> Unit,
     onPreview: ((String) -> Unit)? = null,
+    selection: ((String) -> SpeechVoiceSelection?)? = null,
+    onDialogue: ((String) -> Unit)? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -319,6 +341,15 @@ private fun SpeechChoiceDialog(
         text = {
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 440.dp).selectableGroup()) {
                 items(options, key = { it.id }) { option ->
+                    if (selection != null) {
+                        val selected = selection(option.id)
+                        SpeechSourceRow(option.title, selected != null, option.enabled || selected != null,
+                            onClick = { onChoose(option.id) }, onLongClick = onDialogue?.let { { it(option.id) } }, selection = selected,
+                            avatar = { Icon(painterResource(R.drawable.headphones_24px), null, Modifier.size(40.dp)) },
+                            onPreview = null, description = option.description, actions = {
+                                if (onPreview != null) SpeechPreviewButton(option.id.ifEmpty { option.title }, option.enabled) { onPreview(option.id) }
+                            })
+                    } else {
                     Row(
                         Modifier.fillMaxWidth().selectable(
                             selected = option.id == current, enabled = option.enabled, role = Role.RadioButton,
@@ -336,6 +367,7 @@ private fun SpeechChoiceDialog(
                             )
                         }
                         if (onPreview != null) SpeechPreviewButton(option.id.ifEmpty { option.title }, option.enabled) { onPreview(option.id) }
+                    }
                     }
                 }
             }

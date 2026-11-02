@@ -16,7 +16,8 @@ class SpeechReplacementInstrumentedTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val authority = ExecutionAuthority()
         val executor = AndroidIsolatedExecutor(context, authority)
-        val plans = SpeechPlanPreparer(executor, authority)
+        val voices = dagger.hilt.android.EntryPointAccessors.fromApplication(context, SpeechDebugEntryPoint::class.java).voices()
+        val plans = SpeechPlanPreparer(executor, authority, voices)
         try {
             val rule = SpeechReplacementRule(id = "slow", source = "(a+)+$", target = "", regex = true)
             val chapter = SpeechChapter("book", "chapter", "", "", "a".repeat(30_000) + "!")
