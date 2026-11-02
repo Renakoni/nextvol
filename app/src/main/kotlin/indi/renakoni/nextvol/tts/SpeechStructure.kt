@@ -32,6 +32,7 @@ internal suspend fun speechStructure(
     incoming: SpeechContext = SpeechContext(),
     resolve: (suspend (String, SpeechContextDirection) -> SpeechPersonVoice?)? = null,
     textRules: List<SpeechRoleText> = emptyList(),
+    resolveUnit: (suspend (String, SpeechContextDirection, String) -> SpeechPersonVoice?)? = null,
     checkCancelled: () -> Unit,
 ): SpeechStructureResult {
     checkCancelled()
@@ -137,7 +138,7 @@ internal suspend fun speechStructure(
     // Tagged control spans bypass the quote FSM and the original contextual-text list.
     val contextual = result.filterNot { it.controlMark || it.textRule != null }.toMutableList()
     if (!settings.dialogue || contextual.isEmpty()) return SpeechStructureResult(result, incoming)
-    val resolved = resolveSpeechContext(contextual, settings, incoming, unfinished, resolve, checkCancelled)
+    val resolved = resolveSpeechContext(contextual, settings, incoming, unfinished, resolve, checkCancelled, resolveUnit)
     val parts = resolved.parts.iterator()
     return SpeechStructureResult(result.map { if (it.controlMark || it.textRule != null) it else parts.next() }, resolved.nextContext)
 }

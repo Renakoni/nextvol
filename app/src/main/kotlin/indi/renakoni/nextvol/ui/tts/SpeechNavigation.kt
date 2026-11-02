@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -83,6 +84,9 @@ object SpeechReplacementPreviewRoute
 object SpeechRolesRoute
 
 @Serializable
+object SpeechVoicePoolRoute
+
+@Serializable
 data class SpeechRoleEditorRoute(val ruleId: String? = null)
 
 @Serializable
@@ -137,9 +141,21 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
             onReplacements = { nav.navigate(SpeechReplacementsRoute) { launchSingleTop = true } },
             onRoles = { nav.navigate(SpeechRolesRoute) { launchSingleTop = true } },
+            onVoicePool = { nav.navigate(SpeechVoicePoolRoute) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer)
+    }
+    composable<SpeechVoicePoolRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechVoicePoolViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechVoicePoolScreen(state, nav::popBackStackIfResumed,
+            onEditItem = viewModel::editItem, onEditPair = viewModel::editPair,
+            onToggle = viewModel::toggle, onOrder = viewModel::order, onDeleteItems = viewModel::deleteItems, onDeletePairs = viewModel::deletePairs,
+            onReassign = viewModel::reassign, onClearPairs = viewModel::clearPairs)
+        SpeechVoicePoolEditor(state, viewModel::dismissEditor, viewModel::edit, viewModel::selectEngine, viewModel::selectGroup, viewModel::save)
     }
     composable<SpeechRolesRoute> {
         HideReadAloudOverlay()
@@ -204,7 +220,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
             viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern,
             onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } },
-            onEngineCacheCapacity = viewModel::engineCacheCapacity, onClearEngines = viewModel::clearEngines)
+            onEngineCacheCapacity = viewModel::engineCacheCapacity, onClearEngines = viewModel::clearEngines,
+            onAutoAssign = viewModel::autoAssign, onCacheLimit = viewModel::cacheLimit)
     }
     composable<SpeechNameTestRoute> {
         HideReadAloudOverlay()
@@ -311,6 +328,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
         val context = LocalContext.current
+        val resources = LocalResources.current
         val systemSpeechLabel = stringResource(R.string.tts_system_speech)
         val toggleVoice: (Boolean, SpeechVoiceRef) -> Unit = { dialogue, voice ->
             settingsViewModel.toggleVoice(dialogue, voice) {
@@ -324,6 +342,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         }
         var deleting by remember { mutableStateOf<List<InstalledOfflineVoice>>(emptyList()) }
         var deletingHttp by remember { mutableStateOf<List<SavedHttpSpeechSource>>(emptyList()) }
+        var addingToPool by remember { mutableStateOf<List<SpeechVoiceRef>>(emptyList()) }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let { viewModel.preview(it) { file ->
                 nav.navigate(SpeechPackagePreviewRoute(file.toString())) { launchSingleTop = true }
@@ -355,6 +374,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
                 .associateWith { offline.engineNames[it] ?: it },
             offlineVoices = offline.voices, onOrderHttp = viewModel::order, onOrderOffline = { offlineViewModel.order(it) },
             onDeleteHttp = { deletingHttp = it }, onDeleteOffline = { deleting = it },
+            onAddToPool = { addingToPool = it },
             offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
                 onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                 onDialogue = { toggleVoice(true, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
@@ -371,6 +391,13 @@ fun NavGraphBuilder.speechSettingsDestination() {
                         try { systemSettingsPicker.launch(Intent("com.android.settings.TTS_SETTINGS")) }
                         catch (_: ActivityNotFoundException) { systemSettingsPicker.launch(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
                     })
+            })
+        if (addingToPool.isNotEmpty()) SpeechAddToPoolDialog(settings.settings, state.busy, state.error,
+            onDismiss = { addingToPool = emptyList() }, onAdd = { group ->
+                viewModel.addToPool(group, addingToPool) { count ->
+                    addingToPool = emptyList()
+                    Toast.makeText(context, resources.getString(R.string.tts_pool_added, count), Toast.LENGTH_SHORT).show()
+                }
             })
         if (deleting.isNotEmpty() || deletingHttp.isNotEmpty()) {
             val dismiss = { deleting = emptyList(); deletingHttp = emptyList() }

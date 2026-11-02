@@ -152,6 +152,25 @@ internal fun speechSentenceChunks(
     return result
 }
 
+/** S6.f.d supplies each punctuation-delimited unit to language detection before aggregation. */
+internal fun speechLanguageSentences(input: SpeechMappedText, locale: Locale, checkCancelled: () -> Unit): List<SpeechMappedText> {
+    val pattern = if (locale.language == "en" || locale.language == "zh") chineseEnglishSentence else otherSentence
+    val marks = speechMarkRanges(input.text)
+    val matches = pattern.matcher(input.text)
+    val result = mutableListOf<SpeechMappedText>()
+    var start = 0
+    var markIndex = 0
+    while (matches.find()) {
+        checkCancelled()
+        while (markIndex < marks.size && marks[markIndex].last < matches.start()) markIndex++
+        if (markIndex < marks.size && matches.start() in marks[markIndex]) continue
+        if (start < matches.end()) result += input.slice(start, matches.end())
+        start = matches.end()
+    }
+    if (start < input.text.length) result += input.slice(start, input.text.length)
+    return result
+}
+
 private fun speechLongSentence(
     input: SpeechMappedText, limit: Int, checkCancelled: () -> Unit,
 ): List<SpeechMappedText> {

@@ -677,4 +677,16 @@
     <string name="tts_engine_cache_clear">Clear engine cache</string>
     <string name="tts_engine_cache_count">%1$d cached voices. Installed packages and reading progress are kept.</string>
     <string name="tts_engine_cache_clearing">Waiting for synthesis to finish and release engines…</string>
+    <string name="tts_detect_language">Detect language</string>
+    <string name="tts_detect_language_description">Route each text segment through enabled language rules.</string>
+    <string name="tts_language_detector">Language detection algorithm</string>
+    <string name="tts_language_optimaize">Optimaize</string>
+    <string name="tts_language_media_pipe">Media Pipe</string>
+    <string name="tts_filter_language">Filter language</string>
+    <string name="tts_filter_language_description">Show voices for the current language or region, plus English. Turn off to show all languages.</string>
+    <string name="tts_role_mode_language">Language</string>
+    <string name="tts_role_secondary_language">Alternative language</string>
+    <string name="tts_role_language_required">Select a language supported by the current detector.</string>
+    <string name="tts_language_detector_unavailable">The selected language detector or its model could not be loaded. Check the language rules and detection algorithm.</string>
+    <string name="tts_segment_language">Language: %1$s</string>
 </resources>

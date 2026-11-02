@@ -47,6 +47,8 @@ class ReadAloudService : MediaSessionService() {
     @Inject lateinit var synthesizers: SpeechSynthesizers
     @Inject lateinit var plans: SpeechPlanPreparer
     @Inject lateinit var voices: SpeechVoiceCatalog
+    @Inject lateinit var pairs: SpeechVoicePoolRepository
+    @Inject lateinit var languages: SpeechLanguageDetection
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
     private lateinit var speech: ReadAloudSession
@@ -139,8 +141,13 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            combine(settings.changes, voices.changes) { settings, _ -> voices.revised(settings) }
-                .collect(speech::updateSettings)
+            combine(settings.changes, voices.changes, pairs.revisions) { settings, _, _ ->
+                pairs.setCacheLimit(settings.maxCacheVoiceNum)
+                voices.revised(settings)
+            }.collect { settings ->
+                speech.updateSettings(settings)
+                if (!settings.text.detectLanguage || settings.roleRules.none { it.isLanguageRule }) languages.release()
+            }
         }
     }
 
@@ -272,6 +279,7 @@ class ReadAloudService : MediaSessionService() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
     override fun onDestroy() {
+        plans.reset()
         shuttingDown = true
         val last = speech.state.value
         sleepTimer.cancel()

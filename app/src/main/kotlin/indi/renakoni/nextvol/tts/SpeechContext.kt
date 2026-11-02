@@ -28,10 +28,13 @@ internal suspend fun resolveSpeechContext(
     unfinished: Boolean,
     resolve: (suspend (String, SpeechContextDirection) -> SpeechPersonVoice?)?,
     checkCancelled: () -> Unit,
+    resolveUnit: (suspend (String, SpeechContextDirection, String) -> SpeechPersonVoice?)? = null,
 ): SpeechStructureResult {
     var nextVoice = incoming.recentVoices.getOrNull(0)
     var otherVoice = incoming.recentVoices.getOrNull(1)
     var rememberedVoice = false
+    suspend fun find(text: String, direction: SpeechContextDirection, unitKey: String): SpeechPersonVoice? =
+        if (resolveUnit != null) resolveUnit(text, direction, unitKey) else resolve?.invoke(text, direction)
 
     fun propagate(index: Int, personVoice: SpeechPersonVoice) {
         for (previous in index - 1 downTo 0) {
@@ -48,7 +51,7 @@ internal suspend fun resolveSpeechContext(
             val part = parts[index]
             if (part.dialogue) break
             if (part.speaker != null) return part.personVoice
-            val personVoice = resolve?.invoke(part.content.text, direction) ?: continue
+            val personVoice = find(part.content.text, direction, "part:$index") ?: continue
             parts[index] = part.copy(personVoice = personVoice)
             return personVoice
         }
@@ -70,8 +73,8 @@ internal suspend fun resolveSpeechContext(
                 .map { it.content.text }.toList())
         val rememberedText = if (index == 0 && settings.recordText)
             incoming.previousText.takeWhile { !it.dialogue }.map { it.text } else emptyList()
-        if (resolve != null) {
-            val explicit = hint?.let { resolve(it, SpeechContextDirection.Explicit) }
+        if (resolve != null || resolveUnit != null) {
+            val explicit = hint?.let { find(it, SpeechContextDirection.Explicit, "hint:$index") }
             if (explicit != null) {
                 val output = SpeechMappedText.Builder(text.length)
                 var copied = 0
@@ -95,11 +98,11 @@ internal suspend fun resolveSpeechContext(
                     if (personVoice != null) propagate(index, personVoice)
                     else if (index == 0 && settings.recordText) {
                         part = part.copy(rememberedText = rememberedText)
-                        for (context in incoming.previousText) {
+                        for ((contextIndex, context) in incoming.previousText.withIndex()) {
                             checkCancelled()
                             if (context.dialogue) break
                             personVoice = context.personVoice?.takeIf { it.person.isNotEmpty() }
-                                ?: resolve(context.text, SpeechContextDirection.Next)
+                                ?: find(context.text, SpeechContextDirection.Next, "context:$contextIndex")
                             if (personVoice != null) break
                         }
                     }
