@@ -95,7 +95,7 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
     val data = engine.httpData()
     if (old == data) return this
     val metadata = definition.raw.getValue("multiTts").jsonObject
-    val raw = definition.raw.toMutableMap()
+    val raw = definition.raw.toMutableMap().apply { put("id", JsonPrimitive(definition.id)) }
     raw["multiTts"] = JsonObject(metadata + ("engine" to data))
     // Labels/notes do not rebuild a request or invalidate its authorization.
     if (engine.type != "http") {

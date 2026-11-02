@@ -40,6 +40,7 @@ class BuiltInSpeechSourcesTest {
         val repository = repository()
         repository.save(voices)
         val first = repository.sources().first { !it.isBuiltIn }
+        assertEquals(voices.first().definition.id, first.definition.id)
         repository.saveVoice(editHttpVoice(first, buildJsonObject { put("name", "Edited"); put("locale", "de-DE") }, true, false))
         repository.save(voices)
         val restored = repository().sources().filterNot { it.isBuiltIn }
