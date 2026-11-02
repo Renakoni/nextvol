@@ -207,6 +207,10 @@ android {
             excludes += "META-INF/INDEX.LIST"
         }
     }
+    androidResources {
+        // Media Pipe opens the shipped model as an uncompressed asset, as in MultiTTS.
+        noCompress += "tflite"
+    }
 }
 
 androidComponents {
@@ -310,6 +314,12 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 dependencies {
+    implementation("com.optimaize.languagedetector:language-detector:0.6") {
+        exclude(group = "com.intellij", module = "annotations")
+        // Profiles are read with the existing kotlinx JSON parser, without JSONIC's desktop reflection.
+        exclude(group = "net.arnx", module = "jsonic")
+    }
+    implementation("com.google.mediapipe:tasks-text:0.10.32")
     implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.45.0") {
         // Embedded synthesis does not use Azure token credentials; azure-core requires API 26.
         exclude(group = "com.azure", module = "azure-core")

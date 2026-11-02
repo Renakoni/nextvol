@@ -38,7 +38,9 @@ class SpeechRolesViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.changes.collect { settings ->
+                val filterChanged = state.value.settings.text.filterLanguage != settings.text.filterLanguage
                 mutableState.update { it.copy(settings = settings, loading = false) }
+                if (filterChanged) refresh()
             }
         }
         refresh()
@@ -77,10 +79,14 @@ class SpeechRolesViewModel @Inject constructor(
 
     fun save(defaultGroup: String, onSaved: () -> Unit) {
         val draft = state.value.draft ?: return
+        val languageMode = draft.mode == 1 || draft.mode != 0 && draft.pattern.startsWith("lang:")
         // Original required fields; compile the actual regex instead of its mistaken name field.
         val error = when {
             draft.name.isEmpty() -> R.string.tts_replace_name_required
             draft.speaker == null -> R.string.tts_role_voice_required
+            languageMode && draft.regex.removePrefix("lang:") !in speechDetectionLanguages(state.value.settings.text.languageDetector) ->
+                R.string.tts_role_language_required
+            languageMode -> null
             !draft.matchBefore && !draft.matchAfter -> R.string.tts_role_direction_required
             else -> try { Pattern.compile(draft.pattern); null }
                 catch (_: PatternSyntaxException) { R.string.tts_replace_error_pattern }

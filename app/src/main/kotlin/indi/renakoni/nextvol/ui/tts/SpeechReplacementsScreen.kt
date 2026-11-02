@@ -140,6 +140,10 @@ internal fun SpeechReplacementPreviewScreen(state: SpeechReplacementsState, onBa
                                 Text(listOf(origin, group, segment.selectedVoice?.label.orEmpty())
                                     .filter { it.isNotEmpty() }.joinToString(" → "), style = MaterialTheme.typography.bodySmall)
                             }
+                            segment.language?.takeIf { it != "lang:mark" && it != "lang:latin" }?.let {
+                                Text(stringResource(R.string.tts_segment_language, speechLanguageLabel(it.removePrefix("lang:"))),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                             Text(segment.text)
                         }
                     }

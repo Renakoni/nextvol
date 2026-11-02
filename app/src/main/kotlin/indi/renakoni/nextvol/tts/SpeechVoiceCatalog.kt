@@ -20,8 +20,9 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
     val changes = combine(http.changes, offline.changes, engines.changes) { a, b, c -> Triple(a, b, c) }
 
     suspend fun roleEngines(): List<SpeechRoleEngine> {
-        val online = http.sources()
-        val installed = offline.voices()
+        val filterLanguage = settings.get().text.filterLanguage
+        val online = http.sources().filter { !filterLanguage || speechVoiceLanguageMatches(it.searchVoice(false).locale) }
+        val installed = offline.voices().filter { !filterLanguage || speechVoiceLanguageMatches(it.configuration?.locale.orEmpty()) }
         val configurations = (engines.all() + http.engines()).filter { engine ->
             !engine.deleted || online.any { it.importedEngineCode == engine.code }
         }.sortedBy { it.order }
