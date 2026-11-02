@@ -6,7 +6,6 @@ import hnovel.execution.*
 import hnovel.imports.LEGADO_PROFILE
 import hnovel.rules.*
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
@@ -27,7 +26,7 @@ class ScriptFailureInstrumentedTest {
         try {
             val binder = withTimeout(15000) { worker.connected.await() }.asBinder()
             assertTrue(binder.isBinderAlive)
-            val closing = launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+            val closing = launch(Dispatchers.IO) {
                 currentCoroutineContext().cancel()
                 worker.close()
             }
