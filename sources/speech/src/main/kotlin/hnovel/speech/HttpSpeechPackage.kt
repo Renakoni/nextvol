@@ -20,6 +20,7 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
     val definition = engine.raw ?: return failed(HttpSpeechPackageError.InvalidConfiguration)
     val template = try {
         if (engine.type == "http") definition.values["url"].text()?.trim().orEmpty()
+        else if (engine.code == "edgetts") EdgeSpeechClient.ENDPOINT
         else microsoftPackageAuthUrl(microsoftPackageParameters(definition.values["param"].text().orEmpty()))
     } catch (_: IllegalArgumentException) { return failed(HttpSpeechPackageError.InvalidConfiguration) }
     if (template.isEmpty() || engine.voices.any { it.code.isBlank() })

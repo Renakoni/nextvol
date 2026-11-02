@@ -40,6 +40,8 @@ class HttpSpeechClient(
 
     private val identity = authority.issue(source.id, "http-tts", source.revision, "speech")
     private val microsoft = source.microsoft?.let { MicrosoftSpeechClient(it, ::executeMicrosoft) }
+    private val edge = if (source.nativeEngine == "edgetts") EdgeSpeechClient(
+        requireNotNull(source.multiTts).getValue("voice").jsonObject, ::executeEdge) else null
     @Volatile private var microsoftSession: SourceSession? = null
 
     // A client owns one immutable source revision; static bindings need parsing only once.
@@ -81,7 +83,8 @@ class HttpSpeechClient(
         try {
             withTimeout(60_000) {
                 val speed = source.scriptSpeed(rate)
-                val audio = microsoft?.synthesize(text, rate ?: speed / 10f, volume) ?: request(text, speed, volume)
+                val audio = edge?.synthesize(text, rate ?: speed / 10f, volume)
+                    ?: microsoft?.synthesize(text, rate ?: speed / 10f, volume) ?: request(text, speed, volume)
                 currentCoroutineContext().ensureActive()
                 if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
                 audio
@@ -92,6 +95,14 @@ class HttpSpeechClient(
             if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
             throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidSource)
         }
+    }
+
+    private suspend fun executeEdge(request: BrokerRequest, receive: (BrokerWebSocket) -> ByteArray): ByteArray = try {
+        session.webSocket(request, RequestCommitGuard { authority.authorized(identity, it) }, receive)
+    } catch (failure: BrokerWebSocketException) {
+        throw HttpSpeechException(failure.statusCode?.let(::httpStatusError) ?: failure.failure.code.speechError(),
+            statusCode = failure.statusCode, networkCode = failure.failure.code,
+            deniedOrigins = listOfNotNull(failure.failure.denial?.origin))
     }
 
     private suspend fun executeMicrosoft(request: BrokerRequest): BrokerResponse {
