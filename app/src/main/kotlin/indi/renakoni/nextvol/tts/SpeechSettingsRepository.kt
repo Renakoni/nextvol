@@ -38,6 +38,8 @@ data class SpeechSettings(
     val voiceRevision: String = "",
     val voiceRoutingConfigured: Boolean = false,
     val allowMultipleVoices: Boolean = false,
+    val roleRules: List<SpeechRoleRule> = emptyList(),
+    val roleContextPattern: String? = null,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
@@ -51,7 +53,7 @@ data class SpeechSettings(
 }
 
 internal val SpeechSettings.hasVoiceRouting get() =
-    voiceRoutingConfigured || narrationVoices.isNotEmpty() || dialogueVoices.isNotEmpty() || speakerVoices.isNotEmpty()
+    voiceRoutingConfigured || narrationVoices.isNotEmpty() || dialogueVoices.isNotEmpty() || speakerVoices.isNotEmpty() || roleRules.any { it.activate }
 
 @Singleton
 class SpeechSettingsRepository @Inject constructor(userData: UserDataRepository) {

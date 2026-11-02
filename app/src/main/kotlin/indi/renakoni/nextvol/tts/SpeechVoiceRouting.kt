@@ -66,7 +66,7 @@ internal fun SpeechSettings.removeVoiceSelections(deleted: (SpeechVoiceRef) -> B
 internal fun SpeechSettings.forVoice(reference: SpeechVoiceRef) = copy(
     engine = reference.engine, voice = reference.voice, httpSource = reference.httpSource,
     offlineVoice = reference.offlineVoice, narrationVoices = emptyList(), dialogueVoices = emptyList(),
-    speakerVoices = emptyMap(), speakerBookId = "", voiceRoutingConfigured = false,
+    speakerVoices = emptyMap(), speakerBookId = "", voiceRoutingConfigured = false, roleRules = emptyList(),
 ).synthesisSettings()
 
 /** R6.p.d: separate round-robin cursors; an explicit/remembered voice does not advance either. */
@@ -82,12 +82,13 @@ internal class SpeechVoiceRouting(private val settings: SpeechSettings, private 
     fun explicit(name: String): SpeechPersonVoice? = settings.speakerVoices
         .takeIf { settings.speakerBookId == bookId }?.get(name)?.let { SpeechPersonVoice(name, it.key) }
 
-    fun refreshContext(incoming: SpeechContext): SpeechContext {
+    suspend fun refreshContext(incoming: SpeechContext,
+        resolvePerson: suspend (SpeechPersonVoice) -> SpeechPersonVoice? = { explicit(it.person) }): SpeechContext {
         val changes = mutableMapOf<String, MutableSet<String?>>()
         val previousText = incoming.previousText.map { previous ->
             val old = previous.personVoice
             if (old == null || old.person.isEmpty()) previous else {
-                val current = explicit(old.person)
+                val current = resolvePerson(old)
                 changes.getOrPut(old.voice) { mutableSetOf() }.add(current?.voice)
                 previous.copy(personVoice = current)
             }
@@ -102,6 +103,13 @@ internal class SpeechVoiceRouting(private val settings: SpeechSettings, private 
         ?: SpeechResolvedVoice(reference, settings.forVoice(reference), defaultLimit)
 
     fun select(part: SpeechStructure): Pair<SpeechResolvedVoice, SpeechVoiceReason> {
+        val role = part.textRule ?: part.personVoice?.roleMatch?.takeIf { part.dialogue }
+        if (role != null) {
+            val selected = role.voiceRef?.let(::resolve) ?: SpeechResolvedVoice(
+                SpeechVoiceRef(voice = "role:${role.ruleId}", label = role.ruleName), settings, defaultLimit,
+                error = SpeechError.MissingVoice)
+            return selected to SpeechVoiceReason.Explicit
+        }
         if (part.dialogue) {
             val key = (part.personVoice?.voice?.takeIf { it.isNotEmpty() } ?: part.previousVoice)?.takeIf { it.isNotEmpty() }
             if (key != null) {

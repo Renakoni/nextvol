@@ -80,16 +80,30 @@ data class SpeechReplacementEditorRoute(val ruleId: String? = null)
 object SpeechReplacementPreviewRoute
 
 @Serializable
+object SpeechRolesRoute
+
+@Serializable
+data class SpeechRoleEditorRoute(val ruleId: String? = null)
+
+@Serializable
 data class SpeechPackagePreviewRoute(val uri: String)
 
 fun NavController.navigateToSpeechSettings() = navigate(SpeechSettingsRoute) { launchSingleTop = true }
 
 fun NavController.navigateToSpeechSettings(playback: ReadAloudState) {
     navigateToSpeechSettings()
-    if (playback.phase == SpeechPhase.Failed && (playback.failedVoice != null ||
-            playback.error == SpeechError.MissingNarrationVoice || playback.error == SpeechError.MissingDialogueVoice)) {
-        navigate(HttpSpeechSourcesRoute(playback.failedVoice?.key,
-            playback.error == SpeechError.HttpLogin || playback.error == SpeechError.HttpAuthentication)) { launchSingleTop = true }
+    if (playback.phase != SpeechPhase.Failed) return
+    val credentials = playback.error == SpeechError.HttpLogin || playback.error == SpeechError.HttpAuthentication
+    val roleId = playback.roleFailure?.ruleId ?: playback.failedRole?.takeIf {
+        it.voiceRef == null || playback.error in setOf(SpeechError.MissingVoice, SpeechError.OfflineUnavailable,
+            SpeechError.HttpSourceUnavailable, SpeechError.EngineUnavailable, SpeechError.MissingLanguageData)
+    }?.ruleId
+    if (roleId != null && !credentials) {
+        navigate(SpeechRolesRoute) { launchSingleTop = true }
+        navigate(SpeechRoleEditorRoute(roleId)) { launchSingleTop = true }
+    } else if (playback.failedVoice != null || playback.error == SpeechError.MissingNarrationVoice ||
+        playback.error == SpeechError.MissingDialogueVoice) {
+        navigate(HttpSpeechSourcesRoute(playback.failedVoice?.key, credentials)) { launchSingleTop = true }
     }
 }
 
@@ -122,9 +136,35 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
             onReplacements = { nav.navigate(SpeechReplacementsRoute) { launchSingleTop = true } },
+            onRoles = { nav.navigate(SpeechRolesRoute) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer)
+    }
+    composable<SpeechRolesRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechRolesViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        SpeechRolesScreen(state, nav::popBackStackIfResumed,
+            onEdit = { id -> viewModel.editRule(id); nav.navigate(SpeechRoleEditorRoute(id)) },
+            onToggle = viewModel::toggle, onOrder = viewModel::order, onDelete = viewModel::delete,
+            onRename = viewModel::renameGroup)
+    }
+    dialog<SpeechRoleEditorRoute>(dialogProperties = DialogProperties(
+        dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false)) { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val owner = remember(entry) { nav.getBackStackEntry<SpeechRolesRoute>() }
+        val viewModel = hiltViewModel<SpeechRolesViewModel>(owner)
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val route = entry.toRoute<SpeechRoleEditorRoute>()
+        LaunchedEffect(state.loading, state.catalogLoading) {
+            if (!state.loading && !state.catalogLoading && state.draft == null) viewModel.editRule(route.ruleId)
+        }
+        SpeechRoleEditorScreen(state, nav::popBackStackIfResumed,
+            onSave = { viewModel.save(it, nav::popBackStackIfResumed) }, onEdit = viewModel::edit,
+            onEngine = viewModel::selectEngine)
     }
     composable<SpeechReplacementsRoute> {
         HideReadAloudOverlay()
@@ -159,8 +199,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
+        val defaultContext = stringResource(R.string.tts_role_context_default)
+        LaunchedEffect(Unit) { viewModel.initializeRoleContext(defaultContext) }
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
-            viewModel::update, viewModel::allowMultipleVoices,
+            viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern,
             onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } })
     }
     composable<SpeechNameTestRoute> {

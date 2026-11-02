@@ -1,0 +1,29 @@
+<resources>
+    <string name="tts_roles">Управление персонажами</string>
+    <string name="tts_roles_failed">Не удалось применить правило роли. Откройте управление персонажами, чтобы изменить его.</string>
+    <string name="tts_role_add">Добавить роль</string>
+    <string name="tts_role_edit">Изменить роль</string>
+    <string name="tts_role_context_template">Правило определения роли</string>
+    <string name="tts_role_search">Найти персонажа или правило</string>
+    <string name="tts_role_empty">Добавьте персонажей или правила, чтобы назначить голоса подходящим фрагментам текста.</string>
+    <string name="tts_role_mode_text">Текст</string>
+    <string name="tts_role_mode_character">Роль</string>
+    <string name="tts_role_abstract">Абстрактная роль</string>
+    <string name="tts_role_voice_missing">Голос не назначен</string>
+    <string name="tts_role_regex">Регулярное выражение роли</string>
+    <string name="tts_role_before">Прямой поиск совпадений</string>
+    <string name="tts_role_after">Обратный поиск совпадений</string>
+    <string name="tts_role_mode">Режим сопоставления</string>
+    <string name="tts_role_name">Имя роли</string>
+    <string name="tts_role_engine">Группа голосовых движков</string>
+    <string name="tts_role_voice">Голос</string>
+    <string name="tts_role_defaults">По умолчанию</string>
+    <string name="tts_role_voice_required">Выберите голос.</string>
+    <string name="tts_role_direction_required">Выберите хотя бы одно направление сопоставления.</string>
+    <string name="tts_role_group_count">%1$s (%2$d/%3$d)</string>
+    <string name="tts_role_edit_group">Изменить имя группы</string>
+    <string name="tts_role_delete_confirm">Удалить %1$s?</string>
+    <string name="tts_role_context_default">__ROLE__</string>
+    <string name="tts_role_group">Группа ролей</string>
+    <string name="tts_role_activate">Включить</string>
+</resources>

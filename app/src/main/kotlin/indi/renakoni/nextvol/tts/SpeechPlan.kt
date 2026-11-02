@@ -66,10 +66,18 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
     val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
     val routing = SpeechVoiceRouting(synthesis, chapter.bookId, voices, context, maxInputLength)
-    val structure = speechStructure(structured, settings, routing.refreshContext(context),
+    val roles = SpeechRoleRules(synthesis.roleRules, synthesis.roleContextPattern ?: "__ROLE__", replaceRegex, checkCancelled)
+    // Context retains person identity, but an edited/disabled rule must not retain its old voice.
+    val inputContext = routing.refreshContext(context) { old ->
+        if (old.roleMatch != null) roles.refresh(old.roleMatch)?.personVoice()
+        else roles.resolve(old.person, SpeechContextDirection.Explicit)?.personVoice() ?: routing.explicit(old.person)
+    }
+    val structure = speechStructure(structured, settings, inputContext,
         resolve = if (synthesis.hasVoiceRouting) { name, direction ->
-            if (direction == SpeechContextDirection.Explicit) routing.explicit(name) else null
+            roles.resolve(name, direction)?.personVoice()
+                ?: if (direction == SpeechContextDirection.Explicit) routing.explicit(name) else null
         } else null,
+        textRules = roles.splitText(structured),
         checkCancelled = checkCancelled)
     val segments = mutableListOf<SpeechSegment>()
     val mappings = mutableListOf<SpeechMappedText>()
@@ -77,7 +85,8 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
         checkCancelled()
         val (voice, reason) = routing.select(part)
         val languages = if (part.controlMark) listOf(SpeechLanguageSegment(part.content, "lang:mark"))
-            else speechLatinSegments(part.content, settings.separateEnglish, checkCancelled)
+            // P.f.i applies Latin separation only to spans not claimed by a text rule.
+            else speechLatinSegments(part.content, settings.separateEnglish && part.textRule == null, checkCancelled)
         for (language in languages) {
             var corrected = language.content
             if (!part.controlMark) {
@@ -91,7 +100,8 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
                     if (start < end) {
                         segments += SpeechSegment(start, end, mapped.text, part.dialogue, part.speaker,
                             part.speakerHint, language.language, part.beforeText, part.afterText,
-                            part.rememberedText, part.previousVoice, part.changeVoice, voice, reason)
+                            part.rememberedText, part.previousVoice, part.changeVoice, voice, reason,
+                            part.textRule ?: part.personVoice?.roleMatch?.takeIf { part.dialogue })
                         mappings += mapped
                     }
                 }
@@ -104,10 +114,11 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
 }
 
 internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
-    speechDigest("speech-text-v3\u0000" + Json.encodeToString(replacements) + "\u0000" +
+    speechDigest("speech-text-v4\u0000" + Json.encodeToString(replacements) + "\u0000" +
         Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag() +
         "\u0000" + Json.encodeToString(narrationVoices) + Json.encodeToString(dialogueVoices) +
-        Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured)
+        Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured +
+        Json.encodeToString(roleRules) + roleContextPattern)
 
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {

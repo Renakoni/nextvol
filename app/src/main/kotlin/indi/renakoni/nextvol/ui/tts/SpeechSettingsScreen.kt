@@ -80,6 +80,7 @@ fun SpeechSettingsScreen(
     onSleepTimer: ((Int?) -> Unit)? = null,
     onChapterSleepTimer: ((Int) -> Unit)? = null,
     onReplacements: (() -> Unit)? = null,
+    onRoles: (() -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -140,6 +141,15 @@ fun SpeechSettingsScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-replacements-entry"),
                             painter = painterResource(R.drawable.find_replace_24px),
                             title = stringResource(R.string.tts_replacements),
+                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            onClick = open,
+                        )
+                    }
+                    onRoles?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-roles-entry"),
+                            painter = painterResource(R.drawable.person_edit_24px),
+                            title = stringResource(R.string.tts_roles),
                             trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                             onClick = open,
                         )

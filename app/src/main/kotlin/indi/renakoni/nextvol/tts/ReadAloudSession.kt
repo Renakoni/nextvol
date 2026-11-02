@@ -176,7 +176,8 @@ class ReadAloudSession(
         currentClip = null
         currentPlan = null
         wantsPlay = false
-        mutableState.value = state.value.copy(phase = SpeechPhase.Stopped, error = null, position = null, sleepTimerChapters = null, replacementFailure = null)
+        mutableState.value = state.value.copy(phase = SpeechPhase.Stopped, error = null, position = null, sleepTimerChapters = null,
+            replacementFailure = null, roleFailure = null, failedRole = null, failedVoice = null)
     }
 
     fun setChapterSleepTimer(chapters: Int?) {
@@ -272,7 +273,7 @@ class ReadAloudSession(
         data class Skipped(val plan: SpeechPlan) : Step
         data class Failed(val error: SpeechError, val request: SpeechRequest, val chapter: SpeechChapter?,
             val plan: SpeechPlan?, val index: Int, val context: SpeechContext,
-            val replacementFailure: SpeechReplacementFailure? = null) : Step
+            val replacementFailure: SpeechReplacementFailure? = null, val roleFailure: SpeechRoleFailure? = null) : Step
     }
 
     private suspend fun stream(token: Long, request: SpeechRequest, provider: SpeechSynthesizer,
@@ -343,7 +344,7 @@ class ReadAloudSession(
                 throw cancelled
             } catch (failure: Exception) {
                 queue.send(Step.Failed(failure.speechError(SpeechError.SynthesisFailed), target, chapter, plan, position, context,
-                    (failure as? SpeechReplacementException)?.failure))
+                    (failure as? SpeechReplacementException)?.failure, (failure as? SpeechRoleException)?.failure))
             } finally { queue.close() }
         }
         try {
@@ -381,6 +382,7 @@ class ReadAloudSession(
                                 failed.bookId, failed.id, failed.fingerprint, segment.start, segment.end),
                             previousChapterId = failed?.previousId, nextChapterId = failed?.nextId,
                             phase = SpeechPhase.Failed, error = step.error, replacementFailure = step.replacementFailure,
+                            roleFailure = step.roleFailure, failedRole = segment?.roleMatch,
                             planContext = step.plan?.context ?: step.context, failedVoice = segment?.selectedVoice?.reference,
                             voiceLabel = segment?.selectedVoice?.label.orEmpty()) }
                         return@coroutineScope
@@ -394,9 +396,9 @@ class ReadAloudSession(
                             request = request.copy(chapterId = clip.chapter.id), bookTitle = clip.chapter.bookTitle,
                             chapterTitle = clip.chapter.title, segmentIndex = clip.index, segmentCount = clip.count,
                             currentText = clip.segment.text, previousChapterId = clip.chapter.previousId,
-                            voiceLabel = clip.voiceLabel, planContext = clip.plan.context, failedVoice = null,
+                            voiceLabel = clip.voiceLabel, planContext = clip.plan.context, failedVoice = null, failedRole = null,
                             nextChapterId = clip.chapter.nextId,
-                            phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused, error = null, replacementFailure = null,
+                            phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused, error = null, replacementFailure = null, roleFailure = null,
                         ) }
                         if (!request.isPreview) save(clip.bookmark(clip.segment.start))
                         val sentences = if (clip.timings.isEmpty()) emptyList() else speechSentences(clip.segment.text)
@@ -476,5 +478,6 @@ class ReadAloudSession(
 internal fun Exception.speechError(fallback: SpeechError) = when (this) {
     is SpeechException -> error
     is SpeechReplacementException -> SpeechError.ReplacementRule
+    is SpeechRoleException -> SpeechError.RoleRule
     else -> fallback
 }
