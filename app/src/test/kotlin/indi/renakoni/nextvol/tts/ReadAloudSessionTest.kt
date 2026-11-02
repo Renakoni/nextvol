@@ -1011,6 +1011,38 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
+    @Test fun failedRoleKeepsItsPersonAndClearsAfterRepairAndStop() = runTest {
+        val env = Environment(this)
+        val voice = SpeechVoiceRef(httpSource = "person")
+        val role = SpeechRoleRule(id = "family", name = "家人", regex = "小乙", isAbstract = true)
+        env.configuration = SpeechSettings(voiceRoutingConfigured = true, narrationVoices = listOf(voice),
+            dialogueVoices = listOf(voice), roleRules = listOf(role),
+            text = SpeechTextSettings(dialogue = true, separateEnglish = false))
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "“<<小乙>>你好。”") }
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            assertEquals(SpeechError.MissingVoice, env.session.state.value.error)
+            assertEquals(SpeechRoleMatch("小乙", role.id, role.name, true, null), env.session.state.value.failedRole)
+            assertTrue(env.synthesized.isEmpty())
+            env.configuration = env.configuration.copy(roleRules = listOf(role.copy(speaker = voice)))
+            env.session.updateSettings(env.configuration)
+            assertNull(env.session.state.value.failedRole)
+            runCurrent()
+            assertEquals(SpeechPhase.Playing, env.session.state.value.phase)
+            assertEquals(voice.key, env.player.started.single().segment.selectedVoice!!.reference.key)
+            assertNull(env.session.state.value.failedRole)
+            assertNull(env.session.state.value.failedVoice)
+            env.configuration = env.configuration.copy(roleRules = listOf(role))
+            env.session.updateSettings(env.configuration)
+            runCurrent()
+            assertNotNull(env.session.state.value.failedRole)
+            env.stop()
+            assertNull(env.session.state.value.failedRole)
+            assertNull(env.session.state.value.failedVoice)
+        } finally { env.stop() }
+    }
+
     @Test fun cancellingDuringAVoiceSwitchWaitsForOldSynthesisBeforeOpeningTheReplacement() = runTest {
         val env = Environment(this)
         val gate = CompletableDeferred<Unit>()

@@ -66,6 +66,7 @@ data class ReadAloudState(
     val planContext: SpeechContext = SpeechContext(),
     val failedVoice: SpeechVoiceRef? = null,
     val roleFailure: SpeechRoleFailure? = null,
+    val failedRole: SpeechRoleMatch? = null,
 ) {
     val isActive get() = phase in setOf(SpeechPhase.Preparing, SpeechPhase.Playing, SpeechPhase.Buffering)
 }

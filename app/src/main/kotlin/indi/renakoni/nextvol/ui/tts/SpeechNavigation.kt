@@ -92,10 +92,18 @@ fun NavController.navigateToSpeechSettings() = navigate(SpeechSettingsRoute) { l
 
 fun NavController.navigateToSpeechSettings(playback: ReadAloudState) {
     navigateToSpeechSettings()
-    if (playback.phase == SpeechPhase.Failed && (playback.failedVoice != null ||
-            playback.error == SpeechError.MissingNarrationVoice || playback.error == SpeechError.MissingDialogueVoice)) {
-        navigate(HttpSpeechSourcesRoute(playback.failedVoice?.key,
-            playback.error == SpeechError.HttpLogin || playback.error == SpeechError.HttpAuthentication)) { launchSingleTop = true }
+    if (playback.phase != SpeechPhase.Failed) return
+    val credentials = playback.error == SpeechError.HttpLogin || playback.error == SpeechError.HttpAuthentication
+    val roleId = playback.roleFailure?.ruleId ?: playback.failedRole?.takeIf {
+        it.voiceRef == null || playback.error in setOf(SpeechError.MissingVoice, SpeechError.OfflineUnavailable,
+            SpeechError.HttpSourceUnavailable, SpeechError.EngineUnavailable, SpeechError.MissingLanguageData)
+    }?.ruleId
+    if (roleId != null && !credentials) {
+        navigate(SpeechRolesRoute) { launchSingleTop = true }
+        navigate(SpeechRoleEditorRoute(roleId)) { launchSingleTop = true }
+    } else if (playback.failedVoice != null || playback.error == SpeechError.MissingNarrationVoice ||
+        playback.error == SpeechError.MissingDialogueVoice) {
+        navigate(HttpSpeechSourcesRoute(playback.failedVoice?.key, credentials)) { launchSingleTop = true }
     }
 }
 

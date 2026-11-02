@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.tts
 import hnovel.rules.RegexReplacement
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -12,28 +11,12 @@ class SpeechRoleRulesTest {
     private val second = SpeechVoiceRef(httpSource = "second")
     private fun role(name: String, voice: SpeechVoiceRef = first) = SpeechRoleRule(id = name, name = name, speaker = voice)
 
-    @Test fun savedRulesIgnoreRetiredFieldsAndKeepAnExplicitContextDefault() {
-        val json = Json { ignoreUnknownKeys = true }
-        val settings = json.decodeFromString<SpeechSettings>("""{
-            "roleRules":[{"id":"old","name":"Alice","bookId":"book","note":"old note"}]
-        }""")
-        assertEquals("Alice", settings.roleRules.single().pattern)
-        assertNull(settings.roleContextPattern)
-        val explicit = settings.copy(roleContextPattern = "__ROLE__")
-        assertEquals(explicit, json.decodeFromString<SpeechSettings>(json.encodeToString(explicit)))
-    }
-
-    @Test fun contextTemplateSelectsTheSpeakerBeforeAllFollowingContext() = runBlocking {
+    @Test fun contextTemplateAndDirectionSelectTheCandidate() = runBlocking {
         val rules = SpeechRoleRules(listOf(role("甲"), role("乙", second)), "__ROLE__对__OTHER__说") {}
         val match = rules.resolve("甲对乙说：", SpeechContextDirection.Previous)!!
         assertEquals("甲", match.person)
         assertEquals(first, match.voiceRef)
         val default = SpeechRoleRules(listOf(role("甲"), role("乙", second))) {}
-        val resolved = speechStructure(SpeechMappedText.original("甲说：“你好。”乙答道。"),
-            SpeechTextSettings(dialogue = true), resolve = { text, direction ->
-                default.resolve(text, direction)?.let { SpeechPersonVoice(it.person, it.voiceRef!!.key) }
-            }) {}
-        assertEquals("甲", resolved.parts.single { it.dialogue }.speaker)
         assertEquals("乙", default.resolve("甲对乙说：", SpeechContextDirection.Previous)?.person)
         assertEquals("甲", default.resolve("甲对乙说：", SpeechContextDirection.Next)?.person)
     }

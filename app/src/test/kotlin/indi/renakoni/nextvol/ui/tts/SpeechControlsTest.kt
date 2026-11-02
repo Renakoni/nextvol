@@ -24,6 +24,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import indi.renakoni.nextvol.tts.*
@@ -154,7 +155,7 @@ class SpeechControlsTest {
         assertEquals(listOf(SpeechAction.Resume), actions)
     }
 
-    @Test fun loadingCanPauseAndFailedVoiceCanRetryOrOpenItsCredentials() {
+    @Test fun loadingCanPauseAndFailedRoleCanRetryOrOpenItsCredentialsOrEditor() {
         val actions = mutableListOf<SpeechAction>()
         val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Preparing))
         val sources = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState())
@@ -163,6 +164,8 @@ class SpeechControlsTest {
         ).sources.single()
         val source = SavedHttpSpeechSource(definition, listOf("https://example.org:443"),
             group = "Cloud engine", credentialKeys = listOf("AppKey"))
+        val voice = SpeechVoiceRef(httpSource = source.definition.id, label = source.definition.name)
+        val role = SpeechRoleMatch("Alice", "character", "Female role", true, voice)
         var configured: Map<String, String>? = null
         lateinit var nav: NavHostController
         activity.get().setContent {
@@ -176,6 +179,8 @@ class SpeechControlsTest {
                             onSettings = { nav.navigateToSpeechSettings(state.value) })
                     }
                     composable<SpeechSettingsRoute> { androidx.compose.material3.Text("Listening settings") }
+                    composable<SpeechRolesRoute> { androidx.compose.material3.Text("Roles") }
+                    dialog<SpeechRoleEditorRoute> { androidx.compose.material3.Text("Role editor") }
                     composable<HttpSpeechSourcesRoute> { entry ->
                         val route = entry.toRoute<HttpSpeechSourcesRoute>()
                         HttpSpeechSourcesScreen(sources.value, {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
@@ -192,13 +197,13 @@ class SpeechControlsTest {
         compose.mainClock.autoAdvance = false
         compose.onNodeWithContentDescription("Pause").performClick()
         compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.HttpLogin,
-            failedVoice = SpeechVoiceRef(httpSource = source.definition.id, label = source.definition.name)) }
+            failedVoice = voice, failedRole = role) }
         compose.mainClock.autoAdvance = true
         compose.onNodeWithContentDescription("Retry").performClick()
         assertEquals(listOf(SpeechAction.Pause, SpeechAction.Resume), actions)
         compose.onNodeWithContentDescription("Next passage").assertIsNotEnabled()
         compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
-            source.definition.name, activity.get().getString(SpeechError.HttpLogin.messageResource))).assertIsDisplayed()
+            "Alice · Cloud voice", activity.get().getString(SpeechError.HttpLogin.messageResource))).assertIsDisplayed()
         compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
         compose.onNodeWithText("AppKey").assertDoesNotExist()
         compose.runOnIdle {
@@ -211,6 +216,22 @@ class SpeechControlsTest {
         assertEquals(mapOf("AppKey" to "account-key"), configured)
         compose.onNodeWithText("Cloud engine").assertIsSelected()
         compose.onNodeWithText(source.definition.name).assertIsDisplayed()
+        compose.runOnIdle {
+            nav.popBackStack("reader", false)
+            state.value = state.value.copy(error = SpeechError.MissingVoice, failedRole = role.copy(voiceRef = null))
+        }
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
+            "Alice", activity.get().getString(indi.renakoni.nextvol.R.string.tts_role_voice_missing))).assertIsDisplayed()
+        compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
+        compose.runOnIdle {
+            assertEquals(SpeechRoleEditorRoute(role.ruleId), nav.currentBackStackEntry!!.toRoute<SpeechRoleEditorRoute>())
+            nav.getBackStackEntry<SpeechRolesRoute>()
+            nav.getBackStackEntry<SpeechSettingsRoute>()
+            nav.popBackStack("reader", false)
+            nav.navigateToSpeechSettings(state.value.copy(failedRole = null, failedVoice = null,
+                roleFailure = SpeechRoleFailure("invalid-pattern", "Broken role", SpeechReplacementProblem.Pattern)))
+            assertEquals(SpeechRoleEditorRoute("invalid-pattern"), nav.currentBackStackEntry!!.toRoute<SpeechRoleEditorRoute>())
+        }
     }
 
     @Test
