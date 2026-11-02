@@ -638,4 +638,13 @@
     <string name="external_file_busy">請先完成或取消目前的匯入，再開啟其他檔案。</string>
     <string name="external_file_unsupported">不支援此檔案類型，請選擇 EPUB、TXT、.nvbackup 或 .lnr 檔案。</string>
     <string name="external_file_unreadable">無法讀取此檔案。請先下載檔案，再從傳送應用程式重新開啟。</string>
+    <string name="tts_manage_voices">管理聲音</string>
+    <string name="tts_manage_select_all">全選</string>
+    <string name="tts_manage_select_none">清除選擇</string>
+    <string name="tts_manage_select_inverse">反選</string>
+    <string name="tts_manage_delete">刪除</string>
+    <string name="tts_manage_selected">已選 %1$d 項</string>
+    <string name="tts_manage_exit">退出管理</string>
+    <string name="tts_voice_reorder">拖曳排序：%1$s</string>
+    <string name="tts_manage_search_scope">數量與刪除僅針對目前搜尋結果</string>
 </resources>

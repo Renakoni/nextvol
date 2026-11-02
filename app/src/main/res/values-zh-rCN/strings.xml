@@ -637,4 +637,13 @@
     <string name="external_file_busy">请先完成或取消当前导入，再打开其他文件。</string>
     <string name="external_file_unsupported">不支持此文件类型，请选择 EPUB、TXT、.nvbackup 或 .lnr 文件。</string>
     <string name="external_file_unreadable">无法读取此文件。请先下载文件，再从发送应用重新打开。</string>
+    <string name="tts_manage_voices">管理声音</string>
+    <string name="tts_manage_select_all">全选</string>
+    <string name="tts_manage_select_none">清除选择</string>
+    <string name="tts_manage_select_inverse">反选</string>
+    <string name="tts_manage_delete">删除</string>
+    <string name="tts_manage_selected">已选 %1$d 项</string>
+    <string name="tts_manage_exit">退出管理</string>
+    <string name="tts_voice_reorder">拖动排序：%1$s</string>
+    <string name="tts_manage_search_scope">数量与删除仅针对当前搜索结果</string>
 </resources>

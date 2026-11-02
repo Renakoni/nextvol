@@ -352,7 +352,9 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
             offlineGroups = offline.voices.map { it.configuration?.engine ?: "sherpa" }.distinct()
                 .associateWith { offline.engineNames[it] ?: it },
-            offlineSettings = { engine, query -> offlineSpeechSources(offline, engine, query, selection = settings.settings,
+            offlineVoices = offline.voices, onOrderHttp = viewModel::order, onOrderOffline = { offlineViewModel.order(it) },
+            onDeleteHttp = { deletingHttp = it }, onDeleteOffline = { deleting = it },
+            offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
                 onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                 onDialogue = { toggleVoice(true, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                 onPreview = { offlineViewModel.preview(it, preview) }, onDelete = { deleting = it }, onEnable = offlineViewModel::enable,
@@ -373,7 +375,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
             val dismiss = { deleting = emptyList(); deletingHttp = emptyList() }
             AlertDialog(onDismissRequest = dismiss, title = { Text(stringResource(R.string.tts_remove_source)) },
                 text = { Text(stringResource(R.string.tts_voice_delete_confirm, deleting.size + deletingHttp.size)) },
-                confirmButton = { TextButton(onClick = { offlineViewModel.delete(deleting); viewModel.delete(deletingHttp); dismiss() }) {
+                confirmButton = { TextButton(onClick = {
+                    if (deleting.isNotEmpty()) offlineViewModel.delete(deleting) else viewModel.delete(deletingHttp)
+                    dismiss()
+                }) {
                     Text(stringResource(R.string.confirm))
                 } }, dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } })
         }

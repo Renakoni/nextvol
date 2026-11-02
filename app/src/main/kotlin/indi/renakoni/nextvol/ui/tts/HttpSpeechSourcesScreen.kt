@@ -4,8 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -38,13 +38,16 @@ import indi.renakoni.nextvol.tts.searchVoice
 import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.voiceSelection
+import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HttpSpeechSourcesScreen(
+internal fun HttpSpeechSourcesScreen(
     state: HttpSpeechSourcesState, onBack: () -> Unit, onImport: () -> Unit,
     onSelect: (String?) -> Unit, onDelete: (SavedHttpSpeechSource) -> Unit,
     onSites: (SavedHttpSpeechSource, String) -> Unit, onConfirmImport: () -> Unit, onDismissImport: () -> Unit,
@@ -60,7 +63,12 @@ fun HttpSpeechSourcesScreen(
     offlineGroups: Map<String, String> = emptyMap(),
     catalogReady: Boolean = true,
     onOfflineGroup: (String?) -> Unit = {},
-    offlineSettings: (LazyListScope.(String, String) -> Unit)? = null,
+    offlineVoices: List<InstalledOfflineVoice> = emptyList(),
+    offlineRow: (@Composable (InstalledOfflineVoice, VoiceRowManagement?) -> Unit)? = null,
+    onOrderHttp: (List<String>) -> Unit = {},
+    onOrderOffline: (List<String>) -> Unit = {},
+    onDeleteHttp: (List<SavedHttpSpeechSource>) -> Unit = {},
+    onDeleteOffline: (List<InstalledOfflineVoice>) -> Unit = {},
     onEngine: (String) -> Unit = {},
     onVoiceEditor: ((SavedHttpSpeechSource, Boolean) -> Unit)? = null,
     onEnableVoice: (SavedHttpSpeechSource, Boolean) -> Unit = { _, _ -> },
@@ -82,12 +90,12 @@ fun HttpSpeechSourcesScreen(
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var header by remember { mutableStateOf("") }
-    val sourceRow: @Composable (SavedHttpSpeechSource) -> Unit = { source ->
+    val sourceRow: @Composable (SavedHttpSpeechSource, VoiceRowManagement?) -> Unit = { source, management ->
         val metadata = source.speakerData()
         val selected = selection.voiceSelection(SpeechVoiceRef(httpSource = source.definition.id))
         SpeechSourceRow(source.definition.name, selected != null, !state.busy && (source.available || selected != null),
             onClick = { if (source.isConfigured || selected != null) onSelect(source.definition.id) else configuring = source },
-            onLongClick = { onDialogue(source.definition.id) }, selection = selected,
+            onLongClick = { onDialogue(source.definition.id) }, selection = selected, management = management,
             avatar = {
                 SpeechAvatar((metadata["avatar"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
                     (metadata["gender"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
@@ -146,6 +154,10 @@ fun HttpSpeechSourcesScreen(
     val pager = rememberPagerState { pagerGroups.size }
     val scope = rememberCoroutineScope()
     val currentGroup = groups[pager.currentPage.coerceIn(groups.indices)].first
+    var managing by rememberSaveable(currentGroup) { mutableStateOf(false) }
+    var checked by remember(currentGroup) { mutableStateOf(emptySet<String>()) }
+    val exitManagement = { managing = false; checked = emptySet<String>() }
+    BackHandler(managing && !searching, exitManagement)
     var focusHandled by rememberSaveable(focusVoiceKey) { mutableStateOf(false) }
     LaunchedEffect(catalogReady, focusVoiceKey, focusOfflineEngine) {
         if (catalogReady && focusVoiceKey != null && !focusHandled) {
@@ -175,11 +187,32 @@ fun HttpSpeechSourcesScreen(
         val search = hnovel.speech.SpeechVoiceSearch(searchQuery)
         state.sources.filter { search.matches(it.searchVoice(selection.voiceSelection(SpeechVoiceRef(httpSource = it.definition.id)) != null)) }
     }
+    val filteredOffline = remember(offlineVoices, selection, searchQuery) {
+        val search = hnovel.speech.SpeechVoiceSearch(searchQuery)
+        offlineVoices.filter { search.matches(it.searchVoice(selection.voiceSelection(SpeechVoiceRef(offlineVoice = it.reference)) != null)) }
+    }
+    val currentHttp = filteredSources.filter { "http:${groupId(it)}" == currentGroup }
+    val currentOffline = filteredOffline.filter { "offline:${it.configuration?.engine ?: "sherpa"}" == currentGroup }
+    val selectableKeys = (currentHttp.filterNot { it.isBuiltIn }.map { "http:${it.definition.id}" } +
+        currentOffline.map { "offline:${it.reference.id}" }).toSet()
+    val visibleChecked = checked.intersect(selectableKeys)
+    LaunchedEffect(state.sources, offlineVoices) {
+        val existing = state.sources.map { "http:${it.definition.id}" } + offlineVoices.map { "offline:${it.reference.id}" }
+        checked = checked.intersect(existing.toSet())
+    }
     Scaffold(topBar = {
         SpeechSourcesTopBar(query, { query = it }, searching, { searching = true }, closeSearch, onBack, state.busy,
-            onImport, onRefresh)
+            onImport, onRefresh, onManage = if (currentGroup != "system") ({ managing = true }) else null,
+            selectedCount = if (managing) visibleChecked.size else null, onExitManagement = exitManagement)
     }, bottomBar = {
-        if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
+        if (managing) SpeechVoiceManagementBar(selectableKeys.isNotEmpty(), checked.isNotEmpty(), visibleChecked.isNotEmpty(),
+            state.busy, onAll = { checked = selectableKeys }, onNone = { checked = emptySet() },
+            onInverse = { checked = (checked - selectableKeys) + (selectableKeys - checked) },
+            onDelete = {
+                if (currentGroup.startsWith("offline:")) onDeleteOffline(currentOffline.filter { "offline:${it.reference.id}" in visibleChecked })
+                else onDeleteHttp(currentHttp.filter { "http:${it.definition.id}" in visibleChecked })
+            })
+        else if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (!catalogReady) return@Column
@@ -193,9 +226,33 @@ fun HttpSpeechSourcesScreen(
             }
             HorizontalPager(pager, Modifier.weight(1f), key = { pagerGroups[it].first }) { page ->
                 val group = pagerGroups.getOrNull(page)?.first ?: return@HorizontalPager
+                val sources = filteredSources.filter { "http:${groupId(it)}" == group }.associateBy { "http:${it.definition.id}" }
+                val offline = filteredOffline.filter { "offline:${it.configuration?.engine ?: "sherpa"}" == group }
+                    .associateBy { "offline:${it.reference.id}" }
+                val keys = sources.keys.toList() + offline.keys.toList()
+                var ordered by remember(keys) { mutableStateOf(keys) }
+                LaunchedEffect(state.error) { if (state.error != null) ordered = keys }
+                val list = rememberLazyListState()
+                val reorder = rememberReorderableLazyListState(list) { from, to ->
+                    val fromIndex = ordered.indexOf(from.key)
+                    val toIndex = ordered.indexOf(to.key)
+                    if (fromIndex >= 0 && toIndex >= 0) ordered = ordered.toMutableList().apply {
+                        java.util.Collections.swap(this, fromIndex, toIndex)
+                    }
+                }
+                val saveOrder = {
+                    if (ordered != keys) {
+                        if (group.startsWith("offline:")) onOrderOffline(ordered.map { it.removePrefix("offline:") })
+                        else onOrderHttp(ordered.map { it.removePrefix("http:") })
+                    }
+                }
                 LazyColumn(Modifier.fillMaxSize().selectableGroup().testTag("speech-sources-list"),
-                    contentPadding = PaddingValues(vertical = 12.dp)) {
+                    state = list, contentPadding = PaddingValues(vertical = 12.dp)) {
                     state.error?.let { message -> item { Text(stringResource(message), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(22.dp)) } }
+                    if (managing && group == currentGroup && searchQuery.isNotEmpty()) item {
+                        Text(stringResource(R.string.tts_manage_search_scope), Modifier.padding(horizontal = 28.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     when {
                         group == "system" -> item {
                             val selected = selection.voiceSelection(SpeechVoiceRef(engine = selection.engine, voice = selection.voice))
@@ -209,13 +266,21 @@ fun HttpSpeechSourcesScreen(
                                 systemSettings?.invoke(searchQuery)
                             }
                         }
-                        group.startsWith("offline:") -> offlineSettings?.invoke(this, group.removePrefix("offline:"), searchQuery)
                         else -> {
-                            val sources = filteredSources.filter { "http:${groupId(it)}" == group }
-                            if (sources.isEmpty() && searchQuery.isNotEmpty() && !state.busy) item {
+                            if (ordered.isEmpty() && searchQuery.isNotEmpty() && !state.busy) item {
                                 Text(stringResource(R.string.search_no_results), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            items(sources, key = { "http:${it.definition.id}" }) { source -> sourceRow(source) }
+                            items(ordered, key = { it }) { key ->
+                                ReorderableItem(reorder, key) {
+                                    val management = if (managing && group == currentGroup) VoiceRowManagement(
+                                        checked = key in checked, selectable = !state.busy && sources[key]?.isBuiltIn != true,
+                                        onToggle = { checked = if (key in checked) checked - key else checked + key },
+                                        dragHandle = Modifier.longPressDraggableHandle(enabled = !state.busy, onDragStopped = saveOrder),
+                                    ) else null
+                                    sources[key]?.let { sourceRow(it, management) }
+                                    offline[key]?.let { offlineRow?.invoke(it, management) }
+                                }
+                            }
                         }
                     }
                 }

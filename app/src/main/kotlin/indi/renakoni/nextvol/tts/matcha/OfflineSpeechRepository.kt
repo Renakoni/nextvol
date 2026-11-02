@@ -5,6 +5,7 @@ import android.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.speech.*
 import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
+import indi.renakoni.nextvol.tts.orderSpeechVoices
 import indi.renakoni.nextvol.tts.offline.googleVoiceCatalog
 import indi.renakoni.nextvol.tts.offline.legacy.prepareMicrosoftResources
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +94,13 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
     }
 
     suspend fun voices(): List<InstalledOfflineVoice> = withContext(Dispatchers.IO) { lock.withLock { read() } }
+
+    suspend fun orderVoices(ids: List<String>) = withContext(Dispatchers.IO) {
+        lock.withLock {
+            write(read().orderSpeechVoices(ids) { it.reference.id })
+            mutableChanges.value++
+        }
+    }
 
     suspend fun refreshCatalog() = withContext(Dispatchers.IO) {
         lock.withLock {
@@ -225,7 +233,8 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
                     val target = directory(voice.reference)
                     target.parentFile!!.mkdirs()
                     check(!target.exists() && stage.renameTo(target))
-                    try { write(previous.filterNot { it.sourceKey == plan.id } + voice) }
+                    try { write(if (replaced.isEmpty()) previous + voice else
+                        previous.map { if (it.sourceKey == plan.id) voice else it }) }
                     catch (error: Exception) { target.deleteRecursively(); throw error }
                     replaced.map { it.resourceReference }.distinct().forEach { retire(it) }
                     mutableChanges.value++

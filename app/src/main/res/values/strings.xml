@@ -664,4 +664,13 @@
     <string name="external_file_busy">Finish or cancel the current import before opening another file.</string>
     <string name="external_file_unsupported">This file type is not supported. Choose an EPUB, TXT, .nvbackup or .lnr file.</string>
     <string name="external_file_unreadable">Cannot read this file. Download it first, then open it again from the sending app.</string>
+    <string name="tts_manage_voices">Manage voices</string>
+    <string name="tts_manage_select_all">Select all</string>
+    <string name="tts_manage_select_none">Clear</string>
+    <string name="tts_manage_select_inverse">Invert</string>
+    <string name="tts_manage_delete">Delete</string>
+    <string name="tts_manage_selected">%1$d selected</string>
+    <string name="tts_manage_exit">Exit management</string>
+    <string name="tts_voice_reorder">Reorder %1$s</string>
+    <string name="tts_manage_search_scope">Selection count and deletion apply to the current search results.</string>
 </resources>

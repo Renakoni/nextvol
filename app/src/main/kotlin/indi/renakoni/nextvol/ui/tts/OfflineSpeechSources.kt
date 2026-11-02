@@ -1,8 +1,6 @@
 package indi.renakoni.nextvol.ui.tts
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -15,7 +13,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.ReadAloudController
 import indi.renakoni.nextvol.tts.SpeechSettingsRepository
-import indi.renakoni.nextvol.tts.searchVoice
 import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.voiceSelection
@@ -98,6 +95,7 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
         }
     }
     fun refreshCatalog() = work { repository.refreshCatalog() }
+    fun order(ids: List<String>) = work { repository.orderVoices(ids) }
     fun select(voice: InstalledOfflineVoice) = work {
         if (state.value.availability[voice.reference]?.canRun != true) return@work
         settings.update { it.copy(offlineVoice = voice.reference, httpSource = null) }
@@ -140,45 +138,38 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
     }
 }
 
-internal fun LazyListScope.offlineSpeechSources(
-    state: OfflineSpeechState, engine: String, query: String,
+@Composable
+internal fun OfflineSpeechSourceRow(
+    voice: InstalledOfflineVoice, state: OfflineSpeechState,
     onSelect: (InstalledOfflineVoice) -> Unit, onPreview: (InstalledOfflineVoice) -> Unit,
     onEdit: (InstalledOfflineVoice, Boolean) -> Unit, onEnable: (List<InstalledOfflineVoice>, Boolean) -> Unit,
     onDelete: (List<InstalledOfflineVoice>) -> Unit,
     selection: SpeechSettings,
     onDialogue: (InstalledOfflineVoice) -> Unit,
+    management: VoiceRowManagement? = null,
 ) {
-    val search = hnovel.speech.SpeechVoiceSearch(query)
-    val voices = state.voices.filter { voice ->
-        (voice.configuration?.engine ?: "sherpa") == engine &&
-            search.matches(voice.searchVoice(selection.voiceSelection(SpeechVoiceRef(offlineVoice = voice.reference)) != null))
-    }
-    if (voices.isEmpty() && query.isNotEmpty()) item {
-        Text(stringResource(R.string.search_no_results), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-    items(voices, key = { "offline:${it.reference.id}" }) { voice ->
-        val status = state.availability[voice.reference]
-        var actions by remember { mutableStateOf(false) }
-        val selected = selection.voiceSelection(SpeechVoiceRef(offlineVoice = voice.reference))
-        SpeechSourceRow(voice.name, selected != null, status?.canRun == true || selected != null,
-            selection = selected, onLongClick = { onDialogue(voice) }, previewEnabled = status?.canRun == true,
-            onClick = { onSelect(voice) }, avatar = {
-                SpeechAvatar(voice.metadata.avatar, voice.configuration?.gender ?: 0,
-                    Modifier.size(40.dp), state.avatars[voice.reference.id])
-            }, onPreview = { onPreview(voice) }, description = voice.metadata.description.ifBlank { voice.configuration?.code.orEmpty() },
-            problem = status?.takeUnless { it.canRun }?.let { stringResource(it.message, it.detail) }, actions = {
-                Box {
-                    IconButton(onClick = { actions = true }) {
-                        Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions))
-                    }
-                    DropdownMenu(actions, { actions = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { actions = false; onEdit(voice, false) })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { actions = false; onEdit(voice, true) })
-                        DropdownMenuItem(text = { Text(stringResource(if (voice.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
-                            onClick = { actions = false; onEnable(listOf(voice), !voice.enabled) })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { actions = false; onDelete(listOf(voice)) })
-                    }
+    val status = state.availability[voice.reference]
+    var actions by remember { mutableStateOf(false) }
+    val selected = selection.voiceSelection(SpeechVoiceRef(offlineVoice = voice.reference))
+    SpeechSourceRow(voice.name, selected != null, status?.canRun == true || selected != null,
+        selection = selected, onLongClick = { onDialogue(voice) }, previewEnabled = status?.canRun == true,
+        management = management,
+        onClick = { onSelect(voice) }, avatar = {
+            SpeechAvatar(voice.metadata.avatar, voice.configuration?.gender ?: 0,
+                Modifier.size(40.dp), state.avatars[voice.reference.id])
+        }, onPreview = { onPreview(voice) }, description = voice.metadata.description.ifBlank { voice.configuration?.code.orEmpty() },
+        problem = status?.takeUnless { it.canRun }?.let { stringResource(it.message, it.detail) }, actions = {
+            Box {
+                IconButton(onClick = { actions = true }) {
+                    Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions))
                 }
-            })
-    }
+                DropdownMenu(actions, { actions = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { actions = false; onEdit(voice, false) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { actions = false; onEdit(voice, true) })
+                    DropdownMenuItem(text = { Text(stringResource(if (voice.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
+                        onClick = { actions = false; onEnable(listOf(voice), !voice.enabled) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { actions = false; onDelete(listOf(voice)) })
+                }
+            }
+        })
 }

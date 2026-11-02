@@ -115,6 +115,25 @@ class OfflineSpeechRepositoryTest {
         return previewOfflineVoice(preview, preview.engines.single(), preview.engines.single().voices.single()).plan!!
     }
 
+    @Test fun filteredOrderKeepsHiddenSlotsAndSurvivesReimportWhilePartialDeletionRetainsSharedResources() = runBlocking {
+        val root = files.newFolder()
+        val repository = OfflineSpeechRepository(root)
+        val input = archive()
+        val first = repository.install(input, plan(input))
+        val hidden = repository.save(first.copy(name = "Hidden"), copy = true)
+        val last = repository.save(first.copy(name = "Last"), copy = true)
+        repository.orderVoices(listOf(last.reference.id, first.reference.id))
+        val expected = listOf(last.reference.id, hidden.reference.id, first.reference.id)
+        assertEquals(expected, OfflineSpeechRepository(root).voices().map { it.reference.id })
+        assertEquals(first.reference, repository.voices().last().reference)
+        val refreshed = repository.install(input, plan(input))
+        repository.refreshCatalog()
+        assertEquals(expected, OfflineSpeechRepository(root).voices().map { it.reference.id })
+        repository.delete(setOf(last.reference, refreshed.reference))
+        assertEquals(listOf(hidden.reference.id), repository.voices().map { it.reference.id })
+        repository.acquire(hidden.reference).use { assertTrue(it.directory.exists()) }
+    }
+
     @Test fun changedPreviewAndEscapedArchiveNeverPublishOrLeaveStagingFiles() = runBlocking {
         val root = files.newFolder()
         val repository = OfflineSpeechRepository(root)

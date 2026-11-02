@@ -71,7 +71,8 @@ data class SavedHttpSpeechSource(
 
 internal data class HttpSynthesisResult(val source: SavedHttpSpeechSource, val message: Int)
 
-private data class HttpSpeechStore(val sources: List<SavedHttpSpeechSource> = emptyList(), val engines: List<SpeechEngineConfig> = emptyList())
+private data class HttpSpeechStore(val sources: List<SavedHttpSpeechSource> = emptyList(), val engines: List<SpeechEngineConfig> = emptyList(),
+    val voiceOrder: List<String> = emptyList())
 
 /** User-imported definitions can contain credentials. Persist them with the existing Keystore cipher. */
 @Singleton
@@ -120,7 +121,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         if (!engine.deleted && (previous == null || previous.url != engine.url || previous.header != engine.header || previous.parameters != engine.parameters))
             newHttpVoice(engine)
         val sources = store.sources.map { if (it.importedEngineCode == engine.code) it.withHttpEngine(engine) else it }
-        HttpSpeechStore(sources, if (previous == null) store.engines + engine else store.engines.map { if (it.code == engine.code) engine else it })
+        store.copy(sources = sources, engines = if (previous == null) store.engines + engine else store.engines.map { if (it.code == engine.code) engine else it })
     }
 
     suspend fun orderEngines(ranks: Map<String, Int>) = changeStore { store ->
@@ -128,6 +129,11 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     suspend fun sources(): List<SavedHttpSpeechSource> = withContext(Dispatchers.IO) { mutex.withLock { read() } }
+
+    suspend fun orderVoices(ids: List<String>) = changeStore { store ->
+        val voices = combined(store.sources, store.engines).orderSpeechVoices(store.voiceOrder) { it.definition.id }
+        store.copy(voiceOrder = voices.orderSpeechVoices(ids) { it.definition.id }.map { it.definition.id })
+    }
 
     /** Serialize opening with replacement/removal so an old definition cannot issue a new ticket afterward. */
     internal suspend fun <T> withSource(id: String, open: (SavedHttpSpeechSource, File) -> T): T? = withContext(Dispatchers.IO) {
@@ -191,8 +197,8 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         }
         val engines = retained + imported
             .distinctBy { it.code }.filter { incoming -> store.engines.none { it.code == incoming.code } }
-        HttpSpeechStore(changed.map { source -> engines.find { it.code == source.importedEngineCode }
-            ?.let { source.withHttpEngine(it) } ?: source }, engines)
+        store.copy(sources = changed.map { source -> engines.find { it.code == source.importedEngineCode }
+            ?.let { source.withHttpEngine(it) } ?: source }, engines = engines)
     }
 
     private suspend fun changeStore(update: (HttpSpeechStore) -> HttpSpeechStore) = withContext(Dispatchers.IO) {
@@ -201,6 +207,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val previous = combined(stored.sources, stored.engines)
             val updatedStore = update(stored)
             val updated = updatedStore.sources
+            val sources = combined(updated, updatedStore.engines)
             require(updated.size <= MAX_HTTP_SPEECH_SOURCES && updated.map { it.definition.id }.distinct().size == updated.size)
             val entries = JsonArray(updated.map { source ->
                 require(source.origins.size <= 32 && source.origins.all { sourceOrigin(it) == it })
@@ -216,6 +223,8 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val raw = buildJsonObject {
                 put("sources", entries)
                 put("engines", Json.encodeToJsonElement(updatedStore.engines))
+                val ids = sources.map { it.definition.id }.toSet()
+                put("voiceOrder", Json.encodeToJsonElement(updatedStore.voiceOrder.filter { it in ids }))
             }.toString().toByteArray(Charsets.UTF_8)
             BridgeWire.validate(raw, MAX_BYTES)
             val encrypted = cipher.seal(raw, IDENTITY)
@@ -223,7 +232,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
             cleanAvatars(updated)
-            val sources = combined(updated, updatedStore.engines)
             previous.filter { old -> sources.none { it.definition.id == old.definition.id &&
                 old.sameExecution(it) } }.forEach { old ->
                 authority.revokeSource(old.definition.id, "speech")
@@ -244,7 +252,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
 
     private fun read() = readStored().let {
         if (!recoveredAvatars) { cleanAvatars(it.sources); recoveredAvatars = true }
-        combined(it.sources, it.engines)
+        combined(it.sources, it.engines).orderSpeechVoices(it.voiceOrder) { source -> source.definition.id }
     }
 
     private fun combined(stored: List<SavedHttpSpeechSource>, engines: List<SpeechEngineConfig> = emptyList()): List<SavedHttpSpeechSource> {
@@ -291,7 +299,8 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 packageAvatar = entry.jsonObject["packageAvatar"]?.jsonPrimitive?.contentOrNull)
         }
         val engines = Json.decodeFromJsonElement<List<SpeechEngineConfig>>(document.getValue("engines"))
-        return HttpSpeechStore(sources, engines)
+        val order = document["voiceOrder"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+        return HttpSpeechStore(sources, engines, order)
     }
 
     private fun cleanAvatars(sources: List<SavedHttpSpeechSource>) {
