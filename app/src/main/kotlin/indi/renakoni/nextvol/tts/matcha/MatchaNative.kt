@@ -6,7 +6,8 @@ import indi.renakoni.nextvol.BuildConfig
 
 internal interface MatchaNativeApi {
     fun create(configuration: MatchaNativeConfig): Long
-    fun generate(handle: Long, text: String, speed: Float, path: String, cancellation: MatchaCancellation)
+    fun generate(handle: Long, text: String, speaker: Int, speed: Float, pitch: Float, volume: Float,
+        path: String, cancellation: MatchaCancellation)
     fun destroy(handle: Long)
     fun describe(handle: Long): IntArray = intArrayOf()
 }
@@ -28,13 +29,9 @@ internal class MatchaNativeConfig(resources: MatchaResources) {
     val lang = selected.lang
     val numThreads = selected.numThreads
     val provider = selected.provider
-    val speakerId = selected.speakerId
     val noiseScale = selected.noiseScale
     val noiseScaleW = selected.noiseScaleW
     val lengthScale = selected.lengthScale
-    val speed = selected.speed
-    val pitch = selected.pitch
-    val volume = selected.volume
 }
 
 @Keep
@@ -55,7 +52,8 @@ internal object MatchaNative : MatchaNativeApi {
         check(available)
     }
     external override fun create(configuration: MatchaNativeConfig): Long
-    external override fun generate(handle: Long, text: String, speed: Float, path: String, cancellation: MatchaCancellation)
+    external override fun generate(handle: Long, text: String, speaker: Int, speed: Float, pitch: Float, volume: Float,
+        path: String, cancellation: MatchaCancellation)
     external override fun destroy(handle: Long)
     external override fun describe(handle: Long): IntArray
 }

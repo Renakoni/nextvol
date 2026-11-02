@@ -17,6 +17,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+internal fun offlineSpeechExclusiveGroup(engine: String): String = when (engine) {
+    "sougou", "bdetts" -> engine
+    else -> "legacy"
+}
+
 /** Owns a vendor runtime for its entire open/synthesize/close lifetime. */
 internal class OfflineSpeechSynthesizer(
     context: Context,
@@ -32,6 +37,7 @@ internal class OfflineSpeechSynthesizer(
     private var ownsPermit = false
     private var closed = false
     private var speed = 1f
+    private val instances = permits.getValue(offlineSpeechExclusiveGroup(voice.engine))
 
     override suspend fun open(settings: SpeechSettings): String {
         check(opened.compareAndSet(false, true))
@@ -145,8 +151,8 @@ internal class OfflineSpeechSynthesizer(
     }
 
     private companion object {
-        // Several SDKs register process-global callbacks during initialization.
-        val instances = Semaphore(1)
+        // Sogou/Baidu use separate runtimes and handles. Other SDKs retain the shared lifecycle limit.
+        val permits = listOf("sougou", "bdetts", "legacy").associateWith { Semaphore(1) }
 
         fun createEngine(context: Context, directory: File, voice: OfflineVoiceConfig): OfflineEngine = when (voice.engine) {
             "bdetts" -> BaiduEngine(context, directory, voice)

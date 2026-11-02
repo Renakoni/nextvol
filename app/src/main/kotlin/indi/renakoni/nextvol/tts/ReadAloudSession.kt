@@ -324,7 +324,7 @@ class ReadAloudSession(
                             selected?.error?.let { throw SpeechException(it) }
                             val parameters = selected?.settings ?: synthesis
                             if (activeSettings != parameters) {
-                                // The router closes the previous runtime before acquiring another vendor permit.
+                                // The router reuses cached voices and releases conflicting backend slots before opening.
                                 voiceLabel = provider.open(parameters)
                                 activeSettings = parameters
                             }

@@ -49,6 +49,9 @@ data class SpeechPlaybackSettingsState(
     val roleContextPattern: String = "__ROLE__",
     val defaultNamePattern: String? = null,
     val error: SpeechError? = null,
+    val engineCacheCapacity: Int = 10,
+    val cachedEngines: Int = 0,
+    val clearingEngines: Boolean = false,
 )
 
 @HiltViewModel
@@ -56,6 +59,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     private val repository: SpeechSettingsRepository,
     userData: UserDataRepository,
     newWords: SpeechNewWordDiscovery,
+    private val caches: SpeechSynthesizerCaches,
 ) : ViewModel() {
     val preferences = SpeechPlaybackPreferences(userData, viewModelScope)
     private val mutableState = MutableStateFlow(SpeechPlaybackSettingsState())
@@ -65,8 +69,12 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.changes.collect { settings -> mutableState.update {
                 it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
+                    engineCacheCapacity = settings.engineCacheCapacity,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
+        }
+        viewModelScope.launch {
+            caches.count.collect { count -> mutableState.update { it.copy(cachedEngines = count) } }
         }
         viewModelScope.launch {
             try {
@@ -82,6 +90,19 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun allowMultipleVoices(enabled: Boolean) = updateSettings { it.copy(allowMultipleVoices = enabled) }
 
     fun roleContextPattern(pattern: String) = updateSettings { it.copy(roleContextPattern = pattern) }
+
+    fun engineCacheCapacity(capacity: Int) = updateSettings { it.copy(engineCacheCapacity = capacity) }
+
+    fun clearEngines() {
+        if (state.value.clearingEngines) return
+        mutableState.update { it.copy(clearingEngines = true) }
+        viewModelScope.launch {
+            try { caches.clear(); mutableState.update { it.copy(error = null) } }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.EngineUnavailable) } }
+            finally { mutableState.update { it.copy(clearingEngines = false) } }
+        }
+    }
 
     // MultiTTS seeds the localized default on the first visit to software settings.
     fun initializeRoleContext(default: String) {
@@ -122,7 +143,8 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
-    onContextPattern: (String) -> Unit, onNameTest: () -> Unit) {
+    onContextPattern: (String) -> Unit, onNameTest: () -> Unit,
+    onEngineCacheCapacity: (Int) -> Unit, onClearEngines: () -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingContext by rememberSaveable { mutableStateOf(false) }
     var contextPattern by rememberSaveable { mutableStateOf("") }
@@ -148,6 +170,21 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     color = MaterialTheme.colorScheme.error)
             } }
             state.settings?.let { settings ->
+                item {
+                    var capacity by remember(state.engineCacheCapacity) { mutableFloatStateOf(state.engineCacheCapacity.toFloat()) }
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp)) {
+                        Text(stringResource(R.string.tts_engine_cache_capacity, capacity.roundToInt()),
+                            style = MaterialTheme.typography.headlineSmall)
+                        Slider(capacity, { capacity = it }, valueRange = 3f..32f, steps = 28,
+                            onValueChangeFinished = { onEngineCacheCapacity(capacity.roundToInt()) })
+                    }
+                }
+                item {
+                    SettingsClickableEntry(title = stringResource(R.string.tts_engine_cache_clear),
+                        option = stringResource(if (state.clearingEngines) R.string.tts_engine_cache_clearing
+                            else R.string.tts_engine_cache_count, state.cachedEngines),
+                        onClick = onClearEngines)
+                }
                 item { SpeechTextSwitch(R.drawable.tts_text_multiple_voices, R.string.tts_voice_multiple,
                     if (state.allowMultipleVoices) R.string.tts_voice_multiple_on else R.string.tts_voice_multiple_off,
                     state.allowMultipleVoices, onMultipleVoices) }

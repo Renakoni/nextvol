@@ -12,7 +12,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
-import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -28,13 +27,12 @@ class MatchaSpeechSynthesizer internal constructor(
     private val cancelled = AtomicBoolean()
     private val opened = AtomicBoolean()
     private var closed = false
-    private var ownsPermit = false
-    private var handle = 0L
+    private var model: MatchaModels.Model? = null
     private var speed = 1f
 
     internal fun describe(): IntArray = lock.withLock {
-        check(handle != 0L && !closed)
-        native().describe(handle)
+        check(!closed)
+        checkNotNull(model).use { api, handle -> api.describe(handle) }
     }
 
     override suspend fun open(settings: SpeechSettings): String {
@@ -44,26 +42,18 @@ class MatchaSpeechSynthesizer internal constructor(
             val rate = settings.rate ?: 1f
             require(rate.isFinite() && rate in 0.5f..2f && (settings.pitch == null || settings.pitch == 1f))
             require(settings.httpSource == null && settings.voice.isEmpty())
-            instances.acquire()
-            var transferred = false
-            try {
-                withContext(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
+                MatchaModels.acquire(resources, native) { acquire ->
                     lock.withLock {
                         job.ensureActive()
                         check(!closed)
                         checkCancelled()
-                        ownsPermit = true
-                        transferred = true
-                        resources.validate()
+                        model = acquire() ?: return@withLock
                         speed = rate
-                        handle = native().create(MatchaNativeConfig(resources))
-                        check(handle != 0L)
                         job.ensureActive()
                         checkCancelled()
                     }
                 }
-            } finally {
-                if (!transferred) instances.release()
             }
             return "Sherpa"
         } catch (error: Throwable) {
@@ -83,12 +73,17 @@ class MatchaSpeechSynthesizer internal constructor(
         try {
             withContext(Dispatchers.IO) {
                 lock.withLock {
-                    check(!closed && handle != 0L)
+                    check(!closed)
+                    val active = checkNotNull(model)
                     require(!output.exists() && !partial.exists())
                     ownsPartial = true
                     checkCancelled()
                     job.ensureActive()
-                    native().generate(handle, text, speed, partial.path, MatchaCancellation { cancelled.get() || !job.isActive })
+                    val voice = resources.configuration
+                    active.use { api, handle ->
+                        api.generate(handle, text, voice.speakerId, speed * voice.speed, voice.pitch, voice.volume,
+                            partial.path, MatchaCancellation { cancelled.get() || !job.isActive })
+                    }
                     job.ensureActive()
                     checkCancelled()
                     validateSpeechWav(partial)
@@ -115,24 +110,13 @@ class MatchaSpeechSynthesizer internal constructor(
         cancel()
         lock.withLock {
             closed = true
-            try {
-                if (handle != 0L) native().destroy(handle)
-            } finally {
-                handle = 0L
-                if (ownsPermit) {
-                    ownsPermit = false
-                    instances.release()
-                }
-            }
+            val previous = model
+            model = null
+            if (previous != null) MatchaModels.release(previous)
         }
     }
 
     private fun checkCancelled() {
         if (cancelled.get()) throw CancellationException("Matcha cancelled")
-    }
-
-    private companion object {
-        // A cancelled initializer owns its slot until its real native call has returned.
-        val instances = Semaphore(1)
     }
 }

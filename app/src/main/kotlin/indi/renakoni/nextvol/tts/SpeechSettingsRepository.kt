@@ -40,6 +40,7 @@ data class SpeechSettings(
     val allowMultipleVoices: Boolean = false,
     val roleRules: List<SpeechRoleRule> = emptyList(),
     val roleContextPattern: String? = null,
+    val engineCacheCapacity: Int = 10,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
@@ -49,6 +50,7 @@ data class SpeechSettings(
         httpSource = httpSource.takeIf { offlineVoice == null },
         httpRevision = httpRevision.takeIf { offlineVoice == null && httpSource != null }.orEmpty(),
         text = text.validated(),
+        engineCacheCapacity = engineCacheCapacity.coerceIn(3, 32),
     )
 }
 

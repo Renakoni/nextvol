@@ -647,4 +647,8 @@
     <string name="tts_manage_exit">退出管理</string>
     <string name="tts_voice_reorder">拖曳排序：%1$s</string>
     <string name="tts_manage_search_scope">數量與刪除僅針對目前搜尋結果</string>
+    <string name="tts_engine_cache_capacity">引擎快取上限：%1$d</string>
+    <string name="tts_engine_cache_clear">清理引擎快取</string>
+    <string name="tts_engine_cache_count">已快取 %1$d 個聲音。保留已安裝語音包與閱讀進度。</string>
+    <string name="tts_engine_cache_clearing">正在等待合成結束並釋放引擎…</string>
 </resources>

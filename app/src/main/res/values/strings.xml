@@ -673,4 +673,8 @@
     <string name="tts_manage_exit">Exit management</string>
     <string name="tts_voice_reorder">Reorder %1$s</string>
     <string name="tts_manage_search_scope">Selection count and deletion apply to the current search results.</string>
+    <string name="tts_engine_cache_capacity">Cached engine limit: %1$d</string>
+    <string name="tts_engine_cache_clear">Clear engine cache</string>
+    <string name="tts_engine_cache_count">%1$d cached voices. Installed packages and reading progress are kept.</string>
+    <string name="tts_engine_cache_clearing">Waiting for synthesis to finish and release engines…</string>
 </resources>

@@ -203,7 +203,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         LaunchedEffect(Unit) { viewModel.initializeRoleContext(defaultContext) }
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
             viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern,
-            onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } })
+            onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } },
+            onEngineCacheCapacity = viewModel::engineCacheCapacity, onClearEngines = viewModel::clearEngines)
     }
     composable<SpeechNameTestRoute> {
         HideReadAloudOverlay()
