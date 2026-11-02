@@ -1,0 +1,7 @@
+<resources>
+    <string name="tts_person_manual">人工指定</string>
+    <string name="tts_person_pair">已有配對</string>
+    <string name="tts_person_ner">NER</string>
+    <string name="tts_person_new_word">新詞發現</string>
+    <string name="tts_person_rule">角色規則</string>
+</resources>

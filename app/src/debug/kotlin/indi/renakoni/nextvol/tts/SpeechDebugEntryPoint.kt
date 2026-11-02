@@ -6,4 +6,5 @@ package indi.renakoni.nextvol.tts
 interface SpeechDebugEntryPoint {
     fun controller(): ReadAloudController
     fun voices(): SpeechVoiceCatalog
+    fun plans(): SpeechPlanPreparer
 }

@@ -655,4 +655,16 @@
     <string name="tts_audio_check_silence">静音检测</string>
     <string name="tts_audio_check_silence_description">压短低音量音频块，有意插入的停顿保持原时长。</string>
     <string name="tts_error_audio_processing">音频处理失败，请检查处理器和声音参数。</string>
+    <string name="tts_detect_language">检测语言</string>
+    <string name="tts_detect_language_description">按已启用的语言规则，为正文各段选择声音。</string>
+    <string name="tts_language_detector">语言检测算法</string>
+    <string name="tts_language_optimaize">Optimaize</string>
+    <string name="tts_language_media_pipe">Media Pipe</string>
+    <string name="tts_filter_language">过滤语言</string>
+    <string name="tts_filter_language_description">发音人列表显示当前语言、地区和英语，关闭后显示全部语言。</string>
+    <string name="tts_role_mode_language">语言</string>
+    <string name="tts_role_secondary_language">备选语言</string>
+    <string name="tts_role_language_required">请选择当前检测算法支持的语言。</string>
+    <string name="tts_language_detector_unavailable">所选语言检测器或模型无法加载，请检查语言规则和语言检测算法。</string>
+    <string name="tts_segment_language">语言：%1$s</string>
 </resources>

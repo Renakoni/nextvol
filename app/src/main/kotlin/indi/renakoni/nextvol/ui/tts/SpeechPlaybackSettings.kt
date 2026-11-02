@@ -46,6 +46,8 @@ import kotlin.math.roundToInt
 data class SpeechPlaybackSettingsState(
     val settings: SpeechTextSettings? = null,
     val allowMultipleVoices: Boolean = false,
+    val autoAssignRole: Boolean = false,
+    val maxCacheVoiceNum: Int = 50,
     val roleContextPattern: String = "__ROLE__",
     val defaultNamePattern: String? = null,
     val error: SpeechError? = null,
@@ -72,6 +74,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
                 it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
                     engineCacheCapacity = settings.engineCacheCapacity,
                     audio = settings.audio,
+                    autoAssignRole = settings.autoAssignRole, maxCacheVoiceNum = settings.maxCacheVoiceNum,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
         }
@@ -90,6 +93,10 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun update(change: (SpeechTextSettings) -> SpeechTextSettings) = updateSettings { it.copy(text = change(it.text)) }
 
     fun allowMultipleVoices(enabled: Boolean) = updateSettings { it.copy(allowMultipleVoices = enabled) }
+
+    fun autoAssign(enabled: Boolean) = updateSettings { it.copy(autoAssignRole = enabled) }
+
+    fun cacheLimit(limit: Int) = updateSettings { it.copy(maxCacheVoiceNum = limit) }
 
     fun roleContextPattern(pattern: String) = updateSettings { it.copy(roleContextPattern = pattern) }
 
@@ -149,7 +156,8 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
     onContextPattern: (String) -> Unit, onNameTest: () -> Unit,
     onEngineCacheCapacity: (Int) -> Unit, onClearEngines: () -> Unit,
-    onAudioSettings: (SpeechAudioSettings) -> Unit) {
+    onAudioSettings: (SpeechAudioSettings) -> Unit,
+    onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingContext by rememberSaveable { mutableStateOf(false) }
     var contextPattern by rememberSaveable { mutableStateOf("") }
@@ -232,6 +240,9 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         }
                     }
                 }
+                item { SpeechTextSwitch(R.drawable.tts_text_auto_assign, R.string.tts_pool_auto_assign,
+                    if (state.autoAssignRole) R.string.tts_pool_auto_on else R.string.tts_pool_auto_off,
+                    state.autoAssignRole, onAutoAssign) }
                 item { SpeechTextSwitch(R.drawable.tts_text_record_voice, R.string.tts_text_record_voice, R.string.tts_text_record_voice_description,
                     settings.recordVoice) { onUpdate { old -> old.copy(recordVoice = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_record_text, R.string.tts_text_record_text, R.string.tts_text_record_text_description,
@@ -243,6 +254,18 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     settings.replaceEmoji) { onUpdate { old -> old.copy(replaceEmoji = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_separate_english, R.string.tts_text_separate_english, R.string.tts_text_separate_english_description,
                     settings.separateEnglish) { onUpdate { old -> old.copy(separateEnglish = it) } } }
+                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_detect_language, R.string.tts_detect_language_description,
+                    settings.detectLanguage) { onUpdate { old -> old.copy(detectLanguage = it) } } }
+                item {
+                    val algorithms = remember { object : MenuOptions(Option("300", R.string.tts_language_optimaize),
+                        Option("301", R.string.tts_language_media_pipe)) {} }
+                    SettingsMenuEntry(painter = painterResource(R.drawable.language_24px),
+                        title = stringResource(R.string.tts_language_detector), options = algorithms,
+                        selectedOptionKey = settings.languageDetector.toString(),
+                        onOptionChange = { key -> onUpdate { it.copy(languageDetector = key.toInt()) } })
+                }
+                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_filter_language, R.string.tts_filter_language_description,
+                    settings.filterLanguage) { onUpdate { old -> old.copy(filterLanguage = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken_description,
                     settings.filterUnspoken) { onUpdate { old -> old.copy(filterUnspoken = it) } } }
                 item {
@@ -267,6 +290,25 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                                 track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
                                     trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
                         }
+                    }
+                }
+            }
+            if (state.settings != null) item {
+                var limit by remember(state.maxCacheVoiceNum) { mutableFloatStateOf(state.maxCacheVoiceNum.coerceIn(3, 300).toFloat()) }
+                val title = stringResource(R.string.tts_pool_cache_limit)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+                    Icon(painterResource(R.drawable.tts_text_cache_voice), null, Modifier.padding(top = 2.dp).size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                        Text(title, style = MaterialTheme.typography.headlineSmall)
+                        Text(limit.roundToInt().toString(), Modifier.padding(top = 3.dp), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Slider(limit, { limit = it }, valueRange = 3f..300f,
+                            onValueChangeFinished = { onCacheLimit(limit.roundToInt()) },
+                            modifier = Modifier.semantics { contentDescription = title },
+                            thumb = { Surface(Modifier.size(16.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {} },
+                            track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
+                                trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
                     }
                 }
             }

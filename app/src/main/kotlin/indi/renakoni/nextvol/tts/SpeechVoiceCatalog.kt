@@ -10,17 +10,26 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
-data class SpeechRoleEngine(val key: String, val name: String, val voices: List<SpeechVoiceRef>)
+data class SpeechRoleEngine(val key: String, val name: String, val voices: List<SpeechVoiceRef>,
+    val candidates: List<SpeechVoiceRef> = voices)
 
 /** Reads configuration only. Planning must not open models, run scripts or acquire runtime permits. */
 class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechRepository,
     private val offline: OfflineSpeechRepository, private val engines: OfflineEngineRepository,
-    private val settings: SpeechSettingsRepository, @ApplicationContext private val context: Context) {
+    private val settings: SpeechSettingsRepository, @ApplicationContext private val context: Context,
+    private val pairs: SpeechVoicePoolRepository) {
     val changes = combine(http.changes, offline.changes, engines.changes) { a, b, c -> Triple(a, b, c) }
 
     suspend fun roleEngines(): List<SpeechRoleEngine> {
+        val current = settings.get()
         val online = http.sources()
         val installed = offline.voices()
+        val languages = if (current.text.filterLanguage) buildMap {
+            online.forEach { put("http:${it.definition.id}", it.searchVoice(false).locale) }
+            installed.forEach { put("offline:${it.reference.id}", it.configuration?.locale.orEmpty()) }
+        } else emptyMap()
+        fun roleEngine(key: String, name: String, voices: List<SpeechVoiceRef>) = SpeechRoleEngine(key, name, voices,
+            if (current.text.filterLanguage) voices.filter { speechVoiceLanguageMatches(languages[it.key].orEmpty()) } else voices)
         val configurations = (engines.all() + http.engines()).filter { engine ->
             !engine.deleted || online.any { it.importedEngineCode == engine.code }
         }.sortedBy { it.order }
@@ -29,25 +38,25 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
                 .map { SpeechVoiceRef(httpSource = it.definition.id, label = it.definition.name) }
             else installed.filter { (it.configuration?.engine ?: "sherpa") == engine.code }
                 .map { SpeechVoiceRef(offlineVoice = it.reference, label = it.name) }
-            SpeechRoleEngine("${engine.type}:${engine.code}", engine.name, voices)
+            roleEngine("${engine.type}:${engine.code}", engine.name, voices)
         }
         val builtIn = online.filter { it.importedEngineCode == null }.groupBy { it.category.orEmpty() }.map { (group, voices) ->
-            SpeechRoleEngine("builtin-http:$group", group.ifEmpty { context.getString(R.string.tts_network_voice) },
+            roleEngine("builtin-http:$group", group.ifEmpty { context.getString(R.string.tts_network_voice) },
                 voices.map { SpeechVoiceRef(httpSource = it.definition.id, label = it.definition.name) })
         }
-        val system = settings.get().references().filter { it.httpSource == null && it.offlineVoice == null }
+        val system = current.references().filter { it.httpSource == null && it.offlineVoice == null }
             .distinctBy { it.key }.map(::systemLabel)
-        return groups + builtIn + SpeechRoleEngine("system", context.getString(R.string.tts_system_speech), system)
+        return groups + builtIn + roleEngine("system", context.getString(R.string.tts_system_speech), system)
     }
 
     private fun systemLabel(voice: SpeechVoiceRef) = voice.copy(label = voice.label.ifEmpty {
         voice.voice.ifEmpty { voice.engine.ifEmpty { context.getString(R.string.tts_system_default) } }
     })
 
-    suspend fun resolve(settings: SpeechSettings): Map<String, SpeechResolvedVoice> {
+    suspend fun resolve(settings: SpeechSettings, savedPairs: List<SpeechVoicePair> = emptyList()): Map<String, SpeechResolvedVoice> {
         val online = http.sources().associateBy { it.definition.id }
         val installed = offline.voices().associateBy { it.reference.id }
-        return settings.references().associate { reference ->
+        return (settings.references() + savedPairs.map { it.value }).distinctBy { it.key }.associate { reference ->
             val value = when {
                 reference.offlineVoice != null -> {
                     val voice = installed[reference.offlineVoice.id]
@@ -78,11 +87,12 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
     }
 
     suspend fun revised(settings: SpeechSettings): SpeechSettings = settings.copy(voiceRevision =
-        speechDigest(resolve(settings).values.joinToString("\u0000") { it.reference.key + it.revision + it.error }))
+        speechDigest(resolve(settings, pairs.pairs()).values.joinToString("\u0000") { it.reference.key + it.revision + it.error }) + ":" + pairs.revisions.value)
 }
 
 internal fun SpeechSettings.references(): List<SpeechVoiceRef> =
-    (listOf(voiceReference()) + narrationVoices + dialogueVoices + speakerVoices.values + roleRules.mapNotNull { it.speaker }).distinctBy { it.key }
+    listOf(voiceReference()) + narrationVoices + dialogueVoices + speakerVoices.values + roleRules.mapNotNull { it.speaker } +
+        voiceItems.map { it.value }
 
 internal const val SPEECH_HTTP_INPUT_LIMIT = 65536
 

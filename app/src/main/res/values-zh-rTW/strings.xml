@@ -656,4 +656,16 @@
     <string name="tts_audio_check_silence">靜音偵測</string>
     <string name="tts_audio_check_silence_description">縮短低音量音訊區塊，有意插入的停頓維持原時長。</string>
     <string name="tts_error_audio_processing">音訊處理失敗，請檢查處理器與聲音參數。</string>
+    <string name="tts_detect_language">偵測語言</string>
+    <string name="tts_detect_language_description">依已啟用的語言規則，為正文各段選擇聲音。</string>
+    <string name="tts_language_detector">語言偵測演算法</string>
+    <string name="tts_language_optimaize">Optimaize</string>
+    <string name="tts_language_media_pipe">Media Pipe</string>
+    <string name="tts_filter_language">篩選語言</string>
+    <string name="tts_filter_language_description">發音人清單顯示目前語言、地區和英語，關閉後顯示全部語言。</string>
+    <string name="tts_role_mode_language">語言</string>
+    <string name="tts_role_secondary_language">備選語言</string>
+    <string name="tts_role_language_required">請選擇目前偵測演算法支援的語言。</string>
+    <string name="tts_language_detector_unavailable">所選語言偵測器或模型無法載入，請檢查語言規則和語言偵測演算法。</string>
+    <string name="tts_segment_language">語言：%1$s</string>
 </resources>
