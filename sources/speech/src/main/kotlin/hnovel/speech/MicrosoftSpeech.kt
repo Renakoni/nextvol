@@ -27,7 +27,7 @@ internal class MicrosoftSpeechConfiguration private constructor(
     companion object {
         fun fromPackage(metadata: JsonObject): MicrosoftSpeechConfiguration {
             val engine = metadata.getValue("engine").jsonObject
-            val parameters = engine.string("param")
+            val parameters = microsoftPackageParameters(engine.string("param"))
             val speaker = MicrosoftPackageVoice(metadata.getValue("voice").jsonObject)
             val locale = Locale.getDefault()
             return MicrosoftSpeechConfiguration(speaker.name, speaker.language,
@@ -37,7 +37,7 @@ internal class MicrosoftSpeechConfiguration private constructor(
                     "X-ClientTraceId" to UUID.randomUUID().toString(), "User-Agent" to "okhttp/4.5.0",
                     "Content-Type" to "application/json; charset=utf-8"),
                 microsoftPackageAuthUrl(parameters),
-                microsoftPackageParameters(parameters)["audioFormat"]?.jsonPrimitive?.contentOrNull ?: "audio-24khz-48kbitrate-mono-mp3",
+                parameters["audioFormat"]?.jsonPrimitive?.contentOrNull ?: "audio-24khz-48kbitrate-mono-mp3",
                 speaker)
         }
 

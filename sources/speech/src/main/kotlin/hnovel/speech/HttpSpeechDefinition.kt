@@ -80,6 +80,8 @@ enum class SpeechImportError { TooLarge, InvalidJson, InvalidEntry, DuplicateId 
 data class SpeechImportIssue(val index: Int?, val error: SpeechImportError, val field: String? = null)
 data class SpeechImportPreview(val sources: List<HttpSpeechDefinition>, val issues: List<SpeechImportIssue>)
 
+const val MAX_HTTP_SPEECH_SOURCES = 1024
+
 /** Unknown fields survive preview and saving, including dependencies not supported by the current runtime. */
 fun previewHttpSpeech(text: String): SpeechImportPreview {
     fun failed(error: SpeechImportError) = SpeechImportPreview(emptyList(), listOf(SpeechImportIssue(null, error)))
@@ -91,7 +93,7 @@ fun previewHttpSpeech(text: String): SpeechImportPreview {
         is JsonArray -> element.toList()
         else -> return failed(SpeechImportError.InvalidJson)
     }
-    if (entries.size > 1024) return failed(SpeechImportError.TooLarge)
+    if (entries.size > MAX_HTTP_SPEECH_SOURCES) return failed(SpeechImportError.TooLarge)
     val sources = mutableListOf<HttpSpeechDefinition>()
     val issues = mutableListOf<SpeechImportIssue>()
     val seen = mutableSetOf<String>()

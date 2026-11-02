@@ -6,10 +6,17 @@ import kotlinx.serialization.json.*
 internal fun microsoftPackageParameters(text: String): JsonObject =
     if (text.isBlank()) JsonObject(emptyMap()) else RequestOptionsJson.parse(text).jsonObject
 
-internal fun microsoftPackageAuthUrl(parameters: String): String {
-    val host = microsoftPackageParameters(parameters)["authHost"]?.jsonPrimitive?.contentOrNull
+internal fun microsoftPackageAuthUrl(parameters: JsonObject): String {
+    val host = parameters["authHost"]?.jsonPrimitive?.contentOrNull
     return if (host.isNullOrEmpty()) MicrosoftSpeechClient.AUTH_URL else "https://$host/apps/endpoint?api-version=1.0"
 }
+
+/** ExtendUI.parseExtendParams ignores malformed optional controls instead of disabling the speaker. */
+internal fun nativeSpeechExtensions(text: String): Map<String, String?> = try {
+    if (text.isBlank()) emptyMap() else RequestOptionsJson.parse(text).jsonArray
+        .filterIsInstance<JsonObject>().filter { it.string("name").isNotEmpty() }
+        .associate { "@${it.string("code")}" to it["value"]?.jsonPrimitive?.contentOrNull }
+} catch (_: IllegalArgumentException) { emptyMap() }
 
 /** F6.o's ordered speaker parameters; an empty slot stops the remaining optional parameters. */
 internal class MicrosoftPackageVoice(voice: JsonObject) {
@@ -21,9 +28,7 @@ internal class MicrosoftPackageVoice(voice: JsonObject) {
     private var languageSkill: String? = null
 
     init {
-        val extensions = voice.string("extendUI").takeIf(String::isNotBlank)?.let { RequestOptionsJson.parse(it).jsonArray }
-            .orEmpty().filterIsInstance<JsonObject>().filter { it.string("name").isNotEmpty() }
-            .associate { "@${it.string("code")}" to it["value"]?.jsonPrimitive?.contentOrNull }
+        val extensions = nativeSpeechExtensions(voice.string("extendUI"))
         val parameters = java.util.regex.Pattern.compile(",").split(voice.string("param")).map {
             it.trim { char -> Character.isWhitespace(char) }
         }

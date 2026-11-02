@@ -38,6 +38,8 @@ The mapping follows MultiTTS 1.8.3 (84), APK SHA-256 `d3f7736b1bf162829677c0772a
 
 The native adapter shares the existing session-local token cache, one refresh on 401, origin/address policy, timeout, cancellation, response limit and player. Fixed client-protocol signing material comes from the original adapter; no account credential or token is persisted in logs. Original random X-Forwarded-For spoofing is not needed for the observed service requests and is omitted. Editable SSML attributes and book text are escaped, avoiding the original attribute interpolation defect.
 
+Malformed optional extension controls are ignored as in `ExtendUI.parseExtendParams` (REA `ev_893fdc2d75b707d6412a10a47faa85ad51c9aa733b8defee32f3eff2bcfd7a71`); they do not disable a speaker whose parameters do not depend on them.
+
 On 2026-11-01 the actual Kotlin adapter statically imported 163 and 579 voices from the local packages and synthesized Chinese special-character text, Japanese and German through SourceBroker. The three results were MP3, 24 kHz, mono. This records public-service behavior at that time, separately from deterministic tests; it does not guarantee every catalog voice remains available from Microsoft.
 
 ## MultiTTS edgetts packages

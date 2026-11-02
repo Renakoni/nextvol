@@ -98,13 +98,12 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
     val raw = definition.raw.toMutableMap().apply { put("id", JsonPrimitive(definition.id)) }
     raw["multiTts"] = JsonObject(metadata + ("engine" to data))
     // Labels/notes do not rebuild a request or invalidate its authorization.
-    if (engine.type != "http") {
-        val updated = editHttpVoice(copy(definition = previewHttpSpeech(JsonObject(raw).toString()).sources.single()),
+    if (engine.type != "http" && old["param"] != data["param"]) {
+        return editHttpVoice(copy(definition = previewHttpSpeech(JsonObject(raw).toString()).sources.single()),
             JsonObject(emptyMap()), enabled, copy = false)
-        return updated
     }
-    if ((old["url"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.url ||
-        (old["header"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.header) {
+    if (engine.type == "http" && ((old["url"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.url ||
+        (old["header"] as? JsonPrimitive)?.contentOrNull.orEmpty() != engine.header)) {
         raw["url"] = JsonPrimitive(engine.url.trim())
         if (engine.header.isBlank()) raw.remove("header") else raw["header"] = JsonPrimitive(engine.header)
     }
