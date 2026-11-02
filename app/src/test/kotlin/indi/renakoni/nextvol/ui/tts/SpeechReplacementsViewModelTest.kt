@@ -25,6 +25,7 @@ class SpeechReplacementsViewModelTest {
         val stored = MutableStateFlow(selected)
         val repository = mockk<SpeechSettingsRepository>()
         every { repository.changes } returns stored
+        coEvery { repository.get() } answers { stored.value }
         coEvery { repository.update(any()) } coAnswers { stored.value = firstArg<(SpeechSettings) -> SpeechSettings>()(stored.value) }
         val plans = mockk<SpeechPlanPreparer>()
         coEvery { plans.prepare(any(), any()) } coAnswers { prepareSpeechPlan(firstArg(), secondArg()) {} }
@@ -39,7 +40,8 @@ class SpeechReplacementsViewModelTest {
             assertEquals(selected, stored.value)
             coVerify(exactly = 0) { repository.update(any()) }
             model.preview("甲 hello")
-            val combined = withContext(Dispatchers.Default) { withTimeout(5000) { model.state.first { it.preview != null } } }
+            val combined = withContext(Dispatchers.Default) { withTimeout(5000) { model.state.first { !it.previewing } } }
+            assertNull(combined.previewError)
             assertEquals("乙 hello", combined.preview!!.segments.single().text)
             assertNull(combined.rulePreview)
             model.sort(descending = false)

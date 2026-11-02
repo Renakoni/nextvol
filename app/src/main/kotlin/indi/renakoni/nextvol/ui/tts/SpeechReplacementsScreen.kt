@@ -124,6 +124,26 @@ internal fun SpeechReplacementPreviewScreen(state: SpeechReplacementsState, onBa
                     SelectionContainer {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             segment.speaker?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
+                            segment.roleMatch?.let { match ->
+                                val origin = stringResource(when (match.origin) {
+                                    indi.renakoni.nextvol.tts.SpeechPersonOrigin.Manual -> R.string.tts_person_manual
+                                    indi.renakoni.nextvol.tts.SpeechPersonOrigin.Pair -> R.string.tts_person_pair
+                                    indi.renakoni.nextvol.tts.SpeechPersonOrigin.Ner -> R.string.tts_person_ner
+                                    indi.renakoni.nextvol.tts.SpeechPersonOrigin.NewWord -> R.string.tts_person_new_word
+                                    else -> R.string.tts_person_rule
+                                })
+                                val group = when (match.poolGroup) {
+                                    indi.renakoni.nextvol.tts.SPEECH_POOL_MALE -> stringResource(R.string.tts_pool_male)
+                                    indi.renakoni.nextvol.tts.SPEECH_POOL_FEMALE -> stringResource(R.string.tts_pool_female)
+                                    else -> match.poolGroup ?: match.ruleName
+                                }
+                                Text(listOf(origin, group, segment.selectedVoice?.label.orEmpty())
+                                    .filter { it.isNotEmpty() }.joinToString(" → "), style = MaterialTheme.typography.bodySmall)
+                            }
+                            segment.language?.takeIf { it != "lang:mark" && it != "lang:latin" }?.let {
+                                Text(stringResource(R.string.tts_segment_language, speechLanguageLabel(it.removePrefix("lang:"))),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                             Text(segment.text)
                         }
                     }

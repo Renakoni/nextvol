@@ -23,7 +23,7 @@ data class SpeechResolvedVoice(val reference: SpeechVoiceRef, val settings: Spee
     val maxInputLength: Int, val label: String = reference.label, val revision: String = "",
     val error: SpeechError? = null)
 
-enum class SpeechVoiceReason { Narration, Dialogue, Explicit, Remembered, Continued }
+enum class SpeechVoiceReason { Narration, Dialogue, Explicit, Remembered, Continued, Language }
 
 enum class SpeechVoiceSelection { Narration, Dialogue }
 
@@ -67,6 +67,7 @@ internal fun SpeechSettings.forVoice(reference: SpeechVoiceRef) = copy(
     engine = reference.engine, voice = reference.voice, httpSource = reference.httpSource,
     offlineVoice = reference.offlineVoice, narrationVoices = emptyList(), dialogueVoices = emptyList(),
     speakerVoices = emptyMap(), speakerBookId = "", voiceRoutingConfigured = false, roleRules = emptyList(),
+    voiceItems = emptyList(), autoAssignRole = false,
 ).synthesisSettings()
 
 /** R6.p.d: separate round-robin cursors; an explicit/remembered voice does not advance either. */

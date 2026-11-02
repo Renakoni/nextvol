@@ -1,0 +1,7 @@
+<resources>
+    <string name="tts_person_manual">Manual assignment</string>
+    <string name="tts_person_pair">Saved pair</string>
+    <string name="tts_person_ner">NER</string>
+    <string name="tts_person_new_word">New word discovery</string>
+    <string name="tts_person_rule">Role rule</string>
+</resources>
