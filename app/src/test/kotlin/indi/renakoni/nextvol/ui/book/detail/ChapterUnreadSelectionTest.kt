@@ -161,12 +161,12 @@ class ChapterUnreadSelectionTest {
         enterSelection()
         compose.onNodeWithText("Chapter 1").performClick()
         confirm()
-        compose.runOnIdle { requestedLocale = Locale.forLanguageTag("ru") }
+        compose.runOnIdle { requestedLocale = Locale.SIMPLIFIED_CHINESE }
         compose.waitForIdle()
         compose.runOnIdle { completed.complete(Unit) }
         compose.runOnIdle {
             assertEquals(1, calls)
-            assertEquals("Не удалось обновить прогресс чтения. Повторите попытку.",
+            assertEquals("未能更新阅读进度，请重试。",
                 snackbar.currentSnackbarData?.visuals?.message)
         }
     }

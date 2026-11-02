@@ -44,9 +44,9 @@ class LocalBookImportErrorTest {
     }
     @After fun destroy() { activity.pause().stop().destroy() }
 
-    @Test fun everyReasonUsesTranslatedResourcesIncludingRussianRegionalFallback() {
+    @Test fun everyReasonUsesTranslatedResourcesInAllSupportedLanguages() {
         val context = RuntimeEnvironment.getApplication()
-        val locales = listOf("en", "zh-CN", "zh-TW", "ru", "ru-RU")
+        val locales = listOf("en", "zh-CN", "zh-TW")
         val messages = locales.associateWith { locale ->
             val localized = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
                 setLocale(Locale.forLanguageTag(locale))
@@ -55,11 +55,10 @@ class LocalBookImportErrorTest {
         }
         for (reason in LocalBookImportReason.entries) {
             assertTrue(messages.getValue("en").getValue(reason).isNotBlank())
-            for (locale in listOf("zh-CN", "zh-TW", "ru")) {
+            for (locale in listOf("zh-CN", "zh-TW")) {
                 assertNotEquals("$locale: $reason must not fall back to English",
                     messages.getValue("en").getValue(reason), messages.getValue(locale).getValue(reason))
             }
-            assertEquals(messages.getValue("ru").getValue(reason), messages.getValue("ru-RU").getValue(reason))
         }
     }
 

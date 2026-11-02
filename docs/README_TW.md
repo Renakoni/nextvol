@@ -1,4 +1,4 @@
-[简体中文](../README.md) | **繁體中文** | [English](README_US.md) | [Русский](README_RU.md)
+[简体中文](../README.md) | **繁體中文** | [English](README_US.md)
 
 <div align="center">
     <h1>NextVol</h1>

@@ -1,3 +1,0 @@
-<resources>
-    <string name="sources_dependency_unavailable">Источнику нужен неподдерживаемый интерфейс Java. Используйте адаптированные правила.</string>
-</resources>

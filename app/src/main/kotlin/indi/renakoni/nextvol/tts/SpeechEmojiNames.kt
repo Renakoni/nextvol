@@ -8,7 +8,6 @@ internal object SpeechEmojiNames {
     private val english by lazy { read("emoji") }
     private val chinese by lazy { read("emoji-zh") }
     private val traditional by lazy { read("emoji-zh-rTW") }
-    private val russian by lazy { read("emoji-ru") }
 
     private fun read(name: String): Map<String, String> =
         checkNotNull(javaClass.getResourceAsStream("/tts/$name.json")).bufferedReader().use {
@@ -18,7 +17,6 @@ internal object SpeechEmojiNames {
     fun replace(input: SpeechMappedText, checkCancelled: () -> Unit, locale: Locale = Locale.getDefault()): SpeechMappedText {
         val localized = when (locale.language) {
             "zh" -> if (locale.country in setOf("TW", "HK", "MO") || locale.script == "Hant") traditional else chinese
-            "ru" -> russian
             else -> english
         }
         fun name(key: String) = localized[key] ?: english[key]

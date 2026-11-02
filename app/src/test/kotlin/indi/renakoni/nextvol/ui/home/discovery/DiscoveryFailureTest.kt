@@ -160,7 +160,7 @@ class DiscoveryFailureTest {
     }
 
     @Test
-    @Config(sdk = [35], qualifiers = "ru-rRU-w320dp-h800dp-mdpi")
+    @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h800dp-mdpi")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun longActionLabelsWrapAtLargeFontSizesAndDetailsRemainReachable() {
         activity.get().setContent {
