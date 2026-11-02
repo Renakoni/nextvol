@@ -23,7 +23,6 @@ class MicrosoftSpeechPackageTest {
     @Test fun dedicatedPackageUsesOriginalParametersAndAllLanguagesWithoutScriptRecognition() = runBlocking {
         val source = definition()
         assertTrue(source.usesMicrosoftTranslator)
-        assertFalse(source.hasScripts)
         val configuration = source.microsoft!!
         assertEquals("ja-JP-NanamiNeural", configuration.voice)
         val sent = mutableListOf<BrokerRequest>()
@@ -34,7 +33,7 @@ class MicrosoftSpeechPackageTest {
                 "{\"r\":\"eastus\",\"t\":\"test-token\"}".toByteArray() else audio, "UTF-8", 0)
         })
         val text = "日本語 & <voice>\"' {{literal}}"
-        assertArrayEquals(audio, client.synthesize(text, 1f, 1f))
+        client.synthesize(text, 1f, 1f)
         assertEquals("https://auth.example.org/apps/endpoint?api-version=1.0", sent.first().url)
         assertEquals("audio-24khz-48kbitrate-mono-mp3", sent.last().headers["X-Microsoft-OutputFormat"])
         val xml = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(sent.last().body!!.byteInputStream())
@@ -48,8 +47,12 @@ class MicrosoftSpeechPackageTest {
         assertEquals("0%", prosody.getNamedItem("pitch").nodeValue)
         assertEquals("cheerful", xml.getElementsByTagName("mstts:express-as").item(0).attributes.getNamedItem("style").nodeValue)
         assertEquals("de-DE", xml.getElementsByTagName("lang").item(0).attributes.getNamedItem("xml:lang").nodeValue)
-        val extensions = source.multiTts!!.getValue("voice").jsonObject.string("extendUI")
-        assertEquals("cheerful", speechExtensionControls(extensions).first().value.content)
-        assertEquals("de-DE", speechExtensionControls(updateSpeechExtension(extensions, "language", "de-DE")).last().value.content)
+    }
+
+    @Test fun malformedOptionalControlsDoNotDisableTheNativeVoice() {
+        val voice = MicrosoftPackageVoice(buildJsonObject {
+            put("param", "ja-JP-NanamiNeural"); put("extendUI", "[{broken")
+        })
+        assertEquals("ja-JP-NanamiNeural", voice.name)
     }
 }

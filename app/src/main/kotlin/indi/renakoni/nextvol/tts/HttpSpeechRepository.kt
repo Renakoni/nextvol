@@ -10,6 +10,7 @@ import hnovel.network.sourceOrigin
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.isOnlineSpeechEngine
 import hnovel.speech.HttpSpeechDefinition
+import hnovel.speech.MAX_HTTP_SPEECH_SOURCES
 import hnovel.speech.SpeechPackageValue
 import hnovel.speech.previewHttpSpeech
 import hnovel.speech.speechPackageAvatarPath
@@ -200,7 +201,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val previous = combined(stored.sources, stored.engines)
             val updatedStore = update(stored)
             val updated = updatedStore.sources
-            require(updated.size <= 1024 && updated.map { it.definition.id }.distinct().size == updated.size)
+            require(updated.size <= MAX_HTTP_SPEECH_SOURCES && updated.map { it.definition.id }.distinct().size == updated.size)
             val entries = JsonArray(updated.map { source ->
                 require(source.origins.size <= 32 && source.origins.all { sourceOrigin(it) == it })
                 buildJsonObject {
@@ -277,9 +278,8 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         val raw = cipher.open(encrypted, IDENTITY)
         val document = Json.parseToJsonElement(BridgeWire.validate(raw, MAX_BYTES)).jsonObject
         val entries = document.getValue("sources").jsonArray
-        require(entries.size <= 1024)
         val preview = previewHttpSpeech(JsonArray(entries.map { it.jsonObject.getValue("definition") }).toString())
-        require(preview.issues.isEmpty() && preview.sources.size == entries.size)
+        require(preview.issues.isEmpty())
         val sources = preview.sources.zip(entries) { source, entry ->
             val origins = entry.jsonObject.getValue("origins").jsonArray.map { it.jsonPrimitive.content }
             require(origins.size <= 32 && origins.all { sourceOrigin(it) == it })

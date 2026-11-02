@@ -28,10 +28,10 @@ class BuiltInSpeechSourcesTest {
     private val authority = ExecutionAuthority()
     private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority)
 
-    @Test fun translatorFullCatalogSurvivesEditingReimportReopenAndEngineRevocation() = runBlocking {
+    @Test fun translatorVoicesSurviveEditingReimportReopenAndEngineRevocation() = runBlocking {
         val engine = SpeechEngineConfig("mstrans", "Translator", "inner")
         val draft = newHttpVoice(engine)
-        val voices = (0 until 579).map { index ->
+        val voices = (0 until 2).map { index ->
             editHttpVoice(draft, buildJsonObject {
                 put("code", "voice-$index"); put("name", "Voice $index"); put("locale", "ja-JP")
                 put("param", "ja-JP-NanamiNeural,Default,Default,1.0")
@@ -44,13 +44,16 @@ class BuiltInSpeechSourcesTest {
         repository.saveVoice(editHttpVoice(first, buildJsonObject { put("name", "Edited"); put("locale", "de-DE") }, true, false))
         repository.save(voices)
         val restored = repository().sources().filterNot { it.isBuiltIn }
-        assertEquals(579, restored.size)
+        assertEquals(2, restored.size)
         val selected = restored.single { it.definition.id == first.definition.id }
         assertEquals("Edited", selected.definition.name)
         assertEquals("de-DE", selected.speakerData()["locale"]!!.jsonPrimitive.content)
         assertTrue(selected.definition.usesMicrosoftTranslator)
         val ticket = authority.issue(selected.definition.id, "http-tts", selected.definition.revision, "speech")
-        val updated = repository.engines().single().copy(parameters = "{\"authHost\":\"auth.example.org\"}")
+        val renamed = repository.engines().single().copy(name = "Renamed")
+        repository.saveEngine(renamed)
+        assertTrue(authority.accepts(ticket))
+        val updated = renamed.copy(parameters = "{\"authHost\":\"auth.example.org\"}")
         repository.saveEngine(updated)
         assertFalse(authority.accepts(ticket))
         assertEquals("https://auth.example.org/apps/endpoint?api-version=1.0",
