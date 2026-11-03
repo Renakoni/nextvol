@@ -15,6 +15,8 @@ interface SpeechSynthesizer : AutoCloseable {
     /** File-only engines retain their existing path. The processing wrapper publishes PCM when ready. */
     suspend fun synthesize(text: String, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> =
         synthesize(text, output)
+    suspend fun synthesize(segment: SpeechSegment, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> =
+        synthesize(segment.text, output, onReady)
     /** Encoded network blocks, before the common decoder and PCM processor. */
     suspend fun synthesizeEncoded(text: String, receive: (ByteArray, Int, Int) -> Unit) {
         error("This engine uses complete audio files")

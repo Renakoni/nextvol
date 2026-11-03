@@ -13,7 +13,9 @@ data class SpeechSegment(val start: Int, val end: Int, val text: String,
     val changeVoice: Boolean = false,
     val selectedVoice: SpeechResolvedVoice? = null,
     val voiceReason: SpeechVoiceReason = SpeechVoiceReason.Narration,
-    val roleMatch: SpeechRoleMatch? = null)
+    val roleMatch: SpeechRoleMatch? = null,
+    val audioParameters: SpeechAudioParameters = SpeechAudioParameters(),
+    val pauseMs: Int? = null)
 
 internal fun speechDigest(text: String): String = MessageDigest.getInstance("SHA-256")
     .digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }

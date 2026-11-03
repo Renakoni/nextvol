@@ -53,10 +53,10 @@ class SpeechTextPipelineTest {
             SpeechReplacementRule(source = "SPEED", target = "改写")),
             text = SpeechTextSettings(replaceEmoji = true))
         val plan = prepareSpeechPlan(chapter, settings) {}
-        assertEquals(listOf("前", "[[SPEED:2😀]]", "乙"), plan.segments.map { it.text })
-        assertEquals("lang:mark", plan.segments[1].language)
-        assertEquals(1, plan.position(1).start)
-        assertEquals(chapter.text.length - 1, plan.position(1).end)
+        assertEquals(listOf("前", "乙"), plan.segments.map { it.text })
+        assertEquals(SpeechAudioParameters(), plan.segments[1].audioParameters)
+        assertEquals(chapter.text.length - 1, plan.position(1).start)
+        assertEquals(chapter.text.length, plan.position(1).end)
     }
 
     @Test fun localeChangeRebuildsEmojiSegmentsAndResumesAtOriginalOffset() = runBlocking {

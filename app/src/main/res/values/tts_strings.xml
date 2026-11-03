@@ -118,4 +118,9 @@
     <string name="tts_decode_stream">Streaming decode</string>
     <string name="tts_decode_stream_off">Disabled, online playback delay may be high.</string>
     <string name="tts_decode_stream_on">Enabled, please close when online playback is abnormal.</string>
+    <string name="tts_paragraph_pause">Paragraph pause</string>
+    <string name="tts_paragraph_pause_description">Add a pause between original paragraphs, in addition to the engine’s own pauses. Set to 0 to disable.</string>
+    <string name="tts_pause_disabled">Disabled</string>
+    <string name="tts_pause_duration">%1$d ms</string>
+    <string name="tts_pause_milliseconds">Milliseconds</string>
 </resources>

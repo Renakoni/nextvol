@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,6 +21,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -164,6 +166,8 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
     var contextError by remember { mutableStateOf(false) }
     var editingMaleRule by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var editingPersonRule by rememberSaveable { mutableStateOf(false) }
+    var editingPause by rememberSaveable { mutableStateOf(false) }
+    var pauseText by rememberSaveable { mutableStateOf("") }
     var text by rememberSaveable { mutableStateOf("") }
     val defaultText = stringResource(R.string.tts_preview_text)
     Scaffold(topBar = {
@@ -186,6 +190,12 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 item { SpeechTextSwitch(R.drawable.tts_decode_stream, R.string.tts_decode_stream,
                     if (state.audio.decodeStream) R.string.tts_decode_stream_on else R.string.tts_decode_stream_off,
                     state.audio.decodeStream) { onAudioSettings(state.audio.copy(decodeStream = it)) } }
+                item { SpeechTextEntry(R.drawable.pause_24px, R.string.tts_paragraph_pause, R.string.tts_paragraph_pause_description,
+                    Modifier.clickable { pauseText = settings.paragraphPauseMs.toString(); editingPause = true }) {
+                    Text(if (settings.paragraphPauseMs == 0) stringResource(R.string.tts_pause_disabled)
+                        else stringResource(R.string.tts_pause_duration, settings.paragraphPauseMs),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                } }
                 item {
                     val processors = remember { object : MenuOptions(Option("200", R.string.tts_audio_sonic),
                         Option("201", R.string.tts_audio_soundtouch)) {} }
@@ -373,6 +383,17 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
         confirmButton = { TextButton(onClick = { preferences.auditionData.asynchronousSet(text.trim()); editing = false }) {
             Text(stringResource(R.string.tts_engine_save))
         } }, dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } })
+    if (editingPause) AlertDialog(onDismissRequest = { editingPause = false },
+        title = { Text(stringResource(R.string.tts_paragraph_pause)) },
+        text = { OutlinedTextField(pauseText, { pauseText = it }, singleLine = true,
+            label = { Text(stringResource(R.string.tts_pause_milliseconds)) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)) },
+        confirmButton = { TextButton(enabled = pauseText.toIntOrNull()?.let { it >= 0 } == true, onClick = {
+            val duration = pauseText.toInt()
+            onUpdate { it.copy(paragraphPauseMs = duration) }
+            editingPause = false
+        }) { Text(stringResource(R.string.confirm)) } },
+        dismissButton = { TextButton(onClick = { editingPause = false }) { Text(stringResource(R.string.cancel)) } })
     if (editingContext) AlertDialog(onDismissRequest = { editingContext = false },
         title = { Text(stringResource(R.string.tts_role_context_template)) },
         text = { ReplacementField(contextPattern, { contextPattern = it; contextError = false }, stringResource(R.string.tts_role_context_template),
