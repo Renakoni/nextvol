@@ -34,7 +34,7 @@ internal fun SpeechVoiceRef.resolvePackageReference(voices: Map<String, SpeechVo
 internal fun SpeechPackagePreview.withInstalledEngines(known: List<SpeechEngineConfig>): SpeechPackagePreview {
     val resolved = engines.map { engine ->
         val existing = known.find { it.code == engine.code && !it.deleted }
-            ?: if (engine.code in setOf("mstrans", "edgetts")) SpeechEngineConfig(engine.code, engine.name) else null
+            ?: if (hnovel.speech.isOnlineSpeechEngine(engine.code, "inner")) SpeechEngineConfig(engine.code, engine.name) else null
         if (engine.raw != null || existing == null) engine else SpeechPackageEngine(engine.code, existing.name,
             existing.type, existing.httpData().packageValue(), engine.voices, engine.support,
             engine.notices - SpeechPackageNotice.MissingEngine, engine.requiredResources)

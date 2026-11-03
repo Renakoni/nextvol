@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
 fun isOnlineSpeechEngine(code: String, type: String?): Boolean =
-    type == "http" || code in setOf("mstrans", "edgetts") && (type == null || type == "inner")
+    type == "http" || (code in setOf("mstrans", "edgetts") || code in dedicatedOnlineSpeechEngines) && (type == null || type == "inner")
 
 @Serializable
 data class SpeechEngineConfig(
