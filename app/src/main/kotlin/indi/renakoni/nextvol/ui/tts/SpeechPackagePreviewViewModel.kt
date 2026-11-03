@@ -58,6 +58,7 @@ data class SpeechPackagePreviewState(
     val configurationSaved: Boolean = false,
     val offlineConfigurations: Map<Pair<Int, Int>, InstalledOfflineVoice> = emptyMap(),
     val offlineEngineImports: Map<Int, hnovel.speech.SpeechEngineConfig> = emptyMap(),
+    val updatedOfflineVoices: Set<String> = emptySet(),
 )
 
 /** Resource installation is independent of whether this device can execute the selected engine. */
@@ -180,7 +181,8 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                 withContext(NonCancellable) {
                     val voice = offline.importConfiguration(draft)
                     settings.update { if (it.offlineVoice?.id == voice.reference.id) it.copy(offlineVoice = voice.reference) else it }
-                    mutableState.update { it.copy(installed = voice.name) }
+                    mutableState.update { it.copy(installed = voice.name,
+                        updatedOfflineVoices = it.updatedOfflineVoices + voice.reference.id) }
                 }
                 refreshConfiguration()
             } catch (cancelled: CancellationException) { throw cancelled }

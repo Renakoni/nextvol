@@ -152,7 +152,7 @@ fun SpeechPackagePreviewScreen(
                             if (update != null) {
                                 Text(stringResource(R.string.tts_config_voice_update_description), style = MaterialTheme.typography.bodySmall)
                                 FilledTonalButton(onClick = { onImportOfflineConfiguration(update) },
-                                    enabled = !offline.installing && !(offline.installingId == update.reference.id && offline.installed != null)) {
+                                    enabled = !offline.installing && update.reference.id !in offline.updatedOfflineVoices) {
                                     Text(stringResource(R.string.tts_config_voice_update))
                                 }
                                 if (offline.installingId == update.reference.id) {
