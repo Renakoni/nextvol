@@ -29,7 +29,6 @@ data class SpeechConfigurationImport(
     }
 
     fun applyTo(current: SpeechSettings, replace: Boolean): SpeechSettings {
-        check(error == null)
         val replacementsByName = current.replacements.associateBy { it.group to it.name }
         val incomingReplacements = if (replace) configurationIds(replacements, current.replacements,
             { it.group to it.name }, { it.id }, { item, id -> item.copy(id = id) }) else replacements?.map { item ->

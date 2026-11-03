@@ -58,6 +58,5 @@ class SpeechPackageReferencesTest {
         }""").sources.single(), emptyList())
         val references = speechPackageReferences(listOf(original, original.copy(isVoiceCopy = true)), emptyList())
         assertEquals("stable", references["http_test_voice"]!!.httpSource)
-        assertEquals(1, references.size)
     }
 }

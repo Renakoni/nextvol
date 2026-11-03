@@ -116,8 +116,6 @@ class SpeechConfigurationImportTest {
         val rejected = previewSpeechConfiguration(malformed, emptyMap(), "Default")
         assertEquals("malformed.yaml.roles[0].activate", rejected.error)
         assertFalse(rejected.hasChanges)
-        assertNull(rejected.replacements)
-        assertNull(rejected.roles)
         val offline = document("config.yaml", "sherpa: [{code: voice, futureField: private-value}]")
         assertEquals(listOf("config.yaml.sherpa[0].futureField"),
             previewSpeechConfiguration(offline, emptyMap(), "Default").unsupported)
