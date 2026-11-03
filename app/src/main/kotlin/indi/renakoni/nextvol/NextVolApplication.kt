@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import androidx.compose.foundation.ComposeFoundationFlags
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.emoji2.bundled.BundledEmojiCompatConfig
+import androidx.emoji2.text.EmojiCompat
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
@@ -82,6 +84,8 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
         }
         if (process.endsWith(":source_browser") || process.endsWith(":source_browser_native")) return
         startupPhase("host-injection") { super.onCreate() }
+        // Imported voice names can contain emoji absent from the device font or font provider.
+        EmojiCompat.init(BundledEmojiCompatConfig(this))
         // The new Compose text context menu asks MIUI's action mode to treat the
         // Compose root as a TextView, which leaves a stale "Select all" toolbar.
         ComposeFoundationFlags.isNewContextMenuEnabled = false
