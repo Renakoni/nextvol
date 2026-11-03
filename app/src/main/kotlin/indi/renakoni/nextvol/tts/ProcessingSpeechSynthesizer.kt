@@ -18,6 +18,7 @@ internal class ProcessingSpeechSynthesizer(private val delegate: SpeechSynthesiz
     @Volatile private var work: Job? = null
     override val maxInputLength get() = delegate.maxInputLength
     override val supportsStreaming get() = delegate.supportsStreaming
+    override val audioParameters get() = parameters
 
     override suspend fun open(settings: SpeechSettings): String {
         val label = delegate.open(settings)

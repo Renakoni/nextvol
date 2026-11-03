@@ -26,6 +26,10 @@ import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import indi.renakoni.nextvol.MainActivity
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.logging.LoggerRepository
+import indi.renakoni.nextvol.data.logging.SpeechLogEvent
+import indi.renakoni.nextvol.data.logging.SpeechLogRecord
+import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -50,6 +54,7 @@ class ReadAloudService : MediaSessionService() {
     @Inject lateinit var voices: SpeechVoiceCatalog
     @Inject lateinit var pairs: SpeechVoicePoolRepository
     @Inject lateinit var languages: SpeechLanguageDetection
+    @Inject lateinit var logger: LoggerRepository
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
     private var backgroundMusic: BackgroundMusicPlayback? = null
@@ -74,8 +79,11 @@ class ReadAloudService : MediaSessionService() {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             setHandleAudioBecomingNoisy(true)
         }
-        speech = ReadAloudSession(scope, chapters, { voices.revised(settings.get()) }, progress, synthesizers::synthesizer,
-            ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"), preparePlan = plans::prepare)
+        speech = ReadAloudSession(scope, chapters, {
+            voices.revised(settings.get()).also { logger.speechDebugEnabled = it.diagnosticLogging }
+        }, progress, synthesizers::synthesizer,
+            ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"), preparePlan = plans::prepare,
+            diagnostics = logger::recordSpeech, detailedLogging = { logger.speechDebugEnabled })
         sleepTimer = SpeechSleepTimer(scope, SystemClock::elapsedRealtime,
             onChanged = { deadline ->
                 if (!shuttingDown && speech.state.value.request != null)
@@ -168,6 +176,7 @@ class ReadAloudService : MediaSessionService() {
                 pairs.setCacheLimit(settings.maxCacheVoiceNum)
                 voices.revised(settings)
             }.collect { settings ->
+                logger.speechDebugEnabled = settings.diagnosticLogging
                 speech.updateSettings(settings)
                 if (!settings.text.detectLanguage || settings.roleRules.none { it.isLanguageRule }) languages.release()
             }
@@ -264,6 +273,7 @@ class ReadAloudService : MediaSessionService() {
 
     private fun serviceUnavailable() {
         shuttingDown = true
+        logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Initialization, SpeechLogEvent.Failed, SpeechError.ServiceUnavailable))
         val last = speech.state.value.takeIf { it.request != null } ?: controller.state.value
         speech.stop()
         backgroundMusic?.close()

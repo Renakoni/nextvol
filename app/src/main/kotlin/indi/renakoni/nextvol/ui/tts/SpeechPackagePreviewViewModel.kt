@@ -17,6 +17,11 @@ import hnovel.speech.OfflinePackagePlan
 import hnovel.speech.previewOfflineVoice
 import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.logging.LoggerRepository
+import indi.renakoni.nextvol.data.logging.SpeechLogRecord
+import indi.renakoni.nextvol.data.logging.SpeechLogStage
+import indi.renakoni.nextvol.data.logging.SpeechLogEvent
+import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.SpeechConfigurationImport
 import indi.renakoni.nextvol.tts.previewSpeechConfiguration
@@ -70,12 +75,23 @@ class SpeechPackagePreviewViewModel @Inject constructor(
     private val availability: OfflineAvailabilityChecker,
     private val http: indi.renakoni.nextvol.tts.HttpSpeechRepository,
     private val engines: OfflineEngineRepository,
+    private val logger: LoggerRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPackagePreviewState())
     val state = mutableState.asStateFlow()
     private var input: Uri? = null
     private var reading: Job? = null
     private var installing: Job? = null
+
+    init {
+        viewModelScope.launch { settings.changes.collect { logger.speechDebugEnabled = it.diagnosticLogging } }
+    }
+
+    private fun recordImport(failed: Boolean = false, error: SpeechError = SpeechError.Storage) {
+        logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Import,
+            if (failed) SpeechLogEvent.Failed else SpeechLogEvent.Completed,
+            error = if (failed) error else null, subject = state.value.preview?.name))
+    }
 
     fun read(uri: Uri) {
         if (uri == input) return
@@ -144,6 +160,8 @@ class SpeechPackagePreviewViewModel @Inject constructor(
             catch (_: Exception) { SpeechPackagePreviewState(SpeechPackagePreview("", error = SpeechPackageError.ReadFailed)) }
             currentCoroutineContext().ensureActive()
             mutableState.value = result
+            if (result.preview?.error != null || result.configuration?.error != null) recordImport(failed = true,
+                error = if (result.preview?.error == SpeechPackageError.ReadFailed) SpeechError.Storage else SpeechError.UnsupportedContent)
         }
     }
 
@@ -156,8 +174,9 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                 // All rule, role and pool changes share the existing single settings write.
                 withContext(NonCancellable) { settings.update { configuration.applyTo(it, replace) } }
                 mutableState.update { it.copy(configurationSaved = true, conflicts = emptyList()) }
+                recordImport()
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
+            catch (_: Exception) { recordImport(failed = true); mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
             finally { mutableState.update { it.copy(installing = false) } }
         }
     }
@@ -168,10 +187,11 @@ class SpeechPackagePreviewViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 if (engine.isOnline) http.registerEngine(engine) else engines.register(engine)
+                recordImport()
                 onSaved()
             }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
+            catch (_: Exception) { recordImport(failed = true); mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
             finally { mutableState.update { it.copy(installing = false) } }
         }
     }
@@ -188,8 +208,9 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                         updatedOfflineVoices = it.updatedOfflineVoices + voice.reference.id) }
                 }
                 refreshConfiguration()
+                recordImport()
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
+            catch (_: Exception) { recordImport(failed = true); mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
             finally { mutableState.update { it.copy(installing = false) } }
         }
     }
@@ -227,8 +248,10 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                 }
                 mutableState.update { it.copy(installed = voice.name) }
                 refreshConfiguration()
+                recordImport()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
+                recordImport(failed = true)
                 val message = when ((failure as? OfflineInstallException)?.error) {
                     OfflineInstallError.ChangedPackage -> R.string.tts_offline_changed
                     OfflineInstallError.InvalidArchive -> R.string.tts_package_invalid_archive

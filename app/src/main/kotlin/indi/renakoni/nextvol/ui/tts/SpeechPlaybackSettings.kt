@@ -59,6 +59,7 @@ data class SpeechPlaybackSettingsState(
     val engineCacheCapacity: Int = 10,
     val audio: SpeechAudioSettings = SpeechAudioSettings(),
     val backgroundMusicEnabled: Boolean = false,
+    val diagnosticLogging: Boolean = false,
 )
 
 @HiltViewModel
@@ -80,6 +81,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
                     engineCacheCapacity = settings.engineCacheCapacity,
                     audio = settings.audio,
                     backgroundMusicEnabled = music,
+                    diagnosticLogging = settings.diagnosticLogging,
                     autoAssignRole = settings.autoAssignRole, maxCacheVoiceNum = settings.maxCacheVoiceNum,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
@@ -106,6 +108,8 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun engineCacheCapacity(capacity: Int) = updateSettings { it.copy(engineCacheCapacity = capacity) }
 
     fun audioSettings(audio: SpeechAudioSettings) = updateSettings { it.copy(audio = audio) }
+
+    fun diagnosticLogging(enabled: Boolean) = updateSettings { it.copy(diagnosticLogging = enabled) }
 
     fun backgroundMusic(enabled: Boolean) {
         viewModelScope.launch {
@@ -160,7 +164,8 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
     onEngineCacheCapacity: (Int) -> Unit,
     onAudioSettings: (SpeechAudioSettings) -> Unit,
     onBackgroundMusic: (Boolean) -> Unit,
-    onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit) {
+    onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit,
+    onDiagnosticLogging: (Boolean) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingContext by rememberSaveable { mutableStateOf(false) }
     var contextPattern by rememberSaveable { mutableStateOf("") }
@@ -343,6 +348,8 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     trailingContent = { PlaybackSwitch(preferences.checkNetwork, preferences.networkCheckData::asynchronousSet) },
                     onClick = { preferences.networkCheckData.asynchronousSet(!preferences.checkNetwork) })
             }
+            item { SpeechTextSwitch(R.drawable.bug_report_24px, R.string.tts_diagnostic_logging,
+                R.string.tts_diagnostic_logging_description, state.diagnosticLogging, onDiagnosticLogging) }
         }
     }
     if (editing) AlertDialog(onDismissRequest = { editing = false }, title = { Text(stringResource(R.string.tts_voice_audition_text)) },

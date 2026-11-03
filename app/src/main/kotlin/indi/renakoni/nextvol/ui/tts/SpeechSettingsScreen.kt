@@ -83,6 +83,7 @@ fun SpeechSettingsScreen(
     onReplacements: (() -> Unit)? = null,
     onRoles: (() -> Unit)? = null,
     onVoicePool: (() -> Unit)? = null,
+    onDiagnostics: (() -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -161,6 +162,15 @@ fun SpeechSettingsScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-voice-pool-entry"),
                             painter = painterResource(R.drawable.headphones_24px),
                             title = stringResource(R.string.tts_pool_title),
+                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            onClick = open,
+                        )
+                    }
+                    onDiagnostics?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-diagnostics-entry"),
+                            painter = painterResource(R.drawable.article_24px),
+                            title = stringResource(R.string.tts_diagnostics),
                             trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                             onClick = open,
                         )

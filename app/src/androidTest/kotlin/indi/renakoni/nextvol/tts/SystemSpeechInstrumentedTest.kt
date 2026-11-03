@@ -13,6 +13,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import indi.renakoni.nextvol.reader.ReaderLayoutTestActivity
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
+import indi.renakoni.nextvol.data.logging.LoggerRepository
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +43,7 @@ class SystemSpeechInstrumentedTest {
         val stored = data.stringUserData("tts.settings")
         val original = withContext(Dispatchers.IO) { stored.get() }
         val activity = ActivityScenario.launch(ReaderLayoutTestActivity::class.java)
-        val commands = ReadAloudController(context)
+        val commands = ReadAloudController(context, LoggerRepository(context))
         val audio = context.getSystemService(AudioManager::class.java)
         val competingFocus = AudioManager.OnAudioFocusChangeListener { }
         val activities = context.getSystemService(ActivityManager::class.java)

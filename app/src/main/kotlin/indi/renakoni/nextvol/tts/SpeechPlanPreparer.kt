@@ -1,5 +1,7 @@
 package indi.renakoni.nextvol.tts
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.execution.ExecutionAuthority
 import hnovel.execution.ExecutionLimits
 import hnovel.execution.ExecutionResult
@@ -19,13 +21,15 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
+import indi.renakoni.nextvol.data.logging.LoggerRepository
 
 /** Android ICU ignores CharSequence checks; the existing isolated worker enforces a hard deadline. */
 class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolatedExecutor,
     private val authority: ExecutionAuthority, private val voices: SpeechVoiceCatalog,
     private val pairs: SpeechVoicePoolRepository, private val recognizer: SpeechNameRecognizer,
     private val discovery: SpeechNewWordDiscovery, private val classifier: SpeechNameClassifier,
-    private val languages: SpeechLanguageDetection) {
+    private val languages: SpeechLanguageDetection, private val logger: LoggerRepository,
+    @ApplicationContext private val appContext: Context) {
     private var discoveryKey: String? = null
     private var discoverySession: SpeechNewWordSession? = null
 
@@ -35,14 +39,20 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
         maxInputLength: Int = Int.MAX_VALUE): SpeechPlan = withRegexWorker { replace ->
         withContext(Dispatchers.Default) {
             val task = currentCoroutineContext()
+            val trace = if (logger.speechDebugEnabled)
+                SpeechPlanTrace(logger::recordSpeech, appContext::getString,
+                    { logger.speechDebugEnabled }, settings.roleRules) else null
             val preview = chapter.bookId.isEmpty()
             val pairRevision = pairs.revisions.value
             val saved = if (preview) mutableListOf() else pairs.pairs(chapter.bookId).toMutableList()
-            val catalog = voices.resolve(settings, saved)
+            val catalog = voices.resolve(settings, saved, includeParameters = trace != null)
             val previewPool = if (preview) SpeechVoicePool() else null
-            suspend fun existing(name: String, groups: List<String>): SpeechVoicePair? =
-                if (previewPool != null) previewPool.existing(chapter.bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum)
-                else pairs.existing(chapter.bookId, name, groups, saved, pairRevision, catalog, settings.maxCacheVoiceNum)
+            suspend fun existing(name: String, groups: List<String>): SpeechVoicePair? {
+                val pair = if (previewPool != null) previewPool.existing(chapter.bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum)
+                    else pairs.existing(chapter.bookId, name, groups, saved, pairRevision, catalog, settings.maxCacheVoiceNum)
+                pair?.let { trace?.pairing(it, existing = true) }
+                return pair
+            }
             val key = chapter.bookId + "\u0000" + chapter.id + "\u0000" + settings.textProcessingKey(maxInputLength)
             if (!preview && (discoveryKey != key || !settings.autoAssignRole || settings.text.nameDiscoveryAlgorithm != 100)) {
                 reset()
@@ -68,12 +78,14 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
                     else pairs.assign(chapter.bookId, name, group, settings.voiceItems, catalog,
                         settings.maxCacheVoiceNum, chapter.bookTitle)
                     pair?.also { value ->
+                        trace?.pairing(value, existing = false)
                         saved.removeAll { it.id == value.id }
                         saved += value
                     }
                 }, checkCancelled = { task.ensureActive() }) else null
             prepareSpeechPlan(chapter, settings, replace, context, maxInputLength, catalog, characters,
-                detectLanguage = { text, candidates -> languages.detect(text, settings.text.languageDetector, candidates) }) { task.ensureActive() }
+                detectLanguage = { text, candidates -> languages.detect(text, settings.text.languageDetector, candidates) },
+                trace = trace) { task.ensureActive() }
         }
     }
 

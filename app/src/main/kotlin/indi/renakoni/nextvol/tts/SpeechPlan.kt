@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.tts
 
 import kotlinx.serialization.json.Json
+import indi.renakoni.nextvol.R
 import java.util.Locale
 
 /** One chapter's synthesis input and original UTF-16 ranges, shared by every session consumer. */
@@ -14,6 +15,7 @@ class SpeechPlan internal constructor(
     val nextContext: SpeechContext = context,
     private val maxInputLength: Int = Int.MAX_VALUE,
     private val locale: Locale = Locale.getDefault(),
+    val logId: Long? = null,
 ) {
     private val replacementKey = synthesis.textProcessingKey(maxInputLength, locale)
     internal fun matches(chapter: SpeechChapter, synthesis: SpeechSettings, context: SpeechContext, maxInputLength: Int) =
@@ -52,22 +54,28 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     voices: Map<String, SpeechResolvedVoice> = emptyMap(),
     characters: SpeechCharacterAssignment? = null,
     detectLanguage: (suspend (String, Set<String>) -> String?)? = null,
+    trace: SpeechPlanTrace? = null,
     checkCancelled: () -> Unit): SpeechPlan {
     checkCancelled()
+    trace?.input(chapter)
     if (chapter.text.length > 1_000_000) throw SpeechException(SpeechError.UnsupportedContent)
     val settings = synthesis.text
     val locale = Locale.getDefault()
     val original = speechTrim(SpeechMappedText.original(chapter.text))
     // The original service filters before normalization, replacement and emoji expansion.
     if (settings.filterUnspoken && speechIsUnspoken(original.text))
-        return SpeechPlan(chapter, synthesis, emptyList(), "", emptyList(), context = context, maxInputLength = maxInputLength, locale = locale)
+        return SpeechPlan(chapter, synthesis, emptyList(), "", emptyList(), context = context,
+            maxInputLength = maxInputLength, locale = locale, logId = trace?.id)
     // R6.i.b requires both selections before parsing any dialogue; i.g only requires narration.
     if (synthesis.hasVoiceRouting) {
         if (synthesis.selectedNarrators.isEmpty()) throw SpeechException(SpeechError.MissingNarrationVoice)
         if (settings.dialogue && synthesis.dialogueVoices.isEmpty()) throw SpeechException(SpeechError.MissingDialogueVoice)
     }
-    val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, checkCancelled)
-    val structured = replacements.apply(speechNormalize(original, checkCancelled), wholeText = true)
+    val replacements = SpeechReplacements(synthesis.replacements, replaceRegex, trace, checkCancelled)
+    val normalized = speechNormalize(original, checkCancelled)
+    trace?.text(R.string.tts_log_normalized, normalized.text)
+    val structured = replacements.apply(normalized, wholeText = true)
+    trace?.text(R.string.tts_log_full_replacement, structured.text)
     val routing = SpeechVoiceRouting(synthesis, chapter.bookId, voices, context, maxInputLength)
     val languageRouting = SpeechLanguageRouting(synthesis.roleRules, settings.detectLanguage, detectLanguage)
     val roles = SpeechRoleRules(synthesis.roleRules, synthesis.roleContextPattern ?: "__ROLE__", replaceRegex, checkCancelled)
@@ -103,6 +111,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     }
     for (part in structure.parts) {
         checkCancelled()
+        trace?.structure(part)
         if (part.controlMark) {
             marks.accept(part.content.text)?.let { pause(it, part.content) }
             continue
@@ -142,6 +151,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
                                 audioParameters = marks.parameters)
                             previousSpoken = segments.last()
                             mappings += mapped
+                            trace?.segment(segments.lastIndex, segments.last())
                         }
                     }
                 }
@@ -150,7 +160,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     }
     return SpeechPlan(chapter, synthesis, segments, structured.text, mappings, context,
         if (synthesis.hasVoiceRouting) structure.nextContext.copy(narrationIndex = routing.narrationIndex,
-            dialogueIndex = routing.dialogueIndex) else structure.nextContext, maxInputLength, locale)
+            dialogueIndex = routing.dialogueIndex) else structure.nextContext, maxInputLength, locale, trace?.id)
 }
 
 internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
@@ -162,7 +172,7 @@ internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Local
 
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
-    val selected = validated().let { it.copy(playbackSpeed = 1f, allowMultipleVoices = false,
+    val selected = validated().let { it.copy(playbackSpeed = 1f, allowMultipleVoices = false, diagnosticLogging = false,
         text = it.text.copy(filterLanguage = false)) }
     if (selected.hasVoiceRouting) return selected
     return when {

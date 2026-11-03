@@ -29,9 +29,14 @@ internal fun offlineAudioParameters(voice: OfflineVoiceConfig, settings: SpeechS
 }
 
 internal fun httpAudioParameters(source: HttpSpeechDefinition, settings: SpeechSettings): SpeechAudioParameters {
+    val voice = httpVoiceParameters(source)
+    // MultiTTS Speaker parameters are post-processing; request bindings carry the separate global values.
+    return voice.copy(pitch = voice.pitch * (settings.pitch ?: 1f))
+}
+
+internal fun httpVoiceParameters(source: HttpSpeechDefinition): SpeechAudioParameters {
     val voice = (if (source.usesMultiTts) (source.raw["multiTts"] as? JsonObject)?.get("voice") as? JsonObject else null)
         ?: source.raw["nextvolVoice"] as? JsonObject
     fun number(name: String) = (voice?.get(name) as? JsonPrimitive)?.floatOrNull ?: 1f
-    // MultiTTS Speaker parameters are post-processing; request bindings carry the separate global values.
-    return SpeechAudioParameters(number("speed"), number("pitch") * (settings.pitch ?: 1f), number("volume"))
+    return SpeechAudioParameters(number("speed"), number("pitch"), number("volume"))
 }

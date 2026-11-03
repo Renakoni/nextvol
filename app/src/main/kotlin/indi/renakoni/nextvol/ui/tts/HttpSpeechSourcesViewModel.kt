@@ -12,6 +12,10 @@ import hnovel.network.sourceOrigin
 import hnovel.speech.previewHttpSpeech
 import hnovel.speech.HttpSpeechDefinition
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.logging.LoggerRepository
+import indi.renakoni.nextvol.data.logging.SpeechLogRecord
+import indi.renakoni.nextvol.data.logging.SpeechLogStage
+import indi.renakoni.nextvol.data.logging.SpeechLogEvent
 import indi.renakoni.nextvol.tts.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +48,7 @@ data class HttpSpeechSourcesState(
 class HttpSpeechSourcesViewModel @Inject constructor(
     private val repository: HttpSpeechRepository,
     private val settings: SpeechSettingsRepository,
+    private val logger: LoggerRepository,
     val controller: ReadAloudController,
     @ApplicationContext private val context: Context,
     private val catalog: SpeechVoiceCatalog,
@@ -58,6 +63,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         viewModelScope.launch { repository.changes.collect { refresh() } }
         viewModelScope.launch { settings.changes.collect { value ->
             selectedSettings = value
+            logger.speechDebugEnabled = value.diagnosticLogging
             mutableState.update { it.copy(selected = value.httpSource, offlineSelected = value.offlineVoice != null) }
         } }
         viewModelScope.launch { repository.deniedOrigins.collect { value -> mutableState.update { it.copy(deniedOrigins = value) } } }
@@ -99,7 +105,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }
 
-    fun preview(uri: Uri, onPackage: (Uri) -> Unit) = work(R.string.tts_import_failed) {
+    fun preview(uri: Uri, onPackage: (Uri) -> Unit) = work(R.string.tts_import_failed, SpeechLogStage.Import) {
         packageUri = null
         val preview = withContext(Dispatchers.IO) {
             val resolver = context.contentResolver
@@ -129,6 +135,8 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         }
         val sources = preview.sources.map { SavedHttpSpeechSource(it, SourceOriginCandidates.speech(it.raw).map { site -> site.origin }.distinct()) }
         mutableState.update { it.copy(pending = sources, invalid = preview.issues.size) }
+        if (preview.issues.isNotEmpty()) logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Import,
+            SpeechLogEvent.Failed, SpeechError.UnsupportedContent))
     }
 
     fun dismissPreview() { if (!state.value.busy) mutableState.update { it.copy(pending = null, invalid = 0) } }
@@ -142,7 +150,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         mutableState.update { it.copy(pending = pending, invalid = 0, error = null) }
     }
 
-    fun confirmImport() = work {
+    fun confirmImport() = work(stage = SpeechLogStage.Import) {
         val sources = state.value.pending ?: return@work
         val affected = state.value.sources.filter { old -> sources.any { it.definition.id == old.definition.id ||
             it.packageIdentity() != null && it.packageIdentity() == old.packageIdentity() } }.map { it.definition.id }.toSet()
@@ -157,6 +165,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
             if (state.value.selected in affected) settings.update { if (it.httpSource in affected) it.copy(httpRevision = java.util.UUID.randomUUID().toString()) else it }
         }
         mutableState.update { it.copy(pending = null, invalid = 0) }
+        logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Import, SpeechLogEvent.Completed))
     }
 
     fun delete(source: SavedHttpSpeechSource) = delete(listOf(source))
@@ -229,13 +238,16 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         mutableState.update { it.copy(avatars = avatars) }
     }
 
-    private fun work(error: Int = R.string.tts_error_storage, action: suspend () -> Unit) {
+    private fun work(error: Int = R.string.tts_error_storage, stage: SpeechLogStage = SpeechLogStage.Configuration, action: suspend () -> Unit) {
         if (state.value.busy) return
         mutableState.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
             try { action() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { mutableState.update { it.copy(error = error, loaded = true) } }
+            catch (failure: Exception) {
+                logger.recordSpeech(SpeechLogRecord(stage, SpeechLogEvent.Failed, failure.speechError(SpeechError.Storage)))
+                mutableState.update { it.copy(error = error, loaded = true) }
+            }
             finally { mutableState.update { it.copy(busy = false) } }
         }
     }

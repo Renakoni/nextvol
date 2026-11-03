@@ -84,7 +84,8 @@ class ReaderPositionInstrumentedTest {
     private lateinit var settings: SettingState
 
     @Before fun prepare() {
-        database = Room.inMemoryDatabaseBuilder(context, NextVolDatabase::class.java).build()
+        database = Room.inMemoryDatabaseBuilder(context, NextVolDatabase::class.java)
+            .setQueryCoroutineContext(scope.coroutineContext + Dispatchers.IO).build()
         settings = SettingState(UserDataRepository(database.userDataDao()), scope)
         runBlocking {
             settings.isUsingFlipPageUserData.set(true)
@@ -95,8 +96,8 @@ class ReaderPositionInstrumentedTest {
 
     @After fun close() {
         ReaderLayoutTestActivity.installReader = null
-        compose.activityRule.scenario.onActivity { it.viewModelStore.clear() }
-        scope.cancel()
+        compose.activityRule.scenario.close()
+        runBlocking { scope.coroutineContext.job.cancelAndJoin() }
         database.close()
     }
 

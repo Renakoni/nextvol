@@ -1,6 +1,9 @@
 package indi.renakoni.nextvol.tts
 
-import android.util.Log
+import indi.renakoni.nextvol.data.logging.SpeechLogEvent
+import indi.renakoni.nextvol.data.logging.SpeechLogRecord
+import indi.renakoni.nextvol.data.logging.SpeechLogStage
+import indi.renakoni.nextvol.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -55,6 +58,8 @@ class ReadAloudSession(
         val task = currentCoroutineContext()
         prepareSpeechPlan(chapter, synthesis, context = context, maxInputLength = limit) { task.ensureActive() }
     },
+    private val diagnostics: (SpeechLogRecord) -> Unit = {},
+    private val detailedLogging: () -> Boolean = { false },
 ) {
     private val mutableState = MutableStateFlow(ReadAloudState())
     val state = mutableState.asStateFlow()
@@ -98,6 +103,7 @@ class ReadAloudSession(
             val directory = File(cacheRoot, UUID.randomUUID().toString())
             val provider = synthesizer()
             engine = provider
+            var openingVoice: SpeechVoiceRef? = null
             try {
                 withContext(ioDispatcher) {
                     // The previous session has finished; UUID directories now belong to dead sessions.
@@ -116,6 +122,7 @@ class ReadAloudSession(
                 playback.setSpeed(selected.playbackSpeed)
                 val synthesis = if (request.isPreview) selected.forVoice(selected.voiceReference()) else selected.synthesisSettings()
                 val opened = synthesis.takeUnless { it.hasVoiceRouting }
+                openingVoice = opened?.voiceReference()
                 val voice = opened?.let { provider.open(it) }.orEmpty()
                 val limit = if (opened == null) Int.MAX_VALUE else provider.maxInputLength
                 currentCoroutineContext().ensureActive()
@@ -131,19 +138,24 @@ class ReadAloudSession(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                publish(token) { it.copy(phase = SpeechPhase.Failed, error = failure.speechError(SpeechError.SynthesisFailed)) }
+                val error = failure.speechError(SpeechError.SynthesisFailed)
+                val failedVoice = currentClip?.segment?.selectedVoice?.reference ?: state.value.failedVoice ?: openingVoice
+                diagnostics(SpeechLogRecord(if (error == SpeechError.Playback) SpeechLogStage.Playback else SpeechLogStage.Initialization,
+                    SpeechLogEvent.Failed, error, failedVoice, subject = currentClip?.segment?.roleMatch?.ruleName,
+                    processId = currentPlan?.logId, segment = currentClip?.index?.plus(1)))
+                publish(token) { it.copy(phase = SpeechPhase.Failed, error = error, failedVoice = failedVoice) }
             } finally {
                 if (engine === provider) engine = null
                 val reportFailure = currentCoroutineContext().isActive
                 withContext(NonCancellable) {
                     try { withContext(ioDispatcher) { provider.close() } }
-                    catch (failure: Exception) { cleanupFailed(token, "Synthesizer close", failure, reportFailure) }
+                    catch (failure: Exception) { cleanupFailed(token, SpeechLogStage.Initialization, failure, reportFailure) }
                     finally {
                         try {
                             withContext(ioDispatcher) {
                                 if (!directory.deleteRecursively()) throw SpeechException(SpeechError.Storage)
                             }
-                        } catch (failure: Exception) { cleanupFailed(token, "Audio cache cleanup", failure, reportFailure) }
+                        } catch (failure: Exception) { cleanupFailed(token, SpeechLogStage.Configuration, failure, reportFailure) }
                     }
                 }
             }
@@ -218,11 +230,13 @@ class ReadAloudSession(
 
     private fun cancelEngine() {
         try { engine?.cancel() }
-        catch (failure: Exception) { Log.w("ReadAloud", "Synthesizer cancel failed: ${failure.javaClass.simpleName}") }
+        catch (failure: Exception) { diagnostics(SpeechLogRecord(SpeechLogStage.Request, SpeechLogEvent.Failed,
+            failure.speechError(SpeechError.SynthesisFailed))) }
     }
 
-    private fun cleanupFailed(token: Long, operation: String, failure: Exception, reportFailure: Boolean) {
-        Log.w("ReadAloud", "$operation failed: ${failure.javaClass.simpleName}")
+    private fun cleanupFailed(token: Long, stage: SpeechLogStage, failure: Exception, reportFailure: Boolean) {
+        diagnostics(SpeechLogRecord(stage, SpeechLogEvent.Failed,
+            failure.speechError(if (stage == SpeechLogStage.Configuration) SpeechError.Storage else SpeechError.SynthesisFailed)))
         if (reportFailure) publish(token) {
             if (it.error == null) it.copy(phase = SpeechPhase.Failed, error = failure.speechError(SpeechError.SynthesisFailed)) else it
         }
@@ -290,6 +304,7 @@ class ReadAloudSession(
             var chapter: SpeechChapter? = null
             var plan: SpeechPlan? = null
             var position = 0
+            var stage = SpeechLogStage.Analysis
             // A failed chapter load has no fingerprint yet; retain its input seed for another retry.
             var context = saved?.takeIf { !request.isPreview && it.bookId == request.bookId &&
                 it.chapterId == request.chapterId && it.replacementKey == processingKey }
@@ -300,6 +315,7 @@ class ReadAloudSession(
                     chapter = null
                     plan = null
                     position = 0
+                    stage = SpeechLogStage.Analysis
                     chapter = if (target.isPreview) SpeechChapter("", "", "", "", target.previewText.orEmpty())
                         else loadChapter(target)
                     val loaded = chapter
@@ -326,6 +342,7 @@ class ReadAloudSession(
                                 delivered = true
                                 continue
                             }
+                            stage = SpeechLogStage.Initialization
                             val selected = segment.selectedVoice
                             selected?.error?.let { throw SpeechException(it) }
                             val parameters = selected?.settings ?: synthesis
@@ -334,6 +351,12 @@ class ReadAloudSession(
                                 voiceLabel = provider.open(parameters)
                                 activeSettings = parameters
                             }
+                            stage = SpeechLogStage.Request
+                            if (detailedLogging()) diagnostics(SpeechLogRecord(stage, SpeechLogEvent.Started,
+                                voice = selected?.reference?.copy(label = voiceLabel),
+                                processId = plan.logId, segment = index + 1,
+                                details = speechParameterDetails(parameters, selected?.voiceParameters, provider.audioParameters * segment.audioParameters) +
+                                    (R.string.tts_log_final_text to segment.text)))
                             val activePlan = plan
                             val timings = provider.synthesize(segment, file) { audio ->
                                 queue.send(Step.Ready(SpeechClip(activePlan, index, file, voiceLabel = voiceLabel, stream = audio)))
@@ -355,6 +378,13 @@ class ReadAloudSession(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
+                val error = failure.speechError(SpeechError.SynthesisFailed)
+                val failed = plan?.segments?.getOrNull(position)
+                diagnostics(SpeechLogRecord(if (error == SpeechError.AudioProcessing || error == SpeechError.InvalidAudio)
+                    SpeechLogStage.Audio else stage, SpeechLogEvent.Failed, error, failed?.selectedVoice?.reference,
+                    subject = (failure as? SpeechReplacementException)?.failure?.ruleName
+                        ?: (failure as? SpeechRoleException)?.failure?.ruleName ?: failed?.roleMatch?.ruleName,
+                    processId = plan?.logId, segment = failed?.let { position + 1 }))
                 queue.send(Step.Failed(failure.speechError(SpeechError.SynthesisFailed), target, chapter, plan, position, context,
                     (failure as? SpeechReplacementException)?.failure, (failure as? SpeechRoleException)?.failure))
             } finally { queue.close() }
@@ -419,6 +449,8 @@ class ReadAloudSession(
                         var audibleEnd = sentences.firstOrNull()?.end ?: clip.segment.text.length
                         var audibleAnchor = audibleStart
                         try {
+                            if (detailedLogging()) diagnostics(SpeechLogRecord(SpeechLogStage.Playback, SpeechLogEvent.Started,
+                                voice = clip.segment.selectedVoice?.reference, processId = clip.plan.logId, segment = clip.index + 1))
                             playback.play(clip, wantsPlay, onRange = { range ->
                                 if (token == generation && currentClip === clip && !request.isPreview && !silent) {
                                     val sentence = sentences.firstOrNull { range.start in it.start until it.end }

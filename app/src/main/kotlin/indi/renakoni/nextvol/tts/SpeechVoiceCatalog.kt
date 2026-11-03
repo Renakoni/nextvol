@@ -55,7 +55,8 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
 
     internal suspend fun packageReferences() = speechPackageReferences(http.sources(), offline.voices())
 
-    suspend fun resolve(settings: SpeechSettings, savedPairs: List<SpeechVoicePair> = emptyList()): Map<String, SpeechResolvedVoice> {
+    suspend fun resolve(settings: SpeechSettings, savedPairs: List<SpeechVoicePair> = emptyList(),
+        includeParameters: Boolean = false): Map<String, SpeechResolvedVoice> {
         val online = http.sources().associateBy { it.definition.id }
         val installed = offline.voices().associateBy { it.reference.id }
         val external = speechPackageReferences(online.values.toList(), installed.values.toList())
@@ -73,7 +74,9 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
                         revision = voice?.let { speechDigest(Json.encodeToString(it.resourceReference) +
                             Json.encodeToString(configuration) + it.enabled + offline.engineConfiguration(it)?.enabled) }.orEmpty(),
                         error = if (voice == null || !voice.enabled || offline.engineConfiguration(voice)?.enabled == false)
-                            SpeechError.OfflineUnavailable else null)
+                            SpeechError.OfflineUnavailable else null,
+                        voiceParameters = if (includeParameters) configuration?.let {
+                            SpeechAudioParameters(it.speed, it.pitch, it.volume) } else null)
                 }
                 reference.httpSource != null -> {
                     val voice = online[reference.httpSource]
@@ -84,7 +87,8 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
                         SPEECH_HTTP_INPUT_LIMIT, revision = revision,
                         error = when { voice == null || !voice.available -> SpeechError.HttpSourceUnavailable
                             !voice.isConfigured -> SpeechError.HttpLogin
-                            else -> null })
+                            else -> null },
+                        voiceParameters = if (includeParameters) voice?.let { httpVoiceParameters(it.definition) } else null)
                 }
                 else -> SpeechResolvedVoice(systemLabel(reference), settings.forVoice(reference), TextToSpeech.getMaxSpeechInputLength())
             }
