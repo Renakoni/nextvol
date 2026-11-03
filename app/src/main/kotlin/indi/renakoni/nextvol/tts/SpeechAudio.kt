@@ -10,7 +10,7 @@ interface SpeechSynthesizer : AutoCloseable {
     val audioParameters: SpeechAudioParameters get() = SpeechAudioParameters()
     val supportsStreaming: Boolean get() = false
     suspend fun open(settings: SpeechSettings): String
-    /** Returns only after a complete, validated file is committed to [output]. */
+    /** Returns after complete source audio is committed to [output]; the common decoder processes it next. */
     suspend fun synthesize(text: String, output: File): List<SpeechTiming>
     /** File-only engines retain their existing path. The processing wrapper publishes PCM when ready. */
     suspend fun synthesize(text: String, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> =
@@ -19,6 +19,8 @@ interface SpeechSynthesizer : AutoCloseable {
     suspend fun synthesizeEncoded(text: String, receive: (ByteArray, Int, Int) -> Unit) {
         error("This engine uses complete audio files")
     }
+    /** Report the result after the common decoder and PCM processing have completed. */
+    fun audioProcessed(error: SpeechError?) = Unit
     /** Signal cancellation on the session thread without blocking or releasing in-flight resources. */
     fun cancel()
     /** May block on teardown. Call off the main thread after synthesis has stopped. */

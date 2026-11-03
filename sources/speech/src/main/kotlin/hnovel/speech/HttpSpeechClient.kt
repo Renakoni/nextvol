@@ -83,11 +83,13 @@ class HttpSpeechClient(
         if (text.isBlank() || text.length > 65536) throw HttpSpeechException(HttpSpeechError.InvalidSource)
         if (source.text("loginCheckJs").isNotBlank()) throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
         try {
-            audioSink = receive
+            audioSink = receive?.let { sink ->
+                { bytes, offset, count -> authority.authorized(identity) { sink(bytes, offset, count) } }
+            }
             withTimeout(60_000) {
                 val speed = source.scriptSpeed(rate)
-                val audio = edge?.synthesize(text, rate ?: speed / 10f, volume, receive)
-                    ?: microsoft?.synthesize(text, rate ?: speed / 10f, volume, receive != null) ?: request(text, speed, volume)
+                val audio = edge?.synthesize(text, rate ?: speed / 10f, volume, audioSink)
+                    ?: microsoft?.synthesize(text, rate ?: speed / 10f, volume) ?: request(text, speed, volume)
                 currentCoroutineContext().ensureActive()
                 if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
                 audio
@@ -200,12 +202,12 @@ class HttpSpeechClient(
         currentCoroutineContext().ensureActive()
         if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
         if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
-        return response.body.also { if (sink == null) checkSpeechAudioContainer(it) }
+        return response.body
     }
 
     private fun inlineAudio(value: String): ByteArray {
         val bytes = decodeSpeechDataUri(value)
-        val sink = audioSink ?: return bytes.also(::checkSpeechAudioContainer)
+        val sink = audioSink ?: return bytes
         sink(bytes, 0, bytes.size)
         return byteArrayOf()
     }
@@ -222,15 +224,6 @@ class HttpSpeechClient(
 }
 
 internal const val MAX_AUDIO_BYTES = 2 * 1024 * 1024
-
-/** Reject text/error payloads. The platform must still validate the audio track before committing a file. */
-internal fun checkSpeechAudioContainer(bytes: ByteArray) {
-    fun starts(value: String, offset: Int = 0) = bytes.size >= offset + value.length &&
-        value.indices.all { bytes[offset + it].toInt() and 255 == value[it].code }
-    val sync = bytes.size >= 4 && bytes[0].toInt() and 255 == 255 && bytes[1].toInt() and 224 == 224
-    if (bytes.size < 12 || !(starts("RIFF") && starts("WAVE", 8) || starts("ID3") || sync ||
-            starts("OggS") || starts("fLaC") || starts("ftyp", 4))) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
-}
 
 /** Audio data may exceed the ordinary URL limit. Decode it here without enlarging book-source URLs. */
 internal fun decodeSpeechDataUri(value: String): ByteArray {

@@ -19,11 +19,13 @@ import androidx.media3.extractor.TrackOutput
 import kotlinx.coroutines.runBlocking
 
 /** The service's existing ExoPlayer consumes the processed PCM; there is no second audio output. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal fun streamingSpeechMediaSource(item: MediaItem, stream: SpeechStream): ProgressiveMediaSource =
     ProgressiveMediaSource.Factory({ SpeechPcmDataSource(stream) }, ExtractorsFactory { arrayOf(SpeechPcmExtractor(stream.sampleRate)) })
         .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
         .createMediaSource(item)
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private class SpeechPcmDataSource(private val stream: SpeechStream) : BaseDataSource(false) {
     private var uri: Uri? = null
     private var block = byteArrayOf()
@@ -60,6 +62,7 @@ private class SpeechPcmDataSource(private val stream: SpeechStream) : BaseDataSo
     }
 }
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private class SpeechPcmExtractor(private val sampleRate: Int) : Extractor {
     private lateinit var track: TrackOutput
     private var bytes = 0L

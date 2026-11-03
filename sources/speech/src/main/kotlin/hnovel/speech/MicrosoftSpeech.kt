@@ -84,7 +84,7 @@ internal class MicrosoftSpeechClient(
     private class Token(val region: String, val authorization: String, val receivedAt: Long)
     private var token: Token? = null
 
-    suspend fun synthesize(text: String, rate: Float, volume: Float = 1f, streaming: Boolean = false): ByteArray {
+    suspend fun synthesize(text: String, rate: Float, volume: Float = 1f): ByteArray {
         var active = token?.takeIf { clock() - it.receivedAt in 0 until 480_000 } ?: authenticate().also { token = it }
         var response = audio(active, text, rate, volume)
         // Expired credentials get one refresh. Do not retry rate limits or arbitrary service errors.
@@ -95,7 +95,7 @@ internal class MicrosoftSpeechClient(
         }
         if (response.status == 401) token = null
         if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
-        return response.body.also { if (!streaming) checkSpeechAudioContainer(it) }
+        return response.body
     }
 
     private suspend fun authenticate(): Token {

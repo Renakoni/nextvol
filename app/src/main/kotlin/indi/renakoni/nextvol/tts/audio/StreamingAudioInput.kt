@@ -1,12 +1,12 @@
 package indi.renakoni.nextvol.tts.audio
 
 import android.media.MediaDataSource
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
-import kotlin.coroutines.CoroutineContext
 
 /** MultiTTS I6.b's seekable stream input. The broker owns the encoded-response byte limit. */
-internal class StreamingAudioInput(private val context: CoroutineContext) : MediaDataSource() {
+internal class StreamingAudioInput(private val job: Job) : MediaDataSource() {
     // The response byte limit bounds incoming + cached chunks. Playback pauses must not hold
     // a network callback open until its request timeout expires.
     private val incoming = Channel<ByteArray>(Channel.UNLIMITED)
@@ -16,8 +16,8 @@ internal class StreamingAudioInput(private val context: CoroutineContext) : Medi
     @Volatile var failure: Throwable? = null
         private set
 
-    fun receive(bytes: ByteArray, offset: Int, count: Int) = runBlocking(context) {
-        incoming.send(bytes.copyOfRange(offset, offset + count))
+    fun receive(bytes: ByteArray, offset: Int, count: Int) {
+        incoming.trySend(bytes.copyOfRange(offset, offset + count)).getOrThrow()
     }
 
     fun finish(error: Throwable? = null) {
@@ -30,7 +30,7 @@ internal class StreamingAudioInput(private val context: CoroutineContext) : Medi
     override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
         if (size == 0) return 0
         while (!ended && length < position + size) {
-            val next = runBlocking(context) { incoming.receiveCatching() }
+            val next = runBlocking(job) { incoming.receiveCatching() }
             next.exceptionOrNull()?.let { throw it }
             val bytes = next.getOrNull()
             if (bytes == null) ended = true else { chunks += bytes; length += bytes.size }

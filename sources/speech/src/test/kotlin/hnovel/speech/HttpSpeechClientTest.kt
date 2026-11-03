@@ -7,7 +7,6 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import okhttp3.mockwebserver.SocketPolicy
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -77,10 +76,6 @@ class HttpSpeechClientTest {
                     server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/audio"))
                     server.enqueue(MockResponse().setBody(okio.Buffer().write(audio)))
                     assertArrayEquals(audio, source.synthesize(text))
-                    server.enqueue(MockResponse().setHeader("Content-Type", "audio/mpeg").setBody("{\"err_no\":502,\"token\":\"private\"}"))
-                    val invalid = try { source.synthesize(text); error("Expected invalid audio") } catch (e: HttpSpeechException) { e }
-                    assertEquals(HttpSpeechError.InvalidAudio, invalid.error)
-                    assertFalse(invalid.toString().contains("private"))
                     server.enqueue(MockResponse().setResponseCode(503).setBody("private response"))
                     val failed = try { source.synthesize(text); error("Expected network failure") } catch (e: HttpSpeechException) { e }
                     assertEquals(HttpSpeechError.Network, failed.error)
@@ -94,44 +89,24 @@ class HttpSpeechClientTest {
         }
     }
 
-    @Test fun cancellationAbortsThePendingDownloadAndDoesNotReturnAudio() = runBlocking {
+    @Test(timeout = 10000) fun retirementStopsFurtherStreamDeliveryBeforeNetworkTeardown() = runBlocking {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+            server.enqueue(MockResponse().setBody(okio.Buffer().write(audio, 0, 16 * 1024))
+                .throttleBody(8192, 1, TimeUnit.SECONDS))
             val base = server.url("/").toString()
             SourceBroker(directory.root.toPath()).use { owner ->
                 client(owner, base, listOf(NetworkGrant(base, true))).use { source ->
-                    val work = async(Dispatchers.IO) { source.synthesize(text) }
-                    assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(5, TimeUnit.SECONDS) })
-                    source.cancel()
-                    work.cancel()
-                    withTimeout(3000) { work.join() }
-                    assertTrue(work.isCancelled)
+                    var delivered = 0
+                    try {
+                        source.synthesize(text) { _, _, _ ->
+                            delivered++
+                            source.cancel()
+                        }
+                        fail("Retired synthesis returned audio")
+                    } catch (_: CancellationException) { }
+                    assertEquals(1, delivered)
                 }
-            }
-        }
-    }
-
-    @Test fun retirementRejectsLateResultsBeforeNetworkTeardown() = runBlocking {
-        val reached = CompletableDeferred<Unit>()
-        val release = CompletableDeferred<Unit>()
-        val authority = ExecutionAuthority()
-        val source = previewHttpSpeech("""{"name":"Voice","url":"https://example.org/voice"}""").sources.single()
-        SourceBroker(directory.root.toPath()).use { owner ->
-            HttpSpeechClient(source, owner, emptyList(), authority) { identity, _, _, _ ->
-                reached.complete(Unit)
-                withContext(NonCancellable) { release.await() }
-                assertFalse(authority.accepts(identity))
-                ExecutionResult.Success("unused retired result")
-            }.use { client ->
-                val work = async { client.synthesize(text) }
-                try {
-                    reached.await()
-                    client.cancel()
-                    release.complete(Unit)
-                    try { work.await(); fail("Retired synthesis returned audio") }
-                    catch (_: CancellationException) { }
-                } finally { release.complete(Unit); work.cancelAndJoin() }
             }
         }
     }

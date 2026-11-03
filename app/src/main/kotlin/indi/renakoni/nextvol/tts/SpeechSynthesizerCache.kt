@@ -129,6 +129,8 @@ internal class CachedSpeechSynthesizer(
         entry.accessed = now()
     }
 
+    override fun audioProcessed(error: SpeechError?) { active?.audioProcessed(error) }
+
     override fun cancel() {
         cancelled.set(true)
         active?.cancel()

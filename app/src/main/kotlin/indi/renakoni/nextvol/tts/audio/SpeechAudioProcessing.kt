@@ -44,10 +44,10 @@ internal class ProcessedSpeechAudio(
     }
 }
 
-/** Decode supported speech containers once, process bounded PCM blocks, then commit a complete WAV. */
+/** Decode once, then send processed PCM to playback or commit a complete WAV. */
 internal suspend fun processSpeechAudio(
     input: File,
-    output: File,
+    output: File?,
     processor: Int = 200,
     minimumSampleRate: Int = 16000,
     speed: Float = 1f,
@@ -58,13 +58,13 @@ internal suspend fun processSpeechAudio(
     inputSource: MediaDataSource? = null,
     onPcm: (suspend (Int, ByteArray) -> Unit)? = null,
 ): ProcessedSpeechAudio {
-    val partial = File(output.parentFile, output.name + ".part")
+    val partial = output?.let { File(it.parentFile, it.name + ".part") }
     var ownsPartial = false
     var committed = false
     try {
         return withContext(Dispatchers.IO) {
             val task = currentCoroutineContext()
-            require(!output.exists() && !partial.exists())
+            if (output != null) require(!output.exists() && !partial!!.exists())
             val extractor = MediaExtractor()
             var decoder: MediaCodec? = null
             var started = false
@@ -80,7 +80,7 @@ internal suspend fun processSpeechAudio(
                 task.ensureActive()
                 val bytes = ByteArray(samples.size * 2)
                 ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(samples)
-                checkNotNull(wave).append(bytes)
+                wave?.append(bytes)
                 if (bytes.isNotEmpty()) onPcm?.invoke(outputRate, bytes)
                 val count = checkNotNull(dsp).lastUncompressedFrames
                 if (count > 0) {
@@ -101,8 +101,10 @@ internal suspend fun processSpeechAudio(
                         if (intentionalPause) 1f else speed, if (intentionalPause) 1f else pitch,
                         if (intentionalPause) 1f else volume,
                         checkSilence && !intentionalPause)
-                    ownsPartial = true
-                    wave = SpeechWaveFile(partial, outputRate)
+                    if (partial != null) {
+                        ownsPartial = true
+                        wave = SpeechWaveFile(partial, outputRate)
+                    }
                 }
                 check(rate == sourceRate) { "Audio sample rate changed during the recording" }
                 val frameBytes = channels * speechPcmSampleBytes(encoding)
@@ -188,12 +190,15 @@ internal suspend fun processSpeechAudio(
                 }
                 val active = dsp ?: throw SpeechException(SpeechError.InvalidAudio)
                 write(active.finish())
-                checkNotNull(wave).finish()
+                if (afterSilence == 0L) throw SpeechException(SpeechError.InvalidAudio)
+                wave?.finish()
                 wave?.close()
                 wave = null
                 task.ensureActive()
-                if (!partial.renameTo(output)) throw SpeechException(SpeechError.Storage)
-                committed = true
+                if (partial != null) {
+                    if (!partial.renameTo(output)) throw SpeechException(SpeechError.Storage)
+                    committed = true
+                }
                 ProcessedSpeechAudio(outputRate, sourceRate, sourceFrames, anchors)
             } finally {
                 try { if (started) decoder?.stop() }
@@ -207,12 +212,12 @@ internal suspend fun processSpeechAudio(
             }
         }
     } catch (failure: Throwable) {
-        if (committed) output.delete()
+        if (committed) output?.delete()
         if (failure is CancellationException || failure is SpeechException) throw failure
         if (failure is Exception || failure is LinkageError)
             throw SpeechException(SpeechError.AudioProcessing).apply { initCause(failure) }
         throw failure
-    } finally { if (ownsPartial) partial.delete() }
+    } finally { if (ownsPartial) partial?.delete() }
 }
 
 /** Input limits belong to each synthesizer; resampling a valid input may produce a larger WAV. */
@@ -227,7 +232,6 @@ private class SpeechWaveFile(file: File, private val sampleRate: Int) : AutoClos
     fun append(pcm: ByteArray) { output.write(pcm); bytes += pcm.size }
 
     fun finish() {
-        if (bytes == 0L) throw SpeechException(SpeechError.InvalidAudio)
         output.seek(0)
         fun u16(value: Int) { output.write(value); output.write(value ushr 8) }
         fun u32(value: Long) { u16(value.toInt()); u16((value ushr 16).toInt()) }

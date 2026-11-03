@@ -23,14 +23,22 @@ class EdgeSpeechTest {
         assertEquals("+0Hz", prosody.getNamedItem("pitch").nodeValue)
     }
 
-    @Test fun lengthPrefixedAudioWaitsForTurnEndAndTextErrorsCannotBecomeAudio() {
+    @Test fun lengthPrefixedAudioStreamsOrBuffersUntilTurnEndAndRejectsTextErrors() {
         val audio = "ID3xxxxxxxxxpayload".toByteArray()
         val reader = EdgeSpeechAudio()
+        val received = java.io.ByteArrayOutputStream()
+        val streaming = EdgeSpeechAudio { bytes, offset, count -> received.write(bytes, offset, count) }
+        val frame = binary("Path:audio\r\nContent-Type:audio/mpeg\r\n", audio)
         assertFalse(reader.receive(BrokerWebSocketMessage.Text("Path:turn.start\r\n\r\n{}")))
-        assertFalse(reader.receive(binary("Path:audio\r\nContent-Type:audio/mpeg\r\n", audio)))
+        assertFalse(reader.receive(frame))
+        assertFalse(streaming.receive(frame))
+        assertArrayEquals(audio, received.toByteArray())
         assertFalse(reader.receive(binary("Path:audio\r\n", byteArrayOf())))
-        assertTrue(reader.receive(BrokerWebSocketMessage.Text("Path:turn.end\r\n\r\n{}")))
+        val end = BrokerWebSocketMessage.Text("Path:turn.end\r\n\r\n{}")
+        assertTrue(reader.receive(end))
+        assertTrue(streaming.receive(end))
         assertArrayEquals(audio, reader.bytes())
+        assertTrue(streaming.bytes().isEmpty())
         val failure = assertThrows(HttpSpeechException::class.java) {
             EdgeSpeechAudio().receive(BrokerWebSocketMessage.Text("Path:response\r\n\r\n{\"error\":{\"message\":\"private\"}}"))
         }
@@ -47,15 +55,5 @@ class EdgeSpeechTest {
     private fun binary(header: String, bytes: ByteArray): BrokerWebSocketMessage.Binary {
         val prefix = header.toByteArray()
         return BrokerWebSocketMessage.Binary(byteArrayOf((prefix.size ushr 8).toByte(), prefix.size.toByte()) + prefix + bytes)
-    }
-
-    @Test fun streamingDeliversPayloadBeforeTurnEndWithoutRetainingIt() {
-        val received = java.io.ByteArrayOutputStream()
-        val reader = EdgeSpeechAudio { bytes, offset, count -> received.write(bytes, offset, count) }
-        val audio = "ID3xxxxxxxxxpayload".toByteArray()
-        assertFalse(reader.receive(binary("Path:audio\r\nContent-Type:audio/mpeg\r\n", audio)))
-        assertArrayEquals(audio, received.toByteArray())
-        assertTrue(reader.receive(BrokerWebSocketMessage.Text("Path:turn.end\r\n\r\n{}")))
-        assertTrue(reader.bytes().isEmpty())
     }
 }

@@ -12,7 +12,6 @@ class SpeechStream internal constructor(val sampleRate: Int) {
     private var frames = 0L
 
     internal suspend fun append(bytes: ByteArray) {
-        if (bytes.isEmpty()) return
         blocks.send(bytes)
         frames += bytes.size / 2
     }

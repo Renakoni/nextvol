@@ -32,7 +32,7 @@ class SourceBrokerTest {
 
     @Test fun streamedBodyCanBeConsumedAndCancelledBeforeResponseEnds() = runBlocking {
         MockWebServer().use { server ->
-            server.enqueue(MockResponse().setBody("a".repeat(128 * 1024)).throttleBody(8192, 1, TimeUnit.MINUTES))
+            server.enqueue(MockResponse().setBody("a".repeat(128 * 1024)).throttleBody(8192, 1, TimeUnit.SECONDS))
             server.enqueue(MockResponse().setBody("next"))
             server.start()
             SourceBroker(directory.root.toPath()).use { broker ->

@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.tts
 import indi.renakoni.nextvol.tts.audio.processSpeechAudio
 import indi.renakoni.nextvol.tts.audio.StreamingAudioInput
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
@@ -25,29 +26,27 @@ internal class ProcessingSpeechSynthesizer(private val delegate: SpeechSynthesiz
         return label
     }
 
-    override suspend fun synthesize(text: String, output: File): List<SpeechTiming> {
-        work = currentCoroutineContext().job
+    override suspend fun synthesize(text: String, output: File): List<SpeechTiming> = processing {
         val raw = File(output.parentFile, output.name + ".raw")
         try {
             val timings = delegate.synthesize(text, raw)
             val processed = processSpeechAudio(raw, output, settings.processor, settings.minimumSampleRate,
                 parameters.speed, parameters.pitch, parameters.volume, settings.checkSilence)
-            return timings.map { it.copy(timeMs = processed.mapTimeMs(it.timeMs)) }
-        } finally { work = null; raw.delete() }
+            timings.map { it.copy(timeMs = processed.mapTimeMs(it.timeMs)) }
+        } finally { raw.delete() }
     }
 
     override suspend fun synthesize(text: String, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> {
         if (!settings.decodeStream || !delegate.supportsStreaming) return synthesize(text, output)
-        return coroutineScope {
-            work = currentCoroutineContext().job
-            val input = StreamingAudioInput(currentCoroutineContext())
+        return processing { coroutineScope {
+            val input = StreamingAudioInput(currentCoroutineContext().job)
             var stream: SpeechStream? = null
             val receiving = launch(Dispatchers.IO) {
                 try { delegate.synthesizeEncoded(text, input::receive); input.finish() }
                 catch (failure: Throwable) { input.finish(failure) }
             }
             try {
-                processSpeechAudio(output, output, settings.processor, settings.minimumSampleRate,
+                processSpeechAudio(output, null, settings.processor, settings.minimumSampleRate,
                     parameters.speed, parameters.pitch, parameters.volume, settings.checkSilence, inputSource = input,
                     onPcm = { rate, bytes ->
                         val active = stream ?: SpeechStream(rate).also { stream = it; onReady(it) }
@@ -61,8 +60,19 @@ internal class ProcessingSpeechSynthesizer(private val delegate: SpeechSynthesiz
                 val cause = input.failure ?: failure
                 stream?.fail(cause)
                 throw cause
-            } finally { receiving.cancel(); input.close(); work = null }
-        }
+            } finally { receiving.cancel(); input.close() }
+        } }
+    }
+
+    private suspend fun <T> processing(block: suspend () -> T): T {
+        work = currentCoroutineContext().job
+        try {
+            return block().also { delegate.audioProcessed(null) }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            delegate.audioProcessed(failure.speechError(SpeechError.AudioProcessing))
+            throw failure
+        } finally { work = null }
     }
 
     override fun cancel() {

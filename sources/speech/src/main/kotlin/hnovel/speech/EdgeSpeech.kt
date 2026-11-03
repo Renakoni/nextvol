@@ -94,7 +94,7 @@ internal class EdgeSpeechAudio(private val receive: ((ByteArray, Int, Int) -> Un
         return false
     }
 
-    fun bytes(): ByteArray = audio.toByteArray().also { if (receive == null) checkSpeechAudioContainer(it) }
+    fun bytes(): ByteArray = audio.toByteArray()
 
     private fun headers(text: String) = text.split("\r\n").filter { ':' in it }
         .associate { it.substringBefore(':') to it.substringAfter(':').trim() }

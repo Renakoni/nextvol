@@ -16,6 +16,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Playback completion and pauses come from ExoPlayer, not synthesis callbacks. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal class ExoSpeechPlayback(private val player: ExoPlayer, private val context: Context,
     onInterrupted: () -> Unit = {}) : SpeechPlayback {
     private var active: CompletableDeferred<Unit>? = null

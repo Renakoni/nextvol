@@ -1,8 +1,6 @@
 package indi.renakoni.nextvol.tts
 
 import android.content.Context
-import android.media.MediaExtractor
-import android.media.MediaFormat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
@@ -164,7 +162,6 @@ class SpeechSynthesizers @Inject constructor(
                     withContext(Dispatchers.IO) {
                         currentCoroutineContext().ensureActive()
                         partial.writeBytes(audio)
-                        validateHttpSpeechAudio(partial)
                         currentCoroutineContext().ensureActive()
                         if (!partial.renameTo(output)) throw SpeechException(SpeechError.Storage)
                     }
@@ -185,7 +182,6 @@ class SpeechSynthesizers @Inject constructor(
                 // Token refresh may replace a regional HTTP session and close its TLS pool.
                 val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate, volume, receive) }
                 consume(audio)
-                selectedSource?.let { repository.recordSynthesis(it, R.string.tts_offline_verified) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: HttpSpeechException) {
                 val error = when (failure.error) {
@@ -198,18 +194,16 @@ class SpeechSynthesizers @Inject constructor(
                     HttpSpeechError.Timeout -> SpeechError.SynthesisTimeout
                     HttpSpeechError.InvalidAudio, HttpSpeechError.TooLarge -> SpeechError.InvalidAudio
                 }
-                selectedSource?.let { repository.recordSynthesis(it, error.messageResource) }
                 sourceId?.let { repository.recordDeniedOrigins(it, failure.deniedOrigins) }
                 throw SpeechException(error).apply { initCause(failure) }
             }
-            catch (failure: SpeechException) {
-                selectedSource?.let { repository.recordSynthesis(it, failure.error.messageResource) }
-                throw failure
-            }
             catch (_: java.io.IOException) {
-                selectedSource?.let { repository.recordSynthesis(it, R.string.tts_error_storage) }
                 throw SpeechException(SpeechError.Storage)
             }
+        }
+
+        override fun audioProcessed(error: SpeechError?) {
+            selectedSource?.let { repository.recordSynthesis(it, error?.messageResource ?: R.string.tts_offline_verified) }
         }
 
         override fun cancel() { client?.cancel() }
@@ -221,20 +215,4 @@ class SpeechSynthesizers @Inject constructor(
             try { previousClient?.close() } finally { previousOwner?.close() }
         }
     }
-}
-
-/** Inspect actual container/track data, not a service's often inaccurate Content-Type header. */
-internal fun validateHttpSpeechAudio(file: File) {
-    if (file.length() !in 12..(2L * 1024 * 1024)) throw SpeechException(SpeechError.InvalidAudio)
-    val extractor = MediaExtractor()
-    try {
-        extractor.setDataSource(file.absolutePath)
-        val track = (0 until extractor.trackCount).firstOrNull {
-            extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
-        } ?: throw SpeechException(SpeechError.InvalidAudio)
-        extractor.selectTrack(track)
-        if (extractor.readSampleData(java.nio.ByteBuffer.allocate(64 * 1024), 0) <= 0)
-            throw SpeechException(SpeechError.InvalidAudio)
-    } catch (_: Exception) { throw SpeechException(SpeechError.InvalidAudio) }
-    finally { extractor.release() }
 }
