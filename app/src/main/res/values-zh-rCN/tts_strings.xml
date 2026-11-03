@@ -116,4 +116,15 @@
     <string name="tts_pause_disabled">已关闭</string>
     <string name="tts_pause_duration">%1$d 毫秒</string>
     <string name="tts_pause_milliseconds">毫秒</string>
+    <string name="tts_background_music">背景音乐</string>
+    <string name="tts_music_description">开启背景音乐，曲目随机轮播，每轮不重复。</string>
+    <string name="tts_music_volume">背景音乐音量</string>
+    <string name="tts_music_volume_value">%1$d%%</string>
+    <string name="tts_music_tracks">本地曲目</string>
+    <string name="tts_music_import">导入音乐</string>
+    <string name="tts_music_unavailable">文件无法播放</string>
+    <string name="tts_music_replace">重新选择文件</string>
+    <string name="tts_music_delete">删除 %1$s</string>
+    <string name="tts_music_import_failed">音乐导入失败，请重新选择文件。</string>
+    <string name="tts_music_save_failed">背景音乐设置保存失败，请重试。</string>
 </resources>

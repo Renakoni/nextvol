@@ -81,6 +81,7 @@ internal fun HttpSpeechSourcesScreen(
     focusOfflineEngine: String? = null,
     configureCredentials: Boolean = false,
     onAddToPool: (List<SpeechVoiceRef>) -> Unit = {},
+    onBackgroundMusic: (() -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -213,7 +214,8 @@ internal fun HttpSpeechSourcesScreen(
     Scaffold(topBar = {
         SpeechSourcesTopBar(query, { query = it }, searching, { searching = true }, closeSearch, onBack, state.busy,
             onImport, onRefresh, onManage = if (currentGroup != "system") ({ managing = true }) else null,
-            selectedCount = if (managing) visibleChecked.size else null, onExitManagement = exitManagement)
+            selectedCount = if (managing) visibleChecked.size else null, onExitManagement = exitManagement,
+            onBackgroundMusic = onBackgroundMusic)
     }, bottomBar = {
         if (managing) SpeechVoiceManagementBar(selectableKeys.isNotEmpty(), checked.isNotEmpty(), visibleChecked.isNotEmpty(),
             state.busy, onAll = { checked = selectableKeys }, onNone = { checked = emptySet() },

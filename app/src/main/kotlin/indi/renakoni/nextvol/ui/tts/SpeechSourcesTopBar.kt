@@ -27,7 +27,8 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
     onSearch: () -> Unit, onCloseSearch: () -> Unit, onBack: () -> Unit, busy: Boolean,
     onImport: () -> Unit, onRefresh: (() -> Unit)?, title: Int = R.string.tts_sources,
     searchLabel: Int = R.string.tts_voice_search, onAdd: (() -> Unit)? = null,
-    onManage: (() -> Unit)? = null, selectedCount: Int? = null, onExitManagement: () -> Unit = {}) {
+    onManage: (() -> Unit)? = null, selectedCount: Int? = null, onExitManagement: () -> Unit = {},
+    onBackgroundMusic: (() -> Unit)? = null) {
     var menu by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -75,6 +76,10 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
                 Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_library_actions))
             }
             DropdownMenu(menu, { menu = false }) {
+                if (onBackgroundMusic != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_background_music)) },
+                    leadingIcon = { Icon(painterResource(R.drawable.music_note_24px), null) },
+                    modifier = Modifier.testTag("background-music-menu"),
+                    onClick = { menu = false; onBackgroundMusic() })
                 if (onManage != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_manage_voices)) },
                     leadingIcon = { Icon(painterResource(R.drawable.checklist_24px), null) }, enabled = !busy,
                     onClick = { menu = false; onManage() })
