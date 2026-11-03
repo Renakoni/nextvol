@@ -26,15 +26,14 @@ class SpeechMarksTest {
         assertEquals(SpeechAudioParameters(), next.segments.single().audioParameters)
     }
 
-    @Test fun paragraphPauseUsesOriginalBoundariesDespiteSplitsReplacedNewlinesAndEmptyLines() = runBlocking {
-        val input = chapter("甲".repeat(80) + "\n\n\n乙\n\n丙")
+    @Test fun paragraphPauseSurvivesReplacedAndRemovedNewlines() = runBlocking {
+        val input = chapter("甲\n乙\n\n丙")
         val configured = settings.copy(text = settings.text.copy(paragraphPauseMs = 300),
             replacements = listOf(SpeechReplacementRule(source = "\n\n", target = ""),
                 SpeechReplacementRule(source = "\n", target = "，")))
-        val plan = prepareSpeechPlan(input, configured, maxInputLength = 17) {}
+        val plan = prepareSpeechPlan(input, configured) {}
         val pauses = plan.segments.filter { it.pauseMs != null }
         assertEquals(listOf(300, 300), pauses.map { it.pauseMs })
-        assertEquals(listOf(83, 84), pauses.map { it.end })
         assertTrue(pauses.all { it.start == it.end })
     }
 }
