@@ -46,6 +46,7 @@ class SpeechSynthesizersTest {
             assertEquals("Voice", provider.open(SpeechSettings(httpSource = definition.id)))
             try { provider.synthesize("Preview", File(files.root, "preview.wav")); fail("Expected network failure") }
             catch (failure: SpeechException) { assertEquals(SpeechError.Network, failure.error) }
+            verify(exactly = 1) { repository.recordSynthesis(source, SpeechError.Network.messageResource) }
             provider.cancel()
             verify(exactly = 1) { anyConstructed<HttpSpeechClient>().cancel() }
             verify(exactly = 0) { anyConstructed<HttpSpeechClient>().close() }

@@ -25,6 +25,27 @@ import java.util.UUID
 class ReadAloudSessionTest {
     @get:Rule val files = TemporaryFolder()
 
+    @Test fun streamingStartsBeforeSynthesisEndsAndStopKeepsTheAudibleBoundary() = runTest {
+        val env = Environment(this)
+        val pending = CompletableDeferred<Unit>()
+        val stream = SpeechStream(16000)
+        env.streaming = stream
+        env.beforeSynthesis = { pending.await() }
+        env.session.start(SpeechRequest("book", "one"))
+        runCurrent()
+        assertSame(stream, env.player.started.single().stream)
+        assertFalse(pending.isCompleted)
+        assertEquals(0, env.audioFiles())
+        env.session.pause()
+        assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
+        env.session.resume()
+        assertEquals(SpeechPhase.Playing, env.session.state.value.phase)
+        env.stop()
+        assertEquals(0, env.progress.saved.getValue("book").offset)
+        assertTrue(stream.blocks.receiveCatching().isClosed)
+        assertEquals(1, env.player.started.size)
+    }
+
     @Test fun highlightingUsesActualPlaybackAndKeepsTheLastRangeWhileBuffering() = runTest {
         val env = Environment(this)
         env.player.startBuffered = true
@@ -1057,6 +1078,7 @@ class ReadAloudSessionTest {
         var onCancel: () -> Unit = {}
         var onClose: () -> Unit = {}
         var timings = emptyList<SpeechTiming>()
+        var streaming: SpeechStream? = null
         var configuration = SpeechSettings()
         var inputLimit = Int.MAX_VALUE
         val synthesized = mutableListOf<String>()
@@ -1082,6 +1104,10 @@ class ReadAloudSessionTest {
                         beforeSynthesis()
                         output.writeText(text)
                         return timings
+                    }
+                    override suspend fun synthesize(text: String, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> {
+                        streaming?.let { onReady(it) }
+                        return synthesize(text, output)
                     }
                     override fun cancel() = onCancel()
                     override fun close() = onClose()

@@ -99,7 +99,7 @@ class HttpSpeechInstrumentedTest {
                                 }
                                 override suspend fun synthesize(text: String, output: File): List<SpeechTiming> {
                                     val bytes = checkNotNull(client).synthesize(text)
-                                    withContext(Dispatchers.IO) { output.writeBytes(bytes); validateHttpSpeechAudio(output) }
+                                    withContext(Dispatchers.IO) { output.writeBytes(bytes) }
                                     return emptyList()
                                 }
                                 override fun cancel() { client?.cancel() }
@@ -175,7 +175,6 @@ class HttpSpeechInstrumentedTest {
                         assertEquals(text, body.getValue("text").jsonPrimitive.content)
                         assertEquals(10, body.getValue("speed").jsonPrimitive.int)
                         assertArrayEquals(audio, file.readBytes())
-                        validateHttpSpeechAudio(file)
                         withContext(Dispatchers.Main) {
                             val player = ExoPlayer.Builder(context).build()
                             try {
@@ -213,8 +212,6 @@ class HttpSpeechInstrumentedTest {
                                 assertEquals(1, server.requestCount)
                             } finally { player.release() }
                         }
-                        file.writeText("{\"error\":\"not audio\"}")
-                        assertThrows(SpeechException::class.java) { validateHttpSpeechAudio(file) }
                     }
                 }
             }

@@ -43,6 +43,7 @@ class HttpSpeechClient(
     private val edge = if (source.nativeEngine == "edgetts") EdgeSpeechClient(
         requireNotNull(source.multiTts).getValue("voice").jsonObject, ::executeEdge) else null
     @Volatile private var microsoftSession: SourceSession? = null
+    private var audioSink: ((ByteArray, Int, Int) -> Unit)? = null
 
     // A client owns one immutable source revision; static bindings need parsing only once.
     private val multiTtsRequest: JsonObject? by lazy {
@@ -77,13 +78,17 @@ class HttpSpeechClient(
         }
     }
 
-    suspend fun synthesize(text: String, rate: Float? = null, volume: Float = 1f): ByteArray = mutex.withLock {
+    suspend fun synthesize(text: String, rate: Float? = null, volume: Float = 1f,
+        receive: ((ByteArray, Int, Int) -> Unit)? = null): ByteArray = mutex.withLock {
         if (text.isBlank() || text.length > 65536) throw HttpSpeechException(HttpSpeechError.InvalidSource)
         if (source.text("loginCheckJs").isNotBlank()) throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
         try {
+            audioSink = receive?.let { sink ->
+                { bytes, offset, count -> authority.authorized(identity) { sink(bytes, offset, count) } }
+            }
             withTimeout(60_000) {
                 val speed = source.scriptSpeed(rate)
-                val audio = edge?.synthesize(text, rate ?: speed / 10f, volume)
+                val audio = edge?.synthesize(text, rate ?: speed / 10f, volume, audioSink)
                     ?: microsoft?.synthesize(text, rate ?: speed / 10f, volume) ?: request(text, speed, volume)
                 currentCoroutineContext().ensureActive()
                 if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
@@ -94,7 +99,7 @@ class HttpSpeechClient(
         catch (failure: Exception) {
             if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
             throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidSource)
-        }
+        } finally { audioSink = null }
     }
 
     private suspend fun executeEdge(request: BrokerRequest, receive: (BrokerWebSocket) -> ByteArray): ByteArray = try {
@@ -125,7 +130,9 @@ class HttpSpeechClient(
                     }
                 }
             }
-            checkNotNull(regional).execute(request, guard)
+            val sink = audioSink
+            if (sink == null) checkNotNull(regional).execute(request, guard)
+            else checkNotNull(regional).stream(request, guard, sink)
         }
         return when (received) {
             is BrokerResult.Success -> received.response
@@ -171,12 +178,12 @@ class HttpSpeechClient(
         val result = Json.parseToJsonElement(BridgeWire.validate(output.toByteArray(Charsets.UTF_8), limits.maxOutputBytes)).jsonObject
         val request = if (multiTts != null) {
             val url = result.getValue("url").jsonPrimitive.content
-            if (url.startsWith("base64://")) return decodeSpeechDataUri(url).also(::checkSpeechAudioContainer)
+            if (url.startsWith("base64://")) return inlineAudio(url)
             MultiTtsRequest.compile(result, "speech")
         } else {
             val prepared = result.getValue("request").jsonObject
             val rule = prepared.getValue("rule").jsonPrimitive.content
-            if (rule.startsWith("data:", true)) return decodeSpeechDataUri(rule).also(::checkSpeechAudioContainer)
+            if (rule.startsWith("data:", true)) return inlineAudio(rule)
             val compiled = RequestCompiler().compile("speech", rule, baseUrl, speakText = text, speakSpeed = speed,
                 headers = result.getValue("headers").jsonObject.mapValues { it.value.jsonPrimitive.content }, kind = ResourceKind.Api,
                 expandTemplates = prepared.getValue("templates").jsonPrimitive.boolean,
@@ -184,8 +191,10 @@ class HttpSpeechClient(
             (compiled as? CompiledRequest.Ready)?.request ?: throw HttpSpeechException(HttpSpeechError.InvalidSource)
         }
         if (request.browser != null) throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
-        val response = when (val received = session.execute(request.copy(maxResponseBytes = MAX_AUDIO_BYTES),
-            RequestCommitGuard { authority.authorized(identity, it) })) {
+        val guard = RequestCommitGuard { authority.authorized(identity, it) }
+        val bounded = request.copy(maxResponseBytes = MAX_AUDIO_BYTES)
+        val sink = audioSink
+        val response = when (val received = if (sink == null) session.execute(bounded, guard) else session.stream(bounded, guard, sink)) {
             is BrokerResult.Success -> received.response
             is BrokerResult.Failure -> throw HttpSpeechException(received.code.speechError(), networkCode = received.code,
                 deniedOrigins = listOfNotNull(received.denial?.origin))
@@ -193,7 +202,14 @@ class HttpSpeechClient(
         currentCoroutineContext().ensureActive()
         if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
         if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
-        return response.body.also(::checkSpeechAudioContainer)
+        return response.body
+    }
+
+    private fun inlineAudio(value: String): ByteArray {
+        val bytes = decodeSpeechDataUri(value)
+        val sink = audioSink ?: return bytes
+        sink(bytes, 0, bytes.size)
+        return byteArrayOf()
     }
 
     /** Retire execution immediately without closing sockets on the caller's thread.
@@ -208,15 +224,6 @@ class HttpSpeechClient(
 }
 
 internal const val MAX_AUDIO_BYTES = 2 * 1024 * 1024
-
-/** Reject text/error payloads. The platform must still validate the audio track before committing a file. */
-internal fun checkSpeechAudioContainer(bytes: ByteArray) {
-    fun starts(value: String, offset: Int = 0) = bytes.size >= offset + value.length &&
-        value.indices.all { bytes[offset + it].toInt() and 255 == value[it].code }
-    val sync = bytes.size >= 4 && bytes[0].toInt() and 255 == 255 && bytes[1].toInt() and 224 == 224
-    if (bytes.size < 12 || !(starts("RIFF") && starts("WAVE", 8) || starts("ID3") || sync ||
-            starts("OggS") || starts("fLaC") || starts("ftyp", 4))) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
-}
 
 /** Audio data may exceed the ordinary URL limit. Decode it here without enlarging book-source URLs. */
 internal fun decodeSpeechDataUri(value: String): ByteArray {

@@ -64,6 +64,7 @@ internal class CachedSpeechSynthesizer(
     private var selectedAudioParameters = SpeechAudioParameters()
     override val maxInputLength get() = inputLimit
     override val audioParameters get() = selectedAudioParameters
+    override val supportsStreaming get() = active?.supportsStreaming == true
 
     override suspend fun open(settings: SpeechSettings): String = mutex.withLock {
         this.settings = settings
@@ -121,6 +122,14 @@ internal class CachedSpeechSynthesizer(
         val entry = select(checkNotNull(settings))
         entry.runtime.synthesizer.synthesize(text, output).also { entry.accessed = now() }
     }
+
+    override suspend fun synthesizeEncoded(text: String, receive: (ByteArray, Int, Int) -> Unit) = mutex.withLock {
+        val entry = select(checkNotNull(settings))
+        entry.runtime.synthesizer.synthesizeEncoded(text, receive)
+        entry.accessed = now()
+    }
+
+    override fun audioProcessed(error: SpeechError?) { active?.audioProcessed(error) }
 
     override fun cancel() {
         cancelled.set(true)

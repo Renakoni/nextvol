@@ -95,7 +95,7 @@ internal class MicrosoftSpeechClient(
         }
         if (response.status == 401) token = null
         if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
-        return response.body.also(::checkSpeechAudioContainer)
+        return response.body
     }
 
     private suspend fun authenticate(): Token {
