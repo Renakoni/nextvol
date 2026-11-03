@@ -43,6 +43,7 @@ class ReadAloudService : MediaSessionService() {
     @Inject lateinit var controller: ReadAloudController
     @Inject lateinit var chapters: SpeechChapterSource
     @Inject lateinit var settings: SpeechSettingsRepository
+    @Inject lateinit var music: BackgroundMusicRepository
     @Inject lateinit var progress: SpeechProgressStore
     @Inject lateinit var synthesizers: SpeechSynthesizers
     @Inject lateinit var plans: SpeechPlanPreparer
@@ -51,6 +52,7 @@ class ReadAloudService : MediaSessionService() {
     @Inject lateinit var languages: SpeechLanguageDetection
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
+    private var backgroundMusic: BackgroundMusicPlayback? = null
     private lateinit var speech: ReadAloudSession
     private lateinit var sleepTimer: SpeechSleepTimer
     private lateinit var preparationWakeLock: PowerManager.WakeLock
@@ -86,6 +88,10 @@ class ReadAloudService : MediaSessionService() {
                 stopSelf()
             })
         player.addListener(object : Player.Listener {
+            override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+                backgroundMusic?.setSuppressed(playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE)
+            }
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (!shuttingDown) sleepTimer.setPlaying(isPlaying && speech.state.value.request?.isPreview == false)
             }
@@ -123,6 +129,7 @@ class ReadAloudService : MediaSessionService() {
                     if (it.request.isPreview && it.phase in setOf(SpeechPhase.Completed, SpeechPhase.Failed)) {
                         if (sleepTimer.expireIfDue() || speech.restoreAfterPreview()) return@collect
                     }
+                    backgroundMusic?.updateSession(it.request, it.phase)
                     // ExoPlayer owns playback wakefulness; chapter loading and synthesis have no player yet.
                     if (it.phase == SpeechPhase.Preparing || it.phase == SpeechPhase.Buffering) {
                         if (!preparationWakeLock.isHeld) preparationWakeLock.acquire(90_000)
@@ -138,6 +145,22 @@ class ReadAloudService : MediaSessionService() {
                     }
                     if (it.phase == SpeechPhase.Stopped) stopSelf()
                 }
+            }
+        }
+        scope.launch {
+            music.changes.collect { settings ->
+                if (backgroundMusic == null && settings.tracks.any { it.selected }) {
+                    backgroundMusic = BackgroundMusicPlayback(ExoPlayer.Builder(this@ReadAloudService)
+                        .setWakeMode(C.WAKE_MODE_LOCAL).build().apply {
+                            setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)
+                                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), false)
+                        }, music::file, music::markUnavailable).also {
+                            it.setSuppressed(player.playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE)
+                        }
+                }
+                backgroundMusic?.updateSettings(settings)
+                val current = speech.state.value
+                current.request?.let { backgroundMusic?.updateSession(it, current.phase) }
             }
         }
         scope.launch {
@@ -243,6 +266,8 @@ class ReadAloudService : MediaSessionService() {
         shuttingDown = true
         val last = speech.state.value.takeIf { it.request != null } ?: controller.state.value
         speech.stop()
+        backgroundMusic?.close()
+        backgroundMusic = null
         controller.publish(last.copy(phase = SpeechPhase.Failed, error = SpeechError.ServiceUnavailable))
         stopSelf()
     }
@@ -287,6 +312,8 @@ class ReadAloudService : MediaSessionService() {
         speech.stop()
         mediaSession?.release()
         mediaSession = null
+        backgroundMusic?.close()
+        backgroundMusic = null
         player.release()
         if (preparationWakeLock.isHeld) preparationWakeLock.release()
         getSystemService(NotificationManager::class.java).cancel(notificationId)

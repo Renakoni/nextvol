@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -344,6 +345,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         var deleting by remember { mutableStateOf<List<InstalledOfflineVoice>>(emptyList()) }
         var deletingHttp by remember { mutableStateOf<List<SavedHttpSpeechSource>>(emptyList()) }
         var addingToPool by remember { mutableStateOf<List<SpeechVoiceRef>>(emptyList()) }
+        var backgroundMusic by rememberSaveable { mutableStateOf(false) }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let { viewModel.preview(it) { file ->
                 nav.navigate(SpeechPackagePreviewRoute(file.toString())) { launchSingleTop = true }
@@ -376,6 +378,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             offlineVoices = offline.voices, onOrderHttp = viewModel::order, onOrderOffline = { offlineViewModel.order(it) },
             onDeleteHttp = { deletingHttp = it }, onDeleteOffline = { deleting = it },
             onAddToPool = { addingToPool = it },
+            onBackgroundMusic = { backgroundMusic = true },
             offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
                 onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                 onDialogue = { toggleVoice(true, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
@@ -393,6 +396,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
                         catch (_: ActivityNotFoundException) { systemSettingsPicker.launch(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
                     })
             })
+        if (backgroundMusic) BackgroundMusicDialog { backgroundMusic = false }
         if (addingToPool.isNotEmpty()) SpeechAddToPoolDialog(settings.settings, state.busy, state.error,
             onDismiss = { addingToPool = emptyList() }, onAdd = { group ->
                 viewModel.addToPool(group, addingToPool) { count ->
