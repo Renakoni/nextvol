@@ -1,0 +1,35 @@
+!!org.nobody.multitts.tts.role.RoleConfig
+roles:
+- activate: true
+  group: Audio音效插入
+  isAbstract: false
+  matchAfter: true
+  matchBefore: true
+  message: null
+  mode: 0
+  name: 章节转场
+  regex: （章节转场）
+  speakerId: audio_audio78
+  speakerName: Audios•🧚🏻‍♀️双鼓音
+- activate: true
+  group: Audio音效插入
+  isAbstract: false
+  matchAfter: true
+  matchBefore: true
+  message: null
+  mode: 0
+  name: 章节开始
+  regex: （章节开始）
+  speakerId: audio_audio71
+  speakerName: Audios•🧚🏻‍♀️风啸音
+- activate: true
+  group: Audio音效插入
+  isAbstract: false
+  matchAfter: true
+  matchBefore: true
+  message: null
+  mode: 0
+  name: 章中转场
+  regex: （章中转场）
+  speakerId: audio_audio70
+  speakerName: Audios•🧚🏻‍♀️呼啸音

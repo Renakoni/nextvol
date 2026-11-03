@@ -1,0 +1,21 @@
+<resources>
+    <string name="tts_config_import">Import reading configuration</string>
+    <string name="tts_config_counts">Replacements %1$d · Roles %2$d · Pool members %3$d</string>
+    <string name="tts_config_scope">Applies to global reading configuration. Voices and engines use the import and installation actions below.</string>
+    <string name="tts_config_invalid">Cannot import this configuration. Check: %1$s</string>
+    <string name="tts_config_conflicts">Existing entries with the same group and name</string>
+    <string name="tts_config_missing">Missing voices. Install the matching voice package or rebind the voice in Roles or Voice pools after importing.</string>
+    <string name="tts_config_unsupported">These fields or resources will not be applied:</string>
+    <string name="tts_config_hanlp">hanlp.properties configures HanLP dictionary and model paths. External paths are not applied to the built-in resources.</string>
+    <string name="tts_config_saved">Reading configuration imported</string>
+    <string name="tts_config_merge">Merge</string>
+    <string name="tts_config_replace">Replace</string>
+    <string name="tts_config_merge_description">Update entries with the same group and name using MultiTTS ordering; retain other entries.</string>
+    <string name="tts_config_replace_description">Replace all entries in the categories included in this file. Other categories remain unchanged.</string>
+    <string name="tts_config_apply">Import configuration</string>
+    <string name="tts_config_enabled">Enabled</string>
+    <string name="tts_config_disabled">Disabled</string>
+    <string name="tts_config_voice_update">Update voice configuration</string>
+    <string name="tts_config_voice_update_description">Uses the installed model and preserves engine settings and voice edits.</string>
+    <string name="tts_config_voice_updated">Updated %1$s</string>
+</resources>

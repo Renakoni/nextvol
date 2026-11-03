@@ -11,8 +11,10 @@ data class SpeechVoiceRef(
     val httpSource: String? = null,
     val offlineVoice: OfflineVoiceRef? = null,
     val label: String = "",
+    val externalId: String? = null,
 ) {
     val key get() = when {
+        externalId != null -> "multitts:$externalId"
         offlineVoice != null -> "offline:${offlineVoice.id}"
         httpSource != null -> "http:$httpSource"
         else -> "system:$engine:$voice"

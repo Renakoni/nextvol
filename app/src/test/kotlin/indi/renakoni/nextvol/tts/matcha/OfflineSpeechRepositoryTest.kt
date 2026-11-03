@@ -86,6 +86,71 @@ class OfflineSpeechRepositoryTest {
         repository.acquire(reimported.reference).use { assertTrue(it.directory.isDirectory) }
     }
 
+    @Test fun configurationOnlyImportUpdatesTheCatalogWithoutReplacingModelsOrUserOverrides() = runBlocking {
+        val root = files.newFolder()
+        val repository = OfflineSpeechRepository(root)
+        val archive = archive(speed = 1.3f)
+        val installed = repository.install(archive, plan(archive))
+        val edited = repository.save(installed.copy(name = "My voice",
+            configuration = installed.configuration!!.copy(speed = 1.1f)))
+        val yaml = files.newFile("config.yaml").apply { writeText("""
+            sherpa:
+            - code: voice
+              name: Updated package name
+              speed: 1.5
+              sampleRate: 22050
+              note: Imported note
+              param: '{"modelDir":"models/chinese","speakerId":2}'
+        """.trimIndent()) }
+        val preview = previewSpeechPackage(yaml)
+        val engine = preview.engines.single()
+        val voice = engine.voices.single()
+        assertNull(previewOfflineVoice(preview, engine, voice).plan)
+        val draft = repository.previewConfiguration(engine, voice)!!
+        assertEquals(listOf(edited), repository.voices())
+        val lease = repository.acquire(edited.reference)
+        val imported = repository.importConfiguration(draft)
+        assertEquals(edited.reference.id, imported.reference.id)
+        assertNotEquals(edited.reference.revision, imported.reference.revision)
+        assertEquals(edited.resourceReference, imported.resourceReference)
+        assertEquals(edited.sizes, imported.sizes)
+        assertEquals("My voice", imported.name)
+        assertEquals(1.1f, imported.configuration!!.speed)
+        assertEquals(2, imported.configuration.sherpa!!.speakerId)
+        assertEquals(1.5f, imported.defaults!!.configuration.speed)
+        assertEquals("Imported note", imported.metadata.note)
+        assertEquals("tokens", File(lease.directory, "tokens.txt").readText())
+        assertEquals(imported, OfflineSpeechRepository(root).voices().single())
+        lease.close()
+        yaml.writeText("sherpa: [{code: voice, type: 1, param: '{\"modelDir\":\"models/chinese\"}'}]")
+        val otherType = previewSpeechPackage(yaml).engines.single()
+        assertNull(repository.previewConfiguration(otherType, otherType.voices.single()))
+        yaml.writeText("sherpa: [{code: voice, param: '{\"modelDir\":\"other-model\"}'}]")
+        val otherModel = previewSpeechPackage(yaml).engines.single()
+        try { repository.previewConfiguration(otherModel, otherModel.voices.single()); fail("Expected a different model directory") }
+        catch (failure: IllegalArgumentException) { assertEquals("modelDir", failure.message) }
+        assertEquals(listOf(imported), repository.voices())
+    }
+
+    @Test fun audioConfigurationCannotReferenceAFileOutsideTheInstalledResources() = runBlocking {
+        val repository = OfflineSpeechRepository(files.newFolder())
+        val input = files.newFile()
+        ZipOutputStream(input.outputStream()).use { zip ->
+            mapOf("config.yaml" to "audio: [{code: sound, name: Sound, param: known.wav}]",
+                "audio/known.wav" to "audio").forEach { (name, value) ->
+                zip.putNextEntry(ZipEntry(name)); zip.write(value.toByteArray()); zip.closeEntry()
+            }
+        }
+        val preview = previewSpeechPackage(input)
+        val engine = preview.engines.single()
+        val installed = repository.install(input, previewOfflineVoice(preview, engine, engine.voices.single()).plan!!)
+        val yaml = files.newFile("audio-config.yaml").apply { writeText("audio: [{code: sound, name: Sound, param: missing.wav}]") }
+        val changed = previewSpeechPackage(yaml).engines.single()
+        try { repository.previewConfiguration(changed, changed.voices.single()); fail("Expected a missing audio file") }
+        catch (_: IllegalArgumentException) { }
+        assertEquals(listOf(installed), repository.voices())
+    }
+
     @Test fun googleDirectoryRefreshAddsDeclaredSpeakersWithoutReplacingEditsOrCopyingModels() = runBlocking {
         val input = files.newFile()
         ZipOutputStream(input.outputStream()).use { zip ->

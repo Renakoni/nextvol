@@ -1,13 +1,11 @@
 <resources>
     <string name="tts_package_cannot_import">暂不支持导入</string>
-    <string name="tts_package_local_audio">此包的本地变速、音量增益和音调效果暂不应用。</string>
     <string name="tts_package_http_request_unsupported">请求头配置格式不正确。</string>
     <string name="tts_package_http_parameters_required">发音人参数或扩展控件配置格式不正确。</string>
     <string name="tts_package_preview">语音包预览</string>
     <string name="tts_package_reading">正在读取语音包…</string>
     <string name="tts_package_unknown">暂未识别此包类型</string>
     <string name="tts_package_counts">引擎 %1$d · 声音 %2$d · 资源文件 %3$d</string>
-    <string name="tts_package_config_unsupported">已识别此类配置，暂未接入迁移。</string>
     <string name="tts_package_engine_info">%1$s · 类型：%2$s</string>
     <string name="tts_package_undeclared">未声明</string>
     <string name="tts_package_http_adapter">已有 HTTP 适配基础</string>

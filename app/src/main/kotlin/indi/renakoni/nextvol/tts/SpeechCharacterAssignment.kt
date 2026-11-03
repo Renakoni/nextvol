@@ -26,7 +26,8 @@ internal class SpeechCharacterAssignment(
     suspend fun allocate(match: SpeechRoleMatch): SpeechRoleMatch {
         manual(match.person)?.let { return match.copy(voiceRef = it, origin = SpeechPersonOrigin.Manual) }
         if (!match.isAbstract) return match
-        val group = match.voiceRef?.voice?.takeIf { it == SPEECH_POOL_MALE || it == SPEECH_POOL_FEMALE } ?: match.ruleName
+        val group = match.voiceRef?.voice?.takeIf { it == SPEECH_POOL_MALE || it == SPEECH_POOL_FEMALE }
+            ?: configurationPoolGroup(match.ruleName)
         val pair = assign(match.person, group)
         return match.copy(voiceRef = pair?.value ?: match.voiceRef, poolGroup = group)
     }
@@ -34,8 +35,9 @@ internal class SpeechCharacterAssignment(
     /** O6.f.b / O6.j.h: language defaults are paired within their own abstract role. */
     suspend fun allocateLanguage(match: SpeechRoleMatch): SpeechRoleMatch {
         if (!match.isAbstract) return match
-        val pair = assign(SPEECH_LANGUAGE_PERSON, match.ruleName)
-        return match.copy(voiceRef = pair?.value ?: match.voiceRef, poolGroup = match.ruleName,
+        val group = configurationPoolGroup(match.ruleName)
+        val pair = assign(SPEECH_LANGUAGE_PERSON, group)
+        return match.copy(voiceRef = pair?.value ?: match.voiceRef, poolGroup = group,
             origin = if (pair?.manual == true) SpeechPersonOrigin.Manual else match.origin)
     }
 

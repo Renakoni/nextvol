@@ -44,7 +44,7 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
             roleEngine("builtin-http:$group", group.ifEmpty { context.getString(R.string.tts_network_voice) },
                 voices.map { SpeechVoiceRef(httpSource = it.definition.id, label = it.definition.name) })
         }
-        val system = current.references().filter { it.httpSource == null && it.offlineVoice == null }
+        val system = current.references().filter { it.externalId == null && it.httpSource == null && it.offlineVoice == null }
             .distinctBy { it.key }.map(::systemLabel)
         return groups + builtIn + roleEngine("system", context.getString(R.string.tts_system_speech), system)
     }
@@ -56,8 +56,12 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
     suspend fun resolve(settings: SpeechSettings, savedPairs: List<SpeechVoicePair> = emptyList()): Map<String, SpeechResolvedVoice> {
         val online = http.sources().associateBy { it.definition.id }
         val installed = offline.voices().associateBy { it.reference.id }
-        return (settings.references() + savedPairs.map { it.value }).distinctBy { it.key }.associate { reference ->
+        val external = speechPackageReferences(online.values.toList(), installed.values.toList())
+        return (settings.references() + savedPairs.map { it.value }).distinctBy { it.key }.associate { requested ->
+            val reference = requested.resolvePackageReference(external)
             val value = when {
+                reference.externalId != null && reference.httpSource == null && reference.offlineVoice == null ->
+                    SpeechResolvedVoice(reference, settings.forVoice(reference), SPEECH_HTTP_INPUT_LIMIT, error = SpeechError.MissingVoice)
                 reference.offlineVoice != null -> {
                     val voice = installed[reference.offlineVoice.id]
                     val configuration = voice?.let { offline.configuration(it) }
