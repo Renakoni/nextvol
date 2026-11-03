@@ -1,10 +1,12 @@
 package indi.renakoni.nextvol.data.logging
 
 import android.content.ClipData
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
+import indi.renakoni.nextvol.MainActivity
 import java.io.File
 import javax.inject.Inject
 
@@ -20,6 +22,11 @@ class LogFileSharer @Inject constructor(
             putExtra(Intent.EXTRA_STREAM, uri)
             clipData = ClipData.newRawUri("log", uri)
         }
-        context.startActivity(intent)
+        val chooser = Intent.createChooser(intent, null).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // The reader's text import is not a log export destination, even if it is the only handler.
+            putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(context, MainActivity::class.java)))
+        }
+        context.startActivity(chooser)
     }
 }

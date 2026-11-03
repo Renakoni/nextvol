@@ -45,6 +45,7 @@ data class SpeechSettings(
     val voiceItems: List<SpeechVoiceItem> = emptyList(),
     val autoAssignRole: Boolean = false,
     val maxCacheVoiceNum: Int = 50,
+    val diagnosticLogging: Boolean = false,
 ) {
     fun validated() = copy(
         rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),

@@ -3,6 +3,8 @@ package indi.renakoni.nextvol.tts
 import android.app.Application
 import android.content.Context
 import indi.renakoni.nextvol.data.book.BookIdentity
+import indi.renakoni.nextvol.data.logging.LoggerRepository
+import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -18,7 +20,8 @@ class ReadAloudControllerTest {
     private val context = mockk<Context>(relaxed = true) {
         every { packageName } returns "indi.renakoni.nextvol"
     }
-    private val controller = ReadAloudController(context)
+    private val logger = mockk<LoggerRepository>(relaxed = true)
+    private val controller = ReadAloudController(context, logger)
     private val book = BookIdentity.book("book")
     private val request = SpeechRequest(book.storageKey, BookIdentity.chapter("chapter", book).storageKey)
 
@@ -48,5 +51,14 @@ class ReadAloudControllerTest {
         verify(exactly = 3) {
             context.startForegroundService(match { it.getStringExtra(ReadAloudController.ACTION) == SpeechAction.Start.name })
         }
+    }
+
+    @Test fun failedServiceStartRecordsTheTypedError() {
+        every { context.startForegroundService(any()) } throws IllegalStateException("private details")
+        controller.start("book", "chapter")
+        assertEquals(SpeechError.ServiceUnavailable, controller.state.value.error)
+        verify(exactly = 1) { logger.recordSpeech(match {
+            it.stage == SpeechLogStage.Initialization && it.error == SpeechError.ServiceUnavailable
+        }) }
     }
 }

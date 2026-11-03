@@ -5,6 +5,10 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import indi.renakoni.nextvol.data.book.BookIdentity
+import indi.renakoni.nextvol.data.logging.LoggerRepository
+import indi.renakoni.nextvol.data.logging.SpeechLogEvent
+import indi.renakoni.nextvol.data.logging.SpeechLogRecord
+import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
@@ -15,7 +19,8 @@ enum class SpeechAction { Start, Pause, Resume, Stop, Previous, Next, PreviousCh
 
 /** UI sends explicit commands. Merely observing this state never starts a service or an engine. */
 @Singleton
-class ReadAloudController @Inject constructor(@ApplicationContext private val context: Context) {
+class ReadAloudController @Inject constructor(@ApplicationContext private val context: Context,
+    private val logger: LoggerRepository) {
     private val mutableState = MutableStateFlow(ReadAloudState())
     val state = mutableState.asStateFlow()
     private var closingPlayer = false
@@ -75,10 +80,15 @@ class ReadAloudController @Inject constructor(@ApplicationContext private val co
             if (action == SpeechAction.Start || action == SpeechAction.Resume) ContextCompat.startForegroundService(context, intent)
             else context.startService(intent)
         } catch (_: IllegalStateException) {
-            mutableState.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.ServiceUnavailable)
+            serviceUnavailable()
         } catch (_: SecurityException) {
-            mutableState.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.ServiceUnavailable)
+            serviceUnavailable()
         }
+    }
+
+    private fun serviceUnavailable() {
+        logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Initialization, SpeechLogEvent.Failed, SpeechError.ServiceUnavailable))
+        mutableState.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.ServiceUnavailable)
     }
 
     companion object {

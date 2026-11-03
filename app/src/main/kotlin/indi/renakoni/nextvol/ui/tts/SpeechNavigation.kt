@@ -46,6 +46,9 @@ import kotlinx.serialization.Serializable
 object SpeechSettingsRoute
 
 @Serializable
+object SpeechDiagnosticsRoute
+
+@Serializable
 data class HttpSpeechSourcesRoute(val voiceKey: String? = null, val configureCredentials: Boolean = false)
 
 @Serializable
@@ -142,10 +145,19 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
             onReplacements = { nav.navigate(SpeechReplacementsRoute) { launchSingleTop = true } },
             onRoles = { nav.navigate(SpeechRolesRoute) { launchSingleTop = true } },
+            onDiagnostics = { nav.navigate(SpeechDiagnosticsRoute) { launchSingleTop = true } },
             onVoicePool = { nav.navigate(SpeechVoicePoolRoute) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer)
+    }
+    composable<SpeechDiagnosticsRoute> {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val viewModel = hiltViewModel<SpeechDiagnosticsViewModel>()
+        val logs by viewModel.logs.collectAsStateWithLifecycle()
+        SpeechDiagnosticsScreen(logs, nav::popBackStackIfResumed,
+            viewModel::clearLogs, viewModel::export)
     }
     composable<SpeechVoicePoolRoute> {
         HideReadAloudOverlay()
@@ -224,7 +236,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onEngineCacheCapacity = viewModel::engineCacheCapacity,
             onAudioSettings = viewModel::audioSettings,
             onBackgroundMusic = viewModel::backgroundMusic,
-            onAutoAssign = viewModel::autoAssign, onCacheLimit = viewModel::cacheLimit)
+            onAutoAssign = viewModel::autoAssign, onCacheLimit = viewModel::cacheLimit,
+            onDiagnosticLogging = viewModel::diagnosticLogging)
     }
     composable<SpeechNameTestRoute> {
         HideReadAloudOverlay()

@@ -7,6 +7,9 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.test.core.app.ApplicationProvider
 import indi.renakoni.nextvol.BuildConfig
+import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.tts.SpeechError
+import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.ui.home.settings.logcat.LIVE_LOG_OPTION
 import indi.renakoni.nextvol.ui.home.settings.logcat.LogcatViewModel
 import io.mockk.every
@@ -47,6 +50,8 @@ class LoggerRepositoryTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val context = mockk<Context>(relaxed = true)
         every { context.cacheDir } returns temporaryFolder.root
+        val resources = ApplicationProvider.getApplicationContext<Application>().resources
+        every { context.getString(any()) } answers { resources.getString(firstArg()) }
         logsDir = temporaryFolder.newFolder("logs")
         repository = LoggerRepository(context)
     }
@@ -65,6 +70,40 @@ class LoggerRepositoryTest {
             }
         }
         return archive
+    }
+
+    @Test fun speechLogsKeepProcessingDetailsAndClearIndependentlyOfApplicationLogs() {
+        repository.recordSpeech(SpeechLogRecord(SpeechLogStage.Request, SpeechLogEvent.Started))
+        assertTrue(repository.speechLogEntries.value.isEmpty())
+        val record = SpeechLogRecord(SpeechLogStage.Request, SpeechLogEvent.Failed, SpeechError.HttpAuthentication,
+            SpeechVoiceRef(httpSource = "https://example.com?token=private-secret", label = "中文旁白"),
+            subject = "小明", details = listOf(R.string.tts_log_final_text to "这是实际处理后的文本。"))
+        repeat(1001) { repository.recordSpeech(record.copy(timestamp = it.toLong())) }
+        assertEquals(1000, repository.speechLogEntries.value.size)
+        assertTrue(repository.realTimeLogEntries.isEmpty())
+        val report = repository.speechLogReport()
+        assertTrue(report.contains("中文旁白"))
+        assertTrue(report.contains("小明"))
+        assertTrue(report.contains("这是实际处理后的文本。"))
+        assertFalse(report.contains("private-secret"))
+        assertFalse(report.contains("https://example.com"))
+        assertTrue(report.endsWith(repository.speechLogEntries.value.last().text))
+        repository.recordSpeech(record.copy(details = listOf(R.string.tts_log_original to "长".repeat(20_000))))
+        val truncated = repository.speechLogEntries.value.last().text
+        assertTrue(truncated.contains(ApplicationProvider.getApplicationContext<Application>().getString(R.string.tts_log_truncated)))
+        assertFalse(truncated.contains("长".repeat(16_384)))
+        assertTrue(repository.speechLogReport().endsWith(truncated))
+        val speechFile = repository.prepareSpeechLogFile(report)
+        val appFile = File(logsDir, "application.log").apply { writeText("application") }
+        assertEquals(listOf(appFile.name), repository.getAvailableLogFiles())
+        assertTrue(repository.deleteLogs())
+        assertTrue(speechFile.exists())
+        assertEquals(1000, repository.speechLogEntries.value.size)
+        appFile.writeText("application")
+        assertTrue(repository.deleteSpeechLogs())
+        assertTrue(appFile.exists())
+        assertFalse(speechFile.exists())
+        assertTrue(repository.speechLogEntries.value.isEmpty())
     }
 
     @Test fun savedLogsRemainReadableWhenRecordingIsOff() {
@@ -104,7 +143,12 @@ class LoggerRepositoryTest {
             val viewModel = LogcatViewModel(repository, mockk(relaxed = true), LogFileSharer(context))
             viewModel.onSelectLogFile(archive.name)
             viewModel.shareLogs()
-            val intent = shadowOf(context).nextStartedActivity
+            val chooser = shadowOf(context).nextStartedActivity
+            assertEquals(Intent.ACTION_CHOOSER, chooser.action)
+            assertTrue(chooser.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+            val excluded = chooser.getParcelableArrayExtra(Intent.EXTRA_EXCLUDE_COMPONENTS)!!
+            assertEquals("indi.renakoni.nextvol.MainActivity", (excluded.single() as android.content.ComponentName).className)
+            val intent = chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)!!
             assertEquals(Intent.ACTION_SEND, intent.action)
             assertEquals("text/plain", intent.type)
             assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)

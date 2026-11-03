@@ -31,6 +31,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import androidx.navigation.toRoute
 import indi.renakoni.nextvol.tts.*
+import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.Route
 import org.junit.After
 import org.junit.Assert.*
@@ -126,7 +127,7 @@ class ReadAloudOverlayTest {
     }
 
     @Test fun pauseResumeAndCloseControlTheSameSessionAndCloseImmediately() {
-        val controller = ReadAloudController(activity.get())
+        val controller = ReadAloudController(activity.get(), mockk(relaxed = true))
         controller.publish(state.value)
         show(controller = controller)
         fun phase(phase: SpeechPhase) = compose.runOnIdle {
@@ -267,7 +268,7 @@ class ReadAloudOverlayTest {
     }
 
     @Test fun playbackStartingAndPausingInBackgroundStillOffersControlsOnReturn() {
-        val controller = ReadAloudController(activity.get())
+        val controller = ReadAloudController(activity.get(), mockk(relaxed = true))
         controller.publish(state.value.copy(phase = SpeechPhase.Preparing))
         show(controller = controller)
         player().assertDoesNotExist()
@@ -281,7 +282,7 @@ class ReadAloudOverlayTest {
     }
 
     @Test fun sameBookCanRestartEvenIfUiMissesTheStoppedState() {
-        val controller = ReadAloudController(activity.get())
+        val controller = ReadAloudController(activity.get(), mockk(relaxed = true))
         controller.publish(state.value)
         show(controller = controller)
         compose.onNodeWithContentDescription("Stop listening and close").performClick()
@@ -295,7 +296,7 @@ class ReadAloudOverlayTest {
     }
 
     @Test fun playbackEligibilityResetsForAnotherBookAndPreview() {
-        val controller = ReadAloudController(activity.get())
+        val controller = ReadAloudController(activity.get(), mockk(relaxed = true))
         controller.publish(state.value)
         show(controller = controller)
         player().assertIsDisplayed()
@@ -310,7 +311,7 @@ class ReadAloudOverlayTest {
     }
 
     @Test fun explicitResumeAfterAServiceFailureCanShowThePlayerAgain() {
-        val controller = ReadAloudController(activity.get())
+        val controller = ReadAloudController(activity.get(), mockk(relaxed = true))
         controller.publish(state.value)
         show(controller = controller)
         compose.onNodeWithContentDescription("Stop listening and close").performClick()
