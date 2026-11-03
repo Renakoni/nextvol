@@ -41,7 +41,6 @@ internal class BackgroundMusicViewModel @Inject constructor(private val reposito
 
     fun refresh() = update { repository.refreshAvailability() }
     fun select(id: String, selected: Boolean) = update { repository.select(id, selected) }
-    fun disable() = update { repository.disable() }
     fun volume(value: Float) = update { repository.setVolume(value) }
     fun delete(id: String) = update { repository.delete(id) }
     fun importTracks(uris: List<Uri>, replacingId: String? = null) = update(R.string.tts_music_import_failed) {

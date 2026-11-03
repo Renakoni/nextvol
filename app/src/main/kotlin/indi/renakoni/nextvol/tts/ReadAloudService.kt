@@ -149,7 +149,7 @@ class ReadAloudService : MediaSessionService() {
         }
         scope.launch {
             music.changes.collect { settings ->
-                if (backgroundMusic == null && settings.tracks.any { it.selected }) {
+                if (backgroundMusic == null && settings.enabled && settings.tracks.any { it.selected }) {
                     backgroundMusic = BackgroundMusicPlayback(ExoPlayer.Builder(this@ReadAloudService)
                         .setWakeMode(C.WAKE_MODE_LOCAL).build().apply {
                             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)

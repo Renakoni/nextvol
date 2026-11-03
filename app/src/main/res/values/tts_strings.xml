@@ -124,14 +124,11 @@
     <string name="tts_pause_duration">%1$d ms</string>
     <string name="tts_pause_milliseconds">Milliseconds</string>
     <string name="tts_background_music">Background music</string>
-    <string name="tts_music_description">Selected tracks play in random order, without repeats until all have played.</string>
-    <string name="tts_music_disabled">No background music</string>
-    <string name="tts_music_volume">Music volume</string>
-    <string name="tts_music_volume_description">Adjust background music independently.</string>
+    <string name="tts_music_description">Enable background music. Tracks play in random order without repeats until all have played.</string>
+    <string name="tts_music_volume">Background music volume</string>
     <string name="tts_music_volume_value">%1$d%%</string>
     <string name="tts_music_tracks">Local tracks</string>
     <string name="tts_music_import">Import music</string>
-    <string name="tts_music_empty">Import audio files, then select the tracks to play while listening.</string>
     <string name="tts_music_unavailable">Unable to play this file</string>
     <string name="tts_music_replace">Choose file again</string>
     <string name="tts_music_delete">Delete %1$s</string>

@@ -23,7 +23,7 @@ class BackgroundMusicPlaybackTest {
     @Test fun selectedTracksPlayOncePerRoundAndVolumeChangesKeepTheCurrentTrack() {
         val env = Environment()
         env.playback.use { playback ->
-            val settings = BackgroundMusicSettings(tracks)
+            val settings = BackgroundMusicSettings(tracks, enabled = true)
             playback.updateSettings(settings)
             playback.updateSession(book, SpeechPhase.Preparing)
             assertTrue(env.loaded.isEmpty())
@@ -35,29 +35,33 @@ class BackgroundMusicPlaybackTest {
             assertEquals(0.2f, env.volume, 0f)
             assertEquals(6, env.loaded.size)
             assertTrue(env.ready)
+            playback.updateSettings(settings.copy(enabled = false))
+            assertNull(env.currentMediaId)
+            playback.updateSettings(settings)
+            assertTrue(env.ready)
         }
     }
 
     @Test fun deletingTheCurrentTrackAdvancesAndBrokenTracksWaitForRepair() {
         val env = Environment()
         env.playback.use { playback ->
-            playback.updateSettings(BackgroundMusicSettings(tracks))
+            playback.updateSettings(BackgroundMusicSettings(tracks, enabled = true))
             playback.updateSession(book, SpeechPhase.Playing)
             val deleted = env.loaded.single()
             val kept = tracks.filterNot { it.id == deleted }
-            playback.updateSettings(BackgroundMusicSettings(kept))
+            playback.updateSettings(BackgroundMusicSettings(kept, enabled = true))
             assertEquals(2, env.loaded.size)
             assertNotEquals(deleted, env.loaded.last())
             repeat(kept.size) { env.listener.captured.onPlayerError(mockk()) }
             assertEquals(kept.map { it.id }.toSet(), env.unavailable.toSet())
             assertNull(env.currentMediaId)
             val attempted = env.loaded.toList()
-            playback.updateSettings(BackgroundMusicSettings(kept, volume = 0.3f))
+            playback.updateSettings(BackgroundMusicSettings(kept, volume = 0.3f, enabled = true))
             playback.setSuppressed(true)
             playback.setSuppressed(false)
             assertEquals(attempted, env.loaded)
             val repaired = kept.first().copy(id = "repaired")
-            playback.updateSettings(BackgroundMusicSettings(listOf(repaired) + kept.drop(1)))
+            playback.updateSettings(BackgroundMusicSettings(listOf(repaired) + kept.drop(1), enabled = true))
             assertEquals(repaired.id, env.loaded.last())
             assertTrue(env.ready)
         }
@@ -66,7 +70,7 @@ class BackgroundMusicPlaybackTest {
     @Test fun oneChannelFollowsSessionPausesPreviewsFocusAndBookReplacement() {
         val env = Environment()
         env.playback.use { playback ->
-            playback.updateSettings(BackgroundMusicSettings(tracks.take(1)))
+            playback.updateSettings(BackgroundMusicSettings(tracks.take(1), enabled = true))
             playback.updateSession(book, SpeechPhase.Playing)
             playback.updateSession(book, SpeechPhase.Buffering)
             assertTrue(env.ready)

@@ -35,7 +35,7 @@ internal class BackgroundMusicPlayback(private val player: Player,
 
     fun updateSettings(settings: BackgroundMusicSettings) {
         player.volume = settings.volume
-        val selected = settings.tracks.filter { it.selected }
+        val selected = if (settings.enabled) settings.tracks.filter { it.selected } else emptyList()
         if (tracks != selected) {
             tracks = selected
             remaining.clear()

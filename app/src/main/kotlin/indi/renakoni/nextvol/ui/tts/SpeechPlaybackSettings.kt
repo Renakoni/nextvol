@@ -38,6 +38,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -55,6 +58,7 @@ data class SpeechPlaybackSettingsState(
     val error: SpeechError? = null,
     val engineCacheCapacity: Int = 10,
     val audio: SpeechAudioSettings = SpeechAudioSettings(),
+    val backgroundMusicEnabled: Boolean = false,
 )
 
 @HiltViewModel
@@ -62,6 +66,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     private val repository: SpeechSettingsRepository,
     userData: UserDataRepository,
     newWords: SpeechNewWordDiscovery,
+    private val backgroundMusic: BackgroundMusicRepository,
 ) : ViewModel() {
     val preferences = SpeechPlaybackPreferences(userData, viewModelScope)
     private val mutableState = MutableStateFlow(SpeechPlaybackSettingsState())
@@ -69,10 +74,12 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.changes.collect { settings -> mutableState.update {
+            combine(repository.changes, backgroundMusic.changes.map { it.enabled }.distinctUntilChanged()) { settings, music -> settings to music }
+                .collect { (settings, music) -> mutableState.update {
                 it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
                     engineCacheCapacity = settings.engineCacheCapacity,
                     audio = settings.audio,
+                    backgroundMusicEnabled = music,
                     autoAssignRole = settings.autoAssignRole, maxCacheVoiceNum = settings.maxCacheVoiceNum,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
@@ -99,6 +106,16 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun engineCacheCapacity(capacity: Int) = updateSettings { it.copy(engineCacheCapacity = capacity) }
 
     fun audioSettings(audio: SpeechAudioSettings) = updateSettings { it.copy(audio = audio) }
+
+    fun backgroundMusic(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                backgroundMusic.setEnabled(enabled)
+                mutableState.update { it.copy(error = null) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.Storage) } }
+        }
+    }
 
     // MultiTTS seeds the localized default on the first visit to software settings.
     fun initializeRoleContext(default: String) {
@@ -142,6 +159,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
     onContextPattern: (String) -> Unit, onNameTest: () -> Unit,
     onEngineCacheCapacity: (Int) -> Unit,
     onAudioSettings: (SpeechAudioSettings) -> Unit,
+    onBackgroundMusic: (Boolean) -> Unit,
     onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
     var editingContext by rememberSaveable { mutableStateOf(false) }
@@ -170,6 +188,8 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     color = MaterialTheme.colorScheme.error)
             } }
             state.settings?.let { settings ->
+                item { SpeechTextSwitch(R.drawable.music_note_24px, R.string.tts_background_music, R.string.tts_music_description,
+                    state.backgroundMusicEnabled, onBackgroundMusic) }
                 item { SpeechTextSwitch(R.drawable.tts_decode_stream, R.string.tts_decode_stream,
                     if (state.audio.decodeStream) R.string.tts_decode_stream_on else R.string.tts_decode_stream_off,
                     state.audio.decodeStream) { onAudioSettings(state.audio.copy(decodeStream = it)) } }

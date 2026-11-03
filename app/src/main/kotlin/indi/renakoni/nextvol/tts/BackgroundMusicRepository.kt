@@ -27,7 +27,8 @@ import javax.inject.Singleton
 data class BackgroundMusicTrack(val id: String, val name: String, val selected: Boolean = false)
 
 @Serializable
-data class BackgroundMusicSettings(val tracks: List<BackgroundMusicTrack> = emptyList(), val volume: Float = 0.5f)
+data class BackgroundMusicSettings(val tracks: List<BackgroundMusicTrack> = emptyList(), val volume: Float = 0.5f,
+    val enabled: Boolean = false)
 
 @Singleton
 class BackgroundMusicRepository @Inject constructor(@ApplicationContext private val context: Context,
@@ -46,7 +47,7 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
         settings.copy(tracks = settings.tracks.map { if (it.id == id) it.copy(selected = selected) else it })
     }
 
-    suspend fun disable() = update { settings -> settings.copy(tracks = settings.tracks.map { it.copy(selected = false) }) }
+    suspend fun setEnabled(enabled: Boolean) = update { it.copy(enabled = enabled) }
 
     suspend fun setVolume(volume: Float) = update { it.copy(volume = volume) }
 

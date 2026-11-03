@@ -117,14 +117,11 @@
     <string name="tts_pause_duration">%1$d 毫秒</string>
     <string name="tts_pause_milliseconds">毫秒</string>
     <string name="tts_background_music">背景音樂</string>
-    <string name="tts_music_description">選中的曲目隨機輪播，每輪不重複。</string>
-    <string name="tts_music_disabled">不使用背景音樂</string>
-    <string name="tts_music_volume">音樂音量</string>
-    <string name="tts_music_volume_description">獨立調整背景音樂音量</string>
+    <string name="tts_music_description">開啟背景音樂，曲目隨機輪播，每輪不重複。</string>
+    <string name="tts_music_volume">背景音樂音量</string>
     <string name="tts_music_volume_value">%1$d%%</string>
     <string name="tts_music_tracks">本機曲目</string>
     <string name="tts_music_import">匯入音樂</string>
-    <string name="tts_music_empty">匯入音訊檔案，勾選後即可在聽書時播放。</string>
     <string name="tts_music_unavailable">檔案無法播放</string>
     <string name="tts_music_replace">重新選擇檔案</string>
     <string name="tts_music_delete">刪除 %1$s</string>
