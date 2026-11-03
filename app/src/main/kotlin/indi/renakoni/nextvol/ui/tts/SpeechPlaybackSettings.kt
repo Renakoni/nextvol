@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,7 +33,6 @@ import indi.renakoni.nextvol.tts.names.SpeechNewWordDiscovery
 import indi.renakoni.nextvol.data.setting.AbstractSettingState
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
-import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.components.MenuOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -54,8 +54,6 @@ data class SpeechPlaybackSettingsState(
     val defaultNamePattern: String? = null,
     val error: SpeechError? = null,
     val engineCacheCapacity: Int = 10,
-    val cachedEngines: Int = 0,
-    val clearingEngines: Boolean = false,
     val audio: SpeechAudioSettings = SpeechAudioSettings(),
 )
 
@@ -64,7 +62,6 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     private val repository: SpeechSettingsRepository,
     userData: UserDataRepository,
     newWords: SpeechNewWordDiscovery,
-    private val caches: SpeechSynthesizerCaches,
 ) : ViewModel() {
     val preferences = SpeechPlaybackPreferences(userData, viewModelScope)
     private val mutableState = MutableStateFlow(SpeechPlaybackSettingsState())
@@ -79,9 +76,6 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
                     autoAssignRole = settings.autoAssignRole, maxCacheVoiceNum = settings.maxCacheVoiceNum,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
             } }
-        }
-        viewModelScope.launch {
-            caches.count.collect { count -> mutableState.update { it.copy(cachedEngines = count) } }
         }
         viewModelScope.launch {
             try {
@@ -105,17 +99,6 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun engineCacheCapacity(capacity: Int) = updateSettings { it.copy(engineCacheCapacity = capacity) }
 
     fun audioSettings(audio: SpeechAudioSettings) = updateSettings { it.copy(audio = audio) }
-
-    fun clearEngines() {
-        if (state.value.clearingEngines) return
-        mutableState.update { it.copy(clearingEngines = true) }
-        viewModelScope.launch {
-            try { caches.clear(); mutableState.update { it.copy(error = null) } }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.EngineUnavailable) } }
-            finally { mutableState.update { it.copy(clearingEngines = false) } }
-        }
-    }
 
     // MultiTTS seeds the localized default on the first visit to software settings.
     fun initializeRoleContext(default: String) {
@@ -157,7 +140,7 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
     onContextPattern: (String) -> Unit, onNameTest: () -> Unit,
-    onEngineCacheCapacity: (Int) -> Unit, onClearEngines: () -> Unit,
+    onEngineCacheCapacity: (Int) -> Unit,
     onAudioSettings: (SpeechAudioSettings) -> Unit,
     onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
@@ -199,7 +182,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 item {
                     val processors = remember { object : MenuOptions(Option("200", R.string.tts_audio_sonic),
                         Option("201", R.string.tts_audio_soundtouch)) {} }
-                    SettingsMenuEntry(title = stringResource(R.string.tts_audio_processor), options = processors,
+                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_audio_processor, processors,
                         selectedOptionKey = state.audio.processor.toString(),
                         onOptionChange = { onAudioSettings(state.audio.copy(processor = it.toInt())) })
                 }
@@ -209,31 +192,16 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         Option("32000", R.string.tts_sample_rate_32000), Option("44100", R.string.tts_sample_rate_44100),
                         Option("48000", R.string.tts_sample_rate_48000), Option("64000", R.string.tts_sample_rate_64000),
                         Option("96000", R.string.tts_sample_rate_96000)) {} }
-                    SettingsMenuEntry(title = stringResource(R.string.tts_audio_minimum_rate), options = rates,
+                    SpeechTextMenu(R.drawable.tts_audio_sample_rate, R.string.tts_audio_minimum_rate, rates,
                         selectedOptionKey = state.audio.minimumSampleRate.toString(),
                         onOptionChange = { onAudioSettings(state.audio.copy(minimumSampleRate = it.toInt())) })
                 }
+                item { SpeechTextSwitch(R.drawable.tts_audio_silence, R.string.tts_audio_check_silence,
+                    if (state.audio.checkSilence) R.string.tts_audio_check_silence_on else R.string.tts_audio_check_silence_off,
+                    state.audio.checkSilence) { onAudioSettings(state.audio.copy(checkSilence = it)) } }
                 item {
-                    SettingsClickableEntry(title = stringResource(R.string.tts_audio_check_silence),
-                        option = stringResource(R.string.tts_audio_check_silence_description),
-                        trailingContent = { PlaybackSwitch(state.audio.checkSilence) {
-                            onAudioSettings(state.audio.copy(checkSilence = it))
-                        } }, onClick = { onAudioSettings(state.audio.copy(checkSilence = !state.audio.checkSilence)) })
-                }
-                item {
-                    var capacity by remember(state.engineCacheCapacity) { mutableFloatStateOf(state.engineCacheCapacity.toFloat()) }
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp)) {
-                        Text(stringResource(R.string.tts_engine_cache_capacity, capacity.roundToInt()),
-                            style = MaterialTheme.typography.headlineSmall)
-                        Slider(capacity, { capacity = it }, valueRange = 3f..32f, steps = 28,
-                            onValueChangeFinished = { onEngineCacheCapacity(capacity.roundToInt()) })
-                    }
-                }
-                item {
-                    SettingsClickableEntry(title = stringResource(R.string.tts_engine_cache_clear),
-                        option = stringResource(if (state.clearingEngines) R.string.tts_engine_cache_clearing
-                            else R.string.tts_engine_cache_count, state.cachedEngines),
-                        onClick = onClearEngines)
+                    SpeechTextSlider(R.drawable.tts_text_cache_voice, R.string.tts_engine_cache_capacity,
+                        state.engineCacheCapacity, 3f..32f, onChange = onEngineCacheCapacity)
                 }
                 item { SpeechTextSwitch(R.drawable.tts_text_multiple_voices, R.string.tts_voice_multiple,
                     if (state.allowMultipleVoices) R.string.tts_voice_multiple_on else R.string.tts_voice_multiple_off,
@@ -272,8 +240,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 item {
                     val algorithms = remember { object : MenuOptions(Option("300", R.string.tts_language_optimaize),
                         Option("301", R.string.tts_language_media_pipe)) {} }
-                    SettingsMenuEntry(painter = painterResource(R.drawable.language_24px),
-                        title = stringResource(R.string.tts_language_detector), options = algorithms,
+                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_language_detector, algorithms,
                         selectedOptionKey = settings.languageDetector.toString(),
                         onOptionChange = { key -> onUpdate { it.copy(languageDetector = key.toInt()) } })
                 }
@@ -282,28 +249,9 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 item { SpeechTextSwitch(R.drawable.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken_description,
                     settings.filterUnspoken) { onUpdate { old -> old.copy(filterUnspoken = it) } } }
                 item {
-                    var length by remember(settings.maxSentenceLength) { mutableFloatStateOf(settings.maxSentenceLength.toFloat()) }
-                    val title = stringResource(R.string.tts_text_sentence_length)
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
-                        Icon(painterResource(R.drawable.tts_text_sentence_length), null,
-                            Modifier.padding(top = 2.dp).size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Column(Modifier.weight(1f).padding(start = 16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
-                                Text(length.roundToInt().toString(), style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(stringResource(R.string.tts_text_sentence_length_description),
-                                Modifier.padding(top = 3.dp), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Slider(length, { length = it }, valueRange = 32f..256f,
-                                onValueChangeFinished = { onUpdate { it.copy(maxSentenceLength = length.roundToInt()) } },
-                                modifier = Modifier.semantics { contentDescription = title },
-                                thumb = { Surface(Modifier.size(16.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {} },
-                                track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
-                                    trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
-                        }
-                    }
+                    SpeechTextSlider(R.drawable.tts_text_sentence_length, R.string.tts_text_sentence_length,
+                        settings.maxSentenceLength, 32f..256f, R.string.tts_text_sentence_length_description,
+                        onChange = { length -> onUpdate { it.copy(maxSentenceLength = length) } })
                 }
             }
             if (state.settings != null) item {
@@ -329,8 +277,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             state.settings?.let { settings -> item {
                 val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner),
                     Option("100", R.string.tts_new_word_algorithm)) {} }
-                SettingsMenuEntry(painter = painterResource(R.drawable.group_24px),
-                    title = stringResource(R.string.tts_name_algorithm), options = algorithms,
+                SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_name_algorithm, algorithms,
                     selectedOptionKey = settings.nameDiscoveryAlgorithm.toString(),
                     onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
             } }
@@ -434,15 +381,71 @@ private fun SpeechTextSwitch(@DrawableRes icon: Int, @StringRes title: Int, @Str
 @Composable
 private fun SpeechTextEntry(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
     modifier: Modifier, trailingContent: @Composable () -> Unit = {}) {
+    SpeechTextEntry(icon, title, stringResource(description), modifier, trailingContent)
+}
+
+@Composable
+private fun SpeechTextEntry(@DrawableRes icon: Int, @StringRes title: Int, description: String,
+    modifier: Modifier, trailingContent: @Composable () -> Unit = {}) {
     Row(modifier.fillMaxWidth()
         .heightIn(min = 68.dp).padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(stringResource(title), style = MaterialTheme.typography.headlineSmall)
-            Text(stringResource(description), style = MaterialTheme.typography.bodySmall,
+            Text(description, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         trailingContent()
+    }
+}
+
+@Composable
+private fun SpeechTextMenu(@DrawableRes icon: Int, @StringRes title: Int, options: MenuOptions,
+    selectedOptionKey: String, onOptionChange: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = options.getOrNull(selectedOptionKey)
+    Box {
+        SpeechTextEntry(icon, title, selected?.let { stringResource(it.nameId) } ?: selectedOptionKey,
+            Modifier.clickable { expanded = true })
+        DropdownMenu(expanded, onDismissRequest = { expanded = false }, offset = DpOffset(60.dp, 0.dp)) {
+            options.optionList.forEach { option ->
+                DropdownMenuItem(text = { Text(stringResource(option.nameId)) }, onClick = {
+                    onOptionChange(option.key)
+                    expanded = false
+                }, trailingIcon = if (option.key == selectedOptionKey) ({
+                    Icon(painterResource(R.drawable.check_24px), null)
+                }) else null)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpeechTextSlider(@DrawableRes icon: Int, @StringRes title: Int, value: Int,
+    valueRange: ClosedFloatingPointRange<Float>, @StringRes description: Int? = null, onChange: (Int) -> Unit) {
+    var current by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    val label = stringResource(title)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+        Icon(painterResource(icon), null, Modifier.padding(top = 2.dp).size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
+                Text(current.roundToInt().toString(), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            description?.let {
+                Text(stringResource(it), Modifier.padding(top = 3.dp), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Slider(current, { current = it }, valueRange = valueRange,
+                onValueChangeFinished = { onChange(current.roundToInt()) },
+                modifier = Modifier.semantics { contentDescription = label },
+                thumb = { Surface(Modifier.size(16.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {} },
+                track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
+                    trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
+        }
     }
 }
 

@@ -647,14 +647,12 @@
     <string name="tts_manage_exit">退出管理</string>
     <string name="tts_voice_reorder">拖曳排序：%1$s</string>
     <string name="tts_manage_search_scope">數量與刪除僅針對目前搜尋結果</string>
-    <string name="tts_engine_cache_capacity">引擎快取上限：%1$d</string>
-    <string name="tts_engine_cache_clear">清理引擎快取</string>
-    <string name="tts_engine_cache_count">已快取 %1$d 個聲音。保留已安裝語音包與閱讀進度。</string>
-    <string name="tts_engine_cache_clearing">正在等待合成結束並釋放引擎…</string>
+    <string name="tts_engine_cache_capacity">引擎快取上限</string>
     <string name="tts_audio_processor">音訊處理器</string>
     <string name="tts_audio_minimum_rate">最低取樣率</string>
     <string name="tts_audio_check_silence">靜音偵測</string>
-    <string name="tts_audio_check_silence_description">縮短低音量音訊區塊，有意插入的停頓維持原時長。</string>
+    <string name="tts_audio_check_silence_off">已關閉，不跳過無聲片段</string>
+    <string name="tts_audio_check_silence_on">已啟用，會跳過無聲片段</string>
     <string name="tts_error_audio_processing">音訊處理失敗，請檢查處理器與聲音參數。</string>
     <string name="tts_detect_language">偵測語言</string>
     <string name="tts_detect_language_description">依已啟用的語言規則，為正文各段選擇聲音。</string>
