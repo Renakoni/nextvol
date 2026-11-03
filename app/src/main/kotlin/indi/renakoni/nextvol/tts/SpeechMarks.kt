@@ -23,10 +23,13 @@ internal class SpeechMarks {
 internal operator fun SpeechAudioParameters.times(other: SpeechAudioParameters) =
     SpeechAudioParameters(speed * other.speed, pitch * other.pitch, volume * other.volume)
 
+internal fun speechParagraphIndex(paragraphEnds: List<Int>, offset: Int) =
+    paragraphEnds.binarySearch(offset).let { if (it >= 0) it else -it - 1 }
+
 /** Split only when the original paragraph changes, even if replacement removed its newline. */
 internal fun speechParagraphChunks(input: SpeechMappedText, paragraphEnds: List<Int>): List<SpeechMappedText> {
     if (input.text.isEmpty()) return emptyList()
-    fun paragraph(index: Int) = paragraphEnds.binarySearch(input.anchor(index)).let { if (it >= 0) it else -it - 1 }
+    fun paragraph(index: Int) = speechParagraphIndex(paragraphEnds, input.anchor(index))
     val result = mutableListOf<SpeechMappedText>()
     var start = 0
     var previous = paragraph(0)

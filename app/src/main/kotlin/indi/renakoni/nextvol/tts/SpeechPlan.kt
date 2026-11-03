@@ -92,6 +92,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val marks = SpeechMarks()
     val paragraphEnds = if (settings.paragraphPauseMs > 0) chapter.text.indices.filter { chapter.text[it] == '\n' } else emptyList()
     var previousSpoken: SpeechSegment? = null
+    var previousParagraph: Int? = null
     fun pause(durationMs: Int, origin: SpeechMappedText) {
         // The original negative duration crashes while allocating PCM. Report it through the existing audio error.
         if (durationMs < 0) throw SpeechException(SpeechError.AudioProcessing)
@@ -123,14 +124,16 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
                 else fallback ?: routing.select(part).also { fallback = it }
                 var corrected = replacements.apply(unit, wholeText = false)
                 if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
-                val paragraphs = if (settings.paragraphPauseMs > 0) speechParagraphChunks(corrected, paragraphEnds) else listOf(corrected)
+                val paragraphs = if (paragraphEnds.isNotEmpty()) speechParagraphChunks(corrected, paragraphEnds) else listOf(corrected)
                 for (sentence in paragraphs.flatMap { speechSentenceChunks(it, settings.maxSentenceLength, locale, checkCancelled) }) {
                     for (mapped in speechHardChunks(sentence, voice.maxInputLength, checkCancelled)) {
                         if (mapped.text.all { Character.isWhitespace(it) } || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
                         val (start, end) = mapped.range()
                         if (start < end) {
-                            previousSpoken?.let { previous ->
-                                if (paragraphEnds.any { it >= previous.end && it < start }) pause(settings.paragraphPauseMs, mapped)
+                            if (paragraphEnds.isNotEmpty()) {
+                                val paragraph = speechParagraphIndex(paragraphEnds, mapped.anchor(0))
+                                if (previousParagraph != null && paragraph != previousParagraph) pause(settings.paragraphPauseMs, mapped)
+                                previousParagraph = paragraph
                             }
                             segments += SpeechSegment(start, end, mapped.text, part.dialogue, part.speaker,
                                 part.speakerHint, detected?.let { "lang:${it.language}" } ?: language.language, part.beforeText, part.afterText,
