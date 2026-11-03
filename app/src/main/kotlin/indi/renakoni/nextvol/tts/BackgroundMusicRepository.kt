@@ -15,7 +15,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
@@ -39,9 +38,7 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
     private val json = Json { ignoreUnknownKeys = true }
     private val mutableUnavailable = MutableStateFlow<Set<String>>(emptySet())
     val unavailable = mutableUnavailable.asStateFlow()
-    val changes = stored.getFlow().map(::decode).distinctUntilChanged()
-
-    suspend fun get(): BackgroundMusicSettings = withContext(Dispatchers.IO) { decode(stored.get()) }
+    val changes = stored.getFlow().distinctUntilChanged().map(::decode)
 
     suspend fun select(id: String, selected: Boolean) = update { settings ->
         settings.copy(tracks = settings.tracks.map { if (it.id == id) it.copy(selected = selected) else it })
@@ -52,7 +49,6 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
     suspend fun setVolume(volume: Float) = update { it.copy(volume = volume) }
 
     suspend fun importTracks(uris: List<Uri>, replacingId: String? = null) = withContext(Dispatchers.IO) {
-        if (uris.isEmpty()) return@withContext
         mutex.withLock {
             val current = decode(stored.get())
             val previous = current.tracks.find { it.id == replacingId }
@@ -112,8 +108,6 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
 
     private fun decode(value: String?): BackgroundMusicSettings = try {
         value?.let { json.decodeFromString<BackgroundMusicSettings>(it) } ?: BackgroundMusicSettings()
-    } catch (_: SerializationException) {
-        BackgroundMusicSettings()
     } catch (_: IllegalArgumentException) {
         BackgroundMusicSettings()
     }

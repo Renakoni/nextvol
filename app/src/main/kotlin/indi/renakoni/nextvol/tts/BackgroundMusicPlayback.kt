@@ -39,8 +39,9 @@ internal class BackgroundMusicPlayback(private val player: Player,
         if (tracks != selected) {
             tracks = selected
             remaining.clear()
-            failed.retainAll(tracks.map { it.id }.toSet())
-            if (current?.id !in tracks.map { it.id }) clearTrack()
+            val ids = tracks.map { it.id }.toSet()
+            failed.retainAll(ids)
+            if (current?.id !in ids) clearTrack()
             // The current track has already been drawn in this round.
             remaining += tracks.filter { it.id != current?.id && it.id !in failed }
         }
