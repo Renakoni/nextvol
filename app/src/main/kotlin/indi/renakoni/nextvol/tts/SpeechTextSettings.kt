@@ -19,6 +19,7 @@ data class SpeechTextSettings(
     val detectLanguage: Boolean = false,
     val languageDetector: Int = 300,
     val filterLanguage: Boolean = false,
+    val paragraphPauseMs: Int = 0,
     val nameDiscoveryAlgorithm: Int = 101,
     val personNameRegex: String? = null,
     @EncodeDefault

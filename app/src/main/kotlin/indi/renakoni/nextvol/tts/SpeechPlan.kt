@@ -23,9 +23,10 @@ class SpeechPlan internal constructor(
     internal fun startIndex(saved: SpeechBookmark?): Int {
         val matching = saved?.takeIf { it.bookId == chapter.bookId && it.chapterId == chapter.id &&
             it.fingerprint == chapter.fingerprint && !it.completed && it.offset in 0..chapter.text.length }
+        if (matching == null) return 0
         // Expansion/capture reordering can give several clips overlapping original ranges.
-        matching?.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }?.let { return it }
-        val offset = matching?.offset ?: 0
+        matching.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }?.let { return it }
+        val offset = matching.offset
         // End offsets are exclusive: a durable completion boundary must not replay
         // the finished segment, including whitespace before the next segment.
         return segments.indexOfFirst { it.end > offset }.takeIf { it >= 0 } ?: segments.size
@@ -88,15 +89,29 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
         checkCancelled = checkCancelled)
     val segments = mutableListOf<SpeechSegment>()
     val mappings = mutableListOf<SpeechMappedText>()
+    val marks = SpeechMarks()
+    val paragraphEnds = if (settings.paragraphPauseMs > 0) chapter.text.indices.filter { chapter.text[it] == '\n' } else emptyList()
+    var previousSpoken: SpeechSegment? = null
+    fun pause(durationMs: Int, origin: SpeechMappedText) {
+        // The original negative duration crashes while allocating PCM. Report it through the existing audio error.
+        if (durationMs < 0) throw SpeechException(SpeechError.AudioProcessing)
+        if (durationMs == 0) return
+        val offset = previousSpoken?.end ?: 0
+        segments += SpeechSegment(offset, offset, "", pauseMs = durationMs)
+        mappings += origin
+    }
     for (part in structure.parts) {
         checkCancelled()
+        if (part.controlMark) {
+            marks.accept(part.content.text)?.let { pause(it, part.content) }
+            continue
+        }
         var fallback: Pair<SpeechResolvedVoice, SpeechVoiceReason>? = null
         val manual = part.dialogue && (part.personVoice?.roleMatch?.origin == SpeechPersonOrigin.Manual ||
             synthesis.speakerBookId == chapter.bookId && part.speaker in synthesis.speakerVoices)
-        val detect = languageRouting.active && !part.controlMark && part.textRule == null && !manual
-        val languages = if (part.controlMark) listOf(SpeechLanguageSegment(part.content, "lang:mark"))
-            // P.f.i applies Latin separation only to spans not claimed by a text rule.
-            else speechLatinSegments(part.content, settings.separateEnglish && part.textRule == null, checkCancelled)
+        val detect = languageRouting.active && part.textRule == null && !manual
+        // P.f.i applies Latin separation only to spans not claimed by a text rule.
+        val languages = speechLatinSegments(part.content, settings.separateEnglish && part.textRule == null, checkCancelled)
         for (language in languages) {
             val units = if (detect) languageRouting.split(language.content, locale, checkCancelled)
                 else listOf(language.content to null)
@@ -106,20 +121,23 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
                 val (voice, reason) = if (languageMatch != null)
                     routing.select(part.copy(textRule = languageMatch)).first to SpeechVoiceReason.Language
                 else fallback ?: routing.select(part).also { fallback = it }
-                var corrected = unit
-                if (!part.controlMark) {
-                    corrected = replacements.apply(corrected, wholeText = false)
-                    if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
-                }
-                for (sentence in speechSentenceChunks(corrected, settings.maxSentenceLength, locale, checkCancelled)) {
+                var corrected = replacements.apply(unit, wholeText = false)
+                if (settings.replaceEmoji) corrected = SpeechEmojiNames.replace(corrected, checkCancelled, locale)
+                val paragraphs = if (settings.paragraphPauseMs > 0) speechParagraphChunks(corrected, paragraphEnds) else listOf(corrected)
+                for (sentence in paragraphs.flatMap { speechSentenceChunks(it, settings.maxSentenceLength, locale, checkCancelled) }) {
                     for (mapped in speechHardChunks(sentence, voice.maxInputLength, checkCancelled)) {
                         if (mapped.text.all { Character.isWhitespace(it) } || settings.filterUnspoken && speechIsUnspoken(mapped.text)) continue
                         val (start, end) = mapped.range()
                         if (start < end) {
+                            previousSpoken?.let { previous ->
+                                if (paragraphEnds.any { it >= previous.end && it < start }) pause(settings.paragraphPauseMs, mapped)
+                            }
                             segments += SpeechSegment(start, end, mapped.text, part.dialogue, part.speaker,
                                 part.speakerHint, detected?.let { "lang:${it.language}" } ?: language.language, part.beforeText, part.afterText,
                                 part.rememberedText, part.previousVoice, part.changeVoice, voice, reason,
-                                languageMatch ?: part.textRule ?: part.personVoice?.roleMatch?.takeIf { part.dialogue })
+                                languageMatch ?: part.textRule ?: part.personVoice?.roleMatch?.takeIf { part.dialogue },
+                                audioParameters = marks.parameters)
+                            previousSpoken = segments.last()
                             mappings += mapped
                         }
                     }
@@ -133,7 +151,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
 }
 
 internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
-    speechDigest("speech-text-v4\u0000" + Json.encodeToString(replacements) + "\u0000" +
+    speechDigest("speech-text-v5\u0000" + Json.encodeToString(replacements) + "\u0000" +
         Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag() +
         "\u0000" + Json.encodeToString(narrationVoices) + Json.encodeToString(dialogueVoices) +
         Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured +

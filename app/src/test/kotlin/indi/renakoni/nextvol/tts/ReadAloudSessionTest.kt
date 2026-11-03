@@ -25,6 +25,28 @@ import java.util.UUID
 class ReadAloudSessionTest {
     @get:Rule val files = TemporaryFolder()
 
+    @Test fun pauseKeepsAudiblePositionAndUsesTheSameSessionControls() = runTest {
+        val env = Environment(this)
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "甲[[PAUSE:2000]]乙") }
+        env.session.start(SpeechRequest("book", "one"))
+        runCurrent()
+        val position = env.session.state.value.position
+        env.player.finish()
+        runCurrent()
+        assertEquals(2000, env.player.started.last().segment.pauseMs)
+        assertEquals(listOf("甲", "乙"), env.synthesized)
+        assertEquals(position, env.session.state.value.position)
+        assertEquals(1, env.progress.saved.getValue("book").offset)
+        env.session.interrupt()
+        assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
+        env.session.resume()
+        assertEquals(SpeechPhase.Playing, env.session.state.value.phase)
+        env.session.skipSegment(1)
+        runCurrent()
+        assertEquals("乙", env.player.started.last().segment.text)
+        env.stop()
+    }
+
     @Test fun streamingStartsBeforeSynthesisEndsAndStopKeepsTheAudibleBoundary() = runTest {
         val env = Environment(this)
         val pending = CompletableDeferred<Unit>()

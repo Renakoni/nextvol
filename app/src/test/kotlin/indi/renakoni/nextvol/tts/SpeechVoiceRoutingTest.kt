@@ -58,7 +58,7 @@ class SpeechVoiceRoutingTest {
     @Test fun controlMarksDoNotConsumeTurnsAndUnfinishedDialogueKeepsItsCursorAcrossChapters() = runBlocking {
         val configured = settings.copy(text = settings.text.copy(continueDialogue = true))
         val first = prepareSpeechPlan(SpeechChapter("book", "one", "", "", "[[PAUSE:10]]旁白。“还没说完"), configured) {}
-        assertEquals(narrator.key, first.segments.first { it.language != "lang:mark" }.selectedVoice!!.reference.key)
+        assertEquals(narrator.key, first.segments.first { it.pauseMs == null }.selectedVoice!!.reference.key)
         assertEquals(0, first.nextContext.narrationIndex)
         assertEquals(0, first.nextContext.dialogueIndex)
         assertTrue(first.nextContext.openDialogue)

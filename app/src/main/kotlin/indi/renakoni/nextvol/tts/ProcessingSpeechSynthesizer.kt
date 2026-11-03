@@ -26,7 +26,9 @@ internal class ProcessingSpeechSynthesizer(private val delegate: SpeechSynthesiz
         return label
     }
 
-    override suspend fun synthesize(text: String, output: File): List<SpeechTiming> = processing {
+    override suspend fun synthesize(text: String, output: File): List<SpeechTiming> = file(text, output, parameters)
+
+    private suspend fun file(text: String, output: File, parameters: SpeechAudioParameters): List<SpeechTiming> = processing {
         val raw = File(output.parentFile, output.name + ".raw")
         try {
             val timings = delegate.synthesize(text, raw)
@@ -36,8 +38,15 @@ internal class ProcessingSpeechSynthesizer(private val delegate: SpeechSynthesiz
         } finally { raw.delete() }
     }
 
-    override suspend fun synthesize(text: String, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> {
-        if (!settings.decodeStream || !delegate.supportsStreaming) return synthesize(text, output)
+    override suspend fun synthesize(text: String, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> =
+        synthesize(text, output, parameters, onReady)
+
+    override suspend fun synthesize(segment: SpeechSegment, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> =
+        synthesize(segment.text, output, parameters * segment.audioParameters, onReady)
+
+    private suspend fun synthesize(text: String, output: File, parameters: SpeechAudioParameters,
+        onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> {
+        if (!settings.decodeStream || !delegate.supportsStreaming) return file(text, output, parameters)
         return processing { coroutineScope {
             val input = StreamingAudioInput(currentCoroutineContext().job)
             var stream: SpeechStream? = null

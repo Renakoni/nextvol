@@ -321,6 +321,11 @@ class ReadAloudSession(
                         val file = File(directory, UUID.randomUUID().toString() + ".wav")
                         var delivered = false
                         try {
+                            if (segment.pauseMs != null) {
+                                queue.send(Step.Ready(SpeechClip(plan, index, file)))
+                                delivered = true
+                                continue
+                            }
                             val selected = segment.selectedVoice
                             selected?.error?.let { throw SpeechException(it) }
                             val parameters = selected?.settings ?: synthesis
@@ -330,7 +335,7 @@ class ReadAloudSession(
                                 activeSettings = parameters
                             }
                             val activePlan = plan
-                            val timings = provider.synthesize(segment.text, file) { audio ->
+                            val timings = provider.synthesize(segment, file) { audio ->
                                 queue.send(Step.Ready(SpeechClip(activePlan, index, file, voiceLabel = voiceLabel, stream = audio)))
                                 delivered = true
                             }
@@ -398,23 +403,24 @@ class ReadAloudSession(
                         val clip = step.clip
                         currentClip = clip
                         currentPlan = clip.plan
-                        currentBoundary = clip.bookmark(clip.segment.start)
+                        val silent = clip.segment.pauseMs != null
+                        currentBoundary = clip.plan.bookmark(clip.segment.start, clip.index)
                         publish(token) { it.copy(
                             request = request.copy(chapterId = clip.chapter.id), bookTitle = clip.chapter.bookTitle,
                             chapterTitle = clip.chapter.title, segmentIndex = clip.index, segmentCount = clip.count,
-                            currentText = clip.segment.text, previousChapterId = clip.chapter.previousId,
-                            voiceLabel = clip.voiceLabel, planContext = clip.plan.context, failedVoice = null, failedRole = null,
+                            currentText = if (silent) it.currentText else clip.segment.text, previousChapterId = clip.chapter.previousId,
+                            voiceLabel = if (silent) it.voiceLabel else clip.voiceLabel, planContext = clip.plan.context, failedVoice = null, failedRole = null,
                             nextChapterId = clip.chapter.nextId,
                             phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused, error = null, replacementFailure = null, roleFailure = null,
                         ) }
-                        if (!request.isPreview) save(clip.bookmark(clip.segment.start))
+                        if (!request.isPreview) save(currentBoundary!!)
                         val sentences = if (clip.timings.isEmpty()) emptyList() else speechSentences(clip.segment.text)
                         var audibleStart = sentences.firstOrNull()?.start ?: 0
                         var audibleEnd = sentences.firstOrNull()?.end ?: clip.segment.text.length
                         var audibleAnchor = audibleStart
                         try {
                             playback.play(clip, wantsPlay, onRange = { range ->
-                                if (token == generation && currentClip === clip && !request.isPreview) {
+                                if (token == generation && currentClip === clip && !request.isPreview && !silent) {
                                     val sentence = sentences.firstOrNull { range.start in it.start until it.end }
                                     audibleStart = sentence?.start ?: range.start
                                     audibleEnd = maxOf(sentence?.end ?: range.end, range.end)
@@ -422,7 +428,7 @@ class ReadAloudSession(
                                     publish(token) { it.copy(position = clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)) }
                                 }
                             }, onEstimatedAnchor = { anchor ->
-                                if (token == generation && currentClip === clip && !request.isPreview && clip.timings.isEmpty()) {
+                                if (token == generation && currentClip === clip && !request.isPreview && !silent && clip.timings.isEmpty()) {
                                     // Keep the reliably audible clip highlighted; only viewport following is estimated.
                                     audibleAnchor = anchor
                                     publish(token) { it.copy(position = clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)) }
@@ -431,7 +437,7 @@ class ReadAloudSession(
                                 if (token == generation && currentClip === clip) {
                                     wantsPlay = playing
                                     publish(token) { it.copy(phase = phase,
-                                        position = if (!request.isPreview && phase in setOf(SpeechPhase.Playing, SpeechPhase.Paused))
+                                        position = if (!request.isPreview && !silent && phase in setOf(SpeechPhase.Playing, SpeechPhase.Paused))
                                             clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)
                                         else it.position,
                                     ) }

@@ -111,4 +111,9 @@
     <string name="tts_decode_stream">流式解码</string>
     <string name="tts_decode_stream_off">已关闭，在线播放延迟可能较高</string>
     <string name="tts_decode_stream_on">已启用，在线播放异常时请关闭</string>
+    <string name="tts_paragraph_pause">段间附加停顿</string>
+    <string name="tts_paragraph_pause_description">在原文自然段之间额外停顿，叠加在引擎原有停顿之外。设为 0 即关闭。</string>
+    <string name="tts_pause_disabled">已关闭</string>
+    <string name="tts_pause_duration">%1$d 毫秒</string>
+    <string name="tts_pause_milliseconds">毫秒</string>
 </resources>
