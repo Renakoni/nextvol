@@ -1,6 +1,9 @@
 package indi.renakoni.nextvol.ui.tts
 
 import indi.renakoni.nextvol.tts.SPEECH_POOL_FEMALE
+import indi.renakoni.nextvol.tts.SPEECH_POOL_MALE
+import indi.renakoni.nextvol.tts.SpeechRoleRule
+import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechVoiceItem
 import indi.renakoni.nextvol.tts.SpeechVoicePair
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
@@ -12,7 +15,9 @@ class SpeechVoicePoolSearchTest {
     private val voice = SpeechVoiceRef(httpSource = "voice-01", label = "Alice")
     private val label: (String) -> String = { if (it == SPEECH_POOL_FEMALE) "失配女" else it }
 
-    @Test fun poolSearchUsesOriginalFieldsAndAndConditions() {
+    @Test fun poolGroupsAndSearchUseOriginalLabelsWithoutDuplicatingDefaultPools() {
+        val settings = SpeechSettings(roleRules = listOf(SpeechRoleRule(name = "失配女", isAbstract = true)))
+        assertEquals(listOf(SPEECH_POOL_MALE, SPEECH_POOL_FEMALE), settings.poolGroups())
         val first = SpeechVoiceItem(SPEECH_POOL_FEMALE, voice)
         val second = first.copy(id = "second", activate = false, name = "Bob")
         val items = listOf(first, second)

@@ -63,6 +63,18 @@ class SpeechRolesViewModelTest {
             assertEquals(rule, model.state.value.draft)
             assertEquals("second", model.state.value.engineKey)
 
+            val imported = SpeechVoiceRef(externalId = "http_test_second", label = "Imported")
+            val resolved = second.copy(externalId = imported.externalId)
+            stored.value = stored.value.copy(roleRules = listOf(rule.copy(speaker = imported)))
+            coEvery { catalog.packageReferences() } returns mapOf("http_test_second" to second)
+            runCurrent()
+            model.editRule(rule.id)
+            runCurrent()
+            assertEquals(resolved, model.state.value.draft!!.speaker)
+            assertEquals("second", model.state.value.engineKey)
+            model.selectEngine("second")
+            assertEquals(resolved, model.state.value.draft!!.speaker)
+
             // A removed voice remains identifiable; opening its rule must not silently choose another.
             stored.value = stored.value.copy(roleRules = listOf(rule.copy(speaker = SpeechVoiceRef(httpSource = "gone"))))
             runCurrent()

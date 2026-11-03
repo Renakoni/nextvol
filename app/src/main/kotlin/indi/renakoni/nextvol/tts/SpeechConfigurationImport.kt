@@ -14,7 +14,7 @@ data class SpeechConfigurationImport(
 ) {
     val hasChanges get() = replacements != null || roles != null || voiceItems != null
     val unresolvedVoices get() = (roles.orEmpty().mapNotNull { it.speaker } + voiceItems.orEmpty().map { it.value })
-        .filter { it.externalId != null }.distinctBy { it.key }
+        .filter { it.externalId != null && it.httpSource == null && it.offlineVoice == null }.distinctBy { it.key }
 
     fun conflicts(current: SpeechSettings): List<String> = buildList {
         val replacementsByName = current.replacements.map { it.group to it.name }.toSet()
@@ -78,7 +78,7 @@ private fun <T> configurationIds(incoming: List<T>?, current: List<T>, key: (T) 
     }
 }
 
-fun previewSpeechConfiguration(preview: SpeechPackagePreview, voices: Map<String, SpeechVoiceRef>): SpeechConfigurationImport {
+fun previewSpeechConfiguration(preview: SpeechPackagePreview, voices: Map<String, SpeechVoiceRef>, defaultGroup: String): SpeechConfigurationImport {
     preview.error?.let { return SpeechConfigurationImport(error = it.name) }
     val unsupported = linkedSetOf<String>()
     var replacements: List<SpeechReplacementRule>? = null
@@ -87,7 +87,7 @@ fun previewSpeechConfiguration(preview: SpeechPackagePreview, voices: Map<String
     fun voice(id: String, name: String): SpeechVoiceRef? = when (id) {
         "" -> null
         SPEECH_POOL_MALE, SPEECH_POOL_FEMALE -> SpeechVoiceRef(voice = id, label = name)
-        else -> voices[id] ?: SpeechVoiceRef(externalId = id, label = name.ifEmpty { id })
+        else -> voices[id]?.copy(externalId = id) ?: SpeechVoiceRef(externalId = id, label = name.ifEmpty { id })
     }
     fun unknown(fields: Map<String, SpeechPackageValue>, supported: Set<String>, path: String) {
         fields.keys.filterNot { it in supported }.forEach { unsupported += "$path.$it" }
@@ -134,7 +134,7 @@ fun previewSpeechConfiguration(preview: SpeechPackagePreview, voices: Map<String
                     val path = "${document.path}.replaces[$index]"
                     val row = configurationMap(value, path)
                     unknown(row, setOf("group", "name", "source", "target", "regex", "activate"), path)
-                    SpeechReplacementRule(group = row.configurationText("group", path), name = row.configurationText("name", path),
+                    SpeechReplacementRule(group = row.configurationText("group", path).ifEmpty { defaultGroup }, name = row.configurationText("name", path),
                         source = row.configurationText("source", path), target = row.configurationText("target", path),
                         regex = row.configurationBoolean("regex", path, false), activate = row.configurationBoolean("activate", path, true))
                 }
@@ -150,7 +150,7 @@ fun previewSpeechConfiguration(preview: SpeechPackagePreview, voices: Map<String
                     val mode = row.configurationText("mode", path).let { text ->
                         if (text.isEmpty()) 2 else text.toIntOrNull() ?: throw ConfigurationFieldFailure("$path.mode")
                     }
-                    SpeechRoleRule(group = row.configurationText("group", path), name = row.configurationText("name", path),
+                    SpeechRoleRule(group = row.configurationText("group", path).ifEmpty { defaultGroup }, name = row.configurationText("name", path),
                         regex = row.configurationText("regex", path), activate = row.configurationBoolean("activate", path, false),
                         mode = mode, isAbstract = row.configurationBoolean("isAbstract", path, false),
                         matchBefore = row.configurationBoolean("matchBefore", path, false),

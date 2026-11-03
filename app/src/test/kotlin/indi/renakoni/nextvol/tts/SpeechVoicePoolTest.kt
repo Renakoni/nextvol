@@ -15,11 +15,13 @@ class SpeechVoicePoolTest {
 
     @Test fun randomRoundUsesEachEnabledCandidateOnceAndRefillsOnlyAfterExhaustion() {
         val pool = SpeechVoicePool(Random(19))
-        val enabled = items + SpeechVoiceItem(group, third, activate = false)
-        val round = List(2) { pool.draw("book", group, enabled, catalog)!! }
-        assertEquals(setOf(first.key, second.key), round.map { it.key }.toSet())
-        val next = List(2) { pool.draw("book", group, enabled, catalog)!! }
-        assertEquals(setOf(first.key, second.key), next.map { it.key }.toSet())
+        val imported = first.copy(externalId = "http_test_first")
+        val enabled = items + SpeechVoiceItem(group, imported) + SpeechVoiceItem(group, third, activate = false)
+        val resolved = catalog + (imported.key to catalog.getValue(first.key).copy(reference = imported))
+        repeat(2) {
+            val round = List(2) { pool.draw("book", group, enabled, resolved)!! }
+            assertEquals(setOf(first.key, second.key), round.map { it.canonicalKey }.toSet())
+        }
         assertNull(pool.draw("book", "空池", enabled, catalog))
     }
 

@@ -19,6 +19,13 @@ data class SpeechVoiceRef(
         httpSource != null -> "http:$httpSource"
         else -> "system:$engine:$voice"
     }
+
+    /** Resolved aliases share a candidate identity while retaining their original lookup key. */
+    val canonicalKey get() = when {
+        offlineVoice != null -> "offline:${offlineVoice.id}"
+        httpSource != null -> "http:$httpSource"
+        else -> key
+    }
 }
 
 data class SpeechResolvedVoice(val reference: SpeechVoiceRef, val settings: SpeechSettings,

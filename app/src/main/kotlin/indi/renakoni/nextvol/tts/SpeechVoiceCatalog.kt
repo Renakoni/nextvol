@@ -53,6 +53,8 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
         voice.voice.ifEmpty { voice.engine.ifEmpty { context.getString(R.string.tts_system_default) } }
     })
 
+    internal suspend fun packageReferences() = speechPackageReferences(http.sources(), offline.voices())
+
     suspend fun resolve(settings: SpeechSettings, savedPairs: List<SpeechVoicePair> = emptyList()): Map<String, SpeechResolvedVoice> {
         val online = http.sources().associateBy { it.definition.id }
         val installed = offline.voices().associateBy { it.reference.id }

@@ -101,11 +101,12 @@ class OfflineSpeechRepositoryTest {
               sampleRate: 22050
               note: Imported note
               param: '{"modelDir":"models/chinese","speakerId":2}'
+            - {code: voice, name: Copy, type: 1, param: '{"modelDir":"models/chinese","speakerId":1}'}
         """.trimIndent()) }
         val preview = previewSpeechPackage(yaml)
         val engine = preview.engines.single()
-        val voice = engine.voices.single()
-        assertNull(previewOfflineVoice(preview, engine, voice).plan)
+        val voice = engine.voices.first()
+        assertEquals(MatchaPackageError.Ambiguous, previewOfflineVoice(preview, engine, voice).error)
         val draft = repository.previewConfiguration(engine, voice)!!
         assertEquals(listOf(edited), repository.voices())
         val lease = repository.acquire(edited.reference)

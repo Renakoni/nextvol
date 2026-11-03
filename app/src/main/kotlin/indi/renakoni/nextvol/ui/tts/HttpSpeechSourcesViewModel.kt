@@ -46,6 +46,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     private val settings: SpeechSettingsRepository,
     val controller: ReadAloudController,
     @ApplicationContext private val context: Context,
+    private val catalog: SpeechVoiceCatalog,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HttpSpeechSourcesState())
     val state = mutableState.asStateFlow()
@@ -69,9 +70,12 @@ class HttpSpeechSourcesViewModel @Inject constructor(
 
     fun addToPool(group: String, voices: List<SpeechVoiceRef>, onAdded: (Int) -> Unit) = work {
         var added = 0
+        val references = catalog.packageReferences()
         settings.update { current ->
-            val existing = current.voiceItems.filter { it.group == group }.map { it.value.key }.toSet()
-            val items = voices.distinctBy { it.key }.filterNot { it.key in existing }
+            val existing = current.voiceItems.filter { it.group == group }
+                .map { it.value.resolvePackageReference(references).canonicalKey }.toSet()
+            val items = voices.map { it.resolvePackageReference(references) }
+                .distinctBy { it.canonicalKey }.filterNot { it.canonicalKey in existing }
                 .map { SpeechVoiceItem(group = group, value = it, name = it.label) }
             added = items.size
             current.copy(voiceItems = current.voiceItems + items)

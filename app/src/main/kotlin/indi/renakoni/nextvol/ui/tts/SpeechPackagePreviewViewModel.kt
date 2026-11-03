@@ -108,7 +108,9 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                         (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
                     } else emptyList()
                 }.toMap()
-                val updates = local.filterValues { it.error == MatchaPackageError.MissingResource }.mapNotNull { (key, _) ->
+                val updates = local.filterValues { it.error == MatchaPackageError.MissingResource ||
+                    preview.resources.isEmpty() && it.error == MatchaPackageError.Ambiguous && it.detail == "voice"
+                }.mapNotNull { (key, _) ->
                     val engine = preview.engines[key.first]
                     try { offline.previewConfiguration(engine, engine.voices[key.second])?.let { key to it } }
                     catch (cancelled: CancellationException) { throw cancelled }
@@ -128,7 +130,8 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     }.orEmpty()
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { emptyMap() }
-                val configuration = previewSpeechConfiguration(preview, speechPackageReferences(http.sources(), offline.voices()))
+                val configuration = previewSpeechConfiguration(preview, speechPackageReferences(http.sources(), offline.voices()),
+                    context.getString(R.string.tts_replace_ungrouped))
                 val engineImports = preview.engines.mapIndexedNotNull { index, engine ->
                     if (engine.isOnline || engine.raw == null || engine.type !in setOf(null, "inner")) return@mapIndexedNotNull null
                     try { index to hnovel.speech.readOfflineEngineDefinition(engine) }
@@ -193,7 +196,8 @@ class SpeechPackagePreviewViewModel @Inject constructor(
 
     private suspend fun refreshConfiguration() {
         val preview = state.value.preview ?: return
-        val configuration = previewSpeechConfiguration(preview, speechPackageReferences(http.sources(), offline.voices()))
+        val configuration = previewSpeechConfiguration(preview, speechPackageReferences(http.sources(), offline.voices()),
+            context.getString(R.string.tts_replace_ungrouped))
         val conflicts = configuration.conflicts(settings.get())
         mutableState.update { it.copy(configuration = configuration, conflicts = conflicts) }
     }

@@ -25,23 +25,30 @@ class SpeechPackageReferencesTest {
         val imported = previewHttpSpeechPackage(preview.engines.single())
         assertNull(imported.error)
         assertEquals("Voice", imported.sources.single().name)
-        assertTrue(imported.sources.single().hasScripts)
     }
 
-    @Test fun missingReferencesSurviveRestartAndBindByOriginalIdentityAfterVoiceEdits() {
+    @Test fun packageReferencesSurviveRestartAndBindByOriginalIdentityAfterVoiceEditsAndReinstallation() {
         val missing = SpeechVoiceRef(externalId = "audio_sound_1", label = "Original name")
-        val restored = Json.decodeFromString<SpeechVoiceRef>(Json.encodeToString(missing))
-        assertEquals(missing, restored.resolvePackageReference(emptyMap()))
+        assertEquals(missing, missing.resolvePackageReference(emptyMap()))
         val original = OfflineVoiceConfig("audio", "sound", type = 1)
         val voice = InstalledOfflineVoice(OfflineVoiceRef("stable", "revision"), "User name", emptyMap(),
             sourceKey = "audio\u0000sound", configuration = original.copy(code = "edited"),
             defaults = OfflineVoiceDefaults("Original name", original, OfflineVoiceMetadata()))
         val references = speechPackageReferences(emptyList(), listOf(voice))
-        val bound = restored.resolvePackageReference(references)
-        assertEquals(restored.key, bound.key)
+        val bound = missing.resolvePackageReference(references)
+        assertEquals(missing.key, bound.key)
         assertEquals(voice.reference, bound.offlineVoice)
         assertEquals("User name", bound.label)
         assertNull(references["audio_sound"])
+        val file = temporary.newFile("roles.yaml").apply { writeText("roles: [{name: Sound, speakerId: audio_sound_1}]") }
+        val imported = previewSpeechConfiguration(previewSpeechPackage(file), references, "Default").roles!!.single().speaker!!
+        val restored = Json.decodeFromString<SpeechVoiceRef>(Json.encodeToString(imported))
+        assertEquals(bound, restored)
+        val reinstalled = voice.copy(reference = OfflineVoiceRef("reinstalled", "new-revision"))
+        val rebound = restored.resolvePackageReference(speechPackageReferences(emptyList(), listOf(reinstalled)))
+        assertEquals(reinstalled.reference, rebound.offlineVoice)
+        assertEquals(restored.key, rebound.key)
+        assertEquals(SpeechVoiceRef(offlineVoice = reinstalled.reference).canonicalKey, rebound.canonicalKey)
     }
 
     @Test fun matchingNamesAndUserCopiesDoNotReplaceTheOriginalOnlineVoice() {

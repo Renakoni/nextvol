@@ -68,7 +68,7 @@ internal class SpeechVoicePool(private val random: Random = Random.Default) {
         catalog: Map<String, SpeechResolvedVoice>): SpeechVoiceRef? {
         val candidates = items.asSequence().filter { it.group == group && it.activate }
             .mapNotNull { catalog[it.value.key]?.takeIf { voice -> voice.error == null }?.reference }
-            .associateBy { it.key }
+            .associateBy { it.canonicalKey }
         val key = Pool(bookId, group)
         val bag = bags.getOrPut(key) { Bag(candidates.keys, candidates.keys.toMutableList()) }
         // Adding a candidate must not reshuffle previous draws or existing people.

@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.tts
 import hnovel.speech.SpeechPackagePreview
 import hnovel.speech.previewSpeechPackage
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -21,7 +20,7 @@ class SpeechConfigurationImportTest {
         val voices = listOf("78", "71", "70").associate { code ->
             "audio_audio$code" to SpeechVoiceRef(httpSource = code, label = code)
         }
-        val imported = previewSpeechConfiguration(previewSpeechPackage(file), voices)
+        val imported = previewSpeechConfiguration(previewSpeechPackage(file), voices, "Default")
         assertNull(imported.error)
         assertTrue(imported.unsupported.isEmpty())
         assertEquals(listOf("章节转场", "章节开始", "章中转场"), imported.roles!!.map { it.name })
@@ -30,9 +29,8 @@ class SpeechConfigurationImportTest {
         val settings = imported.applyTo(SpeechSettings(voiceRoutingConfigured = true,
             narrationVoices = listOf(narrator), dialogueVoices = listOf(narrator),
             text = SpeechTextSettings(dialogue = true, separateEnglish = false, maxSentenceLength = 256)), replace = false)
-        val restored = Json.decodeFromString<SpeechSettings>(Json.encodeToString(settings))
         val plan = prepareSpeechPlan(SpeechChapter("book", "chapter", "", "",
-            "开始（章节开始）中间（章中转场）结束（章节转场）"), restored) {}
+            "开始（章节开始）中间（章中转场）结束（章节转场）"), settings) {}
         val matches = plan.segments.filter { it.roleMatch != null }
         assertEquals(listOf("章节开始", "章中转场", "章节转场"), matches.map { it.roleMatch!!.ruleName })
         assertEquals(listOf("71", "70", "78"), matches.map { it.selectedVoice!!.reference.httpSource })
@@ -41,10 +39,10 @@ class SpeechConfigurationImportTest {
     @Test fun mergingKeepsOriginalOrderingAndStableIdentitiesWithoutChangingSettings() {
         val rules = document("rules.yaml", """
             replaces:
-            - { group: g, name: old, source: ':', target: '：', regex: false }
+            - { name: old, source: ':', target: '：', regex: false }
             - { group: g, name: new, source: 甲, target: 乙 }
             roles:
-            - { group: g, name: old, regex: 'lang:en', mode: 1, activate: true, speakerId: missing }
+            - { group: '', name: old, regex: 'lang:en', mode: 1, activate: true, speakerId: missing }
             - { group: g, name: new, regex: '[', isAbstract: true, speakerId: '@mismatchMale' }
         """)
         val pool = document("voice_pool.yaml", """
@@ -54,7 +52,7 @@ class SpeechConfigurationImportTest {
             - { name: new, value: missing }
         """)
         val imported = previewSpeechConfiguration(SpeechPackagePreview("configuration",
-            documents = rules.documents + pool.documents), emptyMap())
+            documents = rules.documents + pool.documents), emptyMap(), "Default")
         assertNull(imported.error)
         assertTrue(imported.replacements!!.first().wholeText)
         val importedRoles = imported.roles!!
@@ -67,9 +65,9 @@ class SpeechConfigurationImportTest {
         assertEquals(listOf("missing"), imported.unresolvedVoices.map { it.externalId })
         val oldVoice = SpeechVoiceRef(httpSource = "old")
         val current = SpeechSettings(
-            replacements = listOf(SpeechReplacementRule(id = "r-old", group = "g", name = "old"),
+            replacements = listOf(SpeechReplacementRule(id = "r-old", group = "Default", name = "old"),
                 SpeechReplacementRule(id = "r-keep", group = "g", name = "keep")),
-            roleRules = listOf(SpeechRoleRule(id = "c-old", group = "g", name = "old"),
+            roleRules = listOf(SpeechRoleRule(id = "c-old", group = "Default", name = "old"),
                 SpeechRoleRule(id = "c-keep", group = "g", name = "keep")),
             voiceItems = listOf(SpeechVoiceItem(SPEECH_POOL_MALE, oldVoice, "old", id = "v-old"),
                 SpeechVoiceItem(SPEECH_POOL_MALE, oldVoice, "keep", id = "v-keep")),
@@ -105,7 +103,7 @@ class SpeechConfigurationImportTest {
               activate: true
               extra: !!java.net.URL 'https://example.invalid/private-token'
         """)
-        val imported = previewSpeechConfiguration(preview, emptyMap())
+        val imported = previewSpeechConfiguration(preview, emptyMap(), "Default")
         assertNull(imported.error)
         assertEquals("[", imported.roles!!.single().regex)
         assertEquals(listOf("roles.yaml.roles[0].extra"), imported.unsupported)
@@ -115,13 +113,13 @@ class SpeechConfigurationImportTest {
             roles:
             - { name: malformed, activate: { nested: true } }
         """)
-        val rejected = previewSpeechConfiguration(malformed, emptyMap())
+        val rejected = previewSpeechConfiguration(malformed, emptyMap(), "Default")
         assertEquals("malformed.yaml.roles[0].activate", rejected.error)
         assertFalse(rejected.hasChanges)
         assertNull(rejected.replacements)
         assertNull(rejected.roles)
         val offline = document("config.yaml", "sherpa: [{code: voice, futureField: private-value}]")
         assertEquals(listOf("config.yaml.sherpa[0].futureField"),
-            previewSpeechConfiguration(offline, emptyMap()).unsupported)
+            previewSpeechConfiguration(offline, emptyMap(), "Default").unsupported)
     }
 }

@@ -63,7 +63,7 @@ internal fun SpeechRoleEditorScreen(state: SpeechRolesState, onBack: () -> Unit,
                     enabled = !state.saving && !state.catalogLoading)
                 key(state.engineKey) {
                     RoleDropdown(draft.speaker?.label.orEmpty(), stringResource(R.string.tts_role_voice),
-                        (engine?.candidates.orEmpty() + listOfNotNull(draft.speaker)).distinctBy { it.key },
+                        (listOfNotNull(draft.speaker) + engine?.candidates.orEmpty()).distinctBy { it.canonicalKey },
                         { it.label }, { voice -> onEdit { it.copy(speaker = voice) } },
                         filterable = true, enabled = !state.saving && !state.catalogLoading)
                 }

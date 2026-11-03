@@ -120,7 +120,7 @@ class SpeechSettingsViewModelTest {
         val playback = MutableStateFlow(ReadAloudState())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns playback
-        val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk(), mockk())
         try {
             library.state.first { it.loaded }
             library.previewVoice("candidate", "Sample.")
@@ -148,7 +148,7 @@ class SpeechSettingsViewModelTest {
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
-        val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, controller, mockk(), mockk())
         try {
             library.state.first { it.loaded }
             library.previewPackage(listOf(definition), null)
