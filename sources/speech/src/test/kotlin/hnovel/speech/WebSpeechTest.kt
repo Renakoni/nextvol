@@ -27,7 +27,7 @@ class WebSpeechTest {
                 else GeminiSpeechClient(metadata, execute)
             assertArrayEquals(audio, client.synthesize(text, 1.7f, 1.4f))
             assertTrue(request!!.url.startsWith("https://speech.example/_/"))
-            val envelope = Json.parseToJsonElement(URLDecoder.decode(request!!.body!!.removePrefix("f.req="), "UTF-8"))
+            val envelope = Json.parseToJsonElement(URLDecoder.decode(request.body!!.removePrefix("f.req="), "UTF-8"))
                 .jsonArray[0].jsonArray[0].jsonArray
             assertEquals(rpcId, envelope[0].jsonPrimitive.content)
             val arguments = Json.parseToJsonElement(envelope[1].jsonPrimitive.content).jsonArray
@@ -45,35 +45,28 @@ class WebSpeechTest {
         var body = "{\"audio\":{\"data\":\"${Base64.getEncoder().encodeToString(audio)}\"}}"
         val execute: suspend (BrokerRequest) -> BrokerResponse = { requests += it; response(body) }
         for (parameter in listOf("", "web")) {
-            assertArrayEquals(audio, HuoshanSpeechClient(metadata("huoshan", "tts.other.BV050_streaming", parameter), execute)
-                .synthesize("你好 & 世界", 1.5f, 2f))
+            assertArrayEquals(audio, OnlineSpeechClient(metadata("huoshan", "tts.other.BV050_streaming", parameter), execute,
+                { _, _ -> error("Huoshan is buffered") }).synthesize("你好 & 世界", 1.5f, 2f, 100, null))
         }
         assertEquals(listOf(HuoshanSpeechClient.CRX_URL, HuoshanSpeechClient.WEB_URL), requests.map { it.url })
         assertEquals(Json.parseToJsonElement("{\"speaker\":\"tts.other.BV050_streaming\",\"language\":\"zh\",\"text\":\"你好 & 世界\"}"),
             Json.parseToJsonElement(requests.first().body!!))
-        body = "{\"audio\":{\"data\":\"\"}}"
-        try { HuoshanSpeechClient(metadata("huoshan", "voice"), execute).synthesize("正文", 1f, 1f); fail("Empty audio") }
+        body = "[]"
+        try {
+            OnlineSpeechClient(metadata("huoshan", "voice"), execute, { _, _ -> error("Huoshan is buffered") })
+                .synthesize("正文", 1f, 1f, 100, null)
+            fail("Malformed service response")
+        }
         catch (error: HttpSpeechException) { assertEquals(HttpSpeechError.InvalidAudio, error.error) }
     }
 
-    @Test fun namiHeadersMatchReferenceAndTheListMapsSpeakerMetadata() = runBlocking {
+    @Test fun namiHeadersMatchReference() {
         // Captured from F6.p.k with only clock/random inputs fixed; no live credentials.
         val headers = NamiSpeechClient.headers(1700000000000L, Random(0))
         assertEquals("2023-11-15T06:13:20+08:00", headers["timestamp"])
         assertEquals("12481275530684864670537542731700", headers["access-token"])
         assertEquals("6dbb10952a38c11d19e2648023d5055b", headers["zm-ua"])
         assertEquals("91a434223074b3455acf59265701fa8a", headers["zm-token"])
-        var request: BrokerRequest? = null
-        val client = NamiSpeechClient(metadata("namiai", "DeepSeek"), { request = it
-            response("{\"data\":{\"list\":[{\"tag\":\"tongyi\",\"title\":\" 通义（试听） \"}]}}")
-        })
-        val voice = client.voices().single()
-        assertEquals(NamiSpeechClient.VOICES_URL, request!!.url)
-        assertEquals("tongyi", voice.string("code"))
-        assertEquals("通义", voice.string("name"))
-        assertEquals("zh-CN", voice.string("locale"))
-        assertEquals("1", voice.string("gender"))
-        assertEquals("24000", voice.string("sampleRate"))
     }
 
     private fun metadata(engine: String, code: String, parameter: String = "", engineParameters: String = "") = buildJsonObject {

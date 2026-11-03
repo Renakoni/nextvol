@@ -4,9 +4,7 @@ import hnovel.network.BrokerRequest
 import hnovel.network.BrokerResponse
 import hnovel.network.ResourceKind
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.*
 import java.security.SecureRandom
 import java.util.Locale
@@ -37,14 +35,12 @@ internal class FilmoraSpeechClient(
             val task = post(ENDPOINT, body, SYNTHESIS_SIGNATURE, "1734030144540")
                 .getValue("data").jsonObject.getValue("task_id").jsonPrimitive.content
             val url = audioUrl(task)
-            val audio = onlineSpeechAudio(execute(BrokerRequest("filmora-audio", url,
+            return onlineSpeechAudio(execute(BrokerRequest("filmora-audio", url,
                 headers = headers(), kind = ResourceKind.Api, maxResponseBytes = MAX_AUDIO_BYTES)))
-            currentCoroutineContext().ensureActive()
-            return audio
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
             token = newToken()
-            throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidAudio)
+            throw failure
         }
     }
 

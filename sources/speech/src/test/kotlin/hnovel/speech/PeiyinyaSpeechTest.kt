@@ -10,16 +10,19 @@ import org.junit.Test
 class PeiyinyaSpeechTest {
     @Test fun encryptedResponseIsUnwrappedBeforeFollowingAudioUrlAndMalformedDataIsRejected() = runBlocking {
         val requests = mutableListOf<BrokerRequest>()
-        val metadata = buildJsonObject { putJsonObject("voice") { put("param", "a0e21652e632971e") } }
+        val metadata = buildJsonObject {
+            putJsonObject("engine") { put("code", "peiyinya") }
+            putJsonObject("voice") { put("param", "a0e21652e632971e") }
+        }
         val audio = "ID3fixture".toByteArray()
         var malformed = false
-        val client = PeiyinyaSpeechClient(metadata) { request ->
+        val client = OnlineSpeechClient(metadata, { request ->
             requests += request
             val body = if (request.url == PeiyinyaSpeechClient.ENDPOINT)
                 (if (malformed) "invalid" else RESPONSE).toByteArray() else audio
             BrokerResponse(200, request.url, emptyMap(), body, "UTF-8", 0)
-        }
-        assertArrayEquals(audio, client.synthesize("你好，\"配音\"。\nA real sentence.", 1f, 1f))
+        }, { _, _ -> error("Peiyinya is buffered") })
+        assertArrayEquals(audio, client.synthesize("你好，\"配音\"。\nA real sentence.", 1f, 1f, 100, null))
         assertEquals(2, requests.size)
         assertEquals("POST", requests[0].method)
         assertEquals("application/x-www-form-urlencoded", requests[0].headers["Content-Type"])
@@ -27,7 +30,7 @@ class PeiyinyaSpeechTest {
         assertTrue(requests[0].body!!.contains("&sec="))
         assertEquals("https://audio.example/peiyinya.mp3", requests[1].url)
         malformed = true
-        val failure = try { client.synthesize("失败", 1f, 1f); error("Expected failure") }
+        val failure = try { client.synthesize("失败", 1f, 1f, 100, null); error("Expected failure") }
             catch (failure: HttpSpeechException) { failure }
         assertEquals(HttpSpeechError.InvalidAudio, failure.error)
         assertEquals(3, requests.size)

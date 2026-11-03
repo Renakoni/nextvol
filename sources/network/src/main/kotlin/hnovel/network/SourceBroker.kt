@@ -434,7 +434,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
 
     /** Inspect successful response headers before any streamed body bytes reach the host consumer. */
     suspend fun stream(request: BrokerRequest, guard: RequestCommitGuard,
-        receive: (ByteArray, Int, Int) -> Unit, onResponse: (Int, Map<String, List<String>>) -> Unit): BrokerResult =
+        receive: (ByteArray, Int, Int) -> Unit, onResponse: (Map<String, List<String>>) -> Unit): BrokerResult =
         execute(request.copy(cache = CacheMode.Disabled, retry = 0), guard, policy, browserDefault = false,
             receive = receive, onResponse = onResponse)
 
@@ -579,7 +579,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     private suspend fun execute(request: BrokerRequest, guard: RequestCommitGuard, policy: NetworkPolicy,
         browserDefault: Boolean = true, paceSource: Boolean = true, route: SourceNetworkRoute? = null,
         receive: ((ByteArray, Int, Int) -> Unit)? = null,
-        onResponse: ((Int, Map<String, List<String>>) -> Unit)? = null): BrokerResult {
+        onResponse: ((Map<String, List<String>>) -> Unit)? = null): BrokerResult {
         checkOpen()
         val selectedRoute = runCatching { route ?: routes.snapshot() }
         // A browser source keeps document reads in the same native session. Binary/image
@@ -697,7 +697,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     private suspend fun perform(request: BrokerRequest, guard: RequestCommitGuard, policy: NetworkPolicy,
         paceSource: Boolean, route: SourceNetworkRoute, detectChallenges: Boolean,
         receive: ((ByteArray, Int, Int) -> Unit)? = null,
-        onResponse: ((Int, Map<String, List<String>>) -> Unit)? = null, onRequest: () -> Unit): BrokerResult {
+        onResponse: ((Map<String, List<String>>) -> Unit)? = null, onRequest: () -> Unit): BrokerResult {
         val initialUrl = request.url.toHttpUrlOrNull() ?: throw BrokerFailure(RequestStage.Parse, FailureCode.InvalidRequest)
         policy.check(initialUrl)
         val observation = currentCoroutineContext()[RequestObservation]
@@ -780,7 +780,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     private suspend fun redirects(request: BrokerRequest, first: HttpUrl, guard: RequestCommitGuard, policy: NetworkPolicy,
         paceSource: Boolean, route: SourceNetworkRoute, attempt: Int, onRequest: () -> Unit,
         receive: ((ByteArray, Int, Int) -> Unit)? = null,
-        onResponse: ((Int, Map<String, List<String>>) -> Unit)? = null): BrokerResponse {
+        onResponse: ((Map<String, List<String>>) -> Unit)? = null): BrokerResponse {
         val observation = currentCoroutineContext()[RequestObservation]
         var url = first
         var method = request.method
@@ -927,7 +927,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     /** The continuation remains cancellable through body consumption, so call.cancel interrupts reads too. */
     private suspend fun awaitResponse(call: Call, forcedCharset: String?, redirects: Int, guard: RequestCommitGuard,
         maxResponseBytes: Int, receive: ((ByteArray, Int, Int) -> Unit)? = null,
-        onResponse: ((Int, Map<String, List<String>>) -> Unit)? = null): BrokerResponse = suspendCancellableCoroutine { continuation ->
+        onResponse: ((Map<String, List<String>>) -> Unit)? = null): BrokerResponse = suspendCancellableCoroutine { continuation ->
         continuation.invokeOnCancellation { call.cancel() }
         val callback = object : Callback {
             override fun onFailure(call: Call, e: IOException) { if (continuation.isActive) continuation.resumeWithException(e) }
@@ -942,8 +942,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
                         val sink = receive?.takeIf { response.isSuccessful }
                         if (sink != null && onResponse != null) guard.commit {
                             checkOpen()
-                            if (continuation.isActive) onResponse.invoke(response.code,
-                                response.headers.toMultimap().mapValues { it.value.toList() })
+                            if (continuation.isActive) onResponse.invoke(response.headers.toMultimap())
                         }
                         var total = 0
                         body.byteStream().use { stream ->

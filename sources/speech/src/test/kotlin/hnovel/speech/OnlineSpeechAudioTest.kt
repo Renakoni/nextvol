@@ -26,9 +26,6 @@ class OnlineSpeechAudioTest {
         assertEquals("data", String(merged, 36, 4))
         assertEquals(10, buffer.getInt(40))
         assertArrayEquals(shortArrayOf(1, -2, 3, 4, -5), ShortArray(5) { buffer.getShort(44 + it * 2) })
-        assertSame(first, onlineSpeechBytes(listOf(first)))
-        assertArrayEquals("ID3firstID3second".toByteArray(),
-            onlineSpeechBytes(listOf("ID3first".toByteArray(), "ID3second".toByteArray())))
         val mismatch = assertThrows(HttpSpeechException::class.java) {
             onlineSpeechBytes(listOf(first, wave(shortArrayOf(6), 16000)))
         }

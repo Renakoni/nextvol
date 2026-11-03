@@ -28,8 +28,7 @@ internal fun onlineSpeechStatus(response: BrokerResponse) {
 
 internal fun onlineSpeechJson(response: BrokerResponse): JsonElement {
     onlineSpeechStatus(response)
-    return try { Json.parseToJsonElement(response.text()) }
-    catch (_: IllegalArgumentException) { throw HttpSpeechException(HttpSpeechError.InvalidAudio) }
+    return Json.parseToJsonElement(response.text())
 }
 
 internal fun onlineSpeechAudio(response: BrokerResponse): ByteArray {

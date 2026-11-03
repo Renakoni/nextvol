@@ -5,7 +5,6 @@ import hnovel.network.BrokerResponse
 import hnovel.network.ResourceKind
 import kotlinx.serialization.json.*
 import java.net.URLEncoder
-import java.security.GeneralSecurityException
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.concurrent.ThreadLocalRandom
@@ -35,11 +34,8 @@ internal class XfPeiyinSpeechClient(
         val response = onlineSpeechJson(execute(BrokerRequest("xfpeiyin-sign", SIGN_URL, method = "POST",
             headers = headers + ("Content-Type" to "application/json"), body = body.toString(),
             kind = ResourceKind.Api, maxResponseBytes = 64 * 1024))).jsonObject
-        val signature = try {
-            Json.parseToJsonElement(crypt(Cipher.DECRYPT_MODE, Base64.getDecoder().decode(response.getValue("body").jsonPrimitive.content))
-                .toString(Charsets.UTF_8)).jsonObject
-        } catch (_: IllegalArgumentException) { throw HttpSpeechException(HttpSpeechError.InvalidAudio) }
-        catch (_: GeneralSecurityException) { throw HttpSpeechException(HttpSpeechError.InvalidAudio) }
+        val signature = Json.parseToJsonElement(crypt(Cipher.DECRYPT_MODE,
+            Base64.getDecoder().decode(response.getValue("body").jsonPrimitive.content)).toString(Charsets.UTF_8)).jsonObject
         val parameters = linkedMapOf("ts" to signature.getValue("time_stamp").jsonPrimitive.content,
             "sign" to signature.getValue("sign_text").jsonPrimitive.content, "sid" to "", "vid" to voice,
             "volume" to (((volume * 50).toDouble() * 0.4) - 20).toInt().toString(),

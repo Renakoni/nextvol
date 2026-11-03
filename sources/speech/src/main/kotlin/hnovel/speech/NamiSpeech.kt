@@ -14,7 +14,7 @@ import java.util.TimeZone
 
 internal class NamiSpeechClient(metadata: JsonObject,
     private val execute: suspend (BrokerRequest) -> BrokerResponse,
-    private val executeStream: (suspend (BrokerRequest, (ByteArray, Int, Int) -> Unit) -> BrokerResponse)? = null,
+    private val executeStream: suspend (BrokerRequest, (ByteArray, Int, Int) -> Unit) -> BrokerResponse,
 ) : OnlineSpeechBackend {
     private val voice = metadata.getValue("voice").jsonObject.string("code")
     private val random = Random()
@@ -22,16 +22,8 @@ internal class NamiSpeechClient(metadata: JsonObject,
     override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray =
         onlineSpeechAudio(execute(request(text)))
 
-    suspend fun stream(text: String, receive: (ByteArray, Int, Int) -> Unit): ByteArray {
-        val stream = executeStream
-        if (stream == null) {
-            val bytes = synthesize(text, 1f, 1f)
-            receive(bytes, 0, bytes.size)
-        } else {
-            val response = stream(request(text), receive)
-            onlineSpeechStatus(response)
-        }
-        return byteArrayOf()
+    suspend fun stream(text: String, receive: (ByteArray, Int, Int) -> Unit) {
+        onlineSpeechStatus(executeStream(request(text), receive))
     }
 
     private fun request(text: String) = BrokerRequest("namiai-speech", "$URL?roleid=$voice", method = "POST",

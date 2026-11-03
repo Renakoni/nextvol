@@ -77,7 +77,7 @@ private class GoogleWebSpeechClient(
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
             forwardedFor = forwardedFor()
-            throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidAudio)
+            throw failure
         }
     }
 

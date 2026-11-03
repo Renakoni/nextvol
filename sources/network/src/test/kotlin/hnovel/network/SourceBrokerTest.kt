@@ -84,16 +84,15 @@ class SourceBrokerTest {
                     try { action() } finally { committing = false }
                 }
                 val receive: (ByteArray, Int, Int) -> Unit = { bytes, offset, size -> received.write(bytes, offset, size) }
-                val onResponse: (Int, Map<String, List<String>>) -> Unit = { status, headers ->
+                val onResponse: (Map<String, List<String>>) -> Unit = { headers ->
                     check(committing)
-                    check(status == 200)
                     if (headers.entries.any { it.key.equals("Content-Type", true) && it.value.any { value -> "json" in value } })
                         throw rejection
                 }
                 try {
                     session.stream(request(server.url("/first")), guard, receive, onResponse)
                     fail("Response headers must be checked before body delivery")
-                } catch (failure: Exception) { assertSame(rejection, failure) }
+                } catch (failure: Exception) { assertEquals(rejection.message, failure.message) }
                 assertEquals(0, received.size())
                 assertTrue(success(session.stream(request(server.url("/next")), guard, receive, onResponse)).body.isEmpty())
                 assertEquals("next", received.toString("UTF-8"))

@@ -8,7 +8,6 @@ import kotlinx.serialization.json.*
 import java.io.ByteArrayOutputStream
 import java.net.URLDecoder
 import java.net.URLEncoder
-import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
@@ -61,10 +60,7 @@ internal class PeiyinyaSpeechClient(
             headers = mapOf("Content-Type" to "application/x-www-form-urlencoded"),
             kind = ResourceKind.Api, maxResponseBytes = if (url == VOICES_URL) BrokerLimits.DEFAULT_MAX_RESPONSE_BYTES else MAX_AUDIO_BYTES))
         onlineSpeechStatus(response)
-        return try { Json.parseToJsonElement(decode(response.text())).jsonObject }
-        catch (_: IllegalArgumentException) { throw HttpSpeechException(HttpSpeechError.InvalidAudio) }
-        catch (_: IndexOutOfBoundsException) { throw HttpSpeechException(HttpSpeechError.InvalidAudio) }
-        catch (_: GeneralSecurityException) { throw HttpSpeechException(HttpSpeechError.InvalidAudio) }
+        return Json.parseToJsonElement(decode(response.text())).jsonObject
     }
 
     private fun encode(text: String): String {

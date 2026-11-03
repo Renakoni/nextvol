@@ -129,9 +129,9 @@ class HttpSpeechClient(
 
     private suspend fun streamOnline(request: BrokerRequest, receive: (ByteArray, Int, Int) -> Unit): BrokerResponse {
         // R6.a.g rejects JSON responses before passing incremental bytes to the audio decoder.
-        return onlineResponse(session.stream(request, RequestCommitGuard { authority.authorized(identity, it) }, receive) { _, headers ->
+        return onlineResponse(session.stream(request, RequestCommitGuard { authority.authorized(identity, it) }, receive) { headers ->
             val contentType = headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value?.firstOrNull().orEmpty()
-            if (contentType.contains("json")) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
+            if (contentType.contains("json", ignoreCase = true)) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
         })
     }
 

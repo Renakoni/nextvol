@@ -2,6 +2,7 @@ package hnovel.speech
 
 import hnovel.network.BrokerRequest
 import hnovel.network.BrokerResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.*
@@ -28,25 +29,38 @@ internal class OnlineSpeechClient(
         receive: ((ByteArray, Int, Int) -> Unit)?): ByteArray {
         val parts = mutableListOf<ByteArray>()
         var bytes = 0
-        val streaming = backend is NamiSpeechClient && receive != null
-        val sink: (ByteArray, Int, Int) -> Unit = { buffer, offset, count ->
+        fun countBytes(count: Int) {
             if (count > MAX_AUDIO_BYTES - bytes) throw HttpSpeechException(HttpSpeechError.TooLarge)
             bytes += count
-            if (streaming) checkNotNull(receive)(buffer, offset, count)
-            else parts += buffer.copyOfRange(offset, offset + count)
+        }
+        val sink = receive?.takeIf { backend is NamiSpeechClient }?.let { output ->
+            { buffer: ByteArray, offset: Int, count: Int ->
+                countBytes(count)
+                output(buffer, offset, count)
+            }
         }
         for (part in splitOnlineSpeechText(text, sentenceLength)) {
             currentCoroutineContext().ensureActive()
-            if (backend is NamiSpeechClient && streaming) backend.stream(part, sink)
-            else {
-                val audio = backend.synthesize(part, rate, volume)
+            // Malformed service payloads are response failures, not invalid saved source settings.
+            val audio = try {
+                if (backend is NamiSpeechClient && sink != null) {
+                    backend.stream(part, sink)
+                    null
+                } else backend.synthesize(part, rate, volume)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidAudio)
+            }
+            if (audio != null) {
                 currentCoroutineContext().ensureActive()
-                sink(audio, 0, audio.size)
+                countBytes(audio.size)
+                parts += audio
             }
         }
         if (bytes == 0) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
+        if (sink != null) return byteArrayOf()
         val audio = onlineSpeechBytes(parts)
-        if (!streaming && receive != null) {
+        if (receive != null) {
             receive(audio, 0, audio.size)
             return byteArrayOf()
         }
