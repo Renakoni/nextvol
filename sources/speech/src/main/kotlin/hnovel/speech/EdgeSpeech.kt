@@ -18,7 +18,8 @@ internal class EdgeSpeechClient(
             if (!parameter.startsWith('@')) parameter else nativeSpeechExtensions(voice.string("extendUI"))[parameter].orEmpty()
         }
 
-    suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray {
+    suspend fun synthesize(text: String, rate: Float, volume: Float,
+        receive: ((ByteArray, Int, Int) -> Unit)? = null): ByteArray {
         if (name.isEmpty()) throw HttpSpeechException(HttpSpeechError.InvalidSource)
         val id = UUID.randomUUID().toString().replace("-", "")
         val now = System.currentTimeMillis()
@@ -38,7 +39,7 @@ internal class EdgeSpeechClient(
                 "\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}")
             socket.sendText("X-RequestId:$id\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${timestamp}Z\r\nPath:ssml\r\n\r\n" +
                 ssml(name, text, rate, volume))
-            val audio = EdgeSpeechAudio()
+            val audio = EdgeSpeechAudio(receive)
             while (!audio.receive(socket.readMessage())) { /* turn.end owns completion. */ }
             audio.bytes()
         }
@@ -53,9 +54,10 @@ internal class EdgeSpeechClient(
     }
 }
 
-/** Edge's message header is distinct from WebSocket framing. Only turn.end publishes the accumulated MP3. */
-internal class EdgeSpeechAudio {
+/** Edge's message header is distinct from WebSocket framing; turn.end terminates both audio paths. */
+internal class EdgeSpeechAudio(private val receive: ((ByteArray, Int, Int) -> Unit)? = null) {
     private val audio = ByteArrayOutputStream()
+    private var size = 0
 
     fun receive(message: BrokerWebSocketMessage): Boolean {
         when (message) {
@@ -83,14 +85,16 @@ internal class EdgeSpeechAudio {
                 val type = fields["Content-Type"]
                 if (fields["Path"] != "audio" || !(type == "audio/mpeg" || type == null && start == bytes.size))
                     throw HttpSpeechException(HttpSpeechError.InvalidAudio)
-                if (audio.size() + bytes.size - start > MAX_AUDIO_BYTES) throw HttpSpeechException(HttpSpeechError.TooLarge)
-                audio.write(bytes, start, bytes.size - start)
+                val count = bytes.size - start
+                size += count
+                if (size > MAX_AUDIO_BYTES) throw HttpSpeechException(HttpSpeechError.TooLarge)
+                if (receive == null) audio.write(bytes, start, count) else if (count > 0) receive.invoke(bytes, start, count)
             }
         }
         return false
     }
 
-    fun bytes(): ByteArray = audio.toByteArray().also(::checkSpeechAudioContainer)
+    fun bytes(): ByteArray = audio.toByteArray().also { if (receive == null) checkSpeechAudioContainer(it) }
 
     private fun headers(text: String) = text.split("\r\n").filter { ':' in it }
         .associate { it.substringBefore(':') to it.substringAfter(':').trim() }

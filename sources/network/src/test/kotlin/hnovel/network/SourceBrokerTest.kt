@@ -30,6 +30,45 @@ class SourceBrokerTest {
         return (result as BrokerResult.Success).response
     }
 
+    @Test fun streamedBodyCanBeConsumedAndCancelledBeforeResponseEnds() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("a".repeat(128 * 1024)).throttleBody(8192, 1, TimeUnit.MINUTES))
+            server.enqueue(MockResponse().setBody("next"))
+            server.start()
+            SourceBroker(directory.root.toPath()).use { broker ->
+                val session = broker.open(scope(), listOf(grant(server.url("/"))))
+                val first = CompletableDeferred<Int>()
+                val work = async {
+                    session.stream(request(server.url("/audio")), RequestCommitGuard { it() }) { _, _, size -> first.complete(size) }
+                }
+                assertTrue(withTimeout(5000) { first.await() } > 0)
+                assertFalse(work.isCompleted)
+                withTimeout(5000) { work.cancelAndJoin() }
+                assertEquals(1, server.requestCount)
+                assertEquals("next", success(session.execute(request(server.url("/next")))).text())
+                assertEquals(2, server.requestCount)
+            }
+        }
+    }
+
+    @Test fun failedStreamDoesNotReplayDeliveredBytes() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("a".repeat(64 * 1024))
+                .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY))
+            server.start()
+            SourceBroker(directory.root.toPath()).use { broker ->
+                val session = broker.open(scope(), listOf(grant(server.url("/"))))
+                var received = 0
+                val result = session.stream(request(server.url("/audio")).copy(retry = 3), RequestCommitGuard { it() }) {
+                        _, _, size -> received += size
+                }
+                assertTrue(result is BrokerResult.Failure)
+                assertTrue(received in 1 until 64 * 1024)
+                assertEquals(1, server.requestCount)
+            }
+        }
+    }
+
     @Test fun eightSameHostRequestsArriveBeforeAnyResponseAndTheNinthWaits() = runBlocking {
         MockWebServer().use { server ->
             val entered = CountDownLatch(8)

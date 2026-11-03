@@ -48,4 +48,14 @@ class EdgeSpeechTest {
         val prefix = header.toByteArray()
         return BrokerWebSocketMessage.Binary(byteArrayOf((prefix.size ushr 8).toByte(), prefix.size.toByte()) + prefix + bytes)
     }
+
+    @Test fun streamingDeliversPayloadBeforeTurnEndWithoutRetainingIt() {
+        val received = java.io.ByteArrayOutputStream()
+        val reader = EdgeSpeechAudio { bytes, offset, count -> received.write(bytes, offset, count) }
+        val audio = "ID3xxxxxxxxxpayload".toByteArray()
+        assertFalse(reader.receive(binary("Path:audio\r\nContent-Type:audio/mpeg\r\n", audio)))
+        assertArrayEquals(audio, received.toByteArray())
+        assertTrue(reader.receive(BrokerWebSocketMessage.Text("Path:turn.end\r\n\r\n{}")))
+        assertTrue(reader.bytes().isEmpty())
+    }
 }

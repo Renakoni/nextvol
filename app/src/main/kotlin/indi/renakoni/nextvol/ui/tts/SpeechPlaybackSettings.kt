@@ -183,6 +183,9 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     color = MaterialTheme.colorScheme.error)
             } }
             state.settings?.let { settings ->
+                item { SpeechTextSwitch(R.drawable.tts_decode_stream, R.string.tts_decode_stream,
+                    if (state.audio.decodeStream) R.string.tts_decode_stream_on else R.string.tts_decode_stream_off,
+                    state.audio.decodeStream) { onAudioSettings(state.audio.copy(decodeStream = it)) } }
                 item {
                     val processors = remember { object : MenuOptions(Option("200", R.string.tts_audio_sonic),
                         Option("201", R.string.tts_audio_soundtouch)) {} }

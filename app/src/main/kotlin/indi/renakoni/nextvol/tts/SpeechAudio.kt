@@ -8,9 +8,17 @@ interface SpeechSynthesizer : AutoCloseable {
     /** Backend request cap, independent of the user's soft sentence target. Read after open. */
     val maxInputLength: Int get() = Int.MAX_VALUE
     val audioParameters: SpeechAudioParameters get() = SpeechAudioParameters()
+    val supportsStreaming: Boolean get() = false
     suspend fun open(settings: SpeechSettings): String
     /** Returns only after a complete, validated file is committed to [output]. */
     suspend fun synthesize(text: String, output: File): List<SpeechTiming>
+    /** File-only engines retain their existing path. The processing wrapper publishes PCM when ready. */
+    suspend fun synthesize(text: String, output: File, onReady: suspend (SpeechStream) -> Unit): List<SpeechTiming> =
+        synthesize(text, output)
+    /** Encoded network blocks, before the common decoder and PCM processor. */
+    suspend fun synthesizeEncoded(text: String, receive: (ByteArray, Int, Int) -> Unit) {
+        error("This engine uses complete audio files")
+    }
     /** Signal cancellation on the session thread without blocking or releasing in-flight resources. */
     fun cancel()
     /** May block on teardown. Call off the main thread after synthesis has stopped. */

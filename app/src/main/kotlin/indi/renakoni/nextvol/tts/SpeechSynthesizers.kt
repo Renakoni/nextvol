@@ -131,6 +131,7 @@ class SpeechSynthesizers @Inject constructor(
         override val maxInputLength = SPEECH_HTTP_INPUT_LIMIT
         @Volatile private var owner: SourceBroker? = null
         @Volatile private var client: HttpSpeechClient? = null
+        override val supportsStreaming get() = client != null
         private var rate: Float? = null
         private var volume = 1f
         private var sourceId: String? = null
@@ -157,19 +158,33 @@ class SpeechSynthesizers @Inject constructor(
         }
 
         override suspend fun synthesize(text: String, output: File): List<SpeechTiming> {
-            val active = client ?: throw SpeechException(SpeechError.HttpSourceUnavailable)
             val partial = File(output.parentFile, output.name + ".part")
+            try {
+                requestAudio(text) { audio ->
+                    withContext(Dispatchers.IO) {
+                        currentCoroutineContext().ensureActive()
+                        partial.writeBytes(audio)
+                        validateHttpSpeechAudio(partial)
+                        currentCoroutineContext().ensureActive()
+                        if (!partial.renameTo(output)) throw SpeechException(SpeechError.Storage)
+                    }
+                }
+            } finally { partial.delete() }
+            return emptyList()
+        }
+
+        override suspend fun synthesizeEncoded(text: String, receive: (ByteArray, Int, Int) -> Unit) {
+            requestAudio(text, receive) {}
+        }
+
+        private suspend fun requestAudio(text: String, receive: ((ByteArray, Int, Int) -> Unit)? = null,
+            consume: suspend (ByteArray) -> Unit) {
+            val active = client ?: throw SpeechException(SpeechError.HttpSourceUnavailable)
             try {
                 networkCheck.check()
                 // Token refresh may replace a regional HTTP session and close its TLS pool.
-                val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate, volume) }
-                withContext(Dispatchers.IO) {
-                    currentCoroutineContext().ensureActive()
-                    partial.writeBytes(audio)
-                    validateHttpSpeechAudio(partial)
-                    currentCoroutineContext().ensureActive()
-                    if (!partial.renameTo(output)) throw SpeechException(SpeechError.Storage)
-                }
+                val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate, volume, receive) }
+                consume(audio)
                 selectedSource?.let { repository.recordSynthesis(it, R.string.tts_offline_verified) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: HttpSpeechException) {
@@ -195,8 +210,6 @@ class SpeechSynthesizers @Inject constructor(
                 selectedSource?.let { repository.recordSynthesis(it, R.string.tts_error_storage) }
                 throw SpeechException(SpeechError.Storage)
             }
-            finally { partial.delete() }
-            return emptyList()
         }
 
         override fun cancel() { client?.cancel() }

@@ -23,10 +23,11 @@ import java.io.File
 import java.util.UUID
 
 data class SpeechClip(val plan: SpeechPlan, val index: Int, val file: File, val timings: List<SpeechTiming> = emptyList(),
-    val voiceLabel: String = "") {
+    val voiceLabel: String = "", val stream: SpeechStream? = null) {
     val chapter get() = plan.chapter
     val segment get() = plan.segments[index]
     val count get() = plan.segments.size
+    internal fun dispose() { stream?.cancel(); file.delete() }
 }
 
 interface SpeechPlayback {
@@ -281,7 +282,7 @@ class ReadAloudSession(
         initialContext: SpeechContext, opened: SpeechSettings?, initialLabel: String, maxInputLength: Int) = coroutineScope {
         val processingKey = synthesis.textProcessingKey(maxInputLength)
         // At most one playing file, two buffered files and one synthesis in flight.
-        val queue = Channel<Step>(capacity = 2, onUndeliveredElement = { (it as? Step.Ready)?.clip?.file?.delete() })
+        val queue = Channel<Step>(capacity = 2, onUndeliveredElement = { (it as? Step.Ready)?.clip?.dispose() })
         launch {
             var activeSettings = opened
             var voiceLabel = initialLabel
@@ -328,10 +329,16 @@ class ReadAloudSession(
                                 voiceLabel = provider.open(parameters)
                                 activeSettings = parameters
                             }
-                            val timings = provider.synthesize(segment.text, file)
+                            val activePlan = plan
+                            val timings = provider.synthesize(segment.text, file) { audio ->
+                                queue.send(Step.Ready(SpeechClip(activePlan, index, file, voiceLabel = voiceLabel, stream = audio)))
+                                delivered = true
+                            }
                             currentCoroutineContext().ensureActive()
-                            queue.send(Step.Ready(SpeechClip(plan, index, file, timings, voiceLabel)))
-                            delivered = true
+                            if (!delivered) {
+                                queue.send(Step.Ready(SpeechClip(plan, index, file, timings, voiceLabel)))
+                                delivered = true
+                            }
                         } finally { if (!delivered) file.delete() }
                     }
                     val next = chapter.nextId ?: break
@@ -432,7 +439,7 @@ class ReadAloudSession(
                             }
                         } catch (cancelled: CancellationException) { throw cancelled }
                         catch (failure: Exception) { throw SpeechException(failure.speechError(SpeechError.Playback)) }
-                        finally { clip.file.delete() }
+                        finally { clip.dispose() }
                         currentCoroutineContext().ensureActive()
                         // Only actual playback completion advances the durable offset.
                         if (!request.isPreview) save(clip.bookmark(clip.segment.end))

@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.tts.audio
 
 import android.media.AudioFormat
 import android.media.MediaCodec
+import android.media.MediaDataSource
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.os.SystemClock
@@ -54,6 +55,8 @@ internal suspend fun processSpeechAudio(
     volume: Float = 1f,
     checkSilence: Boolean = false,
     intentionalPause: Boolean = false,
+    inputSource: MediaDataSource? = null,
+    onPcm: (suspend (Int, ByteArray) -> Unit)? = null,
 ): ProcessedSpeechAudio {
     val partial = File(output.parentFile, output.name + ".part")
     var ownsPartial = false
@@ -73,11 +76,12 @@ internal suspend fun processSpeechAudio(
             var beforeSilence = 0L
             var afterSilence = 0L
             val anchors = mutableListOf(SpeechAudioFrameAnchor(0, 0))
-            fun write(samples: ShortArray) {
+            suspend fun write(samples: ShortArray) {
                 task.ensureActive()
                 val bytes = ByteArray(samples.size * 2)
                 ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(samples)
                 checkNotNull(wave).append(bytes)
+                if (bytes.isNotEmpty()) onPcm?.invoke(outputRate, bytes)
                 val count = checkNotNull(dsp).lastUncompressedFrames
                 if (count > 0) {
                     beforeSilence += count
@@ -85,7 +89,7 @@ internal suspend fun processSpeechAudio(
                     anchors += SpeechAudioFrameAnchor(beforeSilence, afterSilence)
                 }
             }
-            fun process(buffer: ByteBuffer, format: MediaFormat) {
+            suspend fun process(buffer: ByteBuffer, format: MediaFormat) {
                 val rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                 val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
                 val encoding = if (format.containsKey(MediaFormat.KEY_PCM_ENCODING))
@@ -113,7 +117,7 @@ internal suspend fun processSpeechAudio(
                 }
             }
             try {
-                extractor.setDataSource(input.absolutePath)
+                if (inputSource == null) extractor.setDataSource(input.absolutePath) else extractor.setDataSource(inputSource)
                 val track = (0 until extractor.trackCount).firstOrNull {
                     extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
                 } ?: throw SpeechException(SpeechError.InvalidAudio)

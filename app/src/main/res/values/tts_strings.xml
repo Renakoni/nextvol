@@ -115,4 +115,7 @@
     <string name="tts_needs_key">Set up Key</string>
     <string name="tts_clear_credentials">Clear credentials</string>
     <plurals name="tts_voice_count"><item quantity="one">%1$d voice</item><item quantity="other">%1$d voices</item></plurals>
+    <string name="tts_decode_stream">Streaming decode</string>
+    <string name="tts_decode_stream_off">Disabled, online playback delay may be high.</string>
+    <string name="tts_decode_stream_on">Enabled, please close when online playback is abnormal.</string>
 </resources>
