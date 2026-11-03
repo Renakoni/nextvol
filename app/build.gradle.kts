@@ -363,6 +363,7 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     // Android lib
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.emoji2.bundled)
     implementation("androidx.webkit:webkit:1.12.1")
     implementation(libs.androidx.foundation)
     implementation(libs.core.splashscreen)

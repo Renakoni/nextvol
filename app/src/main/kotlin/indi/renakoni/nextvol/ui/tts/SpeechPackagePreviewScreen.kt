@@ -39,6 +39,7 @@ import hnovel.speech.HttpSpeechPackageImport
 import hnovel.speech.OfflinePackagePlan
 import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 
@@ -53,6 +54,8 @@ fun SpeechPackagePreviewScreen(
     offline: SpeechPackagePreviewState = SpeechPackagePreviewState(),
     onInstall: (OfflinePackagePlan) -> Unit = {},
     onCancelInstall: () -> Unit = {},
+    onImportConfiguration: (Boolean) -> Unit = {},
+    onImportOfflineConfiguration: (InstalledOfflineVoice) -> Unit = {},
 ) {
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val context = LocalContext.current
@@ -74,13 +77,11 @@ fun SpeechPackagePreviewScreen(
                             if (preview.kinds == setOf(SpeechPackageKind.Unknown)) Text(stringResource(R.string.tts_package_unknown))
                             Text(stringResource(R.string.tts_package_counts, preview.engines.size,
                                 preview.engines.sumOf { it.voices.size }, preview.resources.size), style = MaterialTheme.typography.bodyMedium)
-                            if (preview.kinds.any { it != SpeechPackageKind.Voices && it != SpeechPackageKind.Unknown }) {
-                                Text(stringResource(R.string.tts_package_config_unsupported), style = MaterialTheme.typography.bodyMedium)
-                            }
                         }
                     }
                 }
             }
+            speechConfigurationPreview(offline, onImportConfiguration)
             preview?.engines?.forEachIndexed { engineIndex, engine ->
                 val httpImport = httpImports[engineIndex]
                 item(key = "engine:$engineIndex") {
@@ -90,8 +91,9 @@ fun SpeechPackagePreviewScreen(
                         Text(stringResource(R.string.tts_package_engine_info, engine.code.take(256),
                             engine.type?.take(64) ?: stringResource(R.string.tts_package_undeclared)), style = MaterialTheme.typography.bodyMedium)
                         val localVoices = offline.offlineImports.filterKeys { it.first == engineIndex }.values
-                        val hasOffline = localVoices.any { it.plan != null }
-                        val offlineResolved = localVoices.isNotEmpty() && localVoices.all { it.plan != null }
+                        val configurationUpdates = offline.offlineConfigurations.filterKeys { it.first == engineIndex }
+                        val hasOffline = localVoices.any { it.plan != null } || configurationUpdates.isNotEmpty()
+                        val offlineResolved = localVoices.isNotEmpty() && localVoices.count { it.plan != null } + configurationUpdates.size == localVoices.size
                         if (!hasOffline && httpImport?.sources.isNullOrEmpty() && httpImport?.engine == null) Text(stringResource(if (httpImport != null) {
                             R.string.tts_package_cannot_import
                         } else when (engine.support) {
@@ -107,18 +109,19 @@ fun SpeechPackagePreviewScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         httpImport?.error?.let { error -> Text(stringResource(error.messageResource), style = MaterialTheme.typography.bodyMedium) }
-                        if (httpImport?.hasLocalAudioSettings == true) {
-                            Text(stringResource(R.string.tts_package_local_audio), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
                         if (httpImport?.error == null && httpImport?.sources?.isEmpty() == true && onImportEngine != null) {
                             httpImport.engine?.let { configuration ->
                                 FilledTonalButton(onClick = { onImportEngine(configuration) }, enabled = !offline.installing,
                                     modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.tts_import_sources)) }
                             }
                         }
+                        if (engine.voices.isEmpty() && onImportEngine != null) offline.offlineEngineImports[engineIndex]?.let { configuration ->
+                            FilledTonalButton(onClick = { onImportEngine(configuration) }, enabled = !offline.installing) {
+                                Text(stringResource(R.string.tts_import_sources))
+                            }
+                        }
                         if (onImport != null && !httpImport?.sources.isNullOrEmpty()) {
-                            FilledTonalButton(onClick = { onImport(httpImport.sources) }, modifier = Modifier.fillMaxWidth()) {
+                            FilledTonalButton(onClick = { onImport(httpImport.sources) }, enabled = !offline.installing, modifier = Modifier.fillMaxWidth()) {
                                 Text(stringResource(R.string.tts_import_sources))
                             }
                         }
@@ -145,7 +148,19 @@ fun SpeechPackagePreviewScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         offline.offlineImports[engineIndex to voiceIndex]?.let { local ->
                             val plan = local.plan
-                            if (plan != null) {
+                            val update = offline.offlineConfigurations[engineIndex to voiceIndex]
+                            if (update != null) {
+                                Text(stringResource(R.string.tts_config_voice_update_description), style = MaterialTheme.typography.bodySmall)
+                                FilledTonalButton(onClick = { onImportOfflineConfiguration(update) },
+                                    enabled = !offline.installing && update.reference.id !in offline.updatedOfflineVoices) {
+                                    Text(stringResource(R.string.tts_config_voice_update))
+                                }
+                                if (offline.installingId == update.reference.id) {
+                                    if (offline.installing) LinearProgressIndicator(Modifier.fillMaxWidth())
+                                    offline.installed?.let { Text(stringResource(R.string.tts_config_voice_updated, it)) }
+                                    offline.installError?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+                                }
+                            } else if (plan != null) {
                                 Text(stringResource(R.string.tts_offline_size, Formatter.formatShortFileSize(context, plan.resources.sumOf { it.bytes })),
                                     style = MaterialTheme.typography.bodyMedium)
                                 val status = offline.availability[plan.id]

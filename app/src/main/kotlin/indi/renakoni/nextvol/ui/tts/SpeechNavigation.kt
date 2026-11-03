@@ -461,7 +461,9 @@ fun NavGraphBuilder.speechSettingsDestination() {
             nav.popBackStackIfResumed()
         }, onImportEngine = { viewModel.importEngine(it, nav::popBackStackIfResumed) },
             onBack = nav::popBackStackIfResumed, offline = state,
-            onInstall = viewModel::install, onCancelInstall = viewModel::cancelInstall)
+            onInstall = viewModel::install, onCancelInstall = viewModel::cancelInstall,
+            onImportConfiguration = viewModel::importConfiguration,
+            onImportOfflineConfiguration = viewModel::importOfflineConfiguration)
     }
 }
 

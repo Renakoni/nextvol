@@ -58,10 +58,14 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
     internal fun editPair(pair: SpeechVoicePair) = open(SpeechVoicePoolDraft(
         pair = pair, group = pair.group, person = pair.person, voice = pair.value))
 
-    private fun open(draft: SpeechVoicePoolDraft) {
-        val engine = state.value.engines.find { group -> group.voices.any { it.key == draft.voice?.key } }
+    private fun open(draft: SpeechVoicePoolDraft) = work {
+        val voice = draft.voice?.let { voice ->
+            if (voice.externalId == null) voice else
+                voice.resolvePackageReference(catalog.packageReferences())
+        }
+        val engine = state.value.engines.find { group -> group.voices.any { it.canonicalKey == voice?.canonicalKey } }
             ?: state.value.engines.firstOrNull().takeIf { draft.id == null && draft.pair == null }
-        mutableState.update { it.copy(draft = draft, engineKey = engine?.key, error = null) }
+        mutableState.update { it.copy(draft = draft.copy(voice = voice), engineKey = engine?.key, error = null) }
     }
 
     internal fun edit(change: (SpeechVoicePoolDraft) -> SpeechVoicePoolDraft) {
@@ -73,7 +77,8 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
     internal fun selectEngine(key: String) {
         val engine = state.value.engines.find { it.key == key } ?: return
         mutableState.update { state -> state.copy(engineKey = key, draft = state.draft?.let { draft ->
-            draft.copy(voice = engine.voices.find { it.key == draft.voice?.key } ?: engine.candidates.firstOrNull())
+            draft.copy(voice = draft.voice?.takeIf { voice -> engine.voices.any { it.canonicalKey == voice.canonicalKey } }
+                ?: engine.candidates.firstOrNull())
         }, error = null) }
     }
 
@@ -86,8 +91,8 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
         // Original g7.d.i draws on role selection. Keep that draw in the draft until confirmation.
         val candidate = current.voiceItems.filter { it.group == group && it.activate }
             .mapNotNull { voices[it.value.key]?.takeIf { it.error == null }?.reference }
-            .distinctBy { it.key }.randomOrNull() ?: return@work
-        val engine = state.value.engines.find { it.voices.any { voice -> voice.key == candidate.key } }
+            .distinctBy { it.canonicalKey }.randomOrNull() ?: return@work
+        val engine = state.value.engines.find { it.voices.any { voice -> voice.canonicalKey == candidate.canonicalKey } }
         mutableState.update { it.copy(draft = it.draft?.copy(voice = candidate), engineKey = engine?.key) }
     }
 
@@ -106,14 +111,17 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
             if (draft.pair != null) repository.setManual(draft.pair.copy(person = draft.person, group = draft.group, value = voice))
             else {
                 var duplicate = false
+                val references = catalog.packageReferences()
+                val resolvedVoice = voice.resolvePackageReference(references)
                 settings.update { current ->
                     duplicate = current.voiceItems.any {
-                        it.id != draft.id && it.group == draft.group && it.value.key == voice.key
+                        it.id != draft.id && it.group == draft.group &&
+                            it.value.resolvePackageReference(references).canonicalKey == resolvedVoice.canonicalKey
                     }
                     if (duplicate) current else {
                         val existing = current.voiceItems.find { it.id == draft.id }
-                        val saved = existing?.copy(group = draft.group, value = voice, name = voice.label)
-                            ?: SpeechVoiceItem(group = draft.group, value = voice, name = voice.label)
+                        val saved = existing?.copy(group = draft.group, value = resolvedVoice, name = resolvedVoice.label)
+                            ?: SpeechVoiceItem(group = draft.group, value = resolvedVoice, name = resolvedVoice.label)
                         current.copy(voiceItems = if (existing == null) current.voiceItems + saved
                             else current.voiceItems.map { if (it.id == saved.id) saved else it })
                     }
@@ -158,7 +166,7 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
 }
 
 internal fun SpeechSettings.poolGroups(): List<String> =
-    (listOf(SPEECH_POOL_MALE, SPEECH_POOL_FEMALE) + roleRules.filter { it.isAbstract }.map { it.name }).distinct()
+    (listOf(SPEECH_POOL_MALE, SPEECH_POOL_FEMALE) + roleRules.filter { it.isAbstract }.map { configurationPoolGroup(it.name) }).distinct()
 
 internal fun moveSpeechVoicePool(items: List<SpeechVoiceItem>, from: String, to: String): List<SpeechVoiceItem> {
     if (from.startsWith("group:") && to.startsWith("group:")) {

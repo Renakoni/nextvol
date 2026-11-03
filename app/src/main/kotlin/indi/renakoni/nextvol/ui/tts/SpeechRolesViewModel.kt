@@ -59,11 +59,26 @@ class SpeechRolesViewModel @Inject constructor(
     fun editRule(id: String?) {
         val state = state.value
         val existing = state.settings.roleRules.find { it.id == id }
-        val engine = if (existing == null) state.engines.firstOrNull()
-            else state.engines.find { group -> group.voices.any { it.key == existing.speaker?.key } }
-        mutableState.update { it.copy(draft = existing ?: SpeechRoleRule(
-            group = state.settings.roleRules.firstOrNull()?.group.orEmpty(), speaker = engine?.candidates?.firstOrNull()),
-            engineKey = engine?.key, saveError = null, error = null) }
+        fun open(speaker: SpeechVoiceRef?) {
+            val engine = if (existing == null) state.engines.firstOrNull()
+                else state.engines.find { group -> group.voices.any { it.canonicalKey == speaker?.canonicalKey } }
+            mutableState.update { it.copy(draft = existing?.copy(speaker = speaker) ?: SpeechRoleRule(
+                group = state.settings.roleRules.firstOrNull()?.group.orEmpty(), speaker = engine?.candidates?.firstOrNull()),
+                engineKey = engine?.key, saveError = null, error = null) }
+        }
+        val speaker = existing?.speaker
+        if (speaker?.externalId == null) open(speaker)
+        else {
+            mutableState.update { it.copy(draft = null) }
+            viewModelScope.launch {
+                try { open(speaker.resolvePackageReference(catalog.packageReferences())) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) {
+                    open(speaker)
+                    mutableState.update { it.copy(error = SpeechError.Storage) }
+                }
+            }
+        }
     }
 
     fun edit(change: (SpeechRoleRule) -> SpeechRoleRule) {
@@ -74,7 +89,8 @@ class SpeechRolesViewModel @Inject constructor(
         val group = state.value.engines.find { it.key == key } ?: return
         mutableState.update { state -> state.copy(engineKey = key, saveError = null,
             draft = state.draft?.let { draft -> draft.copy(speaker =
-                group.voices.find { it.key == draft.speaker?.key } ?: group.candidates.firstOrNull()) }) }
+                draft.speaker?.takeIf { voice -> group.voices.any { it.canonicalKey == voice.canonicalKey } }
+                    ?: group.candidates.firstOrNull()) }) }
     }
 
     fun save(defaultGroup: String, onSaved: () -> Unit) {

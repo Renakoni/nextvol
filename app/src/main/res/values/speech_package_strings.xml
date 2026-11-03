@@ -1,13 +1,11 @@
 <resources>
     <string name="tts_package_cannot_import">Import not supported yet</string>
-    <string name="tts_package_local_audio">This package’s local speed, volume gain and pitch effects are not applied.</string>
     <string name="tts_package_http_request_unsupported">The request header configuration has an invalid format.</string>
     <string name="tts_package_http_parameters_required">The voice parameters or extension controls have an invalid format.</string>
     <string name="tts_package_preview">Voice package preview</string>
     <string name="tts_package_reading">Reading package information…</string>
     <string name="tts_package_unknown">Unrecognized package type</string>
     <string name="tts_package_counts">%1$d engines · %2$d voices · %3$d resource files</string>
-    <string name="tts_package_config_unsupported">This configuration type is recognized; migration is not available yet.</string>
     <string name="tts_package_engine_info">%1$s · Type: %2$s</string>
     <string name="tts_package_undeclared">Not declared</string>
     <string name="tts_package_http_adapter">HTTP adapter foundation available</string>

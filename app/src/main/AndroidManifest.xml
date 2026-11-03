@@ -109,6 +109,10 @@
         android:name="androidx.work.WorkManagerInitializer"
         android:value="androidx.startup"
         tools:node="remove" />
+      <meta-data
+        android:name="androidx.emoji2.text.EmojiCompatInitializer"
+        android:value="androidx.startup"
+        tools:node="remove" />
     </provider>
     <service
         android:name="androidx.work.impl.foreground.SystemForegroundService"

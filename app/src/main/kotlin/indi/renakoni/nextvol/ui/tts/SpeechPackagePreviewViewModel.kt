@@ -15,9 +15,16 @@ import hnovel.speech.previewSpeechPackage
 import hnovel.speech.OfflinePackagePreview
 import hnovel.speech.OfflinePackagePlan
 import hnovel.speech.previewOfflineVoice
+import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechSettingsRepository
+import indi.renakoni.nextvol.tts.SpeechConfigurationImport
+import indi.renakoni.nextvol.tts.previewSpeechConfiguration
+import indi.renakoni.nextvol.tts.speechPackageReferences
+import indi.renakoni.nextvol.tts.withInstalledEngines
+import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineInstallException
 import indi.renakoni.nextvol.tts.matcha.OfflineInstallError
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
@@ -46,6 +53,12 @@ data class SpeechPackagePreviewState(
     val installingId: String? = null,
     val installed: String? = null,
     val installError: Int? = null,
+    val configuration: SpeechConfigurationImport? = null,
+    val conflicts: List<String> = emptyList(),
+    val configurationSaved: Boolean = false,
+    val offlineConfigurations: Map<Pair<Int, Int>, InstalledOfflineVoice> = emptyMap(),
+    val offlineEngineImports: Map<Int, hnovel.speech.SpeechEngineConfig> = emptyMap(),
+    val updatedOfflineVoices: Set<String> = emptySet(),
 )
 
 /** Resource installation is independent of whether this device can execute the selected engine. */
@@ -56,6 +69,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
     private val settings: SpeechSettingsRepository,
     private val availability: OfflineAvailabilityChecker,
     private val http: indi.renakoni.nextvol.tts.HttpSpeechRepository,
+    private val engines: OfflineEngineRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPackagePreviewState())
     val state = mutableState.asStateFlow()
@@ -69,10 +83,10 @@ class SpeechPackagePreviewViewModel @Inject constructor(
         reading?.cancel()
         mutableState.value = SpeechPackagePreviewState()
         reading = viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = try { withContext(Dispatchers.IO) {
                 val task = currentCoroutineContext()
                 var name = ""
-                val preview = try {
+                val parsed = try {
                     name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                         if (cursor.moveToFirst()) cursor.getString(0)?.take(256).orEmpty() else ""
                     }.orEmpty()
@@ -83,6 +97,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     } ?: SpeechPackagePreview(name, error = SpeechPackageError.ReadFailed)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { SpeechPackagePreview(name, error = SpeechPackageError.ReadFailed) }
+                val preview = parsed.withInstalledEngines(http.engines() + engines.all())
                 val imports = preview.engines.mapIndexedNotNull { index, engine ->
                     task.ensureActive()
                     if (engine.isOnline) index to previewHttpSpeechPackage(engine) else null
@@ -92,6 +107,14 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                         task.ensureActive()
                         (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
                     } else emptyList()
+                }.toMap()
+                val updates = local.filterValues { it.error == MatchaPackageError.MissingResource ||
+                    preview.resources.isEmpty() && it.error == MatchaPackageError.Ambiguous && it.detail == "voice"
+                }.mapNotNull { (key, _) ->
+                    val engine = preview.engines[key.first]
+                    try { offline.previewConfiguration(engine, engine.voices[key.second])?.let { key to it } }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: IllegalArgumentException) { null }
                 }.toMap()
                 val capabilities = try {
                     context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
@@ -107,10 +130,35 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     }.orEmpty()
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { emptyMap() }
-                SpeechPackagePreviewState(preview, imports, local, capabilities)
-            }
+                val configuration = previewSpeechConfiguration(preview, speechPackageReferences(http.sources(), offline.voices()),
+                    context.getString(R.string.tts_replace_ungrouped))
+                val engineImports = preview.engines.mapIndexedNotNull { index, engine ->
+                    if (engine.isOnline || engine.raw == null || engine.type !in setOf(null, "inner")) return@mapIndexedNotNull null
+                    try { index to hnovel.speech.readOfflineEngineDefinition(engine) }
+                    catch (_: IllegalArgumentException) { null }
+                }.toMap()
+                SpeechPackagePreviewState(preview, imports, local, capabilities,
+                    configuration = configuration, conflicts = configuration.conflicts(settings.get()), offlineConfigurations = updates,
+                    offlineEngineImports = engineImports)
+            } } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { SpeechPackagePreviewState(SpeechPackagePreview("", error = SpeechPackageError.ReadFailed)) }
             currentCoroutineContext().ensureActive()
             mutableState.value = result
+        }
+    }
+
+    fun importConfiguration(replace: Boolean) {
+        val configuration = state.value.configuration ?: return
+        if (state.value.installing || configuration.error != null || !configuration.hasChanges) return
+        mutableState.update { it.copy(installing = true, installError = null) }
+        viewModelScope.launch {
+            try {
+                // All rule, role and pool changes share the existing single settings write.
+                withContext(NonCancellable) { settings.update { configuration.applyTo(it, replace) } }
+                mutableState.update { it.copy(configurationSaved = true, conflicts = emptyList()) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
+            finally { mutableState.update { it.copy(installing = false) } }
         }
     }
 
@@ -118,11 +166,40 @@ class SpeechPackagePreviewViewModel @Inject constructor(
         if (state.value.installing) return
         mutableState.update { it.copy(installing = true, installError = null) }
         viewModelScope.launch {
-            try { http.registerEngine(engine); onSaved() }
+            try {
+                if (engine.isOnline) http.registerEngine(engine) else engines.register(engine)
+                onSaved()
+            }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
             finally { mutableState.update { it.copy(installing = false) } }
         }
+    }
+
+    fun importOfflineConfiguration(draft: InstalledOfflineVoice) {
+        if (state.value.installing || draft !in state.value.offlineConfigurations.values) return
+        mutableState.update { it.copy(installing = true, installingId = draft.reference.id, installed = null, installError = null) }
+        viewModelScope.launch {
+            try {
+                withContext(NonCancellable) {
+                    val voice = offline.importConfiguration(draft)
+                    settings.update { if (it.offlineVoice?.id == voice.reference.id) it.copy(offlineVoice = voice.reference) else it }
+                    mutableState.update { it.copy(installed = voice.name,
+                        updatedOfflineVoices = it.updatedOfflineVoices + voice.reference.id) }
+                }
+                refreshConfiguration()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
+            finally { mutableState.update { it.copy(installing = false) } }
+        }
+    }
+
+    private suspend fun refreshConfiguration() {
+        val preview = state.value.preview ?: return
+        val configuration = previewSpeechConfiguration(preview, speechPackageReferences(http.sources(), offline.voices()),
+            context.getString(R.string.tts_replace_ungrouped))
+        val conflicts = configuration.conflicts(settings.get())
+        mutableState.update { it.copy(configuration = configuration, conflicts = conflicts) }
     }
 
     fun install(plan: OfflinePackagePlan) {
@@ -149,6 +226,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     }
                 }
                 mutableState.update { it.copy(installed = voice.name) }
+                refreshConfiguration()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
                 val message = when ((failure as? OfflineInstallException)?.error) {

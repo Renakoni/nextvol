@@ -1,0 +1,21 @@
+<resources>
+    <string name="tts_config_import">匯入聽書設定</string>
+    <string name="tts_config_counts">替換 %1$d · 角色 %2$d · 池成員 %3$d</string>
+    <string name="tts_config_scope">匯入全域聽書設定。聲音和引擎使用下方既有的匯入、安裝操作。</string>
+    <string name="tts_config_invalid">無法匯入此設定，請檢查：%1$s</string>
+    <string name="tts_config_conflicts">已有相同分組、相同名稱的項目</string>
+    <string name="tts_config_missing">缺少以下聲音。可安裝對應語音包，或在匯入後的角色、聲音池中重新綁定。</string>
+    <string name="tts_config_unsupported">以下欄位或資源不會套用：</string>
+    <string name="tts_config_hanlp">hanlp.properties 用於指定 HanLP 詞典和模型路徑。外部路徑不會套用至內建資源。</string>
+    <string name="tts_config_saved">聽書設定已匯入</string>
+    <string name="tts_config_merge">合併</string>
+    <string name="tts_config_replace">替換</string>
+    <string name="tts_config_merge_description">相同分組、相同名稱的項目依 MultiTTS 的順序規則更新，其餘項目保留。</string>
+    <string name="tts_config_replace_description">替換此檔案包含的設定類別中的全部項目，未包含的類別維持不變。</string>
+    <string name="tts_config_apply">匯入設定</string>
+    <string name="tts_config_enabled">已啟用</string>
+    <string name="tts_config_disabled">已停用</string>
+    <string name="tts_config_voice_update">更新聲音設定</string>
+    <string name="tts_config_voice_update_description">使用已安裝的模型，保留引擎設定與使用者對聲音的修改。</string>
+    <string name="tts_config_voice_updated">已更新 %1$s</string>
+</resources>

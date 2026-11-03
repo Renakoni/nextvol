@@ -95,6 +95,50 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
 
     suspend fun voices(): List<InstalledOfflineVoice> = withContext(Dispatchers.IO) { lock.withLock { read() } }
 
+    /** A config-only import reuses the installed resource tree and the normal voice editor's mapping. */
+    suspend fun previewConfiguration(engine: SpeechPackageEngine, voice: SpeechPackageVoice): InstalledOfflineVoice? = withContext(Dispatchers.IO) {
+        val definition = readOfflineVoiceDefinition(engine, voice)
+        lock.withLock {
+            val configuration = definition.configuration
+            val previous = read().singleOrNull { installed ->
+                val original = installed.defaults?.configuration ?: installed.configuration
+                installed.sourceKey.isNotEmpty() && original != null && original.engine == configuration.engine &&
+                    original.code == configuration.code && original.type == configuration.type
+            } ?: return@withLock null
+            if (configuration.engine == "sherpa") {
+                // modelDir chooses the archive extraction root; installed models use paths relative to it.
+                fun folder(value: OfflineVoiceConfig) = resolveSherpaParameters(value.rawParameters ?: value.parameters, value.extendUI)
+                    .get("modelDir")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank) ?: value.code
+                val original = previous.defaults?.configuration ?: requireNotNull(previous.configuration)
+                require(folder(configuration) == folder(original)) { "modelDir" }
+            }
+            val normalized = normalizeOfflineVoice(configuration, previous.sizes.keys)
+            val updated = preserveOverrides(previous, previous.copy(name = voice.name, configuration = normalized, metadata = definition.metadata,
+                defaults = OfflineVoiceDefaults(voice.name, normalized, definition.metadata)))
+            val effective = requireNotNull(updated.configuration)
+            if (effective.engine != "sherpa") offlineResources(effective, previous.sizes.map { (path, bytes) ->
+                SpeechPackageResource("${effective.engine}/$path", bytes)
+            })
+            updated
+        }
+    }
+
+    suspend fun importConfiguration(draft: InstalledOfflineVoice): InstalledOfflineVoice = withContext(Dispatchers.IO) {
+        lock.withLock {
+            val current = read()
+            val previous = current.single { it.reference == draft.reference }
+            val defaults = requireNotNull(draft.defaults)
+            val normalized = normalizeOfflineVoice(defaults.configuration, previous.sizes.keys)
+            val imported = previous.copy(name = defaults.name, configuration = normalized, metadata = defaults.metadata,
+                defaults = defaults.copy(configuration = normalized))
+            val updated = preserveOverrides(previous, imported).copy(
+                reference = previous.reference.copy(revision = UUID.randomUUID().toString()))
+            write(current.map { if (it.reference == previous.reference) updated else it })
+            mutableChanges.value++
+            updated
+        }
+    }
+
     suspend fun orderVoices(ids: List<String>) = withContext(Dispatchers.IO) {
         lock.withLock {
             write(read().orderSpeechVoices(ids) { it.reference.id })
