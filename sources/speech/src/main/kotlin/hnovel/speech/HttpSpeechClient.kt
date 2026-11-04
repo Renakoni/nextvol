@@ -287,7 +287,7 @@ class HttpSpeechClient(
 
     /** Network teardown must run off the main thread, after synthesis has stopped. */
     override fun close() {
-        cancel()
+        authority.revoke(identity)
         try { online?.close() } finally {
             try { session.close() } finally { microsoftSession?.close() }
         }

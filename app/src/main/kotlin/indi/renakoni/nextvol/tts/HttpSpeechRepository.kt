@@ -18,6 +18,7 @@ import hnovel.speech.speechPackageAvatarPath
 import hnovel.speech.safeSpeechPackagePath
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechResources
+import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -81,7 +82,8 @@ private data class HttpSpeechStore(val sources: List<SavedHttpSpeechSource> = em
 /** User-imported definitions can contain credentials. Persist them with the existing Keystore cipher. */
 @Singleton
 class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Context, private val cipher: StorageCipher,
-    private val authority: ExecutionAuthority, private val offline: OfflineSpeechRepository) {
+    private val authority: ExecutionAuthority, private val offline: OfflineSpeechRepository,
+    private val offlineEngines: OfflineEngineRepository) {
     private val file = AtomicFile(File(context.filesDir, "http-speech.enc"))
     private val avatarRoot = File(context.filesDir, "speech-avatars")
     private val runtimeRoot = File(context.filesDir, "speech-runtime")
@@ -254,8 +256,9 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     private suspend fun changeStore(update: (HttpSpeechStore) -> HttpSpeechStore) = withContext(Dispatchers.IO) {
         mutex.withLock {
             val stored = readStored()
-            val previous = combined(stored.sources, stored.engines)
             val updatedStore = update(stored)
+            if (updatedStore == stored) return@withLock
+            val previous = combined(stored.sources, stored.engines)
             val updated = updatedStore.sources
             val sources = combined(updated, updatedStore.engines)
             require(updated.size <= MAX_HTTP_SPEECH_SOURCES && updated.map { it.definition.id }.distinct().size == updated.size)
@@ -273,7 +276,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             })
             val raw = buildJsonObject {
                 put("sources", entries)
-                put("engines", Json.encodeToJsonElement(updatedStore.engines))
+                put("engines", Json.encodeToJsonElement(updatedStore.engines.filterNot { it.code == "msctts" }))
                 val ids = sources.map { it.definition.id }.toSet()
                 put("voiceOrder", Json.encodeToJsonElement(updatedStore.voiceOrder.filter { it in ids }))
             }.toString().toByteArray(Charsets.UTF_8)
@@ -284,6 +287,10 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val output = file.startWrite()
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
+            updatedStore.engines.find { it.code == "msctts" && it !in stored.engines }?.let { engine ->
+                if (stored.engines.any { it.code == engine.code }) offlineEngines.save(engine)
+                else offlineEngines.register(engine)
+            }
             stored.engines.filter { it !in updatedStore.engines }.forEach {
                 authority.revokeSource(catalogSourceId(it.code), "speech")
             }
@@ -328,7 +335,10 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     private fun readStored(): HttpSpeechStore {
-        if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()) return HttpSpeechStore()
+        // MSC types share one engine record, including when only offline speakers have been imported.
+        val msc = offlineEngines.get("msctts")
+        if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists())
+            return HttpSpeechStore(engines = listOfNotNull(msc))
         val encrypted = file.openRead().use { input ->
             val bytes = java.io.ByteArrayOutputStream()
             val buffer = ByteArray(8192)
@@ -357,9 +367,12 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 offlineResources = entry.jsonObject["offlineResources"]?.let { Json.decodeFromJsonElement<OfflineSpeechResources>(it) })
         }
         val engines = Json.decodeFromJsonElement<List<SpeechEngineConfig>>(document.getValue("engines"))
+            .filterNot { it.code == "msctts" } + listOfNotNull(msc)
         val order = document["voiceOrder"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
         offline.retainOnlineResources(sources.mapNotNull { it.offlineResources?.reference }.toSet())
-        return HttpSpeechStore(sources, engines, order)
+        return HttpSpeechStore(sources.map { source ->
+            if (source.importedEngineCode == "msctts" && msc != null) source.withHttpEngine(msc) else source
+        }, engines, order)
     }
 
     private fun cleanAvatars(sources: List<SavedHttpSpeechSource>) {

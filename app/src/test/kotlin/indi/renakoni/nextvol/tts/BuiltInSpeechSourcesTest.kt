@@ -7,6 +7,7 @@ import hnovel.network.*
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.previewHttpSpeech
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -28,7 +29,8 @@ class BuiltInSpeechSourcesTest {
     } }
     private val authority = ExecutionAuthority()
     private val offline by lazy { OfflineSpeechRepository(File(directory.root, "offline")) }
-    private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline)
+    private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline,
+        OfflineEngineRepository(context, StorageCipher.Plain))
 
     @Test fun catalogTicketsRespectEngineEditsAndRetirementWithAndWithoutSavedVoices() = runBlocking {
         val repository = repository()
@@ -102,7 +104,9 @@ class BuiltInSpeechSourcesTest {
         repository.saveDiscoveredEngineParameters(updated.code, updated.parameters, discovered)
         val savedEngine = repository().engines().single()
         assertEquals(updated.copy(deleted = true, enabled = false, parameters = discovered), savedEngine)
+        val changes = repository.changes.value
         repository.saveDiscoveredEngineParameters(updated.code, updated.parameters, "{\"userId\":\"stale\"}")
+        assertEquals(changes, repository.changes.value)
         assertEquals(savedEngine, repository().engines().single())
     }
 

@@ -78,14 +78,12 @@ internal class AzureSpeechBackend(
     }
 
     private fun createSynthesizer(): SpeechSynthesizer {
-        if (configuration.apiKey.isEmpty() || configuration.region.isEmpty())
-            throw HttpSpeechException(HttpSpeechError.Authentication)
         val config = SpeechConfig.fromSubscription(configuration.apiKey, configuration.region)
         try {
             config.setSpeechSynthesisVoiceName(configuration.voiceName)
             config.setSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Raw24Khz16BitMonoPcm)
             return SpeechSynthesizer(config, null as AudioConfig?).also { speechConfig = config }
-        } catch (failure: Exception) { config.close(); throw failure }
+        } catch (failure: Throwable) { config.close(); throw failure }
     }
 
     override suspend fun voices(): List<JsonObject> = configuration.voices(execute)
@@ -98,13 +96,14 @@ internal class AzureSpeechBackend(
     private fun stopSpeaking() { synchronized(lifecycle) { synthesizer?.StopSpeakingAsync() } }
 
     override fun close() {
-        cancel()
-        synchronized(operation) {
-            synchronized(lifecycle) {
-                closed = true
-                try { synthesizer?.close() } finally {
-                    synthesizer = null
-                    try { speechConfig?.close() } finally { speechConfig = null }
+        try { cancel() } finally {
+            synchronized(operation) {
+                synchronized(lifecycle) {
+                    closed = true
+                    try { synthesizer?.close() } finally {
+                        synthesizer = null
+                        try { speechConfig?.close() } finally { speechConfig = null }
+                    }
                 }
             }
         }

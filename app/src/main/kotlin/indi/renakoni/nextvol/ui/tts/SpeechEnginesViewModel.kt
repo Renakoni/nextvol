@@ -74,9 +74,7 @@ class SpeechEnginesViewModel @Inject constructor(
 
     private suspend fun saveConfiguration(config: SpeechEngineConfig, creating: Boolean) {
         if (config.isOnline) {
-            if (!creating && http.engines().none { it.code == config.code }) http.registerEngine(config)
             http.saveEngine(config, creating)
-            if (config.code == "msctts" && repository.get(config.code) != null) repository.save(config)
         } else if (creating) {
             require(repository.get(config.code) == null)
             repository.register(config)

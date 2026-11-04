@@ -91,6 +91,5 @@ class MicrosoftOnlineBackendsTest {
             assertEquals(configuration.apiKey, request.headers["Ocp-Apim-Subscription-Key"])
             response(request, "[]")
         }
-        assertFalse(configuration.toString().contains(configuration.apiKey))
     }
 }

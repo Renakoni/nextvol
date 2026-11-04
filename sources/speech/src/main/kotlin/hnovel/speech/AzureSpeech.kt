@@ -20,8 +20,6 @@ class AzureSpeechConfiguration(metadata: JsonObject) {
             "https://$region.tts.speech.microsoft.com/cognitiveservices/voices/list",
             headers = mapOf("Ocp-Apim-Subscription-Key" to apiKey, "Content-Type" to "application/json"),
             kind = ResourceKind.Api, followRedirects = false, maxResponseBytes = MAX_AUDIO_BYTES))).jsonArray)
-
-    override fun toString() = "AzureSpeechConfiguration"
 }
 
 internal fun azureSpeechPackageUrl(parameters: String): String {

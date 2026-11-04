@@ -35,7 +35,7 @@ class SpeechEngineLoginService @Inject constructor(
             val storage = Json.parseToJsonElement(response.text()).jsonObject.mapNotNull { (key, value) ->
                 value.jsonPrimitive.contentOrNull?.let { key to it }
             }.toMap()
-            engine.copy(parameters = applySpeechEngineLogin(engine.parameters, session.cookie(login.loginUrl), storage))
+            engine.copy(parameters = applySpeechEngineLogin(engine.parameters, session.cookie(response.finalUrl), storage))
         }
     }
 }

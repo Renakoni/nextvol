@@ -2,6 +2,8 @@ package hnovel.speech
 
 import hnovel.execution.ExecutionAuthority
 import hnovel.network.SourceBroker
+import hnovel.network.SourceScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -12,15 +14,29 @@ import org.junit.rules.TemporaryFolder
 class OnlineSpeechPackageTest {
     @get:Rule val directory = TemporaryFolder()
 
-    @Test fun unavailableNativeRuntimeReturnsAnUnsupportedDependency() = runBlocking {
-        val client = OnlineSpeechClient(buildJsonObject { putJsonObject("engine") { put("code", "vivo") } },
-            execute = { error("Unexpected request") }, stream = { _, _ -> error("Unexpected stream") },
-            createSdkBackend = { _, _, _ -> object : OnlineSpeechBackend {
-                override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray =
-                    throw UnsatisfiedLinkError("Unsupported ABI")
-            } })
-        try { client.synthesize("正文", 1f, 1f, 100, null); fail("Native linkage error escaped") }
-        catch (failure: HttpSpeechException) { assertEquals(HttpSpeechError.UnsupportedDependency, failure.error) }
+    @Test fun nativeFailureIsMappedAndVendorCancellationCannotSkipSessionCleanup() = runBlocking {
+        val definition = HttpSpeechDefinition.parse(buildJsonObject {
+            put("name", "Native voice"); put("url", "https://tts-v2.vivo.com.cn/tts")
+            putJsonObject("multiTts") { putJsonObject("engine") { put("code", "vivo") } }
+        })
+        var cancellations = 0
+        var closed = false
+        SourceBroker(directory.root.toPath()).use { broker ->
+            val client = HttpSpeechClient(definition, broker, emptyList(), ExecutionAuthority(),
+                createSdkBackend = { _, _, _ -> object : OnlineSpeechBackend {
+                    override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray =
+                        throw UnsatisfiedLinkError("Unsupported ABI")
+                    override fun cancel() { cancellations++; error("Vendor cancellation failed") }
+                    override fun close() { try { cancel() } finally { closed = true } }
+                } }, run = { _, _, _, _ -> error("Unexpected script") })
+            val session = broker.open(SourceScope("speech", definition.id, "http-tts"), emptyList())
+            try { client.synthesize("正文"); fail("Native linkage error escaped") }
+            catch (failure: HttpSpeechException) { assertEquals(HttpSpeechError.UnsupportedDependency, failure.error) }
+            assertThrows(IllegalStateException::class.java) { client.close() }
+            assertEquals(1, cancellations)
+            assertTrue(closed)
+            assertThrows(CancellationException::class.java) { session.permissionFailure(definition.url) }
+        }
     }
 
     @Test fun dedicatedPackagesUseBrokerWithoutExecutingScripts() = runBlocking {

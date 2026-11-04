@@ -2,7 +2,6 @@ package indi.renakoni.nextvol.tts
 
 import hnovel.speech.*
 import indi.renakoni.nextvol.tts.matcha.*
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import kotlinx.serialization.json.*
 import java.util.UUID
 import javax.inject.Inject
@@ -11,14 +10,12 @@ import javax.inject.Inject
 class MscVoiceEditing @Inject constructor(
     private val online: HttpSpeechRepository,
     private val offline: OfflineSpeechRepository,
-    private val engines: OfflineEngineRepository,
     private val settings: SpeechSettingsRepository,
     private val pairs: SpeechVoicePoolRepository,
 ) {
     suspend fun toOnline(voice: InstalledOfflineVoice, copy: Boolean, creating: Boolean) {
         val configuration = requireNotNull(voice.configuration)
-        val engine = online.engines().find { it.code == configuration.engine }
-            ?: offline.engineConfiguration(voice) ?: SpeechEngineConfig(configuration.engine, configuration.engine)
+        val engine = online.engines().single { it.code == configuration.engine }
         val id = "nextvol:voice:${if (copy) UUID.randomUUID() else voice.reference.id}"
         val draft = newHttpVoice(engine)
         val source = editHttpVoice(draft.copy(definition = previewHttpSpeech(JsonObject(draft.definition.raw +
@@ -38,7 +35,6 @@ class MscVoiceEditing @Inject constructor(
 
     suspend fun toOffline(source: SavedHttpSpeechSource, edited: InstalledOfflineVoice, copy: Boolean) {
         val engine = requireNotNull(source.httpEngine())
-        engines.register(engine)
         val existingId = source.definition.id.removePrefix("nextvol:voice:").takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,128}")) }
         val reference = OfflineVoiceRef(if (copy) UUID.randomUUID().toString() else existingId ?: UUID.randomUUID().toString(),
             UUID.randomUUID().toString())

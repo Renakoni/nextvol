@@ -114,7 +114,7 @@ internal fun OfflineVoiceEditorScreen(
                         }
                         state.availability?.takeUnless { it.canRun }?.let { status -> item {
                             Text(stringResource(status.message, status.detail), style = MaterialTheme.typography.bodySmall,
-                                color = if (status.canRun) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
+                                color = MaterialTheme.colorScheme.error)
                         } }
                     }
                 }

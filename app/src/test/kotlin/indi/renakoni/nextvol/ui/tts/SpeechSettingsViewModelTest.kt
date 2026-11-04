@@ -174,14 +174,10 @@ class SpeechSettingsViewModelTest {
         val offline = mockk<OfflineSpeechRepository>()
         coEvery { offline.voices() } returns listOf(InstalledOfflineVoice(reference, "Voice", emptyMap(),
             configuration = OfflineVoiceConfig("msctts", "voice")))
-        every { offline.changes } returns MutableStateFlow(0L)
-        coEvery { http.engines() } returns emptyList()
+        coEvery { http.engines() } returns listOf(configuration)
         val catalog = mockk<OfflineEngineRepository>()
         every { catalog.changes } returns MutableStateFlow(0L)
         coEvery { catalog.all() } returns listOf(configuration)
-        coEvery { catalog.save(any()) } returns Unit
-        every { catalog.get("msctts") } returns configuration
-        coEvery { http.registerEngine(any()) } returns Unit
         coEvery { http.saveEngine(any(), any()) } returns Unit
         coEvery { repository.get() } returns settings.value
         coEvery { http.sources() } returns emptyList()
@@ -197,7 +193,7 @@ class SpeechSettingsViewModelTest {
             editor.save(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) {}
             runCurrent()
             verify(exactly = 1) { controller.command(SpeechAction.Stop) }
-            coVerify { catalog.save(configuration.copy(parameters = "{\"region\":\"bj\"}")) }
+            coVerify { http.saveEngine(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) }
         } finally { editor.viewModelScope.cancel() }
     }
 
