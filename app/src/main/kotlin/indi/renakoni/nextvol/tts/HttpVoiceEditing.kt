@@ -53,7 +53,8 @@ internal fun mergeHttpVoice(previous: SavedHttpSpeechSource?, incoming: SavedHtt
     val overrides = previous.defaultSpeaker().filter { (key, value) -> value != baseline[key] }
     val raw = JsonObject(incoming.definition.raw + ("id" to JsonPrimitive(previous.definition.id)))
     return editHttpVoice(incoming.copy(definition = previewHttpSpeech(raw.toString()).sources.single(),
-        speakerDefaults = defaults, packageAvatar = incoming.packageAvatar ?: previous.packageAvatar.takeIf {
+        speakerDefaults = defaults, offlineResources = previous.offlineResources,
+        packageAvatar = incoming.packageAvatar ?: previous.packageAvatar.takeIf {
             defaults["avatar"] == previous.defaultSpeaker()["avatar"]
         }), JsonObject(defaults + overrides), previous.enabled, copy = false)
 }
@@ -113,7 +114,8 @@ internal fun SavedHttpSpeechSource.withHttpEngine(engine: SpeechEngineConfig): S
 internal fun SavedHttpSpeechSource.sameExecution(other: SavedHttpSpeechSource): Boolean {
     val fields = setOf("url", "header", "jsLib", "contentType", "loginUrl", "loginUi", "loginCheckJs", "concurrentRate", "enabledCookieJar", "speed")
     val voiceFields = setOf("code", "param", "extendUI", "locale") +
-        if (importedEngineCode == "gemini") setOf("sampleRate") else emptySet()
+        (if (importedEngineCode in setOf("gemini", "vivo", "bdotts", "msctts")) setOf("sampleRate") else emptySet()) +
+        (if (importedEngineCode == "msctts") setOf("type") else emptySet())
     val multiTts = definition.usesMultiTts
     return definition.raw.filterKeys { it in fields } == other.definition.raw.filterKeys { it in fields } &&
         multiTts == other.definition.usesMultiTts && (!multiTts ||

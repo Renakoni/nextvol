@@ -25,6 +25,8 @@ class HttpSpeechClient(
     private val owner: SourceBroker,
     private val grants: List<NetworkGrant>,
     private val authority: ExecutionAuthority,
+    createSdkBackend: ((JsonObject, suspend (BrokerRequest) -> BrokerResponse,
+        suspend (BrokerRequest, (BrokerWebSocket) -> ByteArray) -> ByteArray) -> OnlineSpeechBackend)? = null,
     private val run: suspend (ExecutionIdentity, ExecutionTask, ExecutionLimits, SourceExecutionBroker) -> ExecutionResult,
 ) : AutoCloseable {
     private val session = owner.open(SourceScope("speech", source.id, "http-tts"), grants)
@@ -43,8 +45,9 @@ class HttpSpeechClient(
     private val edge = if (source.nativeEngine == "edgetts") EdgeSpeechClient(
         requireNotNull(source.multiTts).getValue("voice").jsonObject, ::executeEdge) else null
     private val online = if (source.nativeEngine in dedicatedOnlineSpeechEngines)
-        OnlineSpeechClient(requireNotNull(source.multiTts), ::executeOnline, ::streamOnline) else null
+        OnlineSpeechClient(requireNotNull(source.multiTts), ::executeOnline, ::streamOnline, ::executeEdge, createSdkBackend) else null
     val supportsStreaming: Boolean get() = source.supportsStreaming
+    val updatedEngineParameters: String? get() = online?.updatedEngineParameters
     @Volatile private var microsoftSession: SourceSession? = null
     private var audioSink: ((ByteArray, Int, Int) -> Unit)? = null
 
@@ -91,6 +94,14 @@ class HttpSpeechClient(
                 { bytes, offset, count -> authority.authorized(identity) { sink(bytes, offset, count) } }
             }
             withTimeout(60_000) {
+                if (source.nativeEngine in setOf("azure", "msctts")) {
+                    // Audited host SDKs own their transport; no source script receives this capability.
+                    authority.authorized(identity) {}
+                    session.permissionFailureDetail(source.url, ResourceKind.Api)?.let { failure ->
+                        throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code,
+                            deniedOrigins = listOfNotNull(failure.denial?.origin))
+                    }
+                }
                 val speed = source.scriptSpeed(rate)
                 val audio = online?.synthesize(text, rate ?: speed / 10f, volume, sentenceLength, audioSink)
                     ?: edge?.synthesize(text, rate ?: speed / 10f, volume, audioSink)
@@ -124,8 +135,23 @@ class HttpSpeechClient(
         }
     }
 
-    private suspend fun executeOnline(request: BrokerRequest): BrokerResponse = onlineResponse(session.execute(request,
-        RequestCommitGuard { authority.authorized(identity, it) }))
+    private suspend fun executeOnline(request: BrokerRequest): BrokerResponse =
+        if (source.nativeEngine == "clipchamp") executeMicrosoft(request)
+        else if (source.nativeEngine == "doubao" && request.url == DoubaoSpeechClient.VOICES_URL) executeDoubaoCatalog(request)
+        else onlineResponse(session.execute(request, RequestCommitGuard { authority.authorized(identity, it) }))
+
+    private suspend fun executeDoubaoCatalog(request: BrokerRequest): BrokerResponse {
+        session.permissionFailureDetail(DoubaoSpeechClient.ENDPOINT, ResourceKind.Api)?.let { failure ->
+            throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code,
+                deniedOrigins = listOfNotNull(failure.denial?.origin))
+        }
+        // The audited directory is a fixed companion endpoint of the authorized Doubao engine.
+        val origin = "https://www.doubao.com"
+        return owner.open(SourceScope("speech", source.id, "doubao-catalog"), listOf(NetworkGrant(origin))).use { catalog ->
+            catalog.configureSource(origin, cookiesEnabled = false)
+            onlineResponse(catalog.execute(request, RequestCommitGuard { authority.authorized(identity, it) }))
+        }
+    }
 
     private suspend fun streamOnline(request: BrokerRequest, receive: (ByteArray, Int, Int) -> Unit): BrokerResponse {
         // R6.a.g rejects JSON responses before passing incremental bytes to the audio decoder.
@@ -155,7 +181,7 @@ class HttpSpeechClient(
 
     private suspend fun executeMicrosoft(request: BrokerRequest): BrokerResponse {
         val guard = RequestCommitGuard { authority.authorized(identity, it) }
-        val authUrl = requireNotNull(source.microsoft).authUrl
+        val authUrl = source.microsoft?.authUrl ?: source.url
         val received = if (request.url == authUrl) session.execute(request, guard) else {
             // The audited protocol derives only a regional Microsoft endpoint after successful auth.
             // This grant stays in the adapter's session; scripts never receive regional grants.
@@ -173,7 +199,7 @@ class HttpSpeechClient(
                     }
                 }
             }
-            val sink = audioSink
+            val sink = audioSink.takeIf { microsoft != null }
             if (sink == null) checkNotNull(regional).execute(request, guard)
             else checkNotNull(regional).stream(request, guard, sink)
         }
@@ -257,12 +283,14 @@ class HttpSpeechClient(
 
     /** Retire execution immediately without closing sockets on the caller's thread.
      * The owner also cancels the synthesis coroutine to interrupt pending requests. */
-    fun cancel() { authority.revoke(identity) }
+    fun cancel() { authority.revoke(identity); online?.cancel() }
 
     /** Network teardown must run off the main thread, after synthesis has stopped. */
     override fun close() {
         cancel()
-        try { session.close() } finally { microsoftSession?.close() }
+        try { online?.close() } finally {
+            try { session.close() } finally { microsoftSession?.close() }
+        }
     }
 }
 

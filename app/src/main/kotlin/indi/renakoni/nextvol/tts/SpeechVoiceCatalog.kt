@@ -30,13 +30,13 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
         } else emptyMap()
         fun roleEngine(key: String, name: String, voices: List<SpeechVoiceRef>) = SpeechRoleEngine(key, name, voices,
             if (current.text.filterLanguage) voices.filter { speechVoiceLanguageMatches(languages[it.key].orEmpty()) } else voices)
-        val configurations = (engines.all() + http.engines()).filter { engine ->
+        val configurations = (http.engines() + engines.all()).distinctBy { "${it.type}:${it.code}" }.filter { engine ->
             !engine.deleted || online.any { it.importedEngineCode == engine.code }
         }.sortedBy { it.order }
         val groups = configurations.map { engine ->
-            val voices = if (engine.isOnline) online.filter { it.importedEngineCode == engine.code }
-                .map { SpeechVoiceRef(httpSource = it.definition.id, label = it.definition.name) }
-            else installed.filter { (it.configuration?.engine ?: "sherpa") == engine.code }
+            val voices = online.filter { it.importedEngineCode == engine.code }
+                .map { SpeechVoiceRef(httpSource = it.definition.id, label = it.definition.name) } +
+            installed.filter { (it.configuration?.engine ?: "sherpa") == engine.code }
                 .map { SpeechVoiceRef(offlineVoice = it.reference, label = it.name) }
             roleEngine("${engine.type}:${engine.code}", engine.name, voices)
         }

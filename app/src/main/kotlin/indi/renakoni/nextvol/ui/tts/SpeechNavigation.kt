@@ -58,10 +58,7 @@ object SpeechEnginesRoute
 data class SpeechEngineEditorRoute(val code: String = "", val type: String = "inner")
 
 @Serializable
-data class SpeechEngineVoicesRoute(val code: String, val type: String)
-
-@Serializable
-data class OfflineVoiceEditorRoute(val id: String, val copy: Boolean = false, val newVoice: Boolean = false)
+data class OfflineVoiceEditorRoute(val id: String = "", val copy: Boolean = false, val newVoice: Boolean = false, val engineCode: String? = null)
 
 @Serializable
 data class HttpVoiceEditorRoute(val id: String = "", val copy: Boolean = false, val engineCode: String? = null)
@@ -292,42 +289,21 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechEnginesViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
-        var adding by remember { mutableStateOf<hnovel.speech.SpeechEngineConfig?>(null) }
         SpeechEnginesScreen(state, nav::popBackStackIfResumed,
             onEdit = { nav.navigate(SpeechEngineEditorRoute(it?.code.orEmpty(), it?.type ?: "http")) },
-            onVoices = { nav.navigate(SpeechEngineVoicesRoute(it.code, it.type)) },
-            onAddVoice = { if (it.isOnline) nav.navigate(HttpVoiceEditorRoute(engineCode = it.code)) else adding = it },
-            onSave = { viewModel.save(it, false) {} }, onOrder = viewModel::order)
-        adding?.let { engine -> EngineSpeakerPicker(engine, state, { adding = null }) {
-            adding = null; nav.navigate(OfflineVoiceEditorRoute(it.reference.id, copy = true, newVoice = true))
-        } }
+            onAddVoice = { if (it.isOnline) nav.navigate(HttpVoiceEditorRoute(engineCode = it.code))
+                else nav.navigate(OfflineVoiceEditorRoute(engineCode = it.code, newVoice = true)) },
+            onOrder = viewModel::order)
     }
-    composable<SpeechEngineEditorRoute> { entry ->
+    dialog<SpeechEngineEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val viewModel = hiltViewModel<SpeechEnginesViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val route = entry.toRoute<SpeechEngineEditorRoute>()
         SpeechEngineEditorScreen(state.engines.find { it.code == route.code && it.type == route.type }, route.code.isEmpty(), state,
-            nav::popBackStackIfResumed, onSave = { viewModel.save(it, route.code.isEmpty(), nav::popBackStackIfResumed) })
-    }
-    composable<SpeechEngineVoicesRoute> { entry ->
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechEnginesViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        val route = entry.toRoute<SpeechEngineVoicesRoute>()
-        val engine = state.engines.find { it.code == route.code && it.type == route.type }
-        var adding by remember { mutableStateOf(false) }
-        LaunchedEffect(route.code) { if (!hnovel.speech.isOnlineSpeechEngine(route.code, route.type)) viewModel.inspect(route.code) }
-        SpeechEngineVoicesScreen(engine, state, nav::popBackStackIfResumed,
-            onEdit = { nav.navigate(SpeechEngineEditorRoute(route.code, route.type)) },
-            onAdd = { if (engine?.isOnline == true) nav.navigate(HttpVoiceEditorRoute(engineCode = route.code)) else adding = true },
-            onOffline = { nav.navigate(OfflineVoiceEditorRoute(it.reference.id)) },
-            onHttp = { nav.navigate(HttpVoiceEditorRoute(it.definition.id)) })
-        if (adding && engine != null) EngineSpeakerPicker(engine, state, { adding = false }) {
-            adding = false; nav.navigate(OfflineVoiceEditorRoute(it.reference.id, copy = true, newVoice = true))
-        }
+            nav::popBackStackIfResumed, onSave = { viewModel.save(it, route.code.isEmpty(), nav::popBackStackIfResumed) },
+            onLogin = viewModel::login)
     }
     composable<HttpSpeechSourcesRoute> { entry ->
         HideReadAloudOverlay()
@@ -384,7 +360,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onConfirmImport = viewModel::confirmImport, onDismissImport = viewModel::dismissPreview, onEdit = viewModel::edit,
             onConfigure = viewModel::configure, onPreview = { viewModel.previewVoice(it, preview) },
             playback = playback, onCommand = viewModel.controller::command,
-            onRefresh = { offlineViewModel.refreshCatalog(); settingsViewModel.refresh(); viewModel.refresh() },
+            onRefresh = { offlineViewModel.refreshCatalog(); settingsViewModel.refresh(); viewModel.refreshCatalog() },
             onSleepTimer = viewModel.controller::setSleepTimer,
             onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
             offlineGroups = offline.voices.map { it.configuration?.engine ?: "sherpa" }.distinct()
@@ -430,7 +406,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
                 } }, dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } })
         }
     }
-    composable<OfflineVoiceEditorRoute> { entry ->
+    dialog<OfflineVoiceEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val route = entry.toRoute<OfflineVoiceEditorRoute>()
@@ -440,12 +416,14 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val state by viewModel.state.collectAsStateWithLifecycle()
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val copyPattern = if (route.copy) stringResource(R.string.tts_voice_copy_suffix) else null
-        LaunchedEffect(route.id) { viewModel.load(route.id, copyPattern, library.state.value.voices.find { it.reference.id == route.id }, route.newVoice) }
-        OfflineVoiceEditorScreen(state, route.copy, viewModel::edit, onSave = { viewModel.save(route.copy, nav::popBackStackIfResumed) },
+        LaunchedEffect(route.id, route.engineCode) { viewModel.load(route.id, copyPattern,
+            library.state.value.voices.find { it.reference.id == route.id }, route.newVoice, route.engineCode) }
+        OfflineVoiceEditorScreen(state, route.copy, viewModel::edit, onSave = {
+            viewModel.save(route.copy, nav::popBackStackIfResumed, creating = route.engineCode != null) },
             onBack = nav::popBackStackIfResumed,
             showParameters = preferences.showParameters, showExtensions = preferences.showExtensions, newVoice = route.newVoice)
     }
-    composable<HttpVoiceEditorRoute> { entry ->
+    dialog<HttpVoiceEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val route = entry.toRoute<HttpVoiceEditorRoute>()
@@ -478,16 +456,4 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onImportConfiguration = viewModel::importConfiguration,
             onImportOfflineConfiguration = viewModel::importOfflineConfiguration)
     }
-}
-
-@androidx.compose.runtime.Composable
-private fun EngineSpeakerPicker(engine: hnovel.speech.SpeechEngineConfig, state: SpeechEnginesState,
-    onDismiss: () -> Unit, onSelect: (InstalledOfflineVoice) -> Unit) {
-    val voices = state.offline.filter { (it.configuration?.engine ?: "sherpa") == engine.code }.distinctBy { it.resourceReference }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.tts_engine_choose_model)) }, text = {
-        androidx.compose.foundation.lazy.LazyColumn {
-            if (voices.isEmpty()) item { Text(stringResource(R.string.tts_engine_import_model)) }
-            items(voices.size) { index -> TextButton(onClick = { onSelect(voices[index]) }) { Text(voices[index].name) } }
-        }
-    }, confirmButton = {}, dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.cancel)) } })
 }

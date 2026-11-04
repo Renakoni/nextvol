@@ -24,7 +24,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import javax.inject.Inject
 
@@ -152,7 +156,16 @@ class SpeechSynthesizers @Inject constructor(
                 selectedSource = source
                 val broker = SourceBroker(runtime.toPath(), cipher = cipher)
                 owner = broker
-                client = HttpSpeechClient(definition, broker, source.origins.map { NetworkGrant(it) }, authority, runner::execute)
+                client = HttpSpeechClient(definition, broker, source.origins.map { NetworkGrant(it) }, authority, run = runner::execute,
+                    createSdkBackend = { metadata, execute, webSocket ->
+                        when (metadata.getValue("engine").jsonObject.getValue("code").jsonPrimitive.content) {
+                            "azure" -> indi.renakoni.nextvol.tts.online.AzureSpeechBackend(metadata, execute)
+                            "msctts" -> MscOnlineSpeechClient(metadata)
+                            "bdotts" -> BaiduOnlineSpeechBackend(metadata, webSocket)
+                            "vivo" -> VivoOnlineSpeechBackend(metadata, execute, webSocket)
+                            else -> throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
+                        }
+                    })
                 source.definition.name
             } ?: throw SpeechException(SpeechError.HttpSourceUnavailable)
         }
@@ -212,9 +225,16 @@ class SpeechSynthesizers @Inject constructor(
         override fun close() {
             val previousClient = client
             val previousOwner = owner
+            val parameters = previousClient?.updatedEngineParameters
+            val engine = selectedSource?.importedEngine
             client = null
             owner = null
             try { previousClient?.close() } finally { previousOwner?.close() }
+            if (parameters != null && engine != null) runBlocking {
+                // close runs off the main thread; finish this write before opening our next session.
+                repository.saveDiscoveredEngineParameters(engine.getValue("code").jsonPrimitive.content,
+                    engine["param"]?.jsonPrimitive?.contentOrNull.orEmpty(), parameters)
+            }
         }
     }
 }

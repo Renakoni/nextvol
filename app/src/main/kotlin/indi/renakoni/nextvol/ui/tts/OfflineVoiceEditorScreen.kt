@@ -24,7 +24,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import hnovel.speech.updateSpeechExtension
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,84 +49,81 @@ internal fun OfflineVoiceEditorScreen(
     }
     val back = { if (!state.busy || draft == null) onBack() }
     BackHandler(onBack = back)
-    val canSave = !state.busy
-    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(),
-        if (newVoice) R.string.tts_engine_add_speaker else if (copy) R.string.tts_voice_copy else R.string.tts_edit_source, back) }, bottomBar = {
-        if (draft != null) Surface {
-            Row(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 22.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)) {
-                TextButton(onClick = back, enabled = !state.busy) { Text(stringResource(R.string.cancel)) }
-                Button(onClick = onSave, enabled = canSave) {
-                    Text(stringResource(R.string.tts_engine_save))
-                }
-            }
-        }
-    }) { padding ->
-        BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
-            val horizontalPairs = maxWidth - 44.dp >= 300.dp * fontScale
-            LazyColumn(Modifier.fillMaxSize().testTag("offline-voice-editor"),
-                contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                state.error?.let { item { Text(stringResource(it), color = MaterialTheme.colorScheme.error) } }
-                if (draft != null && voice != null) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                            IconButton(onClick = { avatarPicker.launch(arrayOf("image/*")) }, enabled = !state.busy,
-                                modifier = Modifier.size(80.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                                SpeechAvatar(draft.avatar, draft.gender.toIntOrNull() ?: 0, Modifier.fillMaxSize(),
-                                    state.packageAvatar, stringResource(R.string.tts_voice_avatar))
+    Surface(Modifier.padding(24.dp).widthIn(max = 560.dp).fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
+        Column {
+            Text(stringResource(if (newVoice) R.string.tts_engine_add_speaker else if (copy) R.string.tts_voice_copy else R.string.tts_edit_source),
+                Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp), style = MaterialTheme.typography.headlineSmall)
+            BoxWithConstraints(Modifier.weight(1f, fill = false)) {
+                val horizontalPairs = maxWidth - 48.dp >= 300.dp * fontScale
+                LazyColumn(Modifier.fillMaxWidth().testTag("offline-voice-editor"),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                    state.error?.let { item { Text(stringResource(it), color = MaterialTheme.colorScheme.error) } }
+                    if (draft != null && voice != null) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                IconButton(onClick = { avatarPicker.launch(arrayOf("image/*")) }, enabled = !state.busy,
+                                    modifier = Modifier.size(80.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                                    SpeechAvatar(draft.avatar, draft.gender.toIntOrNull() ?: 0, Modifier.fillMaxSize(),
+                                        state.packageAvatar, stringResource(R.string.tts_voice_avatar))
+                                }
+                            }
+                            if (avatarError) Text(stringResource(R.string.tts_voice_avatar_failed), color = MaterialTheme.colorScheme.error)
+                        }
+                        item { VoiceText(draft.code, R.string.tts_voice_code, !state.busy) { onEdit(draft.copy(code = it)) } }
+                        item { VoicePair(horizontalPairs,
+                            { VoiceText(draft.locale, R.string.tts_voice_locale, !state.busy) { onEdit(draft.copy(locale = it)) } },
+                            { VoiceText(draft.name, R.string.tts_source_name, !state.busy) { onEdit(draft.copy(name = it)) } },
+                        ) }
+                        item { VoicePair(horizontalPairs,
+                            { VoiceChoice(stringResource(R.string.tts_voice_gender), draft.gender,
+                                mapOf("0" to stringResource(R.string.tts_voice_female), "1" to stringResource(R.string.tts_voice_male)),
+                                !state.busy) { onEdit(draft.copy(gender = it)) } },
+                            { VoiceChoice(stringResource(R.string.tts_voice_type), draft.type,
+                                mapOf("0" to stringResource(R.string.tts_voice_type_offline)) +
+                                    (1..5).associate { it.toString() to stringResource(R.string.tts_voice_type_online, it) },
+                                !state.busy) { onEdit(draft.copy(type = it)) } },
+                        ) }
+                        item { VoicePair(horizontalPairs,
+                            { VoiceNumber(draft.speed, R.string.tts_voice_speed, !state.busy) { onEdit(draft.copy(speed = it)) } },
+                            { VoiceNumber(draft.volume, R.string.tts_voice_volume, !state.busy) { onEdit(draft.copy(volume = it)) } },
+                        ) }
+                        item { VoicePair(horizontalPairs,
+                            { VoiceNumber(draft.pitch, R.string.tts_pitch, !state.busy) { onEdit(draft.copy(pitch = it)) } },
+                            { VoiceChoice(stringResource(R.string.tts_voice_sample_rate), draft.sampleRate, voiceSampleRates,
+                                !state.busy) { onEdit(draft.copy(sampleRate = it)) } },
+                        ) }
+                        item { TextField(draft.description, { onEdit(draft.copy(description = it)) }, Modifier.fillMaxWidth(),
+                            enabled = !state.busy, colors = voiceFieldColors(), maxLines = 4,
+                            label = { Text(stringResource(R.string.tts_voice_description)) }) }
+                        val controls = if (parametersSupported) state.controls else emptyList()
+                        if (controls == null && !state.loadingControls) item { Text(stringResource(R.string.tts_voice_extension_invalid), color = MaterialTheme.colorScheme.error) }
+                        items(controls.orEmpty().filter { it.name.isNotBlank() }, key = { "control:${it.code}" }) { control ->
+                            VoiceChoice(control.name, control.value.content, control.candidates, !state.busy && !state.loadingControls && control.supported) { value ->
+                                onEdit(draft.copy(extensions = updateSpeechExtension(draft.extensions, control.code, value)))
                             }
                         }
-                        if (avatarError) Text(stringResource(R.string.tts_voice_avatar_failed), color = MaterialTheme.colorScheme.error)
-                    }
-                    item { VoiceText(draft.code, R.string.tts_voice_code, !state.busy) { onEdit(draft.copy(code = it)) } }
-                    item { VoicePair(horizontalPairs,
-                        { VoiceText(draft.locale, R.string.tts_voice_locale, !state.busy) { onEdit(draft.copy(locale = it)) } },
-                        { VoiceText(draft.name, R.string.tts_source_name, !state.busy) { onEdit(draft.copy(name = it)) } },
-                    ) }
-                    item { VoicePair(horizontalPairs,
-                        { VoiceChoice(stringResource(R.string.tts_voice_gender), draft.gender,
-                            mapOf("0" to stringResource(R.string.tts_voice_female), "1" to stringResource(R.string.tts_voice_male)),
-                            !state.busy) { onEdit(draft.copy(gender = it)) } },
-                        { VoiceChoice(stringResource(R.string.tts_voice_type), draft.type,
-                            mapOf("0" to stringResource(R.string.tts_voice_type_offline)) +
-                                (1..5).associate { it.toString() to stringResource(R.string.tts_voice_type_online, it) },
-                            !state.busy) { onEdit(draft.copy(type = it)) } },
-                    ) }
-                    item { VoicePair(horizontalPairs,
-                        { VoiceNumber(draft.speed, R.string.tts_voice_speed, !state.busy) { onEdit(draft.copy(speed = it)) } },
-                        { VoiceNumber(draft.volume, R.string.tts_voice_volume, !state.busy) { onEdit(draft.copy(volume = it)) } },
-                    ) }
-                    item { VoicePair(horizontalPairs,
-                        { VoiceNumber(draft.pitch, R.string.tts_pitch, !state.busy) { onEdit(draft.copy(pitch = it)) } },
-                        { VoiceChoice(stringResource(R.string.tts_voice_sample_rate), draft.sampleRate, voiceSampleRates,
-                            !state.busy) { onEdit(draft.copy(sampleRate = it)) } },
-                    ) }
-                    item { TextField(draft.description, { onEdit(draft.copy(description = it)) }, Modifier.fillMaxWidth(),
-                        enabled = !state.busy, colors = voiceFieldColors(), maxLines = 4,
-                        label = { Text(stringResource(R.string.tts_voice_description)) }) }
-                    val controls = if (parametersSupported) state.controls else emptyList()
-                    if (controls == null && !state.loadingControls) item { Text(stringResource(R.string.tts_voice_extension_invalid), color = MaterialTheme.colorScheme.error) }
-                    items(controls.orEmpty().filter { it.name.isNotBlank() }, key = { "control:${it.code}" }) { control ->
-                        VoiceChoice(control.name, control.value.content, control.candidates, !state.busy && !state.loadingControls && control.supported) { value ->
-                            onEdit(draft.copy(extensions = updateSpeechExtension(draft.extensions, control.code, value)))
+                        if (parametersSupported && (showParameters || newVoice)) {
+                            item { TextField(draft.parameters, { onEdit(draft.copy(parameters = it)) }, Modifier.fillMaxWidth(),
+                                enabled = !state.busy, colors = voiceFieldColors(), label = { Text(stringResource(R.string.tts_voice_parameters)) }) }
                         }
+                        item { TextField(draft.note, { onEdit(draft.copy(note = it)) }, Modifier.fillMaxWidth(),
+                            enabled = !state.busy, minLines = 3, maxLines = 8, label = { Text(stringResource(R.string.tts_engine_note)) }) }
+                        if (parametersSupported && (showExtensions || newVoice)) item {
+                            TextField(draft.extensions, { onEdit(draft.copy(extensions = it)) }, Modifier.fillMaxWidth(),
+                                enabled = !state.busy, colors = voiceFieldColors(), label = { Text(stringResource(R.string.tts_voice_extensions)) }, isError = controls == null)
+                        }
+                        state.availability?.takeUnless { it.canRun }?.let { status -> item {
+                            Text(stringResource(status.message, status.detail), style = MaterialTheme.typography.bodySmall,
+                                color = if (status.canRun) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
+                        } }
                     }
-                    if (parametersSupported && showParameters) {
-                        item { TextField(draft.parameters, { onEdit(draft.copy(parameters = it)) }, Modifier.fillMaxWidth(),
-                            enabled = !state.busy, colors = voiceFieldColors(), label = { Text(stringResource(R.string.tts_voice_parameters)) }) }
-                    }
-                    item { TextField(draft.note, { onEdit(draft.copy(note = it)) }, Modifier.fillMaxWidth(),
-                        enabled = !state.busy, minLines = 3, maxLines = 8, label = { Text(stringResource(R.string.tts_engine_note)) }) }
-                    if (parametersSupported && showExtensions) item {
-                        TextField(draft.extensions, { onEdit(draft.copy(extensions = it)) }, Modifier.fillMaxWidth(),
-                            enabled = !state.busy, colors = voiceFieldColors(), label = { Text(stringResource(R.string.tts_voice_extensions)) }, isError = controls == null)
-                    }
-                    state.availability?.takeUnless { it.canRun }?.let { status -> item {
-                        Text(stringResource(status.message, status.detail), style = MaterialTheme.typography.bodySmall,
-                            color = if (status.canRun) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
-                    } }
                 }
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                TextButton(onClick = back, enabled = !state.busy) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = onSave, enabled = !state.busy && draft != null) { Text(stringResource(R.string.tts_engine_save)) }
             }
         }
     }

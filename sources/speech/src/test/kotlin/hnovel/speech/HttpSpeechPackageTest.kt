@@ -32,6 +32,26 @@ class HttpSpeechPackageTest {
         return previewSpeechPackage(file).also { assertNull(it.error) }.engines.single()
     }
 
+    @Test fun mixedMscPackageRoutesOnlyExplicitOnlineTypesAndKeepsBothParameterScopes() {
+        val engine = packageEngine(
+            engines = "engines: [{code: msctts, type: inner, param: engine-settings}]",
+            config = """
+                msctts:
+                - {code: voice, name: Offline, type: 0, param: 'app,region,local'}
+                - {code: voice, name: Online, type: 1, param: 'app,region,cloud'}
+                - {code: default, name: Default, param: 'app,region,default'}
+            """.trimIndent())
+        assertEquals(listOf(false, true, false), engine.voices.map(engine::isOnlineVoice))
+        val offline = engine.voices.filterNot(engine::isOnlineVoice).map { readOfflineVoiceDefinition(engine, it).configuration }
+        assertEquals(listOf(0, 0), offline.map { it.type })
+        val converted = previewHttpSpeechPackage(engine)
+        assertNull(converted.error)
+        val metadata = converted.sources.single().raw.getValue("multiTts").jsonObject
+        assertEquals("engine-settings", metadata.getValue("engine").jsonObject.getValue("param").jsonPrimitive.content)
+        assertEquals("app,region,cloud", metadata.getValue("voice").jsonObject.getValue("param").jsonPrimitive.content)
+        assertEquals("Online", converted.sources.single().name)
+    }
+
     @Test fun conversionPreservesVoiceDataAndStableIdsWithoutRunningTemplates() {
         val engine = packageEngine(engines = fixture("engines.yaml")
             .replace("{{java.encodeURI(speakText)}}", "{{(function(){throw 'not during preview';})()}}"))

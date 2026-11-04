@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":source-network"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.snakeyaml)
+    implementation("com.belerweb:pinyin4j:2.5.1")
     testImplementation(libs.junit)
     testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation(project(":source-rhino"))

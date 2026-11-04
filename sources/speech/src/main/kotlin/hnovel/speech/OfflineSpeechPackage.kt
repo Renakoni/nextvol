@@ -48,7 +48,8 @@ fun readOfflineEngineDefinition(engine: SpeechPackageEngine): SpeechEngineConfig
         if (value !is SpeechPackageValue.Scalar) configurationFailure(MatchaPackageError.Parameters, "engine.$key")
         return value.text().orEmpty()
     }
-    return SpeechEngineConfig(engine.code, engine.name, engine.type ?: "inner", text("param"), text("note"))
+    return SpeechEngineConfig(engine.code, engine.name, engine.type ?: "inner", text("param"), text("note"),
+        text("url"), text("header"), raw = engine.raw?.jsonData()?.jsonObject)
 }
 
 /** Reads voice settings separately from resource installation, including config.yaml without model files. */

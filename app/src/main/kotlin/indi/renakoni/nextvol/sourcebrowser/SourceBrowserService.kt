@@ -111,7 +111,7 @@ class SourceBrowserService : Service() {
                 return !allowed
             }
             override fun onPageFinished(view: WebView, url: String) {
-                if ((!job.options.interactive || job.options.script.isNotBlank() && !verificationCode) &&
+                if ((!job.options.interactive || job.options.script.isNotBlank() && !verificationCode && !job.options.waitForConfirmation) &&
                     url == mainUrl && redirected == null) handler.postDelayed({ evaluate() }, 1000 + job.options.delayMillis)
             }
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {

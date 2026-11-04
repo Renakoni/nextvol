@@ -26,4 +26,5 @@
     <string name="tts_engine_import_model">請先匯入此引擎的語音包。</string>
     <string name="tts_engine_repair">修復引擎</string>
     <string name="tts_engine_search">搜尋引擎</string>
+    <string name="tts_engine_login">登入</string>
 </resources>

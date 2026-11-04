@@ -32,8 +32,8 @@ download the pinned asset on a miss. JVM/Lint skip SDK preparation. Updating the
 runtime URL or digest triggers main cache warming, and retention keeps the latest
 shared archive. The SDK cache is independent of the source-built ONNX Runtime cache.
 
-The reference bundle has 42 arm64 libraries: 201.55 MiB before compression and
-77.61 MiB for the complete ZIP. APK download size and installed native-library
+The reference bundle has 44 arm64 libraries: 201.97 MiB before compression and
+87.18 MiB for the complete ZIP. APK download size and installed native-library
 size are different measurements; legacy companion-library loading requires
 Android to extract the native libraries during installation.
 
@@ -62,6 +62,7 @@ engines through the application-private `files/offline-runtime-licenses.json`.
 | --- | --- |
 | Acapela | `acattsandroid`, `ttsacattsandroidextended` |
 | Baidu | `bd_etts`, `bd_ettm`, `bd_ettf`; `bd_ettl` where supplied |
+| Baidu online | `BDSpeechDecoder_V1` decodes the 6.1.4.1add0da WebSocket protocol's `aue=2` payloads |
 | CereProc | `cerevoice_eng` |
 | Google | `google_speech_sbg_tts_jni` |
 | IssTTS | `issxtts30`, `issxtts40` |
@@ -71,6 +72,7 @@ engines through the application-private `files/offline-runtime-licenses.json`.
 | Samsung | `smtloader`; per-voice engine libraries belong to the voice package |
 | Sogou | `omp`, `evalite_uapi`, `sgsplit`, `sgtts`, `sgproxy_lib`, `sgtts_lib` |
 | VCS | `bl_vcs` |
+| Vivo online | `vopus_v5` and its `opus` dependency decode SDK 5.1.6.11 (231201_ae4b12ea) `aue=1` payloads |
 | Vocalizer | `NuanceVocalizer` |
 | WeRead | `weread-tts`, `hwTTS` |
 | Xiaomi | `tts-offline` |
@@ -81,6 +83,12 @@ Microsoft SDK 1.45.0 loads the telemetry extension from
 including for offline synthesis. Its standard client AAR does not contain this
 extension. The preparation helper therefore includes it explicitly and excludes
 all library filenames already supplied by the AAR to avoid duplicate packaging.
+
+Vivo and Baidu online signing, framing and service requests are implemented in
+`:source-speech` and use the existing network broker. Their vendor libraries only
+decode audio. MSC online sessions share the existing `msc` runtime and its
+process-wide serialization with offline MSC sessions. These native decoders and
+MSC's synthesis implementation remain vendor binaries, not source-built engines.
 
 Voice resources, dictionaries and package-provided licenses stay in the imported
 package tree. Lark and Samsung may require ABI-specific libraries inside that

@@ -152,6 +152,33 @@ class OfflineSpeechRepositoryTest {
         assertEquals(listOf(installed), repository.voices())
     }
 
+    @Test fun newAndEditedSpeakersMatchResolvedResourcesWithoutCopyingOtherSpeakerSettings() = runBlocking {
+        val repository = OfflineSpeechRepository(files.newFolder())
+        fun input(code: String) = files.newFile().also { file ->
+            ZipOutputStream(file.outputStream()).use { zip ->
+                mapOf("config.yaml" to "audio: [{code: $code, name: $code, speed: 1.7, param: $code.wav}]",
+                    "audio/$code.wav" to code).forEach { (path, value) ->
+                    zip.putNextEntry(ZipEntry(path)); zip.write(value.toByteArray()); zip.closeEntry()
+                }
+            }
+        }
+        val firstInput = input("first")
+        val first = repository.install(firstInput, plan(firstInput))
+        val secondInput = input("second")
+        val second = repository.install(secondInput, plan(secondInput))
+        val draft = InstalledOfflineVoice(OfflineVoiceRef("new", "revision"), "My speaker", emptyMap(),
+            configuration = OfflineVoiceConfig("audio", "custom", rawParameters = "@file",
+                extendUI = """[{"code":"file","value":"second.wav"}]""", speed = 1.2f))
+        val created = repository.create(draft)
+        assertEquals(second.resourceReference, created.resourceReference)
+        assertEquals("My speaker", created.name)
+        assertEquals(1.2f, created.configuration!!.speed)
+        val edited = repository.save(created.copy(configuration = created.configuration.copy(rawParameters = "first.wav", extendUI = "")))
+        assertEquals(first.resourceReference, edited.resourceReference)
+        assertEquals("first.wav", edited.configuration!!.parameters)
+        assertEquals(1.2f, edited.configuration.speed)
+    }
+
     @Test fun googleDirectoryRefreshAddsDeclaredSpeakersWithoutReplacingEditsOrCopyingModels() = runBlocking {
         val input = files.newFile()
         ZipOutputStream(input.outputStream()).use { zip ->

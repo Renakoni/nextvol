@@ -15,6 +15,8 @@ import hnovel.speech.SpeechPackageValue
 import hnovel.speech.previewHttpSpeech
 import hnovel.speech.speechPackageAvatarPath
 import hnovel.speech.safeSpeechPackagePath
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechResources
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +44,7 @@ data class SavedHttpSpeechSource(
     val packageAvatar: String? = null,
     val engineEnabled: Boolean = true,
     val engineDeleted: Boolean = false,
+    val offlineResources: OfflineSpeechResources? = null,
 ) {
     val enabled: Boolean get() = (definition.raw["nextvolEnabled"] as? JsonPrimitive)?.booleanOrNull != false
     val available: Boolean get() = enabled && engineEnabled && !engineDeleted
@@ -77,7 +80,7 @@ private data class HttpSpeechStore(val sources: List<SavedHttpSpeechSource> = em
 /** User-imported definitions can contain credentials. Persist them with the existing Keystore cipher. */
 @Singleton
 class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Context, private val cipher: StorageCipher,
-    private val authority: ExecutionAuthority) {
+    private val authority: ExecutionAuthority, private val offline: OfflineSpeechRepository) {
     private val file = AtomicFile(File(context.filesDir, "http-speech.enc"))
     private val avatarRoot = File(context.filesDir, "speech-avatars")
     private val runtimeRoot = File(context.filesDir, "speech-runtime")
@@ -115,7 +118,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     suspend fun saveEngine(engine: SpeechEngineConfig, creating: Boolean = false) = changeStore { store ->
         require(engine.isOnline && engine.name.isNotBlank() && engine.code.isNotBlank() && engine.code.none(Char::isISOControl))
         val previous = store.engines.find { it.code == engine.code }
-        require(!creating || previous != null || engine.code.startsWith("http_") && engine.code.length > 5)
+        require(!creating || previous != null || engine.type != "http" || engine.code.startsWith("http_") && engine.code.length > 5)
         require(!creating || previous == null || previous.deleted)
         require(creating || previous != null)
         if (!engine.deleted && (previous == null || previous.url != engine.url || previous.header != engine.header || previous.parameters != engine.parameters))
@@ -145,6 +148,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     fun avatar(source: SavedHttpSpeechSource): File? = source.packageAvatar?.takeIf {
         safeSpeechPackagePath(it) && '/' !in it
     }?.let { File(avatarRoot, it).takeIf { file -> file.canonicalFile == file.absoluteFile && file.isFile } }
+        ?: source.offlineResources?.let(offline::avatar)
 
     suspend fun save(sources: List<SavedHttpSpeechSource>, archive: File? = null) = change(sources.mapNotNull { it.httpEngine() }) { current ->
         require(sources.none { it.definition.id.startsWith(BUILT_IN_PREFIX) })
@@ -160,10 +164,36 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         merged
     }
 
-    suspend fun saveVoice(source: SavedHttpSpeechSource) = change { current ->
+    suspend fun saveVoice(source: SavedHttpSpeechSource) = change(listOfNotNull(source.httpEngine())) { current ->
         val previous = combined(current).find { it.definition.id == source.definition.id }
         require(previous != null || !source.definition.id.startsWith(BUILT_IN_PREFIX))
         current.filterNot { it.definition.id == source.definition.id } + source.copy(credentials = previous?.credentials ?: source.credentials)
+    }
+
+    /** Commit an explicit directory refresh only while its engine configuration is still current. */
+    internal suspend fun saveCatalog(expectedEngine: SpeechEngineConfig, definitions: List<HttpSpeechDefinition>,
+        origins: List<String>, updatedParameters: String?) = changeStore { store ->
+        if (store.engines.find { it.code == expectedEngine.code } != expectedEngine) return@changeStore store
+        val engine = expectedEngine.copy(parameters = updatedParameters ?: expectedEngine.parameters)
+        val sources = store.sources.toMutableList()
+        definitions.forEach { definition ->
+            val incoming = SavedHttpSpeechSource(definition, origins).withHttpEngine(engine)
+            val index = sources.indexOfFirst { it.definition.id == incoming.definition.id ||
+                incoming.packageIdentity() != null && it.packageIdentity() == incoming.packageIdentity() }
+            val previous = sources.getOrNull(index)
+            val merged = mergeHttpVoice(previous, incoming.copy(origins = previous?.origins ?: origins))
+            if (index < 0) sources += merged else sources[index] = merged
+        }
+        store.copy(sources = sources.map { if (it.importedEngineCode == engine.code) it.withHttpEngine(engine) else it },
+            engines = store.engines.map { if (it.code == engine.code) engine else it })
+    }
+
+    internal suspend fun saveDiscoveredEngineParameters(code: String, expectedParameters: String, parameters: String) = changeStore { store ->
+        val current = store.engines.find { it.code == code }
+        if (current == null || current.parameters != expectedParameters) return@changeStore store
+        val engine = current.copy(parameters = parameters)
+        store.copy(sources = store.sources.map { if (it.importedEngineCode == code) it.withHttpEngine(engine) else it },
+            engines = store.engines.map { if (it.code == code) engine else it })
     }
 
     suspend fun enable(ids: Set<String>, enabled: Boolean) = change { current ->
@@ -218,6 +248,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                     source.speakerDefaults?.let { put("speakerDefaults", it) }
                     if (source.isVoiceCopy) put("isVoiceCopy", true)
                     source.packageAvatar?.let { put("packageAvatar", it) }
+                    source.offlineResources?.let { put("offlineResources", Json.encodeToJsonElement(it)) }
                 }
             })
             val raw = buildJsonObject {
@@ -228,9 +259,12 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             }.toString().toByteArray(Charsets.UTF_8)
             BridgeWire.validate(raw, MAX_BYTES)
             val encrypted = cipher.seal(raw, IDENTITY)
+            val resources = updated.mapNotNull { it.offlineResources?.reference }.toSet()
+            offline.retainOnlineResources(resources, keepPrevious = true)
             val output = file.startWrite()
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
+            offline.retainOnlineResources(resources)
             cleanAvatars(updated)
             previous.filter { old -> sources.none { it.definition.id == old.definition.id &&
                 old.sameExecution(it) } }.forEach { old ->
@@ -296,10 +330,12 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 engineReference = entry.jsonObject["engineReference"]?.jsonPrimitive?.contentOrNull,
                 speakerDefaults = entry.jsonObject["speakerDefaults"] as? JsonObject,
                 isVoiceCopy = entry.jsonObject["isVoiceCopy"]?.jsonPrimitive?.booleanOrNull == true,
-                packageAvatar = entry.jsonObject["packageAvatar"]?.jsonPrimitive?.contentOrNull)
+                packageAvatar = entry.jsonObject["packageAvatar"]?.jsonPrimitive?.contentOrNull,
+                offlineResources = entry.jsonObject["offlineResources"]?.let { Json.decodeFromJsonElement<OfflineSpeechResources>(it) })
         }
         val engines = Json.decodeFromJsonElement<List<SpeechEngineConfig>>(document.getValue("engines"))
         val order = document["voiceOrder"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+        offline.retainOnlineResources(sources.mapNotNull { it.offlineResources?.reference }.toSet())
         return HttpSpeechStore(sources, engines, order)
     }
 

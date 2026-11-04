@@ -52,6 +52,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     val controller: ReadAloudController,
     @ApplicationContext private val context: Context,
     private val catalog: SpeechVoiceCatalog,
+    private val engineCatalog: SpeechEngineCatalogService,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HttpSpeechSourcesState())
     val state = mutableState.asStateFlow()
@@ -175,10 +176,18 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     fun refresh() {
         refreshing?.cancel()
         refreshing = viewModelScope.launch {
-            mutableState.update { it.copy(error = null) }
             try { refreshSources() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableState.update { it.copy(error = R.string.tts_error_storage, loaded = true) } }
+        }
+    }
+
+    fun refreshCatalog() = work {
+        val error = engineCatalog.refresh()
+        refreshSources()
+        if (error != null) {
+            logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Configuration, SpeechLogEvent.Failed, error))
+            mutableState.update { it.copy(error = error.messageResource) }
         }
     }
 

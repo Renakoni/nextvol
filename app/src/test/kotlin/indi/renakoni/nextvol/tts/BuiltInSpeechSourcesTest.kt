@@ -6,6 +6,7 @@ import hnovel.execution.*
 import hnovel.network.*
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.previewHttpSpeech
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -26,7 +27,8 @@ class BuiltInSpeechSourcesTest {
         override fun getFilesDir() = directory.root
     } }
     private val authority = ExecutionAuthority()
-    private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority)
+    private val offline by lazy { OfflineSpeechRepository(File(directory.root, "offline")) }
+    private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline)
 
     @Test fun translatorVoicesSurviveEditingReimportReopenAndEngineRevocation() = runBlocking {
         val engine = SpeechEngineConfig("mstrans", "Translator", "inner")
@@ -38,6 +40,7 @@ class BuiltInSpeechSourcesTest {
             }, true, true).copy(isVoiceCopy = false)
         }
         val repository = repository()
+        repository.saveEngine(engine, creating = true)
         repository.save(voices)
         val first = repository.sources().first { !it.isBuiltIn }
         assertEquals(voices.first().definition.id, first.definition.id)
@@ -60,6 +63,12 @@ class BuiltInSpeechSourcesTest {
             repository().sources().single { it.definition.id == selected.definition.id }.definition.url)
         repository.saveEngine(updated.copy(deleted = true, enabled = false))
         assertTrue(repository().sources().filterNot { it.isBuiltIn }.none { it.available })
+        val discovered = "{\"authHost\":\"auth.example.org\",\"userId\":\"7\"}"
+        repository.saveDiscoveredEngineParameters(updated.code, updated.parameters, discovered)
+        val savedEngine = repository().engines().single()
+        assertEquals(updated.copy(deleted = true, enabled = false, parameters = discovered), savedEngine)
+        repository.saveDiscoveredEngineParameters(updated.code, updated.parameters, "{\"userId\":\"stale\"}")
+        assertEquals(savedEngine, repository().engines().single())
     }
 
     @Test fun freshInstallReopenAndResetKeepTheCompleteCatalogWithoutImporting() = runBlocking {

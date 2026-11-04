@@ -12,6 +12,7 @@ import zipfile
 ENGINE_LIBRARIES = {
     "acapela": ["acattsandroid", "ttsacattsandroidextended"],
     "bdetts": ["bd_etts", "bd_ettm", "bd_ettf"],
+    "bdotts": ["BDSpeechDecoder_V1"],
     "cereproc": ["cerevoice_eng"],
     "google": ["google_speech_sbg_tts_jni"],
     "isstts": ["issxtts30", "issxtts40"],
@@ -23,6 +24,7 @@ ENGINE_LIBRARIES = {
     "samsung": ["smtloader"],
     "sougou": ["omp", "evalite_uapi", "sgsplit", "sgtts", "sgproxy_lib", "sgtts_lib"],
     "vcstts": ["bl_vcs"],
+    "vivo": ["vopus_v5"],
     "vocalizer": ["NuanceVocalizer"],
     "weread": ["weread-tts", "hwTTS"],
     "xiaomi": ["tts-offline"],
@@ -95,6 +97,8 @@ def main():
     manifest = {
         "abi": abi,
         "microsoft_client_sdk": "1.45.0",
+        "vivo_speech_sdk": "5.1.6.11 (231201_ae4b12ea)",
+        "baidu_online_sdk": "6.1.4.1add0da",
         "engines": ENGINE_LIBRARIES,
         "libraries": inventory,
         "provided_by_microsoft_aar": sorted(official),

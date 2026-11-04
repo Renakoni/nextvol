@@ -74,19 +74,26 @@ class OfflineVoiceEditorViewModel @Inject constructor(
     private val repository: OfflineSpeechRepository,
     private val settings: SpeechSettingsRepository,
     private val saved: SavedStateHandle,
+    private val msc: MscVoiceEditing,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(OfflineVoiceEditorState())
     val state = mutableState.asStateFlow()
     private var loaded: String? = null
     private var loadingControls: Job? = null
 
-    fun load(id: String, copyPattern: String? = null, cachedVoice: InstalledOfflineVoice? = null, newVoice: Boolean = false) {
-        if (loaded == id) return
-        loaded = id
+    fun load(id: String, copyPattern: String? = null, cachedVoice: InstalledOfflineVoice? = null, newVoice: Boolean = false,
+        engineCode: String? = null) {
+        val key = engineCode ?: id
+        if (loaded == key) return
+        loaded = key
         work {
             val restored = saved.get<String>("voice.draft")
             mutableState.value = withContext(Dispatchers.IO) {
-                val installed = cachedVoice ?: repository.voices().single { it.reference.id == id }
+                val installed = if (engineCode != null) InstalledOfflineVoice(
+                    OfflineVoiceRef(java.util.UUID.randomUUID().toString(), java.util.UUID.randomUUID().toString()),
+                    "", emptyMap(), configuration = OfflineVoiceConfig(engineCode, "", type = 1,
+                        locale = java.util.Locale.getDefault().let { "${it.language}-${it.country}" }))
+                else cachedVoice ?: repository.voices().single { it.reference.id == id }
                 val voice = installed.copy(configuration = (installed.configuration ?: repository.configuration(installed)).copy(engineParameters = ""))
                 val draft = restored?.let { runCatching { Json.decodeFromString<OfflineVoiceDraft>(it) }.getOrNull() }
                     ?: OfflineVoiceDraft.from(voice).let { if (newVoice) it.copy(name = "", note = "", description = "", avatar = "", enabled = true)
@@ -110,12 +117,15 @@ class OfflineVoiceEditorViewModel @Inject constructor(
         }
     }
 
-    fun save(copy: Boolean, onSaved: () -> Unit) = work {
+    fun save(copy: Boolean, onSaved: () -> Unit, creating: Boolean = false) = work {
         val current = state.value
         val edited = withContext(Dispatchers.Default) { requireNotNull(current.draft).applyTo(requireNotNull(current.voice)) }
         withContext(NonCancellable) {
-            val result = repository.save(edited, copy)
-            if (!copy) settings.update { if (it.offlineVoice?.id == result.reference.id) it.copy(offlineVoice = result.reference) else it }
+            if (edited.configuration?.let { it.engine == "msctts" && it.type != 0 } == true) msc.toOnline(edited, copy, creating)
+            else {
+                val result = if (creating) repository.create(edited) else repository.save(edited, copy)
+                if (!copy) settings.update { if (it.offlineVoice?.id == result.reference.id) it.copy(offlineVoice = result.reference) else it }
+            }
         }
         onSaved()
     }

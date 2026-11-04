@@ -120,7 +120,7 @@ class SpeechSettingsViewModelTest {
         val playback = MutableStateFlow(ReadAloudState())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns playback
-        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk())
         try {
             library.state.first { it.loaded }
             library.previewVoice("candidate", "Sample.")
@@ -148,7 +148,7 @@ class SpeechSettingsViewModelTest {
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
-        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk())
         try {
             library.state.first { it.loaded }
             library.previewPackage(listOf(definition), null)
@@ -176,19 +176,19 @@ class SpeechSettingsViewModelTest {
             configuration = OfflineVoiceConfig("msctts", "voice")))
         every { offline.changes } returns MutableStateFlow(0L)
         coEvery { http.engines() } returns emptyList()
-        every { http.synthesisResults } returns MutableStateFlow(emptyMap())
         val catalog = mockk<OfflineEngineRepository>()
         every { catalog.changes } returns MutableStateFlow(0L)
         coEvery { catalog.all() } returns listOf(configuration)
         coEvery { catalog.save(any()) } returns Unit
+        every { catalog.get("msctts") } returns configuration
+        coEvery { http.registerEngine(any()) } returns Unit
+        coEvery { http.saveEngine(any(), any()) } returns Unit
         coEvery { repository.get() } returns settings.value
         coEvery { http.sources() } returns emptyList()
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState(
             SpeechRequest("", "", "Sample", SpeechSettings(offlineVoice = reference)), SpeechPhase.Playing))
-        val availability = mockk<indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker>()
-        every { availability.changes } returns MutableStateFlow(0L)
-        val editor = SpeechEnginesViewModel(catalog, http, offline, repository, controller, availability)
+        val editor = SpeechEnginesViewModel(catalog, http, offline, repository, controller, mockk())
         try {
             runCurrent()
             editor.save(configuration.copy(name = "Renamed"), false) {}

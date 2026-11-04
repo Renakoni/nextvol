@@ -26,4 +26,5 @@
     <string name="tts_engine_import_model">Import a voice package for this engine first.</string>
     <string name="tts_engine_repair">Repair engine</string>
     <string name="tts_engine_search">Search engines</string>
+    <string name="tts_engine_login">Sign in</string>
 </resources>

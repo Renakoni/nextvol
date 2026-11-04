@@ -4,12 +4,19 @@ import hnovel.network.BrokerResponse
 import kotlinx.serialization.json.*
 
 /** One protocol exchange. The owning client handles segmentation, authorization and cancellation. */
-internal interface OnlineSpeechBackend {
+interface OnlineSpeechBackend : AutoCloseable {
     suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray
     suspend fun voices(): List<JsonObject> = throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
+    val updatedEngineParameters: String? get() = null
+    fun cancel() {}
+    override fun close() {}
 }
 
-internal val dedicatedOnlineSpeechEngines = setOf("ggtrans", "huoshan", "namiai", "filmora", "gemini", "xfpeiyin", "peiyinya")
+fun supportsSpeechVoiceCatalog(code: String): Boolean =
+    code in setOf("azure", "doubao", "guagua", "clipchamp", "namiai", "filmora", "peiyinya", "vivo")
+
+internal val dedicatedOnlineSpeechEngines = setOf("ggtrans", "huoshan", "namiai", "filmora", "gemini", "xfpeiyin", "peiyinya",
+    "azure", "doubao", "clipchamp", "guagua", "msspeech", "vivo", "bdotts", "msctts", "readspk")
 
 internal fun onlineSpeechPackageUrl(code: String, parameters: String): String = when (code) {
     "ggtrans", "gemini" -> googleWebSpeechUrl(code, parameters)
@@ -18,6 +25,15 @@ internal fun onlineSpeechPackageUrl(code: String, parameters: String): String = 
     "filmora" -> FilmoraSpeechClient.ENDPOINT
     "xfpeiyin" -> XfPeiyinSpeechClient.SIGN_URL
     "peiyinya" -> PeiyinyaSpeechClient.ENDPOINT
+    "azure" -> azureSpeechPackageUrl(parameters)
+    "doubao" -> "https://ws-samantha.doubao.com/samantha/audio/tts"
+    "clipchamp" -> "https://app.clipchamp.com/v2/azure-cognitive/auth-token"
+    "guagua" -> "https://www.gstudios.com.cn"
+    "msspeech" -> SpeechStudioSpeechClient.ENDPOINT
+    "vivo" -> "https://tts-v2.vivo.com.cn/tts"
+    "bdotts" -> "https://tts.baidu.com/ws/sdktts"
+    "msctts" -> "https://${microsoftPackageParameters(parameters).string("region").ifEmpty { "sh" }}.voicecloud.cn/msp.do"
+    "readspk" -> ReadSpeakerSpeechClient.ENDPOINT
     else -> throw IllegalArgumentException("engine")
 }
 
