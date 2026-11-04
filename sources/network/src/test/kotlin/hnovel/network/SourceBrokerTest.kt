@@ -69,6 +69,38 @@ class SourceBrokerTest {
         }
     }
 
+    @Test fun streamHeadersCanRejectBeforeBodyAndNextStreamStillSucceeds() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("{\"error\":true}"))
+            server.enqueue(MockResponse().setHeader("Content-Type", "audio/mpeg").setBody("next"))
+            server.start()
+            SourceBroker(directory.root.toPath()).use { broker ->
+                val session = broker.open(scope(), listOf(grant(server.url("/"))))
+                val received = java.io.ByteArrayOutputStream()
+                val rejection = Exception("Rejected response type")
+                var committing = false
+                val guard = RequestCommitGuard { action ->
+                    committing = true
+                    try { action() } finally { committing = false }
+                }
+                val receive: (ByteArray, Int, Int) -> Unit = { bytes, offset, size -> received.write(bytes, offset, size) }
+                val onResponse: (Map<String, List<String>>) -> Unit = { headers ->
+                    check(committing)
+                    if (headers.entries.any { it.key.equals("Content-Type", true) && it.value.any { value -> "json" in value } })
+                        throw rejection
+                }
+                try {
+                    session.stream(request(server.url("/first")), guard, receive, onResponse)
+                    fail("Response headers must be checked before body delivery")
+                } catch (failure: Exception) { assertEquals(rejection.message, failure.message) }
+                assertEquals(0, received.size())
+                assertTrue(success(session.stream(request(server.url("/next")), guard, receive, onResponse)).body.isEmpty())
+                assertEquals("next", received.toString("UTF-8"))
+                assertEquals(2, server.requestCount)
+            }
+        }
+    }
+
     @Test fun eightSameHostRequestsArriveBeforeAnyResponseAndTheNinthWaits() = runBlocking {
         MockWebServer().use { server ->
             val entered = CountDownLatch(8)

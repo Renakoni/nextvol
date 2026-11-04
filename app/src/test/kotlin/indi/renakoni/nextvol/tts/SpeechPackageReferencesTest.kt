@@ -10,6 +10,8 @@ import indi.renakoni.nextvol.tts.matcha.OfflineVoiceDefaults
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import hnovel.speech.OfflineVoiceMetadata
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.Rule
@@ -58,5 +60,17 @@ class SpeechPackageReferencesTest {
         }""").sources.single(), emptyList())
         val references = speechPackageReferences(listOf(original, original.copy(isVoiceCopy = true)), emptyList())
         assertEquals("stable", references["http_test_voice"]!!.httpSource)
+    }
+
+    @Test fun geminiSampleRateEditKeepsVoiceIdentityButRetiresTheOldProtocolParameters() {
+        val original = SavedHttpSpeechSource(previewHttpSpeech("""{
+            "id":"stable", "name":"Japanese", "url":"https://gemini.google.com/",
+            "multiTts":{"engine":{"code":"gemini","type":"inner"},
+                "voice":{"code":"ja","name":"Japanese","type":"1","locale":"ja-JP","sampleRate":"24000"}}
+        }""").sources.single(), emptyList())
+        val edited = editHttpVoice(original, buildJsonObject { put("sampleRate", "48000") }, enabled = true, copy = false)
+        assertEquals(original.definition.id, edited.definition.id)
+        assertEquals(original.packageIdentity(), edited.packageIdentity())
+        assertFalse(original.sameExecution(edited))
     }
 }

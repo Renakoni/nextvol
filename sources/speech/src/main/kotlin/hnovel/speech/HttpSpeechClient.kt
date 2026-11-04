@@ -42,6 +42,9 @@ class HttpSpeechClient(
     private val microsoft = source.microsoft?.let { MicrosoftSpeechClient(it, ::executeMicrosoft) }
     private val edge = if (source.nativeEngine == "edgetts") EdgeSpeechClient(
         requireNotNull(source.multiTts).getValue("voice").jsonObject, ::executeEdge) else null
+    private val online = if (source.nativeEngine in dedicatedOnlineSpeechEngines)
+        OnlineSpeechClient(requireNotNull(source.multiTts), ::executeOnline, ::streamOnline) else null
+    val supportsStreaming: Boolean get() = source.supportsStreaming
     @Volatile private var microsoftSession: SourceSession? = null
     private var audioSink: ((ByteArray, Int, Int) -> Unit)? = null
 
@@ -79,6 +82,7 @@ class HttpSpeechClient(
     }
 
     suspend fun synthesize(text: String, rate: Float? = null, volume: Float = 1f,
+        sentenceLength: Int = onlineSpeechSentenceLength(),
         receive: ((ByteArray, Int, Int) -> Unit)? = null): ByteArray = mutex.withLock {
         if (text.isBlank() || text.length > 65536) throw HttpSpeechException(HttpSpeechError.InvalidSource)
         if (source.text("loginCheckJs").isNotBlank()) throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
@@ -88,7 +92,8 @@ class HttpSpeechClient(
             }
             withTimeout(60_000) {
                 val speed = source.scriptSpeed(rate)
-                val audio = edge?.synthesize(text, rate ?: speed / 10f, volume, audioSink)
+                val audio = online?.synthesize(text, rate ?: speed / 10f, volume, sentenceLength, audioSink)
+                    ?: edge?.synthesize(text, rate ?: speed / 10f, volume, audioSink)
                     ?: microsoft?.synthesize(text, rate ?: speed / 10f, volume) ?: request(text, speed, volume)
                 currentCoroutineContext().ensureActive()
                 if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
@@ -100,6 +105,44 @@ class HttpSpeechClient(
             if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
             throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidSource)
         } finally { audioSink = null }
+    }
+
+    /** Explicit network operation; package import and preview never call this. */
+    suspend fun refreshVoices(): List<HttpSpeechDefinition> = mutex.withLock {
+        try {
+            withTimeout(60_000) {
+                val voices = (online ?: throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)).voices()
+                currentCoroutineContext().ensureActive()
+                if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
+                voices
+            }
+        } catch (_: TimeoutCancellationException) { throw HttpSpeechException(HttpSpeechError.Timeout) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
+            throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidAudio)
+        }
+    }
+
+    private suspend fun executeOnline(request: BrokerRequest): BrokerResponse = onlineResponse(session.execute(request,
+        RequestCommitGuard { authority.authorized(identity, it) }))
+
+    private suspend fun streamOnline(request: BrokerRequest, receive: (ByteArray, Int, Int) -> Unit): BrokerResponse {
+        // R6.a.g rejects JSON responses before passing incremental bytes to the audio decoder.
+        return onlineResponse(session.stream(request, RequestCommitGuard { authority.authorized(identity, it) }, receive) { headers ->
+            val contentType = headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value?.firstOrNull().orEmpty()
+            if (contentType.contains("json", ignoreCase = true)) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
+        })
+    }
+
+    private suspend fun onlineResponse(result: BrokerResult): BrokerResponse {
+        currentCoroutineContext().ensureActive()
+        if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
+        return when (result) {
+            is BrokerResult.Success -> result.response
+            is BrokerResult.Failure -> throw HttpSpeechException(result.code.speechError(), networkCode = result.code,
+                deniedOrigins = listOfNotNull(result.denial?.origin))
+        }
     }
 
     private suspend fun executeEdge(request: BrokerRequest, receive: (BrokerWebSocket) -> ByteArray): ByteArray = try {
