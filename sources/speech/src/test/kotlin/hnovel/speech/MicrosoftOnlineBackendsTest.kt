@@ -80,7 +80,7 @@ class MicrosoftOnlineBackendsTest {
         assertEquals("真实文本 & <标记>", xml.documentElement.textContent)
     }
 
-    @Test fun azureListAndSynthesisShareSubscriptionAndVoiceParameters() = runBlocking {
+    @Test fun azureListAndSynthesisShareSubscriptionAndVoiceParameters(): Unit = runBlocking {
         val configuration = AzureSpeechConfiguration(metadata("azure", "{region:'westus',apiKey:'test-key'}",
             "zh-CN-XiaoxiaoNeural,Default,@style,1.2"))
         assertEquals("westus", configuration.region)

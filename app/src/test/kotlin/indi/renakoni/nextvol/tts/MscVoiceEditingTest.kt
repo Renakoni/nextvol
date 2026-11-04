@@ -65,10 +65,11 @@ class MscVoiceEditingTest {
         assertEquals(updatedEngine.parameters, offline.configuration(original).engineParameters)
         online.registerEngine(sharedEngine)
         assertEquals(updatedEngine, online.engines().single())
-        val reference = SpeechVoiceRef(offlineVoice = original.reference)
-        settings.update { it.copy(offlineVoice = original.reference, narrationVoices = listOf(reference)) }
+        val reference = SpeechVoiceRef(offlineVoice = original.reference, externalId = "msctts_voice")
+        settings.update { it.copy(offlineVoice = original.reference, narrationVoices = listOf(reference),
+            dialogueVoices = listOf(SpeechVoiceRef(externalId = "msctts_voice"))) }
         pairs.setManual(SpeechVoicePair("book", "person", "group", reference))
-        MscVoiceEditing(online, offline, settings, pairs).toOnline(original.copy(name = "Edited",
+        MscVoiceEditing(online, offline, settings, pairs).toOnline(original, original.copy(name = "Edited",
             configuration = original.configuration!!.copy(type = 1, speed = 1.4f)), copy = false, creating = false)
         assertTrue(offline.voices().isEmpty())
         val model = File(offline.directory(original.resourceReference), "app/voice.jet")
@@ -78,6 +79,10 @@ class MscVoiceEditingTest {
         assertTrue(offline.voices().isEmpty())
         val source = online.sources().single { !it.isBuiltIn }
         assertEquals(updatedEngine.parameters, source.httpEngine()!!.parameters)
+        assertEquals("msctts_voice_1", settings.get().narrationVoices.single().externalId)
+        assertEquals(settings.get().narrationVoices, settings.get().dialogueVoices)
+        assertEquals("msctts_voice", pairs.pairs().single().value.externalId)
+        assertNull(pairs.pairs().single().value.resolvePackageReference(speechPackageReferences(online.sources(), emptyList())).httpSource)
         val ticket = authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
         online.saveVoice(editHttpVoice(source, buildJsonObject { put("type", 2); put("sampleRate", 24000) }, true, false))
         assertFalse(authority.accepts(ticket))
@@ -87,6 +92,7 @@ class MscVoiceEditingTest {
         val references = speechPackageReferences(online.sources(), offline.voices())
         assertEquals(reimported.reference, references["msctts_voice"]!!.offlineVoice)
         assertEquals(source.definition.id, references["msctts_voice_2"]!!.httpSource)
+        assertEquals(reimported.reference, pairs.pairs().single().value.resolvePackageReference(references).offlineVoice)
         offline.delete(reimported.reference)
         val editor = MscVoiceEditing(online, offline, settings, pairs)
         editor.toOffline(source, original.copy(name = "Edited", configuration = original.configuration.copy(speed = 1.4f)), copy = false)
@@ -102,7 +108,7 @@ class MscVoiceEditingTest {
         assertEquals(setOf("msctts_voice"), reversed.keys)
         assertEquals(restored.reference, reversed.getValue("msctts_voice").offlineVoice)
         val lease = offline.acquire(restored.reference)
-        editor.toOnline(restored.copy(configuration = restored.configuration.copy(type = 1)), copy = false, creating = false)
+        editor.toOnline(restored, restored.copy(configuration = restored.configuration.copy(type = 1)), copy = false, creating = false)
         online.delete(online.sources().single { !it.isBuiltIn }.definition.id)
         assertTrue(model.exists())
         lease.close()

@@ -14,7 +14,7 @@ import org.junit.rules.TemporaryFolder
 class OnlineSpeechPackageTest {
     @get:Rule val directory = TemporaryFolder()
 
-    @Test fun nativeFailureIsMappedAndVendorCancellationCannotSkipSessionCleanup() = runBlocking {
+    @Test fun nativeFailureIsMappedAndVendorCancellationCannotSkipSessionCleanup(): Unit = runBlocking {
         val definition = HttpSpeechDefinition.parse(buildJsonObject {
             put("name", "Native voice"); put("url", "https://tts-v2.vivo.com.cn/tts")
             putJsonObject("multiTts") { putJsonObject("engine") { put("code", "vivo") } }

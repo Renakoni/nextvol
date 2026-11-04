@@ -83,7 +83,12 @@ class HttpVoiceEditorViewModel @Inject constructor(
             else {
                 val candidate = withContext(Dispatchers.Default) { editHttpVoice(selected, edited.speakerFields(), edited.enabled, copy) }
                 repository.saveVoice(candidate)
-                settings.update { if (it.httpSource == candidate.definition.id) it.copy(httpRevision = UUID.randomUUID().toString()) else it }
+                if (!copy) settings.update { value ->
+                    val updated = value.updateVoiceSelections(
+                        SpeechVoiceRef(httpSource = selected.definition.id, externalId = selected.packageVoiceId()),
+                        SpeechVoiceRef(httpSource = candidate.definition.id, label = candidate.definition.name, externalId = candidate.packageVoiceId()))
+                    if (updated.httpSource == candidate.definition.id) updated.copy(httpRevision = UUID.randomUUID().toString()) else updated
+                }
             }
         }
         onSaved()

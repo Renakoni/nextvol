@@ -121,10 +121,17 @@ class OfflineVoiceEditorViewModel @Inject constructor(
         val current = state.value
         val edited = withContext(Dispatchers.Default) { requireNotNull(current.draft).applyTo(requireNotNull(current.voice)) }
         withContext(NonCancellable) {
-            if (edited.configuration?.let { it.engine == "msctts" && it.type != 0 } == true) msc.toOnline(edited, copy, creating)
+            if (edited.configuration?.let { it.engine == "msctts" && it.type != 0 } == true)
+                msc.toOnline(requireNotNull(current.voice), edited, copy, creating)
             else {
                 val result = if (creating) repository.create(edited) else repository.save(edited, copy)
-                if (!copy) settings.update { if (it.offlineVoice?.id == result.reference.id) it.copy(offlineVoice = result.reference) else it }
+                if (!copy && !creating) settings.update { value ->
+                    val previous = requireNotNull(current.voice)
+                    val updated = value.updateVoiceSelections(
+                        SpeechVoiceRef(offlineVoice = previous.reference, externalId = previous.packageVoiceId()),
+                        SpeechVoiceRef(offlineVoice = result.reference, label = result.name, externalId = result.packageVoiceId()))
+                    if (updated.offlineVoice?.id == result.reference.id) updated.copy(offlineVoice = result.reference) else updated
+                }
             }
         }
         onSaved()

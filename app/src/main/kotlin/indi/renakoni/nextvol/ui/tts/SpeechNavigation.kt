@@ -241,34 +241,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val nav = LocalNavController.current
         SpeechNameTestScreen(nav::popBackStackIfResumed)
     }
-    composable<SpeechReplacementsRoute> {
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechReplacementsScreen(state, nav::popBackStackIfResumed,
-            onEdit = { nav.navigate(SpeechReplacementEditorRoute(it)) { launchSingleTop = true } },
-            onToggle = viewModel::toggle, onMove = viewModel::move, onDelete = viewModel::delete,
-            onPreview = { nav.navigate(SpeechReplacementPreviewRoute) { launchSingleTop = true } },
-            onSort = viewModel::sort, onToggleGroup = viewModel::toggleGroup)
-    }
-    dialog<SpeechReplacementEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechReplacementEditorScreen(state, entry.toRoute<SpeechReplacementEditorRoute>().ruleId, nav::popBackStackIfResumed,
-            onSave = { viewModel.save(it, nav::popBackStackIfResumed) }, onPreview = viewModel::preview,
-            onClearPreview = viewModel::clearPreview, onClearSaveError = viewModel::clearSaveError)
-    }
-    composable<SpeechReplacementPreviewRoute> {
-        HideReadAloudOverlay()
-        val nav = LocalNavController.current
-        val viewModel = hiltViewModel<SpeechReplacementsViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        SpeechReplacementPreviewScreen(state, nav::popBackStackIfResumed,
-            onPreview = { viewModel.preview(it) }, onClearPreview = viewModel::clearPreview)
-    }
     composable<SpeechPreferencesRoute> {
         HideReadAloudOverlay()
         val nav = LocalNavController.current

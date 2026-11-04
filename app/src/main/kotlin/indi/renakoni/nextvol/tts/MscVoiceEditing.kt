@@ -13,7 +13,7 @@ class MscVoiceEditing @Inject constructor(
     private val settings: SpeechSettingsRepository,
     private val pairs: SpeechVoicePoolRepository,
 ) {
-    suspend fun toOnline(voice: InstalledOfflineVoice, copy: Boolean, creating: Boolean) {
+    suspend fun toOnline(previous: InstalledOfflineVoice, voice: InstalledOfflineVoice, copy: Boolean, creating: Boolean) {
         val configuration = requireNotNull(voice.configuration)
         val engine = online.engines().single { it.code == configuration.engine }
         val id = "nextvol:voice:${if (copy) UUID.randomUUID() else voice.reference.id}"
@@ -28,7 +28,8 @@ class MscVoiceEditing @Inject constructor(
             })
         online.saveVoice(source)
         if (!copy && !creating) {
-            replaceReference(SpeechVoiceRef(offlineVoice = voice.reference), SpeechVoiceRef(httpSource = id, label = voice.name))
+            replaceReference(SpeechVoiceRef(offlineVoice = previous.reference, externalId = previous.packageVoiceId()),
+                SpeechVoiceRef(httpSource = id, label = voice.name, externalId = source.packageVoiceId()))
             offline.delete(voice.reference)
         }
     }
@@ -46,7 +47,8 @@ class MscVoiceEditing @Inject constructor(
             defaults = OfflineVoiceDefaults(defaults["name"]?.jsonPrimitive?.content.orEmpty(), original, defaults.offlineMetadata())),
             source.offlineResources)
         if (!copy) {
-            replaceReference(SpeechVoiceRef(httpSource = source.definition.id), SpeechVoiceRef(offlineVoice = voice.reference, label = voice.name))
+            replaceReference(SpeechVoiceRef(httpSource = source.definition.id, externalId = source.packageVoiceId()),
+                SpeechVoiceRef(offlineVoice = voice.reference, label = voice.name, externalId = voice.packageVoiceId()))
             online.delete(source.definition.id)
         }
     }
@@ -80,11 +82,12 @@ internal fun JsonObject.offlineMetadata() = OfflineVoiceMetadata(
     get("note")?.jsonPrimitive?.content.orEmpty(), get("desc")?.jsonPrimitive?.content.orEmpty(), get("avatar")?.jsonPrimitive?.content.orEmpty())
 
 internal fun SpeechSettings.replaceVoiceReference(previous: SpeechVoiceRef, replacement: SpeechVoiceRef): SpeechSettings {
-    fun replace(value: SpeechVoiceRef) = if (value.canonicalKey == previous.canonicalKey) replacement else value
+    fun replace(value: SpeechVoiceRef) = if (value.canonicalKey == previous.canonicalKey) replacement.copy(externalId = value.externalId) else value
     val selected = replace(voiceReference())
+    val selections = updateVoiceSelections(previous, replacement)
     return copy(engine = selected.engine, voice = selected.voice, httpSource = selected.httpSource, offlineVoice = selected.offlineVoice,
         httpRevision = UUID.randomUUID().toString(), voiceRevision = UUID.randomUUID().toString(),
-        narrationVoices = narrationVoices.map(::replace), dialogueVoices = dialogueVoices.map(::replace),
+        narrationVoices = selections.narrationVoices, dialogueVoices = selections.dialogueVoices,
         speakerVoices = speakerVoices.mapValues { replace(it.value) }, roleRules = roleRules.map { it.copy(speaker = it.speaker?.let(::replace)) },
         voiceItems = voiceItems.map { it.copy(value = replace(it.value)) })
 }
