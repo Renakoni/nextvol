@@ -1,10 +1,7 @@
 package indi.renakoni.nextvol.tts
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
-import hnovel.imports.SourceOriginCandidates
 import hnovel.network.NetworkGrant
 import hnovel.network.SourceBroker
 import hnovel.network.StorageCipher
@@ -15,7 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.io.File
 import javax.inject.Inject
 
 /** Network directories are fetched only by the user's manual refresh action. */
@@ -25,7 +21,6 @@ class SpeechEngineCatalogService @Inject constructor(
     private val authority: ExecutionAuthority,
     private val runner: RuleTaskRunner,
     private val network: SpeechNetworkCheck,
-    @ApplicationContext private val context: Context,
 ) {
     suspend fun refresh(): SpeechError? = withContext(Dispatchers.IO) {
         val engines = repository.engines().filter {
@@ -37,7 +32,7 @@ class SpeechEngineCatalogService @Inject constructor(
         var error: SpeechError? = null
         for (engine in engines) {
             val source = sources.firstOrNull { it.importedEngineCode == engine.code }
-            try { refresh(engine, source) }
+            try { refresh(engine) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: HttpSpeechException) {
                 source?.let { repository.recordDeniedOrigins(it.definition.id, failure.deniedOrigins) }
@@ -58,24 +53,14 @@ class SpeechEngineCatalogService @Inject constructor(
         error
     }
 
-    private suspend fun refresh(engine: SpeechEngineConfig, saved: SavedHttpSpeechSource?) {
+    private suspend fun refresh(engine: SpeechEngineConfig) {
         var owner: SourceBroker? = null
-        var source = saved
+        var source: SavedHttpSpeechSource? = null
         val result = try {
-            val client = if (saved != null) repository.withSource(saved.definition.id) { current, runtime ->
-                if (current.importedEngine != engine.httpData()) return@withSource null
+            val client = repository.withCatalogSource(engine) { current, runtime ->
                 source = current
                 val broker = SourceBroker(runtime.toPath(), cipher = cipher).also { owner = it }
                 client(current, broker)
-            } else {
-                // A registered native engine may not have any saved speakers yet.
-                val draft = newHttpVoice(engine).let {
-                    it.copy(origins = SourceOriginCandidates.speech(it.definition.raw).map { origin -> origin.origin }.distinct())
-                }
-                source = draft
-                val runtime = File(context.noBackupFilesDir, "speech-catalog/${speechDigest(engine.code)}")
-                val broker = SourceBroker(runtime.toPath(), cipher = cipher).also { owner = it }
-                client(draft, broker)
             }
             client?.use { it.refreshVoices() to it.updatedEngineParameters } ?: return
         } finally { owner?.close() }

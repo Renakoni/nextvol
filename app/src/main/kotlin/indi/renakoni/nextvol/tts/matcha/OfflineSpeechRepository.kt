@@ -331,7 +331,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
             val resources = retained?.takeIf { matchesResources(configuration, it.sizes) }
                 ?: matchingResources(configuration, current)
             val sizes = resources?.sizes.orEmpty()
-            val normalized = if (configuration.engine == "sherpa" && resources == null) configuration
+            val normalized = if (configuration.engine == "sherpa" && sizes.isEmpty()) configuration
                 else normalizeOfflineVoice(configuration, sizes.keys)
             val voice = draft.copy(name = draft.name.trim(), sizes = sizes, configuration = normalized,
                 resourceReference = resources?.reference ?: draft.reference, packageAvatar = resources?.avatar ?: draft.packageAvatar)
@@ -351,7 +351,8 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
             val requested = requireNotNull(edited.configuration)
             val resources = matchingResources(requested, listOf(previous) + current.filterNot { it.reference == previous.reference })
             val sizes = resources?.sizes ?: previous.sizes
-            val configuration = normalizeOfflineVoice(requested, sizes.keys)
+            val configuration = if (requested.engine == "sherpa" && sizes.isEmpty()) requested
+                else normalizeOfflineVoice(requested, sizes.keys)
             val original = this@OfflineSpeechRepository.configuration(previous)
             require(configuration.engine == original.engine && safeSpeechPackagePath(configuration.code))
             val changedSynthesis = configuration != previous.configuration || edited.enabled != previous.enabled

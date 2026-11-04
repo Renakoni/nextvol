@@ -179,6 +179,24 @@ class OfflineSpeechRepositoryTest {
         assertEquals(1.2f, edited.configuration.speed)
     }
 
+    @Test fun sherpaSpeakerWithoutModelsCanBeEditedAndCopiedAfterCreation() = runBlocking {
+        val root = files.newFolder()
+        val repository = OfflineSpeechRepository(root)
+        val configuration = OfflineVoiceConfig("sherpa", "custom", rawParameters = """{"modelDir":"missing"}""")
+        val created = repository.create(InstalledOfflineVoice(OfflineVoiceRef("new", "revision"), "My speaker",
+            emptyMap(), configuration = configuration))
+        val edited = OfflineSpeechRepository(root).save(created.copy(name = "Renamed", metadata = OfflineVoiceMetadata(note = "Note")))
+        assertEquals(created.reference, edited.reference)
+        assertEquals("Renamed", edited.name)
+        assertEquals("Note", edited.metadata.note)
+        assertEquals(configuration, edited.configuration)
+        assertTrue(edited.sizes.isEmpty())
+        val copied = repository.save(edited.copy(name = "Copy"), copy = true)
+        assertNotEquals(edited.reference.id, copied.reference.id)
+        assertEquals(configuration, copied.configuration)
+        assertEquals(listOf(edited, copied), OfflineSpeechRepository(root).voices())
+    }
+
     @Test fun googleDirectoryRefreshAddsDeclaredSpeakersWithoutReplacingEditsOrCopyingModels() = runBlocking {
         val input = files.newFile()
         ZipOutputStream(input.outputStream()).use { zip ->

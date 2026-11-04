@@ -57,7 +57,10 @@ class SpeechSynthesizers @Inject constructor(
                     MatchaResources(offline.directory(voice.resourceReference), requireNotNull(configuration.sherpa)).modelKey)
                 else SpeechRuntime(offline(), offlineSpeechExclusiveGroup(configuration.engine))
             }
-            settings.httpSource != null -> SpeechRuntime(http())
+            settings.httpSource != null -> {
+                val engine = repository.sources().find { it.definition.id == settings.httpSource }?.importedEngineCode
+                SpeechRuntime(http(), if (engine == "msctts") offlineSpeechExclusiveGroup(engine) else null)
+            }
             else -> SpeechRuntime(system.synthesizer())
         }
     }))

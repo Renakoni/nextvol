@@ -5,6 +5,7 @@ import android.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.execution.BridgeWire
 import hnovel.execution.ExecutionAuthority
+import hnovel.imports.SourceOriginCandidates
 import hnovel.network.StorageCipher
 import hnovel.network.sourceOrigin
 import hnovel.speech.SpeechEngineConfig
@@ -84,6 +85,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     private val file = AtomicFile(File(context.filesDir, "http-speech.enc"))
     private val avatarRoot = File(context.filesDir, "speech-avatars")
     private val runtimeRoot = File(context.filesDir, "speech-runtime")
+    private val catalogRoot = File(context.noBackupFilesDir, "speech-catalog")
     private val builtIns by lazy {
         val entries = context.assets.open("speech/builtin-voices.json").bufferedReader().use { Json.parseToJsonElement(it.readText()).jsonArray }
         entries.map { entry ->
@@ -143,7 +145,25 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         mutex.withLock { read().find { it.definition.id == id }?.let { open(it, runtimeDirectory(id)) } }
     }
 
+    /** Directory tickets are issued under the same lock that edits and retires their engine. */
+    internal suspend fun <T> withCatalogSource(expected: SpeechEngineConfig, open: (SavedHttpSpeechSource, File) -> T): T? =
+        withContext(Dispatchers.IO) { mutex.withLock {
+            val store = readStored()
+            if (!expected.enabled || expected.deleted || store.engines.find { it.code == expected.code } != expected) return@withLock null
+            val saved = combined(store.sources, store.engines).firstOrNull { it.importedEngineCode == expected.code }
+            if (saved != null) open(saved, runtimeDirectory(saved.definition.id))
+            else {
+                val draft = newHttpVoice(expected)
+                val definition = previewHttpSpeech(JsonObject(draft.definition.raw +
+                    ("id" to JsonPrimitive(catalogSourceId(expected.code)))).toString()).sources.single()
+                open(draft.copy(definition = definition,
+                    origins = SourceOriginCandidates.speech(definition.raw).map { it.origin }.distinct()),
+                    File(catalogRoot, speechDigest(expected.code)))
+            }
+        } }
+
     private fun runtimeDirectory(id: String) = File(runtimeRoot, speechDigest(id))
+    private fun catalogSourceId(code: String) = "nextvol:catalog:$code"
 
     fun avatar(source: SavedHttpSpeechSource): File? = source.packageAvatar?.takeIf {
         safeSpeechPackagePath(it) && '/' !in it
@@ -264,6 +284,9 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val output = file.startWrite()
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
+            stored.engines.filter { it !in updatedStore.engines }.forEach {
+                authority.revokeSource(catalogSourceId(it.code), "speech")
+            }
             offline.retainOnlineResources(resources)
             cleanAvatars(updated)
             previous.filter { old -> sources.none { it.definition.id == old.definition.id &&

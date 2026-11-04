@@ -15,15 +15,7 @@
     <string name="tts_engine_missing">引擎設定已刪除</string>
     <string name="tts_engine_invalid">請檢查引擎代號和請求設定。</string>
     <string name="tts_engine_add_speaker">新增發音人</string>
-    <string name="tts_engine_voices">關聯發音人</string>
-    <string name="tts_engine_delete">刪除引擎</string>
-    <string name="tts_engine_reset">重設設定</string>
     <string name="tts_engine_empty">匯入語音包或新增 HTTP 引擎。</string>
-    <string name="tts_engine_no_speakers">尚無發音人</string>
-    <string name="tts_engine_impact">此操作將影響以下發音人：</string>
-    <string name="tts_engine_delete_warning">以下發音人將無法使用。保留聲音設定，恢復引擎後可繼續使用。</string>
-    <string name="tts_engine_choose_model">選擇語音包</string>
-    <string name="tts_engine_import_model">請先匯入此引擎的語音包。</string>
     <string name="tts_engine_repair">修復引擎</string>
     <string name="tts_engine_search">搜尋引擎</string>
     <string name="tts_engine_login">登入</string>

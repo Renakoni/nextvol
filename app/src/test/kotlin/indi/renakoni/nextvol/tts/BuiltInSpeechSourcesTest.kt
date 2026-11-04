@@ -30,6 +30,41 @@ class BuiltInSpeechSourcesTest {
     private val offline by lazy { OfflineSpeechRepository(File(directory.root, "offline")) }
     private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline)
 
+    @Test fun catalogTicketsRespectEngineEditsAndRetirementWithAndWithoutSavedVoices() = runBlocking {
+        val repository = repository()
+        val engine = SpeechEngineConfig("azure", "Azure", parameters = "{\"region\":\"eastus\"}")
+        repository.saveEngine(engine, creating = true)
+        val draftTicket = repository.withCatalogSource(engine) { source, _ ->
+            assertTrue(source.origins.isNotEmpty())
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        val edited = engine.copy(parameters = "{\"region\":\"westus\"}")
+        repository.saveEngine(edited)
+        assertFalse(authority.accepts(draftTicket))
+        assertNull(repository.withCatalogSource(engine) { _, _ -> fail("Stale engine issued a catalog ticket") })
+        val saved = newHttpVoice(edited)
+        repository.saveVoice(saved)
+        val savedTicket = repository.withCatalogSource(edited) { source, _ ->
+            assertEquals(saved.definition.id, source.definition.id)
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        val disabled = edited.copy(enabled = false)
+        repository.saveEngine(disabled)
+        assertFalse(authority.accepts(savedTicket))
+        assertNull(repository.withCatalogSource(edited) { _, _ -> fail("Disabled engine issued a catalog ticket") })
+        assertNull(repository.withCatalogSource(disabled) { _, _ -> fail("Current disabled engine issued a catalog ticket") })
+        repository.saveEngine(edited)
+        repository.delete(saved.definition.id)
+        val reopened = repository.withCatalogSource(edited) { source, _ ->
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        assertEquals(draftTicket.sourceId, reopened.sourceId)
+        val deleted = edited.copy(deleted = true)
+        repository.saveEngine(deleted)
+        assertFalse(authority.accepts(reopened))
+        assertNull(repository.withCatalogSource(deleted) { _, _ -> fail("Deleted engine issued a catalog ticket") })
+    }
+
     @Test fun translatorVoicesSurviveEditingReimportReopenAndEngineRevocation() = runBlocking {
         val engine = SpeechEngineConfig("mstrans", "Translator", "inner")
         val draft = newHttpVoice(engine)

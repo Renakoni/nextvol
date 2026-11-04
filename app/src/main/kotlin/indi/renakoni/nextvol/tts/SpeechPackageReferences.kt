@@ -5,6 +5,8 @@ import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.SpeechPackageEngine
 import hnovel.speech.SpeechPackageNotice
 import hnovel.speech.SpeechPackagePreview
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 /** Speaker.getId(): engine group, code, and the nonzero copy type. Names are not identities. */
 internal fun externalSpeechVoiceId(engine: String, code: String, type: Int) =
@@ -13,13 +15,16 @@ internal fun externalSpeechVoiceId(engine: String, code: String, type: Int) =
 internal fun speechPackageReferences(online: List<SavedHttpSpeechSource>, offline: List<InstalledOfflineVoice>): Map<String, SpeechVoiceRef> {
     val candidates = online.mapNotNull { source ->
         source.packageIdentity()?.let { (engine, code, type) ->
-            externalSpeechVoiceId(engine, code, type.toIntOrNull() ?: return@mapNotNull null) to
+            val currentType = if (engine == "msctts") (source.speakerData()["type"] as? JsonPrimitive)?.intOrNull ?: 0
+                else type.toIntOrNull() ?: return@mapNotNull null
+            externalSpeechVoiceId(engine, code, currentType) to
                 SpeechVoiceRef(httpSource = source.definition.id, label = source.definition.name)
         }
     } + offline.mapNotNull { source ->
         if (source.sourceKey.isEmpty()) return@mapNotNull null
         val original = source.defaults?.configuration ?: source.configuration ?: return@mapNotNull null
-        externalSpeechVoiceId(original.engine, original.code, original.type) to
+        val type = if (original.engine == "msctts") source.configuration?.type ?: original.type else original.type
+        externalSpeechVoiceId(original.engine, original.code, type) to
             SpeechVoiceRef(offlineVoice = source.reference, label = source.name)
     }
     return candidates.groupBy({ it.first }, { it.second }).mapNotNull { (id, references) ->
