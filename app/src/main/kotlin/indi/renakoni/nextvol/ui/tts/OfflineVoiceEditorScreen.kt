@@ -15,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -49,27 +48,26 @@ internal fun OfflineVoiceEditorScreen(
     }
     val back = { if (!state.busy || draft == null) onBack() }
     BackHandler(onBack = back)
-    Surface(Modifier.padding(24.dp).widthIn(max = 560.dp).fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
+    Surface(Modifier.padding(16.dp).widthIn(max = 560.dp).fillMaxWidth(), shape = MaterialTheme.shapes.large) {
         Column {
-            Text(stringResource(if (newVoice) R.string.tts_engine_add_speaker else if (copy) R.string.tts_voice_copy else R.string.tts_edit_source),
-                Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp), style = MaterialTheme.typography.headlineSmall)
+            Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(if (newVoice) R.string.tts_engine_add_speaker else if (copy) R.string.tts_voice_copy else R.string.tts_edit_source),
+                    Modifier.weight(1f), style = MaterialTheme.typography.displayMedium)
+                if (draft != null) IconButton(onClick = { avatarPicker.launch(arrayOf("image/*")) }, enabled = !state.busy,
+                    modifier = Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    SpeechAvatar(draft.avatar, draft.gender.toIntOrNull() ?: 0, Modifier.fillMaxSize(),
+                        state.packageAvatar, stringResource(R.string.tts_voice_avatar))
+                }
+            }
             BoxWithConstraints(Modifier.weight(1f, fill = false)) {
-                val horizontalPairs = maxWidth - 48.dp >= 300.dp * fontScale
+                val horizontalPairs = maxWidth - 48.dp >= 280.dp * fontScale
                 LazyColumn(Modifier.fillMaxWidth().testTag("offline-voice-editor"),
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                     state.error?.let { item { Text(stringResource(it), color = MaterialTheme.colorScheme.error) } }
                     if (draft != null && voice != null) {
-                        item {
-                            Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                IconButton(onClick = { avatarPicker.launch(arrayOf("image/*")) }, enabled = !state.busy,
-                                    modifier = Modifier.size(80.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                                    SpeechAvatar(draft.avatar, draft.gender.toIntOrNull() ?: 0, Modifier.fillMaxSize(),
-                                        state.packageAvatar, stringResource(R.string.tts_voice_avatar))
-                                }
-                            }
-                            if (avatarError) Text(stringResource(R.string.tts_voice_avatar_failed), color = MaterialTheme.colorScheme.error)
-                        }
+                        if (avatarError) item { Text(stringResource(R.string.tts_voice_avatar_failed), color = MaterialTheme.colorScheme.error) }
                         item { VoiceText(draft.code, R.string.tts_voice_code, !state.busy) { onEdit(draft.copy(code = it)) } }
                         item { VoicePair(horizontalPairs,
                             { VoiceText(draft.locale, R.string.tts_voice_locale, !state.busy) { onEdit(draft.copy(locale = it)) } },
@@ -93,8 +91,8 @@ internal fun OfflineVoiceEditorScreen(
                             { VoiceChoice(stringResource(R.string.tts_voice_sample_rate), draft.sampleRate, voiceSampleRates,
                                 !state.busy) { onEdit(draft.copy(sampleRate = it)) } },
                         ) }
-                        item { TextField(draft.description, { onEdit(draft.copy(description = it)) }, Modifier.fillMaxWidth(),
-                            enabled = !state.busy, colors = voiceFieldColors(), maxLines = 4,
+                        item { OutlinedTextField(draft.description, { onEdit(draft.copy(description = it)) }, Modifier.fillMaxWidth(),
+                            enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 4,
                             label = { Text(stringResource(R.string.tts_voice_description)) }) }
                         val controls = if (parametersSupported) state.controls else emptyList()
                         if (controls == null && !state.loadingControls) item { Text(stringResource(R.string.tts_voice_extension_invalid), color = MaterialTheme.colorScheme.error) }
@@ -104,14 +102,15 @@ internal fun OfflineVoiceEditorScreen(
                             }
                         }
                         if (parametersSupported && (showParameters || newVoice)) {
-                            item { TextField(draft.parameters, { onEdit(draft.copy(parameters = it)) }, Modifier.fillMaxWidth(),
-                                enabled = !state.busy, colors = voiceFieldColors(), label = { Text(stringResource(R.string.tts_voice_parameters)) }) }
+                            item { OutlinedTextField(draft.parameters, { onEdit(draft.copy(parameters = it)) }, Modifier.fillMaxWidth(),
+                                enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 8, label = { Text(stringResource(R.string.tts_voice_parameters)) }) }
                         }
-                        item { TextField(draft.note, { onEdit(draft.copy(note = it)) }, Modifier.fillMaxWidth(),
-                            enabled = !state.busy, minLines = 3, maxLines = 8, label = { Text(stringResource(R.string.tts_engine_note)) }) }
+                        item { OutlinedTextField(draft.note, { onEdit(draft.copy(note = it)) }, Modifier.fillMaxWidth(),
+                            enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 4, label = { Text(stringResource(R.string.tts_engine_note)) }) }
                         if (parametersSupported && (showExtensions || newVoice)) item {
-                            TextField(draft.extensions, { onEdit(draft.copy(extensions = it)) }, Modifier.fillMaxWidth(),
-                                enabled = !state.busy, colors = voiceFieldColors(), label = { Text(stringResource(R.string.tts_voice_extensions)) }, isError = controls == null)
+                            OutlinedTextField(draft.extensions, { onEdit(draft.copy(extensions = it)) }, Modifier.fillMaxWidth(),
+                                enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 8,
+                                label = { Text(stringResource(R.string.tts_voice_extensions)) }, isError = controls == null)
                         }
                         state.availability?.takeUnless { it.canRun }?.let { status -> item {
                             Text(stringResource(status.message, status.detail), style = MaterialTheme.typography.bodySmall,
@@ -131,23 +130,19 @@ internal fun OfflineVoiceEditorScreen(
 
 @Composable
 private fun VoiceText(value: String, label: Int, enabled: Boolean, onChange: (String) -> Unit) {
-    TextField(value, onChange, Modifier.fillMaxWidth(), enabled = enabled, colors = voiceFieldColors(),
+    OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), enabled = enabled, shape = MaterialTheme.shapes.small,
         label = { Text(stringResource(label)) }, singleLine = true)
 }
 
 @Composable
 private fun VoiceNumber(value: String, label: Int, enabled: Boolean, onChange: (String) -> Unit) {
-    TextField(value, onChange, Modifier.fillMaxWidth(), enabled = enabled, singleLine = true, colors = voiceFieldColors(),
+    OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), enabled = enabled, singleLine = true, shape = MaterialTheme.shapes.small,
         label = { Text(stringResource(label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         isError = enabled && value.toFloatOrNull()?.isFinite() != true)
 }
 
 @Composable
-internal fun voiceFieldColors() = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent,
-    unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent)
-
-@Composable
-private fun VoicePair(horizontal: Boolean, first: @Composable () -> Unit, second: @Composable () -> Unit) {
+internal fun VoicePair(horizontal: Boolean, first: @Composable () -> Unit, second: @Composable () -> Unit) {
     if (horizontal) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.weight(1f)) { first() }
         Box(Modifier.weight(1f)) { second() }
@@ -164,8 +159,8 @@ private val voiceSampleRates = linkedMapOf(
 private fun VoiceChoice(title: String, value: String, choices: Map<String, String>, enabled: Boolean, onChange: (String) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(menu, { if (enabled) menu = it }) {
-        TextField(choices[value].orEmpty(), {}, Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled),
-            readOnly = true, enabled = enabled, singleLine = true, colors = voiceFieldColors(),
+        OutlinedTextField(choices[value].orEmpty(), {}, Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled),
+            readOnly = true, enabled = enabled, singleLine = true, shape = MaterialTheme.shapes.small,
             label = { Text(title) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(menu) })
         ExposedDropdownMenu(menu, { menu = false }) {
             choices.forEach { (key, label) ->

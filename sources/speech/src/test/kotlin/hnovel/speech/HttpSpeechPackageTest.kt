@@ -34,7 +34,7 @@ class HttpSpeechPackageTest {
 
     @Test fun mixedMscPackageRoutesOnlyExplicitOnlineTypesAndKeepsBothParameterScopes() {
         val engine = packageEngine(
-            engines = "engines: [{code: msctts, type: inner, param: engine-settings}]",
+            engines = """engines: [{code: msctts, type: inner, param: '{"region":"bj"}'}]""",
             config = """
                 msctts:
                 - {code: voice, name: Offline, type: 0, param: 'app,region,local'}
@@ -47,7 +47,8 @@ class HttpSpeechPackageTest {
         val converted = previewHttpSpeechPackage(engine)
         assertNull(converted.error)
         val metadata = converted.sources.single().raw.getValue("multiTts").jsonObject
-        assertEquals("engine-settings", metadata.getValue("engine").jsonObject.getValue("param").jsonPrimitive.content)
+        assertEquals("""{"region":"bj"}""", metadata.getValue("engine").jsonObject.getValue("param").jsonPrimitive.content)
+        assertEquals("https://bj.voicecloud.cn/msp.do", converted.sources.single().url)
         assertEquals("app,region,cloud", metadata.getValue("voice").jsonObject.getValue("param").jsonPrimitive.content)
         assertEquals("Online", converted.sources.single().name)
     }
