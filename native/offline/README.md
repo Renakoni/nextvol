@@ -32,8 +32,8 @@ download the pinned asset on a miss. JVM/Lint skip SDK preparation. Updating the
 runtime URL or digest triggers main cache warming, and retention keeps the latest
 shared archive. The SDK cache is independent of the source-built ONNX Runtime cache.
 
-The reference bundle has 42 arm64 libraries: 201.55 MiB before compression and
-77.61 MiB for the complete ZIP. APK download size and installed native-library
+The v2 reference bundle has 46 arm64 libraries: 228.33 MiB before compression and
+87.18 MiB for the complete ZIP. APK download size and installed native-library
 size are different measurements; legacy companion-library loading requires
 Android to extract the native libraries during installation.
 
@@ -47,11 +47,12 @@ python native/offline/prepare_runtime.py --apk /path/to/runtime.apk --microsoft-
 The helper copies only the SDK entry libraries and their ELF dependencies. Entry
 libraries include explicit Java `System.loadLibrary` calls and native plugin
 loads, which are not necessarily listed in ELF `DT_NEEDED`. It excludes libraries
-already supplied by the Microsoft AAR, records missing SDK
-variants and native loading constraints, and copies no Java code, service,
+already supplied by the Microsoft AAR, records native loading constraints,
+and copies no Java code, service,
 manifest, voice model or application assets. It does not perform model hashes or
 model allowlist validation. The resulting `assets/offline-native/runtime-manifest.json`
-lists filenames, byte sizes, dependencies and page alignment for inspection.
+lists the source APK hash, library hashes, filenames, byte sizes, dependencies
+and page alignment for inspection.
 Runtime SDK defaults are supplied separately as
 `assets/offline-native/runtime-licenses.json`; the extractor does not infer or
 copy them. Acapela and CereProc use these defaults when the voice package does
@@ -61,7 +62,8 @@ engines through the application-private `files/offline-runtime-licenses.json`.
 | Engine | Entry libraries; companion libraries follow ELF dependencies |
 | --- | --- |
 | Acapela | `acattsandroid`, `ttsacattsandroidextended` |
-| Baidu | `bd_etts`, `bd_ettm`, `bd_ettf`; `bd_ettl` where supplied |
+| Baidu | `bd_etts`, `bd_ettm`, `bd_ettf` |
+| ByteDance offline | `speechengine`, with `sscronet`, `ttboringssl`, `ttcrypto`; TTNet Java SDK `4.1.127.6-tob` comes from its official Maven repository |
 | CereProc | `cerevoice_eng` |
 | Google | `google_speech_sbg_tts_jni` |
 | IssTTS | `issxtts30`, `issxtts40` |
@@ -75,6 +77,29 @@ engines through the application-private `files/offline-runtime-licenses.json`.
 | WeRead | `weread-tts`, `hwTTS` |
 | Xiaomi | `tts-offline` |
 | Audio effects | Android's media decoder; no vendor library |
+
+Standalone eSpeak is source-built alongside Sherpa, outside this vendor bundle.
+ByteDance uses SpeechEngine 1.1.5.3 from the reference APK. Its native SDK remains
+binary; the package adapter, JNI declarations and environment setup are maintained
+in this repository. TTNet must initialize before SpeechEngine, including for
+offline models: the SDK's settings and licensing paths otherwise dereference an
+uninitialized Cronet context during shutdown or initialization failure. This does
+not change the offline work mode or substitute an online synthesizer.
+
+ByteDance selects flat `bytedance/` resources or `bytedance/midu/`, as MultiTTS
+1.8.3 does, independently of `param`. It retains `zh-cn`, the selected
+`<code-before-hyphen>_streaming` directory and the supplied license. When a voice
+only exists under `fanqie/`, its model is combined with the same package's midu
+base data and `speech_license.licbag` through the SDK's separate base/voice paths.
+This repairs a confirmed MultiTTS resource lookup bug: the supplied package's
+BV001/BV002 exist only under fanqie, while the original app looks for them under
+midu. Both now synthesize with unchanged package bytes. No license is generated,
+rewritten or fetched by the importer. Preview remains non-executing.
+
+The obsolete Baidu `37111357` adapter was removed after comparing the supplied
+MultiTTS 1.8.1, 1.8.2 and 1.8.3 APKs: all retain a Java reference to `bd_ettl`,
+but none ships that library. The current BDeTTS packages use `90013` and
+`6082724`; their existing engine routes remain intact.
 
 Microsoft SDK 1.45.0 loads the telemetry extension from
 `TelemetryManager.getSingleton()` when constructing `EmbeddedSpeechConfig`,

@@ -72,6 +72,24 @@ class OfflineSpeechPackageTest {
         assertEquals(7, sherpa.configuration.sherpa!!.speakerId)
     }
 
+    @Test fun espeakAndBytedanceSelectTheirDeclaredOfflineDataWithoutExecutingAnEngine() {
+        val espeak = preview("espeak", "gmw/en,female-young",
+            listOf("espeak-ng-data/phontab", "espeak-ng-data/voices/!v/f1", "unrelated.txt")).plan!!
+        assertEquals("gmw/en,female-young", espeak.configuration.parameters)
+        assertEquals(2, espeak.resources.size)
+        val files = listOf("midu/zh-cn/frontend.bin", "midu/voice_streaming/model.bin",
+            "midu/speech_license.licbag", "midu/other_streaming/model.bin")
+        val bytedance = preview("bytedance", "midu", paths = files).plan!!
+        assertEquals(files.take(3).map { "bytedance/$it" }.toSet(), bytedance.resources.map { it.path }.toSet())
+        val legacy = files.filterNot { it == "midu/voice_streaming/model.bin" } + "fanqie/voice_streaming/model.bin"
+        val fanqie = preview("bytedance", paths = legacy).plan!!
+        assertEquals(setOf("bytedance/midu/zh-cn/frontend.bin", "bytedance/midu/speech_license.licbag",
+            "bytedance/fanqie/voice_streaming/model.bin"), fanqie.resources.map { it.path }.toSet())
+        assertEquals(bytedance.resources, preview("bytedance", paths = files + "fanqie/voice_streaming/model.bin").plan!!.resources)
+        assertEquals(MatchaPackageError.MissingResource,
+            preview("bytedance", paths = files.filterNot { it.contains("zh-cn") }).error)
+    }
+
     @Test fun baiduAndSogouKeepSharedDependenciesAndOnlyTheSelectedAcousticResources() {
         val baidu = preview("bdetts", "6082724,com.baidu.searchbox.tts.plugin,base,138,custom-text",
             listOf("6082724/custom-text.dat", "6082724/licence.dat", "6082724/acoustic/voice.voc.dat",

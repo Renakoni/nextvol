@@ -36,6 +36,15 @@
 -dontwarn com.azure.core.credential.TokenCredential
 -dontwarn com.azure.core.credential.TokenRequestContext
 -dontwarn reactor.core.publisher.Mono
+# TTNet is initialized with Cronet. Its unused OkHttp 3/WebSocket adapters
+# reference old OkHttp internals; Square Retrofit is optional (Platform catches
+# NoClassDefFoundError). Neither compatibility path is used by SpeechEngine.
+-dontwarn okhttp3.internal.Util
+-dontwarn okhttp3.internal.Version
+-dontwarn okhttp3.internal.connection.StreamAllocation
+-dontwarn okhttp3.internal.ws.RealWebSocket$Streams
+-dontwarn retrofit2.Retrofit$Builder
+-dontwarn retrofit2.http.**
 -dontwarn org.jetbrains.kotlin.**
 -dontwarn com.google.gson.**
 # Rhino 1.8.1's optional BEAN JSON converter uses desktop JavaBeans introspection.
@@ -91,6 +100,7 @@
 -keep class com.acapelagroup.android.tts.** { *; }
 -keep class com.autonavi.jni.** { *; }
 -keep class com.baidu.tts.jni.** { *; }
+-keep class com.bytedance.speech.speechengine.bridge.** { *; }
 -keep class com.cereproc.cerevoice_eng.** { *; }
 -keep class com.google.android.apps.speech.tts.googletts.** { *; }
 -keep class com.iflytek.** { *; }

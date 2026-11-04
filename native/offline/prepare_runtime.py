@@ -1,5 +1,6 @@
 """Prepare locally supplied embedded SDK libraries without copying an application's Java code."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import zipfile
 ENGINE_LIBRARIES = {
     "acapela": ["acattsandroid", "ttsacattsandroidextended"],
     "bdetts": ["bd_etts", "bd_ettm", "bd_ettf"],
+    "bytedance": ["speechengine"],
     "cereproc": ["cerevoice_eng"],
     "google": ["google_speech_sbg_tts_jni"],
     "isstts": ["issxtts30", "issxtts40"],
@@ -29,7 +31,7 @@ ENGINE_LIBRARIES = {
 }
 PLATFORM_LIBRARIES = {
     "libc.so", "libm.so", "libdl.so", "liblog.so", "libstdc++.so", "libz.so",
-    "libandroid.so", "libaaudio.so", "libEGL.so", "libGLESv2.so", "libnativewindow.so", "libsync.so",
+    "libandroid.so", "libaaudio.so", "libEGL.so", "libGLESv2.so", "libnativewindow.so", "libsync.so", "libOpenSLES.so",
 }
 
 
@@ -55,12 +57,6 @@ def main():
         supplied = {Path(name).name: name for name in apk.namelist() if name.startswith(f"lib/{abi}/") and name.endswith(".so")}
         official = {Path(name).name for name in aar.namelist() if name.startswith(f"jni/{abi}/") and name.endswith(".so")}
         pending = {f"lib{name}.so" for names in ENGINE_LIBRARIES.values() for name in names}
-        optional = "libbd_ettl.so"
-        missing_optional = []
-        if optional in supplied:
-            pending.add(optional)
-        else:
-            missing_optional.append({"library": optional, "engine": "bdetts", "variant": "appId 37111357"})
         inventory = {}
         while pending:
             name = sorted(pending)[0]
@@ -79,6 +75,7 @@ def main():
             if not loads:
                 raise ValueError(f"SDK has no loadable segments: {name}")
             inventory[name] = {
+                "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
                 "bytes": target.stat().st_size,
                 "needed": needed,
                 "minimum_segment_alignment": min(int(row[-1], 16) for row in loads),
@@ -93,18 +90,18 @@ def main():
                     raise ValueError(f"Missing SDK companion library: {name} -> {dependency}")
                 pending.add(dependency)
     manifest = {
+        "source_apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         "abi": abi,
         "microsoft_client_sdk": "1.45.0",
         "engines": ENGINE_LIBRARIES,
         "libraries": inventory,
         "provided_by_microsoft_aar": sorted(official),
-        "missing_optional": missing_optional,
         "notes": ["SDK authorization is unchanged.", "Voice models and standalone application license files are not packaged by this tool.",
             "Native ABI, Android API and memory-page compatibility still apply at runtime."],
     }
     (assets / "runtime-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"output": str(output), "libraries": len(inventory),
-        "bytes": sum(item["bytes"] for item in inventory.values()), "missing_optional": missing_optional,
+        "bytes": sum(item["bytes"] for item in inventory.values()),
         "libraries_requiring_4k_pages": [name for name, item in inventory.items() if not item["supports_16k_pages"]]}, indent=2))
 
 
