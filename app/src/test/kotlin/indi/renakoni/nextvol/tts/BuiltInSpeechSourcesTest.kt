@@ -110,7 +110,7 @@ class BuiltInSpeechSourcesTest {
         assertEquals(savedEngine, repository().engines().single())
     }
 
-    @Test fun freshInstallReopenAndResetKeepTheCompleteCatalogWithoutImporting() = runBlocking {
+    @Test fun freshInstallAndNoOpResetKeepTheCompleteCatalogWithoutWriting() = runBlocking {
         val initial = repository().sources()
         assertEquals(96, initial.size)
         assertTrue(initial.all { it.isConfigured })
@@ -122,8 +122,7 @@ class BuiltInSpeechSourcesTest {
         val voice = initial.first()
         repository.delete(voice.definition.id)
         assertEquals(initial.map { it.definition.raw to it.origins }, repository().sources().map { it.definition.raw to it.origins })
-        assertTrue(File(directory.root, "http-speech.enc").delete())
-        assertEquals(initial.map { it.definition.raw to it.origins }, repository().sources().map { it.definition.raw to it.origins })
+        assertFalse(File(directory.root, "http-speech.enc").exists())
     }
 
     @Test fun legacyImportsRemainSeparateAndCannotReplaceBuiltIns() = runBlocking {
