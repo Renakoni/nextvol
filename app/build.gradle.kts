@@ -352,6 +352,12 @@ dependencies {
         exclude(group = "net.arnx", module = "jsonic")
     }
     implementation("com.google.mediapipe:tasks-text:0.10.32")
+    // Matches MultiTTS's SpeechEngine companion; native libraries come from the pinned runtime.
+    implementation("com.bytedance.frameworks.baselib:ttnet:4.1.127.6-tob") {
+        exclude(group = "org.chromium.net", module = "cronet-so")
+        exclude(group = "com.android.support")
+        exclude(group = "org.jetbrains.kotlin", module = "kotlin-android-extensions-runtime")
+    }
     implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.45.0") {
         // Embedded synthesis does not use Azure token credentials; azure-core requires API 26.
         exclude(group = "com.azure", module = "azure-core")

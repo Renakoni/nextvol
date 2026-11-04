@@ -5,13 +5,16 @@ import android.app.Application
 import android.content.Intent
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.webkit.ServiceWorkerController
 import android.webkit.WebView
 import android.window.OnBackInvokedCallback
 import hnovel.network.*
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.unmockkObject
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.serialization.json.Json
 import org.junit.After
@@ -40,6 +43,7 @@ class SourceBrowserBackTest {
         SourceBrowserService.active = null
         NativeSourceBrowserService.active = null
         unmockkObject(BrowserWire)
+        unmockkStatic(ServiceWorkerController::class)
     }
 
     @Test fun nativeBackNavigatesHistoryBeforeCancelling() {
@@ -58,6 +62,9 @@ class SourceBrowserBackTest {
     }
 
     @Test @Config(sdk = [35]) fun engineLoginWaitsForConfirmationBeforeReadingStorage() {
+        // Robolectric has no Chromium provider for ServiceWorkerController.getInstance().
+        mockkStatic(ServiceWorkerController::class)
+        every { ServiceWorkerController.getInstance() } returns mockk(relaxed = true)
         val results = mutableListOf<BrokerResult>()
         val service = sourceService(results)
         val url = "https://source.invalid/"

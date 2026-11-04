@@ -157,6 +157,8 @@ internal class OfflineSpeechSynthesizer(
         val permits = mapOf("sougou" to Semaphore(1), "bdetts" to Semaphore(1), "legacy" to legacySpeechPermit)
 
         fun createEngine(context: Context, directory: File, voice: OfflineVoiceConfig): OfflineEngine = when (voice.engine) {
+            "espeak" -> EspeakEngine(directory, voice)
+            "bytedance" -> BytedanceEngine(context, directory, voice)
             "bdetts" -> BaiduEngine(context, directory, voice)
             "sougou" -> SogouEngine(context, directory, voice)
             "microsoft" -> MicrosoftEngine(context, directory, voice)

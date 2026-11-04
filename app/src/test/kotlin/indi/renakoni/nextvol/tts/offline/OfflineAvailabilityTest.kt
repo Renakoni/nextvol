@@ -35,9 +35,9 @@ class OfflineAvailabilityTest {
         listOf("c++_shared", "BDSpeechDecoder_V1", "bd_ettm", "issxtts30", "issavth").forEach { library(it) }
         val device = checker()
         assertTrue(device.check("bdetts").canRun)
-        val missing = device.check("bdetts", "37111357")
+        val missing = device.check("bdetts", "9294715")
         assertFalse(missing.canRun)
-        assertEquals("libbd_ettl.so", missing.detail)
+        assertEquals("libbd_ettf.so", missing.detail)
         assertTrue(device.check("isstts", "1,old").canRun)
         assertFalse(device.check("isstts", "1,new").canRun)
     }

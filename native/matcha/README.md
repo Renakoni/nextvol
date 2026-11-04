@@ -22,6 +22,13 @@ STFT subset of kaldi-native-fbank and KissFFT; HiFi-GAN remains available. ASR,
 device audio output, espeak command-line tools and tests are not compiled.
 Dependency licenses are included in `assets/matcha-native`.
 
+The same espeak-ng 1.52.0.1 sources also build `libnextvol-espeak.so` for direct
+eSpeak synthesis. Its hidden static symbols keep its voice/data state separate
+from Sherpa's phonemizer. The adapter selects `espeak-ng-data`, language, native
+voice identifier and variant from the imported eSpeak configuration, and emits
+PCM through the existing offline lifecycle. Native rate and volume are applied
+once; pitch remains in the shared audio processor.
+
 The recorded patch turns fatal resource/parser errors into exceptions handled
 at JNI, checks tensor shapes and audio bounds, and releases espeak's global
 resources when the current model closes. Switching a voice reopens its own
@@ -47,7 +54,7 @@ marker libraries keep the APK installable on other supported Android ABIs.
 
 The NDK defaults to `ndk/28.2.13676358` in the Android SDK. CI installs fixed
 NDK/CMake tools and caches the Gradle native task outputs. `matchaNative=false`
-disables the Sherpa backend; the separate vendor runtimes remain embedded.
+disables the Sherpa and standalone eSpeak backends; the separate vendor runtimes remain embedded.
 CI also sets `matchaOrtCacheKey` (`--ort-cache-key` for the script) to reuse the
 independently cached, verified ONNX Runtime install across Matcha/JNI changes.
 
@@ -57,7 +64,7 @@ selects the Python interpreter. The default output is `app/build/matcha`.
 `--ninja`, `--output` and `--jobs` (default 3). It always verifies source
 inventories and builds the current source tree, reusing CMake's object cache.
 
-`jniLibs/arm64-v8a` contains the two generated libraries. The packaged
+`jniLibs/arm64-v8a` contains the Sherpa, eSpeak and ONNX Runtime libraries. The packaged
 `assets/matcha-native` directory contains their build identity and dependency
 licenses; the manifest embeds #793's runtime identity, including toolchain
 binary dependencies. It is published atomically after all exports succeed. Neither generated libraries nor model weights are tracked.

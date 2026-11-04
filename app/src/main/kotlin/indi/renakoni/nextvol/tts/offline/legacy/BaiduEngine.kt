@@ -4,7 +4,6 @@ import android.content.Context
 import com.baidu.tts.jni.ETtsError
 import com.baidu.tts.jni.EmbeddedSynthesizerEngine
 import com.baidu.tts.jni.EmbeddedSynthesizerEnginf
-import com.baidu.tts.jni.EmbeddedSynthesizerEnginl
 import com.baidu.tts.jni.EmbeddedSynthesizerEnginm
 import com.baidu.tts.jni.IEmbeddedSynthesizerEngine
 import hnovel.speech.OfflineVoiceConfig
@@ -50,11 +49,10 @@ internal class BaiduEngine(context: Context, directory: File, private val voice:
         engine = when (appId) {
             "90013" -> EmbeddedSynthesizerEnginm()
             "9294715" -> EmbeddedSynthesizerEnginf()
-            "37111357" -> EmbeddedSynthesizerEnginl()
             else -> EmbeddedSynthesizerEngine()
         }
         val runtimeParameters = offlineRuntimeLicenses(context).optJSONObject("baidu")?.optJSONObject(appId)
-        if (appId == "9294715" || appId == "37111357") {
+        if (appId == "9294715") {
             require(runtimeParameters != null) { "Baidu runtime authorization parameters are missing for $appId" }
         }
         // Keep SDK verification intact; private runtime defaults never enter source or logs.
