@@ -80,9 +80,9 @@ class OfflineAvailabilityChecker internal constructor(
         val required = offlineLibraries(configuration)
             ?: return OfflineAvailability(R.string.tts_offline_model, canRun = false)
         if (configuration.engine == "audio") return OfflineAvailability()
-        if (configuration.engine == "sherpa" && !matchaEnabled)
-            return OfflineAvailability(R.string.tts_offline_runtime_missing, "libnextvol-matcha.so", false)
-        val minimumApi = if (configuration.engine in setOf("google", "sherpa")) 26 else 24
+        if (configuration.engine in setOf("sherpa", "espeak") && !matchaEnabled)
+            return OfflineAvailability(R.string.tts_offline_runtime_missing, "lib${required.first()}.so", false)
+        val minimumApi = if (configuration.engine in setOf("google", "sherpa", "espeak")) 26 else 24
         if (device.api < minimumApi) return OfflineAvailability(R.string.tts_offline_android, minimumApi.toString(), false)
         val pending = ArrayDeque(required.map { "lib$it.so" })
         val visited = mutableSetOf<String>()
@@ -109,7 +109,7 @@ class OfflineAvailabilityChecker internal constructor(
                     if (dependency !in platformLibraries) pending.add(dependency)
                 }
             } ?: run {
-                // The two source-built Sherpa libraries and the Microsoft client AAR are not in the vendor inventory.
+                // The source-built libraries and the Microsoft client AAR are not in the vendor inventory.
                 if (name !in separatelyBuiltLibraries) incomplete = true
             }
         }
@@ -131,10 +131,10 @@ class OfflineAvailabilityChecker internal constructor(
     }
 
     private companion object {
-        val separatelyBuiltLibraries = setOf("libnextvol-matcha.so", "libonnxruntime.so",
+        val separatelyBuiltLibraries = setOf("libnextvol-matcha.so", "libnextvol-espeak.so", "libonnxruntime.so",
             "libMicrosoft.CognitiveServices.Speech.java.bindings.so", "libMicrosoft.CognitiveServices.Speech.core.so")
         val platformLibraries = setOf("libc.so", "libm.so", "libdl.so", "liblog.so", "libstdc++.so", "libz.so",
-            "libandroid.so", "libaaudio.so", "libEGL.so", "libGLESv2.so", "libnativewindow.so", "libsync.so")
+            "libandroid.so", "libaaudio.so", "libEGL.so", "libGLESv2.so", "libnativewindow.so", "libsync.so", "libOpenSLES.so")
     }
 }
 
@@ -144,8 +144,10 @@ internal data class OfflineDevice(val api: Int, val abis: List<String>, val page
 internal fun offlineLibraries(voice: OfflineVoiceConfig): List<String>? = when (voice.engine) {
     "audio" -> emptyList()
     "sherpa" -> listOf("nextvol-matcha", "onnxruntime")
+    "espeak" -> listOf("nextvol-espeak")
+    "bytedance" -> listOf("speechengine")
     "bdetts" -> listOf("c++_shared", "BDSpeechDecoder_V1", when (voice.parameters.substringBefore(',').trim().ifEmpty { "90013" }) {
-        "90013" -> "bd_ettm"; "9294715" -> "bd_ettf"; "37111357" -> "bd_ettl"; else -> "bd_etts"
+        "90013" -> "bd_ettm"; "9294715" -> "bd_ettf"; else -> "bd_etts"
     })
     "isstts" -> if (voice.parameters.split(',').getOrNull(1)?.trim() == "new") listOf("issxtts40", "issauth")
         else listOf("issxtts30", "issavth")

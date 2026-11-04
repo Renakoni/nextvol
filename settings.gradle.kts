@@ -16,6 +16,13 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { setUrl("https://jitpack.io") }
+        maven {
+            setUrl("https://artifact.bytedance.com/repository/Volcengine")
+            content {
+                includeGroupByRegex("com\\.bytedance.*")
+                includeGroup("org.chromium.net")
+            }
+        }
     }
 }
 

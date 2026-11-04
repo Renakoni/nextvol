@@ -184,11 +184,146 @@ no key, model bytes, runtime binary or authentication rule was changed.
 
 ## Coverage limits
 
-The supplied APK lacks Baidu's optional `libbd_ettl.so` variant. Google's supplied
-runtime requires Android 8+, and some older vendor libraries only support 4 KiB
+Google's supplied runtime requires Android 8+, and some older vendor libraries only support 4 KiB
 memory pages. Audio-effect packages play recordings. These are actual runtime
 constraints, not model-identity restrictions.
 
 Physical phones, API 24 runtime behavior and 16 KiB devices were not exercised.
 JVM regression tests are compiled but left to remote CI for execution according
 to the repository's testing rules.
+
+# #879 / #880 / #883 / #884 backend acceptance
+
+Validation date: 2026-11-03 (host local date). MuMu A, Android API 32, arm64
+translation, 4 KiB pages. These checks called the actual package preview,
+selected-resource installer and backend directly from temporary instrumentation;
+they did not use the NextVol UI or an external TTS app to synthesize audio.
+The acceptance debug APK SHA-256 is
+`b8f1c8b23bcc294af8b30798e2732f6b7451a5b13219cda8eac0a6906521a6c2`.
+
+## Reference and build identity
+
+REA/JADX inspected the supplied MultiTTS 1.8.3(84) APK, SHA-256
+`d3f7736b1bf162829677c0772a344696f8f5940e99f45879aa5e26070d0416af`.
+REA/Ghidra also inspected the native eSpeak synthesis boundary, SpeechEngine
+JNI/resource path, Baidu JNI and Cronet initialization. The 1.8.1 and 1.8.2 APKs
+were separately inventoried: all three carry identical SpeechEngine and the
+three shipped Baidu libraries, and none carries `libbd_ettl.so`. #881 was closed
+as not planned; its obsolete 37111357 adapter was removed.
+
+Relevant REA anchors include `n4.a.<init>`
+`ev_42537f9614e067f0b53f6a9e692f68b24f2288ca166739a7dddd9505148db1a4`,
+SpeechEngine environment initialization
+`ev_fe7183887dcad57506bd9e82c1063dbe8d99e603e5d004ec1faf7e4350cee1f0`
+and the installed original app/log observation
+`ev_6689e5194ca8b99872f4facf9a7793eb75c887195b066ae0f8805ec6bd7df9ea`.
+
+The published `offline-runtime-2` bundle contains 46 arm64 libraries and retains
+the SDK bytes unchanged. Its 91,419,587-byte ZIP has SHA-256
+`b3087fe1109aaa4614776e45fb4ebefb83324c7fbed79aa9ec5c9aab392d653e`;
+the ordinary fetch tool downloaded and verified the published asset. Its manifest
+records the source APK and each library hash. SpeechEngine is 1.1.5.3, with
+TTNet Java 4.1.127.6-tob from the official repository. Other vendor kernels remain
+binary SDKs identified by this manifest; where a semantic version is unknown,
+passing synthesis does not establish one or imply source reconstruction.
+The entry-library/companion mapping remains in `../offline/README.md`.
+
+## Real speech results
+
+Thirty selected package/voice cases produced complete mono PCM16 WAVs with
+nonzero samples. The first 26 successful cases below, including ByteDance midu,
+ran with Android reporting no default network. The four additional ByteDance
+resource-repair cases ran after connectivity was restored. ByteDance always used
+offline work mode 2048; there is no online synthesis fallback. Successful cases
+were retained without repeating the whole matrix.
+
+| Backend / voice | Hz | Seconds |
+| --- | ---: | ---: |
+| eSpeak en-US male / f1 variant | 22,050 | 2.584 / 2.575 |
+| Melo Chinese / English (speaker 1) | 44,100 | 5.769 / 5.058 |
+| Coqui Dutch CSS10 | 22,050 | 3.755 |
+| Kitten nano v0.1 FP16 (speaker 7) | 24,000 | 4.602 |
+| ByteDance BV001_24k, midu | 24,000 | 4.126 |
+| ByteDance BV001 / BV002, repaired resource mapping | 16,000 | 3.972 / 3.648 |
+| ByteDance BV004 / BV104, midu selected without a midu param | 16,000 | 3.448 / 3.917 |
+| Acapela Tracy, empty param | 22,050 | 5.059 |
+| Baidu 90013 xiaonvhai / 6082724 along with extension model | 16,000 | 6.160 / 4.864 |
+| CereProc Mailin | 24,000 | 7.409 |
+| Google cmn-cn-x-cca | 24,000 | 6.630 |
+| IssTTS huidi_assist | 24,000 | 5.747 |
+| Lark xiaokun legacy / tangseng modern | 16,000 | 6.902 / 7.180 |
+| MSC xiaorong xzhd / xiaoyuan standard | 16,000 | 5.937 / 4.105 |
+| Microsoft classic Andrei / Hongyu / neural Xiaoxiao | 24,000 | 4.925 / 6.556 / 5.150 |
+| Samsung zh_cn_f00 | 24,000 | 5.619 |
+| Sogou lvxiaobing | 16,000 | 4.400 |
+| VCS linzhilingyuyin | 16,000 | 6.282 |
+| Vocalizer Cantonese Sinji | 22,050 | 6.210 |
+| WeRead fn | 16,000 | 5.990 |
+| Xiaomi mitang | 16,000 | 6.276 |
+
+Representative Chinese text: “夜色渐深，窗外传来轻轻的脚步声。她放下书，转身望向门口。”
+These are waveform observations, not subjective audio-quality assessments.
+
+Melo and Coqui came from the supplied `【离线】 Sherpa-onnx.zip`; Kitten came
+from `【在线】 Sherpa-onnx示例包（Kitten TTS模型）.zip`, whose actual engine is
+offline Sherpa. Model identities:
+
+| Model | SHA-256 |
+| --- | --- |
+| `vits-melo-tts-zh_en/model.onnx` | `87a22783d9b5b08d66dcaaeb2a40b85a9ecb3c207a32fa06a8e73f6e77da8c3b` |
+| `vits-melo-tts-en_v2/model.onnx` | `9b471a552991ef1e677d9efdba1cfc81683408f454218304ffe974f08a305c68` |
+| `vits-coqui-nl-css10/model.onnx` | `9f059842bdac4c31db63523ebc686ad565daf859dead250d7de7637f186dbf6e` |
+| `kitten-nano-en-v0_1-fp16/model.fp16.onnx` | `6b42d25df767db408d95738b464f02168a9cfb76367c1b2b9e90095485981407` |
+
+The Coqui directory lacked `espeak-ng-data`; its acceptance fixture explicitly
+supplied that data from `vits-piper-en_US-hfc_female-medium` in the same ZIP.
+The original Coqui package alone was not marked as passing. eSpeak used that
+same Piper data with separate male and f1 configurations. These hashes
+identify evidence, not model admission requirements.
+
+## ByteDance original-app comparison and repair
+
+The supplied `【离线】 字节跳动.zip` has SHA-256
+`b5d6d78f9a3b80dc6d58de57fd40128631a877ef99aceb7562c92c280e09200e`.
+Its 15 voices use two resource directories, `fanqie` and `midu`; those are not
+speaker names. The installed original MultiTTS 1.8.3 was exercised separately.
+BV001 and BV002 failed because it looked for absent `midu/BV001_streaming` and
+`midu/BV002_streaming`; BV004 and BV104 had corresponding midu models and emitted
+audio. REA's constructor decompilation confirms flat-directory/midu selection,
+independent of the speaker's `param`.
+
+The adapter now prefers midu models and, for the two legacy-only voices, gives
+the SDK separate paths to the unchanged fanqie voice model and the same package's
+midu base data/license. Both repaired voices passed direct synthesis through the
+actual importer. No model/SDK patch, license replacement or alternate online
+engine was needed. A package missing its required shared data/license still
+reports missing resources. All 15 definitions are retained; representative
+synthesis does not claim that every voice was individually exercised.
+
+## Lifecycle and limits
+
+eSpeak invalid-voice initialization, cancellation after the first PCM callback,
+release and fresh-instance recovery passed. A Kitten instance (speaker 0) stayed
+open while eSpeak failed, cancelled and terminated; it then emitted a valid
+24,000 Hz WAV, confirming the two eSpeak native states are independent.
+
+ByteDance missing-resource initialization recovered, cancellation after PCM
+unblocked the waiter without a WAV or `.part`, and a fresh instance generated
+two consecutive paragraphs at rate 1.2. The second paragraph tolerates the SDK's
+already-working START result, matching the original app. Settings/environment
+initialization prevents the earlier missing-Cronet-context crash during cleanup.
+Wi-Fi was restored and Android reported a validated default network afterward.
+
+Acapela's nonempty-param branch and Baidu's 9294715/bd_ettf model remain without
+matching local samples; their existing implementation was not removed. No new
+API 24, 16 KiB or physical-phone claim is made. Google/eSpeak/Sherpa require API
+26+, and legacy SDK page-alignment constraints remain. Player UI, chapter/role
+orchestration and all-voice coverage are outside this backend-only acceptance;
+the earlier Piper/Matcha/Kokoro evidence above is retained, not reclassified as
+new runs. No vendor kernel is marked source-complete by a successful WAV.
+
+Debug and Release assembly, Release R8/Vital Lint, Debug Lint, app unit-test
+compilation and source-speech test compilation passed. Debug Lint reported
+454 warnings and 9 hints, with no errors; Release Vital Lint had no errors or
+warnings. JVM tests were not executed locally. Temporary device harnesses and
+all model/audio artifacts remain outside the committed tree.

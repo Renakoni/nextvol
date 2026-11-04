@@ -1,4 +1,4 @@
-# Only the phonemizer and inverse STFT needed by offline TTS are built.
+# eSpeak synthesis/phonemization and the inverse STFT needed by offline TTS.
 # Model-supplied espeak data stays in the managed voice installation.
 set(HAVE_MKSTEMP 1)
 set(PROJECT_VERSION 1.52.0.1)

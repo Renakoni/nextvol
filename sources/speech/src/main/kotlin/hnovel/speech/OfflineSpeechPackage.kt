@@ -38,7 +38,7 @@ data class OfflinePackagePlan(
 data class OfflinePackagePreview(val plan: OfflinePackagePlan? = null, val error: MatchaPackageError? = null, val detail: String = "")
 
 private val offlineEngineCodes = setOf("audio", "acapela", "bdetts", "cereproc", "google", "isstts", "larktts",
-    "msctts", "sherpa", "vcstts", "vocalizer", "weread", "samsung", "xiaomi", "microsoft", "sougou")
+    "msctts", "sherpa", "vcstts", "vocalizer", "weread", "samsung", "xiaomi", "microsoft", "sougou", "espeak", "bytedance")
 
 data class OfflineVoiceDefinition(val configuration: OfflineVoiceConfig, val metadata: OfflineVoiceMetadata)
 
@@ -120,6 +120,17 @@ fun offlineResources(config: OfflineVoiceConfig, available: List<SpeechPackageRe
     }
     return when (config.engine) {
         "audio" -> listOf(required(config.parameters))
+        "espeak" -> tree("espeak-ng-data")
+        "bytedance" -> {
+            val voice = config.code.substringBefore('-') + "_streaming"
+            val root = if (available.any { it.path.startsWith(prefix + voice + "/") }) "" else "midu/"
+            // MultiTTS selects flat/midu data regardless of param. Older voices
+            // may only exist in fanqie, but work with this package's midu base.
+            val model = if (available.any { it.path.startsWith(prefix + root + voice + "/") }) root + voice
+                else "fanqie/$voice"
+            tree(root + "zh-cn") + tree(model) + if (root == "midu/") listOf(required(root + "speech_license.licbag"))
+                else available.filter { it.path == prefix + "speech_license.licbag" }
+        }
         "xiaomi", "samsung", "microsoft", "vocalizer" -> tree(config.code)
         "cereproc" -> {
             val selected = tree(config.code).toMutableList()
