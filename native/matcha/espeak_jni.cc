@@ -1,6 +1,5 @@
 #include <jni.h>
 #include <espeak-ng/speak_lib.h>
-#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>

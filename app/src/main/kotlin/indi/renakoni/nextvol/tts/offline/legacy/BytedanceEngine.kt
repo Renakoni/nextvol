@@ -19,7 +19,7 @@ internal class BytedanceEngine(context: Context, directory: File, private val vo
     @Volatile private var completion: CountDownLatch? = null
     @Volatile private var output: ((ByteArray, Int) -> Unit)? = null
     @Volatile private var failure: Throwable? = null
-    override val sampleRate = voice.sampleRate.takeIf { it > 0 } ?: 24000
+    override val sampleRate = voice.sampleRate
 
     init {
         BytedanceEnvironment.prepare(context)
@@ -64,7 +64,6 @@ internal class BytedanceEngine(context: Context, directory: File, private val vo
 
     override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
         check(handle != 0L)
-        if (cancelled) throw CancellationException("ByteDance synthesis cancelled")
         val done = CountDownLatch(1)
         failure = null
         output = emit

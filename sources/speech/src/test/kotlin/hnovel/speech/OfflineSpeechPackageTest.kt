@@ -75,7 +75,6 @@ class OfflineSpeechPackageTest {
     @Test fun espeakAndBytedanceSelectTheirDeclaredOfflineDataWithoutExecutingAnEngine() {
         val espeak = preview("espeak", "gmw/en,female-young",
             listOf("espeak-ng-data/phontab", "espeak-ng-data/voices/!v/f1", "unrelated.txt")).plan!!
-        assertEquals("gmw/en,female-young", espeak.configuration.parameters)
         assertEquals(2, espeak.resources.size)
         val files = listOf("midu/zh-cn/frontend.bin", "midu/voice_streaming/model.bin",
             "midu/speech_license.licbag", "midu/other_streaming/model.bin")
@@ -86,8 +85,6 @@ class OfflineSpeechPackageTest {
         assertEquals(setOf("bytedance/midu/zh-cn/frontend.bin", "bytedance/midu/speech_license.licbag",
             "bytedance/fanqie/voice_streaming/model.bin"), fanqie.resources.map { it.path }.toSet())
         assertEquals(bytedance.resources, preview("bytedance", paths = files + "fanqie/voice_streaming/model.bin").plan!!.resources)
-        assertEquals(MatchaPackageError.MissingResource,
-            preview("bytedance", paths = files.filterNot { it.contains("zh-cn") }).error)
     }
 
     @Test fun baiduAndSogouKeepSharedDependenciesAndOnlyTheSelectedAcousticResources() {

@@ -198,7 +198,7 @@ Validation date: 2026-11-03 (host local date). MuMu A, Android API 32, arm64
 translation, 4 KiB pages. These checks called the actual package preview,
 selected-resource installer and backend directly from temporary instrumentation;
 they did not use the NextVol UI or an external TTS app to synthesize audio.
-The final debug APK SHA-256 is
+The acceptance debug APK SHA-256 is
 `b8f1c8b23bcc294af8b30798e2732f6b7451a5b13219cda8eac0a6906521a6c2`.
 
 ## Reference and build identity

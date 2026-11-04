@@ -81,7 +81,7 @@ class OfflineAvailabilityChecker internal constructor(
             ?: return OfflineAvailability(R.string.tts_offline_model, canRun = false)
         if (configuration.engine == "audio") return OfflineAvailability()
         if (configuration.engine in setOf("sherpa", "espeak") && !matchaEnabled)
-            return OfflineAvailability(R.string.tts_offline_runtime_missing, required.firstOrNull()?.let { "lib$it.so" }.orEmpty(), false)
+            return OfflineAvailability(R.string.tts_offline_runtime_missing, "lib${required.first()}.so", false)
         val minimumApi = if (configuration.engine in setOf("google", "sherpa", "espeak")) 26 else 24
         if (device.api < minimumApi) return OfflineAvailability(R.string.tts_offline_android, minimumApi.toString(), false)
         val pending = ArrayDeque(required.map { "lib$it.so" })
@@ -109,7 +109,7 @@ class OfflineAvailabilityChecker internal constructor(
                     if (dependency !in platformLibraries) pending.add(dependency)
                 }
             } ?: run {
-                // The two source-built Sherpa libraries and the Microsoft client AAR are not in the vendor inventory.
+                // The source-built libraries and the Microsoft client AAR are not in the vendor inventory.
                 if (name !in separatelyBuiltLibraries) incomplete = true
             }
         }
