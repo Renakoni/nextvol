@@ -6,6 +6,8 @@ import hnovel.execution.*
 import hnovel.network.*
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.previewHttpSpeech
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -26,7 +28,44 @@ class BuiltInSpeechSourcesTest {
         override fun getFilesDir() = directory.root
     } }
     private val authority = ExecutionAuthority()
-    private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority)
+    private val offline by lazy { OfflineSpeechRepository(File(directory.root, "offline")) }
+    private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline,
+        OfflineEngineRepository(context, StorageCipher.Plain))
+
+    @Test fun catalogTicketsRespectEngineEditsAndRetirementWithAndWithoutSavedVoices() = runBlocking {
+        val repository = repository()
+        val engine = SpeechEngineConfig("azure", "Azure", parameters = "{\"region\":\"eastus\"}")
+        repository.saveEngine(engine, creating = true)
+        val draftTicket = repository.withCatalogSource(engine) { source, _ ->
+            assertTrue(source.origins.isNotEmpty())
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        val edited = engine.copy(parameters = "{\"region\":\"westus\"}")
+        repository.saveEngine(edited)
+        assertFalse(authority.accepts(draftTicket))
+        assertNull(repository.withCatalogSource(engine) { _, _ -> fail("Stale engine issued a catalog ticket") })
+        val saved = newHttpVoice(edited)
+        repository.saveVoice(saved)
+        val savedTicket = repository.withCatalogSource(edited) { source, _ ->
+            assertEquals(saved.definition.id, source.definition.id)
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        val disabled = edited.copy(enabled = false)
+        repository.saveEngine(disabled)
+        assertFalse(authority.accepts(savedTicket))
+        assertNull(repository.withCatalogSource(edited) { _, _ -> fail("Disabled engine issued a catalog ticket") })
+        assertNull(repository.withCatalogSource(disabled) { _, _ -> fail("Current disabled engine issued a catalog ticket") })
+        repository.saveEngine(edited)
+        repository.delete(saved.definition.id)
+        val reopened = repository.withCatalogSource(edited) { source, _ ->
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        assertEquals(draftTicket.sourceId, reopened.sourceId)
+        val deleted = edited.copy(deleted = true)
+        repository.saveEngine(deleted)
+        assertFalse(authority.accepts(reopened))
+        assertNull(repository.withCatalogSource(deleted) { _, _ -> fail("Deleted engine issued a catalog ticket") })
+    }
 
     @Test fun translatorVoicesSurviveEditingReimportReopenAndEngineRevocation() = runBlocking {
         val engine = SpeechEngineConfig("mstrans", "Translator", "inner")
@@ -38,6 +77,7 @@ class BuiltInSpeechSourcesTest {
             }, true, true).copy(isVoiceCopy = false)
         }
         val repository = repository()
+        repository.saveEngine(engine, creating = true)
         repository.save(voices)
         val first = repository.sources().first { !it.isBuiltIn }
         assertEquals(voices.first().definition.id, first.definition.id)
@@ -60,9 +100,17 @@ class BuiltInSpeechSourcesTest {
             repository().sources().single { it.definition.id == selected.definition.id }.definition.url)
         repository.saveEngine(updated.copy(deleted = true, enabled = false))
         assertTrue(repository().sources().filterNot { it.isBuiltIn }.none { it.available })
+        val discovered = "{\"authHost\":\"auth.example.org\",\"userId\":\"7\"}"
+        repository.saveDiscoveredEngineParameters(updated.code, updated.parameters, discovered)
+        val savedEngine = repository().engines().single()
+        assertEquals(updated.copy(deleted = true, enabled = false, parameters = discovered), savedEngine)
+        val changes = repository.changes.value
+        repository.saveDiscoveredEngineParameters(updated.code, updated.parameters, "{\"userId\":\"stale\"}")
+        assertEquals(changes, repository.changes.value)
+        assertEquals(savedEngine, repository().engines().single())
     }
 
-    @Test fun freshInstallReopenAndResetKeepTheCompleteCatalogWithoutImporting() = runBlocking {
+    @Test fun freshInstallAndNoOpResetKeepTheCompleteCatalogWithoutWriting() = runBlocking {
         val initial = repository().sources()
         assertEquals(96, initial.size)
         assertTrue(initial.all { it.isConfigured })
@@ -74,8 +122,7 @@ class BuiltInSpeechSourcesTest {
         val voice = initial.first()
         repository.delete(voice.definition.id)
         assertEquals(initial.map { it.definition.raw to it.origins }, repository().sources().map { it.definition.raw to it.origins })
-        assertTrue(File(directory.root, "http-speech.enc").delete())
-        assertEquals(initial.map { it.definition.raw to it.origins }, repository().sources().map { it.definition.raw to it.origins })
+        assertFalse(File(directory.root, "http-speech.enc").exists())
     }
 
     @Test fun legacyImportsRemainSeparateAndCannotReplaceBuiltIns() = runBlocking {

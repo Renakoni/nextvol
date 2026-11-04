@@ -40,7 +40,7 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
             return failed(HttpSpeechPackageError.UnsupportedRequest)
     }
     return try {
-        val sources = engine.voices.map { imported ->
+        val sources = engine.voices.filter(engine::isOnlineVoice).map { imported ->
             val voice = imported.withImportDefaults(engine.code)
             HttpSpeechDefinition.parse(buildJsonObject {
                 put("name", voice.name.ifBlank { voice.code })
@@ -66,7 +66,7 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
     catch (_: StackOverflowError) { failed(HttpSpeechPackageError.InvalidConfiguration) }
 }
 
-private fun SpeechPackageValue.jsonData(): JsonElement = when (this) {
+internal fun SpeechPackageValue.jsonData(): JsonElement = when (this) {
     is SpeechPackageValue.Scalar -> text()?.let(::JsonPrimitive) ?: JsonNull
     is SpeechPackageValue.Sequence -> JsonArray(values.map { it.jsonData() })
     is SpeechPackageValue.Mapping -> JsonObject(values.mapValues { it.value.jsonData() })

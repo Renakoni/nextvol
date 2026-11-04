@@ -22,6 +22,8 @@ internal fun offlineSpeechExclusiveGroup(engine: String): String = when (engine)
     else -> "legacy"
 }
 
+internal val legacySpeechPermit = Semaphore(1)
+
 /** Owns a vendor runtime for its entire open/synthesize/close lifetime. */
 internal class OfflineSpeechSynthesizer(
     context: Context,
@@ -152,7 +154,7 @@ internal class OfflineSpeechSynthesizer(
 
     private companion object {
         // Sogou/Baidu use separate runtimes and handles. Other SDKs retain the shared lifecycle limit.
-        val permits = listOf("sougou", "bdetts", "legacy").associateWith { Semaphore(1) }
+        val permits = mapOf("sougou" to Semaphore(1), "bdetts" to Semaphore(1), "legacy" to legacySpeechPermit)
 
         fun createEngine(context: Context, directory: File, voice: OfflineVoiceConfig): OfflineEngine = when (voice.engine) {
             "espeak" -> EspeakEngine(directory, voice)

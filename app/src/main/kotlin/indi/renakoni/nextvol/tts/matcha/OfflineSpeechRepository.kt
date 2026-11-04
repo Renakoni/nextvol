@@ -32,6 +32,9 @@ import kotlin.concurrent.withLock
 data class OfflineVoiceRef(val id: String, val revision: String)
 
 @Serializable
+data class OfflineSpeechResources(val reference: OfflineVoiceRef, val sizes: Map<String, Long>, val avatar: String? = null)
+
+@Serializable
 data class InstalledOfflineVoice(
     val reference: OfflineVoiceRef,
     val name: String,
@@ -61,6 +64,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
 
     private val root = root.canonicalFile
     private val catalog = AtomicFile(File(root, "voices.json"))
+    private val onlineResources = AtomicFile(File(root, "online-resources.json"))
     private val lock = ReentrantLock()
     private val installing = Mutex()
     private val leases = mutableMapOf<OfflineVoiceRef, Int>()
@@ -68,6 +72,22 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
     private var recovered = false
     private val mutableChanges = MutableStateFlow(0L)
     val changes = mutableChanges.asStateFlow()
+
+    /** A mixed engine can keep its installed model while the speaker uses its online type. */
+    internal fun retainOnlineResources(references: Set<OfflineVoiceRef>, keepPrevious: Boolean = false) = lock.withLock {
+        val previous = readOnlineResources()
+        val next = if (keepPrevious) previous + references else references
+        if (next == previous) return@withLock
+        root.mkdirs()
+        val output = onlineResources.startWrite()
+        try { output.write(Json.encodeToString(next).toByteArray()); onlineResources.finishWrite(output) }
+        catch (error: Exception) { onlineResources.failWrite(output); throw error }
+        (previous - next).forEach(::retire)
+    }
+
+    private fun readOnlineResources(): Set<OfflineVoiceRef> = try {
+        onlineResources.openRead().use { Json.decodeFromString(it.bufferedReader().readText()) }
+    } catch (_: FileNotFoundException) { emptySet() }
 
     /** Like MultiTTS, discover missing Sherpa choices only after the user actually opens the model. */
     internal fun recordRuntimeInfo(reference: OfflineVoiceRef, info: OfflineVoiceRuntimeInfo) = lock.withLock {
@@ -172,6 +192,9 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
         if (!safeSpeechPackagePath(name)) return null
         return File(directory(voice.resourceReference), name).takeIf { it.canonicalFile == it.absoluteFile && it.isFile }
     }
+
+    internal fun avatar(resources: OfflineSpeechResources): File? = resources.avatar?.takeIf(::safeSpeechPackagePath)
+        ?.let { File(directory(resources.reference), it).takeIf { file -> file.canonicalFile == file.absoluteFile && file.isFile } }
 
     fun problem(voice: InstalledOfflineVoice): String? = lock.withLock {
         val directory = directory(voice.resourceReference)
@@ -299,27 +322,72 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
         }
     }
 
+    /** A new speaker belongs to an engine; matching installed resources are reused without copying another speaker's settings. */
+    suspend fun create(draft: InstalledOfflineVoice, retained: OfflineSpeechResources? = null): InstalledOfflineVoice = withContext(Dispatchers.IO) {
+        lock.withLock {
+            val current = read()
+            val configuration = requireNotNull(draft.configuration)
+            require(draft.name.isNotBlank() && safeSpeechPackagePath(configuration.code))
+            val resources = retained?.takeIf { matchesResources(configuration, it.sizes) }
+                ?: matchingResources(configuration, current)
+            val sizes = resources?.sizes.orEmpty()
+            val normalized = if (configuration.engine == "sherpa" && sizes.isEmpty()) configuration
+                else normalizeOfflineVoice(configuration, sizes.keys)
+            val voice = draft.copy(name = draft.name.trim(), sizes = sizes, configuration = normalized,
+                resourceReference = resources?.reference ?: draft.reference, packageAvatar = resources?.avatar ?: draft.packageAvatar)
+            root.mkdirs()
+            write(current + voice)
+            mutableChanges.value++
+            voice
+        }
+    }
+
     /** Copies only speaker settings; shared model files stay leased until their final speaker is removed. */
     suspend fun save(edited: InstalledOfflineVoice, copy: Boolean = false): InstalledOfflineVoice = withContext(Dispatchers.IO) {
         lock.withLock {
             val current = read()
             val previous = current.single { it.reference == edited.reference }
             require(edited.name.isNotBlank())
-            val configuration = normalizeOfflineVoice(requireNotNull(edited.configuration), previous.sizes.keys)
+            val requested = requireNotNull(edited.configuration)
+            val resources = matchingResources(requested, listOf(previous) + current.filterNot { it.reference == previous.reference })
+            val sizes = resources?.sizes ?: previous.sizes
+            val configuration = if (requested.engine == "sherpa" && sizes.isEmpty()) requested
+                else normalizeOfflineVoice(requested, sizes.keys)
             val original = this@OfflineSpeechRepository.configuration(previous)
             require(configuration.engine == original.engine && safeSpeechPackagePath(configuration.code))
             val changedSynthesis = configuration != previous.configuration || edited.enabled != previous.enabled
             val reference = if (copy) OfflineVoiceRef(UUID.randomUUID().toString(), UUID.randomUUID().toString())
                 else if (changedSynthesis) previous.reference.copy(revision = UUID.randomUUID().toString()) else previous.reference
             val saved = previous.copy(reference = reference, name = edited.name.trim(), configuration = configuration,
-                resourceReference = previous.resourceReference, enabled = edited.enabled, metadata = edited.metadata,
+                resourceReference = resources?.reference ?: previous.resourceReference, sizes = sizes,
+                packageAvatar = resources?.avatar ?: previous.packageAvatar, enabled = edited.enabled, metadata = edited.metadata,
                 sourceKey = if (copy) "" else previous.sourceKey,
                 defaults = previous.defaults ?: OfflineVoiceDefaults(previous.name, previous.configuration ?: original, previous.metadata))
             write(if (copy) current + saved else current.map { if (it.reference == previous.reference) saved else it })
+            if (!copy && saved.resourceReference != previous.resourceReference) retire(previous.resourceReference)
             mutableChanges.value++
             saved
         }
     }
+
+    private fun matchingResources(configuration: OfflineVoiceConfig, voices: List<InstalledOfflineVoice>): OfflineSpeechResources? =
+        voices.firstOrNull { installed ->
+            val original = installed.defaults?.configuration ?: installed.configuration
+            original?.engine == configuration.engine &&
+                (configuration.engine != "sherpa" || sherpaDirectory(configuration) == sherpaDirectory(original)) &&
+                matchesResources(configuration, installed.sizes)
+        }?.let { OfflineSpeechResources(it.resourceReference, it.sizes, it.packageAvatar) }
+
+    private fun matchesResources(configuration: OfflineVoiceConfig, sizes: Map<String, Long>): Boolean = runCatching {
+        val normalized = normalizeOfflineVoice(configuration, sizes.keys)
+        if (configuration.engine != "sherpa") offlineResources(normalized, sizes.map { (path, bytes) ->
+            SpeechPackageResource("${configuration.engine}/$path", bytes)
+        }).also { require(it.isNotEmpty()) }
+    }.isSuccess
+
+    private fun sherpaDirectory(configuration: OfflineVoiceConfig): String =
+        resolveSherpaParameters(configuration.rawParameters ?: configuration.parameters, configuration.extendUI)
+            .get("modelDir")?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank) ?: configuration.code
 
     suspend fun enable(references: Set<OfflineVoiceRef>, enabled: Boolean): List<InstalledOfflineVoice> = withContext(Dispatchers.IO) {
         lock.withLock {
@@ -370,7 +438,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
     }
 
     private fun retire(reference: OfflineVoiceRef) {
-        if (read().any { it.resourceReference == reference }) return
+        if (reference in readOnlineResources() || read().any { it.resourceReference == reference }) return
         retired += reference
         if (reference !in leases && directory(reference).deleteRecursively()) retired -= reference
     }
@@ -388,7 +456,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
         } catch (_: FileNotFoundException) { emptyList() }
         if (!recovered) {
             recovered = true
-            val installed = voices.map { directory(it.resourceReference) }.toSet()
+            val installed = (voices.map { it.resourceReference } + readOnlineResources()).map(::directory).toSet()
             // A previous process may have died before publication or after retiring a revision.
             root.listFiles().orEmpty().filter { it.isDirectory && it.canonicalFile == it.absoluteFile }.forEach { group ->
                 if (group.name.startsWith(".install-")) group.deleteRecursively()

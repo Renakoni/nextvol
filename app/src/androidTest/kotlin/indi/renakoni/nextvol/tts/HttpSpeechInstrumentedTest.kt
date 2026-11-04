@@ -94,7 +94,7 @@ class HttpSpeechInstrumentedTest {
                                         "Fixture certificate was not reported: $rejected"
                                     }
                                     transport.approveCertificate(checkNotNull(rejected.certificate))
-                                    client = HttpSpeechClient(source, broker, grants, authority, executor::execute)
+                                    client = HttpSpeechClient(source, broker, grants, authority, run = executor::execute)
                                     source.name
                                 }
                                 override suspend fun synthesize(text: String, output: File): List<SpeechTiming> {
@@ -167,7 +167,7 @@ class HttpSpeechInstrumentedTest {
                 val audio = wave(seconds = 4)
                 server.enqueue(MockResponse().setHeader("Content-Type", "audio/mpeg").setBody(okio.Buffer().write(audio)))
                 SourceBroker(File(directory, "runtime").toPath()).use { owner ->
-                    HttpSpeechClient(source, owner, listOf(NetworkGrant(url, true)), authority, executor::execute).use { client ->
+                    HttpSpeechClient(source, owner, listOf(NetworkGrant(url, true)), authority, run = executor::execute).use { client ->
                         val text = "中文 {{40+2}} {{speakSpeed}} @js:literal <js>literal</js>"
                         val file = File(directory, "speech.wav").apply { writeBytes(client.synthesize(text)) }
                         val request = server.takeRequest(3, TimeUnit.SECONDS)!!
@@ -226,9 +226,11 @@ class HttpSpeechInstrumentedTest {
             val raw = """{"id":123,"name":"Voice","url":"https://example.org","header":{"Authorization":"private-test-token"},"unknown":{"value":42}}"""
             val source = previewHttpSpeech(raw).sources.single()
             val authority = ExecutionAuthority()
-            HttpSpeechRepository(isolated, AndroidSourceStorageCipher(), authority).save(listOf(SavedHttpSpeechSource(source, listOf("https://example.org:443"))))
+            val offline = indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository(File(directory, "offline"))
+            val engines = indi.renakoni.nextvol.tts.offline.OfflineEngineRepository(isolated, AndroidSourceStorageCipher())
+            HttpSpeechRepository(isolated, AndroidSourceStorageCipher(), authority, offline, engines).save(listOf(SavedHttpSpeechSource(source, listOf("https://example.org:443"))))
             assertFalse(File(directory, "http-speech.enc").readBytes().toString(Charsets.UTF_8).contains("private-test-token"))
-            val reopened = HttpSpeechRepository(isolated, AndroidSourceStorageCipher(), authority)
+            val reopened = HttpSpeechRepository(isolated, AndroidSourceStorageCipher(), authority, offline, engines)
             assertEquals(source.raw, reopened.sources().single { it.definition.id == source.id }.definition.raw)
             val oldTicket = reopened.withSource(source.id) { _, runtime ->
                 runtime.mkdirs()

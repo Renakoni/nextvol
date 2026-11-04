@@ -24,6 +24,7 @@ import javax.inject.Inject
 class HttpVoiceEditorViewModel @Inject constructor(
     private val repository: HttpSpeechRepository, private val settings: SpeechSettingsRepository,
     private val saved: SavedStateHandle,
+    private val msc: MscVoiceEditing,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(OfflineVoiceEditorState())
     val state = mutableState.asStateFlow()
@@ -73,26 +74,22 @@ class HttpVoiceEditorViewModel @Inject constructor(
         }
     }
 
-    private fun candidate(source: SavedHttpSpeechSource, original: InstalledOfflineVoice, draft: OfflineVoiceDraft, copy: Boolean): SavedHttpSpeechSource {
-        val voice = draft.applyTo(original)
-        val configuration = requireNotNull(voice.configuration)
-        val fields = buildJsonObject {
-            put("code", configuration.code); put("name", voice.name); put("locale", configuration.locale)
-            put("param", configuration.rawParameters.orEmpty()); put("extendUI", configuration.extendUI)
-            put("speed", configuration.speed); put("pitch", configuration.pitch); put("volume", configuration.volume)
-            put("sampleRate", configuration.sampleRate); put("gender", configuration.gender); put("type", configuration.type)
-            put("note", voice.metadata.note); put("desc", voice.metadata.description); put("avatar", voice.metadata.avatar)
-        }
-        return editHttpVoice(source, fields, voice.enabled, copy)
-    }
-
     fun save(copy: Boolean, onSaved: () -> Unit) = work {
         val current = state.value
         val selected = requireNotNull(source)
-        val candidate = withContext(Dispatchers.Default) { candidate(selected, requireNotNull(current.voice), requireNotNull(current.draft), copy) }
+        val edited = withContext(Dispatchers.Default) { requireNotNull(current.draft).applyTo(requireNotNull(current.voice)) }
         withContext(NonCancellable) {
-            repository.saveVoice(candidate)
-            settings.update { if (it.httpSource == candidate.definition.id) it.copy(httpRevision = UUID.randomUUID().toString()) else it }
+            if (selected.importedEngineCode == "msctts" && edited.configuration?.type == 0) msc.toOffline(selected, edited, copy)
+            else {
+                val candidate = withContext(Dispatchers.Default) { editHttpVoice(selected, edited.speakerFields(), edited.enabled, copy) }
+                repository.saveVoice(candidate)
+                if (!copy) settings.update { value ->
+                    val updated = value.updateVoiceSelections(
+                        SpeechVoiceRef(httpSource = selected.definition.id, externalId = selected.packageVoiceId()),
+                        SpeechVoiceRef(httpSource = candidate.definition.id, label = candidate.definition.name, externalId = candidate.packageVoiceId()))
+                    if (updated.httpSource == candidate.definition.id) updated.copy(httpRevision = UUID.randomUUID().toString()) else updated
+                }
+            }
         }
         onSaved()
     }

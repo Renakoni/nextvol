@@ -55,6 +55,10 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
 
     suspend fun remove(ids: Set<String>) = change { pairs -> pairs.filterNot { it.id in ids } }
 
+    internal suspend fun replaceVoiceReference(previous: SpeechVoiceRef, replacement: SpeechVoiceRef) = change { pairs ->
+        pairs.map { if (it.value.canonicalKey == previous.canonicalKey) it.copy(value = replacement.copy(externalId = it.value.externalId)) else it }
+    }
+
     suspend fun clear(bookId: String? = null) = withContext(Dispatchers.IO) { mutex.withLock {
         val pairs = decode(stored.get())
         val next = pairs.filterNot { bookId == null || it.bookId == bookId }

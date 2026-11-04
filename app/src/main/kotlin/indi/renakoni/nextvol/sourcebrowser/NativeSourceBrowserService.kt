@@ -375,6 +375,7 @@ class NativeSourceBrowserService : Service() {
         private fun matches(url: String) = job.options.sourceRegex.isNotBlank() && Regex(job.options.sourceRegex).containsMatchIn(url)
 
         private fun scheduleEvaluation() {
+            if (job.options.interactive && job.options.waitForConfirmation) return
             val version = navigation
             val completedAt = SystemClock.uptimeMillis()
             fun schedule(static: Boolean) {

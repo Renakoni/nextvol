@@ -8,6 +8,7 @@ import okhttp3.WebSocketListener
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okio.Buffer
+import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import org.junit.Assert.*
 import org.junit.Rule
@@ -39,6 +40,7 @@ class BrokerWebSocketTest {
                         webSocket.send("done")
                     }
                 }
+                override fun onMessage(webSocket: WebSocket, bytes: ByteString) { webSocket.send(bytes) }
             }))
             server.start()
             SourceBroker(directory.root.toPath()).use { broker ->
@@ -47,6 +49,10 @@ class BrokerWebSocketTest {
                     socket.sendText("speak")
                     val audio = (socket.readMessage() as BrokerWebSocketMessage.Binary).bytes
                     assertEquals("done", (socket.readMessage() as BrokerWebSocketMessage.Text).text)
+                    val binary = byteArrayOf(0, 1, -1)
+                    socket.sendBinary(binary)
+                    assertArrayEquals(byteArrayOf(0, 1, -1), binary)
+                    assertArrayEquals(binary, (socket.readMessage() as BrokerWebSocketMessage.Binary).bytes)
                     audio
                 }
                 assertArrayEquals(byteArrayOf(1, 2, 3), result)

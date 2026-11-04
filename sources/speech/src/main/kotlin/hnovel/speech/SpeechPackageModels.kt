@@ -46,7 +46,10 @@ class SpeechPackageEngine(
     val notices: List<SpeechPackageNotice>,
     val requiredResources: List<SpeechPackageResourceReference>,
 ) {
-    val isOnline: Boolean get() = isOnlineSpeechEngine(code, type)
+    val isOnline: Boolean get() = isOnlineSpeechEngine(code, type) &&
+        (code != "msctts" || voices.isEmpty() || voices.any(::isOnlineVoice))
+    fun isOnlineVoice(voice: SpeechPackageVoice): Boolean = isOnlineSpeechEngine(code, type) &&
+        (code != "msctts" || voice.raw.values["type"].text()?.toIntOrNull()?.let { it != 0 } == true)
     override fun toString() = "SpeechPackageEngine(code=$code, voices=${voices.size}, support=$support)"
 }
 

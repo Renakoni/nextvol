@@ -28,6 +28,8 @@ class BrokerWebSocket internal constructor(socket: Socket, private val maxReques
 
     fun sendText(text: String) = transport { send(1, text.toByteArray(Charsets.UTF_8)) }
 
+    fun sendBinary(bytes: ByteArray) = transport { send(2, bytes.copyOf()) }
+
     fun readMessage(): BrokerWebSocketMessage = transport {
         val message = Buffer()
         var messageOpcode = -1

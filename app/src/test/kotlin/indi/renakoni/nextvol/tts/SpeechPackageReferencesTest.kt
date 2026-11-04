@@ -29,37 +29,60 @@ class SpeechPackageReferencesTest {
         assertEquals("Voice", imported.sources.single().name)
     }
 
-    @Test fun packageReferencesSurviveRestartAndBindByOriginalIdentityAfterVoiceEditsAndReinstallation() {
+    @Test fun offlineReferencesFollowCurrentCodeAndTypeAcrossRestartAndReinstallation() {
         val missing = SpeechVoiceRef(externalId = "audio_sound_1", label = "Original name")
         assertEquals(missing, missing.resolvePackageReference(emptyMap()))
         val original = OfflineVoiceConfig("audio", "sound", type = 1)
-        val voice = InstalledOfflineVoice(OfflineVoiceRef("stable", "revision"), "User name", emptyMap(),
-            sourceKey = "audio\u0000sound", configuration = original.copy(code = "edited"),
+        val voice = InstalledOfflineVoice(OfflineVoiceRef("stable", "revision"), "Original name", emptyMap(),
+            sourceKey = "audio\u0000sound", configuration = original,
             defaults = OfflineVoiceDefaults("Original name", original, OfflineVoiceMetadata()))
-        val references = speechPackageReferences(emptyList(), listOf(voice))
-        val bound = missing.resolvePackageReference(references)
+        val bound = missing.resolvePackageReference(speechPackageReferences(emptyList(), listOf(voice)))
         assertEquals(missing.key, bound.key)
         assertEquals(voice.reference, bound.offlineVoice)
-        assertEquals("User name", bound.label)
-        assertNull(references["audio_sound"])
-        val file = temporary.newFile("roles.yaml").apply { writeText("roles: [{name: Sound, speakerId: audio_sound_1}]") }
+        val edited = voice.copy(name = "User name", configuration = original.copy(code = "edited", type = 2))
+        val references = speechPackageReferences(emptyList(), listOf(edited))
+        assertEquals(setOf("audio_edited_2"), references.keys)
+        assertEquals(missing, bound.resolvePackageReference(references))
+        val selected = SpeechSettings(narrationVoices = listOf(bound), dialogueVoices = listOf(missing),
+            speakerVoices = mapOf("Sound" to bound)).updateVoiceSelections(bound,
+            references.getValue("audio_edited_2").copy(externalId = "audio_edited_2"))
+        assertEquals("audio_edited_2", selected.narrationVoices.single().externalId)
+        assertEquals(selected.narrationVoices, selected.dialogueVoices)
+        assertEquals(bound, selected.speakerVoices.getValue("Sound"))
+        val file = temporary.newFile("roles.yaml").apply { writeText("roles: [{name: Sound, speakerId: audio_edited_2}]") }
         val imported = previewSpeechConfiguration(previewSpeechPackage(file), references, "Default").roles!!.single().speaker!!
         val restored = Json.decodeFromString<SpeechVoiceRef>(Json.encodeToString(imported))
-        assertEquals(bound, restored)
-        val reinstalled = voice.copy(reference = OfflineVoiceRef("reinstalled", "new-revision"))
+        assertEquals(edited.reference, restored.offlineVoice)
+        assertEquals("User name", restored.label)
+        val reinstalled = edited.copy(reference = OfflineVoiceRef("reinstalled", "new-revision"), sourceKey = "")
         val rebound = restored.resolvePackageReference(speechPackageReferences(emptyList(), listOf(reinstalled)))
         assertEquals(reinstalled.reference, rebound.offlineVoice)
         assertEquals(restored.key, rebound.key)
         assertEquals(SpeechVoiceRef(offlineVoice = reinstalled.reference).canonicalKey, rebound.canonicalKey)
     }
 
-    @Test fun matchingNamesAndUserCopiesDoNotReplaceTheOriginalOnlineVoice() {
+    @Test fun onlineReferencesUseCurrentFieldsForImportedNewAndCopiedVoicesWithoutChangingReimportIdentity() {
         val original = SavedHttpSpeechSource(previewHttpSpeech("""{
             "id":"stable", "name":"Same name", "url":"https://example.invalid/speech",
-            "multiTts":{"engine":{"code":"http_test","type":"http"},"voice":{"code":"voice","type":"0"}}
+            "multiTts":{"engine":{"code":"http_test","type":"http","url":"https://example.invalid/speech"},
+                "voice":{"code":"voice","name":"Same name","type":"0"}}
         }""").sources.single(), emptyList())
-        val references = speechPackageReferences(listOf(original, original.copy(isVoiceCopy = true)), emptyList())
-        assertEquals("stable", references["http_test_voice"]!!.httpSource)
+        val edited = editHttpVoice(original, buildJsonObject { put("code", "edited"); put("type", 2) }, true, false)
+        val reimported = mergeHttpVoice(edited, original)
+        assertEquals(original.packageIdentity(), reimported.packageIdentity())
+        val copied = editHttpVoice(original, buildJsonObject { put("type", 1) }, true, true)
+        val created = newHttpVoice(original.httpEngine()!!)
+        val references = speechPackageReferences(listOf(reimported, copied, created), emptyList())
+        assertEquals(setOf("http_test_edited_2", "http_test_voice_1", "http_test_speaker_1"), references.keys)
+        assertEquals("stable", references.getValue("http_test_edited_2").httpSource)
+        assertEquals(copied.definition.id, references.getValue("http_test_voice_1").httpSource)
+        assertEquals(created.definition.id, references.getValue("http_test_speaker_1").httpSource)
+        val stale = SpeechVoiceRef(httpSource = "stable", externalId = "http_test_voice")
+        assertNull(stale.resolvePackageReference(references).httpSource)
+        val direct = SpeechVoiceRef(httpSource = "stable")
+        assertEquals(direct, direct.resolvePackageReference(references))
+        val duplicate = editHttpVoice(copied, buildJsonObject {}, true, true)
+        assertNull(speechPackageReferences(listOf(copied, duplicate), emptyList())["http_test_voice_1"])
     }
 
     @Test fun geminiSampleRateEditKeepsVoiceIdentityButRetiresTheOldProtocolParameters() {

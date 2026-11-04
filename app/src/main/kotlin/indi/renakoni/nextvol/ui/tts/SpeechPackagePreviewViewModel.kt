@@ -119,10 +119,10 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     if (engine.isOnline) index to previewHttpSpeechPackage(engine) else null
                 }.toMap()
                 val local = preview.engines.flatMapIndexed { index, engine ->
-                    if (!engine.isOnline) engine.voices.mapIndexed { voiceIndex, voice ->
+                    engine.voices.mapIndexedNotNull { voiceIndex, voice ->
                         task.ensureActive()
-                        (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
-                    } else emptyList()
+                        if (engine.isOnlineVoice(voice)) null else (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
+                    }
                 }.toMap()
                 val updates = local.filterValues { it.error == MatchaPackageError.MissingResource ||
                     preview.resources.isEmpty() && it.error == MatchaPackageError.Ambiguous && it.detail == "voice"
