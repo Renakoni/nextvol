@@ -30,8 +30,6 @@ import androidx.navigation.toRoute
 import android.net.Uri
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechRequest
-import indi.renakoni.nextvol.tts.ReadAloudState
-import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.SpeechError
@@ -96,23 +94,8 @@ data class SpeechRoleEditorRoute(val ruleId: String? = null)
 @Serializable
 data class SpeechPackagePreviewRoute(val uri: String)
 
-fun NavController.navigateToSpeechSettings() = navigate(SpeechSettingsRoute()) { launchSingleTop = true }
-
-fun NavController.navigateToSpeechSettings(playback: ReadAloudState, bookId: String? = null) {
+fun NavController.navigateToSpeechSettings(bookId: String? = null) {
     navigate(SpeechSettingsRoute(bookId)) { launchSingleTop = true }
-    if (playback.phase != SpeechPhase.Failed) return
-    val credentials = playback.error == SpeechError.HttpLogin || playback.error == SpeechError.HttpAuthentication
-    val roleId = playback.roleFailure?.ruleId ?: playback.failedRole?.takeIf {
-        it.voiceRef == null || playback.error in setOf(SpeechError.MissingVoice, SpeechError.OfflineUnavailable,
-            SpeechError.HttpSourceUnavailable, SpeechError.EngineUnavailable, SpeechError.MissingLanguageData)
-    }?.ruleId
-    if (roleId != null && !credentials) {
-        navigate(SpeechRolesRoute) { launchSingleTop = true }
-        navigate(SpeechRoleEditorRoute(roleId)) { launchSingleTop = true }
-    } else if (playback.failedVoice != null || playback.error == SpeechError.MissingNarrationVoice ||
-        playback.error == SpeechError.MissingDialogueVoice) {
-        navigate(HttpSpeechSourcesRoute(playback.failedVoice?.key, credentials)) { launchSingleTop = true }
-    }
 }
 
 internal fun NavController.navigateToReadAloudBook(request: SpeechRequest) {

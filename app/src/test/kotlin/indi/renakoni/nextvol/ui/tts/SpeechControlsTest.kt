@@ -24,7 +24,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.dialog
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import indi.renakoni.nextvol.tts.*
@@ -206,7 +205,7 @@ class SpeechControlsTest {
         assertEquals(listOf(SpeechAction.Resume), actions)
     }
 
-    @Test fun loadingCanPauseAndFailedRoleCanRetryOrOpenItsCredentialsOrEditor() {
+    @Test fun loadingCanPauseAndFailedPlaybackOpensListeningSettingsWithBookContext() {
         val actions = mutableListOf<SpeechAction>()
         val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Preparing))
         val sources = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState())
@@ -227,11 +226,9 @@ class SpeechControlsTest {
                     exitTransition = { androidx.compose.animation.ExitTransition.None }) {
                     composable("reader") {
                         ReadAloudControls(state.value, { actions += it },
-                            onSettings = { nav.navigateToSpeechSettings(state.value, "reader-book") })
+                            onSettings = { nav.navigateToSpeechSettings("reader-book") })
                     }
                     composable<SpeechSettingsRoute> { androidx.compose.material3.Text("Listening settings") }
-                    composable<SpeechRolesRoute> { androidx.compose.material3.Text("Roles") }
-                    dialog<SpeechRoleEditorRoute> { androidx.compose.material3.Text("Role editor") }
                     composable<HttpSpeechSourcesRoute> { entry ->
                         val route = entry.toRoute<HttpSpeechSourcesRoute>()
                         HttpSpeechSourcesScreen(sources.value, {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
@@ -256,10 +253,15 @@ class SpeechControlsTest {
         compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
             "Alice · Cloud voice", activity.get().getString(SpeechError.HttpLogin.messageResource))).assertIsDisplayed()
         compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
+        compose.onNodeWithText("Listening settings").assertIsDisplayed()
         compose.onNodeWithText("AppKey").assertDoesNotExist()
         compose.runOnIdle {
-            assertEquals(HttpSpeechSourcesRoute("http:${source.definition.id}", true), nav.currentBackStackEntry!!.toRoute<HttpSpeechSourcesRoute>())
-            assertEquals("reader-book", nav.getBackStackEntry<SpeechSettingsRoute>().toRoute<SpeechSettingsRoute>().bookId)
+            assertEquals(SpeechSettingsRoute("reader-book"), nav.currentBackStackEntry!!.toRoute<SpeechSettingsRoute>())
+            // Opening the source editor explicitly still waits for its catalog before configuring credentials.
+            nav.navigate(HttpSpeechSourcesRoute("http:${source.definition.id}", true))
+        }
+        compose.onNodeWithText("AppKey").assertDoesNotExist()
+        compose.runOnIdle {
             sources.value = sources.value.copy(sources = listOf(source), loaded = true)
         }
         compose.onNodeWithText("AppKey").assertIsDisplayed().performTextInput("account-key")
@@ -274,14 +276,9 @@ class SpeechControlsTest {
         compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
             "Alice", activity.get().getString(indi.renakoni.nextvol.R.string.tts_role_voice_missing))).assertIsDisplayed()
         compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
+        compose.onNodeWithText("Listening settings").assertIsDisplayed()
         compose.runOnIdle {
-            assertEquals(SpeechRoleEditorRoute(role.ruleId), nav.currentBackStackEntry!!.toRoute<SpeechRoleEditorRoute>())
-            nav.getBackStackEntry<SpeechRolesRoute>()
-            nav.getBackStackEntry<SpeechSettingsRoute>()
-            nav.popBackStack("reader", false)
-            nav.navigateToSpeechSettings(state.value.copy(failedRole = null, failedVoice = null,
-                roleFailure = SpeechRoleFailure("invalid-pattern", "Broken role", SpeechReplacementProblem.Pattern)))
-            assertEquals(SpeechRoleEditorRoute("invalid-pattern"), nav.currentBackStackEntry!!.toRoute<SpeechRoleEditorRoute>())
+            assertEquals(SpeechSettingsRoute("reader-book"), nav.currentBackStackEntry!!.toRoute<SpeechSettingsRoute>())
         }
     }
 
