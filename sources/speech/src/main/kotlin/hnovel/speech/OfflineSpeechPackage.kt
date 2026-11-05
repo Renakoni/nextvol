@@ -83,7 +83,7 @@ fun previewOfflineVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngi
         if (engine.code == "microsoft" && engine.isOnlineVoice(voice))
             configurationFailure(MatchaPackageError.UnsupportedModel, "online voice")
         val (configuration, metadata) = readOfflineVoiceDefinition(engine, voice)
-        if (engine.voices.count { it.code == voice.code && !engine.isOnlineVoice(it) } != 1)
+        if (engine.voices.count { it.code == voice.code && (engine.code != "microsoft" || !engine.isOnlineVoice(it)) } != 1)
             configurationFailure(MatchaPackageError.Ambiguous, "voice")
         val engineConfiguration = readOfflineEngineDefinition(engine)
         val avatarPath = speechPackageAvatarPath(engine.code, metadata.avatar)
