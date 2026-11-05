@@ -316,6 +316,30 @@ class BookDownloadTest {
         return requests
     }
 
+    @Test fun replacementObservationWaitsUntilItsWorkerIsRegistered() = runBlocking {
+        val scheduler = BookDownloadScheduler(downloads, workManager, local.aliases)
+        val original = java.util.UUID.randomUUID().toString()
+        downloads.queueTask(a, downloads.generation(), original)
+        val task = downloads.startTask(a, downloads.generation(), original, 0)
+        downloads.finishTask(task, DownloadFailure.Verification)
+        val owner = downloads.entry(a)!!
+        val registration = androidx.concurrent.futures.ResolvableFuture.create<androidx.work.Operation.State.SUCCESS>()
+        val registering = CompletableDeferred<java.util.UUID>()
+        every { workManager.enqueueUniqueWork(any(), any(), any<androidx.work.OneTimeWorkRequest>()) } answers {
+            registering.complete(thirdArg<androidx.work.OneTimeWorkRequest>().id)
+            mockk<androidx.work.Operation> { every { result } returns registration }
+        }
+        val resuming = async { scheduler.resumeVerified(listOf(owner)) { true } }
+        val id = withTimeout(5_000) { registering.await() }
+        val observed = async(start = CoroutineStart.UNDISPATCHED) { scheduler.observeTask(id).first() }
+        assertFalse(observed.isCompleted)
+        val info = mockk<androidx.work.WorkInfo> { every { state } returns androidx.work.WorkInfo.State.ENQUEUED }
+        every { workManager.getWorkInfoByIdFlow(id) } returns flowOf(info)
+        registration.set(androidx.work.Operation.SUCCESS)
+        resuming.await()
+        assertEquals(info, observed.await())
+    }
+
     @Test fun verificationWaitSurvivesReconstructionAndResumesOnlyMissingChapters() = runBlocking {
         val source = Remote(a)
         var coordinator = indi.renakoni.nextvol.data.web.rules.SourceVerificationCoordinator(registry)

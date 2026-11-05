@@ -22,6 +22,8 @@ data class SpeechTextSettings(
     val paragraphPauseMs: Int = 0,
     val nameDiscoveryAlgorithm: Int = 101,
     val personNameRegex: String? = null,
+    val onlyNewPerson: Boolean = true,
+    val maxAutoCheckedPerson: Int = 30,
     @EncodeDefault
     val maleNameRegex: String = if (Locale.getDefault().language == "zh") SpeechNamePatterns.MALE else "",
     @EncodeDefault

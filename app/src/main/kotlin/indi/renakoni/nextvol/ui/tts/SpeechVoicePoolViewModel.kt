@@ -108,7 +108,8 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
         if (error != null) return
         val voice = draft.voice ?: return
         work {
-            if (draft.pair != null) repository.setManual(draft.pair.copy(person = draft.person, group = draft.group, value = voice))
+            if (draft.pair != null) repository.setManual(draft.pair.copy(person = draft.person, group = draft.group, value = voice),
+                settings.get().activeSpeechPeople())
             else {
                 var duplicate = false
                 val references = catalog.packageReferences()
@@ -149,7 +150,7 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
 
     internal fun reassign(ids: Set<String>) = work {
         val current = settings.get()
-        val failed = repository.reassign(ids, current.voiceItems, catalog.resolve(current))
+        val failed = repository.reassign(ids, current.voiceItems, catalog.resolve(current), current.activeSpeechPeople())
         if (failed.isNotEmpty()) mutableState.update { it.copy(error = R.string.tts_pool_no_candidate) }
     }
 

@@ -35,7 +35,10 @@ data class SpeechConfigurationImport(
             item.copy(id = replacementsByName[item.group to item.name]?.id ?: item.id)
         }
         val incomingRoles = configurationIds(roles, current.roleRules,
-            { it.group to it.name }, { it.id }, { item, id -> item.copy(id = id) })
+            { it.group to it.name }, { it.id }, { item, id -> item.copy(id = id,
+                person = item.person ?: current.roleRules.firstOrNull {
+                    it.id == id && it.pattern == item.pattern && it.mode == item.mode
+                }?.person) })
         val incomingVoices = configurationIds(voiceItems, current.voiceItems,
             { it.group to it.name }, { it.id }, { item, id -> item.copy(id = id) })
         // N6.a.e replaces rules in place; O6.d.i / O6.j.f remove conflicts then append imported rows.

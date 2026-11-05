@@ -82,7 +82,10 @@ class SpeechRolesViewModel @Inject constructor(
     }
 
     fun edit(change: (SpeechRoleRule) -> SpeechRoleRule) {
-        mutableState.update { it.copy(draft = it.draft?.let(change), saveError = null, error = null) }
+        mutableState.update { state -> state.copy(draft = state.draft?.let { old ->
+            val edited = change(old)
+            if (edited.pattern != old.pattern || edited.mode != old.mode) edited.copy(person = null) else edited
+        }, saveError = null, error = null) }
     }
 
     fun selectEngine(key: String) {

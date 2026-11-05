@@ -30,8 +30,6 @@ import androidx.navigation.toRoute
 import android.net.Uri
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechRequest
-import indi.renakoni.nextvol.tts.ReadAloudState
-import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.SpeechError
@@ -43,7 +41,7 @@ import io.nightfish.lightnovelreader.api.ui.LocalNavController
 import kotlinx.serialization.Serializable
 
 @Serializable
-object SpeechSettingsRoute
+data class SpeechSettingsRoute(val bookId: String? = null)
 
 @Serializable
 object SpeechDiagnosticsRoute
@@ -67,7 +65,10 @@ data class HttpVoiceEditorRoute(val id: String = "", val copy: Boolean = false, 
 object SpeechPreferencesRoute
 
 @Serializable
-object SpeechPlaybackSettingsRoute
+data class SpeechPlaybackSettingsRoute(val bookId: String? = null)
+
+@Serializable
+data class SpeechTextAnalysisRoute(val bookId: String? = null)
 
 @Serializable
 object SpeechNameTestRoute
@@ -93,23 +94,8 @@ data class SpeechRoleEditorRoute(val ruleId: String? = null)
 @Serializable
 data class SpeechPackagePreviewRoute(val uri: String)
 
-fun NavController.navigateToSpeechSettings() = navigate(SpeechSettingsRoute) { launchSingleTop = true }
-
-fun NavController.navigateToSpeechSettings(playback: ReadAloudState) {
-    navigateToSpeechSettings()
-    if (playback.phase != SpeechPhase.Failed) return
-    val credentials = playback.error == SpeechError.HttpLogin || playback.error == SpeechError.HttpAuthentication
-    val roleId = playback.roleFailure?.ruleId ?: playback.failedRole?.takeIf {
-        it.voiceRef == null || playback.error in setOf(SpeechError.MissingVoice, SpeechError.OfflineUnavailable,
-            SpeechError.HttpSourceUnavailable, SpeechError.EngineUnavailable, SpeechError.MissingLanguageData)
-    }?.ruleId
-    if (roleId != null && !credentials) {
-        navigate(SpeechRolesRoute) { launchSingleTop = true }
-        navigate(SpeechRoleEditorRoute(roleId)) { launchSingleTop = true }
-    } else if (playback.failedVoice != null || playback.error == SpeechError.MissingNarrationVoice ||
-        playback.error == SpeechError.MissingDialogueVoice) {
-        navigate(HttpSpeechSourcesRoute(playback.failedVoice?.key, credentials)) { launchSingleTop = true }
-    }
+fun NavController.navigateToSpeechSettings(bookId: String? = null) {
+    navigate(SpeechSettingsRoute(bookId)) { launchSingleTop = true }
 }
 
 internal fun NavController.navigateToReadAloudBook(request: SpeechRequest) {
@@ -125,9 +111,10 @@ internal fun NavController.navigateToReadAloudBook(request: SpeechRequest) {
 }
 
 fun NavGraphBuilder.speechSettingsDestination() {
-    composable<SpeechSettingsRoute> {
+    composable<SpeechSettingsRoute> { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
+        val bookId = entry.toRoute<SpeechSettingsRoute>().bookId
         val viewModel = hiltViewModel<SpeechSettingsViewModel>()
         // Keep the lightweight voice catalogs ready across visits to the library.
         hiltViewModel<HttpSpeechSourcesViewModel>()
@@ -138,7 +125,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
             onSources = { nav.navigate(HttpSpeechSourcesRoute()) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
-            onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute) { launchSingleTop = true } },
+            onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute(bookId)) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } },
             onReplacements = { nav.navigate(SpeechReplacementsRoute) { launchSingleTop = true } },
             onRoles = { nav.navigate(SpeechRolesRoute) { launchSingleTop = true } },
@@ -220,9 +207,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechReplacementPreviewScreen(state, nav::popBackStackIfResumed,
             onPreview = { viewModel.preview(it) }, onClearPreview = viewModel::clearPreview)
     }
-    composable<SpeechPlaybackSettingsRoute> {
+    composable<SpeechPlaybackSettingsRoute> { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
+        val bookId = entry.toRoute<SpeechPlaybackSettingsRoute>().bookId
         val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val defaultContext = stringResource(R.string.tts_role_context_default)
@@ -230,6 +218,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
             viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern,
             onNameTest = { nav.navigate(SpeechNameTestRoute) { launchSingleTop = true } },
+            onTextAnalysis = { nav.navigate(SpeechTextAnalysisRoute(bookId)) { launchSingleTop = true } },
             onEngineCacheCapacity = viewModel::engineCacheCapacity,
             onAudioSettings = viewModel::audioSettings,
             onBackgroundMusic = viewModel::backgroundMusic,
@@ -240,6 +229,13 @@ fun NavGraphBuilder.speechSettingsDestination() {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         SpeechNameTestScreen(nav::popBackStackIfResumed)
+    }
+    dialog<SpeechTextAnalysisRoute>(dialogProperties = DialogProperties(
+        dismissOnClickOutside = false, usePlatformDefaultWidth = false)) {
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        SpeechTextAnalysisDialog(nav::popBackStackIfResumed,
+            onOpenStorage = { nav.navigate(Route.StorageManager) })
     }
     composable<SpeechPreferencesRoute> {
         HideReadAloudOverlay()

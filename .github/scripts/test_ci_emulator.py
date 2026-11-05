@@ -53,8 +53,8 @@ case "$*" in
       touch "$CASE_ROOT/prepare-retried"
       exit 124
     fi ;;
-  'shell settings put global '* )
-    if [[ "$CASE" == settings-fail ]]; then exit 31; fi ;;
+  'shell wm dismiss-keyguard')
+    if [[ "$CASE" == unlock-fail ]]; then exit 31; fi ;;
   'emu kill')
     if [[ "$CASE" == cleanup-fail ]]; then exit 29; fi ;;
 esac
@@ -87,6 +87,8 @@ exit "$TEST_EXIT"
         self.assertEqual('one argument\n', (self.root / 'ran').read_text())
         self.assertIn('-no-snapshot', (self.root / 'emulator-args').read_text())
         self.assertIn('emu kill', (self.root / 'adb-calls').read_text())
+        self.assertIn('shell wm dismiss-keyguard', (self.root / 'adb-calls').read_text())
+        self.assertNotIn('input keyevent', (self.root / 'adb-calls').read_text())
         pid = int((self.root / 'emulator-pid').read_text())
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
@@ -128,7 +130,7 @@ exit "$TEST_EXIT"
         self.assertEqual(['one argument'], (self.root / 'ran').read_text().splitlines())
 
     def test_readiness_failure_stops_before_tests(self):
-        result = self.run_case('settings-fail')
+        result = self.run_case('unlock-fail')
         self.assertEqual(31, result.returncode, result.stderr)
         self.assertFalse((self.root / 'ran').exists())
 

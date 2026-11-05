@@ -101,6 +101,28 @@ class SpeechCharacterAssignmentTest {
         assertTrue(fixture.saved.isEmpty())
     }
 
+    @Test fun analyzedAliasesUseOneBookIdentityAndPreserveManualCorrectionsAndOtherBooks() = runBlocking {
+        val candidate = SpeechTextAnalysisCandidate("小甲", "小甲", 90,
+            SpeechNameClassification(SpeechNameHint.Male, SpeechNameHintBasis.Model), true, true, aliases = listOf("阿甲"))
+        val fixture = Fixture(mergeSpeechAnalysisRoles(configured().copy(autoAssignRole = false), "文本", listOf(candidate)))
+        val first = fixture.prepare("小甲说：“你好。”阿甲说：“还是我。”").segments.filter { it.dialogue }
+        assertEquals(listOf("小甲", "小甲"), first.map { it.speaker })
+        assertTrue(first.all { it.selectedVoice!!.reference == male })
+        assertEquals(1, fixture.saved.size)
+        fixture.saved = fixture.saved + SpeechVoicePair("other-book", "小甲", SPEECH_POOL_MALE, male)
+        val other = fixture.saved.last()
+        fixture.saved = fixture.saved.map { if (it.bookId == "book") it.copy(value = female, manual = true) else it }
+        val corrected = fixture.prepare("阿甲说：“按人工指定。”小甲说：“我也一样。”", "next").segments.filter { it.dialogue }
+        assertTrue(corrected.all { it.selectedVoice!!.reference == female && it.roleMatch!!.origin == SpeechPersonOrigin.Manual })
+        assertEquals(other, fixture.saved.last())
+        assertEquals(male, fixture.prepare("阿甲说：“另一本书。”", bookId = "other-book")
+            .segments.single { it.dialogue }.selectedVoice!!.reference)
+        // An existing correction under an alias remains usable without rewriting persisted pairs.
+        fixture.saved = listOf(SpeechVoicePair("book", "阿甲", SPEECH_POOL_MALE, female, manual = true), other)
+        assertEquals(female, fixture.prepare("小甲说：“别名已有人工修正。”").segments.single { it.dialogue }.selectedVoice!!.reference)
+        assertEquals(listOf("阿甲", "小甲"), fixture.saved.map { it.person })
+    }
+
     private inner class Fixture(var settings: SpeechSettings = configured(),
         private val hint: SpeechNameHint? = null) {
         var saved = emptyList<SpeechVoicePair>()
@@ -109,9 +131,9 @@ class SpeechCharacterAssignmentTest {
         val newWordCalls = mutableListOf<Triple<String, String, Boolean>>()
         val classified = mutableListOf<String>()
 
-        suspend fun prepare(text: String, chapterId: String = "chapter"): SpeechPlan {
-            val chapter = SpeechChapter("book", chapterId, "本书", "章节", text)
-            val characters = SpeechCharacterAssignment(settings, chapter, saved.toList(), catalog,
+        suspend fun prepare(text: String, chapterId: String = "chapter", bookId: String = "book"): SpeechPlan {
+            val chapter = SpeechChapter(bookId, chapterId, "本书", "章节", text)
+            val characters = SpeechCharacterAssignment(settings, chapter, saved.filter { it.bookId == bookId }, catalog,
                 recognize = { input -> recognized += input; listOf("小甲").filter { it in input } },
                 newWords = { input, key, reverse ->
                     newWordCalls += Triple(input, key, reverse)
@@ -122,9 +144,9 @@ class SpeechCharacterAssignmentTest {
                     SpeechNameClassification(hint ?: if (name == "小甲") SpeechNameHint.Male else SpeechNameHint.Female,
                         SpeechNameHintBasis.Model)
                 },
-                existing = { name, groups -> pool.existing("book", name, groups, saved, catalog, settings.maxCacheVoiceNum) },
+                existing = { name, groups -> pool.existing(bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum) },
                 assign = { name, group ->
-                    pool.assign("book", name, group, saved, settings.voiceItems, catalog, settings.maxCacheVoiceNum)?.also { pair ->
+                    pool.assign(bookId, name, group, saved, settings.voiceItems, catalog, settings.maxCacheVoiceNum)?.also { pair ->
                         saved = saved.filterNot { it.id == pair.id } + pair
                     }
                 }, checkCancelled = {})
