@@ -162,7 +162,7 @@ class SpeechSynthesizers @Inject constructor(
                 client = HttpSpeechClient(definition, broker, source.origins.map { NetworkGrant(it) }, authority, run = runner::execute,
                     createSdkBackend = { metadata, execute, webSocket ->
                         when (metadata.getValue("engine").jsonObject.getValue("code").jsonPrimitive.content) {
-                            "azure" -> indi.renakoni.nextvol.tts.online.AzureSpeechBackend(metadata, execute)
+                            "azure", "microsoft" -> indi.renakoni.nextvol.tts.online.AzureSpeechBackend(metadata, execute)
                             "msctts" -> MscOnlineSpeechClient(metadata)
                             "bdotts" -> BaiduOnlineSpeechBackend(metadata, webSocket)
                             "vivo" -> VivoOnlineSpeechBackend(metadata, execute, webSocket)

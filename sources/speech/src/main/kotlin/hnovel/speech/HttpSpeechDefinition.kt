@@ -26,7 +26,7 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
         if ((it["type"] as? JsonPrimitive)?.contentOrNull == "http") null else it["code"]?.jsonPrimitive?.contentOrNull
     }
     val usesMultiTts: Boolean get() = multiTts != null
-    val supportsStreaming: Boolean get() = nativeEngine !in dedicatedOnlineSpeechEngines || nativeEngine in setOf("namiai", "doubao")
+    val supportsStreaming: Boolean get() = nativeEngine !in dedicatedOnlineSpeechEngines || nativeEngine == "doubao"
     val unknownFields: Set<String> get() = raw.keys - fields
     val speed: Int? get() = raw["speed"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.int
     val hasScripts: Boolean get() = url.contains("{{") || url.contains("@js:", true) || url.contains("<js>", true)
@@ -52,6 +52,9 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
             "loginCheckJs", "concurrentRate", "enabledCookieJar", "speed", "lastUpdateTime")
 
         internal fun parse(raw: JsonObject): HttpSpeechDefinition {
+            // A withdrawn package must not fall back to the generic HTTP request path.
+            val engine = (raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject
+            require((engine?.get("code") as? JsonPrimitive)?.contentOrNull !in withdrawnSpeechEngines)
             fun string(key: String): String? = raw[key]?.takeUnless { it == JsonNull }?.let {
                 require(it is JsonPrimitive && it.isString) { key }
                 it.content

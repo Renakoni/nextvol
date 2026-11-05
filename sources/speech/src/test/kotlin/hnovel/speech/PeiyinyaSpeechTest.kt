@@ -21,7 +21,7 @@ class PeiyinyaSpeechTest {
             val body = if (request.url == PeiyinyaSpeechClient.ENDPOINT)
                 (if (malformed) "invalid" else RESPONSE).toByteArray() else audio
             BrokerResponse(200, request.url, emptyMap(), body, "UTF-8", 0)
-        }, { _, _ -> error("Peiyinya is buffered") })
+        })
         assertArrayEquals(audio, client.synthesize("你好，\"配音\"。\nA real sentence.", 1f, 1f, 100, null))
         assertEquals(2, requests.size)
         assertEquals("POST", requests[0].method)

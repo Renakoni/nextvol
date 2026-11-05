@@ -46,7 +46,6 @@ data class OfflineVoiceDraft(
         val candidate = original.copy(code = code, locale = language, rawParameters = parameters, extendUI = extensions,
             speed = speed.toFloat(), pitch = pitch.toFloat(), volume = volume.toFloat(), sampleRate = sampleRate.toInt(),
             gender = gender.toInt(), type = type.toInt())
-        require(candidate.engine != "microsoft" || candidate.type == 0)
         return voice.copy(name = name, configuration = candidate, enabled = enabled,
             metadata = OfflineVoiceMetadata(note, description, avatar.trim()))
     }
@@ -121,7 +120,7 @@ class OfflineVoiceEditorViewModel @Inject constructor(
         val current = state.value
         val edited = withContext(Dispatchers.Default) { requireNotNull(current.draft).applyTo(requireNotNull(current.voice)) }
         withContext(NonCancellable) {
-            if (edited.configuration?.let { it.engine == "msctts" && it.type != 0 } == true)
+            if (edited.configuration?.let { it.engine in setOf("msctts", "microsoft") && it.type != 0 } == true)
                 msc.toOnline(requireNotNull(current.voice), edited, copy, creating)
             else {
                 val result = if (creating) repository.create(edited) else repository.save(edited, copy)

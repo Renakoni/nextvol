@@ -45,7 +45,7 @@ class HttpSpeechClient(
     private val edge = if (source.nativeEngine == "edgetts") EdgeSpeechClient(
         requireNotNull(source.multiTts).getValue("voice").jsonObject, ::executeEdge) else null
     private val online = if (source.nativeEngine in dedicatedOnlineSpeechEngines)
-        OnlineSpeechClient(requireNotNull(source.multiTts), ::executeOnline, ::streamOnline, ::executeEdge, createSdkBackend) else null
+        OnlineSpeechClient(requireNotNull(source.multiTts), ::executeOnline, ::executeEdge, createSdkBackend) else null
     val supportsStreaming: Boolean get() = source.supportsStreaming
     val updatedEngineParameters: String? get() = online?.updatedEngineParameters
     @Volatile private var microsoftSession: SourceSession? = null
@@ -94,10 +94,12 @@ class HttpSpeechClient(
                 { bytes, offset, count -> authority.authorized(identity) { sink(bytes, offset, count) } }
             }
             withTimeout(60_000) {
-                if (source.nativeEngine in setOf("azure", "msctts")) {
+                if (source.nativeEngine in setOf("azure", "microsoft", "msctts")) {
                     // Audited host SDKs own their transport; no source script receives this capability.
                     authority.authorized(identity) {}
-                    session.permissionFailureDetail(source.url, ResourceKind.Api)?.let { failure ->
+                    val endpoint = if (source.nativeEngine == "microsoft") microsoftSubscriptionPackageUrl(
+                        requireNotNull(source.multiTts).getValue("voice").jsonObject.string("param")) else source.url
+                    session.permissionFailureDetail(endpoint, ResourceKind.Api)?.let { failure ->
                         throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code,
                             deniedOrigins = listOfNotNull(failure.denial?.origin))
                     }
@@ -151,14 +153,6 @@ class HttpSpeechClient(
             catalog.configureSource(origin, cookiesEnabled = false)
             onlineResponse(catalog.execute(request, RequestCommitGuard { authority.authorized(identity, it) }))
         }
-    }
-
-    private suspend fun streamOnline(request: BrokerRequest, receive: (ByteArray, Int, Int) -> Unit): BrokerResponse {
-        // R6.a.g rejects JSON responses before passing incremental bytes to the audio decoder.
-        return onlineResponse(session.stream(request, RequestCommitGuard { authority.authorized(identity, it) }, receive) { headers ->
-            val contentType = headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value?.firstOrNull().orEmpty()
-            if (contentType.contains("json", ignoreCase = true)) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
-        })
     }
 
     private suspend fun onlineResponse(result: BrokerResult): BrokerResponse {

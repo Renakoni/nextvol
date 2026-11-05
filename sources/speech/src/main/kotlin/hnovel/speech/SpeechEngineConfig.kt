@@ -3,8 +3,11 @@ package hnovel.speech
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
+internal val withdrawnSpeechEngines = setOf("http_lolimi", "http_sougou", "namiai", "filmora")
+
 fun isOnlineSpeechEngine(code: String, type: String?): Boolean =
-    type == "http" || (code in setOf("mstrans", "edgetts") || code in dedicatedOnlineSpeechEngines) && (type == null || type == "inner")
+    code !in withdrawnSpeechEngines && (type == "http" ||
+        (code in setOf("mstrans", "edgetts") || code in dedicatedOnlineSpeechEngines) && (type == null || type == "inner"))
 
 @Serializable
 data class SpeechEngineConfig(

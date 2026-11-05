@@ -13,19 +13,18 @@ interface OnlineSpeechBackend : AutoCloseable {
 }
 
 fun supportsSpeechVoiceCatalog(code: String): Boolean =
-    code in setOf("azure", "doubao", "guagua", "clipchamp", "namiai", "filmora", "peiyinya", "vivo")
+    code in setOf("azure", "doubao", "guagua", "clipchamp", "peiyinya", "vivo")
 
-internal val dedicatedOnlineSpeechEngines = setOf("ggtrans", "huoshan", "namiai", "filmora", "gemini", "xfpeiyin", "peiyinya",
-    "azure", "doubao", "clipchamp", "guagua", "msspeech", "vivo", "bdotts", "msctts", "readspk")
+internal val dedicatedOnlineSpeechEngines = setOf("ggtrans", "huoshan", "gemini", "xfpeiyin", "peiyinya",
+    "azure", "microsoft", "doubao", "clipchamp", "guagua", "msspeech", "vivo", "bdotts", "msctts", "readspk")
 
 internal fun onlineSpeechPackageUrl(code: String, parameters: String): String = when (code) {
     "ggtrans", "gemini" -> googleWebSpeechUrl(code, parameters)
     "huoshan" -> HuoshanSpeechClient.CRX_URL
-    "namiai" -> NamiSpeechClient.URL
-    "filmora" -> FilmoraSpeechClient.ENDPOINT
     "xfpeiyin" -> XfPeiyinSpeechClient.SIGN_URL
     "peiyinya" -> PeiyinyaSpeechClient.ENDPOINT
     "azure" -> azureSpeechPackageUrl(parameters)
+    "microsoft" -> microsoftSubscriptionPackageUrl("")
     "doubao" -> "https://ws-samantha.doubao.com/samantha/audio/tts"
     "clipchamp" -> "https://app.clipchamp.com/v2/azure-cognitive/auth-token"
     "guagua" -> "https://www.gstudios.com.cn"

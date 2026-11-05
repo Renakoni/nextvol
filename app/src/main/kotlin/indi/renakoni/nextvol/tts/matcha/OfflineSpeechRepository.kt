@@ -343,19 +343,21 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
     }
 
     /** Copies only speaker settings; shared model files stay leased until their final speaker is removed. */
-    suspend fun save(edited: InstalledOfflineVoice, copy: Boolean = false): InstalledOfflineVoice = withContext(Dispatchers.IO) {
+    suspend fun save(edited: InstalledOfflineVoice, copy: Boolean = false, retained: OfflineSpeechResources? = null): InstalledOfflineVoice = withContext(Dispatchers.IO) {
         lock.withLock {
             val current = read()
             val previous = current.single { it.reference == edited.reference }
             require(edited.name.isNotBlank())
             val requested = requireNotNull(edited.configuration)
             val resources = matchingResources(requested, listOf(previous) + current.filterNot { it.reference == previous.reference })
+                ?: retained?.takeIf { matchesResources(requested, it.sizes) }
             val sizes = resources?.sizes ?: previous.sizes
             val configuration = if (requested.engine == "sherpa" && sizes.isEmpty()) requested
                 else normalizeOfflineVoice(requested, sizes.keys)
             val original = this@OfflineSpeechRepository.configuration(previous)
             require(configuration.engine == original.engine && safeSpeechPackagePath(configuration.code))
-            val changedSynthesis = configuration != previous.configuration || edited.enabled != previous.enabled
+            val changedSynthesis = configuration != previous.configuration || edited.enabled != previous.enabled ||
+                resources?.reference?.let { it != previous.resourceReference } == true
             val reference = if (copy) OfflineVoiceRef(UUID.randomUUID().toString(), UUID.randomUUID().toString())
                 else if (changedSynthesis) previous.reference.copy(revision = UUID.randomUUID().toString()) else previous.reference
             val saved = previous.copy(reference = reference, name = edited.name.trim(), configuration = configuration,
@@ -378,7 +380,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
                 matchesResources(configuration, installed.sizes)
         }?.let { OfflineSpeechResources(it.resourceReference, it.sizes, it.packageAvatar) }
 
-    private fun matchesResources(configuration: OfflineVoiceConfig, sizes: Map<String, Long>): Boolean = runCatching {
+    internal fun matchesResources(configuration: OfflineVoiceConfig, sizes: Map<String, Long>): Boolean = runCatching {
         val normalized = normalizeOfflineVoice(configuration, sizes.keys)
         if (configuration.engine != "sherpa") offlineResources(normalized, sizes.map { (path, bytes) ->
             SpeechPackageResource("${configuration.engine}/$path", bytes)
