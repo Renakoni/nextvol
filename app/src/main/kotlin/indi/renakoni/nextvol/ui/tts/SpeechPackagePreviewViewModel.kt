@@ -15,6 +15,7 @@ import hnovel.speech.previewSpeechPackage
 import hnovel.speech.OfflinePackagePreview
 import hnovel.speech.OfflinePackagePlan
 import hnovel.speech.previewOfflineVoice
+import hnovel.speech.isOfflineSpeechEngine
 import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.logging.LoggerRepository
@@ -121,7 +122,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                 val local = preview.engines.flatMapIndexed { index, engine ->
                     engine.voices.mapIndexedNotNull { voiceIndex, voice ->
                         task.ensureActive()
-                        if (engine.isOnlineVoice(voice)) null else (index to voiceIndex) to previewOfflineVoice(preview, engine, voice)
+                        if (engine.isOnlineVoice(voice)) null else (index to voiceIndex) to previewOfflineVoice(parsed, parsed.engines[index], voice)
                     }
                 }.toMap()
                 val updates = local.filterValues { it.error == MatchaPackageError.MissingResource ||
@@ -149,7 +150,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                 val configuration = previewSpeechConfiguration(preview, speechPackageReferences(http.sources(), offline.voices()),
                     context.getString(R.string.tts_replace_ungrouped))
                 val engineImports = preview.engines.mapIndexedNotNull { index, engine ->
-                    if (engine.isOnline || engine.raw == null || engine.type !in setOf(null, "inner")) return@mapIndexedNotNull null
+                    if (engine.isOnline || engine.raw == null || !isOfflineSpeechEngine(engine.code, engine.type)) return@mapIndexedNotNull null
                     try { index to hnovel.speech.readOfflineEngineDefinition(engine) }
                     catch (_: IllegalArgumentException) { null }
                 }.toMap()

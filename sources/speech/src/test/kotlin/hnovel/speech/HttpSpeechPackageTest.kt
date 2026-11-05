@@ -32,6 +32,22 @@ class HttpSpeechPackageTest {
         return previewSpeechPackage(file).also { assertNull(it.error) }.engines.single()
     }
 
+    @Test fun withdrawnPackagesCannotImportOrFallBackToGenericHttp() {
+        val supported = previewHttpSpeechPackage(packageEngine()).sources.first()
+        for (code in listOf("http_lolimi", "http_sougou", "namiai", "filmora")) {
+            val engine = packageEngine(fixture("engines.yaml").replace("http_fixture", code),
+                fixture("config.yaml").replace("http_fixture", code))
+            assertEquals(SpeechPackageSupport.Unsupported, engine.support)
+            assertEquals(HttpSpeechPackageError.UnsupportedEngine, previewHttpSpeechPackage(engine).error)
+            val metadata = supported.raw.getValue("multiTts").jsonObject
+            val raw = JsonObject(supported.raw + ("multiTts" to JsonObject(metadata +
+                ("engine" to JsonObject(metadata.getValue("engine").jsonObject + ("code" to JsonPrimitive(code)))))))
+            val imported = previewHttpSpeech(raw.toString())
+            assertTrue(imported.sources.isEmpty())
+            assertEquals(SpeechImportError.InvalidEntry, imported.issues.single().error)
+        }
+    }
+
     @Test fun mixedMscPackageRoutesOnlyExplicitOnlineTypesAndKeepsBothParameterScopes() {
         val engine = packageEngine(
             engines = """engines: [{code: msctts, type: inner, param: '{"region":"bj"}'}]""",

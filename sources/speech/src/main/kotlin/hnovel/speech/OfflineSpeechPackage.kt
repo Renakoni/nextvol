@@ -40,6 +40,9 @@ data class OfflinePackagePreview(val plan: OfflinePackagePlan? = null, val error
 private val offlineEngineCodes = setOf("audio", "acapela", "bdetts", "cereproc", "google", "isstts", "larktts",
     "msctts", "sherpa", "vcstts", "vocalizer", "weread", "samsung", "xiaomi", "microsoft", "sougou", "espeak", "bytedance")
 
+fun isOfflineSpeechEngine(code: String, type: String?): Boolean =
+    code in offlineEngineCodes && (type == null || type == "inner")
+
 data class OfflineVoiceDefinition(val configuration: OfflineVoiceConfig, val metadata: OfflineVoiceMetadata)
 
 fun readOfflineEngineDefinition(engine: SpeechPackageEngine): SpeechEngineConfig {
@@ -54,7 +57,7 @@ fun readOfflineEngineDefinition(engine: SpeechPackageEngine): SpeechEngineConfig
 
 /** Reads voice settings separately from resource installation, including config.yaml without model files. */
 fun readOfflineVoiceDefinition(engine: SpeechPackageEngine, voice: SpeechPackageVoice): OfflineVoiceDefinition {
-    if (engine.code !in offlineEngineCodes || engine.type !in setOf(null, "inner"))
+    if (!isOfflineSpeechEngine(engine.code, engine.type))
         configurationFailure(MatchaPackageError.UnsupportedModel, "engine")
     if (!safeSpeechPackagePath(voice.code)) configurationFailure(MatchaPackageError.UnsafePath, "voice")
     val raw = voice.withImportDefaults(engine.code).raw.values
@@ -71,8 +74,6 @@ fun readOfflineVoiceDefinition(engine: SpeechPackageEngine, voice: SpeechPackage
         resolveOfflineParameters(scalar("param"), scalar("extendUI")), scalar("locale"), integer("sampleRate"),
         voiceNumber(raw, "speed", allowZero = true), voiceNumber(raw, "pitch"), voiceNumber(raw, "volume", allowZero = true), integer("type"),
         gender = integer("gender"), rawParameters = scalar("param"), extendUI = scalar("extendUI"))
-    if (engine.code == "microsoft" && configuration.type != 0)
-        configurationFailure(MatchaPackageError.UnsupportedModel, "online voice")
     return OfflineVoiceDefinition(configuration, OfflineVoiceMetadata(scalar("note"), scalar("desc"), scalar("avatar")))
 }
 
@@ -82,8 +83,11 @@ fun previewOfflineVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngi
         return OfflinePackagePreview(error = MatchaPackageError.UnsupportedModel)
     }
     return try {
+        if (engine.code == "microsoft" && engine.isOnlineVoice(voice))
+            configurationFailure(MatchaPackageError.UnsupportedModel, "online voice")
         val (configuration, metadata) = readOfflineVoiceDefinition(engine, voice)
-        if (engine.voices.count { it.code == voice.code } != 1) configurationFailure(MatchaPackageError.Ambiguous, "voice")
+        if (engine.voices.count { it.code == voice.code && (engine.code != "microsoft" || !engine.isOnlineVoice(it)) } != 1)
+            configurationFailure(MatchaPackageError.Ambiguous, "voice")
         val engineConfiguration = readOfflineEngineDefinition(engine)
         val avatarPath = speechPackageAvatarPath(engine.code, metadata.avatar)
         val avatar = preview.resources.singleOrNull { it.path == avatarPath }

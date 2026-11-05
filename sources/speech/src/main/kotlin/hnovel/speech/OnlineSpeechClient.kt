@@ -12,7 +12,6 @@ import kotlinx.serialization.json.*
 internal class OnlineSpeechClient(
     metadata: JsonObject,
     execute: suspend (BrokerRequest) -> BrokerResponse,
-    stream: suspend (BrokerRequest, (ByteArray, Int, Int) -> Unit) -> BrokerResponse,
     webSocket: suspend (BrokerRequest, (BrokerWebSocket) -> ByteArray) -> ByteArray = { _, _ ->
         throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
     },
@@ -24,8 +23,6 @@ internal class OnlineSpeechClient(
         "ggtrans" -> GoogleTranslateSpeechClient(metadata, execute)
         "gemini" -> GeminiSpeechClient(metadata, execute)
         "huoshan" -> HuoshanSpeechClient(metadata, execute)
-        "namiai" -> NamiSpeechClient(metadata, execute, stream)
-        "filmora" -> FilmoraSpeechClient(metadata, execute)
         "xfpeiyin" -> XfPeiyinSpeechClient(metadata, execute)
         "peiyinya" -> PeiyinyaSpeechClient(metadata, execute)
         "doubao" -> DoubaoSpeechClient(metadata, execute, webSocket)
@@ -33,7 +30,7 @@ internal class OnlineSpeechClient(
         "clipchamp" -> ClipchampSpeechClient(metadata, execute)
         "msspeech" -> SpeechStudioSpeechClient(metadata, execute)
         "readspk" -> ReadSpeakerSpeechClient(metadata, execute)
-        "azure", "msctts", "bdotts", "vivo" -> createSdkBackend?.invoke(metadata, execute, webSocket)
+        "azure", "microsoft", "msctts", "bdotts", "vivo" -> createSdkBackend?.invoke(metadata, execute, webSocket)
             ?: throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
         else -> throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
     }
@@ -46,7 +43,7 @@ internal class OnlineSpeechClient(
             if (count > MAX_AUDIO_BYTES - bytes) throw HttpSpeechException(HttpSpeechError.TooLarge)
             bytes += count
         }
-        val sink = receive?.takeIf { backend is NamiSpeechClient || backend is DoubaoSpeechClient }?.let { output ->
+        val sink = receive?.takeIf { backend is DoubaoSpeechClient }?.let { output ->
             { buffer: ByteArray, offset: Int, count: Int ->
                 countBytes(count)
                 output(buffer, offset, count)
@@ -56,10 +53,7 @@ internal class OnlineSpeechClient(
             currentCoroutineContext().ensureActive()
             // Malformed service payloads are response failures, not invalid saved source settings.
             val audio = try {
-                if (backend is NamiSpeechClient && sink != null) {
-                    backend.stream(part, sink)
-                    null
-                } else if (backend is DoubaoSpeechClient && sink != null) {
+                if (backend is DoubaoSpeechClient && sink != null) {
                     backend.stream(part, rate, sink)
                     null
                 } else backend.synthesize(part, rate, volume)
