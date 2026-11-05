@@ -1,8 +1,6 @@
 package indi.renakoni.nextvol.tts
 
 import android.app.Application
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
 import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.book.BookRepository
@@ -19,7 +17,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.BookVolumes
 import io.nightfish.lightnovelreader.api.book.ChapterContent
@@ -30,7 +27,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -51,12 +47,11 @@ class SpeechAnalysisBookSourceTest {
     private val local = mockk<LocalBookDataSource>()
     private val imported = mockk<LocalBookStore>()
     private val books = mockk<BookRepository>()
-    private val work = mockk<WorkManager>()
     private val scheduler = mockk<BookDownloadScheduler>()
     private val components = mockk<ComponentDataRegistry> {
         every { serializeMap } returns mapOf("lightnovelreader:simple_text" to SimpleTextComponentData.jsonSerializer)
     }
-    private val source = SpeechAnalysisBookSource(context, local, imported, components, books, work, scheduler)
+    private val source = SpeechAnalysisBookSource(context, local, imported, components, books, scheduler)
     private val book = BookIdentity.book("analysis-book")
     private val ids = (1..3).map { BookIdentity.chapter(it.toString(), book).storageKey }
     private val volumes = BookVolumes(book.storageKey,
@@ -72,7 +67,6 @@ class SpeechAnalysisBookSourceTest {
 
     @Test fun cachedInputKeepsDirectoryOrderSkipsMissingChaptersAndDeletesItsTemporaryFile() = runBlocking {
         cache()
-        coEvery { local.isChapterContentExists(any()) } answers { firstArg<String>() != ids[1] }
         coEvery { local.getChapterContent(ids[0]) } returns body(ids[0], "林逸到来。")
         coEvery { local.getChapterContent(ids[1]) } returns null
         coEvery { local.getChapterContent(ids[2]) } returns body(ids[2], "林逸离开。")
@@ -108,33 +102,7 @@ class SpeechAnalysisBookSourceTest {
         coVerify(exactly = 0) { books.submitDownload(any(), any()) }
     }
 
-    @Test fun verificationReplacementKeepsFollowingTheDownloadUntilTheBookIsComplete() = runBlocking {
-        cache()
-        var complete = false
-        coEvery { local.isChapterContentExists(any()) } answers { complete }
-        coEvery { books.downloadDirectory(book, any()) } returns Ok(volumes)
-        val original = UUID.randomUUID()
-        val resumed = UUID.randomUUID()
-        coEvery { books.submitDownload(book.storageKey, ids) } returnsMany listOf(
-            DownloadSubmission.Accepted(original, DownloadTaskState(DownloadTaskStatus.Running)),
-            DownloadSubmission.Accepted(resumed, DownloadTaskState(DownloadTaskStatus.Queued), existing = true),
-        )
-        every { books.downloadStatusFlow(book.storageKey) } answers {
-            flow { emit(BookDownloadStatus(task = DownloadTaskState(
-                if (complete) DownloadTaskStatus.Complete else DownloadTaskStatus.Queued))) }
-        }
-        every { work.getWorkInfoByIdFlow(original) } returns
-            flowOf(mockk<WorkInfo> { every { state } returns WorkInfo.State.FAILED })
-        every { work.getWorkInfoByIdFlow(resumed) } returns flow {
-            complete = true
-            emit(mockk<WorkInfo> { every { state } returns WorkInfo.State.SUCCEEDED })
-        }
-        assertEquals(3, source.download(book.storageKey) {}.cachedChapters)
-        coVerify(exactly = 2) { books.submitDownload(book.storageKey, ids) }
-        coVerify(exactly = 0) { scheduler.dismiss(any(), any()) }
-    }
-
-    @Test fun fullDownloadWaitsForExistingSelectionThenExplicitlyFillsTheWholeDirectory() = runBlocking {
+    @Test fun fullDownloadFillsExistingSelectionAndContinuesAfterVerification() = runBlocking {
         cache()
         val cached = mutableSetOf(ids[0])
         coEvery { local.isChapterContentExists(any()) } answers { firstArg<String>() in cached }
@@ -145,17 +113,23 @@ class SpeechAnalysisBookSourceTest {
             DownloadSubmission.Accepted(first, DownloadTaskState(DownloadTaskStatus.Running), existing = true, selectionMatches = false),
             DownloadSubmission.Accepted(full, DownloadTaskState(DownloadTaskStatus.Queued)),
         )
-        every { books.downloadStatusFlow(book.storageKey) } returns
-            flowOf(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.Complete)))
-        every { work.getWorkInfoByIdFlow(first) } returns flow {
-            cached += ids[1]
-            emit(mockk<WorkInfo> { every { state } returns WorkInfo.State.SUCCEEDED })
-        }
-        every { work.getWorkInfoByIdFlow(full) } returns flow {
-            cached += ids[2]
-            emit(mockk<WorkInfo> { every { state } returns WorkInfo.State.SUCCEEDED })
-        }
-        assertEquals(3, source.download(book.storageKey) {}.cachedChapters)
+        every { books.downloadStatusFlow(book.storageKey) } returnsMany listOf(
+            flow {
+                cached += ids[1]
+                emit(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.Complete)))
+            },
+            flow {
+                emit(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.WaitingRetry)))
+                emit(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.WaitingVerification)))
+                emit(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.Queued)))
+                emit(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.Running)))
+                cached += ids[2]
+                emit(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.Complete)))
+            },
+        )
+        val progress = mutableListOf<DownloadTaskStatus>()
+        assertEquals(3, source.download(book.storageKey) { progress += it.task.status }.cachedChapters)
+        assertTrue(DownloadTaskStatus.WaitingVerification in progress)
         coVerify(exactly = 2) { books.submitDownload(book.storageKey, ids) }
         coVerify(exactly = 0) { scheduler.dismiss(any(), any()) }
         source.download(book.storageKey) { fail("A fully cached book needs no download") }
@@ -167,15 +141,14 @@ class SpeechAnalysisBookSourceTest {
         coEvery { local.isChapterContentExists(any()) } returns false
         coEvery { books.downloadDirectory(book, any()) } returns Ok(volumes)
         coEvery { scheduler.dismiss(any(), any()) } returns Unit
-        every { books.downloadStatusFlow(book.storageKey) } returns
-            flowOf(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.Running)))
         val owned = UUID.randomUUID()
         for (existing in listOf(true, false)) {
             val id = if (existing) UUID.randomUUID() else owned
             val waiting = CompletableDeferred<Unit>()
             coEvery { books.submitDownload(book.storageKey, ids) } returns
                 DownloadSubmission.Accepted(id, DownloadTaskState(DownloadTaskStatus.Running), existing = existing)
-            every { work.getWorkInfoByIdFlow(id) } returns flow {
+            every { books.downloadStatusFlow(book.storageKey) } returns flow {
+                emit(BookDownloadStatus(task = DownloadTaskState(DownloadTaskStatus.Running)))
                 waiting.complete(Unit)
                 awaitCancellation()
             }
@@ -187,6 +160,5 @@ class SpeechAnalysisBookSourceTest {
         }
         coVerify(exactly = 1) { scheduler.dismiss(book, owned.toString()) }
         coVerify(exactly = 1) { scheduler.dismiss(any(), any()) }
-        verify(exactly = 2) { work.getWorkInfoByIdFlow(any()) }
     }
 }

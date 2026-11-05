@@ -1,8 +1,6 @@
 package indi.renakoni.nextvol.tts
 
 import android.content.Context
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
 import com.github.michaelbull.result.getOrElse
 import dagger.hilt.android.qualifiers.ApplicationContext
 import indi.renakoni.nextvol.data.book.BookIdentity
@@ -20,13 +18,8 @@ import indi.renakoni.nextvol.data.localbook.LocalBookStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FilterReader
@@ -48,10 +41,17 @@ class SpeechAnalysisBookSource @Inject constructor(
     private val localBooks: LocalBookStore,
     private val components: ComponentDataRegistry,
     private val books: BookRepository,
-    private val workManager: WorkManager,
     private val scheduler: BookDownloadScheduler,
 ) {
-    suspend fun inspect(bookId: String): SpeechAnalysisBook = withContext(Dispatchers.IO) { snapshot(bookId).first }
+    suspend fun inspect(bookId: String): SpeechAnalysisBook = withContext(Dispatchers.IO) {
+        val (summary, chapters) = snapshot(bookId)
+        var cached = 0
+        for (chapter in chapters) {
+            ensureActive()
+            if (summary.local || local.isChapterContentExists(chapter)) cached++
+        }
+        summary.copy(cachedChapters = cached)
+    }
 
     /** One temporary input preserves batch statistics across chapter boundaries without retaining the whole book. */
     suspend fun openCached(bookId: String): SpeechAnalysisBookText {
@@ -99,16 +99,11 @@ class SpeechAnalysisBookSource @Inject constructor(
             .getOrElse { throw SpeechException(SpeechError.SourceUnavailable) }
         else local.getBookVolumes(book.storageKey)
         val chapters = volumes?.volumes.orEmpty().flatMap { it.chapters }.map { it.id }.distinct()
-        var cached = 0
-        for (chapter in chapters) {
-            currentCoroutineContext().ensureActive()
-            if (imported || local.isChapterContentExists(chapter)) cached++
-        }
         val information = local.getBookInformation(book.storageKey) ?: if (imported)
             localBooks.readInformation(book).getOrElse { throw SpeechException(SpeechError.SourceUnavailable) }
         else null
         val title = information?.title.orEmpty()
-        return SpeechAnalysisBook(book.storageKey, title, cached, chapters.size, imported) to chapters
+        return SpeechAnalysisBook(book.storageKey, title, 0, chapters.size, imported) to chapters
     }
 
     /** An active selected download finishes first; the next submission explicitly selects the whole directory. */
@@ -136,23 +131,16 @@ class SpeechAnalysisBookSource @Inject constructor(
                     }
                     owned = accepted.workId.takeUnless { accepted.existing }
                     ensureActive()
-                    val finished = coroutineScope {
-                        val progress = launch {
-                            books.downloadStatusFlow(book.storageKey).collect { status ->
-                                ensureActive()
-                                onProgress(status)
-                            }
-                        }
-                        try { workManager.getWorkInfoByIdFlow(accepted.workId).filterNotNull().first { it.state.isFinished } }
-                        finally { progress.cancelAndJoin() }
+                    // The repository follows replacement workers after source verification.
+                    val status = books.downloadStatusFlow(book.storageKey).first { progress ->
+                        ensureActive()
+                        onProgress(progress)
+                        val task = progress.task
+                        !task.active && task.status !in setOf(
+                            DownloadTaskStatus.WaitingRetry, DownloadTaskStatus.WaitingVerification)
                     }
                     owned = null
-                    val status = books.downloadStatusFlow(book.storageKey).first()
-                    ensureActive()
-                    onProgress(status)
-                    // Verification can replace the completed worker while this book's download continues.
-                    if (status.task.active || status.task.status == DownloadTaskStatus.WaitingRetry) continue
-                    if (finished.state != WorkInfo.State.SUCCEEDED || status.task.status != DownloadTaskStatus.Complete)
+                    if (status.task.status != DownloadTaskStatus.Complete)
                         throw SpeechAnalysisDownloadException(status.task.failure ?: DownloadFailure.SystemInterrupted)
                     available = inspect(book.storageKey)
                     if ((available.totalChapters == 0 || available.cachedChapters != available.totalChapters) &&

@@ -13,7 +13,6 @@
     <string name="tts_analysis_coverage">Cached %1$d / %2$d chapters</string>
     <string name="tts_analysis_preparing">Preparing text…</string>
     <string name="tts_analysis_running">Analyzing text…</string>
-    <string name="tts_analysis_choose_gender">Choose a gender for selected characters marked unknown.</string>
     <string name="tts_analysis_edit">Edit character</string>
     <string name="tts_analysis_aliases">Aliases (one per line)</string>
     <string name="tts_analysis_gender_action">%1$s, %2$s. Change gender</string>

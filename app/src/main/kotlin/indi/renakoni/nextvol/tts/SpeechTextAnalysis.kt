@@ -26,7 +26,7 @@ data class SpeechTextAnalysisCandidate(
     val matchesNamePattern: Boolean,
     val selected: Boolean = false,
     val aliases: List<String> = emptyList(),
-    val gender: SpeechNameHint = classification.hint,
+    val gender: SpeechNameHint = if (classification.hint == SpeechNameHint.Female) SpeechNameHint.Female else SpeechNameHint.Male,
     val existingRoleId: String? = null,
     val mergedRoleIds: Set<String> = emptySet(),
     val edited: Boolean = false,
@@ -43,8 +43,8 @@ class SpeechTextAnalysis @Inject constructor(
     private val authority: ExecutionAuthority,
 ) {
     suspend fun analyze(reader: Reader, algorithm: NewWordAlgorithm, onlyNew: Boolean,
-        personNameRegex: String?, maxAutoChecked: Int, maleNameRegex: String, femaleNameRegex: String,
-        onClassified: (Int, Int) -> Unit = { _, _ -> }): SpeechTextAnalysisResult = reader.use { input ->
+        personNameRegex: String?, maxAutoChecked: Int, maleNameRegex: String, femaleNameRegex: String):
+        SpeechTextAnalysisResult = reader.use { input ->
         withContext(Dispatchers.Default) {
             val analysis = discovery.analyze(input, algorithm, onlyNew)
             val pattern = personNameRegex ?: discovery.defaultNamePattern()
@@ -56,12 +56,12 @@ class SpeechTextAnalysis @Inject constructor(
                     is ExecutionResult.Success -> result.output.toBooleanStrict()
                     is ExecutionResult.Failure -> {
                         val error = result.ruleError
-                        if (error != null) throw PatternSyntaxException(error.code.toString(), regex, error.location.offset)
+                        if (error != null) throw PatternSyntaxException(error.code, regex, error.location.offset)
                         throw IllegalStateException(result.code.toString())
                     }
                 }
             try {
-                val candidates = analysis.candidates.mapIndexed { index, word ->
+                val candidates = analysis.candidates.map { word ->
                     ensureActive()
                     val classification = classifier.classify(word.name, maleNameRegex, femaleNameRegex)
                     val matching = pattern.isNotEmpty() && matches(word.name, pattern)
@@ -69,7 +69,6 @@ class SpeechTextAnalysis @Inject constructor(
                         word.name in rule.literalPeople() ||
                             rule.activate && rule.pattern.isNotEmpty() && matches(word.name, rule.pattern)
                     }
-                    onClassified(index + 1, analysis.candidates.size)
                     SpeechTextAnalysisCandidate(word.name, word.name, word.value, classification, matching,
                         aliases = existing?.person?.names.orEmpty().filter { it != word.name }, existingRoleId = existing?.id)
                 }
@@ -88,16 +87,14 @@ internal fun selectSpeechAnalysisCandidates(candidates: List<SpeechTextAnalysisC
     List<SpeechTextAnalysisCandidate> {
     var selected = 0
     return (candidates.filter { it.matchesNamePattern } + candidates.filterNot { it.matchesNamePattern }).map {
-        val checked = it.matchesNamePattern && it.existingRoleId == null && selected < maxAutoChecked &&
-            it.gender != SpeechNameHint.Unknown
+        val checked = it.matchesNamePattern && it.existingRoleId == null && selected < maxAutoChecked
         if (checked) selected++
         it.copy(selected = checked)
     }
 }
 
 /** Statistics stay attached to the target word; a native score cannot be summed as a frequency. */
-fun mergeSpeechAnalysisCandidates(candidates: List<SpeechTextAnalysisCandidate>, targetId: String,
-    sourceIds: Set<String>): List<SpeechTextAnalysisCandidate> {
+fun mergeSpeechAnalysisCandidates(candidates: List<SpeechTextAnalysisCandidate>, targetId: String): List<SpeechTextAnalysisCandidate> {
     val target = candidates.firstOrNull { it.id == targetId } ?: return candidates
     val names = (target.aliases + target.name).toMutableSet()
     val removedAliases = if (target.edited) target.originalAliases.toSet() - names else emptySet()
@@ -105,7 +102,7 @@ fun mergeSpeechAnalysisCandidates(candidates: List<SpeechTextAnalysisCandidate>,
     val sources = mutableListOf<SpeechTextAnalysisCandidate>()
     while (true) {
         val source = remaining.firstOrNull { it.name !in removedAliases &&
-            (it.id in sourceIds || (it.aliases + it.name).any(names::contains)) } ?: break
+            (it.aliases + it.name).any(names::contains) } ?: break
         remaining.remove(source)
         sources += source
         names += source.aliases + source.name
@@ -126,11 +123,7 @@ internal fun mergeSpeechAnalysisRoles(settings: SpeechSettings, group: String,
     for (candidate in candidates.filter { it.selected }) {
         val names = (listOf(candidate.name) + candidate.aliases).map(String::trim).filter(String::isNotEmpty).distinct()
         if (names.isEmpty()) continue
-        val pool = when (candidate.gender) {
-            SpeechNameHint.Male -> SPEECH_POOL_MALE
-            SpeechNameHint.Female -> SPEECH_POOL_FEMALE
-            SpeechNameHint.Unknown -> throw IllegalArgumentException("Select a gender before saving the character")
-        }
+        val pool = if (candidate.gender == SpeechNameHint.Female) SPEECH_POOL_FEMALE else SPEECH_POOL_MALE
         val personRules = rules.filter { it.mode != 0 && it.mode != 1 && !it.pattern.startsWith("lang:") }
         val overlapping = personRules.filter { it.id == candidate.existingRoleId ||
             it.id in candidate.mergedRoleIds && it.literalPeople().isEmpty() || it.literalPeople().any { name -> name in names } }

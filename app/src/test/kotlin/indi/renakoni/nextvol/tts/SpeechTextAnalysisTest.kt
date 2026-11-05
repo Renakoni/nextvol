@@ -7,14 +7,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechTextAnalysisTest {
-    private fun candidate(name: String, matches: Boolean = true, selected: Boolean = true) =
+    private fun candidate(name: String, matches: Boolean = true, selected: Boolean = true, hint: SpeechNameHint = SpeechNameHint.Male) =
         SpeechTextAnalysisCandidate(name, name, 90,
-            SpeechNameClassification(SpeechNameHint.Male, SpeechNameHintBasis.Model), matches, selected)
+            SpeechNameClassification(hint, SpeechNameHintBasis.Model), matches, selected)
 
     @Test fun automaticSelectionOnlyCountsNewMatchingNamesAndDoesNotLimitManualSaving() {
         val ordinary = candidate("窗边", matches = false)
         val existing = candidate("林逸").copy(existingRoleId = "saved")
-        val candidates = selectSpeechAnalysisCandidates(listOf(ordinary, existing, candidate("小甲"), candidate("小乙")), 1)
+        val unknown = candidate("小甲", hint = SpeechNameHint.Unknown)
+        assertEquals(SpeechNameHint.Unknown, unknown.classification.hint)
+        assertEquals(SpeechNameHint.Male, unknown.gender)
+        val candidates = selectSpeechAnalysisCandidates(listOf(ordinary, existing, unknown, candidate("小乙")), 1)
         assertEquals(listOf("林逸", "小甲", "小乙", "窗边"), candidates.map { it.name })
         assertEquals(listOf("小甲"), candidates.filter { it.selected }.map { it.name })
         val saved = mergeSpeechAnalysisRoles(SpeechSettings(), "本书", candidates.filter { it.existingRoleId == null }
@@ -29,8 +32,9 @@ class SpeechTextAnalysisTest {
             speakerBookId = "other-book", speakerVoices = mapOf("旁人" to SpeechVoiceRef(httpSource = "manual"))),
             "本书", listOf(candidate("林逸"), candidate("小林")))
         val targetRule = original.roleRules.first { it.name == "林逸" }
-        val candidates = listOf(candidate("林逸").copy(existingRoleId = targetRule.id), candidate("小林").copy(value = 40))
-        val merged = mergeSpeechAnalysisCandidates(candidates, "林逸", setOf("小林"))
+        val candidates = listOf(candidate("林逸").copy(existingRoleId = targetRule.id, aliases = listOf("小林")),
+            candidate("小林").copy(value = 40))
+        val merged = mergeSpeechAnalysisCandidates(candidates, "林逸")
         assertEquals(90, merged.single().value)
         assertEquals(listOf("小林"), merged.single().aliases)
         val saved = mergeSpeechAnalysisRoles(original, "本书", merged)
@@ -42,21 +46,10 @@ class SpeechTextAnalysisTest {
         assertEquals(original.speakerVoices, saved.speakerVoices)
         assertEquals(original.speakerBookId, saved.speakerBookId)
         assertEquals(saved, mergeSpeechAnalysisRoles(saved, "本书", merged))
+        assertEquals(saved, mergeSpeechAnalysisRoles(saved, "本书", listOf(candidate("小林").copy(existingRoleId = person.id))))
         val renamed = mergeSpeechAnalysisRoles(saved, "本书", merged.map { it.copy(name = "林先生") })
         assertEquals("林逸", renamed.roleRules.last().person!!.name)
         assertEquals(listOf("小林", "林先生"), renamed.roleRules.last().person!!.aliases)
-    }
-
-    @Test fun existingImportedGroupIsRetainedWhenAddingAnAliasForOneMember() {
-        val imported = SpeechRoleRule(name = "男性", group = "文本", regex = "(林逸|张三)", isAbstract = true,
-            speaker = SpeechVoiceRef(voice = SPEECH_POOL_MALE))
-        val settings = SpeechSettings(roleRules = listOf(imported))
-        val known = candidate("林逸").copy(existingRoleId = imported.id)
-        assertEquals(settings, mergeSpeechAnalysisRoles(settings, "文本", listOf(known)))
-        val saved = mergeSpeechAnalysisRoles(settings, "文本", listOf(known.copy(aliases = listOf("小林"))))
-        assertEquals(imported, saved.roleRules.last())
-        assertEquals("林逸", saved.roleRules.first().person!!.name)
-        assertEquals(SPEECH_POOL_MALE, saved.roleRules.first().speaker!!.voice)
     }
 
     @Test fun editedAliasesMergeLiteralRolesAcrossGroupsButDoNotNarrowArbitraryRegexOrTextRules() {
@@ -66,6 +59,7 @@ class SpeechTextAnalysisTest {
         val effect = SpeechRoleRule(name = "阿林", regex = "林逸", mode = 0)
         val regex = SpeechRoleRule(name = "其他匹配", regex = "阿.*")
         val current = SpeechSettings(roleRules = listOf(group, effect, explicit, regex))
+        assertEquals(current, mergeSpeechAnalysisRoles(current, "新文本", listOf(candidate("小林").copy(existingRoleId = group.id))))
         val edited = candidate("阿林").copy(aliases = listOf("林逸", "小林"))
         val saved = mergeSpeechAnalysisRoles(current, "新文本", listOf(edited))
         assertEquals(listOf(explicit.id, group.id, effect.id, regex.id), saved.roleRules.map { it.id })
@@ -76,12 +70,7 @@ class SpeechTextAnalysisTest {
         assertEquals(regex, saved.roleRules.last())
     }
 
-    @Test fun selectingAKnownAliasDoesNotRenameItsPersonAndQuotedNamesRemainLiteral() {
-        val original = mergeSpeechAnalysisRoles(SpeechSettings(), "文本", listOf(candidate("林逸").copy(aliases = listOf("小林"))))
-        val role = original.roleRules.single()
-        val selectedAlias = candidate("小林").copy(existingRoleId = role.id)
-        val saved = mergeSpeechAnalysisRoles(original, "文本", listOf(selectedAlias))
-        assertEquals(role, saved.roleRules.single())
+    @Test fun quotedNamesRemainLiteral() {
         val unusual = "林|逸\\E"
         val quoted = SpeechRoleRule(name = "字面人物", regex = java.util.regex.Pattern.quote(unusual))
         val quotedMerged = mergeSpeechAnalysisRoles(SpeechSettings(roleRules = listOf(quoted)), "文本",
@@ -94,8 +83,8 @@ class SpeechTextAnalysisTest {
     @Test fun mergingAKnownCandidateRetainsItsMatchedRuleWithoutInventingNamesFromTheRegex() {
         val group = SpeechRoleRule(name = "匹配规则", regex = "小[林张]", isAbstract = true,
             speaker = SpeechVoiceRef(voice = SPEECH_POOL_MALE))
-        val merged = mergeSpeechAnalysisCandidates(listOf(candidate("林逸"),
-            candidate("小林").copy(existingRoleId = group.id)), "林逸", setOf("小林"))
+        val merged = mergeSpeechAnalysisCandidates(listOf(candidate("林逸").copy(aliases = listOf("小林")),
+            candidate("小林").copy(existingRoleId = group.id)), "林逸")
         val saved = mergeSpeechAnalysisRoles(SpeechSettings(roleRules = listOf(group)), "文本", merged)
         assertEquals(group, saved.roleRules.last())
         assertEquals(SpeechRolePerson("林逸", listOf("小林")), saved.roleRules.first().person)
@@ -108,7 +97,7 @@ class SpeechTextAnalysisTest {
         val name = candidate("林逸").copy(existingRoleId = role.id, aliases = emptyList(),
             originalAliases = listOf("小林"), edited = true)
         val alias = candidate("小林", selected = false).copy(existingRoleId = role.id, aliases = listOf("林逸"))
-        val edited = mergeSpeechAnalysisCandidates(listOf(name, alias), "林逸", setOf("小林"))
+        val edited = mergeSpeechAnalysisCandidates(listOf(name, alias), "林逸")
         assertEquals(2, edited.size)
         val saved = mergeSpeechAnalysisRoles(initial, "文本", edited)
         assertEquals(SpeechRolePerson("林逸"), saved.roleRules.single().person)

@@ -4,6 +4,12 @@ import indi.renakoni.nextvol.tts.names.SpeechNameClassification
 import indi.renakoni.nextvol.tts.names.SpeechNameHint
 import java.util.regex.Pattern
 
+internal fun SpeechSettings.activeSpeechPeople(): List<SpeechRolePerson> = roleRules
+    .filter { it.activate && it.mode != 0 && it.mode != 1 && !it.pattern.startsWith("lang:") }.mapNotNull { it.person }
+
+internal fun List<SpeechRolePerson>.canonicalPerson(person: String): String =
+    firstOrNull { person in it.names }?.name ?: person
+
 /** O6.f.e/a/c and O6.j.g: rules first, then discovery, existing gender pairs, classification and pool. */
 internal class SpeechCharacterAssignment(
     private val settings: SpeechSettings,
@@ -17,14 +23,12 @@ internal class SpeechCharacterAssignment(
     private val assign: suspend (String, String) -> SpeechVoicePair?,
     private val checkCancelled: () -> Unit,
 ) {
-    private val people = settings.roleRules.filter { it.activate && it.mode != 0 && it.mode != 1 }
-        .mapNotNull { it.person }
-    private fun canonical(person: String) = people.firstOrNull { person in it.names }?.name ?: person
+    private val people = settings.activeSpeechPeople()
     private fun names(person: String) = people.firstOrNull { it.name == person }?.names ?: listOf(person)
     private val manualVoices = (pairs.filter { it.manual && it.person != SPEECH_LANGUAGE_PERSON }.map { it.person to it.value } +
         settings.speakerVoices.takeIf { settings.speakerBookId == chapter.bookId }.orEmpty().toList())
-        .distinctBy { it.first }.sortedBy { canonical(it.first) != it.first }
-        .map { canonical(it.first) to it.second }.distinctBy { it.first }.toMap()
+        .distinctBy { it.first }.sortedBy { people.canonicalPerson(it.first) != it.first }
+        .map { people.canonicalPerson(it.first) to it.second }.distinctBy { it.first }.toMap()
 
     private fun manual(person: String): SpeechVoiceRef? = manualVoices[person]
 
@@ -51,7 +55,7 @@ internal class SpeechCharacterAssignment(
         rules: SpeechRoleRules): SpeechPersonVoice? {
         checkCancelled()
         known(text, direction, manualVoices.keys.flatMap(::names), rules)?.let { name ->
-            val person = canonical(name)
+            val person = people.canonicalPerson(name)
             val voice = manual(person)!!
             return SpeechRoleMatch(person, "", "", false, voice, origin = SpeechPersonOrigin.Manual).personVoice()
         }

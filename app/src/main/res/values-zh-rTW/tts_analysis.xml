@@ -13,7 +13,6 @@
     <string name="tts_analysis_coverage">已快取 %1$d / %2$d 章</string>
     <string name="tts_analysis_preparing">正在準備正文…</string>
     <string name="tts_analysis_running">正在分析正文…</string>
-    <string name="tts_analysis_choose_gender">請為已勾選的未知人物選擇性別。</string>
     <string name="tts_analysis_edit">編輯人物</string>
     <string name="tts_analysis_aliases">別名（每行一個）</string>
     <string name="tts_analysis_gender_action">%1$s，%2$s。切換性別</string>

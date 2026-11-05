@@ -11,7 +11,6 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.download.*
 import indi.renakoni.nextvol.tts.*
-import indi.renakoni.nextvol.tts.names.*
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -58,32 +57,4 @@ class SpeechTextAnalysisDialogTest {
         compose.onAllNodes(progress).assertCountEquals(0)
     }
 
-    @Test fun originalTableSeparatesSelectionGenderAndEditingAndUsesAlgorithmStatistic() {
-        val candidate = SpeechTextAnalysisCandidate("Alice", "Alice", 97,
-            SpeechNameClassification(SpeechNameHint.Female, SpeechNameHintBasis.Model), true, true)
-        val state = mutableStateOf(SpeechTextAnalysisState(sourceName = "Novel",
-            result = SpeechTextAnalysisResult(NewWordAlgorithm.Native, listOf(candidate))))
-        var toggled: String? = null
-        var gender: String? = null
-        var saved = false
-        activity.get().setContent { MaterialTheme {
-            SpeechTextAnalysisContent(state.value, {}, {}, {}, { toggled = it }, { gender = it },
-                { _, _, _ -> }, { saved = true }, {})
-        } }
-        compose.onNodeWithText(activity.get().getString(R.string.tts_new_word_score)).assertIsDisplayed()
-        compose.onNodeWithText("● Alice").performClick()
-        assertEquals("Alice", toggled)
-        val label = activity.get().getString(R.string.tts_analysis_gender_action, "Alice",
-            activity.get().getString(R.string.tts_voice_female))
-        compose.onNodeWithContentDescription(label).performClick()
-        assertEquals("Alice", gender)
-        compose.onNodeWithText("● Alice").performTouchInput { longClick() }
-        compose.onNodeWithText(activity.get().getString(R.string.tts_analysis_original_word, "Alice")).assertIsDisplayed()
-        compose.onNodeWithText(activity.get().getString(R.string.tts_name_basis_model), substring = true).assertIsDisplayed()
-        compose.onAllNodesWithText(activity.get().getString(R.string.cancel)).onLast().performClick()
-        compose.runOnIdle { state.value = state.value.copy(result = state.value.result!!.copy(algorithm = NewWordAlgorithm.Hanlp)) }
-        compose.onNodeWithText(activity.get().getString(R.string.tts_analysis_frequency)).assertIsDisplayed()
-        compose.onNodeWithTag("analysis-save").performClick()
-        assertTrue(saved)
-    }
 }

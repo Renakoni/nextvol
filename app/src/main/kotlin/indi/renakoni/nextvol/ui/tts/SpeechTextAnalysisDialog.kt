@@ -14,7 +14,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -31,7 +30,6 @@ import indi.renakoni.nextvol.tts.names.NewWordAlgorithm
 import indi.renakoni.nextvol.tts.names.SpeechNameHint
 import indi.renakoni.nextvol.tts.names.SpeechNameHintBasis
 import indi.renakoni.nextvol.ui.components.DownloadTaskProgress
-import indi.renakoni.nextvol.ui.components.downloadFailureResource
 
 @Composable
 internal fun SpeechTextAnalysisDialog(onBack: () -> Unit, onOpenStorage: () -> Unit) {
@@ -41,10 +39,9 @@ internal fun SpeechTextAnalysisDialog(onBack: () -> Unit, onOpenStorage: () -> U
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) dismiss() else model.openFile(uri)
     }
-    var opened by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (model.bookId == null && !opened) {
-            opened = true
+        if (model.bookId == null && !model.filePickerOpened) {
+            model.filePickerOpened = true
             picker.launch(arrayOf("text/plain"))
         }
     }
@@ -61,7 +58,7 @@ internal fun SpeechTextAnalysisContent(state: SpeechTextAnalysisState, onCancel:
     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * .85f
     Surface(Modifier.padding(24.dp).widthIn(max = 560.dp).fillMaxWidth().heightIn(max = maxHeight),
         shape = MaterialTheme.shapes.extraLarge) {
-        Column(Modifier.testTag("speech-text-analysis").padding(top = 24.dp)) {
+        Column(Modifier.padding(top = 24.dp)) {
             Text(if (result != null) state.sourceName else stringResource(R.string.tts_analysis_title),
                 Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.headlineSmall,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -86,7 +83,7 @@ internal fun SpeechTextAnalysisContent(state: SpeechTextAnalysisState, onCancel:
                                 Text(stringResource(R.string.tts_voice_gender), style = MaterialTheme.typography.labelLarge)
                             }
                         }
-                        LazyColumn(Modifier.weight(1f, fill = false).testTag("analysis-candidates"),
+                        LazyColumn(Modifier.weight(1f, fill = false),
                             verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(top = 5.dp)) {
                             if (result.candidates.isEmpty()) item {
                                 Text(stringResource(R.string.tts_new_word_empty), Modifier.padding(14.dp))
@@ -100,9 +97,6 @@ internal fun SpeechTextAnalysisContent(state: SpeechTextAnalysisState, onCancel:
                     Text(stringResource(R.string.tts_analysis_global_group, state.sourceName),
                         Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (result.candidates.any { it.selected && it.gender == SpeechNameHint.Unknown })
-                        Text(stringResource(R.string.tts_analysis_choose_gender), Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 state.download != null -> Box(Modifier.padding(horizontal = 24.dp)) {
                     DownloadTaskProgress(state.download, false, onRetry, null, onOpenStorage)
@@ -121,16 +115,12 @@ internal fun SpeechTextAnalysisContent(state: SpeechTextAnalysisState, onCancel:
             }
             val error = state.error?.let { stringResource(R.string.tts_new_word_error, it) }
                 ?: state.speechError?.let { stringResource(it.messageResource) }
-                ?: state.downloadFailure?.takeIf { state.download?.task?.failure == null }
-                    ?.let { stringResource(downloadFailureResource(it)) }
             if (error != null) Text(error, Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.End) {
                 TextButton(onCancel, enabled = !state.saving) { Text(stringResource(R.string.cancel)) }
-                if (result != null) TextButton(onSave, enabled = !state.saving &&
-                    result.candidates.none { it.selected && it.gender == SpeechNameHint.Unknown },
-                    modifier = Modifier.testTag("analysis-save")) { Text(stringResource(R.string.tts_engine_save)) }
+                if (result != null) TextButton(onSave, enabled = !state.saving) { Text(stringResource(R.string.tts_engine_save)) }
                 else if (error != null && state.download == null) TextButton(onRetry) { Text(stringResource(R.string.book_download_retry)) }
             }
         }
@@ -172,11 +162,7 @@ private fun AnalysisTableRow(modifier: Modifier = Modifier, content: @Composable
 private fun AnalysisCandidateRow(candidate: SpeechTextAnalysisCandidate, saving: Boolean,
     onToggle: () -> Unit, onGender: () -> Unit, onEdit: () -> Unit) {
     val editLabel = stringResource(R.string.tts_analysis_edit)
-    val gender = stringResource(when (candidate.gender) {
-        SpeechNameHint.Male -> R.string.tts_voice_male
-        SpeechNameHint.Female -> R.string.tts_voice_female
-        SpeechNameHint.Unknown -> R.string.tts_name_hint_unknown
-    })
+    val gender = stringResource(if (candidate.gender == SpeechNameHint.Female) R.string.tts_voice_female else R.string.tts_voice_male)
     AnalysisTableRow(Modifier.combinedClickable(enabled = !saving, role = Role.Checkbox,
         onClick = onToggle, onLongClick = onEdit, onLongClickLabel = editLabel)) {
         Checkbox(candidate.selected, onCheckedChange = { onToggle() }, enabled = !saving)

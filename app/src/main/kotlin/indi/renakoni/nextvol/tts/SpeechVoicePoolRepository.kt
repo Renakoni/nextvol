@@ -49,8 +49,8 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
             pair
         } }
 
-    suspend fun setManual(pair: SpeechVoicePair) = change { pairs ->
-        replace(pairs, pair.copy(manual = true))
+    suspend fun setManual(pair: SpeechVoicePair, people: List<SpeechRolePerson> = emptyList()) = change { pairs ->
+        replace(pairs, pair.copy(manual = true), people)
     }
 
     suspend fun remove(ids: Set<String>) = change { pairs -> pairs.filterNot { it.id in ids } }
@@ -71,14 +71,16 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
 
     /** Returns the unchanged rows whose group has no available enabled candidate. */
     suspend fun reassign(ids: Set<String>, items: List<SpeechVoiceItem>,
-        catalog: Map<String, SpeechResolvedVoice>): Set<String> = withContext(Dispatchers.IO) { mutex.withLock {
+        catalog: Map<String, SpeechResolvedVoice>, people: List<SpeechRolePerson>): Set<String> = withContext(Dispatchers.IO) { mutex.withLock {
         val failed = mutableSetOf<String>()
         val pairs = decode(stored.get())
-        val next = pairs.map { pair ->
-            if (pair.id !in ids) pair else {
-                val voice = pool.draw(pair.bookId, pair.group, items, catalog)
-                if (voice == null) { failed += pair.id; pair } else pair.copy(value = voice, manual = false)
-            }
+        var next = pairs
+        val selected = pairs.filter { it.id in ids }.groupBy { Triple(it.bookId, people.canonicalPerson(it.person), it.group) }
+        for (rows in selected.values) {
+            val pair = rows.first()
+            val voice = pool.draw(pair.bookId, pair.group, items, catalog)
+            if (voice == null) failed += rows.map { it.id }
+            else next = replace(next, pair.copy(value = voice, manual = false), people, clearManual = true)
         }
         pool.clearCache()
         if (next != pairs) {
@@ -101,17 +103,19 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
             }
         } }
 
-    private fun replace(pairs: List<SpeechVoicePair>, pair: SpeechVoicePair): List<SpeechVoicePair> {
+    private fun replace(pairs: List<SpeechVoicePair>, pair: SpeechVoicePair,
+        people: List<SpeechRolePerson> = emptyList(), clearManual: Boolean = pair.manual): List<SpeechVoicePair> {
+        val canonical = pair.copy(person = people.canonicalPerson(pair.person))
         var inserted = false
         return buildList {
             for (old in pairs) {
-                val samePerson = old.bookId == pair.bookId && old.person == pair.person
+                val samePerson = old.bookId == pair.bookId && people.canonicalPerson(old.person) == canonical.person
                 if (old.id == pair.id || samePerson && (old.group == pair.group ||
-                    pair.person != SPEECH_LANGUAGE_PERSON && pair.manual && old.manual)) {
-                    if (!inserted) { add(pair); inserted = true }
+                    canonical.person != SPEECH_LANGUAGE_PERSON && clearManual && old.manual)) {
+                    if (!inserted) { add(canonical); inserted = true }
                 } else add(old)
             }
-            if (!inserted) add(pair)
+            if (!inserted) add(canonical)
         }
     }
 

@@ -13,20 +13,23 @@ import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.names.NewWordAlgorithm
 import indi.renakoni.nextvol.tts.names.SpeechNameHint
 import indi.renakoni.nextvol.data.download.BookDownloadStatus
-import indi.renakoni.nextvol.data.download.DownloadFailure
 import indi.renakoni.nextvol.data.download.DownloadStage
 import indi.renakoni.nextvol.data.download.DownloadTaskState
 import indi.renakoni.nextvol.data.download.DownloadTaskStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.mozilla.universalchardet.UniversalDetector
+import java.io.InputStream
 import java.io.Reader
+import java.nio.charset.Charset
 import javax.inject.Inject
 
 data class SpeechTextAnalysisState(
@@ -39,7 +42,6 @@ data class SpeechTextAnalysisState(
     val result: SpeechTextAnalysisResult? = null,
     val error: String? = null,
     val speechError: SpeechError? = null,
-    val downloadFailure: DownloadFailure? = null,
 )
 
 @HiltViewModel
@@ -56,6 +58,7 @@ class SpeechTextAnalysisViewModel @Inject constructor(
     private var job: Job? = null
     private var file: Uri? = null
     private var fullBook = false
+    internal var filePickerOpened = false
 
     init {
         if (bookId != null) job = viewModelScope.launch {
@@ -68,6 +71,7 @@ class SpeechTextAnalysisViewModel @Inject constructor(
     }
 
     fun openFile(uri: Uri) {
+        filePickerOpened = true
         file = uri
         start(false)
     }
@@ -82,17 +86,18 @@ class SpeechTextAnalysisViewModel @Inject constructor(
         job = viewModelScope.launch {
             previous?.join()
             mutableState.update { it.copy(loading = false, running = true, result = null,
-                error = null, speechError = null, downloadFailure = null, download = null) }
+                error = null, speechError = null, download = null) }
             try {
                 if (bookId != null) {
                     if (download) {
                         mutableState.update { it.copy(download = BookDownloadStatus(
                             task = DownloadTaskState(DownloadTaskStatus.Queued, DownloadStage.Directory))) }
                         books.download(bookId) { progress -> mutableState.update { it.copy(download = progress) } }
+                        mutableState.update { it.copy(download = null) }
                     }
                     val input = books.openCached(bookId)
                     input.reader.use { reader ->
-                        mutableState.update { it.copy(book = input.book, sourceName = input.book.title, download = null) }
+                        mutableState.update { it.copy(book = input.book, sourceName = input.book.title) }
                         analyze(reader)
                     }
                 } else {
@@ -103,7 +108,13 @@ class SpeechTextAnalysisViewModel @Inject constructor(
                             if (it.moveToFirst()) it.getString(0) else null
                         } ?: uri.lastPathSegment.orEmpty()
                         mutableState.update { it.copy(sourceName = name.substringBeforeLast('.', name)) }
-                        resolver.openInputStream(uri)?.bufferedReader()?.use { analyze(it) }
+                        val charset = resolver.openInputStream(uri)?.use { speechAnalysisCharset(it) }
+                            ?: throw SpeechException(SpeechError.Storage)
+                        resolver.openInputStream(uri)?.bufferedReader(charset)?.use {
+                            it.mark(1)
+                            if (it.read() != '\uFEFF'.code) it.reset()
+                            analyze(it)
+                        }
                             ?: throw SpeechException(SpeechError.Storage)
                     }
                 }
@@ -134,10 +145,7 @@ class SpeechTextAnalysisViewModel @Inject constructor(
     fun edit(id: String, name: String, aliases: List<String>) = editResult { items ->
         val updated = items.map { if (it.id == id) it.copy(name = name.trim(), edited = true,
             aliases = aliases.map(String::trim).filter(String::isNotEmpty).distinct()) else it }
-        val target = updated.first { it.id == id }
-        val names = (target.aliases + target.name).toSet()
-        val merged = updated.filter { it.id != id && (it.aliases + it.name).any(names::contains) }.map { it.id }.toSet()
-        mergeSpeechAnalysisCandidates(updated, id, merged)
+        mergeSpeechAnalysisCandidates(updated, id)
     }
 
     private fun editResult(change: (List<SpeechTextAnalysisCandidate>) -> List<SpeechTextAnalysisCandidate>) {
@@ -170,13 +178,25 @@ class SpeechTextAnalysisViewModel @Inject constructor(
                 it.message ?: it.javaClass.simpleName
             },
             speechError = (failure as? SpeechException)?.error,
-            downloadFailure = (failure as? SpeechAnalysisDownloadException)?.failure,
             download = if (failure is SpeechAnalysisDownloadException) {
                 val progress = state.download ?: BookDownloadStatus()
                 progress.copy(task = progress.task.copy(
                     status = if (progress.task.status == DownloadTaskStatus.WaitingVerification)
                         DownloadTaskStatus.WaitingVerification else DownloadTaskStatus.Failed,
                     failure = failure.failure))
-            } else state.download) }
+            } else null) }
     }
+}
+
+private suspend fun speechAnalysisCharset(input: InputStream): Charset {
+    val detector = UniversalDetector(null)
+    val buffer = ByteArray(8192)
+    while (!detector.isDone) {
+        currentCoroutineContext().ensureActive()
+        val count = input.read(buffer)
+        if (count < 0) break
+        detector.handleData(buffer, 0, count)
+    }
+    detector.dataEnd()
+    return Charset.forName(detector.detectedCharset ?: "UTF-8")
 }

@@ -40,6 +40,12 @@ class BookDownloadScheduler @Inject constructor(
     private val submissions = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
 
+    internal fun observeTask(workId: UUID): Flow<WorkInfo?> = flow {
+        // A task ID is persisted before WorkManager finishes registering its worker.
+        lock.withLock { }
+        emitAll(workManager.getWorkInfoByIdFlow(workId))
+    }
+
     fun enqueue(requested: SourceBookId): Flow<WorkInfo?> {
         if (LocalBookStore.isLocal(requested)) return flowOf(null)
         val submission = enqueueTask(requested, null, resumePrevious = false)
