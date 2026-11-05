@@ -7,7 +7,6 @@
     <string name="tts_analysis_auto_checked">自動選擇上限</string>
     <string name="tts_analysis_name">名稱</string>
     <string name="tts_analysis_frequency">詞頻</string>
-    <string name="tts_analysis_global_group">儲存到全域角色分組：%1$s</string>
     <string name="tts_analysis_cached">分析已快取正文</string>
     <string name="tts_analysis_download">補齊全書並分析</string>
     <string name="tts_analysis_coverage">已快取 %1$d / %2$d 章</string>

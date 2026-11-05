@@ -7,7 +7,6 @@
     <string name="tts_analysis_auto_checked">自动选择上限</string>
     <string name="tts_analysis_name">名称</string>
     <string name="tts_analysis_frequency">词频</string>
-    <string name="tts_analysis_global_group">保存到全局角色分组：%1$s</string>
     <string name="tts_analysis_cached">分析已缓存正文</string>
     <string name="tts_analysis_download">补齐全书并分析</string>
     <string name="tts_analysis_coverage">已缓存 %1$d / %2$d 章</string>

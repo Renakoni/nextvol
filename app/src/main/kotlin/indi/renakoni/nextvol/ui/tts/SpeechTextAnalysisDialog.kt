@@ -94,9 +94,6 @@ internal fun SpeechTextAnalysisContent(state: SpeechTextAnalysisState, onCancel:
                             }
                         }
                     }
-                    Text(stringResource(R.string.tts_analysis_global_group, state.sourceName),
-                        Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 state.download != null -> Box(Modifier.padding(horizontal = 24.dp)) {
                     DownloadTaskProgress(state.download, false, onRetry, null, onOpenStorage)

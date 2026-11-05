@@ -7,7 +7,6 @@
     <string name="tts_analysis_auto_checked">Automatically select upper limit</string>
     <string name="tts_analysis_name">Name</string>
     <string name="tts_analysis_frequency">Frequency</string>
-    <string name="tts_analysis_global_group">Save to global role group: %1$s</string>
     <string name="tts_analysis_cached">Analyze cached text</string>
     <string name="tts_analysis_download">Complete book download and analyze</string>
     <string name="tts_analysis_coverage">Cached %1$d / %2$d chapters</string>
