@@ -47,9 +47,9 @@ class SpeechPackageEngine(
     val requiredResources: List<SpeechPackageResourceReference>,
 ) {
     val isOnline: Boolean get() = isOnlineSpeechEngine(code, type) &&
-        (code !in setOf("msctts", "microsoft") || voices.isEmpty() || voices.any(::isOnlineVoice))
+        (type == "http" || code !in setOf("msctts", "microsoft") || voices.isEmpty() || voices.any(::isOnlineVoice))
     fun isOnlineVoice(voice: SpeechPackageVoice): Boolean = isOnlineSpeechEngine(code, type) &&
-        (code !in setOf("msctts", "microsoft") || voice.raw.values["type"].text()?.toIntOrNull()?.let { it != 0 } == true)
+        (type == "http" || code !in setOf("msctts", "microsoft") || voice.raw.values["type"].text()?.toIntOrNull()?.let { it != 0 } == true)
     override fun toString() = "SpeechPackageEngine(code=$code, voices=${voices.size}, support=$support)"
 }
 

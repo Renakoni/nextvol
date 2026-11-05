@@ -67,6 +67,15 @@ class MicrosoftSubscriptionTest {
         val prosody = xml.getElementsByTagName("prosody").item(0).attributes
         assertEquals("62%", prosody.getNamedItem("rate").nodeValue)
         assertEquals("25%", prosody.getNamedItem("volume").nodeValue)
+        val http = SpeechPackageEngine(engine.code, engine.name, "http", SpeechPackageValue.Mapping(
+            requireNotNull(engine.raw).values + mapOf(
+                "type" to SpeechPackageValue.Scalar("http", null, false),
+                "url" to SpeechPackageValue.Scalar("https://speech.example/tts", null, false)), null),
+            engine.voices, engine.support, engine.notices, engine.requiredResources)
+        val generic = previewHttpSpeechPackage(http)
+        assertNull(generic.error)
+        assertEquals(2, generic.sources.size)
+        assertTrue(generic.sources.all { it.nativeEngine == null && it.url == "https://speech.example/tts" })
     }
 
     @Test fun sdkDispatchRequiresTheActualSpeakerRegionGrant(): Unit = runBlocking {

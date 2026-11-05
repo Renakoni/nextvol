@@ -40,29 +40,6 @@ class MscVoiceEditingTest {
     @Test fun microsoftTypeEditsRetainResourcesAndAssignments() = verifyTypeEdits("microsoft", "SDK Voice\\nsubscription\\nwestus",
         mapOf("voice/model.dat" to "voice"), "voice/model.dat")
 
-    @Test fun newMicrosoftVoiceCanBeCopiedToOfflineWithoutRetiringTheOnlineSource() = runBlocking {
-        val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) { override fun getFilesDir() = files.root }
-        val engines = OfflineEngineRepository(context, StorageCipher.Plain)
-        val offline = OfflineSpeechRepository(files.newFolder("offline"), engines)
-        val authority = ExecutionAuthority()
-        val online = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline, engines)
-        val source = editHttpVoice(newHttpVoice(SpeechEngineConfig("microsoft", "Microsoft")), buildJsonObject {
-            put("name", "Xiaoxiao"); put("code", "zh-CN-XiaoxiaoNeural"); put("param", "SDK Voice\nsubscription\nwestus")
-        }, enabled = true, copy = false)
-        online.saveVoice(source)
-        val ticket = authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
-        val draft = InstalledOfflineVoice(OfflineVoiceRef("draft", "draft"), source.definition.name, emptyMap(),
-            configuration = source.speakerData().offlineConfiguration("microsoft").copy(type = 0))
-        MscVoiceEditing(online, offline, mockk(), mockk()).toOffline(source, draft, copy = true)
-        val copied = offline.voices().single()
-        assertTrue(copied.sizes.isEmpty())
-        assertEquals("microsoft_zh-CN-XiaoxiaoNeural", copied.packageVoiceId())
-        assertEquals("", copied.sourceKey)
-        assertEquals(source.definition.id, online.sources().single { !it.isBuiltIn }.definition.id)
-        assertTrue(authority.accepts(ticket))
-        assertFalse(offline.directory(copied.resourceReference).exists())
-    }
-
     private fun verifyTypeEdits(code: String, parameters: String, resources: Map<String, String>, modelPath: String) = runBlocking {
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) { override fun getFilesDir() = files.root }
         val engines = OfflineEngineRepository(context, StorageCipher.Plain)
@@ -137,27 +114,47 @@ class MscVoiceEditingTest {
         assertEquals(reimported.reference, references["${code}_voice"]!!.offlineVoice)
         assertEquals(source.definition.id, references["${code}_voice_2"]!!.httpSource)
         assertEquals(reimported.reference, pairs.pairs().single().value.resolvePackageReference(references).offlineVoice)
-        offline.delete(reimported.reference)
+        val renamed = offline.save(reimported.copy(configuration = reimported.configuration!!.copy(code = "renamed")))
+        settings.update { it.copy(dialogueVoices = listOf(SpeechVoiceRef(offlineVoice = renamed.reference, externalId = renamed.packageVoiceId()))) }
         val editor = MscVoiceEditing(online, offline, settings, pairs)
-        editor.toOffline(source, original.copy(name = "Edited", configuration = original.configuration!!.copy(speed = 1.4f)), copy = false)
+        editor.toOffline(online.sources().single { !it.isBuiltIn },
+            original.copy(name = "Edited", configuration = original.configuration!!.copy(speed = 1.4f)), copy = false)
         val restored = OfflineSpeechRepository(root, engines).voices().single()
-        assertEquals(original.resourceReference, restored.resourceReference)
+        assertEquals(reimported.reference.id, restored.reference.id)
+        assertNotEquals(reimported.reference.revision, restored.reference.revision)
+        assertEquals(reimported.resourceReference, restored.resourceReference)
+        assertEquals(reimported.sourceKey, restored.sourceKey)
+        assertEquals(reimported.defaults, restored.defaults)
         assertEquals("Edited", restored.name)
         assertEquals(1.4f, restored.configuration!!.speed)
         assertEquals(restored.reference, settings.get().offlineVoice)
         assertEquals(restored.reference, pairs.pairs().single().value.offlineVoice)
         assertEquals(restored.reference, settings.get().roleRules.single().speaker!!.offlineVoice)
         assertEquals(restored.reference, settings.get().voiceItems.single().value.offlineVoice)
+        assertEquals(settings.get().narrationVoices, settings.get().dialogueVoices)
         assertTrue(online.sources().all { it.isBuiltIn })
-        val onlineDefaults = restored.defaults!!.let { it.copy(configuration = it.configuration.copy(type = 2)) }
-        val reversed = speechPackageReferences(emptyList(), listOf(restored.copy(defaults = onlineDefaults)))
-        assertEquals(setOf("${code}_voice"), reversed.keys)
-        assertEquals(restored.reference, reversed.getValue("${code}_voice").offlineVoice)
+        assertEquals(restored.reference, speechPackageReferences(online.sources(), offline.voices()).getValue("${code}_voice").offlineVoice)
+        assertFalse(model.exists())
+        val restoredModel = File(offline.directory(restored.resourceReference), modelPath)
+        assertEquals("voice", restoredModel.readText())
+        val target = editHttpVoice(source, buildJsonObject { put("code", "renamed") }, true, false)
+            .copy(origins = listOf("https://speech.example:443"),
+                offlineResources = OfflineSpeechResources(original.resourceReference, mapOf("unrelated.dat" to 1L)))
+        online.saveVoice(target)
+        settings.update { it.copy(dialogueVoices = listOf(SpeechVoiceRef(httpSource = target.definition.id, externalId = target.packageVoiceId()))) }
         val lease = offline.acquire(restored.reference)
         editor.toOnline(restored, restored.copy(configuration = restored.configuration.copy(type = 1)), copy = false, creating = false)
-        online.delete(online.sources().single { !it.isBuiltIn }.definition.id)
-        assertTrue(model.exists())
+        val overwritten = online.sources().single { !it.isBuiltIn }
+        assertEquals(target.definition.id, overwritten.definition.id)
+        assertEquals(target.origins, overwritten.origins)
+        assertEquals(target.speakerDefaults, overwritten.speakerDefaults)
+        assertEquals(restored.resourceReference, overwritten.offlineResources!!.reference)
+        assertTrue(offline.voices().isEmpty())
+        assertEquals(target.definition.id, settings.get().httpSource)
+        assertEquals(settings.get().narrationVoices, settings.get().dialogueVoices)
+        online.delete(overwritten.definition.id)
+        assertTrue(restoredModel.exists())
         lease.close()
-        assertFalse(model.exists())
+        assertFalse(restoredModel.exists())
     }
 }

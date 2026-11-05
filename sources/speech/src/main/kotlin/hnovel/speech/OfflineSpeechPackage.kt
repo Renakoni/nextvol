@@ -40,6 +40,9 @@ data class OfflinePackagePreview(val plan: OfflinePackagePlan? = null, val error
 private val offlineEngineCodes = setOf("audio", "acapela", "bdetts", "cereproc", "google", "isstts", "larktts",
     "msctts", "sherpa", "vcstts", "vocalizer", "weread", "samsung", "xiaomi", "microsoft", "sougou", "espeak", "bytedance")
 
+fun isOfflineSpeechEngine(code: String, type: String?): Boolean =
+    code in offlineEngineCodes && (type == null || type == "inner")
+
 data class OfflineVoiceDefinition(val configuration: OfflineVoiceConfig, val metadata: OfflineVoiceMetadata)
 
 fun readOfflineEngineDefinition(engine: SpeechPackageEngine): SpeechEngineConfig {
@@ -54,7 +57,7 @@ fun readOfflineEngineDefinition(engine: SpeechPackageEngine): SpeechEngineConfig
 
 /** Reads voice settings separately from resource installation, including config.yaml without model files. */
 fun readOfflineVoiceDefinition(engine: SpeechPackageEngine, voice: SpeechPackageVoice): OfflineVoiceDefinition {
-    if (engine.code !in offlineEngineCodes || engine.type !in setOf(null, "inner"))
+    if (!isOfflineSpeechEngine(engine.code, engine.type))
         configurationFailure(MatchaPackageError.UnsupportedModel, "engine")
     if (!safeSpeechPackagePath(voice.code)) configurationFailure(MatchaPackageError.UnsafePath, "voice")
     val raw = voice.withImportDefaults(engine.code).raw.values

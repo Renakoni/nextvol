@@ -314,7 +314,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
 
     private var recoveredAvatars = false
 
-    private fun read() = readStored().let {
+    private suspend fun read() = readStored().let {
         if (!recoveredAvatars) { cleanAvatars(it.sources); recoveredAvatars = true }
         combined(it.sources, it.engines).orderSpeechVoices(it.voiceOrder) { source -> source.definition.id }
     }
@@ -334,9 +334,9 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         }
     }
 
-    private fun readStored(): HttpSpeechStore {
+    private suspend fun readStored(): HttpSpeechStore {
         // Mixed types share one engine record, including when only offline speakers have been imported.
-        val sharedEngines = listOfNotNull(offlineEngines.get("msctts"), offlineEngines.get("microsoft"))
+        val sharedEngines = offlineEngines.all().filter { it.code in setOf("msctts", "microsoft") }
         if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists())
             return HttpSpeechStore(engines = sharedEngines)
         val encrypted = file.openRead().use { input ->
