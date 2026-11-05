@@ -8,7 +8,6 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.net.URLDecoder
 import java.util.Base64
-import java.util.Random
 
 class WebSpeechTest {
     @Test fun googleWebRpcsKeepTheirDistinctArgumentsAndExtractOnlyAudio() = runBlocking {
@@ -45,28 +44,19 @@ class WebSpeechTest {
         var body = "{\"audio\":{\"data\":\"${Base64.getEncoder().encodeToString(audio)}\"}}"
         val execute: suspend (BrokerRequest) -> BrokerResponse = { requests += it; response(body) }
         for (parameter in listOf("", "web")) {
-            assertArrayEquals(audio, OnlineSpeechClient(metadata("huoshan", "tts.other.BV050_streaming", parameter), execute,
-                { _, _ -> error("Huoshan is buffered") }).synthesize("你好 & 世界", 1.5f, 2f, 100, null))
+            assertArrayEquals(audio, OnlineSpeechClient(metadata("huoshan", "tts.other.BV050_streaming", parameter), execute)
+                .synthesize("你好 & 世界", 1.5f, 2f, 100, null))
         }
         assertEquals(listOf(HuoshanSpeechClient.CRX_URL, HuoshanSpeechClient.WEB_URL), requests.map { it.url })
         assertEquals(Json.parseToJsonElement("{\"speaker\":\"tts.other.BV050_streaming\",\"language\":\"zh\",\"text\":\"你好 & 世界\"}"),
             Json.parseToJsonElement(requests.first().body!!))
         body = "[]"
         try {
-            OnlineSpeechClient(metadata("huoshan", "voice"), execute, { _, _ -> error("Huoshan is buffered") })
+            OnlineSpeechClient(metadata("huoshan", "voice"), execute)
                 .synthesize("正文", 1f, 1f, 100, null)
             fail("Malformed service response")
         }
         catch (error: HttpSpeechException) { assertEquals(HttpSpeechError.InvalidAudio, error.error) }
-    }
-
-    @Test fun namiHeadersMatchReference() {
-        // Captured from F6.p.k with only clock/random inputs fixed; no live credentials.
-        val headers = NamiSpeechClient.headers(1700000000000L, Random(0))
-        assertEquals("2023-11-15T06:13:20+08:00", headers["timestamp"])
-        assertEquals("12481275530684864670537542731700", headers["access-token"])
-        assertEquals("6dbb10952a38c11d19e2648023d5055b", headers["zm-ua"])
-        assertEquals("91a434223074b3455acf59265701fa8a", headers["zm-token"])
     }
 
     private fun metadata(engine: String, code: String, parameter: String = "", engineParameters: String = "") = buildJsonObject {

@@ -13,25 +13,23 @@ This module imports HTTP TTS definitions and returns bounded audio bytes. Androi
 
 ## Dedicated MultiTTS web backends
 
-The `ggtrans`, `huoshan`, `namiai`, `filmora`, `gemini`, `xfpeiyin` and `peiyinya` adapters accept `inner` engines, including packages without an explicit engine type. Import retains the original speaker identity, locale, parameters and extension controls without making requests. Each protocol has its own implementation; `HttpSpeechClient` owns the existing broker session, grants, deadline and cancellation authority. No package script or native library is needed for these protocols.
+The `ggtrans`, `huoshan`, `gemini`, `xfpeiyin` and `peiyinya` adapters accept `inner` engines, including packages without an explicit engine type. Import retains the original speaker identity, locale, parameters and extension controls without making requests. Each protocol has its own implementation; `HttpSpeechClient` owns the existing broker session, grants, deadline and cancellation authority. No package script or native library is needed for these protocols.
 
 | Engine | Original protocol | Audio delivery |
 | --- | --- | --- |
 | `ggtrans` | Configurable `Host`, Translate `jQ1olc` web RPC | Extract Base64 audio from the complete RPC response |
 | `gemini` | Configurable `Host`, Bard `XqA3Ic` web RPC, speaker code and sample-rate selector | Extract Base64 audio from the complete RPC response |
 | `huoshan` | `crx` or `web` selected by speaker `param`, JSON speaker/language/text | Decode `audio.data` after the complete response |
-| `namiai` | `roleid`, generated timestamp/fingerprint request headers, MP3 stream | Incremental or buffered audio; JSON response headers are rejected before delivery |
-| `filmora` | Generated 23-character session token, original fixed request signatures, submit/poll/download | Complete downloaded audio |
 | `xfpeiyin` | MD5 of UTF-8 text, AES signing request/response, signed synthesis URL | Complete returned audio |
 | `peiyinya` | AES payload and RSA key envelope, emotion/degree parameters, decrypted audio URL | Complete downloaded audio |
 
-The mapping follows MultiTTS 1.8.3 (84), APK SHA-256 `d3f7736b1bf162829677c0772a344696f8f5940e99f45879aa5e26070d0416af`: REA `F6.i/h/m/p/g/x/q`, with the Google and Filmora synthesis branches additionally checked against DEX disassembly where Java decompilation lost loop control. Protocol constants embedded in the original client are distinct from personal credentials; generated tokens and signatures are not persisted or logged. Follow-up and redirected audio URLs remain subject to the same exact-origin grants.
+The mapping follows MultiTTS 1.8.3 (84), APK SHA-256 `d3f7736b1bf162829677c0772a344696f8f5940e99f45879aa5e26070d0416af`: REA `F6.i/h/m/x/q`, with the Google synthesis branches additionally checked against DEX disassembly where Java decompilation lost loop control. Protocol constants embedded in the original client are distinct from personal credentials; generated tokens and signatures are not persisted or logged. Follow-up and redirected audio URLs remain subject to the same exact-origin grants.
 
-Text uses the original sentence aggregation and the existing sentence-length setting, preserving supplementary characters where the original split cuts a UTF-16 surrogate pair. MP3 and chained Ogg responses retain their encoded segments; PCM WAV responses are joined under one corrected WAV header. Current Huoshan and Xunfei responses can be WAV, and Gemini can return Ogg/Opus, despite the original decoder's `audio/mpeg` hint. RPC audio is extracted through both JSON layers, fixing the original direct Base64 decoding of escaped padding such as `\u003d`. Only Nami advertises incremental delivery for these seven adapters; selecting incremental decoding for the others uses the existing file path.
+Text uses the original sentence aggregation and the existing sentence-length setting, preserving supplementary characters where the original split cuts a UTF-16 surrogate pair. MP3 and chained Ogg responses retain their encoded segments; PCM WAV responses are joined under one corrected WAV header. Current Huoshan and Xunfei responses can be WAV, and Gemini can return Ogg/Opus, despite the original decoder's `audio/mpeg` hint. RPC audio is extracted through both JSON layers, fixing the original direct Base64 decoding of escaped padding such as `\u003d`. Selecting incremental decoding for these five adapters uses the existing file path.
 
-Speaker speed/volume/pitch remain in the common audio processor. Google, Gemini, Huoshan and Nami ignore the separate global synthesis rate/volume arguments, as the original does. Filmora, Xunfei and Peiyinya retain their original request-unit conversions. There is no additional local compensation or duplicate application of those controls.
+Speaker speed/volume/pitch remain in the common audio processor. Google, Gemini and Huoshan ignore the separate global synthesis rate/volume arguments, as the original does. Xunfei and Peiyinya retain their original request-unit conversions. There is no additional local compensation or duplicate application of those controls.
 
-`HttpSpeechClient.refreshVoices()` explicitly fetches the original Filmora, Nami and Peiyinya catalogs and returns definitions for the existing catalog save/merge path. The other four protocols have no original catalog request to reproduce. Opening an import preview never invokes this operation. Catalog counts and successful package import do not establish current service availability; live synthesis results are recorded separately in the implementation PR.
+`HttpSpeechClient.refreshVoices()` explicitly fetches the original Peiyinya catalog and returns definitions for the existing catalog save/merge path. The other four protocols have no original catalog request to reproduce. Opening an import preview never invokes this operation. Catalog counts and successful package import do not establish current service availability; live synthesis results are recorded separately in the implementation PR.
 
 ## Microsoft Translator recipes
 

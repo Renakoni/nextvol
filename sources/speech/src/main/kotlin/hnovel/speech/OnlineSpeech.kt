@@ -13,16 +13,14 @@ interface OnlineSpeechBackend : AutoCloseable {
 }
 
 fun supportsSpeechVoiceCatalog(code: String): Boolean =
-    code in setOf("azure", "doubao", "guagua", "clipchamp", "namiai", "filmora", "peiyinya", "vivo")
+    code in setOf("azure", "doubao", "guagua", "clipchamp", "peiyinya", "vivo")
 
-internal val dedicatedOnlineSpeechEngines = setOf("ggtrans", "huoshan", "namiai", "filmora", "gemini", "xfpeiyin", "peiyinya",
+internal val dedicatedOnlineSpeechEngines = setOf("ggtrans", "huoshan", "gemini", "xfpeiyin", "peiyinya",
     "azure", "microsoft", "doubao", "clipchamp", "guagua", "msspeech", "vivo", "bdotts", "msctts", "readspk")
 
 internal fun onlineSpeechPackageUrl(code: String, parameters: String): String = when (code) {
     "ggtrans", "gemini" -> googleWebSpeechUrl(code, parameters)
     "huoshan" -> HuoshanSpeechClient.CRX_URL
-    "namiai" -> NamiSpeechClient.URL
-    "filmora" -> FilmoraSpeechClient.ENDPOINT
     "xfpeiyin" -> XfPeiyinSpeechClient.SIGN_URL
     "peiyinya" -> PeiyinyaSpeechClient.ENDPOINT
     "azure" -> azureSpeechPackageUrl(parameters)

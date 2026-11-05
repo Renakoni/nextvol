@@ -36,7 +36,7 @@ class HttpSpeechPackageTest {
         val supported = previewHttpSpeechPackage(packageEngine()).sources.first()
         assertTrue(supported.usesMultiTts)
         assertTrue(previewHttpSpeech(supported.raw.toString()).issues.isEmpty())
-        for (code in listOf("http_lolimi", "http_sougou")) {
+        for (code in listOf("http_lolimi", "http_sougou", "namiai", "filmora")) {
             val engine = packageEngine(fixture("engines.yaml").replace("http_fixture", code),
                 fixture("config.yaml").replace("http_fixture", code))
             assertEquals(SpeechPackageSupport.Unsupported, engine.support)

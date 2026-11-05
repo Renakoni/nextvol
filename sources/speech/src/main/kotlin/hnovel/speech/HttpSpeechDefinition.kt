@@ -26,7 +26,7 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
         if ((it["type"] as? JsonPrimitive)?.contentOrNull == "http") null else it["code"]?.jsonPrimitive?.contentOrNull
     }
     val usesMultiTts: Boolean get() = multiTts != null
-    val supportsStreaming: Boolean get() = nativeEngine !in dedicatedOnlineSpeechEngines || nativeEngine in setOf("namiai", "doubao")
+    val supportsStreaming: Boolean get() = nativeEngine !in dedicatedOnlineSpeechEngines || nativeEngine == "doubao"
     val unknownFields: Set<String> get() = raw.keys - fields
     val speed: Int? get() = raw["speed"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.int
     val hasScripts: Boolean get() = url.contains("{{") || url.contains("@js:", true) || url.contains("<js>", true)

@@ -45,7 +45,7 @@ class HttpSpeechClient(
     private val edge = if (source.nativeEngine == "edgetts") EdgeSpeechClient(
         requireNotNull(source.multiTts).getValue("voice").jsonObject, ::executeEdge) else null
     private val online = if (source.nativeEngine in dedicatedOnlineSpeechEngines)
-        OnlineSpeechClient(requireNotNull(source.multiTts), ::executeOnline, ::streamOnline, ::executeEdge, createSdkBackend) else null
+        OnlineSpeechClient(requireNotNull(source.multiTts), ::executeOnline, ::executeEdge, createSdkBackend) else null
     val supportsStreaming: Boolean get() = source.supportsStreaming
     val updatedEngineParameters: String? get() = online?.updatedEngineParameters
     @Volatile private var microsoftSession: SourceSession? = null
@@ -153,14 +153,6 @@ class HttpSpeechClient(
             catalog.configureSource(origin, cookiesEnabled = false)
             onlineResponse(catalog.execute(request, RequestCommitGuard { authority.authorized(identity, it) }))
         }
-    }
-
-    private suspend fun streamOnline(request: BrokerRequest, receive: (ByteArray, Int, Int) -> Unit): BrokerResponse {
-        // R6.a.g rejects JSON responses before passing incremental bytes to the audio decoder.
-        return onlineResponse(session.stream(request, RequestCommitGuard { authority.authorized(identity, it) }, receive) { headers ->
-            val contentType = headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value?.firstOrNull().orEmpty()
-            if (contentType.contains("json", ignoreCase = true)) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
-        })
     }
 
     private suspend fun onlineResponse(result: BrokerResult): BrokerResponse {

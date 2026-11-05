@@ -42,7 +42,7 @@ class OnlineSpeechPackageTest {
     @Test fun dedicatedPackagesUseBrokerWithoutExecutingScripts() = runBlocking {
         fun value(text: String) = SpeechPackageValue.Scalar(text, null, false)
         SourceBroker(directory.root.toPath(), okhttp3.Dns { error("Unapproved request resolved DNS") }).use { broker ->
-            for (code in listOf("ggtrans", "huoshan", "namiai", "filmora", "gemini", "xfpeiyin", "peiyinya", "readspk", "doubao")) {
+            for (code in listOf("ggtrans", "huoshan", "gemini", "xfpeiyin", "peiyinya", "readspk", "doubao")) {
                 val fields = mapOf("code" to value(code), "name" to value(code)) +
                     (if (code in setOf("xfpeiyin", "peiyinya")) emptyMap() else mapOf("type" to value("inner"))) +
                     (if (code == "doubao") mapOf("param" to value("{\"cookie\":\"test-session\"}")) else emptyMap())
@@ -54,7 +54,7 @@ class OnlineSpeechPackageTest {
                 val imported = previewHttpSpeechPackage(engine)
                 assertNull(code, imported.error)
                 val definition = imported.sources.single()
-                assertEquals(code in setOf("namiai", "doubao"), definition.supportsStreaming)
+                assertEquals(code == "doubao", definition.supportsStreaming)
                 HttpSpeechClient(definition, broker, emptyList(), ExecutionAuthority()) { _, _, _, _ ->
                     error("Dedicated backend executed a script")
                 }.use { client ->
