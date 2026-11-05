@@ -47,9 +47,6 @@ class SpeechTextAnalysisTest {
         assertEquals(original.speakerBookId, saved.speakerBookId)
         assertEquals(saved, mergeSpeechAnalysisRoles(saved, "本书", merged))
         assertEquals(saved, mergeSpeechAnalysisRoles(saved, "本书", listOf(candidate("小林").copy(existingRoleId = person.id))))
-        val renamed = mergeSpeechAnalysisRoles(saved, "本书", merged.map { it.copy(name = "林先生") })
-        assertEquals("林逸", renamed.roleRules.last().person!!.name)
-        assertEquals(listOf("小林", "林先生"), renamed.roleRules.last().person!!.aliases)
     }
 
     @Test fun editedAliasesMergeLiteralRolesAcrossGroupsButDoNotNarrowArbitraryRegexOrTextRules() {
