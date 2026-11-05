@@ -56,6 +56,16 @@ class SpeechRoleRulesTest {
         assertNull(firstPerson.voiceRef)
     }
 
+    @Test fun explicitPersonAliasesShareIdentityAndKeepItWhenRefreshingDialogueContext() = runBlocking {
+        val rule = role("林逸").copy(regex = "(林逸|小林)", isAbstract = true,
+            person = SpeechRolePerson("林逸", listOf("小林")))
+        val rules = SpeechRoleRules(listOf(rule)) {}
+        val alias = rules.resolve("小林说：", SpeechContextDirection.Previous)!!
+        assertEquals("林逸", alias.person)
+        assertEquals(alias, rules.resolve("林逸", SpeechContextDirection.Explicit))
+        assertEquals(alias, rules.refresh(alias))
+    }
+
     @Test fun textRulesClaimOnlyUnmatchedSpansAndRetainOriginalUtf16Ranges() = runBlocking {
         val input = SpeechMappedText.original("前😀甲乙后").slice(1, 5)
         val firstRule = role("表情").copy(mode = 0, regex = "😀甲", matchBefore = false, matchAfter = false)

@@ -20,9 +20,16 @@ data class SpeechRoleRule(
     val matchBefore: Boolean = true,
     val matchAfter: Boolean = true,
     val speaker: SpeechVoiceRef? = null,
+    val person: SpeechRolePerson? = null,
 ) {
     val pattern: String get() = regex.ifEmpty { name }
     val label: String get() = name.ifEmpty { regex }
+}
+
+/** An explicitly merged person; ordinary MultiTTS abstract rules still identify each matched name. */
+@Serializable
+data class SpeechRolePerson(val name: String, val aliases: List<String> = emptyList()) {
+    val names get() = listOf(name) + aliases
 }
 
 /** Abstract matches keep the actual person; pool allocation consumes this identity separately. */
@@ -131,7 +138,8 @@ internal class SpeechRoleRules(rules: List<SpeechRoleRule>,
         return null
     }
 
-    private fun SpeechRoleRule.match(person: String) = SpeechRoleMatch(person, id, label, isAbstract, speaker)
+    private fun SpeechRoleRule.match(matched: String) = SpeechRoleMatch(
+        person?.takeIf { matched in it.names }?.name ?: matched, id, label, isAbstract, speaker)
 
     private suspend fun find(text: String, pattern: String, rule: SpeechRoleRule): List<ReplacementPart> = execute(rule) { budget ->
         budget.checkSize(text.length, budget.limits.maxInputChars)

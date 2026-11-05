@@ -160,7 +160,7 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 @Composable
 internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, preferences: SpeechPlaybackPreferences, onBack: () -> Unit,
     onUpdate: ((SpeechTextSettings) -> SpeechTextSettings) -> Unit, onMultipleVoices: (Boolean) -> Unit,
-    onContextPattern: (String) -> Unit, onNameTest: () -> Unit,
+    onContextPattern: (String) -> Unit, onNameTest: () -> Unit, onTextAnalysis: () -> Unit,
     onEngineCacheCapacity: (Int) -> Unit,
     onAudioSettings: (SpeechAudioSettings) -> Unit,
     onBackgroundMusic: (Boolean) -> Unit,
@@ -312,10 +312,26 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                     onClick = onNameTest)
             }
+            item {
+                SpeechTextEntry(R.drawable.analytics_24px, R.string.tts_analysis_title, R.string.tts_analysis_description,
+                    Modifier.clickable(onClick = onTextAnalysis))
+            }
             state.settings?.let { settings ->
                 if (state.defaultNamePattern != null) item {
                     SpeechTextEntry(R.drawable.code_24px, R.string.tts_new_word_pattern, R.string.tts_new_word_pattern_description,
                         Modifier.clickable { text = settings.personNameRegex ?: state.defaultNamePattern; editingPersonRule = true })
+                }
+            }
+            state.settings?.let { settings ->
+                item {
+                    SpeechTextSwitch(R.drawable.autorenew_24px, R.string.tts_analysis_only_new,
+                        if (settings.onlyNewPerson) R.string.tts_analysis_only_new_on else R.string.tts_analysis_only_new_off,
+                        settings.onlyNewPerson) { value -> onUpdate { it.copy(onlyNewPerson = value) } }
+                }
+                item {
+                    SpeechTextSlider(R.drawable.select_all_24px, R.string.tts_analysis_auto_checked,
+                        settings.maxAutoCheckedPerson, 0f..100f,
+                        onChange = { count -> onUpdate { it.copy(maxAutoCheckedPerson = count) } })
                 }
             }
             state.settings?.let { settings ->

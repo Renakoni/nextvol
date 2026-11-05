@@ -17,9 +17,14 @@ internal class SpeechCharacterAssignment(
     private val assign: suspend (String, String) -> SpeechVoicePair?,
     private val checkCancelled: () -> Unit,
 ) {
+    private val people = settings.roleRules.filter { it.activate && it.mode != 0 && it.mode != 1 }
+        .mapNotNull { it.person }
+    private fun canonical(person: String) = people.firstOrNull { person in it.names }?.name ?: person
+    private fun names(person: String) = people.firstOrNull { it.name == person }?.names ?: listOf(person)
     private val manualVoices = (pairs.filter { it.manual && it.person != SPEECH_LANGUAGE_PERSON }.map { it.person to it.value } +
         settings.speakerVoices.takeIf { settings.speakerBookId == chapter.bookId }.orEmpty().toList())
-        .distinctBy { it.first }.toMap()
+        .distinctBy { it.first }.sortedBy { canonical(it.first) != it.first }
+        .map { canonical(it.first) to it.second }.distinctBy { it.first }.toMap()
 
     private fun manual(person: String): SpeechVoiceRef? = manualVoices[person]
 
@@ -28,7 +33,8 @@ internal class SpeechCharacterAssignment(
         if (!match.isAbstract) return match
         val group = match.voiceRef?.voice?.takeIf { it == SPEECH_POOL_MALE || it == SPEECH_POOL_FEMALE }
             ?: configurationPoolGroup(match.ruleName)
-        val pair = assign(match.person, group)
+        val aliases = people.firstOrNull { it.name == match.person && it.aliases.isNotEmpty() }
+        val pair = aliases?.names?.firstNotNullOfOrNull { existing(it, listOf(group)) } ?: assign(match.person, group)
         return match.copy(voiceRef = pair?.value ?: match.voiceRef, poolGroup = group)
     }
 
@@ -44,9 +50,10 @@ internal class SpeechCharacterAssignment(
     suspend fun resolve(text: String, direction: SpeechContextDirection, unitKey: String,
         rules: SpeechRoleRules): SpeechPersonVoice? {
         checkCancelled()
-        known(text, direction, manualVoices.keys.toList(), rules)?.let { name ->
-            val voice = manual(name)!!
-            return SpeechRoleMatch(name, "", "", false, voice, origin = SpeechPersonOrigin.Manual).personVoice()
+        known(text, direction, manualVoices.keys.flatMap(::names), rules)?.let { name ->
+            val person = canonical(name)
+            val voice = manual(person)!!
+            return SpeechRoleMatch(person, "", "", false, voice, origin = SpeechPersonOrigin.Manual).personVoice()
         }
         rules.resolve(text, direction)?.let { return allocate(it).personVoice() }
         // Existing people remain recognisable when automatic discovery is switched off.

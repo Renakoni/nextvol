@@ -227,7 +227,7 @@ class SpeechControlsTest {
                     exitTransition = { androidx.compose.animation.ExitTransition.None }) {
                     composable("reader") {
                         ReadAloudControls(state.value, { actions += it },
-                            onSettings = { nav.navigateToSpeechSettings(state.value) })
+                            onSettings = { nav.navigateToSpeechSettings(state.value, "reader-book") })
                     }
                     composable<SpeechSettingsRoute> { androidx.compose.material3.Text("Listening settings") }
                     composable<SpeechRolesRoute> { androidx.compose.material3.Text("Roles") }
@@ -259,7 +259,7 @@ class SpeechControlsTest {
         compose.onNodeWithText("AppKey").assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(HttpSpeechSourcesRoute("http:${source.definition.id}", true), nav.currentBackStackEntry!!.toRoute<HttpSpeechSourcesRoute>())
-            nav.getBackStackEntry<SpeechSettingsRoute>()
+            assertEquals("reader-book", nav.getBackStackEntry<SpeechSettingsRoute>().toRoute<SpeechSettingsRoute>().bookId)
             sources.value = sources.value.copy(sources = listOf(source), loaded = true)
         }
         compose.onNodeWithText("AppKey").assertIsDisplayed().performTextInput("account-key")

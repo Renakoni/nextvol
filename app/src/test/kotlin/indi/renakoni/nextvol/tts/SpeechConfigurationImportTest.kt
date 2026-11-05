@@ -120,4 +120,15 @@ class SpeechConfigurationImportTest {
         assertEquals(listOf("config.yaml.sherpa[0].futureField"),
             previewSpeechConfiguration(offline, emptyMap(), "Default").unsupported)
     }
+
+    @Test fun reimportingAnUnchangedPersonRulePreservesItsAliasIdentityButAChangedPatternReplacesIt() {
+        val person = SpeechRoleRule(name = "林逸", group = "文本", regex = "(林逸|小林)", isAbstract = true,
+            speaker = SpeechVoiceRef(voice = SPEECH_POOL_MALE), person = SpeechRolePerson("林逸", listOf("小林")))
+        val settings = SpeechSettings(roleRules = listOf(person))
+        val imported = SpeechConfigurationImport(roles = listOf(person.copy(id = "imported", person = null)))
+        assertEquals(person, imported.applyTo(settings, replace = false).roleRules.single())
+        val replaced = imported.copy(roles = imported.roles!!.map { it.copy(regex = "张三") }).applyTo(settings, replace = false)
+        assertEquals(person.id, replaced.roleRules.single().id)
+        assertNull(replaced.roleRules.single().person)
+    }
 }
