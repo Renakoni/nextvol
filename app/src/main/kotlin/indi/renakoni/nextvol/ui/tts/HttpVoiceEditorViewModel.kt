@@ -79,7 +79,7 @@ class HttpVoiceEditorViewModel @Inject constructor(
         val selected = requireNotNull(source)
         val edited = withContext(Dispatchers.Default) { requireNotNull(current.draft).applyTo(requireNotNull(current.voice)) }
         withContext(NonCancellable) {
-            if (selected.importedEngineCode == "msctts" && edited.configuration?.type == 0) msc.toOffline(selected, edited, copy)
+            if (selected.importedEngineCode in setOf("msctts", "microsoft") && edited.configuration?.type == 0) msc.toOffline(selected, edited, copy)
             else {
                 val candidate = withContext(Dispatchers.Default) { editHttpVoice(selected, edited.speakerFields(), edited.enabled, copy) }
                 repository.saveVoice(candidate)

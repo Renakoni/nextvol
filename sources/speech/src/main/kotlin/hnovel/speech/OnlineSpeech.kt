@@ -16,7 +16,7 @@ fun supportsSpeechVoiceCatalog(code: String): Boolean =
     code in setOf("azure", "doubao", "guagua", "clipchamp", "namiai", "filmora", "peiyinya", "vivo")
 
 internal val dedicatedOnlineSpeechEngines = setOf("ggtrans", "huoshan", "namiai", "filmora", "gemini", "xfpeiyin", "peiyinya",
-    "azure", "doubao", "clipchamp", "guagua", "msspeech", "vivo", "bdotts", "msctts", "readspk")
+    "azure", "microsoft", "doubao", "clipchamp", "guagua", "msspeech", "vivo", "bdotts", "msctts", "readspk")
 
 internal fun onlineSpeechPackageUrl(code: String, parameters: String): String = when (code) {
     "ggtrans", "gemini" -> googleWebSpeechUrl(code, parameters)
@@ -26,6 +26,7 @@ internal fun onlineSpeechPackageUrl(code: String, parameters: String): String = 
     "xfpeiyin" -> XfPeiyinSpeechClient.SIGN_URL
     "peiyinya" -> PeiyinyaSpeechClient.ENDPOINT
     "azure" -> azureSpeechPackageUrl(parameters)
+    "microsoft" -> microsoftSubscriptionPackageUrl("")
     "doubao" -> "https://ws-samantha.doubao.com/samantha/audio/tts"
     "clipchamp" -> "https://app.clipchamp.com/v2/azure-cognitive/auth-token"
     "guagua" -> "https://www.gstudios.com.cn"

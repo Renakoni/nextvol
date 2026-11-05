@@ -44,7 +44,8 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
             val voice = imported.withImportDefaults(engine.code)
             HttpSpeechDefinition.parse(buildJsonObject {
                 put("name", voice.name.ifBlank { voice.code })
-                put("url", template)
+                put("url", if (engine.code == "microsoft" && engine.type != "http")
+                    microsoftSubscriptionPackageUrl(voice.raw.values["param"].text().orEmpty()) else template)
                 if (header.isNotBlank()) put("header", header)
                 put("multiTts", buildJsonObject {
                     put("engine", definition.jsonData())

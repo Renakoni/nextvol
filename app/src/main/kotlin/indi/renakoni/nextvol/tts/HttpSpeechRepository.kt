@@ -276,7 +276,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             })
             val raw = buildJsonObject {
                 put("sources", entries)
-                put("engines", Json.encodeToJsonElement(updatedStore.engines.filterNot { it.code == "msctts" }))
+                put("engines", Json.encodeToJsonElement(updatedStore.engines.filterNot { it.code in setOf("msctts", "microsoft") }))
                 val ids = sources.map { it.definition.id }.toSet()
                 put("voiceOrder", Json.encodeToJsonElement(updatedStore.voiceOrder.filter { it in ids }))
             }.toString().toByteArray(Charsets.UTF_8)
@@ -287,7 +287,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val output = file.startWrite()
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
-            updatedStore.engines.find { it.code == "msctts" && it !in stored.engines }?.let { engine ->
+            updatedStore.engines.filter { it.code in setOf("msctts", "microsoft") && it !in stored.engines }.forEach { engine ->
                 if (stored.engines.any { it.code == engine.code }) offlineEngines.save(engine)
                 else offlineEngines.register(engine)
             }
@@ -335,10 +335,10 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     private fun readStored(): HttpSpeechStore {
-        // MSC types share one engine record, including when only offline speakers have been imported.
-        val msc = offlineEngines.get("msctts")
+        // Mixed types share one engine record, including when only offline speakers have been imported.
+        val sharedEngines = listOfNotNull(offlineEngines.get("msctts"), offlineEngines.get("microsoft"))
         if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists())
-            return HttpSpeechStore(engines = listOfNotNull(msc))
+            return HttpSpeechStore(engines = sharedEngines)
         val encrypted = file.openRead().use { input ->
             val bytes = java.io.ByteArrayOutputStream()
             val buffer = ByteArray(8192)
@@ -367,11 +367,11 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 offlineResources = entry.jsonObject["offlineResources"]?.let { Json.decodeFromJsonElement<OfflineSpeechResources>(it) })
         }
         val engines = Json.decodeFromJsonElement<List<SpeechEngineConfig>>(document.getValue("engines"))
-            .filterNot { it.code == "msctts" } + listOfNotNull(msc)
+            .filterNot { it.code in setOf("msctts", "microsoft") } + sharedEngines
         val order = document["voiceOrder"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
         offline.retainOnlineResources(sources.mapNotNull { it.offlineResources?.reference }.toSet())
         return HttpSpeechStore(sources.map { source ->
-            if (source.importedEngineCode == "msctts" && msc != null) source.withHttpEngine(msc) else source
+            sharedEngines.find { it.code == source.importedEngineCode }?.let(source::withHttpEngine) ?: source
         }, engines, order)
     }
 

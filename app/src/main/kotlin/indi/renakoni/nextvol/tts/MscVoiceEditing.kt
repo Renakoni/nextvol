@@ -6,7 +6,7 @@ import kotlinx.serialization.json.*
 import java.util.UUID
 import javax.inject.Inject
 
-/** MultiTTS stores both MSC types as speakers of the same engine. */
+/** MultiTTS stores online and offline MSC/Microsoft speakers under the same engine. */
 class MscVoiceEditing @Inject constructor(
     private val online: HttpSpeechRepository,
     private val offline: OfflineSpeechRepository,

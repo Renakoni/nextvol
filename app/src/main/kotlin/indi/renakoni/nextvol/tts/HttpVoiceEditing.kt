@@ -115,7 +115,7 @@ internal fun SavedHttpSpeechSource.sameExecution(other: SavedHttpSpeechSource): 
     val fields = setOf("url", "header", "jsLib", "contentType", "loginUrl", "loginUi", "loginCheckJs", "concurrentRate", "enabledCookieJar", "speed")
     val voiceFields = setOf("code", "param", "extendUI", "locale") +
         (if (importedEngineCode in setOf("gemini", "vivo", "bdotts", "msctts")) setOf("sampleRate") else emptySet()) +
-        (if (importedEngineCode == "msctts") setOf("type") else emptySet())
+        (if (importedEngineCode in setOf("msctts", "microsoft")) setOf("type") else emptySet())
     val multiTts = definition.usesMultiTts
     return definition.raw.filterKeys { it in fields } == other.definition.raw.filterKeys { it in fields } &&
         multiTts == other.definition.usesMultiTts && (!multiTts ||

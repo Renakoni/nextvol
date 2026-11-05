@@ -71,8 +71,6 @@ fun readOfflineVoiceDefinition(engine: SpeechPackageEngine, voice: SpeechPackage
         resolveOfflineParameters(scalar("param"), scalar("extendUI")), scalar("locale"), integer("sampleRate"),
         voiceNumber(raw, "speed", allowZero = true), voiceNumber(raw, "pitch"), voiceNumber(raw, "volume", allowZero = true), integer("type"),
         gender = integer("gender"), rawParameters = scalar("param"), extendUI = scalar("extendUI"))
-    if (engine.code == "microsoft" && configuration.type != 0)
-        configurationFailure(MatchaPackageError.UnsupportedModel, "online voice")
     return OfflineVoiceDefinition(configuration, OfflineVoiceMetadata(scalar("note"), scalar("desc"), scalar("avatar")))
 }
 
@@ -82,8 +80,11 @@ fun previewOfflineVoice(preview: SpeechPackagePreview, engine: SpeechPackageEngi
         return OfflinePackagePreview(error = MatchaPackageError.UnsupportedModel)
     }
     return try {
+        if (engine.code == "microsoft" && engine.isOnlineVoice(voice))
+            configurationFailure(MatchaPackageError.UnsupportedModel, "online voice")
         val (configuration, metadata) = readOfflineVoiceDefinition(engine, voice)
-        if (engine.voices.count { it.code == voice.code } != 1) configurationFailure(MatchaPackageError.Ambiguous, "voice")
+        if (engine.voices.count { it.code == voice.code && !engine.isOnlineVoice(it) } != 1)
+            configurationFailure(MatchaPackageError.Ambiguous, "voice")
         val engineConfiguration = readOfflineEngineDefinition(engine)
         val avatarPath = speechPackageAvatarPath(engine.code, metadata.avatar)
         val avatar = preview.resources.singleOrNull { it.path == avatarPath }

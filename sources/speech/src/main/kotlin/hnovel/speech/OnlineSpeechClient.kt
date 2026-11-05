@@ -33,7 +33,7 @@ internal class OnlineSpeechClient(
         "clipchamp" -> ClipchampSpeechClient(metadata, execute)
         "msspeech" -> SpeechStudioSpeechClient(metadata, execute)
         "readspk" -> ReadSpeakerSpeechClient(metadata, execute)
-        "azure", "msctts", "bdotts", "vivo" -> createSdkBackend?.invoke(metadata, execute, webSocket)
+        "azure", "microsoft", "msctts", "bdotts", "vivo" -> createSdkBackend?.invoke(metadata, execute, webSocket)
             ?: throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
         else -> throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
     }

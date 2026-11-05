@@ -94,10 +94,12 @@ class HttpSpeechClient(
                 { bytes, offset, count -> authority.authorized(identity) { sink(bytes, offset, count) } }
             }
             withTimeout(60_000) {
-                if (source.nativeEngine in setOf("azure", "msctts")) {
+                if (source.nativeEngine in setOf("azure", "microsoft", "msctts")) {
                     // Audited host SDKs own their transport; no source script receives this capability.
                     authority.authorized(identity) {}
-                    session.permissionFailureDetail(source.url, ResourceKind.Api)?.let { failure ->
+                    val endpoint = if (source.nativeEngine == "microsoft") microsoftSubscriptionPackageUrl(
+                        requireNotNull(source.multiTts).getValue("voice").jsonObject.string("param")) else source.url
+                    session.permissionFailureDetail(endpoint, ResourceKind.Api)?.let { failure ->
                         throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code,
                             deniedOrigins = listOfNotNull(failure.denial?.origin))
                     }
