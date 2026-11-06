@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.BackgroundMusicRepository
 import indi.renakoni.nextvol.tts.BackgroundMusicSettings
+import indi.renakoni.nextvol.tts.forScheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,13 +26,15 @@ internal data class BackgroundMusicUiState(
 )
 
 @HiltViewModel
-internal class BackgroundMusicViewModel @Inject constructor(private val repository: BackgroundMusicRepository) : ViewModel() {
+internal class BackgroundMusicViewModel @Inject constructor(private val repository: BackgroundMusicRepository,
+    private val editor: SpeechSettingsEditor) : ViewModel() {
     private val mutableState = MutableStateFlow(BackgroundMusicUiState())
     val state = mutableState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            combine(repository.changes, repository.unavailable) { settings, unavailable -> settings to unavailable }
+            combine(repository.changes, editor.changes, repository.unavailable) { library, settings, unavailable ->
+                library.forScheme(settings.backgroundMusic) to unavailable }
                 .catch { mutableState.update { it.copy(loading = false, error = R.string.tts_music_save_failed) } }
                 .collect { (settings, unavailable) ->
                     mutableState.update { it.copy(settings = settings, unavailable = unavailable, loading = false) }
@@ -40,8 +43,9 @@ internal class BackgroundMusicViewModel @Inject constructor(private val reposito
     }
 
     fun refresh() = update { repository.refreshAvailability() }
-    fun select(id: String, selected: Boolean) = update { repository.select(id, selected) }
-    fun volume(value: Float) = update { repository.setVolume(value) }
+    fun select(id: String, selected: Boolean) = update { editor.update { it.copy(backgroundMusic = it.backgroundMusic.copy(selected =
+        if (selected) it.backgroundMusic.selected + id else it.backgroundMusic.selected - id)) } }
+    fun volume(value: Float) = update { editor.update { it.copy(backgroundMusic = it.backgroundMusic.copy(volume = value)) } }
     fun delete(id: String) = update { repository.delete(id) }
     fun importTracks(uris: List<Uri>, replacingId: String? = null) = update(R.string.tts_music_import_failed) {
         repository.importTracks(uris, replacingId)

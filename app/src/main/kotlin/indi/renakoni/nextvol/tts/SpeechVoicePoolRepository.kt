@@ -21,28 +21,30 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
     private val pool = SpeechVoicePool()
+    private val pairRevisions = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Long>()
+    fun revision(bookId: String?, schemeId: String): Long = pairRevisions[bookId to schemeId] ?: 0L
     private val mutableRevisions = MutableStateFlow(0L)
     val revisions = mutableRevisions.asStateFlow()
-    val changes = stored.getFlow().map(::decode).distinctUntilChanged()
+    val changes = stored.getFlow().distinctUntilChanged().map(::decode)
 
-    suspend fun pairs(bookId: String? = null): List<SpeechVoicePair> = withContext(Dispatchers.IO) {
-        decode(stored.get()).filter { bookId == null || it.bookId == bookId }
+    suspend fun pairs(bookId: String? = null, schemeId: String? = null): List<SpeechVoicePair> = withContext(Dispatchers.IO) {
+        decode(stored.get()).filter { (bookId == null || it.bookId == bookId) && (schemeId == null || it.schemeId == schemeId) }
     }
 
     suspend fun existing(bookId: String, person: String, groups: List<String>, pairs: List<SpeechVoicePair>,
-        revision: Long, catalog: Map<String, SpeechResolvedVoice>, maxCache: Int): SpeechVoicePair? =
+        revision: Long, catalog: Map<String, SpeechResolvedVoice>, maxCache: Int, schemeId: String = DEFAULT_SPEECH_SCHEME): SpeechVoicePair? =
         mutex.withLock {
             // O6.j.l changes the draw bag, not existing pairs. Membership does not revoke a stable assignment.
             // An older plan must not repopulate the cache after a manual edit/removal cleared it.
             val current = if (revision == revisions.value) pairs else withContext(Dispatchers.IO) { decode(stored.get()) }
-            pool.existing(bookId, person, groups, current, catalog, maxCache)
+            pool.existing(bookId, person, groups, current, catalog, maxCache, schemeId)
         }
 
     suspend fun assign(bookId: String, person: String, group: String, items: List<SpeechVoiceItem>,
-        catalog: Map<String, SpeechResolvedVoice>, maxCache: Int, bookTitle: String = ""): SpeechVoicePair? =
+        catalog: Map<String, SpeechResolvedVoice>, maxCache: Int, bookTitle: String = "", schemeId: String = DEFAULT_SPEECH_SCHEME): SpeechVoicePair? =
         withContext(Dispatchers.IO) { mutex.withLock {
             val pairs = decode(stored.get())
-            val pair = pool.assign(bookId, person, group, pairs, items, catalog, maxCache, bookTitle)
+            val pair = pool.assign(bookId, person, group, pairs, items, catalog, maxCache, bookTitle, schemeId)
                 ?: return@withLock null
             val next = replace(pairs, pair)
             if (next != pairs) stored.set(json.encodeToString(next))
@@ -59,14 +61,14 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
         pairs.map { if (it.value.canonicalKey == previous.canonicalKey) it.copy(value = replacement.copy(externalId = it.value.externalId)) else it }
     }
 
-    suspend fun clear(bookId: String? = null) = withContext(Dispatchers.IO) { mutex.withLock {
+    suspend fun clear(bookId: String? = null, schemeId: String? = null) = withContext(Dispatchers.IO) { mutex.withLock {
         val pairs = decode(stored.get())
-        val next = pairs.filterNot { bookId == null || it.bookId == bookId }
+        val next = pairs.filterNot { (bookId == null || it.bookId == bookId) && (schemeId == null || it.schemeId == schemeId) }
         if (next != pairs) {
             stored.set(json.encodeToString(next))
-            mutableRevisions.value++
+            revised(pairs, next)
         }
-        pool.clear(bookId)
+        pool.clear(bookId, schemeId)
     } }
 
     /** Returns the unchanged rows whose group has no available enabled candidate. */
@@ -75,17 +77,17 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
         val failed = mutableSetOf<String>()
         val pairs = decode(stored.get())
         var next = pairs
-        val selected = pairs.filter { it.id in ids }.groupBy { Triple(it.bookId, people.canonicalPerson(it.person), it.group) }
+        val selected = pairs.filter { it.id in ids }.groupBy { listOf(it.bookId, it.schemeId, people.canonicalPerson(it.person), it.group) }
         for (rows in selected.values) {
             val pair = rows.first()
-            val voice = pool.draw(pair.bookId, pair.group, items, catalog)
+            val voice = pool.draw(pair.bookId, pair.group, items, catalog, pair.schemeId)
             if (voice == null) failed += rows.map { it.id }
             else next = replace(next, pair.copy(value = voice, manual = false), people, clearManual = true)
         }
         pool.clearCache()
         if (next != pairs) {
             stored.set(json.encodeToString(next))
-            mutableRevisions.value++
+            revised(pairs, next)
         }
         failed
     } }
@@ -99,9 +101,17 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
             if (next != pairs) {
                 stored.set(json.encodeToString(next))
                 pool.clearCache()
-                mutableRevisions.value++
+                revised(pairs, next)
             }
         } }
+
+    private fun revised(previous: List<SpeechVoicePair>, next: List<SpeechVoicePair>) {
+        val changed = (previous - next.toSet()) + (next - previous.toSet())
+        changed.map { it.bookId to it.schemeId }.distinct().forEach { key ->
+            pairRevisions[key] = (pairRevisions[key] ?: 0L) + 1
+        }
+        mutableRevisions.value++
+    }
 
     private fun replace(pairs: List<SpeechVoicePair>, pair: SpeechVoicePair,
         people: List<SpeechRolePerson> = emptyList(), clearManual: Boolean = pair.manual): List<SpeechVoicePair> {
@@ -109,7 +119,7 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
         var inserted = false
         return buildList {
             for (old in pairs) {
-                val samePerson = old.bookId == pair.bookId && people.canonicalPerson(old.person) == canonical.person
+                val samePerson = old.bookId == pair.bookId && old.schemeId == pair.schemeId && people.canonicalPerson(old.person) == canonical.person
                 if (old.id == pair.id || samePerson && (old.group == pair.group ||
                     canonical.person != SPEECH_LANGUAGE_PERSON && clearManual && old.manual)) {
                     if (!inserted) { add(canonical); inserted = true }

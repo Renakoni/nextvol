@@ -26,26 +26,27 @@ data class SpeechVoicePair(
     val manual: Boolean = false,
     val bookTitle: String = "",
     val id: String = UUID.randomUUID().toString(),
+    val schemeId: String = DEFAULT_SPEECH_SCHEME,
 )
 
 /** O6.j.i's random draw without replacement. Persisted pairs are independent of the bounded cache. */
 internal class SpeechVoicePool(private val random: Random = Random.Default) {
-    private data class Lookup(val bookId: String, val person: String, val groups: List<String>)
-    private data class Pool(val bookId: String, val group: String)
+    private data class Lookup(val bookId: String, val schemeId: String, val person: String, val groups: List<String>)
+    private data class Pool(val bookId: String, val schemeId: String, val group: String)
     private data class Bag(var members: Set<String>, val remaining: MutableList<String>)
     private val cache = LinkedHashMap<Lookup, SpeechVoicePair>(16, 0.75f, true)
     private val bags = mutableMapOf<Pool, Bag>()
     internal val cacheSize get() = cache.size
 
     fun existing(bookId: String, person: String, groups: List<String>, pairs: List<SpeechVoicePair>,
-        catalog: Map<String, SpeechResolvedVoice>, maxCache: Int): SpeechVoicePair? {
-        val lookup = Lookup(bookId, person, groups.toList())
-        val manual = pairs.firstOrNull { it.bookId == bookId && it.person == person && it.manual &&
+        catalog: Map<String, SpeechResolvedVoice>, maxCache: Int, schemeId: String = DEFAULT_SPEECH_SCHEME): SpeechVoicePair? {
+        val lookup = Lookup(bookId, schemeId, person, groups.toList())
+        val manual = pairs.firstOrNull { it.bookId == bookId && it.schemeId == schemeId && it.person == person && it.manual &&
             (person != SPEECH_LANGUAGE_PERSON || it.group in groups) }
         val cached = cache[lookup]
         val pair = manual ?: cached?.takeIf { available(it, catalog) }
             ?: groups.firstNotNullOfOrNull { group -> pairs.firstOrNull {
-                it.bookId == bookId && it.person == person && it.group == group && available(it, catalog)
+                it.bookId == bookId && it.schemeId == schemeId && it.person == person && it.group == group && available(it, catalog)
             } }
         if (pair == null) cache.remove(lookup)
         else cache[lookup] = pair
@@ -56,20 +57,20 @@ internal class SpeechVoicePool(private val random: Random = Random.Default) {
 
     fun assign(bookId: String, person: String, group: String, pairs: List<SpeechVoicePair>,
         items: List<SpeechVoiceItem>, catalog: Map<String, SpeechResolvedVoice>, maxCache: Int,
-        bookTitle: String = ""): SpeechVoicePair? {
-        existing(bookId, person, listOf(group), pairs, catalog, maxCache)?.let { return it }
-        val reference = draw(bookId, group, items, catalog) ?: return null
-        val old = pairs.firstOrNull { it.bookId == bookId && it.person == person && it.group == group }
+        bookTitle: String = "", schemeId: String = DEFAULT_SPEECH_SCHEME): SpeechVoicePair? {
+        existing(bookId, person, listOf(group), pairs, catalog, maxCache, schemeId)?.let { return it }
+        val reference = draw(bookId, group, items, catalog, schemeId) ?: return null
+        val old = pairs.firstOrNull { it.bookId == bookId && it.schemeId == schemeId && it.person == person && it.group == group }
         return SpeechVoicePair(bookId, person, group, reference, bookTitle = bookTitle,
-            id = old?.id ?: UUID.randomUUID().toString())
+            id = old?.id ?: UUID.randomUUID().toString(), schemeId = schemeId)
     }
 
     fun draw(bookId: String, group: String, items: List<SpeechVoiceItem>,
-        catalog: Map<String, SpeechResolvedVoice>): SpeechVoiceRef? {
+        catalog: Map<String, SpeechResolvedVoice>, schemeId: String = DEFAULT_SPEECH_SCHEME): SpeechVoiceRef? {
         val candidates = items.asSequence().filter { it.group == group && it.activate }
             .mapNotNull { catalog[it.value.key]?.takeIf { voice -> voice.error == null }?.reference }
             .associateBy { it.canonicalKey }
-        val key = Pool(bookId, group)
+        val key = Pool(bookId, schemeId, group)
         val bag = bags.getOrPut(key) { Bag(candidates.keys, candidates.keys.toMutableList()) }
         // Adding a candidate must not reshuffle previous draws or existing people.
         bag.remaining.retainAll(candidates.keys)
@@ -84,9 +85,9 @@ internal class SpeechVoicePool(private val random: Random = Random.Default) {
 
     fun setCacheLimit(limit: Int) = trim(limit)
 
-    fun clear(bookId: String? = null) {
-        cache.keys.removeAll { bookId == null || it.bookId == bookId }
-        bags.keys.removeAll { bookId == null || it.bookId == bookId }
+    fun clear(bookId: String? = null, schemeId: String? = null) {
+        cache.keys.removeAll { (bookId == null || it.bookId == bookId) && (schemeId == null || it.schemeId == schemeId) }
+        bags.keys.removeAll { (bookId == null || it.bookId == bookId) && (schemeId == null || it.schemeId == schemeId) }
     }
 
     private fun available(pair: SpeechVoicePair, catalog: Map<String, SpeechResolvedVoice>) =

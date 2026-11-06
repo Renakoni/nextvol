@@ -20,7 +20,7 @@ internal fun SpeechVoicePoolEditor(state: SpeechVoicePoolState, onDismiss: () ->
     val groupLabels = groups.associateWith { speechPoolGroupLabel(it) }
     val engine = state.engines.find { it.key == state.engineKey }
     AlertDialog(onDismissRequest = { if (!state.saving) onDismiss() },
-        title = { Text(stringResource(if (draft.id == null && draft.pair == null) R.string.tts_pool_add else R.string.tts_pool_edit)) },
+        title = { Column { Text(stringResource(if (draft.id == null && draft.pair == null) R.string.tts_pool_add else R.string.tts_pool_edit)); SpeechSchemeCaption() } },
         text = {
             Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (draft.pair != null) ReplacementField(draft.person, { value -> onEdit { it.copy(person = value) } },

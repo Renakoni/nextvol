@@ -87,7 +87,7 @@ class SpeechEnginesViewModel @Inject constructor(
     }
 
     private suspend fun stopAffected(engine: SpeechEngineConfig) {
-        val active = controller.state.value.request?.previewSettings ?: settings.get()
+        val active = controller.state.value.request?.let { it.previewSettings ?: settings.forBook(it.bookId) } ?: settings.get()
         val onlineUsed = if (engine.isOnline) {
             val ids = http.sources().filter { it.importedEngineCode == engine.code }.map { it.definition.id }.toSet()
             active.httpSource in ids

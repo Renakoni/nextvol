@@ -19,7 +19,7 @@ class SpeechMarksTest {
         assertEquals(SpeechAudioParameters(2f, 0.8f, 0.5f), speech.first().audioParameters)
         assertEquals(SpeechAudioParameters(1f, 0.8f, 0.5f), speech[1].audioParameters)
         assertEquals(SpeechAudioParameters(3.5f, 0f, -1f), speech.last().audioParameters)
-        assertEquals(0, plan.startIndex(null))
+        assertEquals(0, plan.resumeAt(null).second)
         assertEquals(0, plan.segments.first().start)
         assertEquals(speech[1].end, plan.segments.last { it.pauseMs != null }.end)
         val next = prepareSpeechPlan(chapter("下章").copy(id = "two"), configured, context = plan.nextContext) {}

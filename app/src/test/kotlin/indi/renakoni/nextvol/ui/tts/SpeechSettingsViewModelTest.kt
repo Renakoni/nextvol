@@ -36,16 +36,37 @@ import org.robolectric.annotation.Config
 @Config(sdk = [27], application = Application::class)
 class SpeechSettingsViewModelTest {
     private val settings = MutableStateFlow(SpeechSettings(rate = 1.5f, pitch = 0.8f))
-    private val repository = mockk<SpeechSettingsRepository>()
+    private val repository = mockk<SpeechSettingsEditor>()
     private val engines = mockk<SystemSpeechEngines>()
     private val http = mockk<HttpSpeechRepository>()
     private lateinit var model: SpeechSettingsViewModel
     private val engine = SpeechEngine("engine", "Engine")
     private val voices = listOf(SpeechVoice("voice", "zh-CN", false, true))
 
+    @Test fun editorPinsItsTargetAcrossBookRebindingAndRestoresItFromSavedState() = runTest {
+        val snapshots = MutableStateFlow(SpeechSchemes(items = listOf(SpeechScheme("a", "A"), SpeechScheme("b", "B")),
+            defaultId = "a", bindings = mapOf("book" to "a")))
+        val schemesRepository = mockk<SpeechSettingsRepository>()
+        every { schemesRepository.schemes } returns snapshots
+        coEvery { schemesRepository.snapshot() } answers { snapshots.value }
+        coEvery { schemesRepository.update(any(), any()) } returns Unit
+        val saved = androidx.lifecycle.SavedStateHandle(mapOf("bookId" to "book"))
+        val editor = SpeechSettingsEditor(schemesRepository, saved)
+        assertEquals("a", editor.get().schemeId)
+        snapshots.value = snapshots.value.copy(defaultId = "b", bindings = mapOf("book" to "b"))
+        assertEquals("a", editor.get().schemeId)
+        assertEquals("a", SpeechSettingsEditor(schemesRepository, saved).get().schemeId)
+        editor.update { it.copy(rate = 1.5f) }
+        coVerify(exactly = 1) { schemesRepository.update("a", any()) }
+        assertEquals("b", SpeechSettingsEditor(schemesRepository, androidx.lifecycle.SavedStateHandle()).get().schemeId)
+    }
+
     @Before fun create() {
         Dispatchers.setMain(StandardTestDispatcher())
         every { repository.changes } returns settings
+        coEvery { repository.updateAll(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
+        }
         every { http.changes } returns MutableStateFlow(0L)
         coEvery { engines.installed() } returns emptyList()
         coEvery { engines.inspect(any()) } throws SpeechException(SpeechError.NoEngine)
@@ -120,7 +141,7 @@ class SpeechSettingsViewModelTest {
         val playback = MutableStateFlow(ReadAloudState())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns playback
-        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk())
         try {
             library.state.first { it.loaded }
             library.previewVoice("candidate", "Sample.")
@@ -148,7 +169,7 @@ class SpeechSettingsViewModelTest {
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
-        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk())
         try {
             library.state.first { it.loaded }
             library.previewPackage(listOf(definition), null)
@@ -184,7 +205,7 @@ class SpeechSettingsViewModelTest {
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState(
             SpeechRequest("", "", "Sample", SpeechSettings(offlineVoice = reference)), SpeechPhase.Playing))
-        val editor = SpeechEnginesViewModel(catalog, http, offline, repository, controller, mockk())
+        val editor = SpeechEnginesViewModel(catalog, http, offline, mockk(), controller, mockk())
         try {
             runCurrent()
             editor.save(configuration.copy(name = "Renamed"), false) {}

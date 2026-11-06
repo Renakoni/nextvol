@@ -82,8 +82,7 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
                     }
                 }
             }
-            else Text(stringResource(R.string.tts_pool_title), style = MaterialTheme.typography.displayLarge,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            else SpeechPageTitle(stringResource(R.string.tts_pool_title))
         }, navigationIcon = { IconButton(onClick = { if (searching) closeSearch() else onBack() }) {
             Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back))
         } }, actions = {

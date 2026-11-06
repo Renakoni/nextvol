@@ -7,6 +7,7 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -28,7 +29,7 @@ internal data class SpeechVoicePoolState(
 )
 
 @HiltViewModel
-class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechSettingsRepository,
+class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechSettingsEditor,
     private val repository: SpeechVoicePoolRepository, private val catalog: SpeechVoiceCatalog) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechVoicePoolState())
     internal val state = mutableState.asStateFlow()
@@ -39,13 +40,15 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
             mutableState.update { it.copy(settings = value, loading = false) }
             if (filterChanged) refreshCatalog()
         } }
-        viewModelScope.launch { repository.changes.collect { pairs -> mutableState.update { it.copy(pairs = pairs) } } }
+        viewModelScope.launch { combine(repository.changes, settings.changes) { pairs, selected ->
+            pairs.filter { it.schemeId == selected.schemeId && (settings.bookId == null || it.bookId == settings.bookId) }
+        }.collect { pairs -> mutableState.update { it.copy(pairs = pairs) } } }
         viewModelScope.launch { catalog.changes.collect { refreshCatalog() } }
     }
 
     private suspend fun refreshCatalog() {
         try {
-            val engines = catalog.roleEngines()
+            val engines = catalog.roleEngines(settings.get())
             mutableState.update { it.copy(engines = engines, catalogLoading = false) }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { mutableState.update { it.copy(error = R.string.tts_error_storage, catalogLoading = false) } }
@@ -146,7 +149,7 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
         settings.update { it.copy(voiceItems = it.voiceItems.sortedBy { item -> rank[item.id] ?: Int.MAX_VALUE }) }
     }
     internal fun deletePairs(ids: Set<String>) = work { repository.remove(ids) }
-    internal fun clearPairs(bookId: String?) = work { repository.clear(bookId) }
+    internal fun clearPairs(bookId: String?) = work { repository.clear(bookId ?: settings.bookId, settings.get().schemeId) }
 
     internal fun reassign(ids: Set<String>) = work {
         val current = settings.get()

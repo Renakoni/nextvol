@@ -14,6 +14,15 @@ import org.junit.Test
 import java.util.Locale
 
 class SpeechSettingsRepositoryTest {
+    private fun storage(): UserDataRepository {
+        val stored = MutableStateFlow<String?>(null)
+        val dao = mockk<UserDataDao>()
+        coEvery { dao.get("tts.schemes") } answers { stored.value }
+        every { dao.getFlow("tts.schemes") } returns stored
+        coEvery { dao.insert("tts.schemes", any(), "String", any()) } answers { stored.value = arg(3) }
+        return UserDataRepository(dao)
+    }
+
     @Test fun invalidPlaybackSpeedIsNormalizedIndependentlyOfSynthesisDefaults() {
         val defaults = SpeechSettings()
         for ((input, expected) in listOf(Float.NaN to 1f, -1f to 0.5f, 3f to 2f)) {
@@ -22,23 +31,20 @@ class SpeechSettingsRepositoryTest {
     }
 
     @Test fun completeRuleDataAndOrderSurviveVoiceChangesAndReopeningWithoutExecutingRegex() = runBlocking {
-        val stored = MutableStateFlow<String?>(null)
-        val dao = mockk<UserDataDao>()
-        coEvery { dao.get("tts.settings") } answers { stored.value }
-        every { dao.getFlow("tts.settings") } returns stored
-        coEvery { dao.insert("tts.settings", any(), "String", any()) } answers { stored.value = arg(3) }
-        val data = UserDataRepository(dao)
+        val data = storage()
         val repository = SpeechSettingsRepository(data)
         assertFalse(repository.get().allowMultipleVoices)
         val previousLocale = Locale.getDefault()
         try {
             Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
             repository.update { it.copy(text = SpeechTextSettings()) }
+            val empty = repository.create("Empty")
             val chinese = repository.get().text
             assertTrue(Regex(chinese.maleNameRegex).matches("张强"))
             assertTrue(Regex(chinese.femaleNameRegex).matches("小婷"))
             Locale.setDefault(Locale.ENGLISH)
             assertEquals(chinese, SpeechSettingsRepository(data).get().text)
+            assertEquals(chinese, SpeechSettingsRepository(data).get(empty).text)
             repository.update { it.copy(text = it.text.copy(maleNameRegex = "", femaleNameRegex = "")) }
             Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
             assertEquals("", SpeechSettingsRepository(data).get().text.maleNameRegex)
@@ -64,5 +70,28 @@ class SpeechSettingsRepositoryTest {
         assertEquals(expected, SpeechSettingsRepository(data).get())
         repository.update { it.copy(replacements = it.replacements.reversed()) }
         assertEquals(rules.reversed(), repository.changes.first().replacements)
+    }
+
+    @Test fun bookBindingsCopyContentButShareRuntimeAndRebindOnDeletion() = runBlocking {
+        val repository = SpeechSettingsRepository(storage())
+        val voice = SpeechVoiceRef(httpSource = "shared")
+        val a = repository.create("A", bookId = "book-a")
+        repository.update(a) { it.copy(rate = 1.5f, engineCacheCapacity = 20,
+            voiceItems = listOf(SpeechVoiceItem("People", voice)),
+            backgroundMusic = SpeechSchemeMusic(true, setOf("track"), 0.2f)) }
+        val b = repository.create("B", a, "book-b")
+        repository.update(a) { it.copy(rate = 0.7f) }
+        assertEquals(1.5f, repository.forBook("book-b").rate)
+        assertEquals(SpeechSchemeMusic(true, setOf("track"), 0.2f), repository.get(b).backgroundMusic)
+        assertEquals(20, repository.get().engineCacheCapacity)
+        assertNull(repository.get().rate)
+        repository.updateAll { it.replaceVoiceReference(voice, voice.copy(httpSource = "renamed")) }
+        assertEquals(listOf("renamed", "renamed"), listOf(a, b).map { repository.get(it).voiceItems.single().value.httpSource })
+        repository.setDefault(b)
+        repository.bind("book-a", null)
+        assertEquals(b, repository.forBook("book-a").schemeId)
+        repository.delete(b, a)
+        assertEquals(a, repository.forBook("book-a").schemeId)
+        assertEquals(a, repository.forBook("book-b").schemeId)
     }
 }

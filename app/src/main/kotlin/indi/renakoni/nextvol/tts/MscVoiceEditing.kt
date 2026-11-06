@@ -77,8 +77,8 @@ class MscVoiceEditing @Inject constructor(
         }
     }
 
-    private suspend fun replaceReference(previous: SpeechVoiceRef, replacement: SpeechVoiceRef, overwritten: SpeechVoiceRef? = null) {
-        settings.update {
+    internal suspend fun replaceReference(previous: SpeechVoiceRef, replacement: SpeechVoiceRef, overwritten: SpeechVoiceRef? = null) {
+        settings.updateAll {
             val updated = it.replaceVoiceReference(previous, replacement)
             if (overwritten == null) updated else updated.updateVoiceSelections(overwritten, replacement)
         }
@@ -110,10 +110,9 @@ internal fun JsonObject.offlineMetadata() = OfflineVoiceMetadata(
 
 internal fun SpeechSettings.replaceVoiceReference(previous: SpeechVoiceRef, replacement: SpeechVoiceRef): SpeechSettings {
     fun replace(value: SpeechVoiceRef) = if (value.canonicalKey == previous.canonicalKey) replacement.copy(externalId = value.externalId) else value
-    val selected = replace(voiceReference())
     val selections = updateVoiceSelections(previous, replacement)
+    val selected = replace(voiceReference())
     return copy(engine = selected.engine, voice = selected.voice, httpSource = selected.httpSource, offlineVoice = selected.offlineVoice,
-        httpRevision = UUID.randomUUID().toString(), voiceRevision = UUID.randomUUID().toString(),
         narrationVoices = selections.narrationVoices, dialogueVoices = selections.dialogueVoices,
         speakerVoices = speakerVoices.mapValues { replace(it.value) }, roleRules = roleRules.map { it.copy(speaker = it.speaker?.let(::replace)) },
         voiceItems = voiceItems.map { it.copy(value = replace(it.value)) })

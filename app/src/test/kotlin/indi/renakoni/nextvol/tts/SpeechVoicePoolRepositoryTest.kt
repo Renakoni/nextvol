@@ -71,8 +71,9 @@ class SpeechVoicePoolRepositoryTest {
         val otherAutomatic = SpeechVoicePair("book", "新人物", "其他分组", first)
         val otherManual = SpeechVoicePair("book", "新人物", "人工分组", first, manual = true)
         val otherBook = SpeechVoicePair("another-book", "新人物", "青年", first, manual = true)
+        val otherScheme = SpeechVoicePair("book", "新人物", "青年", first, manual = true, schemeId = "other")
         val people = listOf(SpeechRolePerson(target.person, listOf(original.person)))
-        val initial = listOf(target, otherBook, original, otherAutomatic, otherManual)
+        val initial = listOf(target, otherBook, original, otherAutomatic, otherManual, otherScheme)
         val stored = MutableStateFlow<String?>(Json.encodeToString(initial))
         val dao = mockk<UserDataDao>()
         coEvery { dao.get("tts.voicePairs") } answers { stored.value }
@@ -83,19 +84,23 @@ class SpeechVoicePoolRepositoryTest {
         val changed = original.copy(group = target.group, value = second)
         repository.setManual(changed, people)
         assertEquals(1L, repository.revisions.value)
+        assertEquals(0L, repository.revision("book", "other"))
         val reopened = SpeechVoicePoolRepository(data)
         val saved = reopened.pairs()
-        assertEquals(listOf(changed.copy(person = target.person), otherBook, otherAutomatic), saved)
+        assertEquals(listOf(changed.copy(person = target.person), otherBook, otherAutomatic, otherScheme), saved)
         val catalog = listOf(first, second).associate { it.key to SpeechResolvedVoice(it, SpeechSettings(), 100) }
         assertEquals(second, reopened.existing("book", "新人物", listOf("其他分组"), saved, 0, catalog - second.key, 1)!!.value)
+        assertEquals(first, reopened.existing("book", "新人物", listOf("其他分组"), saved, 0, catalog, 1, "other")!!.value)
         reopened.remove(setOf(changed.id))
         assertEquals(first, reopened.existing("book", "新人物", listOf("其他分组"), saved, 0, catalog, 1)!!.value)
 
         stored.value = Json.encodeToString(initial)
         assertTrue(reopened.reassign(setOf(original.id), listOf(SpeechVoiceItem(original.group, second)), catalog, people).isEmpty())
         val reassigned = SpeechVoicePoolRepository(data).pairs()
-        assertEquals(listOf(original.copy(person = target.person, value = second, manual = false), otherBook, otherAutomatic), reassigned)
+        assertEquals(listOf(original.copy(person = target.person, value = second, manual = false), otherBook, otherAutomatic, otherScheme), reassigned)
         assertEquals(second, reopened.existing("book", "新人物", listOf(original.group), reassigned,
             reopened.revisions.value, catalog, 1)!!.value)
+        reopened.clear("book", "other")
+        assertEquals(reassigned - otherScheme, reopened.pairs())
     }
 }

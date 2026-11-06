@@ -71,7 +71,6 @@ data class OfflineVoiceEditorState(
 @HiltViewModel
 class OfflineVoiceEditorViewModel @Inject constructor(
     private val repository: OfflineSpeechRepository,
-    private val settings: SpeechSettingsRepository,
     private val saved: SavedStateHandle,
     private val msc: MscVoiceEditing,
 ) : ViewModel() {
@@ -124,12 +123,11 @@ class OfflineVoiceEditorViewModel @Inject constructor(
                 msc.toOnline(requireNotNull(current.voice), edited, copy, creating)
             else {
                 val result = if (creating) repository.create(edited) else repository.save(edited, copy)
-                if (!copy && !creating) settings.update { value ->
+                if (!copy && !creating) {
                     val previous = requireNotNull(current.voice)
-                    val updated = value.updateVoiceSelections(
+                    msc.replaceReference(
                         SpeechVoiceRef(offlineVoice = previous.reference, externalId = previous.packageVoiceId()),
                         SpeechVoiceRef(offlineVoice = result.reference, label = result.name, externalId = result.packageVoiceId()))
-                    if (updated.offlineVoice?.id == result.reference.id) updated.copy(offlineVoice = result.reference) else updated
                 }
             }
         }

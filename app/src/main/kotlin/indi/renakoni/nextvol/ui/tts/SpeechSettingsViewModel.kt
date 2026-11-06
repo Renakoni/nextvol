@@ -8,7 +8,6 @@ import indi.renakoni.nextvol.tts.ReadAloudController
 import indi.renakoni.nextvol.tts.SpeechEngine
 import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechSettings
-import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.SpeechVoice
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.toggleVoice
@@ -39,7 +38,7 @@ data class SpeechSettingsUiState(
 
 @HiltViewModel
 class SpeechSettingsViewModel @Inject constructor(
-    private val repository: SpeechSettingsRepository,
+    private val repository: SpeechSettingsEditor,
     private val engines: SystemSpeechEngines,
     val controller: ReadAloudController,
     private val http: HttpSpeechRepository,

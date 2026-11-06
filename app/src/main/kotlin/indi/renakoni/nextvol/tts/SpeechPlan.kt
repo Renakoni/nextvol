@@ -16,22 +16,34 @@ class SpeechPlan internal constructor(
     private val maxInputLength: Int = Int.MAX_VALUE,
     private val locale: Locale = Locale.getDefault(),
     val logId: Long? = null,
+    private val trimmed: Boolean = false,
 ) {
     private val replacementKey = synthesis.textProcessingKey(maxInputLength, locale)
     internal fun matches(chapter: SpeechChapter, synthesis: SpeechSettings, context: SpeechContext, maxInputLength: Int) =
-        this.chapter == chapter && this.synthesis == synthesis && this.context == context &&
+        !trimmed && this.chapter == chapter && this.synthesis == synthesis && this.context == context &&
             this.maxInputLength == maxInputLength && locale == Locale.getDefault()
 
-    internal fun startIndex(saved: SpeechBookmark?): Int {
+    /** Resolve the bookmark once, then rebuild audio from its original position inside the sentence. */
+    internal fun resumeAt(saved: SpeechBookmark?): Pair<SpeechPlan, Int> {
         val matching = saved?.takeIf { it.bookId == chapter.bookId && it.chapterId == chapter.id &&
             it.fingerprint == chapter.fingerprint && !it.completed && it.offset in 0..chapter.text.length }
-        if (matching == null) return 0
+            ?: return this to 0
         // Expansion/capture reordering can give several clips overlapping original ranges.
-        matching.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }?.let { return it }
-        val offset = matching.offset
+        val index = matching.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }
         // End offsets are exclusive: a durable completion boundary must not replay
         // the finished segment, including whitespace before the next segment.
-        return segments.indexOfFirst { it.end > offset }.takeIf { it >= 0 } ?: segments.size
+            ?: segments.indexOfFirst { it.end > matching.offset }.takeIf { it >= 0 } ?: segments.size
+        val segment = segments.getOrNull(index) ?: return this to index
+        if (matching.offset !in segment.start + 1 until segment.end) return this to index
+        val mapped = mappedSegments[index]
+        val start = mapped.indexAtOriginal(matching.offset)
+        if (start == 0) return this to index
+        val remaining = mapped.slice(start, mapped.text.length)
+        val range = remaining.range()
+        return SpeechPlan(chapter, synthesis, segments.toMutableList().also {
+            it[index] = segment.copy(start = range.first, end = range.second, text = remaining.text)
+        }, structuredText, mappedSegments.toMutableList().also { it[index] = remaining }, context,
+            nextContext, maxInputLength, locale, logId, trimmed = true) to index
     }
 
     internal fun bookmark(offset: Int, index: Int? = null) = SpeechBookmark(chapter.bookId, chapter.id,
@@ -164,7 +176,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
 }
 
 internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
-    speechDigest("speech-text-v5\u0000" + Json.encodeToString(replacements) + "\u0000" +
+    speechDigest("speech-text-v5\u0000" + schemeId + "\u0000" + Json.encodeToString(replacements) + "\u0000" +
         Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag() +
         "\u0000" + Json.encodeToString(narrationVoices) + Json.encodeToString(dialogueVoices) +
         Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured +
@@ -173,7 +185,7 @@ internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Local
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
     val selected = validated().let { it.copy(playbackSpeed = 1f, allowMultipleVoices = false, diagnosticLogging = false,
-        text = it.text.copy(filterLanguage = false)) }
+        schemeName = "", text = it.text.copy(filterLanguage = false), backgroundMusic = SpeechSchemeMusic()) }
     if (selected.hasVoiceRouting) return selected
     return when {
         selected.offlineVoice != null -> selected.copy(engine = "", voice = "", rate = selected.rate ?: 1f, httpVolume = 1f)

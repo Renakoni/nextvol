@@ -44,12 +44,12 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
                     { logger.speechDebugEnabled }, settings.roleRules) else null
             val preview = chapter.bookId.isEmpty()
             val pairRevision = pairs.revisions.value
-            val saved = if (preview) mutableListOf() else pairs.pairs(chapter.bookId).toMutableList()
+            val saved = if (preview) mutableListOf() else pairs.pairs(chapter.bookId, settings.schemeId).toMutableList()
             val catalog = voices.resolve(settings, saved, includeParameters = trace != null)
             val previewPool = if (preview) SpeechVoicePool() else null
             suspend fun existing(name: String, groups: List<String>): SpeechVoicePair? {
                 val pair = if (previewPool != null) previewPool.existing(chapter.bookId, name, groups, saved, catalog, settings.maxCacheVoiceNum)
-                    else pairs.existing(chapter.bookId, name, groups, saved, pairRevision, catalog, settings.maxCacheVoiceNum)
+                    else pairs.existing(chapter.bookId, name, groups, saved, pairRevision, catalog, settings.maxCacheVoiceNum, settings.schemeId)
                 pair?.let { trace?.pairing(it, existing = true) }
                 return pair
             }
@@ -76,7 +76,7 @@ class SpeechPlanPreparer @Inject constructor(private val executor: AndroidIsolat
                     val pair = if (previewPool != null) previewPool.assign(chapter.bookId, name, group, saved,
                         settings.voiceItems, catalog, settings.maxCacheVoiceNum)
                     else pairs.assign(chapter.bookId, name, group, settings.voiceItems, catalog,
-                        settings.maxCacheVoiceNum, chapter.bookTitle)
+                        settings.maxCacheVoiceNum, chapter.bookTitle, settings.schemeId)
                     pair?.also { value ->
                         trace?.pairing(value, existing = false)
                         saved.removeAll { it.id == value.id }

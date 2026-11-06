@@ -23,7 +23,7 @@ class SpeechReplacementsViewModelTest {
         val selected = SpeechSettings(httpSource = "selected", rate = 1.2f, replacements = listOf(first, second, hidden),
             text = SpeechTextSettings(separateEnglish = false))
         val stored = MutableStateFlow(selected)
-        val repository = mockk<SpeechSettingsRepository>()
+        val repository = mockk<SpeechSettingsEditor>()
         every { repository.changes } returns stored
         coEvery { repository.get() } answers { stored.value }
         coEvery { repository.update(any()) } coAnswers { stored.value = firstArg<(SpeechSettings) -> SpeechSettings>()(stored.value) }

@@ -26,13 +26,14 @@ class SpeechRolesViewModelTest {
         val second = SpeechVoiceRef(httpSource = "second", label = "Second")
         val original = SpeechRoleRule(id = "original", name = "Original", group = "Friends", speaker = first)
         val stored = MutableStateFlow(SpeechSettings(rate = 1.2f, roleRules = listOf(original)))
-        val repository = mockk<SpeechSettingsRepository>()
+        val repository = mockk<SpeechSettingsEditor>()
         every { repository.changes } returns stored
+        coEvery { repository.get() } answers { stored.value }
         coEvery { repository.update(any()) } coAnswers {
             stored.value = firstArg<(SpeechSettings) -> SpeechSettings>()(stored.value)
         }
         val catalog = mockk<SpeechVoiceCatalog>()
-        coEvery { catalog.roleEngines() } returns listOf(
+        coEvery { catalog.roleEngines(any()) } returns listOf(
             SpeechRoleEngine("first", "Engine one", listOf(first)),
             SpeechRoleEngine("second", "Engine two", listOf(second)))
         val model = SpeechRolesViewModel(repository, catalog)
@@ -92,13 +93,14 @@ class SpeechRolesViewModelTest {
         val visible = SpeechRoleRule(id = "visible", name = "Visible", group = "Group")
         val hidden = visible.copy(id = "hidden", name = "Hidden")
         val stored = MutableStateFlow(SpeechSettings(roleRules = listOf(visible, hidden)))
-        val repository = mockk<SpeechSettingsRepository>()
+        val repository = mockk<SpeechSettingsEditor>()
         every { repository.changes } returns stored
+        coEvery { repository.get() } answers { stored.value }
         coEvery { repository.update(any()) } coAnswers {
             stored.value = firstArg<(SpeechSettings) -> SpeechSettings>()(stored.value)
         }
         val catalog = mockk<SpeechVoiceCatalog>()
-        coEvery { catalog.roleEngines() } returns emptyList()
+        coEvery { catalog.roleEngines(any()) } returns emptyList()
         val model = SpeechRolesViewModel(repository, catalog)
         try {
             runCurrent()

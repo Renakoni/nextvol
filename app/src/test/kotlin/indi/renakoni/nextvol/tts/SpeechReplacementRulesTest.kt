@@ -86,12 +86,12 @@ class SpeechReplacementRulesTest {
         assertTrue(plan.segments.size > 2)
         assertEquals(plan.segments[0].start, plan.segments[1].start)
         val boundary = plan.bookmark(plan.segments[0].end, 1)
-        assertEquals(1, plan.startIndex(boundary))
-        assertEquals(1, prepareSpeechPlan(chapter, SpeechSettings(replacements = rules, httpSource = "online")) {}.startIndex(boundary))
+        assertEquals(1, plan.resumeAt(boundary).second)
+        assertEquals(1, prepareSpeechPlan(chapter, SpeechSettings(replacements = rules, httpSource = "online")) {}.resumeAt(boundary).second)
         val changed = prepareSpeechPlan(chapter, SpeechSettings(replacements = listOf(literal("乙", "丙")))) {}
-        assertEquals(0, changed.startIndex(boundary))
-        assertEquals(0, plan.startIndex(boundary.copy(fingerprint = "stale")))
-        assertEquals(plan.segments.size, plan.startIndex(plan.bookmark(chapter.text.length, plan.segments.size)))
+        assertEquals(0, changed.resumeAt(boundary).second)
+        assertEquals(0, plan.resumeAt(boundary.copy(fingerprint = "stale")).second)
+        assertEquals(plan.segments.size, plan.resumeAt(plan.bookmark(chapter.text.length, plan.segments.size)).second)
     }
 
     @Test fun insertionAfterCompleteDeletionRetainsTheDeletedOriginalRange() = runBlocking {

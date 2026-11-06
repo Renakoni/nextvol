@@ -41,7 +41,6 @@ import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.ui.components.SectionHeader
-import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,7 +58,7 @@ fun SpeechPackagePreviewScreen(
 ) {
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val context = LocalContext.current
-    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_package_preview, onBack) }) { padding ->
+    Scaffold(topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_package_preview, onBack) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-package-preview"),
             contentPadding = PaddingValues(vertical = 16.dp)) {
             item(key = "summary") {

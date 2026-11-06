@@ -22,8 +22,8 @@ import indi.renakoni.nextvol.data.logging.LoggerRepository
 import indi.renakoni.nextvol.data.logging.SpeechLogRecord
 import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import indi.renakoni.nextvol.data.logging.SpeechLogEvent
+import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.SpeechError
-import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.SpeechConfigurationImport
 import indi.renakoni.nextvol.tts.previewSpeechConfiguration
 import indi.renakoni.nextvol.tts.speechPackageReferences
@@ -72,11 +72,12 @@ data class SpeechPackagePreviewState(
 class SpeechPackagePreviewViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val offline: OfflineSpeechRepository,
-    private val settings: SpeechSettingsRepository,
+    private val settings: SpeechSettingsEditor,
     private val availability: OfflineAvailabilityChecker,
     private val http: indi.renakoni.nextvol.tts.HttpSpeechRepository,
     private val engines: OfflineEngineRepository,
     private val logger: LoggerRepository,
+    private val editing: indi.renakoni.nextvol.tts.MscVoiceEditing,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPackagePreviewState())
     val state = mutableState.asStateFlow()
@@ -204,7 +205,8 @@ class SpeechPackagePreviewViewModel @Inject constructor(
             try {
                 withContext(NonCancellable) {
                     val voice = offline.importConfiguration(draft)
-                    settings.update { if (it.offlineVoice?.id == voice.reference.id) it.copy(offlineVoice = voice.reference) else it }
+                    editing.replaceReference(SpeechVoiceRef(offlineVoice = draft.reference),
+                        SpeechVoiceRef(offlineVoice = voice.reference, label = voice.name))
                     mutableState.update { it.copy(installed = voice.name,
                         updatedOfflineVoices = it.updatedOfflineVoices + voice.reference.id) }
                 }
@@ -241,9 +243,8 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     // Keep the selected reference aligned with the committed catalog either way.
                     withContext(NonCancellable) {
                         offline.voices().singleOrNull { it.sourceKey == plan.id }?.let { installed ->
-                            settings.update {
-                                if (it.offlineVoice?.id == installed.reference.id) it.copy(offlineVoice = installed.reference) else it
-                            }
+                            editing.replaceReference(SpeechVoiceRef(offlineVoice = installed.reference),
+                                SpeechVoiceRef(offlineVoice = installed.reference, label = installed.name))
                         }
                     }
                 }
