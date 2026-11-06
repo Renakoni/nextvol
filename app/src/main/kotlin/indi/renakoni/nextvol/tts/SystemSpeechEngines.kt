@@ -21,6 +21,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.nextUp
 
 /** Older Android clients bind directly. Restrict those binds to an explicitly selected engine. */
 internal class SpeechEngineContext(base: Context, private val requestedPackage: String) : ContextWrapper(base) {
@@ -119,8 +120,8 @@ private class SystemSpeechSynthesizer(private val engines: SystemSpeechEngines) 
             if (tts.voice?.features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) == true) {
                 throw SpeechException(SpeechError.MissingLanguageData)
             }
-            // Android's rate is an integer percentage internally and must be positive.
-            if (tts.setSpeechRate(settings.rate.coerceAtLeast(0.01f)) == TextToSpeech.ERROR ||
+            // Android truncates rate * 100; nextUp keeps slider 53 from becoming 105 instead of 106.
+            if (tts.setSpeechRate(settings.rate.coerceAtLeast(0.01f).nextUp()) == TextToSpeech.ERROR ||
                 tts.setPitch(1f) == TextToSpeech.ERROR) {
                 throw SpeechException(SpeechError.SynthesisFailed)
             }
