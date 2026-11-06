@@ -48,7 +48,7 @@ interface SpeechPlayback {
 class ReadAloudSession(
     private val scope: CoroutineScope,
     private val chapters: SpeechChapterSource,
-    private val settings: suspend () -> SpeechSettings,
+    private val settings: suspend (SpeechRequest) -> SpeechSettings,
     private val progress: SpeechProgressStore,
     private val synthesizer: () -> SpeechSynthesizer,
     private val playback: SpeechPlayback,
@@ -81,8 +81,9 @@ class ReadAloudSession(
         val current = state.value
         if (!request.isPreview) suspendedBook = null
         else if (current.request?.isPreview == false && (current.isActive || current.phase == SpeechPhase.Paused)) {
-            suspendedBook = SuspendedBook(current.request, currentBoundary, resumeSavedProgress, wantsPlay, current.sleepTimerChapters, currentPlan)
+            suspendedBook = SuspendedBook(current.request, audibleBoundary(), resumeSavedProgress, wantsPlay, current.sleepTimerChapters, currentPlan)
         }
+        if (current.request?.bookId != request.bookId || current.request.isPreview != request.isPreview) currentSettings = null
         val previous = work
         val reusablePlan = currentPlan
         val token = ++generation
@@ -115,10 +116,13 @@ class ReadAloudSession(
                 // Candidate parameters belong only to this sample, never to the selected settings.
                 val selected = request.previewSettings?.takeIf { request.isPreview }?.validated() ?: run {
                     val beforeRead = currentSettings
-                    val stored = settings().validated()
+                    val stored = settings(request).validated()
                     // A settings emission received during the read takes precedence over its snapshot.
                     (currentSettings?.takeIf { it !== beforeRead } ?: stored).also { currentSettings = it }
                 }
+                diagnostics(SpeechLogRecord(SpeechLogStage.Configuration, SpeechLogEvent.Completed,
+                    details = listOf(R.string.tts_diagnostic_scheme to
+                        "${request.bookId} / ${selected.schemeName.ifBlank { selected.schemeId }} (${selected.schemeId})")))
                 playback.setSpeed(selected.playbackSpeed)
                 val synthesis = if (request.isPreview) selected.forVoice(selected.voiceReference()) else selected.synthesisSettings()
                 val opened = synthesis.takeUnless { it.hasVoiceRouting }
@@ -270,16 +274,18 @@ class ReadAloudSession(
         // A deliberate selection still persists during preview, and takes effect on return.
         if (state.value.request?.isPreview == true) return
         playback.setSpeed(value.playbackSpeed)
-        if (previous != null && previous.synthesisSettings() != value.synthesisSettings()) reloadSettings()
+        if (previous != null && previous.synthesisSettings() != value.synthesisSettings())
+            reloadSettings(resetContext = previous.textProcessingKey(Int.MAX_VALUE) != value.textProcessingKey(Int.MAX_VALUE))
     }
 
     /** Voice changes resynthesize from the current boundary, preserving a deliberate pause. */
-    fun reloadSettings() {
+    fun reloadSettings(resetContext: Boolean = false) {
         val current = state.value
         if (current.request == null || current.request.isPreview || current.phase in setOf(SpeechPhase.Stopped, SpeechPhase.Completed)) return
-        val context = currentPlan?.context ?: currentBoundary?.context ?: SpeechContext()
+        val context = if (resetContext) SpeechContext() else currentPlan?.context ?: currentBoundary?.context ?: SpeechContext()
+        val boundary = audibleBoundary()
         currentPlan = null
-        start(current.request, boundary = currentClip?.let { it.bookmark(it.segment.start) } ?: currentBoundary, playing = wantsPlay,
+        start(current.request, boundary = if (resetContext) boundary?.copy(context = SpeechContext(), replacementKey = "") else boundary, playing = wantsPlay,
             sleepTimerChapters = current.sleepTimerChapters, initialContext = context)
     }
 
@@ -290,6 +296,12 @@ class ReadAloudSession(
             val plan: SpeechPlan?, val index: Int, val context: SpeechContext,
             val replacementFailure: SpeechReplacementFailure? = null, val roleFailure: SpeechRoleFailure? = null) : Step
     }
+
+    private fun audibleBoundary(): SpeechBookmark? = currentClip?.let { clip ->
+        val position = state.value.position?.takeIf { it.bookId == clip.chapter.bookId && it.chapterId == clip.chapter.id &&
+            it.anchor in clip.segment.start until clip.segment.end }
+        clip.bookmark(position?.anchor ?: clip.segment.start)
+    } ?: currentBoundary
 
     private suspend fun stream(token: Long, request: SpeechRequest, provider: SpeechSynthesizer,
         directory: File, saved: SpeechBookmark?, synthesis: SpeechSettings, reusablePlan: SpeechPlan?,
@@ -326,6 +338,7 @@ class ReadAloudSession(
                     plan = reusablePlan?.takeIf { it.matches(loaded, synthesis, context, maxInputLength) } ?: withContext(ioDispatcher) {
                         preparePlan(loaded, synthesis, context, maxInputLength)
                     }
+                    if (first) plan = plan.resumeAt(saved)
                     val segments = plan.segments
                     if (segments.isEmpty()) {
                         queue.send(Step.Skipped(plan))

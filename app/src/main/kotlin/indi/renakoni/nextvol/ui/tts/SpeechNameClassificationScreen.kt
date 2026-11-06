@@ -16,7 +16,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.names.SpeechNameClassification
 import indi.renakoni.nextvol.tts.names.SpeechNameClassifier
 import indi.renakoni.nextvol.tts.names.SpeechNameHint
@@ -38,7 +37,7 @@ data class SpeechNameClassificationState(
 @HiltViewModel
 class SpeechNameClassificationViewModel @Inject constructor(
     private val classifier: SpeechNameClassifier,
-    private val settings: SpeechSettingsRepository,
+    private val settings: SpeechSettingsEditor,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechNameClassificationState())
     val state = mutableState.asStateFlow()

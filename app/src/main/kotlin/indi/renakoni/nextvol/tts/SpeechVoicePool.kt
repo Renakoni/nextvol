@@ -26,6 +26,7 @@ data class SpeechVoicePair(
     val manual: Boolean = false,
     val bookTitle: String = "",
     val id: String = UUID.randomUUID().toString(),
+    val schemeId: String = DEFAULT_SPEECH_SCHEME,
 )
 
 /** O6.j.i's random draw without replacement. Persisted pairs are independent of the bounded cache. */

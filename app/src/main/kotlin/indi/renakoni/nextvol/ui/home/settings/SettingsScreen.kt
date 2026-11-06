@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -124,13 +125,27 @@ internal fun SettingsTopBar(
     scrollBehavior: TopAppBarScrollBehavior,
     @StringRes title: Int = R.string.nav_settings,
     onBack: () -> Unit,
+) = SettingsTopBar(scrollBehavior, title, onBack, titleText = null)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SettingsTopBar(
+    scrollBehavior: TopAppBarScrollBehavior,
+    @StringRes title: Int = R.string.nav_settings,
+    onBack: () -> Unit,
+    titleText: String?,
+    subtitle: String? = null,
 ) {
     TopAppBar(
         title = {
+            Column {
             Text(
-                text = stringResource(title), style = typography.displayLarge,
+                text = titleText ?: stringResource(title), style = typography.displayLarge,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
+            subtitle?.let { Text(it, style = typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
         },
         navigationIcon = {
             IconButton(onClick = onBack) {

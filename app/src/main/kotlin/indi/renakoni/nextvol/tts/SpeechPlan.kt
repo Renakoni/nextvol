@@ -16,10 +16,11 @@ class SpeechPlan internal constructor(
     private val maxInputLength: Int = Int.MAX_VALUE,
     private val locale: Locale = Locale.getDefault(),
     val logId: Long? = null,
+    private val trimmed: Boolean = false,
 ) {
     private val replacementKey = synthesis.textProcessingKey(maxInputLength, locale)
     internal fun matches(chapter: SpeechChapter, synthesis: SpeechSettings, context: SpeechContext, maxInputLength: Int) =
-        this.chapter == chapter && this.synthesis == synthesis && this.context == context &&
+        !trimmed && this.chapter == chapter && this.synthesis == synthesis && this.context == context &&
             this.maxInputLength == maxInputLength && locale == Locale.getDefault()
 
     internal fun startIndex(saved: SpeechBookmark?): Int {
@@ -37,6 +38,24 @@ class SpeechPlan internal constructor(
     internal fun bookmark(offset: Int, index: Int? = null) = SpeechBookmark(chapter.bookId, chapter.id,
         chapter.fingerprint, offset, chapter.bookTitle, chapter.title,
         replacementKey = replacementKey, segmentIndex = index, context = context)
+
+    /** Rebuild audio from the audible original position, including positions inside a sentence. */
+    internal fun resumeAt(saved: SpeechBookmark?): SpeechPlan {
+        val index = startIndex(saved)
+        val segment = segments.getOrNull(index) ?: return this
+        if (saved == null || saved.bookId != chapter.bookId || saved.chapterId != chapter.id ||
+            saved.fingerprint != chapter.fingerprint || saved.completed || saved.offset !in segment.start + 1 until segment.end)
+            return this
+        val mapped = mappedSegments[index]
+        val start = mapped.indexAtOriginal(saved.offset)
+        if (start == 0 || start == mapped.text.length) return this
+        val remaining = mapped.slice(start, mapped.text.length)
+        val range = remaining.range()
+        return SpeechPlan(chapter, synthesis, segments.toMutableList().also {
+            it[index] = segment.copy(start = range.first, end = range.second, text = remaining.text)
+        }, structuredText, mappedSegments.toMutableList().also { it[index] = remaining }, context,
+            nextContext, maxInputLength, locale, logId, trimmed = true)
+    }
 
     internal fun position(index: Int, start: Int = 0, end: Int = segments[index].text.length, anchor: Int = start): SpeechPosition {
         val mapped = mappedSegments[index]
@@ -164,7 +183,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
 }
 
 internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
-    speechDigest("speech-text-v5\u0000" + Json.encodeToString(replacements) + "\u0000" +
+    speechDigest("speech-text-v5\u0000" + schemeId + "\u0000" + Json.encodeToString(replacements) + "\u0000" +
         Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag() +
         "\u0000" + Json.encodeToString(narrationVoices) + Json.encodeToString(dialogueVoices) +
         Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured +
@@ -173,7 +192,7 @@ internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Local
 /** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
 internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
     val selected = validated().let { it.copy(playbackSpeed = 1f, allowMultipleVoices = false, diagnosticLogging = false,
-        text = it.text.copy(filterLanguage = false)) }
+        schemeName = "", text = it.text.copy(filterLanguage = false), backgroundMusic = SpeechSchemeMusic()) }
     if (selected.hasVoiceRouting) return selected
     return when {
         selected.offlineVoice != null -> selected.copy(engine = "", voice = "", rate = selected.rate ?: 1f, httpVolume = 1f)

@@ -36,6 +36,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -67,6 +70,7 @@ class ReadAloudService : MediaSessionService() {
     // Negative IDs also keep these entries separate from the app's update/export notifications.
     private val notificationId = -notificationIds.updateAndGet { if (it == Int.MAX_VALUE) 1 else it + 1 }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
         // The speech session owns buffering; completed or paused audio needs no player grace period.
@@ -79,8 +83,8 @@ class ReadAloudService : MediaSessionService() {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             setHandleAudioBecomingNoisy(true)
         }
-        speech = ReadAloudSession(scope, chapters, {
-            voices.revised(settings.get()).also { logger.speechDebugEnabled = it.diagnosticLogging }
+        speech = ReadAloudSession(scope, chapters, { request ->
+            voices.revised(settings.forBook(request.bookId)).also { logger.speechDebugEnabled = it.diagnosticLogging }
         }, progress, synthesizers::synthesizer,
             ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"), preparePlan = plans::prepare,
             diagnostics = logger::recordSpeech, detailedLogging = { logger.speechDebugEnabled })
@@ -156,7 +160,9 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            music.changes.collect { settings ->
+            combine(music.changes, settings.schemes, speech.state.map { it.request?.bookId }.distinctUntilChanged()) { library, schemes, bookId ->
+                library.forScheme(schemes.forBook(bookId).backgroundMusic)
+            }.distinctUntilChanged().collect { settings ->
                 if (backgroundMusic == null && settings.enabled && settings.tracks.any { it.selected }) {
                     backgroundMusic = BackgroundMusicPlayback(ExoPlayer.Builder(this@ReadAloudService)
                         .setWakeMode(C.WAKE_MODE_LOCAL).build().apply {
@@ -172,14 +178,19 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            combine(settings.changes, voices.changes, pairs.revisions) { settings, _, _ ->
-                pairs.setCacheLimit(settings.maxCacheVoiceNum)
-                voices.revised(settings)
-            }.collect { settings ->
-                logger.speechDebugEnabled = settings.diagnosticLogging
-                speech.updateSettings(settings)
-                if (!settings.text.detectLanguage || settings.roleRules.none { it.isLanguageRule }) languages.release()
-            }
+            speech.state.map { it.request?.takeUnless { it.isPreview }?.bookId }.distinctUntilChanged()
+                .flatMapLatest { bookId ->
+                    combine(settings.changesForBook(bookId), voices.changes, pairs.revisions) { selected, _, _ ->
+                        pairs.setCacheLimit(selected.maxCacheVoiceNum)
+                        voices.revised(selected)
+                    }.distinctUntilChanged()
+                }.collect { selected ->
+                    logger.speechDebugEnabled = selected.diagnosticLogging
+                    if (speech.state.value.request?.bookId == selected.bookId && speech.state.value.request?.isPreview == false) {
+                        speech.updateSettings(selected)
+                    }
+                    if (!selected.text.detectLanguage || selected.roleRules.none { it.isLanguageRule }) languages.release()
+                }
         }
     }
 

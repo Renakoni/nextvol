@@ -366,7 +366,7 @@ class SpeechControlsTest {
 
     @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
     fun refreshingTheSameMissingEngineKeepsTheErrorAndDisablesVoiceSelection() {
-        val repository = mockk<SpeechSettingsRepository>()
+        val repository = mockk<SpeechSettingsEditor>()
         every { repository.changes } returns MutableStateFlow(SpeechSettings())
         val engines = mockk<SystemSpeechEngines>()
         coEvery { engines.installed() } returns emptyList()

@@ -17,12 +17,11 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
-import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
 class HttpVoiceEditorViewModel @Inject constructor(
-    private val repository: HttpSpeechRepository, private val settings: SpeechSettingsRepository,
+    private val repository: HttpSpeechRepository,
     private val saved: SavedStateHandle,
     private val msc: MscVoiceEditing,
 ) : ViewModel() {
@@ -84,12 +83,9 @@ class HttpVoiceEditorViewModel @Inject constructor(
             else {
                 val candidate = withContext(Dispatchers.Default) { editHttpVoice(selected, edited.speakerFields(), edited.enabled, copy) }
                 repository.saveVoice(candidate)
-                if (!copy) settings.update { value ->
-                    val updated = value.updateVoiceSelections(
-                        SpeechVoiceRef(httpSource = selected.definition.id, externalId = selected.packageVoiceId()),
-                        SpeechVoiceRef(httpSource = candidate.definition.id, label = candidate.definition.name, externalId = candidate.packageVoiceId()))
-                    if (updated.httpSource == candidate.definition.id) updated.copy(httpRevision = UUID.randomUUID().toString()) else updated
-                }
+                if (!copy) msc.replaceReference(
+                    SpeechVoiceRef(httpSource = selected.definition.id, externalId = selected.packageVoiceId()),
+                    SpeechVoiceRef(httpSource = candidate.definition.id, label = candidate.definition.name, externalId = candidate.packageVoiceId()))
             }
         }
         onSaved()

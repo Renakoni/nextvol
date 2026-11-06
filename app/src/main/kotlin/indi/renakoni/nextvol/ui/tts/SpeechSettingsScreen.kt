@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
-import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.tts.ReadAloudState
 import indi.renakoni.nextvol.tts.SpeechAction
 import indi.renakoni.nextvol.tts.SpeechError
@@ -84,19 +83,33 @@ fun SpeechSettingsScreen(
     onRoles: (() -> Unit)? = null,
     onVoicePool: (() -> Unit)? = null,
     onDiagnostics: (() -> Unit)? = null,
+    onSchemes: (() -> Unit)? = null,
+    schemeSummary: String? = null,
+    schemeTitle: String? = null,
+    schemeUsage: String? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
     Scaffold(
-        topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_settings, onBack) },
+        topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_settings, onBack, titleText = schemeTitle) },
         bottomBar = {
             if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-settings-list"),
             contentPadding = PaddingValues(vertical = 16.dp)) {
+            schemeUsage?.let { usage -> item {
+                Text(usage, Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } }
             item {
                 SettingsCategory {
+                    onSchemes?.let { open -> SettingsClickableEntry(
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-schemes-entry"),
+                        painter = painterResource(R.drawable.headphones_24px), title = stringResource(R.string.tts_schemes),
+                        option = schemeSummary.orEmpty(),
+                        trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                        onClick = open) }
                     SettingsClickableEntry(
                         modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-preferences-entry"),
                         painter = painterResource(R.drawable.outline_settings_24px),
@@ -199,7 +212,7 @@ fun SpeechPreferencesScreen(
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
     Scaffold(
-        topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_preferences, onBack) },
+        topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_preferences, onBack) },
         bottomBar = {
             if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
         },

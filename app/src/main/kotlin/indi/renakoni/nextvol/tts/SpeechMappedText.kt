@@ -26,6 +26,8 @@ internal class SpeechMappedText private constructor(
 
     fun anchor(index: Int) = starts[index.coerceIn(0, text.lastIndex)]
 
+    fun indexAtOriginal(offset: Int) = ends.indexOfFirst { it > offset }.takeIf { it >= 0 } ?: text.length
+
     class Builder(initialSize: Int) {
         private val text = StringBuilder(initialSize)
         private var starts = IntArray(initialSize)

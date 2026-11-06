@@ -33,8 +33,7 @@ internal fun SpeechRolesTopBar(query: String, onQuery: (String) -> Unit, searchi
     val choices = suggestions.filter { it.contains(query.trimEnd().substringAfterLast(' '), ignoreCase = true) }
     LaunchedEffect(searching) { if (searching) { focus.requestFocus(); suggest = true } }
     TopAppBar(title = {
-        if (!searching) Text(stringResource(R.string.tts_roles), style = MaterialTheme.typography.displayLarge,
-            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!searching) SpeechPageTitle(stringResource(R.string.tts_roles))
         else Box {
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Row(Modifier.heightIn(min = 40.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -24,9 +24,9 @@ class SpeechSettingsRepositoryTest {
     @Test fun completeRuleDataAndOrderSurviveVoiceChangesAndReopeningWithoutExecutingRegex() = runBlocking {
         val stored = MutableStateFlow<String?>(null)
         val dao = mockk<UserDataDao>()
-        coEvery { dao.get("tts.settings") } answers { stored.value }
-        every { dao.getFlow("tts.settings") } returns stored
-        coEvery { dao.insert("tts.settings", any(), "String", any()) } answers { stored.value = arg(3) }
+        coEvery { dao.get("tts.schemes") } answers { stored.value }
+        every { dao.getFlow("tts.schemes") } returns stored
+        coEvery { dao.insert("tts.schemes", any(), "String", any()) } answers { stored.value = arg(3) }
         val data = UserDataRepository(dao)
         val repository = SpeechSettingsRepository(data)
         assertFalse(repository.get().allowMultipleVoices)

@@ -38,9 +38,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -64,10 +61,9 @@ data class SpeechPlaybackSettingsState(
 
 @HiltViewModel
 class SpeechPlaybackSettingsViewModel @Inject constructor(
-    private val repository: SpeechSettingsRepository,
+    private val repository: SpeechSettingsEditor,
     userData: UserDataRepository,
     newWords: SpeechNewWordDiscovery,
-    private val backgroundMusic: BackgroundMusicRepository,
 ) : ViewModel() {
     val preferences = SpeechPlaybackPreferences(userData, viewModelScope)
     private val mutableState = MutableStateFlow(SpeechPlaybackSettingsState())
@@ -75,12 +71,11 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            combine(repository.changes, backgroundMusic.changes.map { it.enabled }.distinctUntilChanged()) { settings, music -> settings to music }
-                .collect { (settings, music) -> mutableState.update {
+            repository.changes.collect { settings -> mutableState.update {
                 it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
                     engineCacheCapacity = settings.engineCacheCapacity,
                     audio = settings.audio,
-                    backgroundMusicEnabled = music,
+                    backgroundMusicEnabled = settings.backgroundMusic.enabled,
                     diagnosticLogging = settings.diagnosticLogging,
                     autoAssignRole = settings.autoAssignRole, maxCacheVoiceNum = settings.maxCacheVoiceNum,
                     roleContextPattern = settings.roleContextPattern ?: "__ROLE__")
@@ -111,15 +106,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
 
     fun diagnosticLogging(enabled: Boolean) = updateSettings { it.copy(diagnosticLogging = enabled) }
 
-    fun backgroundMusic(enabled: Boolean) {
-        viewModelScope.launch {
-            try {
-                backgroundMusic.setEnabled(enabled)
-                mutableState.update { it.copy(error = null) }
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.Storage) } }
-        }
-    }
+    fun backgroundMusic(enabled: Boolean) = updateSettings { it.copy(backgroundMusic = it.backgroundMusic.copy(enabled = enabled)) }
 
     // MultiTTS seeds the localized default on the first visit to software settings.
     fun initializeRoleContext(default: String) {
@@ -178,8 +165,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
     val defaultText = stringResource(R.string.tts_preview_text)
     Scaffold(topBar = {
         TopAppBar(title = {
-            Text(stringResource(R.string.tts_playback_preferences), style = MaterialTheme.typography.displayLarge,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SpeechPageTitle(stringResource(R.string.tts_playback_preferences))
         }, navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(painterResource(R.drawable.arrow_back_24px), stringResource(R.string.sources_back))

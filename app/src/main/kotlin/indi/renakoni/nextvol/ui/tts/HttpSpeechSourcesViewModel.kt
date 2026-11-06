@@ -47,12 +47,13 @@ data class HttpSpeechSourcesState(
 @HiltViewModel
 class HttpSpeechSourcesViewModel @Inject constructor(
     private val repository: HttpSpeechRepository,
-    private val settings: SpeechSettingsRepository,
+    private val settings: SpeechSettingsEditor,
     private val logger: LoggerRepository,
     val controller: ReadAloudController,
     @ApplicationContext private val context: Context,
     private val catalog: SpeechVoiceCatalog,
     private val engineCatalog: SpeechEngineCatalogService,
+    private val editing: MscVoiceEditing,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HttpSpeechSourcesState())
     val state = mutableState.asStateFlow()
@@ -155,7 +156,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         val sources = state.value.pending ?: return@work
         val affected = state.value.sources.filter { old -> sources.any { it.definition.id == old.definition.id ||
             it.packageIdentity() != null && it.packageIdentity() == old.packageIdentity() } }.map { it.definition.id }.toSet()
-        if (affected.any(::isInUse)) controller.command(SpeechAction.Stop)
+        if (affected.any { isInUse(it) }) controller.command(SpeechAction.Stop)
         withContext(NonCancellable) {
             val uri = packageUri
             if (uri == null) repository.save(sources) else withContext(Dispatchers.IO) {
@@ -163,7 +164,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
                     repository.save(sources, java.io.File("/proc/self/fd/${descriptor.fd}"))
                 } ?: error("Unreadable package")
             }
-            if (state.value.selected in affected) settings.update { if (it.httpSource in affected) it.copy(httpRevision = java.util.UUID.randomUUID().toString()) else it }
+            settings.updateAll { if (it.httpSource in affected) it.copy(httpRevision = java.util.UUID.randomUUID().toString()) else it }
         }
         mutableState.update { it.copy(pending = null, invalid = 0) }
         logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Import, SpeechLogEvent.Completed))
@@ -194,20 +195,20 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     fun enable(sources: List<SavedHttpSpeechSource>, enabled: Boolean) = work {
         if (sources.isEmpty()) return@work
         val ids = sources.map { it.definition.id }.toSet()
-        if (!enabled && ids.any(::isInUse)) controller.command(SpeechAction.Stop)
+        if (!enabled && ids.any { isInUse(it) }) controller.command(SpeechAction.Stop)
         withContext(NonCancellable) {
             repository.enable(ids, enabled)
-            settings.update { if (it.httpSource in ids) it.copy(httpRevision = java.util.UUID.randomUUID().toString()) else it }
+            settings.updateAll { if (it.httpSource in ids) it.copy(httpRevision = java.util.UUID.randomUUID().toString()) else it }
         }
     }
 
     fun delete(sources: List<SavedHttpSpeechSource>) = work {
         if (sources.isEmpty()) return@work
         val ids = sources.filterNot { it.isBuiltIn }.map { it.definition.id }.toSet()
-        if (ids.any(::isInUse)) controller.command(SpeechAction.Stop)
+        if (ids.any { isInUse(it) }) controller.command(SpeechAction.Stop)
         withContext(NonCancellable) {
             repository.delete(ids)
-            settings.update { current ->
+            settings.updateAll { current ->
                 val selected = current.removeVoiceSelections { it.httpSource in ids }
                 if (selected.httpSource in ids) selected.copy(httpSource = null, offlineVoice = null) else selected
             }
@@ -233,12 +234,18 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         val preview = previewHttpSpeech(JsonObject(raw).toString())
         require(preview.issues.isEmpty())
         if (isInUse(source.definition.id)) controller.command(SpeechAction.Stop)
-        repository.saveVoice(source.copy(definition = preview.sources.single()))
+        val updated = preview.sources.single()
+        repository.saveVoice(source.copy(definition = updated))
+        editing.replaceReference(SpeechVoiceRef(httpSource = source.definition.id, externalId = source.packageVoiceId()),
+            SpeechVoiceRef(httpSource = updated.id, label = updated.name, externalId = source.packageVoiceId()))
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }
 
-    private fun isInUse(id: String) = state.value.selected == id ||
-        controller.state.value.request?.previewSettings?.httpSource == id
+    private suspend fun isInUse(id: String): Boolean {
+        val request = controller.state.value.request ?: return false
+        val active = request.previewSettings ?: settings.forBook(request.bookId)
+        return active.references().any { it.httpSource == id }
+    }
 
     private suspend fun refreshSources() {
         val sources = repository.sources()

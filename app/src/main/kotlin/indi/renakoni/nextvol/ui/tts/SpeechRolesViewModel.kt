@@ -29,7 +29,7 @@ data class SpeechRolesState(
 
 @HiltViewModel
 class SpeechRolesViewModel @Inject constructor(
-    private val repository: SpeechSettingsRepository,
+    private val repository: SpeechSettingsEditor,
     private val catalog: SpeechVoiceCatalog,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechRolesState())
@@ -49,7 +49,7 @@ class SpeechRolesViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             try {
-                val engines = catalog.roleEngines()
+                val engines = catalog.roleEngines(repository.get())
                 mutableState.update { it.copy(engines = engines, catalogLoading = false) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableState.update { it.copy(error = SpeechError.Storage, catalogLoading = false) } }

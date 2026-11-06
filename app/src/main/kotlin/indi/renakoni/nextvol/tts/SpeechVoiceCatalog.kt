@@ -16,12 +16,11 @@ data class SpeechRoleEngine(val key: String, val name: String, val voices: List<
 /** Reads configuration only. Planning must not open models, run scripts or acquire runtime permits. */
 class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechRepository,
     private val offline: OfflineSpeechRepository, private val engines: OfflineEngineRepository,
-    private val settings: SpeechSettingsRepository, @ApplicationContext private val context: Context,
+    @ApplicationContext private val context: Context,
     private val pairs: SpeechVoicePoolRepository) {
     val changes = combine(http.changes, offline.changes, engines.changes) { a, b, c -> Triple(a, b, c) }
 
-    suspend fun roleEngines(): List<SpeechRoleEngine> {
-        val current = settings.get()
+    suspend fun roleEngines(current: SpeechSettings): List<SpeechRoleEngine> {
         val online = http.sources()
         val installed = offline.voices()
         val languages = if (current.text.filterLanguage) buildMap {
@@ -97,7 +96,7 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
     }
 
     suspend fun revised(settings: SpeechSettings): SpeechSettings = settings.copy(voiceRevision =
-        speechDigest(resolve(settings, pairs.pairs()).values.joinToString("\u0000") { it.reference.key + it.revision + it.error }) + ":" + pairs.revisions.value)
+        speechDigest(resolve(settings, pairs.pairs(settings.bookId, settings.schemeId)).values.joinToString("\u0000") { it.reference.key + it.revision + it.error }) + ":" + pairs.revision(settings.bookId, settings.schemeId))
 }
 
 internal fun SpeechSettings.references(): List<SpeechVoiceRef> =

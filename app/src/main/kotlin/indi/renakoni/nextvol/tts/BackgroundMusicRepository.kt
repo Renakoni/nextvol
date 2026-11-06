@@ -31,7 +31,7 @@ data class BackgroundMusicSettings(val tracks: List<BackgroundMusicTrack> = empt
 
 @Singleton
 class BackgroundMusicRepository @Inject constructor(@ApplicationContext private val context: Context,
-    userData: UserDataRepository) {
+    userData: UserDataRepository, private val schemes: SpeechSettingsRepository) {
     private val stored = userData.stringUserData("tts.backgroundMusic")
     private val directory = File(context.filesDir, "background-music")
     private val mutex = Mutex()
@@ -40,19 +40,12 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
     val unavailable = mutableUnavailable.asStateFlow()
     val changes = stored.getFlow().distinctUntilChanged().map(::decode)
 
-    suspend fun select(id: String, selected: Boolean) = update { settings ->
-        settings.copy(tracks = settings.tracks.map { if (it.id == id) it.copy(selected = selected) else it })
-    }
-
-    suspend fun setEnabled(enabled: Boolean) = update { it.copy(enabled = enabled) }
-
-    suspend fun setVolume(volume: Float) = update { it.copy(volume = volume) }
-
     suspend fun importTracks(uris: List<Uri>, replacingId: String? = null) = withContext(Dispatchers.IO) {
         mutex.withLock {
             val current = decode(stored.get())
             val previous = current.tracks.find { it.id == replacingId }
             val copied = mutableListOf<File>()
+            var published = false
             try {
                 directory.mkdirs()
                 val tracks = uris.mapIndexed { index, uri ->
@@ -69,8 +62,14 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
                 val updated = if (previous == null) current.tracks + tracks
                     else current.tracks.map { if (it.id == previous.id) tracks.first() else it } + tracks.drop(1)
                 stored.set(json.encodeToString(current.copy(tracks = updated)))
+                published = true
+                if (previous != null) schemes.updateAll { settings ->
+                    val music = settings.backgroundMusic
+                    settings.copy(backgroundMusic = music.copy(selected = if (previous.id in music.selected)
+                        music.selected - previous.id + tracks.first().id else music.selected))
+                }
             } catch (failure: Exception) {
-                copied.forEach(File::delete)
+                if (!published) copied.forEach(File::delete)
                 throw failure
             }
             if (previous != null) {
@@ -84,6 +83,7 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
         mutex.withLock {
             val current = decode(stored.get())
             stored.set(json.encodeToString(current.copy(tracks = current.tracks.filterNot { it.id == id })))
+            schemes.updateAll { it.copy(backgroundMusic = it.backgroundMusic.copy(selected = it.backgroundMusic.selected - id)) }
             File(directory, id).delete()
             mutableUnavailable.update { it - id }
         }
@@ -102,13 +102,13 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
         }
     }
 
-    private suspend fun update(change: (BackgroundMusicSettings) -> BackgroundMusicSettings) = withContext(Dispatchers.IO) {
-        mutex.withLock { stored.set(json.encodeToString(change(decode(stored.get())))) }
-    }
-
     private fun decode(value: String?): BackgroundMusicSettings = try {
         value?.let { json.decodeFromString<BackgroundMusicSettings>(it) } ?: BackgroundMusicSettings()
     } catch (_: IllegalArgumentException) {
         BackgroundMusicSettings()
     }
 }
+
+internal fun BackgroundMusicSettings.forScheme(selection: SpeechSchemeMusic) = copy(
+    enabled = selection.enabled, volume = selection.volume,
+    tracks = tracks.map { it.copy(selected = it.id in selection.selected) })

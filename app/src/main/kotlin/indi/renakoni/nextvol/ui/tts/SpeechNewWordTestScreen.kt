@@ -18,7 +18,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.tts.SpeechSettingsRepository
 import indi.renakoni.nextvol.tts.names.RealtimeNameCandidate
 import indi.renakoni.nextvol.tts.names.SpeechNewWordDiscovery
 import kotlinx.coroutines.CancellationException
@@ -38,7 +37,7 @@ data class SpeechNewWordTestState(
 @HiltViewModel
 class SpeechNewWordTestViewModel @Inject constructor(
     private val discovery: SpeechNewWordDiscovery,
-    private val settings: SpeechSettingsRepository,
+    private val settings: SpeechSettingsEditor,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechNewWordTestState())
     val state = mutableState.asStateFlow()

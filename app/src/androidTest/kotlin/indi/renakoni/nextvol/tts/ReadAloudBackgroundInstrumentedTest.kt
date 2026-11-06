@@ -70,9 +70,7 @@ class ReadAloudBackgroundInstrumentedTest {
             assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
             val data = UserDataRepository(NextVolDatabase.getInstance(fixture.context).userDataDao())
             withContext(Dispatchers.IO) {
-                val stored = data.stringUserData("tts.settings")
-                val current = Json.decodeFromString<SpeechSettings>(stored.get()!!)
-                stored.set(Json.encodeToString(current.copy(pitch = 1.2f)))
+                SpeechSettingsRepository(data).update { it.copy(pitch = 1.2f) }
             }
             fixture.assertPlaybackAdvances("after voice adjustment with timer")
             assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
@@ -105,11 +103,11 @@ class ReadAloudBackgroundInstrumentedTest {
             fixture.await("book before previews") { fixture.player.isPlaying }
             val deadline = fixture.setTimer(1)!!
             val data = UserDataRepository(NextVolDatabase.getInstance(fixture.context).userDataDao())
-            val stored = data.stringUserData("tts.settings")
+            val stored = data.stringUserData("tts.schemes")
             val original = withContext(Dispatchers.IO) { stored.get()!! }
             withContext(Dispatchers.Main) {
                 fixture.commands.preview("This is a short preview of another voice.",
-                    Json.decodeFromString<SpeechSettings>(original).copy(pitch = 1.2f))
+                    Json.decodeFromString<SpeechSchemes>(original).forBook(null).copy(pitch = 1.2f))
             }
             fixture.await("sample playing with original timer") {
                 fixture.player.isPlaying && fixture.commands.state.value.request?.isPreview == true
@@ -153,10 +151,10 @@ class ReadAloudBackgroundInstrumentedTest {
             }
             fixture.setTimer(15)
             val data = UserDataRepository(NextVolDatabase.getInstance(fixture.context).userDataDao())
-            val stored = data.stringUserData("tts.settings")
+            val stored = data.stringUserData("tts.schemes")
             val valid = withContext(Dispatchers.IO) { stored.get()!! }
             withContext(Dispatchers.IO) {
-                stored.set(Json.encodeToString(SpeechSettings(engine = "invalid.nextvol.timer.engine")))
+                SpeechSettingsRepository(data).update { SpeechSettings(engine = "invalid.nextvol.timer.engine") }
             }
             fixture.await("failure clears timer") {
                 fixture.commands.state.value.phase == SpeechPhase.Failed && fixture.commands.state.value.sleepTimerDeadline == null
@@ -300,7 +298,7 @@ class ReadAloudBackgroundInstrumentedTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = NextVolDatabase.getInstance(context)
         val data = UserDataRepository(database.userDataDao())
-        val stored = data.stringUserData("tts.settings")
+        val stored = data.stringUserData("tts.schemes")
         val original = withContext(Dispatchers.IO) { stored.get() }
         val books = LocalBookStore(context, database)
         val originalShelves = withContext(Dispatchers.IO) { database.bookshelfDao().getAllBookshelfIds() }
@@ -313,7 +311,7 @@ class ReadAloudBackgroundInstrumentedTest {
         val commands = dagger.hilt.android.EntryPointAccessors.fromApplication(context, SpeechDebugEntryPoint::class.java).controller()
         try {
             withContext(Dispatchers.IO) {
-                stored.set(Json.encodeToString(SpeechSettings(engine = engine!!, rate = 1.4f)))
+                SpeechSettingsRepository(data).update { SpeechSettings(engine = engine!!, rate = 1.4f) }
                 file.writeText((1..chapterCount).joinToString("\n") { chapter ->
                     "Chapter $chapter\n" + if (chapterCount == 2 && chapter == 2)
                         "The next chapter begins without another tap. The reader can rest while the story continues. This is the end of the book."
@@ -351,7 +349,7 @@ class ReadAloudBackgroundInstrumentedTest {
             }
             withContext(Dispatchers.IO) {
                 createdShelf?.let { database.bookshelfDao().deleteBookshelf(it) }
-                if (original == null) data.remove("tts.settings") else stored.set(original)
+                if (original == null) data.remove("tts.schemes") else stored.set(original)
                 file.delete()
             }
         }

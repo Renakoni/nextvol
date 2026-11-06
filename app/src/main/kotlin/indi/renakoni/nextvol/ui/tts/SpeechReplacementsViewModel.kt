@@ -30,7 +30,7 @@ data class SpeechReplacementsState(
 )
 
 @HiltViewModel
-class SpeechReplacementsViewModel @Inject constructor(private val repository: SpeechSettingsRepository,
+class SpeechReplacementsViewModel @Inject constructor(private val repository: SpeechSettingsEditor,
     private val plans: SpeechPlanPreparer) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechReplacementsState())
     val state = mutableState.asStateFlow()

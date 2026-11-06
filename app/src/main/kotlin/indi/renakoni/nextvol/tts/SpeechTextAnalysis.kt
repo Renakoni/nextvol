@@ -43,12 +43,12 @@ class SpeechTextAnalysis @Inject constructor(
     private val authority: ExecutionAuthority,
 ) {
     suspend fun analyze(reader: Reader, algorithm: NewWordAlgorithm, onlyNew: Boolean,
-        personNameRegex: String?, maxAutoChecked: Int, maleNameRegex: String, femaleNameRegex: String):
+        personNameRegex: String?, maxAutoChecked: Int, maleNameRegex: String, femaleNameRegex: String, schemeId: String? = null):
         SpeechTextAnalysisResult = reader.use { input ->
         withContext(Dispatchers.Default) {
             val analysis = discovery.analyze(input, algorithm, onlyNew)
             val pattern = personNameRegex ?: discovery.defaultNamePattern()
-            val rules = repository.get().roleRules.filter { it.mode != 0 && it.mode != 1 && !it.pattern.startsWith("lang:") }
+            val rules = (if (schemeId == null) repository.get() else repository.get(schemeId)).roleRules.filter { it.mode != 0 && it.mode != 1 && !it.pattern.startsWith("lang:") }
             val identity = authority.issue("speech-text-analysis", "builtin", "1", namespace = "tts")
             suspend fun matches(name: String, regex: String): Boolean =
                 when (val result = executor.execute(identity, ExecutionTask.RegexMatch(name, regex),
@@ -78,8 +78,9 @@ class SpeechTextAnalysis @Inject constructor(
         }
     }
 
-    suspend fun save(group: String, candidates: List<SpeechTextAnalysisCandidate>) {
-        repository.update { settings -> mergeSpeechAnalysisRoles(settings, group, candidates) }
+    suspend fun save(group: String, candidates: List<SpeechTextAnalysisCandidate>, schemeId: String? = null) {
+        val change: (SpeechSettings) -> SpeechSettings = { mergeSpeechAnalysisRoles(it, group, candidates) }
+        if (schemeId == null) repository.update(change) else repository.update(schemeId, change)
     }
 }
 

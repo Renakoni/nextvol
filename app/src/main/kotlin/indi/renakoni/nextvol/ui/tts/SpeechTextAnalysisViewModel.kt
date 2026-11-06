@@ -50,7 +50,7 @@ class SpeechTextAnalysisViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val books: SpeechAnalysisBookSource,
     private val analysis: SpeechTextAnalysis,
-    private val settings: SpeechSettingsRepository,
+    private val settings: SpeechSettingsEditor,
 ) : ViewModel() {
     val bookId = savedStateHandle.toRoute<SpeechTextAnalysisRoute>().bookId
     private val mutableState = MutableStateFlow(SpeechTextAnalysisState(loading = bookId != null))
@@ -127,10 +127,11 @@ class SpeechTextAnalysisViewModel @Inject constructor(
     }
 
     private suspend fun analyze(reader: Reader) {
-        val text = settings.get().text
+        val selected = settings.get()
+        val text = selected.text
         // MultiTTS's ordinary analysis uses Native; its realtime 100/101 selector is unrelated.
         val result = analysis.analyze(reader, NewWordAlgorithm.Native, text.onlyNewPerson,
-            text.personNameRegex, text.maxAutoCheckedPerson, text.maleNameRegex, text.femaleNameRegex)
+            text.personNameRegex, text.maxAutoCheckedPerson, text.maleNameRegex, text.femaleNameRegex, selected.schemeId)
         mutableState.update { it.copy(running = false, result = result) }
     }
 
@@ -160,7 +161,7 @@ class SpeechTextAnalysisViewModel @Inject constructor(
         mutableState.update { it.copy(saving = true, error = null, speechError = null) }
         job = viewModelScope.launch {
             try {
-                analysis.save(state.sourceName, result.candidates)
+                analysis.save(state.sourceName, result.candidates, settings.get().schemeId)
                 onSaved()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {

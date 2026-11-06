@@ -1091,6 +1091,42 @@ class ReadAloudSessionTest {
         assertEquals(0, env.audioFiles())
     }
 
+    @Test fun bookRequestsResolveTheirOwnSchemeAndPreviewRestoresChangedSchemeWhilePaused() = runTest {
+        val env = Environment(this)
+        val a = SpeechSettings(schemeId = "a", voice = "voice-a")
+        val b = SpeechSettings(schemeId = "b", voice = "voice-b")
+        env.bookSettings = mapOf("book-a" to a, "book-b" to b)
+        env.session.start(SpeechRequest("book-a", "one"))
+        runCurrent()
+        assertEquals("voice-a", env.opened.last().voice)
+        env.session.start(SpeechRequest("book-b", "one"))
+        runCurrent()
+        assertEquals("voice-b", env.opened.last().voice)
+        env.player.estimatedAnchorCallback!!(5)
+        env.session.setChapterSleepTimer(3)
+        env.session.pause()
+        val boundary = env.session.state.value.position!!.anchor
+        val changed = b.copy(schemeId = "c", voice = "voice-c")
+        env.bookSettings = env.bookSettings + ("book-b" to changed)
+        env.session.updateSettings(changed)
+        runCurrent()
+        assertEquals(boundary, env.session.state.value.position!!.anchor)
+        assertTrue(env.player.started.last().segment.text.startsWith(env.text.substring(5, 10)))
+        env.session.start(SpeechRequest("", "", "Preview.", a))
+        runCurrent()
+        env.bookSettings = env.bookSettings + ("book-b" to b.copy(schemeId = "d", voice = "voice-d"))
+        env.player.finish()
+        runCurrent()
+        assertTrue(env.session.restoreAfterPreview())
+        runCurrent()
+        assertEquals("book-b", env.session.state.value.request!!.bookId)
+        assertEquals("voice-d", env.opened.last().voice)
+        assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
+        assertEquals(3, env.session.state.value.sleepTimerChapters)
+        assertEquals(boundary, env.progress.saved.getValue("book-b").offset)
+        env.stop()
+    }
+
     private inner class Environment(val scope: TestScope) {
         val text = "这是正常的小说内容，保留顺序并且持续朗读。".repeat(100)
         var load: suspend (String, String) -> SpeechChapter = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", text) }
@@ -1102,6 +1138,7 @@ class ReadAloudSessionTest {
         var timings = emptyList<SpeechTiming>()
         var streaming: SpeechStream? = null
         var configuration = SpeechSettings()
+        var bookSettings = emptyMap<String, SpeechSettings>()
         var inputLimit = Int.MAX_VALUE
         val synthesized = mutableListOf<String>()
         val synthesizedSettings = mutableListOf<SpeechSettings>()
@@ -1110,7 +1147,7 @@ class ReadAloudSessionTest {
         val progress = MemoryProgress()
         val player = FakePlayback()
         val session = ReadAloudSession(scope, SpeechChapterSource { book, chapter -> load(book, chapter) },
-            { val snapshot = configuration; beforeSettings(); snapshot }, progress, {
+            { request -> val snapshot = bookSettings[request.bookId] ?: configuration; beforeSettings(); snapshot }, progress, {
                 object : SpeechSynthesizer {
                     private var activeSettings = SpeechSettings()
                     override val maxInputLength get() = inputLimit
