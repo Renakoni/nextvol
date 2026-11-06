@@ -21,17 +21,16 @@ import javax.inject.Singleton
 data class SpeechSettings(
     val engine: String = "",
     val voice: String = "",
-    val rate: Float? = null,
-    val pitch: Float? = null,
+    val rate: Float = 1f,
+    val pitch: Float = 1f,
     val httpSource: String? = null,
-    val playbackSpeed: Float = 1f,
     val offlineVoice: OfflineVoiceRef? = null,
     val httpRevision: String = "",
     val replacements: List<SpeechReplacementRule> = emptyList(),
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault
     val text: SpeechTextSettings = SpeechTextSettings(),
-    val httpVolume: Float = 1f,
+    val volume: Float = 1f,
     val narrationVoices: List<SpeechVoiceRef> = emptyList(),
     val dialogueVoices: List<SpeechVoiceRef> = emptyList(),
     val speakerVoices: Map<String, SpeechVoiceRef> = emptyMap(),
@@ -53,10 +52,9 @@ data class SpeechSettings(
     @Transient val bookId: String? = null,
 ) {
     fun validated() = copy(
-        rate = rate?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
-        pitch = pitch?.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f),
-        playbackSpeed = playbackSpeed.takeIf { it.isFinite() }?.coerceIn(0.5f, 2f) ?: 1f,
-        httpVolume = httpVolume.takeIf { it.isFinite() }?.coerceIn(0f, 2f) ?: 1f,
+        rate = rate.takeIf { it.isFinite() }?.coerceIn(0f, 2f) ?: 1f,
+        pitch = pitch.takeIf { it.isFinite() }?.coerceIn(0.5f, 2.5f) ?: 1f,
+        volume = volume.takeIf { it.isFinite() }?.coerceIn(0f, 2f) ?: 1f,
         httpSource = httpSource.takeIf { offlineVoice == null },
         httpRevision = httpRevision.takeIf { offlineVoice == null && httpSource != null }.orEmpty(),
         text = text.validated(),

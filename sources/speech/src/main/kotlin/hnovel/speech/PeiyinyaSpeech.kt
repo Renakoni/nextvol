@@ -40,7 +40,7 @@ internal class PeiyinyaSpeechClient(
             parameters[0]?.let { put("zbid", it) }
             parameters[1]?.let { put("emotion", it) }
             parameters[2]?.let { put("emotiondegree", it) }
-            put("speed", (rate * 50).toInt() - 100); put("volume", (volume * 50).toInt()); put("pitch", 0)
+            put("speed", multiTtsControl(rate) - 100); put("volume", multiTtsControl(volume)); put("pitch", 0)
             put("audiotype", "0"); put("isurl", "2"); put("viptype", "0")
             put("t", SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).format(Date()))
             put("syncttsid", UUID.randomUUID().toString().replace("-", ""))

@@ -45,8 +45,8 @@ class VivoSpeechClient(
                 socket.sendText(buildJsonObject {
                     put("rdn", 0); put("ent", engineType); put("text", Base64.getEncoder().encodeToString(text.toByteArray(Charsets.UTF_8)))
                     put("encoding", "utf8"); put("vcn", speaker); put("reg", 2)
-                    put("speed", (rate * 50).toInt().coerceAtLeast(40)); put("aue", 1)
-                    put("volume", (volume * 50).toInt())
+                    put("speed", multiTtsControl(rate).coerceAtLeast(40)); put("aue", 1)
+                    put("volume", multiTtsControl(volume))
                     put("auf", "audio/L16;rate=${when (sampleRate) { 24000, 32000, 48000 -> sampleRate; else -> 16000 }}")
                     put("pitch", 50); put("reqId", requestId)
                 }.toString())

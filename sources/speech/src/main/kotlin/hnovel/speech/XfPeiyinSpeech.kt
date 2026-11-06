@@ -38,8 +38,8 @@ internal class XfPeiyinSpeechClient(
             Base64.getDecoder().decode(response.getValue("body").jsonPrimitive.content)).toString(Charsets.UTF_8)).jsonObject
         val parameters = linkedMapOf("ts" to signature.getValue("time_stamp").jsonPrimitive.content,
             "sign" to signature.getValue("sign_text").jsonPrimitive.content, "sid" to "", "vid" to voice,
-            "volume" to (((volume * 50).toDouble() * 0.4) - 20).toInt().toString(),
-            "speed" to ((4f * (rate * 50)) - 200).toInt().toString(), "content" to text, "listen" to "0")
+            "volume" to ((multiTtsControl(volume) * 0.4) - 20).toInt().toString(),
+            "speed" to (4 * multiTtsControl(rate) - 200).toString(), "content" to text, "listen" to "0")
         val query = parameters.entries.joinToString("&") { (key, value) ->
             if (value == null) key else "$key=${URLEncoder.encode(value, "UTF-8").replace("+", "%20")}" }
         return onlineSpeechAudio(execute(BrokerRequest("xfpeiyin-audio", "$SYNTH_URL?$query",

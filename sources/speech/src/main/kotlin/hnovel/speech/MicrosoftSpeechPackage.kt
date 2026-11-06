@@ -50,7 +50,7 @@ internal class MicrosoftPackageVoice(voice: JsonObject) {
             "xmlns:emo=\"http://www.w3.org/2009/10/emotionml\" version=\"1.0\" xml:lang=\"${xmlSpeech(language)}\">" +
             "<voice name=\"${xmlSpeech(name)}\"><mstts:express-as style=\"${xmlSpeech(style.toString())}\" " +
             "styledegree=\"${xmlSpeech(degree.toString())}\" role=\"${xmlSpeech(role.toString())}\">" +
-            "<prosody rate=\"${(rate * 40).toInt()}%\" pitch=\"0%\" volume=\"${(volume * 50).toInt()}\">" +
+            "<prosody rate=\"${(multiTtsControl(rate) * .8f).toInt()}%\" pitch=\"0%\" volume=\"${multiTtsControl(volume)}\">" +
             "$content</prosody></mstts:express-as></voice></speak>"
     }
 }

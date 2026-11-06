@@ -49,12 +49,12 @@ internal class MscEngine(context: Context, directory: File, private val voice: O
         initialized = true
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(initialized) { "MscTTS engine is closed" }
         cancelled = false
         val status = MSCSessionInfo()
         val settings = linkedMapOf("tts_res_path" to resourcePaths,
-            "speed" to control(speed * voice.speed), "pitch" to control(voice.pitch), "volume" to control(voice.volume))
+            "speed" to speed.toInt().toString(), "pitch" to "50", "volume" to volume.toInt().toString())
         if (legacy) {
             // The xzhd resource format uses MSC's local engine and its older session protocol.
             settings.putAll(mapOf("engine_type" to "local", "vcn" to voiceName,
@@ -96,7 +96,6 @@ internal class MscEngine(context: Context, directory: File, private val voice: O
         }
     }
 
-    private fun control(value: Float) = (value * 50f).toInt().coerceIn(0, 100).toString()
     private fun configuration(values: Map<String, String>): ByteArray {
         require(values.values.none { it.contains(',') || it.contains('\u0000') }) { "Invalid MscTTS parameter" }
         return (values.entries.joinToString(",") { "${it.key}=${it.value}" } + "\u0000").toByteArray(Charsets.UTF_8)

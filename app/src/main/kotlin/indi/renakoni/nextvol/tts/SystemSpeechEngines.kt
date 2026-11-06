@@ -94,6 +94,8 @@ internal data class SystemSpeechClient(val tts: TextToSpeech, val engine: Speech
 
 private class SystemSpeechSynthesizer(private val engines: SystemSpeechEngines) : SpeechSynthesizer {
     override val maxInputLength get() = TextToSpeech.getMaxSpeechInputLength()
+    override var audioParameters = SpeechAudioParameters()
+        private set
     private val client = AtomicReference<SystemSpeechClient?>()
     private val mutex = Mutex()
     private class Synthesis(val id: String, val complete: CompletableDeferred<Unit>, val timing: SpeechTimingCollector)
@@ -103,6 +105,7 @@ private class SystemSpeechSynthesizer(private val engines: SystemSpeechEngines) 
         close()
         val active = engines.connect(settings.engine)
         client.set(active)
+        audioParameters = SpeechAudioParameters(pitch = settings.pitch, volume = settings.volume)
         withContext(Dispatchers.IO) {
             val tts = active.tts
             if (settings.voice.isNotEmpty()) {
@@ -116,8 +119,9 @@ private class SystemSpeechSynthesizer(private val engines: SystemSpeechEngines) 
             if (tts.voice?.features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) == true) {
                 throw SpeechException(SpeechError.MissingLanguageData)
             }
-            if (settings.rate?.let { tts.setSpeechRate(it) == TextToSpeech.ERROR } == true ||
-                settings.pitch?.let { tts.setPitch(it) == TextToSpeech.ERROR } == true) {
+            // Android's rate is an integer percentage internally and must be positive.
+            if (tts.setSpeechRate(settings.rate.coerceAtLeast(0.01f)) == TextToSpeech.ERROR ||
+                tts.setPitch(1f) == TextToSpeech.ERROR) {
                 throw SpeechException(SpeechError.SynthesisFailed)
             }
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {

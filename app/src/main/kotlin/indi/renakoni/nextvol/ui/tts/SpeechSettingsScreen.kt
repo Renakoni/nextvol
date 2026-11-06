@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -17,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -25,31 +23,23 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
@@ -68,6 +58,7 @@ import indi.renakoni.nextvol.tts.selectedNarrators
 import indi.renakoni.nextvol.tts.voiceReference
 import indi.renakoni.nextvol.tts.speechVoiceLanguageMatches
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -199,23 +190,12 @@ fun SpeechSettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SpeechPreferencesScreen(
-    state: SpeechSettingsUiState, playback: ReadAloudState,
+    state: SpeechSettingsUiState,
     onBack: () -> Unit,
-    onRate: (Float?) -> Unit, onPitch: (Float?) -> Unit,
-    onCommand: (SpeechAction) -> Unit,
-    onPlaybackSpeed: (Float) -> Unit,
-    onSleepTimer: ((Int?) -> Unit)? = null,
-    onChapterSleepTimer: ((Int) -> Unit)? = null,
-    onHttpVolume: (Float) -> Unit = {},
+    onRate: (Float) -> Unit, onVolume: (Float) -> Unit, onPitch: (Float) -> Unit,
 ) {
-    var showPlayback by remember { mutableStateOf(false) }
-    var showAdvanced by rememberSaveable { mutableStateOf(false) }
-    val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
     Scaffold(
         topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_preferences, onBack) },
-        bottomBar = {
-            if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
-        },
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding).testTag("speech-preferences-list"),
@@ -227,53 +207,20 @@ fun SpeechPreferencesScreen(
                         style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            item(key = "playback-speed") {
-                SettingsCategory(title = stringResource(R.string.tts_playback_settings)) {
-                    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                        SpeechParameter(stringResource(R.string.tts_playback_speed), state.settings.playbackSpeed,
-                            { onPlaybackSpeed(it ?: 1f) }, resetValue = 1f)
-                    }
-                }
+            item(key = "speed") {
+                SpeechTextSlider(R.drawable.tts_speed, R.string.tts_voice_speed,
+                    (state.settings.rate * 50f).roundToInt(), 0f..100f) { onRate(it / 50f) }
             }
-            item(key = "advanced") {
-                SettingsCategory(title = stringResource(R.string.tts_synthesis_settings)) {
-                    SettingsClickableEntry(
-                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer),
-                        title = stringResource(if (showAdvanced) R.string.tts_hide_advanced else R.string.tts_advanced),
-                        trailingContent = {
-                            Icon(painterResource(R.drawable.keyboard_arrow_up_24px), null,
-                                Modifier.rotate(if (showAdvanced) 0f else 180f))
-                        },
-                        onClick = { showAdvanced = !showAdvanced },
-                    )
-                    if (showAdvanced) {
-                        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                            Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SpeechParameter(stringResource(R.string.tts_rate), state.settings.rate, onRate,
-                                    defaultLabel = stringResource(if (state.settings.httpSource == null)
-                                        R.string.tts_engine_default else R.string.tts_source_default))
-                                Text(stringResource(R.string.tts_rate_description), Modifier.padding(horizontal = 20.dp),
-                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                if (state.httpSources.any { it.definition.id == state.settings.httpSource && it.definition.usesMultiTts }) {
-                                    SpeechParameter(stringResource(R.string.tts_http_volume), state.settings.httpVolume,
-                                        { onHttpVolume(it ?: 1f) }, resetValue = 1f, valueRange = 0f..2f, steps = 19)
-                                }
-                                SpeechParameter(stringResource(R.string.tts_pitch), state.settings.pitch, onPitch)
-                            }
-                        }
-                    }
-                }
+            item(key = "volume") {
+                SpeechTextSlider(R.drawable.tts_volume, R.string.tts_voice_volume,
+                    (state.settings.volume * 50f).roundToInt(), 0f..100f) { onVolume(it / 50f) }
+            }
+            item(key = "pitch") {
+                SpeechTextSlider(R.drawable.tts_pitch, R.string.tts_pitch,
+                    ((state.settings.pitch * 100f - 50f) / 2f).roundToInt(), 0f..100f) { onPitch((it * 2f + 50f) / 100f) }
             }
         }
     }
-    if (showPlayback && hasPlayback) ReadAloudSheet(
-        playback,
-        onCommand = onCommand,
-        onSettings = null,
-        onDismiss = { showPlayback = false },
-        onSleepTimer = onSleepTimer,
-        onChapterSleepTimer = onChapterSleepTimer,
-    )
 }
 
 @Composable
@@ -435,46 +382,5 @@ private fun SpeechSetting(title: String, value: String? = null, enabled: Boolean
         }
         Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SpeechParameter(title: String, value: Float?, onChange: (Float?) -> Unit,
-    defaultLabel: String = stringResource(R.string.tts_engine_default), resetValue: Float? = null,
-    valueRange: ClosedFloatingPointRange<Float> = 0.5f..2f, steps: Int = 14) {
-    var slider by remember(value) { mutableFloatStateOf(value ?: 1f) }
-    var edited by remember(value) { mutableStateOf(false) }
-    val description = if (value == null && !edited) defaultLabel
-        else stringResource(R.string.tts_factor, slider)
-    val colors = SliderDefaults.colors(
-        thumbColor = MaterialTheme.colorScheme.onSurface,
-        activeTrackColor = MaterialTheme.colorScheme.onSurface,
-        inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-        activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent,
-    )
-    Column(Modifier.padding(horizontal = 20.dp)) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge)
-                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (value != resetValue || edited) TextButton(onClick = { onChange(resetValue); slider = 1f; edited = false }) {
-                Text(stringResource(R.string.tts_reset))
-            }
-        }
-        Slider(
-            value = slider, onValueChange = { slider = it; edited = true },
-            onValueChangeFinished = { onChange(slider) }, valueRange = valueRange, steps = steps,
-            modifier = Modifier.fillMaxWidth().semantics { contentDescription = title; stateDescription = description },
-            colors = colors,
-            thumb = { Surface(Modifier.size(20.dp), shape = CircleShape, color = MaterialTheme.colorScheme.onSurface) {} },
-            track = {
-                SliderDefaults.Track(
-                    it, Modifier.height(4.dp), colors = colors, thumbTrackGapSize = 0.dp,
-                    trackInsideCornerSize = 2.dp, drawStopIndicator = null,
-                )
-            },
-        )
     }
 }

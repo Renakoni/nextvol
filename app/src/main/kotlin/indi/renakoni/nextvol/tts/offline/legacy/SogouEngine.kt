@@ -45,12 +45,12 @@ internal class SogouEngine(context: Context, directory: File, private val voice:
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(handle != 0L) { "Sogou engine is closed" }
         cancelled = false
         val configuration = JSONObject()
-            .put("speaking_rate", speed * voice.speed)
-            .put("volume", voice.volume)
+            .put("speaking_rate", (speed / 66.7 + 0.5).toFloat())
+            .put("volume", volume / 50f)
             .put("do_split", false)
             .put("backend_thread_num", 1)
         val request = JSONObject().put("config", configuration).put("text", text)

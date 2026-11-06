@@ -6,6 +6,7 @@ import com.iflytek.msc.MSCSessionInfo
 import hnovel.speech.HttpSpeechError
 import hnovel.speech.HttpSpeechException
 import hnovel.speech.OnlineSpeechBackend
+import hnovel.speech.multiTtsControl
 import hnovel.speech.resolveOfflineParameters
 import hnovel.speech.speechPcmWave
 import indi.renakoni.nextvol.tts.offline.legacySpeechPermit
@@ -55,8 +56,8 @@ internal class MscOnlineSpeechClient(metadata: JsonObject) : OnlineSpeechBackend
                     "${prefix}_$name" else name
                 val settings = linkedMapOf(
                     (if (type == 5) "ent" else "engine_type") to (if (type == 5) "ptts" else "cloud"),
-                    "voice_name" to cloudName, "speed" to (rate * 50).toInt().toString(),
-                    "volume" to (volume * 50).toInt().toString(), "sample_rate" to sampleRate.toString(),
+                    "voice_name" to cloudName, "speed" to multiTtsControl(rate).toString(),
+                    "volume" to multiTtsControl(volume).toString(), "sample_rate" to sampleRate.toString(),
                     "rdn" to "0", "ttp" to "text", "server_url" to "https://$region.voicecloud.cn/msp.do",
                     "aue" to "raw", "text_encoding" to "UTF8")
                 val status = MSCSessionInfo()

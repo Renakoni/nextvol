@@ -32,7 +32,8 @@ class BaiduOnlineSpeechClient(
         val payload = buildJsonObject {
             put("pdt", product); put("key", "com.baidu.tts.voicesearch"); put("sn", serial)
             put("ctp", 10); put("multiplex", 1); put("tex", text); put("cuid", clientId)
-            put("lip", 0); put("spd", rate * 7); put("pit", 5); put("vol", volume * 7.5)
+            put("lip", 0); put("spd", (multiTtsControl(rate) * .14).toFloat()); put("pit", 5)
+            put("vol", (multiTtsControl(volume) * .15).toFloat())
             put("per", speaker); put("aue", 2); put("ver", "6.1.4.1add0da"); put("rate", 64)
             put("lan", "ZH"); put("xml", 0); put("mode", 0); put("platform", "Android")
             put("audio_ctrl", "{\"pack_size_type\":1}")

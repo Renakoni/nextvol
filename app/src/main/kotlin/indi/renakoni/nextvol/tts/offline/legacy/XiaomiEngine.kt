@@ -33,7 +33,7 @@ internal class XiaomiEngine(@Suppress("UNUSED_PARAMETER") context: Context, dire
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(handle != 0L) { "Xiaomi engine is closed" }
         cancelled = false
         val outputFailure = AtomicReference<Throwable?>()

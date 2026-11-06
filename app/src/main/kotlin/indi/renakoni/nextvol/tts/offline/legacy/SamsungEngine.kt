@@ -85,11 +85,10 @@ internal class SamsungEngine(@Suppress("UNUSED_PARAMETER") context: Context, dir
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(handle != 0L) { "Samsung engine is closed" }
         cancelled = false
-        checkCode("parameters", engine.setParameters(handle, (speed * voice.speed * 100).toInt(),
-            (voice.volume * 100).toInt(), voice.pitch * 100, 0))
+        checkCode("parameters", engine.setParameters(handle, speed.toInt() * 6, 100, 100f, 0))
         engine.setMaxBufferSize(handle, 64 * 1024)
         val outputFailure = AtomicReference<Throwable?>()
         engine.setListener { data ->

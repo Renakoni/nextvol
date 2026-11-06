@@ -57,14 +57,11 @@ class ExoSpeechPlaybackTest {
         runCurrent()
         assertEquals(listOf(timing[0]), delivered)
         // Advancing wall time without advancing the audio cannot select the next boundary.
-        playback.setSpeed(2f)
-        verify { player.setPlaybackSpeed(2f) }
         advanceTimeBy(2000)
         runCurrent()
         assertEquals(listOf(timing[0]), delivered)
         playing = false
         position = 1000
-        playback.setSpeed(0.5f)
         advanceTimeBy(500)
         runCurrent()
         assertEquals(listOf(timing[0]), delivered)
@@ -122,8 +119,6 @@ class ExoSpeechPlaybackTest {
         advanceTimeBy(50)
         runCurrent()
         assertEquals(listOf(0, 5), anchors)
-        playback.setSpeed(2f)
-        verify { player.setPlaybackSpeed(2f) }
         advanceTimeBy(1000)
         runCurrent()
         assertEquals(listOf(0, 5), anchors)

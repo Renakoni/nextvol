@@ -80,7 +80,7 @@ internal class LarkEngine(
         }
     }
 
-    override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) = synchronized(runtime) {
+    override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) = synchronized(runtime) {
         check(!closed) { "Lark engine is closed" }
         cancelled = false
         failure.set(null)
@@ -100,15 +100,15 @@ internal class LarkEngine(
             if (modern) {
                 val current = checkNotNull(engine)
                 val speakerId = speaker.takeIf { it.startsWith("0x") }?.substring(2)?.toIntOrNull(16)
-                val rate = (speed * voice.speed * 50f).toInt()
-                val volume = (voice.volume * 50f).toInt()
-                val result = if (speakerId == null) current.synthesizeByName(text, 0, speaker, rate, volume, request)
-                    else current.synthesize(text, 0, speakerId, rate, volume, request)
+                val rate = speed.toInt()
+                val amplitude = volume.toInt()
+                val result = if (speakerId == null) current.synthesizeByName(text, 0, speaker, rate, amplitude, request)
+                    else current.synthesize(text, 0, speakerId, rate, amplitude, request)
                 checkStatus("start synthesis", result)
                 complete?.await()
             } else {
-                Tts.JniSetParam(1282, (speed * voice.speed * 32700f - 32768f).toInt().coerceIn(-32768, 32767))
-                Tts.JniSetParam(1284, (voice.volume * 31350f - 32768f).toInt().coerceIn(-32768, 30000))
+                Tts.JniSetParam(1282, (speed * 654f - 32768f).toInt())
+                Tts.JniSetParam(1284, (volume * 627f - 32768f).toInt())
                 // JniSpeak runs ivTTS_Run synchronously; JniIsPlaying becomes 2 after completion.
                 val result = Tts.JniSpeak(text)
                 if (!cancelled && failure.get() == null) checkStatus("synthesize", result)

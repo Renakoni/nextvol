@@ -71,7 +71,7 @@ internal class CereProcEngine(context: Context, directory: File, private val voi
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(engine != 0L) { "CereProc engine is closed" }
         cancelled = false
         channel = Native.CPRCEN_engine_open_channel_with_voice(engine, 0)
@@ -109,7 +109,7 @@ internal class CereProcEngine(context: Context, directory: File, private val voi
             val escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 .replace("\"", "&quot;").replace("'", "&apos;")
             val markup = String.format(Locale.ROOT, "<sig amplitude='%.3f' f0='%.3f' rate='%.3f'>%s</sig>",
-                voice.volume, voice.pitch, speed * voice.speed, escaped)
+                volume / 50f, 1f, speed * 0.03 + 0.5, escaped)
             Native.CPRCEN_engine_channel_speak(engine, channel, markup, markup.toByteArray(Charsets.UTF_8).size, 1)
             outputFailure.get()?.let { throw it }
             if (cancelled) throw CancellationException("CereProc synthesis cancelled")

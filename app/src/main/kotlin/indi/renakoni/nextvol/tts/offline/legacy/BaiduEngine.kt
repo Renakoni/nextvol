@@ -95,7 +95,7 @@ internal class BaiduEngine(context: Context, directory: File, private val voice:
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(handle != 0L) { "Baidu engine is closed" }
         cancelled = false
         var outputFailure: Throwable? = null
@@ -108,9 +108,9 @@ internal class BaiduEngine(context: Context, directory: File, private val voice:
         }
         try {
             checkCode("encoding", engine.bdTTSSetParam(handle, 0, 0))
-            checkCode("volume", engine.bdTTSSetParamFloat(handle, 1, voice.volume * 5f))
-            checkCode("speed", engine.bdTTSSetParamFloat(handle, 2, speed * voice.speed * 5f))
-            checkCode("pitch", engine.bdTTSSetParamFloat(handle, 3, voice.pitch * 5f))
+            checkCode("volume", engine.bdTTSSetParamFloat(handle, 1, (volume.toDouble() * 0.15).toFloat()))
+            checkCode("speed", engine.bdTTSSetParamFloat(handle, 2, (speed.toDouble() * 0.14).toFloat()))
+            checkCode("pitch", engine.bdTTSSetParamFloat(handle, 3, 5f))
             val input = text.toByteArray(charset("GBK"))
             val result = engine.bdTTSSynthesis(handle, input, input.size, 0)
             outputFailure?.let { throw it }

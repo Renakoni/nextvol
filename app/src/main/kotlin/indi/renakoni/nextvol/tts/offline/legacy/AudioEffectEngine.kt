@@ -37,7 +37,7 @@ internal class AudioEffectEngine(@Suppress("UNUSED_PARAMETER") context: Context,
         } finally { extractor.release() }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(!closed) { "Audio-package engine is closed" }
         cancelled = false
         val extractor = MediaExtractor()

@@ -13,7 +13,6 @@ import indi.renakoni.nextvol.tts.offline.OfflineEngine
 import kotlinx.coroutines.CancellationException
 import org.nobody.multitts.tts.jni.SpeexBridge
 import java.io.File
-import kotlin.math.roundToInt
 
 internal class MicrosoftEngine(
     @Suppress("UNUSED_PARAMETER") context: Context,
@@ -55,14 +54,14 @@ internal class MicrosoftEngine(
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         val current = checkNotNull(synthesizer) { "Microsoft engine is closed" }
         cancelled = false
-        val rate = ((speed * voice.speed - 1f) * 100f).roundToInt()
-        val volume = (voice.volume * 100f).roundToInt()
+        val rate = (speed * 1.5 - 50).toInt()
+        val amplitude = (volume * 1.5 - 50).toInt()
         val locale = voice.locale.ifEmpty { "en-US" }
         val ssml = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"${locale.xml()}\">" +
-            "<voice name=\"${voice.code.xml()}\"><prosody volume=\"$volume%\" rate=\"$rate%\" pitch=\"+0Hz\">" +
+            "<voice name=\"${voice.code.xml()}\"><prosody volume=\"$amplitude%\" rate=\"$rate%\" pitch=\"+0Hz\">" +
             text.xml() + "</prosody></voice></speak>"
         current.SpeakSsml(ssml).use { result ->
             if (cancelled) throw CancellationException("Microsoft synthesis cancelled")

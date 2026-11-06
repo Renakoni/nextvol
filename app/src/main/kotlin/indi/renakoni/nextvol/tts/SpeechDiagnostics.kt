@@ -127,7 +127,7 @@ internal class SpeechPlanTrace(private val record: (SpeechLogRecord) -> Unit, pr
 
 /** Global controls and voice controls are separate from the actual PCM adjustments. */
 internal fun speechParameterDetails(settings: SpeechSettings, voice: SpeechAudioParameters?, audio: SpeechAudioParameters?) = buildList {
-    add(R.string.tts_log_global_parameters to "${settings.rate ?: "—"} / ${settings.pitch ?: "—"} / ${settings.httpVolume}")
+    add(R.string.tts_log_global_parameters to "${settings.rate} / ${settings.pitch} / ${settings.volume}")
     voice?.let { add(R.string.tts_log_voice_parameters to "${it.speed} / ${it.pitch} / ${it.volume}") }
     audio?.let { add(R.string.tts_log_audio_parameters to "${it.speed} / ${it.pitch} / ${it.volume}") }
     add(R.string.tts_log_audio_processing to "${settings.audio.processor} / ${settings.audio.minimumSampleRate} / ${settings.audio.checkSilence}")

@@ -21,7 +21,7 @@ class AzureSpeechConfiguration(metadata: JsonObject) {
         ?: ("<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" " +
             "xml:lang=\"${xmlSpeech(speaker.string("locale").ifEmpty { "en-US" })}\">" +
             "<voice name=\"${xmlSpeech(speaker.string("code"))}\"><prosody " +
-            "volume=\"${(volume * 75 - 50).toInt()}%\" rate=\"${(rate * 75 - 50).toInt()}%\" pitch=\"+0Hz\">" +
+            "volume=\"${(multiTtsControl(volume) * 1.5 - 50).toInt()}%\" rate=\"${(multiTtsControl(rate) * 1.5 - 50).toInt()}%\" pitch=\"+0Hz\">" +
             "${xmlSpeech(text)}</prosody></voice></speak>")
 
     suspend fun voices(execute: suspend (BrokerRequest) -> BrokerResponse): List<JsonObject> =

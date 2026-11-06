@@ -23,11 +23,11 @@ class ReadSpeakerSpeechTest {
             }
             assertEquals("Hong", fields["voice"])
             assertEquals("zh_cn", fields["lang"])
-            assertEquals("125", fields["speed"])
+            assertEquals("102", fields["speed"])
             assertEquals("<div>你好，&lt;书名&gt; &amp; 文本。</div>",
                 String(Base64.getDecoder().decode(fields.getValue("html_base64")), Charsets.UTF_8))
             BrokerResponse(200, request.url, mapOf("Content-Type" to listOf("audio/mpeg")), audio, "UTF-8", 0)
         }
-        assertArrayEquals(audio, client.synthesize("你好，<书名> & 文本。", 1.25f, 1f))
+        assertArrayEquals(audio, client.synthesize("你好，<书名> & 文本。", 1.02f, 1f))
     }
 }

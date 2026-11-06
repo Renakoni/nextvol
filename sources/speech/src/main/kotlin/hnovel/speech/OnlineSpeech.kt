@@ -2,6 +2,10 @@ package hnovel.speech
 
 import hnovel.network.BrokerResponse
 import kotlinx.serialization.json.*
+import kotlin.math.roundToInt
+
+/** Restore the integer slider control before applying an engine's own mapping. */
+fun multiTtsControl(value: Float): Int = (value * 50).roundToInt()
 
 /** One protocol exchange. The owning client handles segmentation, authorization and cancellation. */
 interface OnlineSpeechBackend : AutoCloseable {

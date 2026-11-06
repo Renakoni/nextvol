@@ -11,7 +11,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import java.io.File
 
-/** All backends finish through the same PCM path; playbackSpeed remains the player's responsibility. */
+/** All backends finish through the same PCM path before playback. */
 internal class ProcessingSpeechSynthesizer(private val delegate: SpeechSynthesizer) : SpeechSynthesizer {
     private var settings = SpeechAudioSettings()
     private var parameters = SpeechAudioParameters()

@@ -22,12 +22,12 @@ internal class WeReadEngine(@Suppress("UNUSED_PARAMETER") context: Context, dire
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(!closed) { "WeRead engine is closed" }
         cancelled = false
         engine.setVoiceName(voice.code)
-        engine.setSpeed(speed * voice.speed)
-        engine.setVolume(voice.volume)
+        engine.setSpeed(speed / 50f)
+        engine.setVolume(volume / 50f)
         try {
             val input = text.toByteArray(Charsets.UTF_8)
             var prepared = engine.prepareUTF8(input)

@@ -32,7 +32,7 @@ internal class DoubaoSpeechClient(
     private suspend fun synthesize(text: String, rate: Float, receive: ((ByteArray, Int, Int) -> Unit)?): ByteArray {
         if (requests > 16) { requests = 0; deviceId = deviceId() } else requests++
         val request = BrokerRequest("doubao-speech", "$ENDPOINT?speaker=${URLEncoder.encode(speaker, "UTF-8")}" +
-            "&format=aac&speech_rate=${(rate * 50).toInt()}&pitch=0" + sessionQuery(deviceId),
+            "&format=aac&speech_rate=${multiTtsControl(rate)}&pitch=0" + sessionQuery(deviceId),
             headers = headers(), kind = ResourceKind.Api, followRedirects = false,
             timeoutMillis = 60_000, maxResponseBytes = MAX_AUDIO_BYTES + 64 * 1024)
         try {

@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.tts
 import android.content.ContextWrapper
 import android.os.Looper
 import android.os.StrictMode
-import android.os.SystemClock
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -152,7 +151,7 @@ class HttpSpeechInstrumentedTest {
         } finally { executor.close(); directory.deleteRecursively() }
     }
 
-    @Test fun isolatedSpeechPostPreservesTextAndPlaybackSpeedChangesDurationWithoutAnotherRequest(): Unit = runBlocking {
+    @Test fun isolatedSpeechPostPreservesLiteralTextAndSynthesisRequest(): Unit = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val directory = File(context.cacheDir, "http-speech-test-${UUID.randomUUID()}").apply { mkdirs() }
         val authority = ExecutionAuthority()
@@ -175,43 +174,7 @@ class HttpSpeechInstrumentedTest {
                         assertEquals(text, body.getValue("text").jsonPrimitive.content)
                         assertEquals(10, body.getValue("speed").jsonPrimitive.int)
                         assertArrayEquals(audio, file.readBytes())
-                        withContext(Dispatchers.Main) {
-                            val player = ExoPlayer.Builder(context).build()
-                            try {
-                                val playback = ExoSpeechPlayback(player, context)
-                                val clip = SpeechClip(prepareSpeechPlan(SpeechChapter("", "", "", "", text),
-                                    SpeechSettings()) {}, 0, file)
-                                val durations = mutableListOf<Long>()
-                                for (speed in listOf(1f, 2f)) {
-                                    var startedAt: Long? = null
-                                    withTimeout(10_000) {
-                                        val playing = launch {
-                                            playback.play(clip, false, onRange = {}) { phase, _ ->
-                                                if (phase == SpeechPhase.Playing && startedAt == null)
-                                                    startedAt = SystemClock.elapsedRealtime()
-                                            }
-                                        }
-                                        while (player.playbackState != Player.STATE_READY) delay(10)
-                                        val pausedAt = player.currentPosition
-                                        playback.setSpeed(speed)
-                                        delay(150)
-                                        assertFalse(player.playWhenReady)
-                                        assertFalse(player.isPlaying)
-                                        assertEquals(pausedAt, player.currentPosition)
-                                        assertEquals(speed, player.playbackParameters.speed)
-                                        assertEquals(1f, player.playbackParameters.pitch)
-                                        playback.resume()
-                                        playing.join()
-                                    }
-                                    assertNotNull(startedAt)
-                                    durations += SystemClock.elapsedRealtime() - requireNotNull(startedAt)
-                                }
-                                assertTrue("Normal playback must consume the four-second audio: $durations", durations[0] >= 3000)
-                                assertTrue("2x must take about half the real time: $durations",
-                                    durations[1].toDouble() / durations[0] in 0.35..0.75)
-                                assertEquals(1, server.requestCount)
-                            } finally { player.release() }
-                        }
+                        assertEquals(1, server.requestCount)
                     }
                 }
             }
