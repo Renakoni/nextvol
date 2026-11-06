@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -143,7 +145,7 @@ internal fun SpeechSchemesScreen(state: SpeechSchemesState, bookId: String?, onB
         dismissButton = { TextButton(onClick = dismiss, enabled = !state.saving) { Text(stringResource(R.string.cancel)) } })
     if (action == "delete") AlertDialog(onDismissRequest = { if (!state.saving) dismiss() },
         title = { Text(stringResource(R.string.tts_scheme_delete)) },
-        text = { Column {
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.tts_scheme_delete_replacement))
             state.schemes.items.filter { it.id != target }.forEach { scheme ->
                 Row(Modifier.fillMaxWidth().clickable(enabled = !state.saving) { replacement = scheme.id }.padding(vertical = 4.dp),

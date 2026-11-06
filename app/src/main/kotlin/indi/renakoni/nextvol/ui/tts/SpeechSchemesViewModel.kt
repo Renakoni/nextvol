@@ -32,8 +32,9 @@ class SpeechSchemesViewModel @Inject constructor(saved: SavedStateHandle, privat
     init {
         viewModelScope.launch {
             combine(repository.schemes, bookshelf.getAllBookshelvesFlow()) { schemes, shelves ->
-                val ids = (shelves.flatMap { it.allBookIds } + schemes.bindings.keys + listOfNotNull(bookId)).distinct()
-                schemes to ids.associateWith { local.getBookInformation(it)?.title.orEmpty() }
+                val previous = state.value.titles
+                val ids = (shelves.flatMap { it.allBookIds } + schemes.bindings.keys + listOfNotNull(bookId)).toSet()
+                schemes to ids.associateWith { previous[it] ?: local.getBookInformation(it)?.title.orEmpty() }
             }.collect { (schemes, titles) -> mutableState.update { it.copy(schemes = schemes, titles = titles, loading = false) } }
         }
     }

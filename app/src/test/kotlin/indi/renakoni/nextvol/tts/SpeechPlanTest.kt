@@ -13,11 +13,11 @@ class SpeechPlanTest {
         assertTrue(plan.segments.size > 2)
         val second = plan.segments[1]
         val saved = plan.bookmark(second.start + 1)
-        assertEquals(1, plan.startIndex(saved))
-        assertEquals(0, plan.startIndex(saved.copy(fingerprint = "old text")))
-        assertEquals(plan.segments.size, plan.startIndex(plan.bookmark(plan.segments.last().end)))
+        assertEquals(1, plan.resumeAt(saved).second)
+        assertEquals(0, plan.resumeAt(saved.copy(fingerprint = "old text")).second)
+        assertEquals(plan.segments.size, plan.resumeAt(plan.bookmark(plan.segments.last().end)).second)
         val finalChapter = prepareSpeechPlan(chapter.copy(nextId = null), SpeechSettings()) {}
-        assertEquals(finalChapter.segments.size, finalChapter.startIndex(saved.copy(offset = chapter.text.length)))
+        assertEquals(finalChapter.segments.size, finalChapter.resumeAt(saved.copy(offset = chapter.text.length)).second)
     }
 
     @Test fun systemAndHttpSynthesisSettingsKeepOnlyEffectiveParameters() {

@@ -49,13 +49,15 @@ class SpeechSettingsViewModelTest {
         val schemesRepository = mockk<SpeechSettingsRepository>()
         every { schemesRepository.schemes } returns snapshots
         coEvery { schemesRepository.snapshot() } answers { snapshots.value }
-        coEvery { schemesRepository.get(any()) } answers { snapshots.value.settings(firstArg()) }
+        coEvery { schemesRepository.update(any(), any()) } returns Unit
         val saved = androidx.lifecycle.SavedStateHandle(mapOf("bookId" to "book"))
         val editor = SpeechSettingsEditor(schemesRepository, saved)
         assertEquals("a", editor.get().schemeId)
         snapshots.value = snapshots.value.copy(defaultId = "b", bindings = mapOf("book" to "b"))
         assertEquals("a", editor.get().schemeId)
         assertEquals("a", SpeechSettingsEditor(schemesRepository, saved).get().schemeId)
+        editor.update { it.copy(rate = 1.5f) }
+        coVerify(exactly = 1) { schemesRepository.update("a", any()) }
         assertEquals("b", SpeechSettingsEditor(schemesRepository, androidx.lifecycle.SavedStateHandle()).get().schemeId)
     }
 

@@ -1,6 +1,8 @@
 package indi.renakoni.nextvol.tts
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 
 const val DEFAULT_SPEECH_SCHEME = "default"
 
@@ -8,7 +10,8 @@ const val DEFAULT_SPEECH_SCHEME = "default"
 data class SpeechSchemeMusic(val enabled: Boolean = false, val selected: Set<String> = emptySet(), val volume: Float = 0.5f)
 
 @Serializable
-data class SpeechScheme(val id: String, val name: String = "", val settings: SpeechSettings = SpeechSettings())
+data class SpeechScheme(val id: String, val name: String = "",
+    @OptIn(ExperimentalSerializationApi::class) @EncodeDefault val settings: SpeechSettings = SpeechSettings())
 
 @Serializable
 data class SpeechRuntimeSettings(val engineCacheCapacity: Int = 10, val maxCacheVoiceNum: Int = 50,
@@ -17,6 +20,7 @@ data class SpeechRuntimeSettings(val engineCacheCapacity: Int = 10, val maxCache
 
 @Serializable
 data class SpeechSchemes(
+    @OptIn(ExperimentalSerializationApi::class) @EncodeDefault
     val items: List<SpeechScheme> = listOf(SpeechScheme(DEFAULT_SPEECH_SCHEME)),
     val defaultId: String = DEFAULT_SPEECH_SCHEME,
     val bindings: Map<String, String> = emptyMap(),
@@ -24,12 +28,14 @@ data class SpeechSchemes(
 ) {
     fun effectiveId(bookId: String?) = bindings[bookId] ?: defaultId
 
-    fun settings(id: String): SpeechSettings = items.first { it.id == id }.settings.copy(
-        schemeId = id, schemeName = items.first { it.id == id }.name,
-        engineCacheCapacity = runtime.engineCacheCapacity, maxCacheVoiceNum = runtime.maxCacheVoiceNum,
-        diagnosticLogging = runtime.diagnosticLogging,
-        text = items.first { it.id == id }.settings.text.copy(recordText = runtime.recordText,
-            recordVoice = runtime.recordVoice, filterLanguage = runtime.filterLanguage)).validated()
+    fun settings(id: String): SpeechSettings {
+        val scheme = items.first { it.id == id }
+        return scheme.settings.copy(schemeId = id, schemeName = scheme.name,
+            engineCacheCapacity = runtime.engineCacheCapacity, maxCacheVoiceNum = runtime.maxCacheVoiceNum,
+            diagnosticLogging = runtime.diagnosticLogging,
+            text = scheme.settings.text.copy(recordText = runtime.recordText,
+                recordVoice = runtime.recordVoice, filterLanguage = runtime.filterLanguage))
+    }
 
     fun forBook(bookId: String?) = settings(effectiveId(bookId)).copy(bookId = bookId)
 

@@ -20,13 +20,12 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
     private val stored = userData.stringUserData("tts.voicePairs")
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
-    private val pools = mutableMapOf<String, SpeechVoicePool>()
+    private val pool = SpeechVoicePool()
     private val pairRevisions = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Long>()
-    private fun pool(schemeId: String) = pools.getOrPut(schemeId) { SpeechVoicePool() }
     fun revision(bookId: String?, schemeId: String): Long = pairRevisions[bookId to schemeId] ?: 0L
     private val mutableRevisions = MutableStateFlow(0L)
     val revisions = mutableRevisions.asStateFlow()
-    val changes = stored.getFlow().map(::decode).distinctUntilChanged()
+    val changes = stored.getFlow().distinctUntilChanged().map(::decode)
 
     suspend fun pairs(bookId: String? = null, schemeId: String? = null): List<SpeechVoicePair> = withContext(Dispatchers.IO) {
         decode(stored.get()).filter { (bookId == null || it.bookId == bookId) && (schemeId == null || it.schemeId == schemeId) }
@@ -38,14 +37,14 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
             // O6.j.l changes the draw bag, not existing pairs. Membership does not revoke a stable assignment.
             // An older plan must not repopulate the cache after a manual edit/removal cleared it.
             val current = if (revision == revisions.value) pairs else withContext(Dispatchers.IO) { decode(stored.get()) }
-            pool(schemeId).existing(bookId, person, groups, current.filter { it.schemeId == schemeId }, catalog, maxCache)
+            pool.existing(bookId, person, groups, current, catalog, maxCache, schemeId)
         }
 
     suspend fun assign(bookId: String, person: String, group: String, items: List<SpeechVoiceItem>,
         catalog: Map<String, SpeechResolvedVoice>, maxCache: Int, bookTitle: String = "", schemeId: String = DEFAULT_SPEECH_SCHEME): SpeechVoicePair? =
         withContext(Dispatchers.IO) { mutex.withLock {
             val pairs = decode(stored.get())
-            val pair = pool(schemeId).assign(bookId, person, group, pairs.filter { it.schemeId == schemeId }, items, catalog, maxCache, bookTitle)?.copy(schemeId = schemeId)
+            val pair = pool.assign(bookId, person, group, pairs, items, catalog, maxCache, bookTitle, schemeId)
                 ?: return@withLock null
             val next = replace(pairs, pair)
             if (next != pairs) stored.set(json.encodeToString(next))
@@ -69,7 +68,7 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
             stored.set(json.encodeToString(next))
             revised(pairs, next)
         }
-        pools.filterKeys { schemeId == null || it == schemeId }.values.forEach { it.clear(bookId) }
+        pool.clear(bookId, schemeId)
     } }
 
     /** Returns the unchanged rows whose group has no available enabled candidate. */
@@ -81,11 +80,11 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
         val selected = pairs.filter { it.id in ids }.groupBy { listOf(it.bookId, it.schemeId, people.canonicalPerson(it.person), it.group) }
         for (rows in selected.values) {
             val pair = rows.first()
-            val voice = pool(pair.schemeId).draw(pair.bookId, pair.group, items, catalog)
+            val voice = pool.draw(pair.bookId, pair.group, items, catalog, pair.schemeId)
             if (voice == null) failed += rows.map { it.id }
             else next = replace(next, pair.copy(value = voice, manual = false), people, clearManual = true)
         }
-        pools.values.forEach { it.clearCache() }
+        pool.clearCache()
         if (next != pairs) {
             stored.set(json.encodeToString(next))
             revised(pairs, next)
@@ -93,7 +92,7 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
         failed
     } }
 
-    suspend fun setCacheLimit(limit: Int) = withContext(Dispatchers.IO) { mutex.withLock { pools.values.forEach { it.setCacheLimit(limit) } } }
+    suspend fun setCacheLimit(limit: Int) = withContext(Dispatchers.IO) { mutex.withLock { pool.setCacheLimit(limit) } }
 
     private suspend fun change(update: (List<SpeechVoicePair>) -> List<SpeechVoicePair>) =
         withContext(Dispatchers.IO) { mutex.withLock {
@@ -101,7 +100,7 @@ class SpeechVoicePoolRepository @Inject constructor(userData: UserDataRepository
             val next = update(pairs)
             if (next != pairs) {
                 stored.set(json.encodeToString(next))
-                pools.values.forEach { it.clearCache() }
+                pool.clearCache()
                 revised(pairs, next)
             }
         } }

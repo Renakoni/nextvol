@@ -30,6 +30,10 @@ class SpeechVoicePoolTest {
         var saved = emptyList<SpeechVoicePair>()
         repeat(3) { index -> saved += pool.assign("book", "人物$index", group, saved, items, catalog, 1)!! }
         saved.forEach { assertEquals(it.value, pool.existing("book", it.person, listOf(group), saved, catalog, 1)!!.value) }
+        val other = pool.assign("book", "人物0", group, saved, listOf(SpeechVoiceItem(group, third)), catalog, 1, schemeId = "other")!!
+        saved += other
+        assertEquals(third, pool.existing("book", "人物0", listOf(group), saved, catalog, 1, "other")!!.value)
+        assertEquals(saved.first().value, pool.existing("book", "人物0", listOf(group), saved, catalog, 1)!!.value)
         assertEquals(1, pool.cacheSize)
         pool.setCacheLimit(0)
         assertEquals(0, pool.cacheSize)

@@ -73,7 +73,7 @@ class SpeechSettingsRepository @Inject constructor(userData: UserDataRepository)
     private val stored = userData.stringUserData("tts.schemes")
     private val mutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true }
-    val schemes = stored.getFlow().map(::decode).distinctUntilChanged()
+    val schemes = stored.getFlow().distinctUntilChanged().map(::decode)
     val changes = changesForBook(null)
 
     fun changesForBook(bookId: String?) = schemes.map { it.forBook(bookId) }.distinctUntilChanged()
@@ -116,7 +116,11 @@ class SpeechSettingsRepository @Inject constructor(userData: UserDataRepository)
     suspend fun delete(id: String, replacement: String) = edit { it.delete(id, replacement) }
 
     private suspend fun edit(change: (SpeechSchemes) -> SpeechSchemes) = withContext(Dispatchers.IO) {
-        mutex.withLock { stored.set(json.encodeToString(change(decode(stored.get())))) }
+        mutex.withLock {
+            val current = stored.get()
+            val updated = json.encodeToString(change(decode(current)))
+            if (updated != current) stored.set(updated)
+        }
     }
 
     private fun decode(value: String?): SpeechSchemes = try {

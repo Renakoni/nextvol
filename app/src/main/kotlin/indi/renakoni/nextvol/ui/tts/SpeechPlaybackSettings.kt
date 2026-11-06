@@ -112,7 +112,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     fun initializeRoleContext(default: String) {
         viewModelScope.launch {
             try {
-                if (repository.get().roleContextPattern == null) repository.update {
+                repository.update {
                     it.copy(roleContextPattern = it.roleContextPattern ?: default)
                 }
             } catch (cancelled: CancellationException) { throw cancelled }

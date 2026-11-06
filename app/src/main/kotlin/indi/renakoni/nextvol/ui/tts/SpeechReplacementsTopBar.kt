@@ -32,7 +32,7 @@ internal fun SpeechReplacementsTopBar(query: String, onQuery: (String) -> Unit, 
     LaunchedEffect(searching) { if (searching) focus.requestFocus() }
     TopAppBar(title = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SpeechPageTitle(stringResource(R.string.tts_replace_title))
+            if (!searching) SpeechPageTitle(stringResource(R.string.tts_replace_title))
             if (searching) Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1f)) {
                 Row(Modifier.heightIn(min = 40.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {

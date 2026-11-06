@@ -48,7 +48,7 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
             var published = false
             try {
                 directory.mkdirs()
-                val tracks = uris.mapIndexed { index, uri ->
+                val tracks = uris.map { uri ->
                     val id = UUID.randomUUID().toString()
                     val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                         if (it.moveToFirst()) it.getString(0) else null
@@ -57,7 +57,7 @@ class BackgroundMusicRepository @Inject constructor(@ApplicationContext private 
                     (context.contentResolver.openInputStream(uri) ?: throw IOException("Cannot open background music")).use { input ->
                         destination.outputStream().use { input.copyTo(it) }
                     }
-                    BackgroundMusicTrack(id, name, index == 0 && previous?.selected == true)
+                    BackgroundMusicTrack(id, name)
                 }
                 val updated = if (previous == null) current.tracks + tracks
                     else current.tracks.map { if (it.id == previous.id) tracks.first() else it } + tracks.drop(1)

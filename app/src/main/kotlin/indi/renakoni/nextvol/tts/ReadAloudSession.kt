@@ -338,12 +338,12 @@ class ReadAloudSession(
                     plan = reusablePlan?.takeIf { it.matches(loaded, synthesis, context, maxInputLength) } ?: withContext(ioDispatcher) {
                         preparePlan(loaded, synthesis, context, maxInputLength)
                     }
-                    if (first) plan = plan.resumeAt(saved)
+                    val (resumed, startIndex) = plan.resumeAt(saved.takeIf { first })
+                    plan = resumed
                     val segments = plan.segments
                     if (segments.isEmpty()) {
                         queue.send(Step.Skipped(plan))
                     }
-                    val startIndex = plan.startIndex(saved.takeIf { first })
                     for (index in startIndex..segments.lastIndex) {
                         val segment = segments[index]
                         position = index

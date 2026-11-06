@@ -35,9 +35,11 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
     LaunchedEffect(searching) { if (searching) focus.requestFocus() }
     TopAppBar(title = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (selectedCount == null) SpeechPageTitle(stringResource(title))
-            else Text(stringResource(R.string.tts_manage_selected, selectedCount), style = MaterialTheme.typography.titleLarge,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (!searching) {
+                if (selectedCount == null) SpeechPageTitle(stringResource(title))
+                else Text(stringResource(R.string.tts_manage_selected, selectedCount), style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             if (searching) Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1f)) {
                 Row(Modifier.heightIn(min = 40.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {

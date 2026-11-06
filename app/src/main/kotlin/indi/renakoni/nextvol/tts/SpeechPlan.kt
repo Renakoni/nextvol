@@ -23,39 +23,32 @@ class SpeechPlan internal constructor(
         !trimmed && this.chapter == chapter && this.synthesis == synthesis && this.context == context &&
             this.maxInputLength == maxInputLength && locale == Locale.getDefault()
 
-    internal fun startIndex(saved: SpeechBookmark?): Int {
+    /** Resolve the bookmark once, then rebuild audio from its original position inside the sentence. */
+    internal fun resumeAt(saved: SpeechBookmark?): Pair<SpeechPlan, Int> {
         val matching = saved?.takeIf { it.bookId == chapter.bookId && it.chapterId == chapter.id &&
             it.fingerprint == chapter.fingerprint && !it.completed && it.offset in 0..chapter.text.length }
-        if (matching == null) return 0
+            ?: return this to 0
         // Expansion/capture reordering can give several clips overlapping original ranges.
-        matching.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }?.let { return it }
-        val offset = matching.offset
+        val index = matching.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }
         // End offsets are exclusive: a durable completion boundary must not replay
         // the finished segment, including whitespace before the next segment.
-        return segments.indexOfFirst { it.end > offset }.takeIf { it >= 0 } ?: segments.size
-    }
-
-    internal fun bookmark(offset: Int, index: Int? = null) = SpeechBookmark(chapter.bookId, chapter.id,
-        chapter.fingerprint, offset, chapter.bookTitle, chapter.title,
-        replacementKey = replacementKey, segmentIndex = index, context = context)
-
-    /** Rebuild audio from the audible original position, including positions inside a sentence. */
-    internal fun resumeAt(saved: SpeechBookmark?): SpeechPlan {
-        val index = startIndex(saved)
-        val segment = segments.getOrNull(index) ?: return this
-        if (saved == null || saved.bookId != chapter.bookId || saved.chapterId != chapter.id ||
-            saved.fingerprint != chapter.fingerprint || saved.completed || saved.offset !in segment.start + 1 until segment.end)
-            return this
+            ?: segments.indexOfFirst { it.end > matching.offset }.takeIf { it >= 0 } ?: segments.size
+        val segment = segments.getOrNull(index) ?: return this to index
+        if (matching.offset !in segment.start + 1 until segment.end) return this to index
         val mapped = mappedSegments[index]
-        val start = mapped.indexAtOriginal(saved.offset)
-        if (start == 0 || start == mapped.text.length) return this
+        val start = mapped.indexAtOriginal(matching.offset)
+        if (start == 0) return this to index
         val remaining = mapped.slice(start, mapped.text.length)
         val range = remaining.range()
         return SpeechPlan(chapter, synthesis, segments.toMutableList().also {
             it[index] = segment.copy(start = range.first, end = range.second, text = remaining.text)
         }, structuredText, mappedSegments.toMutableList().also { it[index] = remaining }, context,
-            nextContext, maxInputLength, locale, logId, trimmed = true)
+            nextContext, maxInputLength, locale, logId, trimmed = true) to index
     }
+
+    internal fun bookmark(offset: Int, index: Int? = null) = SpeechBookmark(chapter.bookId, chapter.id,
+        chapter.fingerprint, offset, chapter.bookTitle, chapter.title,
+        replacementKey = replacementKey, segmentIndex = index, context = context)
 
     internal fun position(index: Int, start: Int = 0, end: Int = segments[index].text.length, anchor: Int = start): SpeechPosition {
         val mapped = mappedSegments[index]
