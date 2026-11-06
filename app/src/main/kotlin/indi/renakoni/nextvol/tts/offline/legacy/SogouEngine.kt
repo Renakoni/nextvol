@@ -67,6 +67,8 @@ internal class SogouEngine(context: Context, directory: File, private val voice:
             }
             check(pcm != null) { "Sogou returned no audio for status ${status[0]}" }
             if (!cancelled && outputFailure == null) {
+                // The SDK returns audible PCM at volume 0; mute it without changing the duration.
+                if (volume == 0f) pcm.fill(0)
                 try { emit(pcm, pcm.size) }
                 catch (failure: Throwable) { outputFailure = failure; cancelled = true }
             }

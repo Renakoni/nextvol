@@ -280,7 +280,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
             val nav = LocalNavController.current
             val viewModel = hiltViewModel<SpeechSettingsViewModel>()
             val state by viewModel.state.collectAsStateWithLifecycle()
-            LaunchedEffect(Unit) { viewModel.refresh() }
             SpeechPreferencesScreen(state, nav::popBackStackIfResumed,
                 viewModel::setRate, viewModel::setVolume, viewModel::setPitch)
         }
