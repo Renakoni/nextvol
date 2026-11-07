@@ -659,7 +659,8 @@
     <string name="tts_language_optimaize">Optimaize</string>
     <string name="tts_language_media_pipe">Media Pipe</string>
     <string name="tts_filter_language">过滤语言</string>
-    <string name="tts_filter_language_description">发音人列表显示当前语言、地区和英语，关闭后显示全部语言。</string>
+    <string name="tts_filter_language_on">已启用，在线更新后将依据语言过滤发音人</string>
+    <string name="tts_filter_language_off">已禁用，在线更新后不会过滤发音人</string>
     <string name="tts_role_mode_language">语言</string>
     <string name="tts_role_secondary_language">备选语言</string>
     <string name="tts_role_language_required">请选择当前检测算法支持的语言。</string>

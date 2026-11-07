@@ -659,8 +659,9 @@
     <string name="tts_language_detector">語言偵測演算法</string>
     <string name="tts_language_optimaize">Optimaize</string>
     <string name="tts_language_media_pipe">Media Pipe</string>
-    <string name="tts_filter_language">篩選語言</string>
-    <string name="tts_filter_language_description">發音人清單顯示目前語言、地區和英語，關閉後顯示全部語言。</string>
+    <string name="tts_filter_language">过滤语言</string>
+    <string name="tts_filter_language_on">已启用，在线更新后将依据语言过滤发音人</string>
+    <string name="tts_filter_language_off">已禁用，在线更新后不会过滤发音人</string>
     <string name="tts_role_mode_language">語言</string>
     <string name="tts_role_secondary_language">備選語言</string>
     <string name="tts_role_language_required">請選擇目前偵測演算法支援的語言。</string>

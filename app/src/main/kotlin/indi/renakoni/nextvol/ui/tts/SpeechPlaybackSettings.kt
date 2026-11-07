@@ -288,7 +288,8 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     onClick = { text = preferences.auditionText.ifBlank { defaultText }; editing = true })
             }
             state.settings?.let { settings ->
-                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_filter_language, R.string.tts_filter_language_description,
+                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_filter_language,
+                    if (settings.filterLanguage) R.string.tts_filter_language_on else R.string.tts_filter_language_off,
                     settings.filterLanguage) { onUpdate { old -> old.copy(filterLanguage = it) } } }
             }
             item {
