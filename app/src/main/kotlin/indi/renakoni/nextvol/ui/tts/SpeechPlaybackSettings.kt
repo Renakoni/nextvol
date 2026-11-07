@@ -178,47 +178,10 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 Text(stringResource(error.messageResource), Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
                     color = MaterialTheme.colorScheme.error)
             } }
-            state.settings?.let { settings ->
-                item { SpeechTextSwitch(R.drawable.music_note_24px, R.string.tts_background_music, R.string.tts_music_description,
-                    state.backgroundMusicEnabled, onBackgroundMusic) }
-                item { SpeechTextSwitch(R.drawable.tts_decode_stream, R.string.tts_decode_stream,
-                    if (state.audio.decodeStream) R.string.tts_decode_stream_on else R.string.tts_decode_stream_off,
-                    state.audio.decodeStream) { onAudioSettings(state.audio.copy(decodeStream = it)) } }
-                item { SpeechTextEntry(R.drawable.pause_24px, R.string.tts_paragraph_pause, R.string.tts_paragraph_pause_description,
-                    Modifier.clickable { pauseText = settings.paragraphPauseMs.toString(); editingPause = true }) {
-                    Text(if (settings.paragraphPauseMs == 0) stringResource(R.string.tts_pause_disabled)
-                        else stringResource(R.string.tts_pause_duration, settings.paragraphPauseMs),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                } }
-                item {
-                    val processors = remember { object : MenuOptions(Option("200", R.string.tts_audio_sonic),
-                        Option("201", R.string.tts_audio_soundtouch)) {} }
-                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_audio_processor, processors,
-                        selectedOptionKey = state.audio.processor.toString(),
-                        onOptionChange = { onAudioSettings(state.audio.copy(processor = it.toInt())) })
-                }
-                item {
-                    val rates = remember { object : MenuOptions(Option("16000", R.string.tts_sample_rate_16000),
-                        Option("22050", R.string.tts_sample_rate_22050), Option("24000", R.string.tts_sample_rate_24000),
-                        Option("32000", R.string.tts_sample_rate_32000), Option("44100", R.string.tts_sample_rate_44100),
-                        Option("48000", R.string.tts_sample_rate_48000), Option("64000", R.string.tts_sample_rate_64000),
-                        Option("96000", R.string.tts_sample_rate_96000)) {} }
-                    SpeechTextMenu(R.drawable.tts_audio_sample_rate, R.string.tts_audio_minimum_rate, rates,
-                        selectedOptionKey = state.audio.minimumSampleRate.toString(),
-                        onOptionChange = { onAudioSettings(state.audio.copy(minimumSampleRate = it.toInt())) })
-                }
-                item { SpeechTextSwitch(R.drawable.tts_audio_silence, R.string.tts_audio_check_silence,
-                    if (state.audio.checkSilence) R.string.tts_audio_check_silence_on else R.string.tts_audio_check_silence_off,
-                    state.audio.checkSilence) { onAudioSettings(state.audio.copy(checkSilence = it)) } }
-                item {
-                    SpeechTextSlider(R.drawable.tts_text_cache_voice, R.string.tts_engine_cache_capacity,
-                        state.engineCacheCapacity, 3f..32f, onChange = onEngineCacheCapacity)
-                }
+            if (state.settings != null) {
                 item { SpeechTextSwitch(R.drawable.tts_text_multiple_voices, R.string.tts_voice_multiple,
                     if (state.allowMultipleVoices) R.string.tts_voice_multiple_on else R.string.tts_voice_multiple_off,
                     state.allowMultipleVoices, onMultipleVoices) }
-                item { SpeechTextSwitch(R.drawable.tts_text_dialogue, R.string.tts_text_dialogue, R.string.tts_text_dialogue_description,
-                    settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
                 item {
                     Row(Modifier.fillMaxWidth().clickable {
                         contextPattern = state.roleContextPattern; contextError = false; editingContext = true
@@ -232,6 +195,29 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         }
                     }
                 }
+            }
+            item {
+                SettingsClickableEntry(painter = painterResource(R.drawable.search_24px),
+                    title = stringResource(R.string.tts_name_test),
+                    trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                    onClick = onNameTest)
+            }
+            state.settings?.let { settings ->
+                item {
+                    val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner),
+                        Option("100", R.string.tts_new_word_algorithm)) {} }
+                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_name_algorithm, algorithms,
+                        selectedOptionKey = settings.nameDiscoveryAlgorithm.toString(),
+                        onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
+                }
+                item {
+                    SpeechTextEntry(R.drawable.female_24px, R.string.tts_name_female_rule, R.string.tts_name_female_rule_description,
+                        Modifier.clickable { text = settings.femaleNameRegex; editingMaleRule = false })
+                }
+                item {
+                    SpeechTextEntry(R.drawable.male_24px, R.string.tts_name_male_rule, R.string.tts_name_male_rule_description,
+                        Modifier.clickable { text = settings.maleNameRegex; editingMaleRule = true })
+                }
                 item { SpeechTextSwitch(R.drawable.tts_text_auto_assign, R.string.tts_pool_auto_assign,
                     if (state.autoAssignRole) R.string.tts_pool_auto_on else R.string.tts_pool_auto_off,
                     state.autoAssignRole, onAutoAssign) }
@@ -241,22 +227,11 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     settings.recordText) { onUpdate { old -> old.copy(recordText = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_continue_dialogue, R.string.tts_text_continue_dialogue, R.string.tts_text_continue_dialogue_description,
                     settings.continueDialogue) { onUpdate { old -> old.copy(continueDialogue = it) } } }
-                item { HorizontalDivider(Modifier.padding(start = 60.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)) }
+                item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
                 item { SpeechTextSwitch(R.drawable.tts_text_replace_emoji, R.string.tts_text_replace_emoji, R.string.tts_text_replace_emoji_description,
                     settings.replaceEmoji) { onUpdate { old -> old.copy(replaceEmoji = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_separate_english, R.string.tts_text_separate_english, R.string.tts_text_separate_english_description,
                     settings.separateEnglish) { onUpdate { old -> old.copy(separateEnglish = it) } } }
-                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_detect_language, R.string.tts_detect_language_description,
-                    settings.detectLanguage) { onUpdate { old -> old.copy(detectLanguage = it) } } }
-                item {
-                    val algorithms = remember { object : MenuOptions(Option("300", R.string.tts_language_optimaize),
-                        Option("301", R.string.tts_language_media_pipe)) {} }
-                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_language_detector, algorithms,
-                        selectedOptionKey = settings.languageDetector.toString(),
-                        onOptionChange = { key -> onUpdate { it.copy(languageDetector = key.toInt()) } })
-                }
-                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_filter_language, R.string.tts_filter_language_description,
-                    settings.filterLanguage) { onUpdate { old -> old.copy(filterLanguage = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken, R.string.tts_text_filter_unspoken_description,
                     settings.filterUnspoken) { onUpdate { old -> old.copy(filterUnspoken = it) } } }
                 item {
@@ -264,39 +239,40 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         settings.maxSentenceLength, 32f..256f, R.string.tts_text_sentence_length_description,
                         onChange = { length -> onUpdate { it.copy(maxSentenceLength = length) } })
                 }
-            }
-            if (state.settings != null) item {
-                var limit by remember(state.maxCacheVoiceNum) { mutableFloatStateOf(state.maxCacheVoiceNum.coerceIn(3, 300).toFloat()) }
-                val title = stringResource(R.string.tts_pool_cache_limit)
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
-                    Icon(painterResource(R.drawable.tts_text_cache_voice), null, Modifier.padding(top = 2.dp).size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Column(Modifier.weight(1f).padding(start = 16.dp)) {
-                        Text(title, style = MaterialTheme.typography.headlineSmall)
-                        Text(limit.roundToInt().toString(), Modifier.padding(top = 3.dp), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Slider(limit, { limit = it }, valueRange = 3f..300f,
-                            onValueChangeFinished = { onCacheLimit(limit.roundToInt()) },
-                            modifier = Modifier.semantics { contentDescription = title },
-                            thumb = { Surface(Modifier.size(16.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {} },
-                            track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
-                                trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
-                    }
+                item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+                item { SpeechTextSwitch(R.drawable.tts_audio_silence, R.string.tts_audio_check_silence,
+                    if (state.audio.checkSilence) R.string.tts_audio_check_silence_on else R.string.tts_audio_check_silence_off,
+                    state.audio.checkSilence) { onAudioSettings(state.audio.copy(checkSilence = it)) } }
+                item { SpeechTextSwitch(R.drawable.tts_decode_stream, R.string.tts_decode_stream,
+                    if (state.audio.decodeStream) R.string.tts_decode_stream_on else R.string.tts_decode_stream_off,
+                    state.audio.decodeStream) { onAudioSettings(state.audio.copy(decodeStream = it)) } }
+                item {
+                    val rates = remember { object : MenuOptions(Option("16000", R.string.tts_sample_rate_16000),
+                        Option("22050", R.string.tts_sample_rate_22050), Option("24000", R.string.tts_sample_rate_24000),
+                        Option("32000", R.string.tts_sample_rate_32000), Option("44100", R.string.tts_sample_rate_44100),
+                        Option("48000", R.string.tts_sample_rate_48000), Option("64000", R.string.tts_sample_rate_64000),
+                        Option("96000", R.string.tts_sample_rate_96000)) {} }
+                    SpeechTextMenu(R.drawable.tts_audio_sample_rate, R.string.tts_audio_minimum_rate, rates,
+                        selectedOptionKey = state.audio.minimumSampleRate.toString(),
+                        onOptionChange = { onAudioSettings(state.audio.copy(minimumSampleRate = it.toInt())) })
+                }
+                item {
+                    val processors = remember { object : MenuOptions(Option("200", R.string.tts_audio_sonic),
+                        Option("201", R.string.tts_audio_soundtouch)) {} }
+                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_audio_processor, processors,
+                        selectedOptionKey = state.audio.processor.toString(),
+                        onOptionChange = { onAudioSettings(state.audio.copy(processor = it.toInt())) })
                 }
             }
-            item { HorizontalDivider(Modifier.padding(start = 60.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)) }
-            state.settings?.let { settings -> item {
-                val algorithms = remember { object : MenuOptions(Option("101", R.string.tts_name_ner),
-                    Option("100", R.string.tts_new_word_algorithm)) {} }
-                SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_name_algorithm, algorithms,
-                    selectedOptionKey = settings.nameDiscoveryAlgorithm.toString(),
-                    onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
-            } }
+            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
             item {
-                SettingsClickableEntry(painter = painterResource(R.drawable.search_24px),
-                    title = stringResource(R.string.tts_name_test),
-                    trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
-                    onClick = onNameTest)
+                SettingsClickableEntry(title = stringResource(R.string.tts_voice_audition_text),
+                    option = preferences.auditionText.ifBlank { defaultText },
+                    onClick = { text = preferences.auditionText.ifBlank { defaultText }; editing = true })
+            }
+            state.settings?.let { settings ->
+                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_filter_language, R.string.tts_filter_language_description,
+                    settings.filterLanguage) { onUpdate { old -> old.copy(filterLanguage = it) } } }
             }
             item {
                 SpeechTextEntry(R.drawable.analytics_24px, R.string.tts_analysis_title, R.string.tts_analysis_description,
@@ -307,8 +283,6 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     SpeechTextEntry(R.drawable.code_24px, R.string.tts_new_word_pattern, R.string.tts_new_word_pattern_description,
                         Modifier.clickable { text = settings.personNameRegex ?: state.defaultNamePattern; editingPersonRule = true })
                 }
-            }
-            state.settings?.let { settings ->
                 item {
                     SpeechTextSwitch(R.drawable.autorenew_24px, R.string.tts_analysis_only_new,
                         if (settings.onlyNewPerson) R.string.tts_analysis_only_new_on else R.string.tts_analysis_only_new_off,
@@ -319,21 +293,50 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         settings.maxAutoCheckedPerson, 0f..100f,
                         onChange = { count -> onUpdate { it.copy(maxAutoCheckedPerson = count) } })
                 }
-            }
-            state.settings?.let { settings ->
+                item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
                 item {
-                    SpeechTextEntry(R.drawable.male_24px, R.string.tts_name_male_rule, R.string.tts_name_male_rule_description,
-                        Modifier.clickable { text = settings.maleNameRegex; editingMaleRule = true })
+                    var limit by remember(state.maxCacheVoiceNum) { mutableFloatStateOf(state.maxCacheVoiceNum.coerceIn(3, 300).toFloat()) }
+                    val title = stringResource(R.string.tts_pool_cache_limit)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+                        Icon(painterResource(R.drawable.tts_text_cache_voice), null, Modifier.padding(top = 2.dp).size(24.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                            Text(title, style = MaterialTheme.typography.headlineSmall)
+                            Text(limit.roundToInt().toString(), Modifier.padding(top = 3.dp), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Slider(limit, { limit = it }, valueRange = 3f..300f,
+                                onValueChangeFinished = { onCacheLimit(limit.roundToInt()) },
+                                modifier = Modifier.semantics { contentDescription = title },
+                                thumb = { Surface(Modifier.size(16.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {} },
+                                track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
+                                    trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
+                        }
+                    }
                 }
                 item {
-                    SpeechTextEntry(R.drawable.female_24px, R.string.tts_name_female_rule, R.string.tts_name_female_rule_description,
-                        Modifier.clickable { text = settings.femaleNameRegex; editingMaleRule = false })
+                    SpeechTextSlider(R.drawable.tts_text_cache_voice, R.string.tts_engine_cache_capacity,
+                        state.engineCacheCapacity, 3f..32f, onChange = onEngineCacheCapacity)
                 }
-            }
-            item {
-                SettingsClickableEntry(title = stringResource(R.string.tts_voice_audition_text),
-                    option = preferences.auditionText.ifBlank { defaultText },
-                    onClick = { text = preferences.auditionText.ifBlank { defaultText }; editing = true })
+                item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+                item { SpeechTextSwitch(R.drawable.music_note_24px, R.string.tts_background_music, R.string.tts_music_description,
+                    state.backgroundMusicEnabled, onBackgroundMusic) }
+                item { SpeechTextEntry(R.drawable.pause_24px, R.string.tts_paragraph_pause, R.string.tts_paragraph_pause_description,
+                    Modifier.clickable { pauseText = settings.paragraphPauseMs.toString(); editingPause = true }) {
+                    Text(if (settings.paragraphPauseMs == 0) stringResource(R.string.tts_pause_disabled)
+                        else stringResource(R.string.tts_pause_duration, settings.paragraphPauseMs),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                } }
+                item { SpeechTextSwitch(R.drawable.tts_text_dialogue, R.string.tts_text_dialogue, R.string.tts_text_dialogue_description,
+                    settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
+                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_detect_language, R.string.tts_detect_language_description,
+                    settings.detectLanguage) { onUpdate { old -> old.copy(detectLanguage = it) } } }
+                item {
+                    val algorithms = remember { object : MenuOptions(Option("300", R.string.tts_language_optimaize),
+                        Option("301", R.string.tts_language_media_pipe)) {} }
+                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_language_detector, algorithms,
+                        selectedOptionKey = settings.languageDetector.toString(),
+                        onOptionChange = { key -> onUpdate { it.copy(languageDetector = key.toInt()) } })
+                }
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_show_parameters),
