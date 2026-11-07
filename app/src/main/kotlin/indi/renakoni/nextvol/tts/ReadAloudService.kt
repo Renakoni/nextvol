@@ -160,8 +160,9 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            combine(music.changes, settings.schemes, speech.state.map { it.request?.bookId }.distinctUntilChanged()) { library, schemes, bookId ->
-                library.forScheme(schemes.forBook(bookId).backgroundMusic)
+            combine(music.changes, settings.schemes, speech.state.map { it.request }.distinctUntilChanged()) { library, schemes, request ->
+                // Auditions carry their selected scheme in the request rather than a book binding.
+                library.forScheme(request?.previewSettings?.backgroundMusic ?: schemes.forBook(request?.bookId).backgroundMusic)
             }.distinctUntilChanged().collect { settings ->
                 if (backgroundMusic == null && settings.enabled && settings.tracks.any { it.selected }) {
                     backgroundMusic = BackgroundMusicPlayback(ExoPlayer.Builder(this@ReadAloudService)
