@@ -197,20 +197,14 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         origins: List<String>, updatedParameters: String?) = changeStore { store ->
         if (store.engines.find { it.code == expectedEngine.code } != expectedEngine) return@changeStore store
         val engine = expectedEngine.copy(parameters = updatedParameters ?: expectedEngine.parameters)
-        // Q6.c.a0 replaces the refreshed speaker group only when the directory is nonempty.
-        val sources = if (definitions.isEmpty()) store.sources else {
-            val (previous, retained) = store.sources.partition {
-                ((it.speakerData()["group"] as? JsonPrimitive)?.contentOrNull ?: it.importedEngineCode) == engine.code
-            }
-            retained + definitions.map { definition ->
-                val incoming = SavedHttpSpeechSource(definition, origins).withHttpEngine(engine)
-                val saved = previous.find { it.definition.id == incoming.definition.id ||
-                    incoming.packageIdentity() != null && it.packageIdentity() == incoming.packageIdentity() }
-                if (saved == null) incoming else incoming.copy(
-                    definition = previewHttpSpeech(JsonObject(incoming.definition.raw +
-                        ("id" to JsonPrimitive(saved.definition.id))).toString()).sources.single(),
-                    origins = saved.origins)
-            }
+        val sources = store.sources.toMutableList()
+        definitions.forEach { definition ->
+            val incoming = SavedHttpSpeechSource(definition, origins).withHttpEngine(engine)
+            val index = sources.indexOfFirst { it.definition.id == incoming.definition.id ||
+                incoming.packageIdentity() != null && it.packageIdentity() == incoming.packageIdentity() }
+            val previous = sources.getOrNull(index)
+            val merged = mergeHttpVoice(previous, incoming.copy(origins = previous?.origins ?: origins))
+            if (index < 0) sources += merged else sources[index] = merged
         }
         store.copy(sources = sources.map { if (it.importedEngineCode == engine.code) it.withHttpEngine(engine) else it },
             engines = store.engines.map { if (it.code == engine.code) engine else it })

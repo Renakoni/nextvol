@@ -50,11 +50,16 @@ class SpeechLanguageRoutingTest {
         assertEquals(13 to text.length, groups.last().first.range())
     }
 
-    @Test fun detectionCandidatesFollowTheSystemLocale() {
+    @Test fun candidatesAndVoiceFilterFollowTheSystemLocale() {
         assertEquals(setOf("en", "zh-CN"), optimaizeLanguageCandidates(setOf("unsupported"), Locale.US))
         assertEquals(setOf("ja", "zh-TW"), optimaizeLanguageCandidates(setOf("ja"), Locale.TAIWAN))
         val mediaPipe = mediaPipeLanguageCandidates(setOf("en", "ja"), Locale.CHINA)
         assertTrue(mediaPipe.containsAll(listOf("en", "ja", "zh", "ru-Latn", "zh-Latn")))
+        assertTrue(speechVoiceLanguageMatches("en-GB", Locale.CHINA))
+        assertTrue(speechVoiceLanguageMatches("zh-TW", Locale.CHINA))
+        assertTrue(speechVoiceLanguageMatches("fr-CA", Locale.CANADA))
+        assertTrue(speechVoiceLanguageMatches("", Locale.CHINA))
+        assertFalse(speechVoiceLanguageMatches("ja-JP", Locale.CHINA))
     }
 
     private fun Char.isAsciiLetter() = this in 'A'..'Z' || this in 'a'..'z'

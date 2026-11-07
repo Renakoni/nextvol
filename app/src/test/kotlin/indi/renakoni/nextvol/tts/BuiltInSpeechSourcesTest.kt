@@ -32,39 +32,6 @@ class BuiltInSpeechSourcesTest {
     private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline,
         OfflineEngineRepository(context, StorageCipher.Plain))
 
-    @Test fun catalogRefreshReplacesOnlyItsGroupAndKeepsAnEmptyResultUnchanged() = runBlocking {
-        val repository = repository()
-        val engine = SpeechEngineConfig("azure", "Azure", parameters = "{\"region\":\"eastus\"}")
-        val draft = newHttpVoice(engine)
-        fun voice(code: String, locale: String, group: String? = null) = editHttpVoice(draft, buildJsonObject {
-            put("code", code); put("name", code); put("locale", locale)
-            if (group != null) put("group", group)
-        }, true, true).copy(isVoiceCopy = false, speakerDefaults = null)
-        val chinese = voice("zh-CN-XiaoxiaoNeural", "zh-CN", "azure")
-        val japanese = voice("ja-JP-NanamiNeural", "ja-JP")
-        val otherGroup = voice("fr-FR-DeniseNeural", "fr-FR", "custom")
-        val copy = editHttpVoice(chinese, buildJsonObject { put("name", "Copy") }, true, true)
-        repository.saveEngine(engine, creating = true)
-        repository.save(listOf(chinese, japanese, otherGroup, copy))
-        repository.saveVoice(editHttpVoice(chinese, buildJsonObject { put("name", "Edited") }, true, false))
-        val ticket = authority.issue(japanese.definition.id, "http-tts", japanese.definition.revision, "speech")
-        val catalog = listOf(chinese, japanese).map { source ->
-            previewHttpSpeech(JsonObject(source.definition.raw - "id").toString()).sources.single()
-        }
-        val filtered = filterSpeechCatalogLanguages(catalog, engine.code, true, java.util.Locale.CHINA)
-        repository.saveCatalog(engine, filtered, emptyList(), null)
-        val saved = repository().sources().filterNot { it.isBuiltIn }
-        assertEquals(setOf(chinese.definition.id, otherGroup.definition.id), saved.map { it.definition.id }.toSet())
-        assertEquals(chinese.definition.name, saved.single { it.definition.id == chinese.definition.id }.definition.name)
-        assertFalse(authority.accepts(ticket))
-
-        repository.saveCatalog(engine, emptyList(), emptyList(), null)
-        assertEquals(saved.map { it.definition.raw }, repository().sources().filterNot { it.isBuiltIn }.map { it.definition.raw })
-        repository.saveCatalog(engine, filterSpeechCatalogLanguages(catalog, engine.code, false), emptyList(), null)
-        assertEquals(setOf(chinese.definition.name, japanese.definition.name, otherGroup.definition.name),
-            repository().sources().filterNot { it.isBuiltIn }.map { it.definition.name }.toSet())
-    }
-
     @Test fun catalogTicketsRespectEngineEditsAndRetirementWithAndWithoutSavedVoices() = runBlocking {
         val repository = repository()
         val engine = SpeechEngineConfig("azure", "Azure", parameters = "{\"region\":\"eastus\"}")

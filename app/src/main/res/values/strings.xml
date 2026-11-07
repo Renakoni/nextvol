@@ -695,9 +695,8 @@
     <string name="tts_language_detector">Language detection algorithm</string>
     <string name="tts_language_optimaize">Optimaize</string>
     <string name="tts_language_media_pipe">Media Pipe</string>
-    <string name="tts_filter_language">Filter Language</string>
-    <string name="tts_filter_language_on">Enabled, will filter out speakers based on locale after update.</string>
-    <string name="tts_filter_language_off">Disabled, won\'t filter speakers after update.</string>
+    <string name="tts_filter_language">Filter language</string>
+    <string name="tts_filter_language_description">Show voices for the current language or region, plus English. Turn off to show all languages.</string>
     <string name="tts_role_mode_language">Language</string>
     <string name="tts_role_secondary_language">Alternative language</string>
     <string name="tts_role_language_required">Select a language supported by the current detector.</string>

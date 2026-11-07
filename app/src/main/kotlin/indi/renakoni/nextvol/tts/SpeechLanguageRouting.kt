@@ -52,3 +52,11 @@ internal class SpeechLanguageRouting(rules: List<SpeechRoleRule>, private val en
         return result
     }
 }
+
+/** Q6.a.e: same language, same country, or English; filtering never changes a saved reference. */
+internal fun speechVoiceLanguageMatches(tag: String, locale: Locale = Locale.getDefault()): Boolean {
+    if (tag.isBlank()) return true
+    val voice = Locale.forLanguageTag(tag.replace('_', '-'))
+    return voice.language == "en" || voice.language == locale.language ||
+        locale.country.isNotEmpty() && voice.country == locale.country
+}
