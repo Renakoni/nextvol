@@ -690,8 +690,6 @@
     <string name="tts_sample_rate_48000" translatable="false">48,000 Hz</string>
     <string name="tts_sample_rate_64000" translatable="false">64,000 Hz</string>
     <string name="tts_sample_rate_96000" translatable="false">96,000 Hz</string>
-    <string name="tts_detect_language">Detect language</string>
-    <string name="tts_detect_language_description">Route each text segment through enabled language rules.</string>
     <string name="tts_language_detector">Language detection algorithm</string>
     <string name="tts_language_optimaize">Optimaize</string>
     <string name="tts_language_media_pipe">Media Pipe</string>

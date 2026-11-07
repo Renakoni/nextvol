@@ -89,7 +89,7 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     val structured = replacements.apply(normalized, wholeText = true)
     trace?.text(R.string.tts_log_full_replacement, structured.text)
     val routing = SpeechVoiceRouting(synthesis, chapter.bookId, voices, context, maxInputLength)
-    val languageRouting = SpeechLanguageRouting(synthesis.roleRules, settings.detectLanguage, detectLanguage)
+    val languageRouting = SpeechLanguageRouting(synthesis.roleRules, detectLanguage)
     val roles = SpeechRoleRules(synthesis.roleRules, synthesis.roleContextPattern ?: "__ROLE__", replaceRegex, checkCancelled)
     suspend fun resolve(name: String, direction: SpeechContextDirection, key: String): SpeechPersonVoice? =
         if (characters != null) characters.resolve(name, direction, key, roles)

@@ -12,7 +12,7 @@ class SpeechLanguagePlanTest {
         regex = "lang:en", speaker = english)
     private val settings = SpeechSettings(voiceRoutingConfigured = true,
         narrationVoices = listOf(narrator), dialogueVoices = listOf(narrator), roleRules = listOf(languageRule),
-        text = SpeechTextSettings(dialogue = true, separateEnglish = false, detectLanguage = true, maxSentenceLength = 256))
+        text = SpeechTextSettings(dialogue = true, separateEnglish = false, maxSentenceLength = 256))
 
     @Test fun languageVoiceOverridesPersonRuleAndRetainsIdentityAndOriginalPositions() = runBlocking {
         val configured = settings.copy(roleRules = settings.roleRules + SpeechRoleRule(name = "甲", speaker = person),

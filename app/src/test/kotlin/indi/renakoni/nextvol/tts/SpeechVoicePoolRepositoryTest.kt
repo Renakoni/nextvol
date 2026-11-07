@@ -35,7 +35,7 @@ class SpeechVoicePoolRepositoryTest {
             japanesePair.copy(value = japanese, manual = true), automaticPair), saved)
 
         val settings = SpeechSettings(voiceRoutingConfigured = true, narrationVoices = listOf(fallback),
-            text = SpeechTextSettings(detectLanguage = true, separateEnglish = false), roleRules = listOf(
+            text = SpeechTextSettings(separateEnglish = false), roleRules = listOf(
                 SpeechRoleRule(name = "English", regex = "lang:en", mode = 1, isAbstract = true, speaker = fallback),
                 SpeechRoleRule(name = "日本語", regex = "lang:ja", mode = 1, isAbstract = true, speaker = fallback),
                 SpeechRoleRule(name = "Français", regex = "lang:fr", mode = 1, speaker = french)))
