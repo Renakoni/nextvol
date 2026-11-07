@@ -39,7 +39,7 @@ class BuiltInSpeechSourcesTest {
         fun voice(code: String, locale: String, group: String? = null) = editHttpVoice(draft, buildJsonObject {
             put("code", code); put("name", code); put("locale", locale)
             if (group != null) put("group", group)
-        }, true, true).copy(isVoiceCopy = false)
+        }, true, true).copy(isVoiceCopy = false, speakerDefaults = null)
         val chinese = voice("zh-CN-XiaoxiaoNeural", "zh-CN", "azure")
         val japanese = voice("ja-JP-NanamiNeural", "ja-JP")
         val otherGroup = voice("fr-FR-DeniseNeural", "fr-FR", "custom")
