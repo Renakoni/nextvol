@@ -8,7 +8,4 @@
     <string name="tts_engines_description">语音合成引擎</string>
     <string name="tts_diagnostics_description">听书日志</string>
     <string name="tts_schemes_description">管理与切换听书方案</string>
-    <string name="tts_speed_description">朗读的快慢</string>
-    <string name="tts_volume_description">声音的大小</string>
-    <string name="tts_pitch_description">声音的高低</string>
 </resources>

@@ -8,7 +8,4 @@
     <string name="tts_engines_description">Speech synthesis engines</string>
     <string name="tts_diagnostics_description">Listening logs</string>
     <string name="tts_schemes_description">Manage and switch listening schemes</string>
-    <string name="tts_speed_description">How fast the voice reads</string>
-    <string name="tts_volume_description">How loud the voice sounds</string>
-    <string name="tts_pitch_description">How high or low the voice sounds</string>
 </resources>
