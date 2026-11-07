@@ -335,8 +335,6 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         state.engineCacheCapacity, 3f..32f, onChange = onEngineCacheCapacity)
                 }
                 item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
-                item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_detect_language, R.string.tts_detect_language_description,
-                    settings.detectLanguage) { onUpdate { old -> old.copy(detectLanguage = it) } } }
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_show_parameters),

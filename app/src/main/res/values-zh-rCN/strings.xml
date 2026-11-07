@@ -653,8 +653,6 @@
     <string name="tts_audio_check_silence_off">已关闭，不跳过无声片段</string>
     <string name="tts_audio_check_silence_on">已启用，会跳过无声片段</string>
     <string name="tts_error_audio_processing">音频处理失败，请检查处理器和声音参数。</string>
-    <string name="tts_detect_language">检测语言</string>
-    <string name="tts_detect_language_description">按已启用的语言规则，为正文各段选择声音。</string>
     <string name="tts_language_detector">语言检测算法</string>
     <string name="tts_language_optimaize">Optimaize</string>
     <string name="tts_language_media_pipe">Media Pipe</string>

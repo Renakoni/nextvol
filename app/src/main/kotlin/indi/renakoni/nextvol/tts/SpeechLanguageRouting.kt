@@ -10,12 +10,12 @@ internal val SpeechRoleRule.isLanguageRule get() = activate && pattern.isNotEmpt
     (mode == 1 || mode != 0 && pattern.startsWith("lang:"))
 
 /** O6.d.f / O6.f.b: last enabled rule for a language wins; exact, Latin, then base-language lookup. */
-internal class SpeechLanguageRouting(rules: List<SpeechRoleRule>, private val enabled: Boolean,
+internal class SpeechLanguageRouting(rules: List<SpeechRoleRule>,
     private val detect: (suspend (String, Set<String>) -> String?)?) {
     private val languages = rules.filter { it.isLanguageRule }
         .associateBy { it.pattern.removePrefix("lang:").trim { c -> Character.isWhitespace(c) } }
 
-    val active get() = enabled && languages.isNotEmpty()
+    val active get() = languages.isNotEmpty()
 
     suspend fun route(text: String): SpeechLanguageMatch? {
         if (!active) return null

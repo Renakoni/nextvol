@@ -71,7 +71,6 @@ class SpeechConfigurationImportTest {
                 SpeechRoleRule(id = "c-keep", group = "g", name = "keep")),
             voiceItems = listOf(SpeechVoiceItem(SPEECH_POOL_MALE, oldVoice, "old", id = "v-old"),
                 SpeechVoiceItem(SPEECH_POOL_MALE, oldVoice, "keep", id = "v-keep")),
-            text = SpeechTextSettings(dialogue = false, detectLanguage = false),
         )
         assertEquals(3, imported.conflicts(current).size)
         val merged = imported.applyTo(current, replace = false)

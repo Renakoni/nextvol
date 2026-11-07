@@ -189,7 +189,7 @@ class ReadAloudService : MediaSessionService() {
                     if (speech.state.value.request?.bookId == selected.bookId && speech.state.value.request?.isPreview == false) {
                         speech.updateSettings(selected)
                     }
-                    if (!selected.text.detectLanguage || selected.roleRules.none { it.isLanguageRule }) languages.release()
+                    if (selected.roleRules.none { it.isLanguageRule }) languages.release()
                 }
         }
     }

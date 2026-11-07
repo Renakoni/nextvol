@@ -13,7 +13,7 @@ class SpeechLanguageRoutingTest {
         val rules = listOf(rule("en", "old"), rule("en", "english"),
             rule("en", "disabled").copy(activate = false), rule("zh"), rule("zh-TW"),
             rule("ja-Latn").copy(mode = 2), rule("de").copy(mode = 0))
-        val routing = SpeechLanguageRouting(rules, true) { text, candidates ->
+        val routing = SpeechLanguageRouting(rules) { text, candidates ->
             assertEquals(setOf("en", "zh", "zh-TW", "ja-Latn"), candidates)
             text
         }
@@ -31,13 +31,14 @@ class SpeechLanguageRoutingTest {
 
     @Test fun disabledAndEmptyRulesSkipDetection() = runBlocking {
         val mustNotDetect: suspend (String, Set<String>) -> String? = { _, _ -> error("Detector must stay unloaded") }
-        assertNull(SpeechLanguageRouting(listOf(rule("en")), false, mustNotDetect).route("Hello"))
-        assertNull(SpeechLanguageRouting(emptyList(), true, mustNotDetect).route("Hello"))
+        assertNull(SpeechLanguageRouting(listOf(rule("en").copy(activate = false), rule("zh").copy(mode = 0)),
+            mustNotDetect).route("Hello"))
+        assertNull(SpeechLanguageRouting(emptyList(), mustNotDetect).route("Hello"))
     }
 
     @Test fun detectionUnitsCoalesceWithoutLosingPunctuationOrOriginalOffsets() = runBlocking {
         val calls = mutableListOf<String>()
-        val routing = SpeechLanguageRouting(listOf(rule("en"), rule("zh-CN")), true) { text, _ ->
+        val routing = SpeechLanguageRouting(listOf(rule("en"), rule("zh-CN"))) { text, _ ->
             calls += text
             if (text.first().isAsciiLetter()) "en" else "zh-CN"
         }
