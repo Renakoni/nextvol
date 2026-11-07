@@ -24,7 +24,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -36,7 +35,6 @@ import indi.renakoni.nextvol.tts.SpeechAction
 import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.speakerData
 import indi.renakoni.nextvol.tts.searchVoice
-import indi.renakoni.nextvol.tts.speechVoiceLanguageMatches
 import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.voiceSelection
@@ -187,19 +185,18 @@ internal fun HttpSpeechSourcesScreen(
         if (catalogReady && currentGroup == "system") onSystemGroup()
     }
     val searchQuery = query.trim()
-    val locale = LocalConfiguration.current.locales[0]
-    val filteredSources = remember(state.sources, selection, searchQuery, locale) {
+    val filteredSources = remember(state.sources, selection, searchQuery) {
         val search = hnovel.speech.SpeechVoiceSearch(searchQuery)
         state.sources.filter {
             val voice = it.searchVoice(selection.voiceSelection(SpeechVoiceRef(httpSource = it.definition.id)) != null)
-            (!selection.text.filterLanguage || speechVoiceLanguageMatches(voice.locale, locale)) && search.matches(voice)
+            search.matches(voice)
         }
     }
-    val filteredOffline = remember(offlineVoices, selection, searchQuery, locale) {
+    val filteredOffline = remember(offlineVoices, selection, searchQuery) {
         val search = hnovel.speech.SpeechVoiceSearch(searchQuery)
         offlineVoices.filter {
             val voice = it.searchVoice(selection.voiceSelection(SpeechVoiceRef(offlineVoice = it.reference)) != null)
-            (!selection.text.filterLanguage || speechVoiceLanguageMatches(voice.locale, locale)) && search.matches(voice)
+            search.matches(voice)
         }
     }
     val currentHttp = filteredSources.filter { "http:${groupId(it)}" == currentGroup }

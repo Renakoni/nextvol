@@ -19,6 +19,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
@@ -65,6 +66,37 @@ class BuiltInSpeechSourcesTest {
         repository.saveEngine(deleted)
         assertFalse(authority.accepts(reopened))
         assertNull(repository.withCatalogSource(deleted) { _, _ -> fail("Deleted engine issued a catalog ticket") })
+    }
+
+    @Test fun catalogLanguageFilterOnlyChangesIncomingVoicesAndKeepsSavedEditsAndReferences() = runBlocking {
+        val repository = repository()
+        val engine = SpeechEngineConfig("azure", "Azure", parameters = "{\"region\":\"eastus\"}")
+        repository.saveEngine(engine, creating = true)
+        fun voice(code: String, locale: String) = editHttpVoice(newHttpVoice(engine), buildJsonObject {
+            put("code", code); put("name", code); put("locale", locale)
+        }, true, false).copy(isVoiceCopy = false, speakerDefaults = null)
+        val japanese = voice("japanese", "ja-JP")
+        val chinese = voice("chinese", "zh-CN")
+        val english = voice("english", "en-US")
+        val french = voice("french", "fr-FR")
+        repository.save(listOf(japanese, chinese))
+        val selected = repository.sources().single { it.definition.id == chinese.definition.id }
+        repository.saveVoice(editHttpVoice(selected, buildJsonObject { put("name", "My voice") }, true, false))
+        val copy = editHttpVoice(japanese, buildJsonObject { put("name", "My copy") }, true, true)
+        repository.saveVoice(copy)
+        val incoming = listOf(chinese, english, french).map { it.definition }
+        val filtered = filterSpeechCatalog(engine.code, incoming, true, Locale.CHINA)
+        assertEquals(listOf(chinese.definition, english.definition), filtered)
+        assertSame(incoming, filterSpeechCatalog("vivo", incoming, true, Locale.CHINA))
+        assertEquals(incoming, filterSpeechCatalog(engine.code, incoming, true, Locale("zh")))
+        repository.saveCatalog(engine, filtered, emptyList(), null)
+        val refreshed = repository().sources().filterNot { it.isBuiltIn }.associateBy { it.definition.id }
+        assertEquals(setOf(japanese.definition.id, chinese.definition.id, english.definition.id, copy.definition.id), refreshed.keys)
+        assertEquals("My voice", refreshed.getValue(chinese.definition.id).definition.name)
+        assertEquals(japanese.definition.raw, refreshed.getValue(japanese.definition.id).definition.raw)
+        assertEquals(copy.definition.raw, refreshed.getValue(copy.definition.id).definition.raw)
+        repository.saveCatalog(engine, filterSpeechCatalog(engine.code, incoming, false, Locale.CHINA), emptyList(), null)
+        assertTrue(repository().sources().any { it.definition.id == french.definition.id })
     }
 
     @Test fun translatorVoicesSurviveEditingReimportReopenAndEngineRevocation() = runBlocking {

@@ -36,9 +36,7 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
 
     init {
         viewModelScope.launch { settings.changes.collect { value ->
-            val filterChanged = !state.value.loading && state.value.settings.text.filterLanguage != value.text.filterLanguage
             mutableState.update { it.copy(settings = value, loading = false) }
-            if (filterChanged) refreshCatalog()
         } }
         viewModelScope.launch { combine(repository.changes, settings.changes) { pairs, selected ->
             pairs.filter { it.schemeId == selected.schemeId && (settings.bookId == null || it.bookId == settings.bookId) }
@@ -56,7 +54,7 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
 
     internal fun editItem(item: SpeechVoiceItem? = null) = open(SpeechVoicePoolDraft(
         id = item?.id, group = item?.group ?: SPEECH_POOL_MALE, voice = item?.value
-            ?: state.value.engines.firstOrNull()?.candidates?.firstOrNull()))
+            ?: state.value.engines.firstOrNull()?.voices?.firstOrNull()))
 
     internal fun editPair(pair: SpeechVoicePair) = open(SpeechVoicePoolDraft(
         pair = pair, group = pair.group, person = pair.person, voice = pair.value))
@@ -81,7 +79,7 @@ class SpeechVoicePoolViewModel @Inject constructor(private val settings: SpeechS
         val engine = state.value.engines.find { it.key == key } ?: return
         mutableState.update { state -> state.copy(engineKey = key, draft = state.draft?.let { draft ->
             draft.copy(voice = draft.voice?.takeIf { voice -> engine.voices.any { it.canonicalKey == voice.canonicalKey } }
-                ?: engine.candidates.firstOrNull())
+                ?: engine.voices.firstOrNull())
         }, error = null) }
     }
 
