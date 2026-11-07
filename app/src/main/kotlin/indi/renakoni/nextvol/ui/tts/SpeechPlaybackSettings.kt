@@ -178,9 +178,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 Text(stringResource(error.messageResource), Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
                     color = MaterialTheme.colorScheme.error)
             } }
-            state.settings?.let { settings ->
-                item { SpeechTextSwitch(R.drawable.tts_text_dialogue, R.string.tts_text_dialogue, R.string.tts_text_dialogue_description,
-                    settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
+            if (state.settings != null) {
                 item { SpeechTextSwitch(R.drawable.tts_text_multiple_voices, R.string.tts_voice_multiple,
                     if (state.allowMultipleVoices) R.string.tts_voice_multiple_on else R.string.tts_voice_multiple_off,
                     state.allowMultipleVoices, onMultipleVoices) }
@@ -213,13 +211,6 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         onOptionChange = { key -> onUpdate { it.copy(nameDiscoveryAlgorithm = key.toInt()) } })
                 }
                 item {
-                    val algorithms = remember { object : MenuOptions(Option("300", R.string.tts_language_optimaize),
-                        Option("301", R.string.tts_language_media_pipe)) {} }
-                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_language_detector, algorithms,
-                        selectedOptionKey = settings.languageDetector.toString(),
-                        onOptionChange = { key -> onUpdate { it.copy(languageDetector = key.toInt()) } })
-                }
-                item {
                     SpeechTextEntry(R.drawable.female_24px, R.string.tts_name_female_rule, R.string.tts_name_female_rule_description,
                         Modifier.clickable { text = settings.femaleNameRegex; editingMaleRule = false })
                 }
@@ -249,17 +240,9 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         onChange = { length -> onUpdate { it.copy(maxSentenceLength = length) } })
                 }
                 item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
-                item { SpeechTextEntry(R.drawable.pause_24px, R.string.tts_paragraph_pause, R.string.tts_paragraph_pause_description,
-                    Modifier.clickable { pauseText = settings.paragraphPauseMs.toString(); editingPause = true }) {
-                    Text(if (settings.paragraphPauseMs == 0) stringResource(R.string.tts_pause_disabled)
-                        else stringResource(R.string.tts_pause_duration, settings.paragraphPauseMs),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                } }
                 item { SpeechTextSwitch(R.drawable.tts_audio_silence, R.string.tts_audio_check_silence,
                     if (state.audio.checkSilence) R.string.tts_audio_check_silence_on else R.string.tts_audio_check_silence_off,
                     state.audio.checkSilence) { onAudioSettings(state.audio.copy(checkSilence = it)) } }
-                item { SpeechTextSwitch(R.drawable.music_note_24px, R.string.tts_background_music, R.string.tts_music_description,
-                    state.backgroundMusicEnabled, onBackgroundMusic) }
                 item { SpeechTextSwitch(R.drawable.tts_decode_stream, R.string.tts_decode_stream,
                     if (state.audio.decodeStream) R.string.tts_decode_stream_on else R.string.tts_decode_stream_off,
                     state.audio.decodeStream) { onAudioSettings(state.audio.copy(decodeStream = it)) } }
@@ -335,8 +318,25 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                         state.engineCacheCapacity, 3f..32f, onChange = onEngineCacheCapacity)
                 }
                 item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+                item { SpeechTextSwitch(R.drawable.music_note_24px, R.string.tts_background_music, R.string.tts_music_description,
+                    state.backgroundMusicEnabled, onBackgroundMusic) }
+                item { SpeechTextEntry(R.drawable.pause_24px, R.string.tts_paragraph_pause, R.string.tts_paragraph_pause_description,
+                    Modifier.clickable { pauseText = settings.paragraphPauseMs.toString(); editingPause = true }) {
+                    Text(if (settings.paragraphPauseMs == 0) stringResource(R.string.tts_pause_disabled)
+                        else stringResource(R.string.tts_pause_duration, settings.paragraphPauseMs),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                } }
+                item { SpeechTextSwitch(R.drawable.tts_text_dialogue, R.string.tts_text_dialogue, R.string.tts_text_dialogue_description,
+                    settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
                 item { SpeechTextSwitch(R.drawable.language_24px, R.string.tts_detect_language, R.string.tts_detect_language_description,
                     settings.detectLanguage) { onUpdate { old -> old.copy(detectLanguage = it) } } }
+                item {
+                    val algorithms = remember { object : MenuOptions(Option("300", R.string.tts_language_optimaize),
+                        Option("301", R.string.tts_language_media_pipe)) {} }
+                    SpeechTextMenu(R.drawable.tts_text_algorithm, R.string.tts_language_detector, algorithms,
+                        selectedOptionKey = settings.languageDetector.toString(),
+                        onOptionChange = { key -> onUpdate { it.copy(languageDetector = key.toInt()) } })
+                }
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_show_parameters),
