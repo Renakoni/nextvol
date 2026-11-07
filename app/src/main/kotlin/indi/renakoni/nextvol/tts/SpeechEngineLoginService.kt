@@ -16,7 +16,6 @@ class SpeechEngineLoginService @Inject constructor(
     @ApplicationContext private val context: Context,
     private val browser: AndroidSourceBrowser,
     private val cipher: StorageCipher,
-    private val network: SpeechNetworkCheck,
 ) {
     suspend fun login(engine: SpeechEngineConfig): SpeechEngineConfig = withContext(Dispatchers.IO) {
         val login = requireNotNull(speechEngineLogin(engine.parameters))
@@ -24,7 +23,6 @@ class SpeechEngineLoginService @Inject constructor(
         val keys = login.mapping.keys.filter { it.startsWith("localStorage.") }.map { it.removePrefix("localStorage.") }
         val script = "(function(){var storage={};${JsonArray(keys.map(::JsonPrimitive))}" +
             ".forEach(function(key){storage[key]=localStorage.getItem(key);});return JSON.stringify(storage);})()"
-        network.check()
         SourceBroker(File(context.noBackupFilesDir, "speech-engine-login").toPath(), cipher = cipher, browser = browser).use { owner ->
             val session = owner.open(SourceScope("speech", engine.code, "engine-login"), listOf(NetworkGrant(origin)))
             session.configureSource(origin, cookiesEnabled = true)

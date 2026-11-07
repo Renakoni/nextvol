@@ -21,8 +21,8 @@
     <string name="tts_voice_delete_confirm">删除 %1$d 个音源？</string>
     <string name="tts_voice_copy_suffix">%1$s（副本）</string>
     <string name="tts_playback_preferences">播放设置</string>
-    <string name="tts_voice_show_parameters">显示参数编辑</string>
-    <string name="tts_voice_show_extensions">显示扩展定义编辑</string>
+    <string name="tts_voice_hide_parameters">隐藏参数编辑框</string>
+    <string name="tts_voice_hide_extensions">隐藏拓展UI编辑框</string>
     <string name="tts_voice_speed">语速</string>
     <string name="tts_voice_female">女</string>
     <string name="tts_voice_male">男</string>

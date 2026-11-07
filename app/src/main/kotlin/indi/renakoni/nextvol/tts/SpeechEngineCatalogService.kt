@@ -20,14 +20,12 @@ class SpeechEngineCatalogService @Inject constructor(
     private val cipher: StorageCipher,
     private val authority: ExecutionAuthority,
     private val runner: RuleTaskRunner,
-    private val network: SpeechNetworkCheck,
 ) {
     suspend fun refresh(): SpeechError? = withContext(Dispatchers.IO) {
         val engines = repository.engines().filter {
             it.type == "inner" && it.enabled && !it.deleted && supportsSpeechVoiceCatalog(it.code)
         }
         if (engines.isEmpty()) return@withContext null
-        try { network.check() } catch (failure: SpeechException) { return@withContext failure.error }
         val sources = repository.sources()
         var error: SpeechError? = null
         for (engine in engines) {

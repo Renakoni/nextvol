@@ -101,13 +101,14 @@ internal fun OfflineVoiceEditorScreen(
                                 onEdit(draft.copy(extensions = updateSpeechExtension(draft.extensions, control.code, value)))
                             }
                         }
-                        if (parametersSupported && (showParameters || newVoice)) {
+                        val emptyCode = newVoice || voice.configuration?.code.isNullOrEmpty()
+                        if (parametersSupported && (showParameters || emptyCode)) {
                             item { OutlinedTextField(draft.parameters, { onEdit(draft.copy(parameters = it)) }, Modifier.fillMaxWidth(),
                                 enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 8, label = { Text(stringResource(R.string.tts_voice_parameters)) }) }
                         }
                         item { OutlinedTextField(draft.note, { onEdit(draft.copy(note = it)) }, Modifier.fillMaxWidth(),
                             enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 4, label = { Text(stringResource(R.string.tts_engine_note)) }) }
-                        if (parametersSupported && (showExtensions || newVoice)) item {
+                        if (parametersSupported && (showExtensions || emptyCode)) item {
                             OutlinedTextField(draft.extensions, { onEdit(draft.copy(extensions = it)) }, Modifier.fillMaxWidth(),
                                 enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 8,
                                 label = { Text(stringResource(R.string.tts_voice_extensions)) }, isError = controls == null)

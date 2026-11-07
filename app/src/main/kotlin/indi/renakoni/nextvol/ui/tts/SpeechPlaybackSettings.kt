@@ -337,13 +337,13 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
             }
             item {
-                SettingsClickableEntry(title = stringResource(R.string.tts_voice_show_parameters),
-                    trailingContent = { PlaybackSwitch(preferences.showParameters, preferences.parametersData::asynchronousSet) },
+                SettingsClickableEntry(title = stringResource(R.string.tts_voice_hide_parameters),
+                    trailingContent = { PlaybackSwitch(!preferences.showParameters) { preferences.parametersData.asynchronousSet(!it) } },
                     onClick = { preferences.parametersData.asynchronousSet(!preferences.showParameters) })
             }
             item {
-                SettingsClickableEntry(title = stringResource(R.string.tts_voice_show_extensions),
-                    trailingContent = { PlaybackSwitch(preferences.showExtensions, preferences.extensionsData::asynchronousSet) },
+                SettingsClickableEntry(title = stringResource(R.string.tts_voice_hide_extensions),
+                    trailingContent = { PlaybackSwitch(!preferences.showExtensions) { preferences.extensionsData.asynchronousSet(!it) } },
                     onClick = { preferences.extensionsData.asynchronousSet(!preferences.showExtensions) })
             }
             item {
