@@ -21,8 +21,8 @@
     <string name="tts_voice_delete_confirm">Delete %1$d voice(s)?</string>
     <string name="tts_voice_copy_suffix">%1$s (copy)</string>
     <string name="tts_playback_preferences">Playback settings</string>
-    <string name="tts_voice_show_parameters">Show parameter editor</string>
-    <string name="tts_voice_show_extensions">Show extension definition editor</string>
+    <string name="tts_voice_hide_parameters">Hide parameter edit box</string>
+    <string name="tts_voice_hide_extensions">Hide extended UI edit box</string>
     <string name="tts_voice_speed">Speed</string>
     <string name="tts_voice_female">Female</string>
     <string name="tts_voice_male">Male</string>

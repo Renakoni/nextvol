@@ -20,8 +20,6 @@ class SpeechEngineLoginServiceTest {
     @Test fun loginReadsCookiesForTheCompletedPage() = runBlocking {
         val context = mockk<Context>()
         every { context.noBackupFilesDir } returns temporary.root
-        val network = mockk<SpeechNetworkCheck>()
-        coEvery { network.check() } returns Unit
         val browser = mockk<AndroidSourceBrowser>()
         val finalUrl = "https://source.invalid/account/home"
         coEvery { browser.execute(any(), any(), any(), any(), any()) } coAnswers {
@@ -32,7 +30,7 @@ class SpeechEngineLoginServiceTest {
         val engine = SpeechEngineConfig("login", "Login", parameters =
             """{"webView":{"loginUrl":"https://source.invalid/login","mapping":{"cookies.sid":"token"}}}""")
 
-        val result = SpeechEngineLoginService(context, browser, StorageCipher.Plain, network).login(engine)
+        val result = SpeechEngineLoginService(context, browser, StorageCipher.Plain).login(engine)
 
         assertEquals("current", Json.parseToJsonElement(result.parameters).jsonObject.getValue("token").jsonPrimitive.content)
     }
