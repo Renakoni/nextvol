@@ -160,8 +160,12 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            combine(music.changes, settings.schemes, speech.state.map { it.request?.bookId }.distinctUntilChanged()) { library, schemes, bookId ->
-                library.forScheme(schemes.forBook(bookId).backgroundMusic)
+            combine(music.changes, settings.schemes, speech.state.map { it.request }.distinctUntilChanged()) { library, schemes, request ->
+                // Follow live music edits in the audition's scheme; a deleted scheme retains its snapshot.
+                val selected = request?.previewSettings?.let { preview ->
+                    schemes.items.find { it.id == preview.schemeId }?.settings?.backgroundMusic ?: preview.backgroundMusic
+                } ?: schemes.forBook(request?.bookId).backgroundMusic
+                library.forScheme(selected)
             }.distinctUntilChanged().collect { settings ->
                 if (backgroundMusic == null && settings.enabled && settings.tracks.any { it.selected }) {
                     backgroundMusic = BackgroundMusicPlayback(ExoPlayer.Builder(this@ReadAloudService)
