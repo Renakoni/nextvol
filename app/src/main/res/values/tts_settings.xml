@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_preferences_description">Speed, volume and pitch</string>
+    <string name="tts_playback_preferences_description">Text processing and playback behavior</string>
+    <string name="tts_replacements_description">Text substitutions before reading</string>
+    <string name="tts_roles_description">Match characters to voices</string>
+    <string name="tts_pool_description">Voices available for character assignment</string>
+    <string name="tts_engines_description">Speech synthesis engines</string>
+    <string name="tts_diagnostics_description">Listening logs</string>
+    <string name="tts_schemes_description">Manage and switch listening schemes</string>
+    <string name="tts_speed_description">How fast the voice reads</string>
+    <string name="tts_volume_description">How loud the voice sounds</string>
+    <string name="tts_pitch_description">How high or low the voice sounds</string>
+</resources>

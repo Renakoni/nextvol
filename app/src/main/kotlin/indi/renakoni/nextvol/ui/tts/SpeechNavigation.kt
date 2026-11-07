@@ -65,7 +65,7 @@ data class OfflineVoiceEditorRoute(val id: String = "", val copy: Boolean = fals
 data class HttpVoiceEditorRoute(val id: String = "", val copy: Boolean = false, val engineCode: String? = null)
 
 @Serializable
-data class SpeechPreferencesRoute(val schemeId: String? = null)
+data class SpeechPreferencesRoute(val schemeId: String? = null, val bookId: String? = null, val followBook: Boolean = false)
 
 @Serializable
 data class SpeechPlaybackSettingsRoute(val bookId: String? = null, val schemeId: String? = null)
@@ -139,11 +139,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
             schemeTitle = scheme?.label().takeIf { route.schemeId != null },
             schemeUsage = scheme?.let { schemes.usage(it.id) }.takeIf { route.schemeId != null },
-            schemeSummary = scheme?.let { if (bookId != null && schemes.schemes.bindings[bookId] == null)
-                stringResource(R.string.tts_scheme_follow_name, it.label()) else it.label() },
-            onSchemes = { nav.navigate(SpeechSchemesRoute(bookId)) { launchSingleTop = true } }.takeIf { route.schemeId == null },
             onSources = { nav.navigate(HttpSpeechSourcesRoute(schemeId = state.settings.schemeId)) { launchSingleTop = true } },
-            onPreferences = { nav.navigate(SpeechPreferencesRoute(state.settings.schemeId)) { launchSingleTop = true } },
+            onPreferences = { nav.navigate(SpeechPreferencesRoute(route.schemeId, bookId, route.followBook)) { launchSingleTop = true } },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute(bookId, state.settings.schemeId)) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } }.takeIf { route.schemeId == null },
             onReplacements = { nav.navigate(SpeechReplacementsRoute(state.settings.schemeId)) { launchSingleTop = true } },
@@ -274,14 +271,21 @@ fun NavGraphBuilder.speechSettingsDestination() {
                 onOpenStorage = { nav.navigate(Route.StorageManager) })
         }
     }
-    composable<SpeechPreferencesRoute> {
+    composable<SpeechPreferencesRoute> { entry ->
         SpeechSchemeScope {
             HideReadAloudOverlay()
             val nav = LocalNavController.current
+            val route = entry.toRoute<SpeechPreferencesRoute>()
+            val schemesModel = hiltViewModel<SpeechSchemesViewModel>()
+            val schemes by schemesModel.state.collectAsStateWithLifecycle()
             val viewModel = hiltViewModel<SpeechSettingsViewModel>()
             val state by viewModel.state.collectAsStateWithLifecycle()
+            val scheme = schemes.schemes.items.find { it.id == (route.schemeId ?: schemes.schemes.effectiveId(route.bookId)) }
             SpeechPreferencesScreen(state, nav::popBackStackIfResumed,
-                viewModel::setRate, viewModel::setVolume, viewModel::setPitch)
+                viewModel::setRate, viewModel::setVolume, viewModel::setPitch,
+                onSchemes = { nav.navigate(SpeechSchemesRoute(route.bookId)) { launchSingleTop = true } }.takeIf { route.schemeId == null },
+                schemeSummary = scheme?.let { if (route.bookId != null && schemes.schemes.bindings[route.bookId] == null)
+                    stringResource(R.string.tts_scheme_follow_name, it.label()) else it.label() })
         }
     }
     composable<SpeechEnginesRoute> {

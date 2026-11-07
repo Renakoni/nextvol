@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_preferences_description">語速、音量與音調</string>
+    <string name="tts_playback_preferences_description">文字處理與播放行為</string>
+    <string name="tts_replacements_description">朗讀前的文字替換</string>
+    <string name="tts_roles_description">角色與聲音配對</string>
+    <string name="tts_pool_description">角色可分配的聲音</string>
+    <string name="tts_engines_description">語音合成引擎</string>
+    <string name="tts_diagnostics_description">聽書日誌</string>
+    <string name="tts_schemes_description">管理與切換聽書方案</string>
+    <string name="tts_speed_description">朗讀的快慢</string>
+    <string name="tts_volume_description">聲音的大小</string>
+    <string name="tts_pitch_description">聲音的高低</string>
+</resources>

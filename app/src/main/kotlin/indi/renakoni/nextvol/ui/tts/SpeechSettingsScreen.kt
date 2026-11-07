@@ -1,5 +1,7 @@
 package indi.renakoni.nextvol.ui.tts
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -16,6 +19,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,12 +28,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +48,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
@@ -74,8 +84,6 @@ fun SpeechSettingsScreen(
     onRoles: (() -> Unit)? = null,
     onVoicePool: (() -> Unit)? = null,
     onDiagnostics: (() -> Unit)? = null,
-    onSchemes: (() -> Unit)? = null,
-    schemeSummary: String? = null,
     schemeTitle: String? = null,
     schemeUsage: String? = null,
 ) {
@@ -95,28 +103,13 @@ fun SpeechSettingsScreen(
             } }
             item {
                 SettingsCategory {
-                    onSchemes?.let { open -> SettingsClickableEntry(
-                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-schemes-entry"),
-                        painter = painterResource(R.drawable.headphones_24px), title = stringResource(R.string.tts_schemes),
-                        option = schemeSummary.orEmpty(),
-                        trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
-                        onClick = open) }
                     SettingsClickableEntry(
                         modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-preferences-entry"),
                         painter = painterResource(R.drawable.outline_settings_24px),
                         title = stringResource(R.string.tts_preferences),
-                        trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                        description = stringResource(R.string.tts_preferences_description),
                         onClick = onPreferences,
                     )
-                    onPlaybackPreferences?.let { open ->
-                        SettingsClickableEntry(
-                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer),
-                            painter = painterResource(R.drawable.outline_settings_24px),
-                            title = stringResource(R.string.tts_playback_preferences),
-                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
-                            onClick = open,
-                        )
-                    }
                     val selectedSource = state.httpSources.find { it.definition.id == state.settings.httpSource }
                     val engine = if (state.settings.engine.isEmpty()) stringResource(R.string.tts_system_default)
                         else state.engines.find { it.packageName == state.settings.engine }?.name ?: state.settings.engine
@@ -131,24 +124,27 @@ fun SpeechSettingsScreen(
                         modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-sources-entry"),
                         painter = painterResource(R.drawable.headphones_24px),
                         title = stringResource(R.string.tts_sources), option = current,
-                        trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
                         onClick = onSources,
                     )
-                    onEngines?.let { open ->
+                    onPlaybackPreferences?.let { open ->
                         SettingsClickableEntry(
-                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-engines-entry"),
-                            painter = painterResource(R.drawable.outline_settings_24px),
-                            title = stringResource(R.string.tts_engines),
-                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer),
+                            painter = painterResource(R.drawable.play_arrow_24px),
+                            title = stringResource(R.string.tts_playback_preferences),
+                            description = stringResource(R.string.tts_playback_preferences_description),
                             onClick = open,
                         )
                     }
+                }
+            }
+            item {
+                SettingsCategory {
                     onReplacements?.let { open ->
                         SettingsClickableEntry(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-replacements-entry"),
                             painter = painterResource(R.drawable.find_replace_24px),
                             title = stringResource(R.string.tts_replacements),
-                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            description = stringResource(R.string.tts_replacements_description),
                             onClick = open,
                         )
                     }
@@ -157,16 +153,29 @@ fun SpeechSettingsScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-roles-entry"),
                             painter = painterResource(R.drawable.person_edit_24px),
                             title = stringResource(R.string.tts_roles),
-                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            description = stringResource(R.string.tts_roles_description),
                             onClick = open,
                         )
                     }
                     onVoicePool?.let { open ->
                         SettingsClickableEntry(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-voice-pool-entry"),
-                            painter = painterResource(R.drawable.headphones_24px),
+                            painter = painterResource(R.drawable.tts_text_multiple_voices),
                             title = stringResource(R.string.tts_pool_title),
-                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            description = stringResource(R.string.tts_pool_description),
+                            onClick = open,
+                        )
+                    }
+                }
+            }
+            item {
+                SettingsCategory {
+                    onEngines?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-engines-entry"),
+                            painter = painterResource(R.drawable.settings_applications_24px),
+                            title = stringResource(R.string.tts_engines),
+                            description = stringResource(R.string.tts_engines_description),
                             onClick = open,
                         )
                     }
@@ -175,7 +184,7 @@ fun SpeechSettingsScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-diagnostics-entry"),
                             painter = painterResource(R.drawable.article_24px),
                             title = stringResource(R.string.tts_diagnostics),
-                            trailingContent = { Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(16.dp)) },
+                            description = stringResource(R.string.tts_diagnostics_description),
                             onClick = open,
                         )
                     }
@@ -193,6 +202,8 @@ fun SpeechPreferencesScreen(
     state: SpeechSettingsUiState,
     onBack: () -> Unit,
     onRate: (Float) -> Unit, onVolume: (Float) -> Unit, onPitch: (Float) -> Unit,
+    onSchemes: (() -> Unit)? = null,
+    schemeSummary: String? = null,
 ) {
     Scaffold(
         topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_preferences, onBack) },
@@ -207,17 +218,53 @@ fun SpeechPreferencesScreen(
                         style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            item(key = "speed") {
-                SpeechTextSlider(R.drawable.tts_speed, R.string.tts_voice_speed,
-                    (state.settings.rate * 50f).roundToInt(), 0f..100f) { onRate(it / 50f) }
+            item {
+                SettingsCategory {
+                    SpeechPreferenceSlider(R.drawable.tts_speed, R.string.tts_voice_speed, R.string.tts_speed_description,
+                        (state.settings.rate * 50f).roundToInt()) { onRate(it / 50f) }
+                    SpeechPreferenceSlider(R.drawable.tts_volume, R.string.tts_voice_volume, R.string.tts_volume_description,
+                        (state.settings.volume * 50f).roundToInt()) { onVolume(it / 50f) }
+                    SpeechPreferenceSlider(R.drawable.tts_pitch, R.string.tts_pitch, R.string.tts_pitch_description,
+                        ((state.settings.pitch * 100f - 50f) / 2f).roundToInt()) { onPitch((it * 2f + 50f) / 100f) }
+                    onSchemes?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-schemes-entry"),
+                            painter = painterResource(R.drawable.headphones_24px),
+                            title = stringResource(R.string.tts_schemes),
+                            description = stringResource(R.string.tts_schemes_description),
+                            option = schemeSummary,
+                            onClick = open,
+                        )
+                    }
+                }
             }
-            item(key = "volume") {
-                SpeechTextSlider(R.drawable.tts_volume, R.string.tts_voice_volume,
-                    (state.settings.volume * 50f).roundToInt(), 0f..100f) { onVolume(it / 50f) }
-            }
-            item(key = "pitch") {
-                SpeechTextSlider(R.drawable.tts_pitch, R.string.tts_pitch,
-                    ((state.settings.pitch * 100f - 50f) / 2f).roundToInt(), 0f..100f) { onPitch((it * 2f + 50f) / 100f) }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpeechPreferenceSlider(@DrawableRes icon: Int, @StringRes title: Int, @StringRes description: Int,
+    value: Int, onChange: (Int) -> Unit) {
+    var current by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    val label = stringResource(title)
+    Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(icon), null, Modifier.padding(end = 22.dp).size(24.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(description), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(current.roundToInt().toString(), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary)
+                Slider(current, { current = it }, valueRange = 0f..100f,
+                    onValueChangeFinished = { onChange(current.roundToInt()) },
+                    modifier = Modifier.semantics { contentDescription = label },
+                    thumb = { Surface(Modifier.size(16.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {} },
+                    track = { SliderDefaults.Track(it, Modifier.height(4.dp), thumbTrackGapSize = 0.dp,
+                        trackInsideCornerSize = 2.dp, drawStopIndicator = null) })
             }
         }
     }

@@ -333,12 +333,14 @@ class SpeechControlsTest {
     @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
     fun readAloudSettingsExposeOnlyTheThreeOriginalControlScales() {
         val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState(loading = false))
+        var schemesOpened = 0
         activity.get().setContent {
             MaterialTheme(typography = AppTypography) {
                 SpeechPreferencesScreen(state.value, {},
                     onRate = { state.value = state.value.copy(settings = state.value.settings.copy(rate = it)) },
                     onVolume = { state.value = state.value.copy(settings = state.value.settings.copy(volume = it)) },
-                    onPitch = { state.value = state.value.copy(settings = state.value.settings.copy(pitch = it)) })
+                    onPitch = { state.value = state.value.copy(settings = state.value.settings.copy(pitch = it)) },
+                    onSchemes = { schemesOpened++ }, schemeSummary = "Book scheme")
             }
         }
         compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)).assertCountEquals(3)
@@ -350,6 +352,9 @@ class SpeechControlsTest {
         compose.runOnIdle {
             assertEquals(SpeechSettings(rate = 1.02f, volume = 1.46f, pitch = 1.14f), state.value.settings)
         }
+        compose.onNodeWithText("Book scheme").assertIsDisplayed()
+        compose.onNodeWithTag("speech-schemes-entry").performClick()
+        assertEquals(1, schemesOpened)
     }
 
     @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
