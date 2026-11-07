@@ -61,13 +61,13 @@ internal class VocalizerEngine(context: Context, directory: File, private val vo
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         val current = checkNotNull(engine) { "Vocalizer engine is closed" }
         cancelled = false
         output = emit
         outputFailure = null
         try {
-            current.configure((speed * voice.speed * 100f).toInt(), (voice.pitch * 100f).toInt(), (voice.volume * 100f).toInt())
+            current.configure((speed * 2.5).toInt(), 100, (volume * 2f).toInt())
             var start = 0
             while (start < text.length && !cancelled) {
                 var end = (start + 200).coerceAtMost(text.length)

@@ -86,7 +86,7 @@ class SpeechSynthesizers @Inject constructor(
                     delegate = if (active.configuration.engine == "sherpa") MatchaSpeechSynthesizer(active.resources)
                         else OfflineSpeechSynthesizer(context, active.directory, active.configuration)
                 }
-                delegate!!.open(settings.copy(httpSource = null, voice = "", pitch = null))
+                delegate!!.open(settings.copy(httpSource = null, voice = ""))
                 (delegate as? MatchaSpeechSynthesizer)?.let { synthesizer ->
                     withContext(Dispatchers.IO) {
                         val details = synthesizer.describe()
@@ -137,7 +137,7 @@ class SpeechSynthesizers @Inject constructor(
         @Volatile private var owner: SourceBroker? = null
         @Volatile private var client: HttpSpeechClient? = null
         override val supportsStreaming get() = client?.supportsStreaming == true
-        private var rate: Float? = null
+        private var rate = 1f
         private var volume = 1f
         private var sentenceLength = 100
         private var sourceId: String? = null
@@ -149,7 +149,7 @@ class SpeechSynthesizers @Inject constructor(
             withContext(NonCancellable + Dispatchers.IO) { close() }
             currentCoroutineContext().ensureActive()
             rate = settings.rate
-            volume = settings.httpVolume
+            volume = settings.volume
             sentenceLength = settings.text.maxSentenceLength
             return repository.withSource(requireNotNull(settings.httpSource)) { source, runtime ->
                 if (!source.available) throw SpeechException(SpeechError.HttpSourceUnavailable)

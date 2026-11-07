@@ -41,7 +41,7 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
 
     /** Config speed=5 is 1x; the reference passes speed+5 to the speakSpeed script binding. */
     fun scriptSpeed(rate: Float? = null): Int {
-        require(rate == null || rate.isFinite() && rate in 0.5f..2f)
+        require(rate == null || rate.isFinite() && rate in 0f..2f)
         return if (rate == null) (speed ?: 5) + 5 else kotlin.math.round(rate * 10).toInt()
     }
 

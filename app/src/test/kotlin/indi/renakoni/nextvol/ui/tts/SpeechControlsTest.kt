@@ -330,38 +330,26 @@ class SpeechControlsTest {
         assertEquals(listOf(SpeechAction.Pause, SpeechAction.Stop), actions)
     }
 
-    @Test fun playbackSpeedIsPrimaryAndSynthesisRateKeepsItsIndependentDefault() {
+    @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
+    fun readAloudSettingsExposeOnlyTheThreeOriginalControlScales() {
         val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState(loading = false))
         activity.get().setContent {
             MaterialTheme(typography = AppTypography) {
-                SpeechPreferencesScreen(state.value, ReadAloudState(),
-                    {},
+                SpeechPreferencesScreen(state.value, {},
                     onRate = { state.value = state.value.copy(settings = state.value.settings.copy(rate = it)) },
-                    onPitch = {}, onCommand = {},
-                    onPlaybackSpeed = { state.value = state.value.copy(settings = state.value.settings.copy(playbackSpeed = it)) })
+                    onVolume = { state.value = state.value.copy(settings = state.value.settings.copy(volume = it)) },
+                    onPitch = { state.value = state.value.copy(settings = state.value.settings.copy(pitch = it)) })
             }
         }
-        val list = compose.onNodeWithTag("speech-preferences-list")
-        list.performScrollToNode(hasContentDescription("Playback speed"))
-        compose.onNodeWithContentDescription("Playback speed").performSemanticsAction(SemanticsActions.SetProgress) { it(2f) }
+        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)).assertCountEquals(3)
+        compose.onAllNodesWithText("50").assertCountEquals(2)
+        compose.onNodeWithText("25").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Speed").performSemanticsAction(SemanticsActions.SetProgress) { it(51f) }
+        compose.onNodeWithContentDescription("Volume").performSemanticsAction(SemanticsActions.SetProgress) { it(73f) }
+        compose.onNodeWithContentDescription("Pitch").performSemanticsAction(SemanticsActions.SetProgress) { it(32f) }
         compose.runOnIdle {
-            assertEquals(2f, state.value.settings.playbackSpeed)
-            assertNull(state.value.settings.rate)
+            assertEquals(SpeechSettings(rate = 1.02f, volume = 1.46f, pitch = 1.14f), state.value.settings)
         }
-        compose.onNodeWithContentDescription("Synthesis rate").assertDoesNotExist()
-        compose.onNodeWithText("Reset").performClick()
-        compose.runOnIdle { assertEquals(1f, state.value.settings.playbackSpeed) }
-        list.performScrollToNode(hasText("Advanced settings"))
-        compose.onNodeWithText("Advanced settings").performClick()
-        list.performScrollToNode(hasContentDescription("Synthesis rate"))
-        compose.onNodeWithContentDescription("Synthesis rate").performSemanticsAction(SemanticsActions.SetProgress) { it(1.5f) }
-        compose.runOnIdle {
-            assertEquals(1.5f, state.value.settings.rate)
-            assertEquals(1f, state.value.settings.playbackSpeed)
-            assertNull(state.value.settings.pitch)
-        }
-        compose.onNodeWithText("Reset").performClick()
-        compose.runOnIdle { assertNull(state.value.settings.rate) }
     }
 
     @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")

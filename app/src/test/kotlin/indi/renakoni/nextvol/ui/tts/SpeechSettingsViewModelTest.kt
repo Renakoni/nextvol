@@ -113,18 +113,6 @@ class SpeechSettingsViewModelTest {
         assertEquals(listOf(narrator), settings.value.narrationVoices)
     }
 
-    @Test fun playbackSpeedIsSavedWithoutChangingSynthesisOrRefreshingTheVoiceCatalog() = runTest {
-        coEvery { repository.update(any()) } coAnswers {
-            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value).validated()
-        }
-        runCurrent()
-        val original = settings.value
-        model.setPlaybackSpeed(2f)
-        runCurrent()
-        assertEquals(original.copy(playbackSpeed = 2f), model.state.value.settings)
-        coVerify(exactly = 1) { engines.inspect(any()) }
-    }
-
     @Test fun auditionPreservesSelectionAndDeletingTheVoiceClearsOnlyItsCandidates() = runTest {
         val source = SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
             """{"id":"candidate","name":"Candidate","url":"https://example.org"}""").sources.single(), listOf("https://example.org:443"))

@@ -49,12 +49,12 @@ internal class IssEngine(@Suppress("UNUSED_PARAMETER") context: Context, directo
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(handle.native_point != 0L) { "IssTTS engine is closed" }
         cancelled = false
-        setParameter(1282, control(speed * voice.speed))
-        setParameter(1283, control(voice.pitch))
-        setParameter(1284, control(voice.volume))
+        setParameter(1282, (speed - 30f).toInt() * 468)
+        setParameter(1283, 0)
+        setParameter(1284, (volume - 30f).toInt() * 468)
         val audio = ByteArray(16384)
         val length = IntArray(1)
         var restarted = false
@@ -113,7 +113,6 @@ internal class IssEngine(@Suppress("UNUSED_PARAMETER") context: Context, directo
         else libxsstts.setParam(handle, parameter, value)
         checkResult("set parameter $parameter", handle.err_ret)
     }
-    private fun control(value: Float) = ((value * 30f - 30f) * 468f).toInt().coerceIn(-32768, 32767)
     private fun checkResult(operation: String, result: Int) {
         check(result == 0) { "IssTTS $operation failed: $result" }
     }

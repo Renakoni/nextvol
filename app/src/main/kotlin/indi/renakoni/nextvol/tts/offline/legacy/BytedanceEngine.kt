@@ -62,7 +62,7 @@ internal class BytedanceEngine(context: Context, directory: File, private val vo
         }
     }
 
-    override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(handle != 0L)
         val done = CountDownLatch(1)
         failure = null
@@ -73,8 +73,8 @@ internal class BytedanceEngine(context: Context, directory: File, private val vo
             if (cancelled) throw CancellationException("ByteDance synthesis cancelled")
             // Like MultiTTS, allow START to report "already working" between texts.
             bridge.sendDirectiveToNative(handle, 1000, "")
-            integer("tts_speed", (speed * voice.speed * 18f).toInt())
-            integer("tts_volume", (voice.volume * 15f).toInt())
+            integer("tts_speed", (speed.toDouble() * 0.36).toInt())
+            integer("tts_volume", (volume.toDouble() * 0.3).toInt())
             string("tts_text", text)
             directive(1400)
             done.await()

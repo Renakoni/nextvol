@@ -105,9 +105,10 @@ class HttpSpeechClient(
                     }
                 }
                 val speed = source.scriptSpeed(rate)
-                val audio = online?.synthesize(text, rate ?: speed / 10f, volume, sentenceLength, audioSink)
-                    ?: edge?.synthesize(text, rate ?: speed / 10f, volume, audioSink)
-                    ?: microsoft?.synthesize(text, rate ?: speed / 10f, volume) ?: request(text, speed, volume)
+                val synthesisRate = rate ?: speed / 10f
+                val audio = online?.synthesize(text, synthesisRate, volume, sentenceLength, audioSink)
+                    ?: edge?.synthesize(text, synthesisRate, volume, audioSink)
+                    ?: microsoft?.synthesize(text, synthesisRate, volume) ?: request(text, speed, synthesisRate, volume)
                 currentCoroutineContext().ensureActive()
                 if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
                 audio
@@ -204,12 +205,12 @@ class HttpSpeechClient(
         }
     }
 
-    private suspend fun request(text: String, speed: Int, volume: Float): ByteArray {
+    private suspend fun request(text: String, speed: Int, rate: Float, volume: Float): ByteArray {
         val multiTts = multiTtsRequest
         val task = if (multiTts != null) {
             require(volume.isFinite() && volume in 0f..2f)
             ExecutionTask.Script("host.call('request.multitts',result)", result = JsonObject(multiTts + buildJsonObject {
-                put("speakSpeed", speed * 5); put("speakVolume", volume * 50)
+                put("speakSpeed", multiTtsControl(rate)); put("speakVolume", multiTtsControl(volume))
             }), baseUrl = baseUrl, speakText = text, speakSpeed = speed)
         } else ExecutionTask.Script(
             "({request:host.call('request.speech',result),headers:host.call('request.headers')})",

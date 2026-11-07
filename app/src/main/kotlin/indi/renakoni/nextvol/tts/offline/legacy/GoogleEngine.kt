@@ -45,10 +45,10 @@ internal class GoogleEngine(context: Context, directory: File, private val voice
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         cancelled = false
         try {
-            composer.start(markup(text, speed * voice.speed, voice.volume), session)
+            composer.start(markup(text, (speed * speed * 3.5E-4 + 0.5).toFloat(), (volume * 0.1).toFloat()), session)
             while (!cancelled) {
                 when (val status = composer.read()) {
                     2 -> break

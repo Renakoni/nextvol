@@ -451,7 +451,7 @@ private fun SpeechTextMenu(@DrawableRes icon: Int, @StringRes title: Int, option
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SpeechTextSlider(@DrawableRes icon: Int, @StringRes title: Int, value: Int,
+internal fun SpeechTextSlider(@DrawableRes icon: Int, @StringRes title: Int, value: Int,
     valueRange: ClosedFloatingPointRange<Float>, @StringRes description: Int? = null, onChange: (Int) -> Unit) {
     var current by remember(value) { mutableFloatStateOf(value.toFloat()) }
     val label = stringResource(title)

@@ -111,7 +111,7 @@ internal class VcsEngine(
         }
     }
 
-    override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) = synchronized(runtime) {
+    override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) = synchronized(runtime) {
         check(!closed) { "VCS engine is closed" }
         cancelled = false
         failure.set(null)
@@ -130,8 +130,8 @@ internal class VcsEngine(
             if (cancelled) throw CancellationException("VCS synthesis cancelled")
             failure.get()?.let { throw it }
             val current = checkNotNull(adapter)
-            current.nativeSetTTSSpeed((speed * voice.speed).toDouble())
-            current.nativeSetTTSVolume(voice.volume.toDouble())
+            current.nativeSetTTSSpeed((speed / 50f).toDouble())
+            current.nativeSetTTSVolume((volume / 50f).toDouble())
             val callback = object : IAudioTaskEventCallback {
                 override fun onStart(id: Long) = !cancelled
                 override fun onMiddle(id: Long, event: Int) = Unit

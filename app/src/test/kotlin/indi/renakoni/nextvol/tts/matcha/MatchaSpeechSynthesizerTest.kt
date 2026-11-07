@@ -71,7 +71,7 @@ class MatchaSpeechSynthesizerTest {
         val release = CountDownLatch(1)
         val destroyed = CompletableDeferred<Unit>()
         val native = object : FakeNative() {
-            override fun generate(handle: Long, text: String, speaker: Int, speed: Float, pitch: Float, volume: Float,
+            override fun generate(handle: Long, text: String, speaker: Int, speed: Float,
                 path: String, cancellation: MatchaCancellation) {
                 entered.countDown()
                 check(release.await(10, TimeUnit.SECONDS))
@@ -122,7 +122,7 @@ class MatchaSpeechSynthesizerTest {
         engine.close()
     }
 
-    @Test fun sharedModelKeepsEachSpeakersParametersAndSurvivesClosingOneVoice() = runBlocking {
+    @Test fun sharedModelKeepsSpeakerIdentityAndNativeRateWithoutApplyingSpeakerAdjustments() = runBlocking {
         val original = resources()
         val model = File(original.directory, "custom-acoustic.onnx")
         assertTrue(File(original.directory, original.configuration.model).renameTo(model))
@@ -138,11 +138,11 @@ class MatchaSpeechSynthesizerTest {
                 received = configuration
                 return 1
             }
-            override fun generate(handle: Long, text: String, speaker: Int, speed: Float, pitch: Float, volume: Float,
+            override fun generate(handle: Long, text: String, speaker: Int, speed: Float,
                 path: String, cancellation: MatchaCancellation) {
                 assertEquals(1L, handle)
                 assertFalse(cancellation.isCancelled())
-                requests += listOf(speaker, speed, pitch, volume)
+                requests += listOf(speaker, speed)
                 OfflinePcmFile(File(path), 22_050).use { audio ->
                     audio.append(byteArrayOf(1, 2), 2)
                     audio.finish(22_050)
@@ -154,8 +154,8 @@ class MatchaSpeechSynthesizerTest {
         val secondConfiguration = configuration.copy(speakerId = 5, speed = 1.5f, pitch = .9f, volume = 1.2f)
         val second = MatchaSpeechSynthesizer(MatchaResources(original.directory, secondConfiguration)) { native }
         try {
-            engine.open(SpeechSettings(rate = 1.25f))
-            withTimeout(10_000) { second.open(SpeechSettings(rate = .75f)) }
+            engine.open(SpeechSettings(rate = 0f, pitch = 1.25f, volume = .5f))
+            withTimeout(10_000) { second.open(SpeechSettings(rate = 1.06f)) }
             val actual = checkNotNull(received)
             assertEquals(model.path, actual.model)
             assertEquals(6, actual.numThreads)
@@ -167,8 +167,7 @@ class MatchaSpeechSynthesizerTest {
             engine.close()
             assertEquals(0, destroyed)
             second.synthesize("第二位人物继续", File(files.root, "again.wav"))
-            assertEquals(listOf(listOf(3, 1f, 1.1f, .6f), listOf(5, 1.125f, .9f, 1.2f),
-                listOf(5, 1.125f, .9f, 1.2f)), requests)
+            assertEquals(listOf(listOf(3, 0f), listOf(5, 53f / 34f), listOf(5, 53f / 34f)), requests)
         } finally { engine.close(); second.close() }
         assertEquals(1, destroyed)
     }
@@ -186,7 +185,7 @@ class MatchaSpeechSynthesizerTest {
 
     private open class FakeNative : MatchaNativeApi {
         override fun create(configuration: MatchaNativeConfig) = 1L
-        override fun generate(handle: Long, text: String, speaker: Int, speed: Float, pitch: Float, volume: Float,
+        override fun generate(handle: Long, text: String, speaker: Int, speed: Float,
             path: String, cancellation: MatchaCancellation) = Unit
         override fun destroy(handle: Long) = Unit
     }

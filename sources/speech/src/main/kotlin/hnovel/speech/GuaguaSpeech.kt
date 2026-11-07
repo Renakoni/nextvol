@@ -29,7 +29,7 @@ internal class GuaguaSpeechClient(
     override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray {
         val token = token()
         val body = buildJsonObject {
-            put("cvRobotId", speaker); put("speedFactor", ((rate * 50).toDouble() * 1.5 + 50).toInt())
+            put("cvRobotId", speaker); put("speedFactor", (multiTtsControl(rate) * 1.5 + 50).toInt())
             put("durationFactorSilence", 100); put("genMode", 0); put("ssml", text)
         }
         try {

@@ -111,13 +111,10 @@ std::string ModelType(const std::string &model, const std::string &vocoder,
   return "vits";
 }
 
-void WriteWav(const sherpa_onnx::GeneratedAudio &audio, const std::string &path,
-              float pitch, float volume) {
+void WriteWav(const sherpa_onnx::GeneratedAudio &audio, const std::string &path) {
   // Same 8 MiB ceiling as the existing complete-file contract.
   if (audio.sample_rate <= 0 || audio.samples.empty() || audio.samples.size() > kMaxSamples)
     throw std::runtime_error("Invalid or oversized offline audio");
-  const double count = std::ceil(audio.samples.size() / static_cast<double>(pitch));
-  if (count < 1 || count > kMaxSamples) throw std::runtime_error("Oversized adjusted audio");
   bool audible = false;
   for (float value : audio.samples) {
     if (!std::isfinite(value)) throw std::runtime_error("Non-finite offline audio");
@@ -128,17 +125,12 @@ void WriteWav(const sherpa_onnx::GeneratedAudio &audio, const std::string &path,
   output.exceptions(std::ios::badbit | std::ios::failbit);
   auto u16 = [&](uint16_t value) { output.put(value & 255); output.put(value >> 8); };
   auto u32 = [&](uint32_t value) { u16(value & 65535); u16(value >> 16); };
-  uint32_t bytes = static_cast<uint32_t>(count) * 2;
+  uint32_t bytes = static_cast<uint32_t>(audio.samples.size()) * 2;
   output.write("RIFF", 4); u32(36 + bytes); output.write("WAVEfmt ", 8);
   u32(16); u16(1); u16(1); u32(audio.sample_rate); u32(static_cast<uint32_t>(audio.sample_rate) * 2); u16(2); u16(16);
   output.write("data", 4); u32(bytes);
-  for (size_t i = 0; i < static_cast<size_t>(count); ++i) {
-    const double position = std::min(i * static_cast<double>(pitch), static_cast<double>(audio.samples.size() - 1));
-    const auto first = static_cast<size_t>(position);
-    const auto next = std::min(first + 1, audio.samples.size() - 1);
-    const double value = (audio.samples[first] +
-        (static_cast<double>(audio.samples[next]) - audio.samples[first]) * (position - first)) * volume;
-    u16(static_cast<int16_t>(std::clamp(value, -1.0, 1.0) * 32767));
+  for (float value : audio.samples) {
+    u16(static_cast<int16_t>(std::clamp(value, -1.0f, 1.0f) * 32767));
   }
   output.close();
 }
@@ -195,10 +187,9 @@ Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_describe(JNIEnv *env, jobject
 extern "C" JNIEXPORT void JNICALL
 Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_generate(
     JNIEnv *env, jobject, jlong handle, jstring text, jint speaker, jfloat speed,
-    jfloat pitch, jfloat volume, jstring path, jobject cancellation) {
+    jstring path, jobject cancellation) {
   try {
-    if (!handle || !std::isfinite(speed) || speed <= 0 ||
-        !std::isfinite(pitch) || pitch <= 0 || !std::isfinite(volume) || volume < 0 ||
+    if (!handle || !std::isfinite(speed) || speed < 0 ||
         !text || env->GetStringLength(text) > 200 || !cancellation)
       throw std::invalid_argument("Invalid Matcha request");
     auto method = env->GetMethodID(env->GetObjectClass(cancellation), "isCancelled", "()Z");
@@ -209,17 +200,13 @@ Java_indi_renakoni_nextvol_tts_matcha_MatchaNative_generate(
     auto &instance = *reinterpret_cast<Instance *>(handle);
     if (speaker < 0 || speaker >= std::max(1, instance.engine->NumSpeakers()))
       throw std::invalid_argument("Invalid selected speaker");
-    // Native speaking-rate adjustment compensates the pitch resampling duration.
-    const float synthesis_speed = speed / pitch;
-    if (!std::isfinite(synthesis_speed) || synthesis_speed <= 0)
-      throw std::invalid_argument("Invalid effective speaking rate");
     auto audio = instance.engine->Generate(
-        Utf8(env, text), speaker, synthesis_speed, [&](const float *, int32_t count, float) {
+        Utf8(env, text), speaker, speed, [&](const float *, int32_t count, float) {
           if (count < 0 || (samples += count) > kMaxSamples)
             throw std::runtime_error("Oversized Matcha audio");
           return cancelled() ? 0 : 1;
         });
-    if (!cancelled()) WriteWav(audio, Utf8(env, path), pitch, volume);
+    if (!cancelled()) WriteWav(audio, Utf8(env, path));
   } catch (const std::exception &error) { Fail(env, error); }
 }
 

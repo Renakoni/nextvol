@@ -41,7 +41,6 @@ interface SpeechPlayback {
     fun pause()
     fun resume()
     fun stop()
-    fun setSpeed(speed: Float)
 }
 
 /** Main-thread session owner. Source, synthesis and actual playback have separate lifetimes. */
@@ -123,7 +122,6 @@ class ReadAloudSession(
                 diagnostics(SpeechLogRecord(SpeechLogStage.Configuration, SpeechLogEvent.Completed,
                     details = listOf(R.string.tts_diagnostic_scheme to
                         "${request.bookId} / ${selected.schemeName.ifBlank { selected.schemeId }} (${selected.schemeId})")))
-                playback.setSpeed(selected.playbackSpeed)
                 val synthesis = if (request.isPreview) selected.forVoice(selected.voiceReference()) else selected.synthesisSettings()
                 val opened = synthesis.takeUnless { it.hasVoiceRouting }
                 openingVoice = opened?.voiceReference()
@@ -273,7 +271,6 @@ class ReadAloudSession(
         currentSettings = value
         // A deliberate selection still persists during preview, and takes effect on return.
         if (state.value.request?.isPreview == true) return
-        playback.setSpeed(value.playbackSpeed)
         if (previous != null && previous.synthesisSettings() != value.synthesisSettings())
             reloadSettings(resetContext = previous.textProcessingKey(Int.MAX_VALUE) != value.textProcessingKey(Int.MAX_VALUE))
     }

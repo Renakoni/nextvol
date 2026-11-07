@@ -51,7 +51,7 @@ class MicrosoftSpeechTest {
 
     @Test fun xmlTextAndSpeedMatchTheApplicationWithoutExecutingMarkup() {
         val text = "你好 & <voice> ' \" {{40+2}} @js:literal / \\ Hello"
-        for ((rate, expected) in listOf(0.5f to "-50%", 1f to "0%", 1.5f to "50%", 2f to "100%")) {
+        for ((rate, expected) in listOf(0f to "-100%", 1f to "0%", 1.5f to "50%", 2f to "100%")) {
             val xml = MicrosoftSpeechClient.ssml("zh-CN-XiaoxiaoNeural", "zh-CN", text, rate)
             val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(xml.byteInputStream())
             assertEquals(text, document.documentElement.textContent)

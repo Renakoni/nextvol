@@ -120,15 +120,15 @@ class HttpSpeechPackageTest {
                         HostBridge { name, args -> runBlocking { broker.call(name, args) } }).toByteArray(Charsets.UTF_8))
                 }
                 client(listOf(NetworkGrant(base, true))).use { source ->
-                    for ((rate, expectedSpeed) in listOf(null to "1.25", 2f to "0.5")) {
+                    for ((rate, expectedSpeed) in listOf(null to "1.25", 1.06f to "1.205")) {
                         server.enqueue(MockResponse().setBody(okio.Buffer().write(audio)))
-                        assertArrayEquals(audio, source.synthesize(text, rate))
+                        assertArrayEquals(audio, source.synthesize(text, rate, volume = 1.06f))
                         val request = server.takeRequest(3, TimeUnit.SECONDS)!!
                         assertEquals("GET", request.method)
                         assertEquals("test_voice_1", request.requestUrl!!.queryParameter("voiceId"))
                         assertEquals(text.replace('\'', ' ').replace('"', ' '), request.requestUrl!!.queryParameter("text"))
                         assertEquals(expectedSpeed, request.requestUrl!!.queryParameter("speed"))
-                        assertEquals("200", request.requestUrl!!.queryParameter("volume"))
+                        assertEquals("212", request.requestUrl!!.queryParameter("volume"))
                         assertEquals("mp3", request.requestUrl!!.queryParameter("audioType"))
                         assertEquals("16000", request.requestUrl!!.queryParameter("sampleRate"))
                         assertEquals(parameter, request.requestUrl!!.queryParameter("style"))

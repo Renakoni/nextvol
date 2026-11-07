@@ -97,7 +97,7 @@ class OfflineSpeechSynthesizerTest {
         val destroyed = AtomicInteger()
         val engine = synthesizer {
             object : FakeEngine() {
-                override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+                override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
                     emit(byteArrayOf(1, 2), 2)
                     generationEntered.countDown()
                     check(releaseGeneration.await(10, TimeUnit.SECONDS))
@@ -169,9 +169,10 @@ class OfflineSpeechSynthesizerTest {
         val engine = synthesizer {
             object : FakeEngine() {
                 override var sampleRate = 16_000
-                override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+                override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
                     assertEquals("正文试听", text)
-                    assertEquals(1.25f, speed)
+                    assertEquals(53f, speed)
+                    assertEquals(0f, volume)
                     emit(byteArrayOf(1, 2, 3, 99), 3)
                     sampleRate = 22_050
                     emit(byteArrayOf(4, 5, 6, 99), 3)
@@ -180,7 +181,7 @@ class OfflineSpeechSynthesizerTest {
         }
         val output = File(files.root, "complete.wav")
         try {
-            engine.open(SpeechSettings(rate = 1.25f))
+            engine.open(SpeechSettings(rate = 1.06f, volume = 0f))
             assertTrue(engine.synthesize("正文试听", output).isEmpty())
             validateSpeechWav(output)
             val wave = output.readBytes()
@@ -197,7 +198,7 @@ class OfflineSpeechSynthesizerTest {
 
     private open class FakeEngine : OfflineEngine {
         override val sampleRate = 16_000
-        override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) = Unit
+        override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) = Unit
         override fun cancel() = Unit
         override fun close() = Unit
     }

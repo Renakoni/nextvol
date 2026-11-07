@@ -113,10 +113,9 @@ class SpeechSettingsViewModel @Inject constructor(
         }
         update { it.toggleVoice(dialogue, voice) }
     }
-    fun setRate(value: Float?) = update { it.copy(rate = value) }
-    fun setPitch(value: Float?) = update { it.copy(pitch = value) }
-    fun setHttpVolume(value: Float) = update { it.copy(httpVolume = value) }
-    fun setPlaybackSpeed(value: Float) = update { it.copy(playbackSpeed = value) }
+    fun setRate(value: Float) = update { it.copy(rate = value) }
+    fun setPitch(value: Float) = update { it.copy(pitch = value) }
+    fun setVolume(value: Float) = update { it.copy(volume = value) }
 
     private fun update(change: (SpeechSettings) -> SpeechSettings) {
         viewModelScope.launch {

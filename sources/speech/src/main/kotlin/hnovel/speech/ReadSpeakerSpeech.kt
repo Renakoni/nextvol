@@ -25,7 +25,7 @@ internal class ReadSpeakerSpeechClient(
         // Escape text inside the HTML container so literal markup is spoken instead of interpreted.
         val html = Base64.getEncoder().encodeToString("<div>${xmlSpeech(text)}</div>".toByteArray(Charsets.UTF_8))
         val body = "customerid=17&lang=$locale&url=https%3A%2F%2Fwww.readspeaker.com%2Fdemo%2F" +
-            "&voice=${voice.string("code")}&speed=${(rate * 100).toInt()}&readid=rs-kdxxiq1e" +
+            "&voice=${voice.string("code")}&speed=${multiTtsControl(rate) * 2}&readid=rs-kdxxiq1e" +
             "&rsjs_ver=3.8.5_rev2605-wr&synccontainer=rs%3Aspan&wrc=2014018991" +
             "&audioformat=mp3&sync=user&html_base64=${URLEncoder.encode(html, "UTF-8")}"
         return onlineSpeechAudio(execute(BrokerRequest("readspeaker-audio", ENDPOINT, method = "POST", body = body,

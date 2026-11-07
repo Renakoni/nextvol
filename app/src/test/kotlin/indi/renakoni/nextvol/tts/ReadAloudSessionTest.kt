@@ -525,43 +525,23 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
-    @Test fun speedChangesKeepPausedAudioAndPrefetchAndSurvivePassageAndChapterTransitions() = runTest {
+    @Test fun synthesisParametersRegeneratePausedAudioAtTheAudiblePosition() = runTest {
         val env = Environment(this)
-        env.inputLimit = 15
-        env.configuration = SpeechSettings(rate = 1.2f, pitch = 0.8f, playbackSpeed = 1.5f)
-        env.load = { book, chapter ->
-            SpeechChapter(book, chapter, "Book", chapter,
-                if (chapter == "one") "First passage.\nSecond passage." else "Last passage.",
-                nextId = if (chapter == "one") "two" else null)
-        }
         try {
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
-            assertEquals(1.5f, env.player.playbackSpeed)
-            assertEquals(3, env.synthesized.size)
-            val playing = env.session.state.value
-            env.session.updateSettings(env.configuration.copy(playbackSpeed = 2f))
-            assertEquals(playing, env.session.state.value)
-            assertTrue(env.player.playing)
+            val original = env.player.started.last()
+            env.player.estimatedAnchorCallback!!(3)
             env.session.pause()
-            val paused = env.session.state.value
-            env.session.updateSettings(env.configuration.copy(playbackSpeed = 0.7f))
-            env.session.updateSettings(env.configuration.copy(playbackSpeed = 2f))
+            val anchor = env.session.state.value.position!!.anchor
+            env.configuration = env.configuration.copy(rate = 1.02f, volume = 0.74f, pitch = 1.14f)
+            env.session.updateSettings(env.configuration)
             runCurrent()
-            assertEquals(2f, env.player.playbackSpeed)
-            assertEquals(paused, env.session.state.value)
+            assertEquals(env.configuration, env.opened.last())
+            assertNotSame(original, env.player.started.last())
+            assertEquals(anchor, env.session.state.value.position!!.anchor)
+            assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
             assertFalse(env.player.playing)
-            assertEquals(1, env.player.started.size)
-            assertEquals(3, env.synthesized.size)
-            assertEquals(listOf(env.configuration.copy(playbackSpeed = 1f)), env.opened)
-            env.session.resume()
-            repeat(2) { env.player.finish(); runCurrent() }
-            assertEquals(listOf(1.5f, 2f, 2f), env.player.startSpeeds)
-            assertEquals("two", env.player.started.last().chapter.id)
-            assertEquals(3, env.synthesized.size)
-            env.player.finish()
-            runCurrent()
-            assertEquals(SpeechPhase.Completed, env.session.state.value.phase)
         } finally { env.stop() }
     }
 
@@ -570,11 +550,10 @@ class ReadAloudSessionTest {
         try {
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
-            env.configuration = SpeechSettings(voice = "new-voice", playbackSpeed = 2f)
+            env.configuration = SpeechSettings(voice = "new-voice", rate = 1.5f)
             env.session.start(SpeechRequest("book", "two"), playing = false)
             runCurrent()
-            assertEquals(env.configuration.copy(playbackSpeed = 1f), env.opened.last())
-            assertEquals(2f, env.player.playbackSpeed)
+            assertEquals(env.configuration, env.opened.last())
             assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
             val clip = env.player.started.last()
             val requests = env.synthesized.size
@@ -587,32 +566,10 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
-    @Test fun settingsReceivedDuringStartupOverrideTheOlderReadWithoutRestartingSynthesis() = runTest {
-        val env = Environment(this)
-        val read = CompletableDeferred<Unit>()
-        try {
-            env.session.start(SpeechRequest("book", "one"))
-            runCurrent()
-            env.beforeSettings = { read.await() }
-            env.session.start(SpeechRequest("book", "one"))
-            runCurrent()
-            env.session.updateSettings(SpeechSettings(playbackSpeed = 1.5f))
-            env.session.pause()
-            env.session.updateSettings(SpeechSettings(playbackSpeed = 2f))
-            read.complete(Unit)
-            runCurrent()
-            assertEquals(2f, env.player.playbackSpeed)
-            assertEquals(2, env.opened.size)
-            assertEquals(1f, env.opened.last().playbackSpeed)
-            assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
-            assertFalse(env.player.playing)
-        } finally { read.complete(Unit); env.stop() }
-    }
-
     @Test fun previewReturnsToTheAudibleBoundaryWithTheOriginalVoiceAndPauseIntent() = runTest {
         for (playing in listOf(true, false)) {
             val env = Environment(this)
-            env.configuration = SpeechSettings(voice = "original", playbackSpeed = 1.5f)
+            env.configuration = SpeechSettings(voice = "original", rate = 1.24f)
             try {
                 env.session.start(SpeechRequest("book", "one"))
                 runCurrent()
@@ -621,10 +578,9 @@ class ReadAloudSessionTest {
                 val original = env.player.started.last()
                 if (!playing) env.session.pause()
                 val bookmark = env.progress.saved.getValue("book")
-                env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate", playbackSpeed = 2f)))
+                env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate", rate = 1.5f)))
                 runCurrent()
                 assertEquals("candidate", env.opened.last().voice)
-                assertEquals(2f, env.player.playbackSpeed)
                 assertEquals(mapOf("book" to bookmark), env.progress.saved)
                 env.player.finish()
                 runCurrent()
@@ -633,7 +589,7 @@ class ReadAloudSessionTest {
                 assertEquals(original.chapter, env.player.started.last().chapter)
                 assertEquals(original.segment, env.player.started.last().segment)
                 assertSame(original.plan, env.player.started.last().plan)
-                assertEquals(env.configuration.copy(playbackSpeed = 1f), env.opened.last())
+                assertEquals(env.configuration, env.opened.last())
                 assertEquals(playing, env.player.playing)
                 assertEquals(if (playing) SpeechPhase.Playing else SpeechPhase.Paused, env.session.state.value.phase)
                 assertFalse(env.session.restoreAfterPreview())
@@ -694,19 +650,18 @@ class ReadAloudSessionTest {
         try {
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
-            env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate", playbackSpeed = 2f)))
+            env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate", rate = 1.5f)))
             runCurrent()
-            val selected = SpeechSettings(voice = "chosen", playbackSpeed = 1.2f)
+            val selected = SpeechSettings(voice = "chosen", rate = 0.8f)
             env.configuration = selected
             env.session.updateSettings(selected)
             runCurrent()
             assertEquals(2, env.opened.size)
-            assertEquals(2f, env.player.playbackSpeed)
             env.player.finish()
             runCurrent()
             assertTrue(env.session.restoreAfterPreview())
             runCurrent()
-            assertEquals(selected.copy(playbackSpeed = 1f), env.opened.last())
+            assertEquals(selected, env.opened.last())
         } finally { env.stop() }
     }
 
@@ -1131,7 +1086,6 @@ class ReadAloudSessionTest {
         val text = "这是正常的小说内容，保留顺序并且持续朗读。".repeat(100)
         var load: suspend (String, String) -> SpeechChapter = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", text) }
         var beforeSynthesis: suspend () -> Unit = {}
-        var beforeSettings: suspend () -> Unit = {}
         var onOpen: suspend (SpeechSettings) -> Unit = {}
         var onCancel: () -> Unit = {}
         var onClose: () -> Unit = {}
@@ -1147,7 +1101,7 @@ class ReadAloudSessionTest {
         val progress = MemoryProgress()
         val player = FakePlayback()
         val session = ReadAloudSession(scope, SpeechChapterSource { book, chapter -> load(book, chapter) },
-            { request -> val snapshot = bookSettings[request.bookId] ?: configuration; beforeSettings(); snapshot }, progress, {
+            { request -> bookSettings[request.bookId] ?: configuration }, progress, {
                 object : SpeechSynthesizer {
                     private var activeSettings = SpeechSettings()
                     override val maxInputLength get() = inputLimit
@@ -1185,9 +1139,6 @@ class ReadAloudSessionTest {
 
     private class FakePlayback : SpeechPlayback {
         val started = mutableListOf<SpeechClip>()
-        val startSpeeds = mutableListOf<Float>()
-        var playbackSpeed = 1f
-            private set
         var playing = false
         var startBuffered = false
         private var pending: CompletableDeferred<Unit>? = null
@@ -1203,7 +1154,6 @@ class ReadAloudSessionTest {
             rangeCallback = onRange
             estimatedAnchorCallback = onEstimatedAnchor
             started += clip
-            startSpeeds += playbackSpeed
             playing = playWhenReady && !startBuffered
             onState(when {
                 !playWhenReady -> SpeechPhase.Paused
@@ -1213,7 +1163,6 @@ class ReadAloudSessionTest {
             try { complete.await() } finally { if (pending === complete) { pending = null; callback = null } }
         }
         fun finish() { check(playing); pending!!.complete(Unit) }
-        override fun setSpeed(speed: Float) { playbackSpeed = speed }
         override fun pause() { playing = false; callback?.invoke(SpeechPhase.Paused, false) }
         override fun resume() { playing = true; callback?.invoke(SpeechPhase.Playing, true) }
         override fun stop() { pending?.cancel(); pending = null; callback = null; playing = false }

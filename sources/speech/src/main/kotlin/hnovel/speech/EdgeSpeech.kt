@@ -49,7 +49,7 @@ internal class EdgeSpeechClient(
         const val ENDPOINT = "https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1"
         internal fun ssml(voice: String, text: String, rate: Float, volume: Float) =
             "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\">" +
-                "<voice name=\"${xmlSpeech(voice)}\"><prosody rate=\"${(rate * 40).toInt()}%\" volume=\"${(volume * 50).toInt()}%\" " +
+                "<voice name=\"${xmlSpeech(voice)}\"><prosody rate=\"${(multiTtsControl(rate) * .8f).toInt()}%\" volume=\"${multiTtsControl(volume)}%\" " +
                 "pitch=\"+0Hz\">${xmlSpeech(text)}</prosody></voice></speak>"
     }
 }

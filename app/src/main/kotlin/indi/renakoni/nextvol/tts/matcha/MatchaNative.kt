@@ -6,7 +6,7 @@ import indi.renakoni.nextvol.BuildConfig
 
 internal interface MatchaNativeApi {
     fun create(configuration: MatchaNativeConfig): Long
-    fun generate(handle: Long, text: String, speaker: Int, speed: Float, pitch: Float, volume: Float,
+    fun generate(handle: Long, text: String, speaker: Int, speed: Float,
         path: String, cancellation: MatchaCancellation)
     fun destroy(handle: Long)
     fun describe(handle: Long): IntArray = intArrayOf()
@@ -52,7 +52,7 @@ internal object MatchaNative : MatchaNativeApi {
         check(available)
     }
     external override fun create(configuration: MatchaNativeConfig): Long
-    external override fun generate(handle: Long, text: String, speaker: Int, speed: Float, pitch: Float, volume: Float,
+    external override fun generate(handle: Long, text: String, speaker: Int, speed: Float,
         path: String, cancellation: MatchaCancellation)
     external override fun destroy(handle: Long)
     external override fun describe(handle: Long): IntArray

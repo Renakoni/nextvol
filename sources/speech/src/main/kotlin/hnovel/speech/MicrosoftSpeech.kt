@@ -136,7 +136,7 @@ internal class MicrosoftSpeechClient(
 
         internal fun ssml(voice: String, language: String, text: String, rate: Float): String {
             val escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            val percent = ((rate.coerceIn(0.5f, 2f) - 1f) * 100).roundToInt()
+            val percent = ((rate - 1f) * 100).roundToInt()
             return "<speak xmlns=\"http://www.w3.org/2001/10/synthesis\" version=\"1.0\" xml:lang=\"$language\">" +
                 "<voice name=\"$voice\"><prosody rate=\"$percent%\">$escaped</prosody></voice></speak>"
         }

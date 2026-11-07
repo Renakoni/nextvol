@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tts_http_check_network">Check network for online voices</string>
-    <string name="tts_http_volume">Synthesis volume</string>
     <string name="tts_error_http_network_unavailable">No internet connection. Connect to a network or turn off the online voice network check.</string>
     <string name="tts_error_http_configuration">Check the engine request configuration and voice parameters.</string>
     <string name="tts_error_http_authentication">The voice service rejected authentication. Update the account information in the engine configuration.</string>

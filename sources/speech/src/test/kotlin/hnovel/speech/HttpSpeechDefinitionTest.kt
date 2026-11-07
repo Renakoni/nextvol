@@ -48,7 +48,7 @@ class HttpSpeechDefinitionTest {
         assertEquals(5, source("0").scriptSpeed())
         assertEquals(85, source("80").scriptSpeed())
         assertEquals(10, source("80").scriptSpeed(1f))
-        assertEquals(5, source().scriptSpeed(0.5f))
+        assertEquals(0, source().scriptSpeed(0f))
         assertEquals(20, source().scriptSpeed(2f))
         assertThrows(IllegalArgumentException::class.java) { source().scriptSpeed(Float.NaN) }
     }

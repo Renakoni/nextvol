@@ -280,15 +280,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             val nav = LocalNavController.current
             val viewModel = hiltViewModel<SpeechSettingsViewModel>()
             val state by viewModel.state.collectAsStateWithLifecycle()
-            val playback by viewModel.controller.state.collectAsStateWithLifecycle()
-            LaunchedEffect(Unit) { viewModel.refresh() }
-            SpeechPreferencesScreen(state, playback, nav::popBackStackIfResumed,
-                viewModel::setRate, viewModel::setPitch,
-                onCommand = viewModel.controller::command,
-                onSleepTimer = viewModel.controller::setSleepTimer,
-                onChapterSleepTimer = viewModel.controller::setChapterSleepTimer,
-                onPlaybackSpeed = viewModel::setPlaybackSpeed,
-                onHttpVolume = viewModel::setHttpVolume)
+            SpeechPreferencesScreen(state, nav::popBackStackIfResumed,
+                viewModel::setRate, viewModel::setVolume, viewModel::setPitch)
         }
     }
     composable<SpeechEnginesRoute> {

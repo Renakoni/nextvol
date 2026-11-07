@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.tts.offline
 
 import android.content.Context
 import hnovel.speech.OfflineVoiceConfig
+import hnovel.speech.multiTtsControl
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.offline.legacy.*
 import kotlinx.coroutines.CancellationException
@@ -38,15 +39,16 @@ internal class OfflineSpeechSynthesizer(
     @Volatile private var engine: OfflineEngine? = null
     private var ownsPermit = false
     private var closed = false
-    private var speed = 1f
+    private var speed = 50f
+    private var volume = 50f
     private val instances = permits.getValue(offlineSpeechExclusiveGroup(voice.engine))
 
     override suspend fun open(settings: SpeechSettings): String {
         check(opened.compareAndSet(false, true))
         val job = currentCoroutineContext().job
         try {
-            speed = settings.rate ?: 1f
-            require(speed.isFinite() && speed > 0)
+            speed = multiTtsControl(settings.rate).toFloat()
+            volume = multiTtsControl(settings.volume).toFloat()
             instances.acquire()
             var transferred = false
             try {
@@ -98,7 +100,7 @@ internal class OfflineSpeechSynthesizer(
                     checkCancelled()
                     ownsPartial = true
                     OfflinePcmFile(partial, active.sampleRate).use { audio ->
-                        active.synthesize(text, speed) { buffer, count ->
+                        active.synthesize(text, speed, volume) { buffer, count ->
                             job.ensureActive()
                             checkCancelled()
                             audio.append(buffer, count)

@@ -91,7 +91,7 @@ internal class AcapelaEngine(context: Context, directory: File, private val voic
         }
     }
 
-    @Synchronized override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    @Synchronized override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(classic != null || extended != null) { "Acapela engine is closed" }
         cancelled = false
         val outputFailure = AtomicReference<Throwable?>()
@@ -109,14 +109,13 @@ internal class AcapelaEngine(context: Context, directory: File, private val voic
         }
         try {
             classic?.let { engine ->
-                engine.nSetSpeechRate(100 * speed * voice.speed)
-                engine.nSetShape(100 * voice.pitch)
+                engine.nSetSpeechRate((speed * 2.5 + 50).toFloat())
                 engine.setListener { samples, length ->
                     try {
                         require(length >= 0 && length <= samples.size) { "Acapela returned invalid PCM length" }
                         val bytes = ByteArray(length.toInt() * 2)
                         repeat(length.toInt()) { index ->
-                            val sample = (samples[index] * voice.volume).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                            val sample = samples[index].toInt()
                             bytes[index * 2] = sample.toByte()
                             bytes[index * 2 + 1] = (sample shr 8).toByte()
                         }
@@ -146,9 +145,9 @@ internal class AcapelaEngine(context: Context, directory: File, private val voic
                     override fun rangeStart(marker: Int, start: Int, end: Int) = Unit
                 }
                 engine.setCallback(callback)
-                engine.nSetProperty("pitch", (100 * voice.pitch).toInt().toString())
-                engine.nSetProperty("volume", voice.volume.toString())
-                engine.nSetProperty("rate", (100 * speed * voice.speed).toInt().toString())
+                engine.nSetProperty("pitch", "100")
+                engine.nSetProperty("volume", (volume / 51f).toInt().toString())
+                engine.nSetProperty("rate", (speed * 2.5 + 50).toInt().toString())
                 engine.nSpeak(text.replace("/", ", "), callback)
             }
             outputFailure.get()?.let { throw it }

@@ -22,10 +22,10 @@ internal class EspeakEngine(directory: File, private val voice: OfflineVoiceConf
             voice.code, parameters[0], if (gender == 0) parts[0] else "", gender, age)
     }
 
-    override fun synthesize(text: String, speed: Float, emit: (ByteArray, Int) -> Unit) {
+    override fun synthesize(text: String, speed: Float, volume: Float, emit: (ByteArray, Int) -> Unit) {
         check(!closed)
         EspeakNative.synthesize(text.toByteArray(Charsets.UTF_8),
-            (100f + 200f * speed * voice.speed).toInt(), (100f * voice.volume).toInt()) { pcm ->
+            (100f + 4f * speed).toInt(), (volume * 2f).toInt()) { pcm ->
             if (cancelled) throw CancellationException("eSpeak synthesis cancelled")
             if (pcm.isNotEmpty()) emit(pcm, pcm.size)
         }

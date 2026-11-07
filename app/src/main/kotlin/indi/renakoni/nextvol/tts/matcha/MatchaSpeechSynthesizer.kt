@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.tts.matcha
 
+import hnovel.speech.multiTtsControl
 import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechException
 import indi.renakoni.nextvol.tts.SpeechSettings
@@ -39,8 +40,6 @@ class MatchaSpeechSynthesizer internal constructor(
         check(opened.compareAndSet(false, true))
         val job = currentCoroutineContext().job
         try {
-            val rate = settings.rate ?: 1f
-            require(rate.isFinite() && rate in 0.5f..2f && (settings.pitch == null || settings.pitch == 1f))
             require(settings.httpSource == null && settings.voice.isEmpty())
             withContext(Dispatchers.IO) {
                 MatchaModels.acquire(resources, native) { acquire ->
@@ -49,7 +48,7 @@ class MatchaSpeechSynthesizer internal constructor(
                         check(!closed)
                         checkCancelled()
                         model = acquire() ?: return@withLock
-                        speed = rate
+                        speed = multiTtsControl(settings.rate) / 34f
                         job.ensureActive()
                         checkCancelled()
                     }
@@ -81,8 +80,8 @@ class MatchaSpeechSynthesizer internal constructor(
                     job.ensureActive()
                     val voice = resources.configuration
                     active.use { api, handle ->
-                        api.generate(handle, text, voice.speakerId, speed * voice.speed, voice.pitch, voice.volume,
-                            partial.path, MatchaCancellation { cancelled.get() || !job.isActive })
+                        api.generate(handle, text, voice.speakerId, speed, partial.path,
+                            MatchaCancellation { cancelled.get() || !job.isActive })
                     }
                     job.ensureActive()
                     checkCancelled()
