@@ -158,7 +158,7 @@ fun SpeechSettingsScreen(
                     }
                 }
             }
-            item {
+            if (onEngines != null || onDiagnostics != null) item {
                 SettingsCategory {
                     onEngines?.let { open ->
                         SettingsClickableEntry(

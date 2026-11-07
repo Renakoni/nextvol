@@ -6,6 +6,7 @@ import android.widget.Toast
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -65,7 +66,7 @@ data class OfflineVoiceEditorRoute(val id: String = "", val copy: Boolean = fals
 data class HttpVoiceEditorRoute(val id: String = "", val copy: Boolean = false, val engineCode: String? = null)
 
 @Serializable
-data class SpeechPreferencesRoute(val schemeId: String? = null, val bookId: String? = null, val followBook: Boolean = false)
+object SpeechPreferencesRoute
 
 @Serializable
 data class SpeechPlaybackSettingsRoute(val bookId: String? = null, val schemeId: String? = null)
@@ -140,7 +141,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             schemeTitle = scheme?.label().takeIf { route.schemeId != null },
             schemeUsage = scheme?.let { schemes.usage(it.id) }.takeIf { route.schemeId != null },
             onSources = { nav.navigate(HttpSpeechSourcesRoute(schemeId = state.settings.schemeId)) { launchSingleTop = true } },
-            onPreferences = { nav.navigate(SpeechPreferencesRoute(route.schemeId, bookId, route.followBook)) { launchSingleTop = true } },
+            onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute(bookId, state.settings.schemeId)) { launchSingleTop = true } },
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } }.takeIf { route.schemeId == null },
             onReplacements = { nav.navigate(SpeechReplacementsRoute(state.settings.schemeId)) { launchSingleTop = true } },
@@ -272,20 +273,21 @@ fun NavGraphBuilder.speechSettingsDestination() {
         }
     }
     composable<SpeechPreferencesRoute> { entry ->
-        SpeechSchemeScope {
-            HideReadAloudOverlay()
-            val nav = LocalNavController.current
-            val route = entry.toRoute<SpeechPreferencesRoute>()
-            val schemesModel = hiltViewModel<SpeechSchemesViewModel>()
-            val schemes by schemesModel.state.collectAsStateWithLifecycle()
-            val viewModel = hiltViewModel<SpeechSettingsViewModel>()
-            val state by viewModel.state.collectAsStateWithLifecycle()
-            val scheme = schemes.schemes.items.find { it.id == (route.schemeId ?: schemes.schemes.effectiveId(route.bookId)) }
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        val owner = remember(entry) { nav.getBackStackEntry<SpeechSettingsRoute>() }
+        val route = owner.toRoute<SpeechSettingsRoute>()
+        val schemesModel = hiltViewModel<SpeechSchemesViewModel>(owner)
+        val schemes by schemesModel.state.collectAsStateWithLifecycle()
+        val viewModel = hiltViewModel<SpeechSettingsViewModel>(owner)
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val schemeName = state.settings.schemeName.ifBlank { stringResource(R.string.tts_scheme_initial) }
+        CompositionLocalProvider(LocalSpeechSchemeName provides schemeName) {
             SpeechPreferencesScreen(state, nav::popBackStackIfResumed,
                 viewModel::setRate, viewModel::setVolume, viewModel::setPitch,
                 onSchemes = { nav.navigate(SpeechSchemesRoute(route.bookId)) { launchSingleTop = true } }.takeIf { route.schemeId == null },
-                schemeSummary = scheme?.let { if (route.bookId != null && schemes.schemes.bindings[route.bookId] == null)
-                    stringResource(R.string.tts_scheme_follow_name, it.label()) else it.label() })
+                schemeSummary = if (route.bookId != null && schemes.schemes.bindings[route.bookId] == null)
+                    stringResource(R.string.tts_scheme_follow_name, schemeName) else schemeName)
         }
     }
     composable<SpeechEnginesRoute> {
