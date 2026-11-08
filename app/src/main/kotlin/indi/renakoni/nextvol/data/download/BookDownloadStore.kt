@@ -116,7 +116,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
             if (task.generation != generation() || owner == null || owner.taskWorkId != task.workId ||
                 owner.taskStatus == DownloadTaskStatus.Cancelled.name)
                 throw CancellationException("Download task was cleared or replaced")
-            dao.put(update(checkNotNull(owner)))
+            dao.put(update(owner))
         } }
 
     suspend fun taskStage(task: Task, stage: DownloadStage, chapterId: String = "") = updateTask(task) {
@@ -284,7 +284,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
                 attempt.requireTask && owner.taskWorkId != attempt.id ||
                 owner.taskWorkId == attempt.id && owner.taskStatus == DownloadTaskStatus.Cancelled.name)
                 throw CancellationException("Download was cleared or replaced")
-            block(checkNotNull(owner))
+            block(owner)
         } }
 
     suspend fun target(attempt: Attempt, volumes: BookVolumes, revision: String, coverUri: String) = current(attempt) {
