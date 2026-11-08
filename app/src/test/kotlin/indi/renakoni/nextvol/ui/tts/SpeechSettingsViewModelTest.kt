@@ -230,8 +230,8 @@ class SpeechSettingsViewModelTest {
         coEvery { engines.all() } returns emptyList()
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
-        val library = OfflineSpeechSourcesViewModel(offline, repository, controller, availability, engines,
-            SpeechVoiceOperations(http, offline, schemesRepository, controller))
+        val library = OfflineSpeechSourcesViewModel(offline, SpeechVoiceOperations(http, offline, schemesRepository, controller),
+            repository, controller, availability, engines)
         try {
             runCurrent()
             val deletion = library.delete(voice)

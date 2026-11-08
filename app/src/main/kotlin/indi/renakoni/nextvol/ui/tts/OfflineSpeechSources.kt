@@ -42,11 +42,11 @@ data class OfflineSpeechState(
 @HiltViewModel
 class OfflineSpeechSourcesViewModel @Inject constructor(
     private val repository: OfflineSpeechRepository,
+    private val operations: SpeechVoiceOperations,
     private val settings: SpeechSettingsEditor,
     private val controller: ReadAloudController,
     private val availability: OfflineAvailabilityChecker,
     private val engines: OfflineEngineRepository,
-    private val operations: SpeechVoiceOperations,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(OfflineSpeechState())
     private var refreshing: Job? = null
