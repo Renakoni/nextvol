@@ -73,8 +73,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
-import androidx.compose.runtime.key
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -118,8 +116,6 @@ import indi.renakoni.nextvol.ui.components.downloadStatusText
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.components.LnrSnackbar
 import indi.renakoni.nextvol.ui.components.Loading
-import indi.renakoni.nextvol.ui.book.reader.DirectorySearchMatch
-import indi.renakoni.nextvol.ui.book.reader.searchDirectory
 import indi.renakoni.nextvol.ui.components.rememberSkeletonShimmer
 import indi.renakoni.nextvol.ui.home.bookshelf.home.BookStatusIcon
 import indi.renakoni.nextvol.ui.home.settings.textformatting.rules.navigateToSettingsTextFormattingRulesDestination
@@ -579,68 +575,21 @@ private fun DetailContent(
     onRelink: () -> Unit,
 ) {
     val bookVolumes = uiState.bookVolumes?.availableVolumes()
-    val volumes = bookVolumes?.volumes.orEmpty()
     val progress = uiState.userReadingData?.maxChapterReadingProgressMap.orEmpty()
-    val readIds = remember(progress) { progress.filterValues { it >= 1f }.keys }
     val currentChapterId = uiState.userReadingData?.lastReadChapterId
-    val allChapters = remember(volumes) { directoryChapters(volumes) }
-    val readingIndex = remember(allChapters, currentChapterId) { allChapters.indexOfFirst { it.chapter.id == currentChapterId } }
-    val volumesById = remember(volumes) { volumes.associateBy { it.volumeId } }
-    val chapterOrdinals = remember(allChapters) { allChapters.mapIndexed { index, entry -> entry.key to index + 1 }.toMap() }
-    val readCounts = remember(volumes, readIds) { volumes.associate { volume ->
-        volume.volumeId to volume.chapters.count { it.id in readIds }
-    } }
-    var volumeExpansion by rememberSaveable(bookInformation.id) { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    fun isVolumeExpanded(volumeId: String): Boolean {
-        val volume = volumesById.getValue(volumeId)
-        return volume.volumeTitle.isBlank() || (volumeExpansion[volumeId]
-            ?: (readCounts.getValue(volumeId) < volume.chapters.size || volumes.size > 8))
-    }
-    var requestedPage by rememberSaveable(bookInformation.id) { mutableStateOf<Int?>(null) }
-    var descending by rememberSaveable(bookInformation.id) { mutableStateOf(false) }
-    var hideReadChapters by rememberSaveable(bookInformation.id) { mutableStateOf(false) }
-    var searchExpanded by rememberSaveable(bookInformation.id) { mutableStateOf(false) }
-    var query by rememberSaveable(bookInformation.id) { mutableStateOf("") }
-    var scrollToDirectory by remember { mutableStateOf(false) }
-    var chapterToLocate by remember { mutableStateOf<String?>(null) }
+    val directory = rememberDetailDirectoryState(bookInformation.id)
+    val data = directory.data(bookVolumes, progress, currentChapterId, selectingChapters)
     val focusManager = LocalFocusManager.current
-    val pageCount = directoryPageCount(allChapters.size)
-    val page = (requestedPage ?: directoryPageForChapter(allChapters.size, readingIndex, descending)).coerceIn(0, pageCount - 1)
-    val hideRead = hideReadChapters && !selectingChapters
-    val pageChapters = remember(allChapters, page, descending) { directoryPageChapters(allChapters, page, descending) }
-    val pageVolumes = remember(pageChapters) { pageChapters.groupBy { it.volumeId } }
-    val chapters = remember(pageChapters, hideRead, readIds) {
-        pageChapters.filterNot { hideRead && it.chapter.id in readIds }
-    }
-    val visibleChapterKeys = chapters.filter { isVolumeExpanded(it.volumeId) }.mapTo(mutableSetOf()) { it.key }
-    val directoryItemKeys = buildList {
-        pageVolumes.forEach { (volumeId, entries) ->
-            if (volumesById.getValue(volumeId).volumeTitle.isNotBlank()) add("volume:$volumeId")
-            entries.forEach { if (it.key in visibleChapterKeys) add(it.key) }
-        }
-    }
-    val searching = query.isNotBlank()
-    val matches by key(bookVolumes, query) {
-        produceState<List<DirectorySearchMatch>?>(null) {
-            if (searching && bookVolumes != null) value = withContext(Dispatchers.Default) { searchDirectory(bookVolumes, query) }
-        }
-    }
-    val results = remember(matches, hideRead, readIds, descending) {
-        matches?.filterNot { hideRead && it.chapter.id in readIds }?.let { if (descending) it.asReversed() else it }
-    }
+    val searching = directory.searching
+    val results = data.results
     val searchListState = rememberLazyListState()
     val activeListState = if (searching) searchListState else lazyListState
     LaunchedEffect(activeListState) { onActiveListStateChange(activeListState) }
-    val changePage: (Int) -> Unit = {
-        requestedPage = it
-        scrollToDirectory = true
-    }
     val closeSearch = {
-        query = ""
-        searchExpanded = false
+        directory.closeSearch()
         focusManager.clearFocus()
     }
-    BackHandler(searchExpanded, onBack = closeSearch)
+    BackHandler(directory.searchExpanded, onBack = closeSearch)
     val deferred = 6
     val framesPerStep = 2
     var visible by rememberSaveable { mutableIntStateOf(0) }
@@ -652,15 +601,14 @@ private fun DetailContent(
         }
     }
 
-    LaunchedEffect(scrollToDirectory, chapterToLocate, page, directoryItemKeys, searching, matches, visible) {
-        if (!scrollToDirectory || visible < deferred || (searching && matches == null)) return@LaunchedEffect
+    LaunchedEffect(directory.scrollToDirectory, directory.chapterToLocate, data.page, data.directoryItemKeys, searching, data.matches, visible) {
+        if (!directory.scrollToDirectory || visible < deferred || (searching && data.matches == null)) return@LaunchedEffect
         val headerIndex = if (selectingChapters || searching) 0 else 4
-        val chapterKey = chapters.firstOrNull { it.chapter.id == chapterToLocate }?.key
-        val chapterIndex = chapterKey?.let(directoryItemKeys::indexOf) ?: -1
+        val chapterKey = data.chapters.firstOrNull { it.chapter.id == directory.chapterToLocate }?.key
+        val chapterIndex = chapterKey?.let(data.directoryItemKeys::indexOf) ?: -1
         val errorItemCount = if (uiState.bookVolumes?.isErr == true) 1 else 0
         activeListState.scrollToItem(if (chapterIndex >= 0 && !searching) headerIndex + 1 + errorItemCount + chapterIndex else headerIndex)
-        scrollToDirectory = false
-        chapterToLocate = null
+        directory.consumeScrollRequest()
     }
 
     LazyColumn(
@@ -723,28 +671,15 @@ private fun DetailContent(
         }
         if (visible >= 5 && uiState.readingAvailable) item(key = "directory-toolbar") {
             DirectoryToolbar(
-                chapterCount = allChapters.size, page = page, onPageChange = changePage,
-                descending = descending, hideRead = hideReadChapters, selecting = selectingChapters,
-                canLocate = readingIndex >= 0, searchExpanded = searchExpanded, query = query,
+                chapterCount = data.allChapters.size, page = data.page, onPageChange = directory::changePage,
+                descending = directory.descending, hideRead = directory.hideReadChapters, selecting = selectingChapters,
+                canLocate = data.readingIndex >= 0, searchExpanded = directory.searchExpanded, query = directory.query,
                 matchCount = if (searching) results?.size else null,
-                onToggleOrder = {
-                    descending = !descending
-                    if (!searching) {
-                        requestedPage = 0
-                    }
-                    scrollToDirectory = true
-                },
-                onToggleHideRead = { hideReadChapters = !hideReadChapters },
-                onLocate = {
-                    closeSearch()
-                    requestedPage = directoryPageForChapter(allChapters.size, readingIndex, descending)
-                    hideReadChapters = false
-                    allChapters.getOrNull(readingIndex)?.let { volumeExpansion = volumeExpansion + (it.volumeId to true) }
-                    chapterToLocate = currentChapterId
-                    scrollToDirectory = true
-                },
-                onToggleSearch = { if (searchExpanded) closeSearch() else searchExpanded = true },
-                onQueryChange = { query = it; if (it.isNotBlank()) scrollToDirectory = true },
+                onToggleOrder = directory::toggleOrder,
+                onToggleHideRead = directory::toggleHideRead,
+                onLocate = { directory.locateCurrentChapter(data) { focusManager.clearFocus() } },
+                onToggleSearch = { if (directory.searchExpanded) closeSearch() else directory.openSearch() },
+                onQueryChange = directory::changeQuery,
             )
         }
 
@@ -771,7 +706,7 @@ private fun DetailContent(
                         }
                         else -> items(results, key = { it.key }, contentType = { "chapter" }) { result ->
                             ChapterItem(
-                                chapter = result.chapter, isRead = result.chapter.id in readIds,
+                                chapter = result.chapter, isRead = result.chapter.id in data.readIds,
                                 isLastRead = result.chapter.id == currentChapterId, readingProgress = progress[result.chapter.id] ?: 0f,
                                 onClick = { focusManager.clearFocus(); onClickChapter(result.chapter.id) },
                                 selecting = selectingChapters, selected = result.chapter.id in selectedChapterIds,
@@ -779,41 +714,41 @@ private fun DetailContent(
                             )
                         }
                     }
-                } else if (allChapters.isNotEmpty()) {
-                    pageVolumes.forEach { (volumeId, entries) ->
-                        val volume = volumesById.getValue(volumeId)
+                } else if (data.allChapters.isNotEmpty()) {
+                    data.pageVolumes.forEach { (volumeId, entries) ->
+                        val volume = data.volumesById.getValue(volumeId)
                         if (volume.volumeTitle.isNotBlank()) item(key = "volume:$volumeId", contentType = "volume") {
-                            val first = chapterOrdinals.getValue(entries.first().key)
-                            val last = chapterOrdinals.getValue(entries.last().key)
+                            val first = data.chapterOrdinals.getValue(entries.first().key)
+                            val last = data.chapterOrdinals.getValue(entries.last().key)
                             DirectoryVolumeHeader(
                                 volumeId = volumeId, title = volume.volumeTitle,
-                                readCount = readCounts.getValue(volumeId), chapterCount = volume.chapters.size,
+                                readCount = data.readCounts.getValue(volumeId), chapterCount = volume.chapters.size,
                                 pageRange = if (entries.size < volume.chapters.size)
                                     stringResource(R.string.detail_directory_volume_page_range, minOf(first, last), maxOf(first, last)) else null,
-                                expanded = isVolumeExpanded(volumeId),
-                                onToggle = { volumeExpansion = volumeExpansion + (volumeId to !isVolumeExpanded(volumeId)) },
+                                expanded = directory.isVolumeExpanded(volumeId, data),
+                                onToggle = { directory.toggleVolume(volumeId, data) },
                             )
                         }
                         entries.forEach { entry ->
-                            if (entry.key in visibleChapterKeys) item(key = entry.key, contentType = "chapter") {
+                            if (entry.key in data.visibleChapterKeys) item(key = entry.key, contentType = "chapter") {
                                 val chapter = entry.chapter
                                 ChapterItem(
-                                    chapter = chapter, isRead = chapter.id in readIds, isLastRead = chapter.id == currentChapterId,
+                                    chapter = chapter, isRead = chapter.id in data.readIds, isLastRead = chapter.id == currentChapterId,
                                     readingProgress = progress[chapter.id] ?: 0f, onClick = { onClickChapter(chapter.id) },
                                     selecting = selectingChapters, selected = chapter.id in selectedChapterIds, selectionEnabled = selectionEnabled,
                                 )
                             }
                         }
                     }
-                    if (chapters.isEmpty() && hideRead) item {
+                    if (data.chapters.isEmpty() && data.hideRead) item {
                         Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(stringResource(R.string.detail_directory_filtered_empty), style = typography.bodyMedium, color = colorScheme.onSurfaceVariant)
-                            TextButton(onClick = { hideReadChapters = false }) { Text(stringResource(R.string.detail_directory_show_all)) }
+                            TextButton(onClick = directory::showReadChapters) { Text(stringResource(R.string.detail_directory_show_all)) }
                         }
                     }
-                    if (pageCount > 1) item(key = "directory-pagination") {
+                    if (data.pageCount > 1) item(key = "directory-pagination") {
                         Box(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
-                            DirectoryPageNavigation(allChapters.size, page, descending, changePage)
+                            DirectoryPageNavigation(data.allChapters.size, data.page, directory.descending, directory::changePage)
                         }
                     }
                 } else item {
