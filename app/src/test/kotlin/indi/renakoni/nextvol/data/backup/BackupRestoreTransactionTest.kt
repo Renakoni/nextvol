@@ -194,6 +194,20 @@ class BackupRestoreTransactionTest {
         assertNotNull(db.bookInformationDao().getEntity(later.storageKey))
     }
 
+    @Test fun overwriteRestoresOnlyBackedUpFormattingRules() = runBlocking {
+        val rules = db.formattingRuleDao()
+        val backedUp = FormattingRuleEntity(1, "", "Backed up", false, "before", "after", true)
+        rules.insertRuleEntity(backedUp.copy(replacement = "local edit", isEnabled = false))
+        rules.insertRuleEntity(backedUp.copy(id = 2, name = "Not backed up"))
+        val data = payload(incoming).let {
+            it.copy(localDataList = listOf(it.localDataList.single().copy(formattingRuleEntities = listOf(backedUp))))
+        }
+
+        assertTrue(backup.importAppLocalData(data, overwrite = true).isOk)
+
+        assertEquals(listOf(backedUp), rules.getAllBookRuleEntity())
+    }
+
     @Test fun mergeKeepsOldDownloadsAndBufferedTime() = runBlocking {
         stats.accumulateBookReadTime(old.storageKey, 15)
         assertTrue(backup.importAppLocalData(payload(incoming, later)).isOk)
