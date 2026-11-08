@@ -4,6 +4,7 @@ import indi.renakoni.nextvol.data.logging.SpeechLogEvent
 import indi.renakoni.nextvol.data.logging.SpeechLogRecord
 import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.tts.SpeechClipProducer.Step
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -11,7 +12,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.util.UUID
 
@@ -286,14 +285,6 @@ class ReadAloudSession(
             sleepTimerChapters = current.sleepTimerChapters, initialContext = context)
     }
 
-    private sealed interface Step {
-        data class Ready(val clip: SpeechClip) : Step
-        data class Skipped(val plan: SpeechPlan) : Step
-        data class Failed(val error: SpeechError, val request: SpeechRequest, val chapter: SpeechChapter?,
-            val plan: SpeechPlan?, val index: Int, val context: SpeechContext,
-            val replacementFailure: SpeechReplacementFailure? = null, val roleFailure: SpeechRoleFailure? = null) : Step
-    }
-
     private fun audibleBoundary(): SpeechBookmark? = currentClip?.let { clip ->
         val position = state.value.position?.takeIf { it.bookId == clip.chapter.bookId && it.chapterId == clip.chapter.id &&
             it.anchor in clip.segment.start until clip.segment.end }
@@ -307,97 +298,9 @@ class ReadAloudSession(
         // At most one playing file, two buffered files and one synthesis in flight.
         val queue = Channel<Step>(capacity = 2, onUndeliveredElement = { (it as? Step.Ready)?.clip?.dispose() })
         launch {
-            var activeSettings = opened
-            var voiceLabel = initialLabel
-            var target = request
-            var chapter: SpeechChapter? = null
-            var plan: SpeechPlan? = null
-            var position = 0
-            var stage = SpeechLogStage.Analysis
-            // A failed chapter load has no fingerprint yet; retain its input seed for another retry.
-            var context = saved?.takeIf { !request.isPreview && it.bookId == request.bookId &&
-                it.chapterId == request.chapterId && it.replacementKey == processingKey }
-                ?.context ?: initialContext
-            try {
-                var first = true
-                while (true) {
-                    chapter = null
-                    plan = null
-                    position = 0
-                    stage = SpeechLogStage.Analysis
-                    chapter = if (target.isPreview) SpeechChapter("", "", "", "", target.previewText.orEmpty())
-                        else loadChapter(target)
-                    val loaded = chapter
-                    if (first) context = saved?.takeIf { !target.isPreview && it.bookId == loaded.bookId &&
-                        it.chapterId == loaded.id && (it.fingerprint == loaded.fingerprint ||
-                            it.fingerprint.isEmpty() && it.offset == 0) &&
-                        it.replacementKey == processingKey }?.context ?: initialContext
-                    plan = reusablePlan?.takeIf { it.matches(loaded, synthesis, context, maxInputLength) } ?: withContext(ioDispatcher) {
-                        preparePlan(loaded, synthesis, context, maxInputLength)
-                    }
-                    val (resumed, startIndex) = plan.resumeAt(saved.takeIf { first })
-                    plan = resumed
-                    val segments = plan.segments
-                    if (segments.isEmpty()) {
-                        queue.send(Step.Skipped(plan))
-                    }
-                    for (index in startIndex..segments.lastIndex) {
-                        val segment = segments[index]
-                        position = index
-                        val file = File(directory, UUID.randomUUID().toString() + ".wav")
-                        var delivered = false
-                        try {
-                            if (segment.pauseMs != null) {
-                                queue.send(Step.Ready(SpeechClip(plan, index, file)))
-                                delivered = true
-                                continue
-                            }
-                            stage = SpeechLogStage.Initialization
-                            val selected = segment.selectedVoice
-                            selected?.error?.let { throw SpeechException(it) }
-                            val parameters = selected?.settings ?: synthesis
-                            if (activeSettings != parameters) {
-                                // The router reuses cached voices and releases conflicting backend slots before opening.
-                                voiceLabel = provider.open(parameters)
-                                activeSettings = parameters
-                            }
-                            stage = SpeechLogStage.Request
-                            if (detailedLogging()) diagnostics(SpeechLogRecord(stage, SpeechLogEvent.Started,
-                                voice = selected?.reference?.copy(label = voiceLabel),
-                                processId = plan.logId, segment = index + 1,
-                                details = speechParameterDetails(parameters, selected?.voiceParameters, provider.audioParameters * segment.audioParameters) +
-                                    (R.string.tts_log_final_text to segment.text)))
-                            val activePlan = plan
-                            val timings = provider.synthesize(segment, file) { audio ->
-                                queue.send(Step.Ready(SpeechClip(activePlan, index, file, voiceLabel = voiceLabel, stream = audio)))
-                                delivered = true
-                            }
-                            currentCoroutineContext().ensureActive()
-                            if (!delivered) {
-                                queue.send(Step.Ready(SpeechClip(plan, index, file, timings, voiceLabel)))
-                                delivered = true
-                            }
-                        } finally { if (!delivered) file.delete() }
-                    }
-                    val next = chapter.nextId ?: break
-                    if (next == chapter.id) throw SpeechException(SpeechError.SourceUnavailable)
-                    target = target.copy(chapterId = next)
-                    context = plan.nextContext
-                    first = false
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                val error = failure.speechError(SpeechError.SynthesisFailed)
-                val failed = plan?.segments?.getOrNull(position)
-                diagnostics(SpeechLogRecord(if (error == SpeechError.AudioProcessing || error == SpeechError.InvalidAudio)
-                    SpeechLogStage.Audio else stage, SpeechLogEvent.Failed, error, failed?.selectedVoice?.reference,
-                    subject = (failure as? SpeechReplacementException)?.failure?.ruleName
-                        ?: (failure as? SpeechRoleException)?.failure?.ruleName ?: failed?.roleMatch?.ruleName,
-                    processId = plan?.logId, segment = failed?.let { position + 1 }))
-                queue.send(Step.Failed(failure.speechError(SpeechError.SynthesisFailed), target, chapter, plan, position, context,
-                    (failure as? SpeechReplacementException)?.failure, (failure as? SpeechRoleException)?.failure))
-            } finally { queue.close() }
+            SpeechClipProducer(chapters, provider, ioDispatcher, preparePlan, diagnostics, detailedLogging)
+                .produce(request, directory, saved, synthesis, reusablePlan, initialContext, opened, initialLabel,
+                    maxInputLength, processingKey, queue)
         }
         try {
             for (step in queue) {
@@ -508,12 +411,6 @@ class ReadAloudSession(
             publish(token) { it.copy(phase = SpeechPhase.Completed, position = null, sleepTimerChapters = null) }
         } finally { queue.cancel() }
     }
-
-    private suspend fun loadChapter(request: SpeechRequest): SpeechChapter = try {
-        withTimeout(30_000) { chapters.load(request.bookId, request.chapterId) }
-    } catch (_: TimeoutCancellationException) { throw SpeechException(SpeechError.SourceTimeout) }
-    catch (cancelled: CancellationException) { throw cancelled }
-    catch (failure: Exception) { throw SpeechException(failure.speechError(SpeechError.SourceUnavailable)) }
 
     private suspend fun save(bookmark: SpeechBookmark) {
         try { withContext(NonCancellable) { progress.save(bookmark) } }
