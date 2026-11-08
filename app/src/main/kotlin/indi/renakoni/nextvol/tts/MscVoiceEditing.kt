@@ -10,8 +10,7 @@ import javax.inject.Inject
 class MscVoiceEditing @Inject constructor(
     private val online: HttpSpeechRepository,
     private val offline: OfflineSpeechRepository,
-    private val settings: SpeechSettingsRepository,
-    private val pairs: SpeechVoicePoolRepository,
+    private val references: SpeechVoiceReferences,
 ) {
     suspend fun toOnline(previous: InstalledOfflineVoice, voice: InstalledOfflineVoice, copy: Boolean, creating: Boolean) {
         val configuration = requireNotNull(voice.configuration)
@@ -39,7 +38,7 @@ class MscVoiceEditing @Inject constructor(
             OfflineSpeechResources(voice.resourceReference, it, voice.packageAvatar)
         }))
         if (!copy && !creating) {
-            replaceReference(SpeechVoiceRef(offlineVoice = previous.reference, externalId = previous.packageVoiceId()),
+            references.replaceReference(SpeechVoiceRef(offlineVoice = previous.reference, externalId = previous.packageVoiceId()),
                 SpeechVoiceRef(httpSource = source.definition.id, label = voice.name, externalId = source.packageVoiceId()),
                 target?.let { SpeechVoiceRef(httpSource = it.definition.id, externalId = it.packageVoiceId()) })
             offline.delete(voice.reference)
@@ -72,19 +71,11 @@ class MscVoiceEditing @Inject constructor(
                 source.offlineResources)
         }
         if (!copy) {
-            replaceReference(SpeechVoiceRef(httpSource = source.definition.id, externalId = source.packageVoiceId()),
+            references.replaceReference(SpeechVoiceRef(httpSource = source.definition.id, externalId = source.packageVoiceId()),
                 SpeechVoiceRef(offlineVoice = voice.reference, label = voice.name, externalId = voice.packageVoiceId()),
                 target?.let { SpeechVoiceRef(offlineVoice = it.reference, externalId = it.packageVoiceId()) })
             online.delete(source.definition.id)
         }
-    }
-
-    internal suspend fun replaceReference(previous: SpeechVoiceRef, replacement: SpeechVoiceRef, overwritten: SpeechVoiceRef? = null) {
-        settings.updateAll {
-            val updated = it.replaceVoiceReference(previous, replacement)
-            if (overwritten == null) updated else updated.updateVoiceSelections(overwritten, replacement)
-        }
-        pairs.replaceVoiceReference(previous, replacement)
     }
 }
 
@@ -109,13 +100,3 @@ internal fun JsonObject.offlineConfiguration(engine: String): OfflineVoiceConfig
 
 internal fun JsonObject.offlineMetadata() = OfflineVoiceMetadata(
     get("note")?.jsonPrimitive?.content.orEmpty(), get("desc")?.jsonPrimitive?.content.orEmpty(), get("avatar")?.jsonPrimitive?.content.orEmpty())
-
-internal fun SpeechSettings.replaceVoiceReference(previous: SpeechVoiceRef, replacement: SpeechVoiceRef): SpeechSettings {
-    fun replace(value: SpeechVoiceRef) = if (value.canonicalKey == previous.canonicalKey) replacement.copy(externalId = value.externalId) else value
-    val selections = updateVoiceSelections(previous, replacement)
-    val selected = replace(voiceReference())
-    return copy(engine = selected.engine, voice = selected.voice, httpSource = selected.httpSource, offlineVoice = selected.offlineVoice,
-        narrationVoices = selections.narrationVoices, dialogueVoices = selections.dialogueVoices,
-        speakerVoices = speakerVoices.mapValues { replace(it.value) }, roleRules = roleRules.map { it.copy(speaker = it.speaker?.let(::replace)) },
-        voiceItems = voiceItems.map { it.copy(value = replace(it.value)) })
-}

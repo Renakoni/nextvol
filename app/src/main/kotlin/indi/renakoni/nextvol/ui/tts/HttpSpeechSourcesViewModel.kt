@@ -53,7 +53,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val catalog: SpeechVoiceCatalog,
     private val engineCatalog: SpeechEngineCatalogService,
-    private val editing: MscVoiceEditing,
+    private val references: SpeechVoiceReferences,
     private val operations: SpeechVoiceOperations,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HttpSpeechSourcesState())
@@ -223,7 +223,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         if (isInUse(setOf(source.definition.id))) controller.command(SpeechAction.Stop)
         val updated = preview.sources.single()
         repository.saveVoice(source.copy(definition = updated))
-        editing.replaceReference(SpeechVoiceRef(httpSource = source.definition.id, externalId = source.packageVoiceId()),
+        references.replaceReference(SpeechVoiceRef(httpSource = source.definition.id, externalId = source.packageVoiceId()),
             SpeechVoiceRef(httpSource = updated.id, label = updated.name, externalId = source.packageVoiceId()))
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
     }

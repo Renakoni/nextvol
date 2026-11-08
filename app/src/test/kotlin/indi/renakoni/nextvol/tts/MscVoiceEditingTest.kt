@@ -57,6 +57,7 @@ class MscVoiceEditingTest {
         val data = UserDataRepository(dao)
         val settings = SpeechSettingsRepository(data)
         val pairs = SpeechVoicePoolRepository(data)
+        val voiceReferences = SpeechVoiceReferences(settings, pairs)
         val archive = files.newFile("$code.zip")
         ZipOutputStream(archive.outputStream()).use { zip ->
             (mapOf("config.yaml" to "$code: [{code: voice, name: Original, locale: zh-CN, type: 0, param: \"$parameters\"}]") +
@@ -81,7 +82,7 @@ class MscVoiceEditingTest {
             voiceItems = listOf(SpeechVoiceItem("pool", reference))) }
         pairs.setManual(SpeechVoicePair("book", "person", "group", reference))
         val draft = VoiceDraft.from(original).copy(name = "Edited", type = "1", speed = "1.4")
-        MscVoiceEditing(online, offline, settings, pairs).toOnline(original, draft.fields().applyTo(original), copy = false, creating = false)
+        MscVoiceEditing(online, offline, voiceReferences).toOnline(original, draft.fields().applyTo(original), copy = false, creating = false)
         assertTrue(offline.voices().isEmpty())
         val model = File(offline.directory(original.resourceReference), modelPath)
         assertEquals("voice", model.readText())
@@ -102,7 +103,7 @@ class MscVoiceEditingTest {
         assertNull(pairs.pairs().single().value.resolvePackageReference(speechPackageReferences(online.sources(), emptyList())).httpSource)
         val ticket = authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
         val offlineFields = VoiceDraft.from(source, source.definition.id).copy(type = "0").fields()
-        MscVoiceEditing(online, offline, settings, pairs).toOffline(source, offlineFields.speakerFields(), offlineFields.enabled, copy = true)
+        MscVoiceEditing(online, offline, voiceReferences).toOffline(source, offlineFields.speakerFields(), offlineFields.enabled, copy = true)
         val copied = offline.voices().single()
         assertEquals(original.resourceReference, copied.resourceReference)
         assertTrue(authority.accepts(ticket))
@@ -119,7 +120,7 @@ class MscVoiceEditingTest {
         assertEquals(reimported.reference, pairs.pairs().single().value.resolvePackageReference(references).offlineVoice)
         val renamed = offline.save(reimported.copy(configuration = reimported.configuration!!.copy(code = "renamed")))
         settings.update { it.copy(dialogueVoices = listOf(SpeechVoiceRef(offlineVoice = renamed.reference, externalId = renamed.packageVoiceId()))) }
-        val editor = MscVoiceEditing(online, offline, settings, pairs)
+        val editor = MscVoiceEditing(online, offline, voiceReferences)
         editor.toOffline(online.sources().single { !it.isBuiltIn },
             offlineFields.speakerFields(), offlineFields.enabled, copy = false)
         val restored = OfflineSpeechRepository(root, engines).voices().single()
