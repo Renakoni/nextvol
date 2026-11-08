@@ -595,6 +595,27 @@ class SourcesViewModelTest {
                 assertEquals(second.definition, partial.installed.single { ImportedRuleSources.id(it.definition) == secondId }.definition)
                 model.saveVariable(secondId, "kept after rejected candidate")
                 assertEquals(indi.renakoni.nextvol.R.string.sources_saved, idle().message)
+
+                val applied = JsonObject(raw + ("bookSourceName" to JsonPrimitive("Applied before cancellation")))
+                val pending = JsonObject(secondRaw + ("bookSourceName" to JsonPrimitive("Cancelled")))
+                model.previewText(JsonArray(listOf(applied, pending)).toString()); idle()
+                val entered = CompletableDeferred<Unit>()
+                fixture.afterRun = { task ->
+                    if (task is hnovel.execution.ExecutionTask.Rule && task.baseUrl == "https://fixture.invalid/second") {
+                        entered.complete(Unit)
+                        awaitCancellation()
+                    }
+                }
+                model.commit(setOf(0, 1), batchPermissions, false)
+                withTimeout(10000) { entered.await() }
+                assertEquals(setOf("Applied before cancellation", "Cancelled"), sources.definitions.list().map { it.displayName }.toSet())
+                model.cancel()
+                val cancelled = idle()
+                assertNull(cancelled.preview)
+                assertTrue(cancelled.previewOrigins.isEmpty())
+                assertNull(cancelled.message)
+                assertEquals("Applied before cancellation", cancelled.installed.single { ImportedRuleSources.id(it.definition) == id }.definition.displayName)
+                assertEquals(second.definition, cancelled.installed.single { ImportedRuleSources.id(it.definition) == secondId }.definition)
             } finally { model.cancel(); sources.stop(); root.deleteRecursively(); Dispatchers.resetMain() }
         }
     }
