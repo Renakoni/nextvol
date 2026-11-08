@@ -1,5 +1,6 @@
 package hnovel.content
 
+import hnovel.execution.LoginInfo
 import hnovel.imports.EXTENSION_PROFILE
 import hnovel.network.*
 import hnovel.rules.*
