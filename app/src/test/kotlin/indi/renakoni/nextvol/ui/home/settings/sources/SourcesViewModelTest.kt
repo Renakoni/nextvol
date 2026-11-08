@@ -599,6 +599,57 @@ class SourcesViewModelTest {
         }
     }
 
+    @Test fun cancelledImportReloadsAppliedRevisionsAndDiscardsTheCommittedPreview(): Unit = runBlocking {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        val root = Files.createTempDirectory("source-import-cancellation").toFile()
+        val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
+            override fun getFilesDir() = File(root, "files")
+            override fun getCacheDir() = File(root, "cache")
+        }
+        RuleSourceFixture().use { fixture ->
+            val registry = WebSourceRegistry(fixture.authority)
+            val accounts = SourceSessionManager(fixture.authority)
+            val sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
+            val model = SourcesViewModel(context, sources,
+                SourceRevisionUpdates(context, sources, accounts, fixture.runner, fixture.authority),
+                SourceLoginService(sources, accounts), registry,
+                ZLibrarySources(context, registry, hnovel.network.StorageCipher.Plain))
+            suspend fun idle() = withTimeout(10000) { model.state.first { !it.busy } }
+            try {
+                idle()
+                val raw = (0..1).map { index -> JsonObject(fixture.raw() +
+                    ("bookSourceUrl" to JsonPrimitive("https://fixture.invalid/$index"))) }
+                model.previewText(JsonArray(raw).toString())
+                val permissions = idle().previewOrigins
+                model.commit(setOf(0, 1), permissions, false)
+                val before = idle().installed
+                val second = before.single { it.definition.importKey == "https://fixture.invalid/1" }
+                val changed = JsonArray(raw.mapIndexed { index, definition ->
+                    JsonObject(definition + ("bookSourceName" to JsonPrimitive("Updated $index")))
+                })
+                model.previewText(changed.toString()); idle()
+                val entered = CompletableDeferred<Unit>()
+                fixture.afterRun = { task ->
+                    if (task is hnovel.execution.ExecutionTask.Rule && task.baseUrl == "https://fixture.invalid/1") {
+                        entered.complete(Unit)
+                        awaitCancellation()
+                    }
+                }
+                model.commit(setOf(0, 1), permissions, false)
+                withTimeout(10000) { entered.await() }
+                assertEquals(setOf("Updated 0", "Updated 1"), sources.definitions.list().map { it.displayName }.toSet())
+                model.cancel()
+                val cancelled = idle()
+                assertNull(cancelled.preview)
+                assertTrue(cancelled.previewOrigins.isEmpty())
+                assertNull(cancelled.message)
+                assertEquals(sources.installedSources(), cancelled.installed)
+                assertEquals("Updated 0", cancelled.installed.single { it.definition.importKey == "https://fixture.invalid/0" }.definition.displayName)
+                assertEquals(second, cancelled.installed.single { it.definition.sourceId == second.definition.sourceId })
+            } finally { model.cancel(); sources.stop(); root.deleteRecursively(); Dispatchers.resetMain() }
+        }
+    }
+
     @Test fun freshBrowserLoginResetsTheOldStateBeforeReportingTheNewAttempt(): Unit = runBlocking {
         Dispatchers.setMain(Dispatchers.Unconfined)
         val root = Files.createTempDirectory("browser-account-card").toFile()

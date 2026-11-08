@@ -67,7 +67,8 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     private val zLibrary: ZLibrarySources,
     private val networkSettings: SourceNetworkSettings = SourceNetworkSettings(context, AndroidSourceNetworks(context)),
     private val verification: SourceVerificationCoordinator = SourceVerificationCoordinator(registry),
-    private val catalog: SourceCatalog = SourceCatalog(context)) : ViewModel() {
+    private val catalog: SourceCatalog = SourceCatalog(context),
+    private val importCommit: SourceImportCommitUseCase = SourceImportCommitUseCase(sources, updates)) : ViewModel() {
     private val mutable = MutableStateFlow(SourceManagementState())
     val state = mutable.asStateFlow()
     private var operation: Job? = null
@@ -224,48 +225,20 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     private suspend fun commitSelection(preview: ImportPreview, selected: Set<Int>, permissions: Map<Int, String>,
         allowIdentityChange: Boolean, updateTarget: Identifier? = null) {
         val snapshot = mutable.value
-        require(selected.isNotEmpty())
-        val candidates = preview.candidates.filter { it.index in selected }
-        require(candidates.size == selected.size)
-        val target = updateTarget?.let { id -> snapshot.installed.single { ImportedRuleSources.id(it.definition) == id } }
-        if (target != null) require(candidates.size == 1)
-        val grants = candidates.associate { it.index to grants(permissions.getValue(it.index)) }
-        val selections = candidates.map { candidate ->
-            val decision = if (target != null && target.definition.importKey != candidate.importKey) {
-                require(allowIdentityChange); ImportDecision.MapIdentity(target.definition.reference())
-            } else candidate.existing?.let(ImportDecision::Replace) ?: ImportDecision.Add
-            ImportSelection(candidate.index, decision)
-        }
-        val committed = sources.importer.commit(preview, selections)
-        var failed = committed.error != null
-        try {
-            val definitions = sources.definitions.list().associateBy { it.reference() }
-            val installed = snapshot.installed.associateBy { ImportedRuleSources.id(it.definition) }
-            val additions = linkedMapOf<DefinitionReference, List<NetworkGrant>>()
-            for (item in committed.items) {
-                val reference = item.reference
-                if (reference == null || item.error != null) { failed = true; continue }
-                try {
-                    val definition = definitions.getValue(reference)
-                    val id = ImportedRuleSources.id(definition)
-                    val previous = installed[id]
-                    if (previous != null) {
-                        if (previous.definition != definition || previous.origins != grants.getValue(item.index))
-                            updates.apply(id, reference, grants.getValue(item.index), allowIdentityChange)
-                    } else additions[reference] = grants.getValue(item.index)
-                } catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { failed = true }
+        var definitionsCommitted = false
+        val result = try {
+            importCommit.commit(preview, selected, permissions, allowIdentityChange, snapshot.installed,
+                updateTarget, snapshot.catalogPreview) {
+                definitionsCommitted = true
             }
-            if (additions.isNotEmpty() && sources.activateBatch(additions, enableNew = true,
-                    groupByCatalog = snapshot.catalogPreview).size != additions.size) failed = true
         } finally {
             // Import definitions are already committed. Retrying requires a fresh preview of that state.
-            withContext(NonCancellable) {
+            if (definitionsCommitted) withContext(NonCancellable) {
                 reload()
                 mutable.update { it.copy(preview = null, previewOrigins = emptyMap(), updateTarget = null) }
             }
         }
-        mutable.update { it.copy(message = if (failed) R.string.sources_import_partial else R.string.sources_saved) }
+        mutable.update { it.copy(message = if (result == SourceImportResult.Partial) R.string.sources_import_partial else R.string.sources_saved) }
     }
     fun checkUpdate(id: Identifier) = launch {
         showUpdate(updates.check(id), id)
@@ -394,7 +367,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     private fun editedGrants(text: String, installed: InstalledRuleSource): List<NetworkGrant> {
         val invalid = invalidPermissionLines(text)
         if (invalid.isNotEmpty()) throw InvalidPermissions(invalid)
-        return grants(text).map { grant -> installed.origins.firstOrNull { sourcePermissionOrigin(it.origin) == grant.origin } ?: grant }
+        return sourceImportGrants(text).map { grant -> installed.origins.firstOrNull { sourcePermissionOrigin(it.origin) == grant.origin } ?: grant }
     }
     private class InvalidPermissions(val lines: List<Int>) : Exception()
     private fun saveError(failure: Exception): SourceSaveError = when (failure) {
@@ -553,7 +526,5 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         fun invalidPermissionLines(text: String): List<Int> = text.lines().mapIndexedNotNull { index, line ->
             (index + 1).takeIf { line.isNotBlank() && sourcePermissionOrigin(line) == null }
         }
-        fun grants(text: String): List<NetworkGrant> = text.lines().filter { it.isNotBlank() }.map { NetworkGrant(origin(it)) }
-            .distinctBy { it.origin }.also { require(it.size <= 32) }
     }
 }
