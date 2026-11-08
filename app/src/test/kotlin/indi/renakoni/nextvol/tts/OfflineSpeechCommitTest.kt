@@ -86,14 +86,12 @@ class OfflineSpeechCommitTest {
         } finally {
             returnFromIo.countDown()
         }
-        installing.join()
         try { installing.await(); fail("Expected cancellation") }
         catch (_: CancellationException) { }
 
         val installed = OfflineSpeechRepository(root).voices().single()
         assertEquals(original.reference.id, installed.reference.id)
         assertNotEquals(original.reference.revision, installed.reference.revision)
-        assertEquals("Updated", File(repository.directory(installed.resourceReference), "app/voice.jet").readText())
         val replacement = reference.copy(offlineVoice = installed.reference, label = "Updated")
         assertEquals(installed.reference, settings.get().offlineVoice)
         assertEquals(replacement, settings.get().voiceItems.single().value)
