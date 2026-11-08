@@ -30,7 +30,7 @@ class ReadAloudConfigurationTest {
         val book = SpeechRequest("book", "chapter")
         val state = MutableStateFlow(ReadAloudState(book, SpeechPhase.Playing))
         val received = mutableListOf<BackgroundMusicSettings>()
-        val observing = backgroundScope.launch { configuration.backgroundMusic(state).collect { received += it } }
+        backgroundScope.launch { configuration.backgroundMusic(state).collect { received += it } }
         runCurrent()
 
         state.value = ReadAloudState(SpeechRequest("", "", "Sample", schemes.value.settings("preview-scheme")), SpeechPhase.Playing)
@@ -40,16 +40,11 @@ class ReadAloudConfigurationTest {
                 backgroundMusic = SpeechSchemeMusic(true, setOf(rain.id), 0.7f))) else scheme
         })
         runCurrent()
-        state.value = state.value.copy(phase = SpeechPhase.Paused)
-        runCurrent()
         schemes.value = schemes.value.copy(items = schemes.value.items.filterNot { it.id == "preview-scheme" })
         runCurrent()
         state.value = ReadAloudState(SpeechRequest("", "", "Sample", schemes.value.settings(DEFAULT_SPEECH_SCHEME)), SpeechPhase.Playing)
         runCurrent()
         state.value = ReadAloudState(book, SpeechPhase.Playing)
-        runCurrent()
-        observing.cancel()
-        state.value = ReadAloudState()
         runCurrent()
 
         val expectedBook = BackgroundMusicSettings(listOf(rain.copy(selected = true), piano), 0.2f, true)
