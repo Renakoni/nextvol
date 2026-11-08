@@ -28,8 +28,10 @@ class FormattingViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             formattingRepository.rules.collect { map ->
-                formattingGroups = map.map {
-                    FormattingGroup(it.key, bookRepository.getBookInformationFlow(it.key), it.value.size)
+                val previous = formattingGroups.associateBy { it.id }
+                formattingGroups = map.map { (id, rules) ->
+                    previous[id]?.copy(size = rules.size)
+                        ?: FormattingGroup(id, bookRepository.getBookInformationFlow(id), rules.size)
                 }
                 rules = map[bookId].orEmpty()
             }
@@ -41,16 +43,12 @@ class FormattingViewModel @Inject constructor(
         rules = formattingRepository.rules.value[bookId].orEmpty()
     }
     fun onToggle(id: Int) {
+        val target = bookId
+        val rule = rules.firstOrNull { it.id == id } ?: return
         viewModelScope.launch(Dispatchers.IO) {
             formattingRepository.updateRule(
-                bookId = bookId,
-                formattingRule = rules
-                    .firstOrNull { it.id == id }
-                    ?.let {
-                        it.copy(
-                            isEnabled = !it.isEnabled
-                        )
-                    } ?: return@launch
+                bookId = target,
+                formattingRule = rule.copy(isEnabled = !rule.isEnabled)
             )
         }
     }

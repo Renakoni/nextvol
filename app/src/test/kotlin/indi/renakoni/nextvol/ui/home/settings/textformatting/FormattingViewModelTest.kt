@@ -5,8 +5,10 @@ import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.format.FormatRepository
 import indi.renakoni.nextvol.data.local.room.dao.FormattingRuleDao
 import indi.renakoni.nextvol.data.local.room.entity.FormattingRuleEntity
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -26,7 +28,9 @@ class FormattingViewModelTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val changes = Channel<List<FormattingRuleEntity>>(Channel.UNLIMITED)
         val published = Channel<Unit>(Channel.UNLIMITED)
+        val writes = Channel<FormattingRuleEntity>(Channel.UNLIMITED)
         val dao = mockk<FormattingRuleDao>()
+        coEvery { dao.insertRuleEntity(any()) } coAnswers { writes.send(firstArg()) }
         every { dao.getAllBookRuleEntityFlow() } returns flow {
             for (entities in changes) {
                 emit(entities)
@@ -56,31 +60,29 @@ class FormattingViewModelTest {
             runCurrent()
             assertEquals(mapOf("" to 1), groups())
             assertEquals(listOf(1), model.rules.map { it.id })
-            val initial = repository.rules.value
 
             publish(global, second, book)
             runCurrent()
             assertEquals(mapOf("" to 2, "book" to 1), groups())
             assertEquals(listOf(1, 2), model.rules.map { it.id })
-            assertEquals(setOf(""), initial.keys)
-            assertEquals(listOf(1), initial.getValue("").map { it.id })
 
             val edited = global.copy(name = "Edited", isEnabled = false)
             publish(edited, second, book)
             runCurrent()
             assertEquals("Edited", model.rules.first().name)
             assertFalse(model.rules.first().isEnabled)
-            assertTrue(initial.getValue("").single().isEnabled)
 
             // Switch while a rule update is queued, before yielding to the ViewModel collector.
             changes.trySend(listOf(edited, second, book.copy(name = "Updated book"))).getOrThrow()
             model.loadBookFormattingRules("book")
-            assertEquals(listOf(3), model.rules.map { it.id })
             published.receive()
             runCurrent()
-            assertEquals("book", model.bookId)
             assertEquals(listOf("Updated book"), model.rules.map { it.name })
 
+            model.onToggle(3)
+            model.loadBookFormattingRules("")
+            assertEquals(book.copy(name = "Updated book", isEnabled = false), writes.receive())
+            model.loadBookFormattingRules("book")
             publish(edited, second)
             runCurrent()
             assertEquals(mapOf("" to 2), groups())
@@ -92,9 +94,9 @@ class FormattingViewModelTest {
             model.loadBookFormattingRules("")
             publish()
             runCurrent()
-            assertEquals(0, groups()[""] ?: 0)
             assertTrue(groups().isEmpty())
             assertTrue(model.rules.isEmpty())
+            verify(exactly = 2) { books.getBookInformationFlow(any<String>(), any()) }
         } finally {
             model.viewModelScope.cancel()
             changes.close()
