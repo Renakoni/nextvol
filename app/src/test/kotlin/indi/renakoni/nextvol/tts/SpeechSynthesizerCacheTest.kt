@@ -94,10 +94,15 @@ class SpeechSynthesizerCacheTest {
         val cache = CachedSpeechSynthesizer(SpeechSynthesizerCaches(), {
             SpeechRuntime(Engine().also(engines::add))
         }, { time })
-        val first = SpeechSettings(httpSource = "voice", httpRevision = "1")
+        val reference = SpeechVoiceRef(httpSource = "voice")
+        val configured = SpeechSettings(httpSource = "voice", httpRevision = "1", voiceRevision = "catalog-1",
+            narrationVoices = listOf(reference), voiceRoutingConfigured = true)
+        val first = configured.forVoice(reference)
         try {
             cache.open(first)
-            cache.open(first.copy(httpRevision = "2"))
+            cache.open(configured.copy(narrationVoices = listOf(SpeechVoiceRef(voice = "other"))).forVoice(reference))
+            assertEquals(1, engines.size)
+            cache.open(configured.copy(httpRevision = "2").forVoice(reference))
             assertEquals(2, engines.size)
             time = 300_000L
             cache.synthesize("resume", File("unused.wav"))

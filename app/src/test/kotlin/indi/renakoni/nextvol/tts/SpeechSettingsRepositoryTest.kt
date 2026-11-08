@@ -66,19 +66,33 @@ class SpeechSettingsRepositoryTest {
     }
 
     @Test fun bookBindingsCopyContentButShareRuntimeAndRebindOnDeletion() = runBlocking {
-        val repository = SpeechSettingsRepository(storage())
+        val data = storage()
+        val repository = SpeechSettingsRepository(data)
         val voice = SpeechVoiceRef(httpSource = "shared")
         val a = repository.create("A", bookId = "book-a")
-        repository.update(a) { it.copy(rate = 1.5f, engineCacheCapacity = 20,
+        repository.update(a) { it.copy(rate = 1.5f, engineCacheCapacity = 20, maxCacheVoiceNum = 7,
+            diagnosticLogging = true, text = it.text.copy(recordText = true, recordVoice = true, filterLanguage = true),
+            httpSource = "shared", httpRevision = "http-v1", voiceRevision = "voices-v1",
+            speakerBookId = "book-a", speakerVoices = mapOf("Alice" to voice), bookId = "book-a",
             voiceItems = listOf(SpeechVoiceItem("People", voice)),
             backgroundMusic = SpeechSchemeMusic(true, setOf("track"), 0.2f)) }
         val b = repository.create("B", a, "book-b")
         repository.update(a) { it.copy(rate = 0.7f) }
-        assertEquals(1.5f, repository.forBook("book-b").rate)
-        assertEquals(SpeechSchemeMusic(true, setOf("track"), 0.2f), repository.get(b).backgroundMusic)
-        assertEquals(20, repository.get().engineCacheCapacity)
-        assertEquals(1f, repository.get().rate)
-        repository.updateAll { it.replaceVoiceReference(voice, voice.copy(httpSource = "renamed")) }
+        val copied = SpeechSettingsRepository(data).forBook("book-b")
+        assertEquals(1.5f, copied.rate)
+        assertEquals("book-b", copied.bookId)
+        assertEquals("B", copied.schemeName)
+        assertEquals("shared", copied.httpSource)
+        assertEquals("", copied.httpRevision)
+        assertTrue(copied.speakerVoices.isEmpty())
+        assertEquals(SpeechSchemeMusic(true, setOf("track"), 0.2f), copied.backgroundMusic)
+        val defaults = repository.get()
+        assertEquals(20, defaults.engineCacheCapacity)
+        assertEquals(1f, defaults.rate)
+        repository.updateAll { it.replaceVoiceReference(voice, voice.copy(httpSource = "renamed"))
+            .copy(engineCacheCapacity = 3, text = it.text.copy(recordText = false)) }
+        assertEquals(SpeechRuntimeSettings(20, 7, true, true, true, true), repository.snapshot().runtime)
+        assertTrue(repository.get(b).text.recordText)
         assertEquals(listOf("renamed", "renamed"), listOf(a, b).map { repository.get(it).voiceItems.single().value.httpSource })
         repository.setDefault(b)
         repository.bind("book-a", null)

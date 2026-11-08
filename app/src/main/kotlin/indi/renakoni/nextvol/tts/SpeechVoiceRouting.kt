@@ -72,13 +72,6 @@ internal fun SpeechSettings.removeVoiceSelections(deleted: (SpeechVoiceRef) -> B
         else copy(narrationVoices = narrators, dialogueVoices = dialogue, voiceRoutingConfigured = true)
 }
 
-internal fun SpeechSettings.forVoice(reference: SpeechVoiceRef) = copy(
-    engine = reference.engine, voice = reference.voice, httpSource = reference.httpSource,
-    offlineVoice = reference.offlineVoice, narrationVoices = emptyList(), dialogueVoices = emptyList(),
-    speakerVoices = emptyMap(), speakerBookId = "", voiceRoutingConfigured = false, roleRules = emptyList(),
-    voiceItems = emptyList(), autoAssignRole = false,
-).synthesisSettings()
-
 /** R6.p.d: separate round-robin cursors; an explicit/remembered voice does not advance either. */
 internal class SpeechVoiceRouting(private val settings: SpeechSettings, private val bookId: String,
     private val voices: Map<String, SpeechResolvedVoice>, incoming: SpeechContext, private val defaultLimit: Int) {

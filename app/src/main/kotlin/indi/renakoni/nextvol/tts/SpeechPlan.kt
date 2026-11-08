@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.tts
 
-import kotlinx.serialization.json.Json
 import indi.renakoni.nextvol.R
 import java.util.Locale
 
@@ -173,20 +172,4 @@ internal suspend fun prepareSpeechPlan(chapter: SpeechChapter, synthesis: Speech
     return SpeechPlan(chapter, synthesis, segments, structured.text, mappings, context,
         if (synthesis.hasVoiceRouting) structure.nextContext.copy(narrationIndex = routing.narrationIndex,
             dialogueIndex = routing.dialogueIndex) else structure.nextContext, maxInputLength, locale, trace?.id)
-}
-
-internal fun SpeechSettings.textProcessingKey(maxInputLength: Int, locale: Locale = Locale.getDefault()) =
-    speechDigest("speech-text-v5\u0000" + schemeId + "\u0000" + Json.encodeToString(replacements) + "\u0000" +
-        Json.encodeToString(text) + "\u0000" + maxInputLength + "\u0000" + locale.toLanguageTag() +
-        "\u0000" + Json.encodeToString(narrationVoices) + Json.encodeToString(dialogueVoices) +
-        Json.encodeToString(speakerVoices) + speakerBookId + voiceRevision + voiceRoutingConfigured +
-        Json.encodeToString(roleRules) + roleContextPattern + Json.encodeToString(voiceItems) + autoAssignRole + maxCacheVoiceNum)
-
-/** Reuse the selected identities, including the installed offline resource revision, without a new schema. */
-internal fun SpeechSettings.synthesisSettings(): SpeechSettings {
-    val selected = copy(allowMultipleVoices = false, diagnosticLogging = false,
-        schemeName = "", text = text.copy(filterLanguage = false), backgroundMusic = SpeechSchemeMusic())
-    if (selected.hasVoiceRouting) return selected
-    return if (selected.offlineVoice != null || selected.httpSource != null) selected.copy(engine = "", voice = "")
-        else selected
 }

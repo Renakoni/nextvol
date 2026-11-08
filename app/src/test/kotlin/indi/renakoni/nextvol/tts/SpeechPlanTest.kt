@@ -29,6 +29,15 @@ class SpeechPlanTest {
         assertNotEquals(http.synthesisSettings(), http.copy(httpSource = "other").synthesisSettings())
     }
 
+    @Test fun matchingTextIdentityDoesNotAllowReuseAfterRateChanges() = runBlocking {
+        val settings = SpeechSettings(voice = "narrator").synthesisSettings()
+        val chapter = SpeechChapter("book", "chapter", "Book", "Chapter", "A short paragraph.")
+        val plan = prepareSpeechPlan(chapter, settings, maxInputLength = 128) {}
+        val faster = settings.copy(rate = 1.5f)
+        assertEquals(plan.bookmark(0).replacementKey, faster.textProcessingKey(128))
+        assertFalse(plan.matches(chapter, faster, SpeechContext(), 128))
+    }
+
     @Test fun preparationRejectsOversizedChaptersAndCooperatesWithCancellationDuringSegmentation() {
         val oversized = SpeechChapter("book", "chapter", "", "", "字".repeat(1_000_001))
         val failure = assertThrows(SpeechException::class.java) { runBlocking { prepareSpeechPlan(oversized, SpeechSettings()) {} } }
