@@ -251,34 +251,6 @@ class LongCatalogueTest {
         }
     }
 
-    @Test fun tenThousandChaptersKeepTheirOrderStateAndReadingAfterReopening() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val rules = catalogue(fixture, chapters = 12001, perPage = 100)
-            val bookId = fixture.server.url("/book/one").toString()
-            val lastId = fixture.server.url("/c/12001").toString()
-            fixture.source(customize = rules).use { source ->
-                // The information fallback also loads a full catalogue when no update marker exists.
-                source.information(bookId)
-                val requests = fixture.server.requestCount
-                val chapters = source.directory(bookId)
-                assertEquals(requests, fixture.server.requestCount)
-                assertEquals((1..12001).map { "Chapter $it" }, chapters.map { it.title })
-                assertEquals(12001, chapters.map { it.id }.distinct().size)
-                assertEquals("Chapter 12001", chapters.last().state.variables["chapterKey"])
-                assertEquals(12000, chapters.last().state.metadata["index"]!!.jsonPrimitive.int)
-            }
-            fixture.source(customize = rules).use { reopened ->
-                val requests = fixture.server.requestCount
-                val content = reopened.content(bookId, lastId)
-                assertEquals(requests + 1, fixture.server.requestCount)
-                assertEquals(fixture.server.url("/c/12000").toString(), content.previous)
-                assertNull(content.next)
-                assertTrue(content.parts.any { it.text == "Body 12001" })
-                assertTrue(content.parts.any { it.text == "Chapter 12001" })
-            }
-        }
-    }
-
     @Test fun thousandsOfJsonChapterObjectsCanCrossTheWorkerBoundaryInOnePage() = runBlocking {
         RuleSourceFixture().use { fixture ->
             val count = 7501

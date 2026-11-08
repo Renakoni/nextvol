@@ -158,7 +158,7 @@ class DiscoveryPreviewReuseTest {
                 val owner = fixture.broker.open(SourceScope("rules", definition.sourceId, definition.profile, 1),
                     listOf(NetworkGrant(fixture.server.url("/").toString(), allowPrivateAddresses = true)))
                 val identity = fixture.authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "rules", 1)
-                RuleSource(definition, identity, fixture.authority, owner, fixture.runner)
+                createRuleSource(definition, identity, fixture.authority, owner, fixture.runner)
             } else fixture.source { definition(it, mapOf("bookSourceComment" to JsonPrimitive("new revision"))) }
             next.use { it.openDiscovery("more").openPages("/search", emptyMap()).page(1) }
             assertEquals(2, fixture.server.requestCount)
@@ -216,7 +216,7 @@ class DiscoveryPreviewReuseTest {
     @Test fun ttlCapacityAndRouteRetirementBoundHandoffMemory() {
         val cache = DiscoveryPreviewDocuments(DiscoveryPreviewDocuments.Pool())
         val route = SourceNetworkRoute.systemDefault()
-        fun key(i: Int) = DiscoveryPreviewDocuments.Key(BrokerRequest("content", "https://fixture.test/$i"), route,
+        fun key(i: Int) = DiscoveryPreviewDocuments.Key(BrokerRequest("content", "https://fixture.test/$i"), route.reference,
             emptyList(), emptyMap(), null)
         val document = PageDocument(html, "https://fixture.test/list", successfulResponse = true)
         repeat(5) { cache.put(key(it), document, null, generation = 0, now = 0) }
@@ -227,6 +227,8 @@ class DiscoveryPreviewReuseTest {
         assertNull(cache.get(key(5), now = 1))
         route.invalidate()
         assertNull(cache.get(key(2), now = 1))
+        cache.put(key(6), document, null, generation = 0, now = 1)
+        assertNull(cache.get(key(6), now = 2))
         assertFalse("Ephemeral response eligibility must not change stored book records",
             Json.encodeToString(PageDocument.serializer(), document).contains("successfulResponse"))
     }

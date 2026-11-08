@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.exoplayer.source.SilenceMediaSource
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -16,6 +17,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Playback completion and pauses come from ExoPlayer, not synthesis callbacks. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal class ExoSpeechPlayback(private val player: ExoPlayer, private val context: Context,
     onInterrupted: () -> Unit = {}) : SpeechPlayback {
     private var active: CompletableDeferred<Unit>? = null
@@ -63,21 +65,26 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
                 onState(phase, player.playWhenReady)
             }
             override fun onPlayerError(error: PlaybackException) {
-                if (active === completed) completed.completeExceptionally(SpeechException(SpeechError.Playback))
+                if (active === completed) completed.completeExceptionally(clip.stream?.failure ?: SpeechException(SpeechError.Playback))
             }
         }
         listener = events
         player.addListener(events)
         try {
             val title = clip.chapter.title.ifEmpty { context.getString(R.string.tts_preview) }
-            player.setMediaItem(MediaItem.Builder().setUri(clip.file.toUri()).setMediaId(clip.file.name)
+            val item = MediaItem.Builder().setUri(clip.file.toUri()).setMediaId(clip.file.name)
                 .setMediaMetadata(MediaMetadata.Builder().setTitle(title)
                     .setArtist(clip.chapter.bookTitle.ifEmpty { context.getString(R.string.app_name) })
-                    .setSubtitle(context.getString(R.string.tts_passage, clip.index + 1, clip.count)).build()).build())
+                    .setSubtitle(context.getString(R.string.tts_passage, clip.index + 1, clip.count)).build()).build()
+            val pauseMs = clip.segment.pauseMs
+            if (pauseMs != null) player.setMediaSource(SilenceMediaSource.Factory()
+                .setDurationUs(pauseMs.toLong() * 1000).createMediaSource().apply { updateMediaItem(item) })
+            else if (clip.stream == null) player.setMediaItem(item)
+            else player.setMediaSource(streamingSpeechMediaSource(item, clip.stream))
             player.playWhenReady = playWhenReady
             player.prepare()
-            val estimate = if (clip.timings.isEmpty()) SpeechFollowEstimate(clip.segment.text) else null
-            val tracking = launch {
+            val estimate = if (clip.timings.isEmpty() && clip.segment.pauseMs == null) SpeechFollowEstimate(clip.segment.text) else null
+            val tracking = if (estimate != null || clip.timings.isNotEmpty()) launch {
                 var reported: SpeechTiming? = null
                 var reportedAnchor: Int? = null
                 while (isActive && active === completed) {
@@ -86,7 +93,7 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
                         seekPending = false
                         val position = player.currentPosition
                         if (estimate != null) {
-                            val anchor = estimate.anchorAt(position, player.duration)
+                            val anchor = estimate.anchorAt(position, clip.stream?.durationMs ?: player.duration)
                             if (anchor == null) seekPending = wasSeek
                             else {
                                 if (anchor != reportedAnchor) { reportedAnchor = anchor; onEstimatedAnchor(anchor) }
@@ -98,8 +105,8 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
                     // No polling while paused/buffering. Resume, readiness and explicit seek wake the tracker.
                     if (player.isPlaying) delay(50) else playbackChanges.receive()
                 }
-            }
-            try { completed.await() } finally { tracking.cancel() }
+            } else null
+            try { completed.await() } finally { tracking?.cancel() }
         } finally {
             player.removeListener(events)
             if (active === completed) { active = null; listener = null }

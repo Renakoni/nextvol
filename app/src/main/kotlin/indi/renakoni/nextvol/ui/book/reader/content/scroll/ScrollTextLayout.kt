@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -19,16 +19,22 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderTextLayoutInput
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragment
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragmentContent
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextSelection
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextSource
-import indi.renakoni.nextvol.ui.book.reader.content.componet.layoutReaderText
+import indi.renakoni.nextvol.ui.book.reader.content.componet.MeasuredReaderParagraph
+import indi.renakoni.nextvol.ui.book.reader.content.componet.LocalReaderTextWorkObserver
+import indi.renakoni.nextvol.ui.book.reader.content.componet.measureReaderText
+import indi.renakoni.nextvol.ui.book.reader.content.componet.splitReaderText
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -45,7 +51,14 @@ internal class ScrollTextLayout(val fragments: List<ReaderTextFragment>, val sty
     val height: Int get() = offsets.last()
 
     fun offsetFor(anchor: ReaderContentAnchor): Int? {
-        val index = fragments.indexOfFirst { it.componentIndex == anchor.componentIndex && anchor.offset in it.start until it.end }
+        val index = fragments.binarySearch { fragment ->
+            when {
+                fragment.componentIndex != anchor.componentIndex -> fragment.componentIndex.compareTo(anchor.componentIndex)
+                anchor.offset < fragment.start -> 1
+                anchor.offset >= fragment.end -> -1
+                else -> 0
+            }
+        }
         if (index < 0) return null
         val fragment = fragments[index]
         val line = fragment.lineStarts.indexOfLast { it <= anchor.offset }.coerceAtLeast(0)
@@ -73,61 +86,131 @@ internal class ScrollTextLayout(val fragments: List<ReaderTextFragment>, val sty
     }
 }
 
+/** Adjacent text shares one viewport; images and extension components retain their own layout. */
+internal class ScrollContentBlock(val componentIndex: Int, val text: ScrollTextLayout?) {
+    // Chapter-local geometry must not become a per-frame, whole-chapter SnapshotStateMap write.
+    var top by mutableIntStateOf(-1)
+}
+
 internal class PreparedScrollChapter(
     val content: ChapterContentUiState,
-    val text: Map<Int, ScrollTextLayout>,
+    text: Map<Int, List<ReaderTextFragment>>,
     val layout: ReaderTextLayoutInput? = null,
     val size: IntSize = IntSize.Zero,
 ) {
-    // Positions inside the chapter include its title, images and component spacing.
-    val componentOffsets = mutableStateMapOf<Int, Int>()
+    val blocks = buildList {
+        val components = content.content.withIndex()
+            .filterNot { (it.value as? SimpleTextComponent)?.data?.text?.isEmpty() == true }
+        var cursor = 0
+        while (cursor < components.size) {
+            val first = components[cursor].index
+            if (text[first] == null) {
+                add(ScrollContentBlock(first, null))
+                cursor++
+                continue
+            }
+            val fragments = mutableListOf<ReaderTextFragment>()
+            while (cursor < components.size) {
+                val next = text[components[cursor].index] ?: break
+                next.forEachIndexed { index, fragment ->
+                    // Preserve the existing per-component line cuts and inter-component Spacer.
+                    fragments += if (index == 0 && fragments.isNotEmpty())
+                        fragment.copy(spacingBefore = layout?.paragraphSpacingPx ?: 0) else fragment
+                }
+                cursor++
+            }
+            add(ScrollContentBlock(first, ScrollTextLayout(fragments, layout?.style ?: TextStyle.Default)))
+        }
+    }
+    private val blockByComponent = IntArray(content.content.size) { -1 }.also { indices ->
+        blocks.forEachIndexed { index, block ->
+            indices[block.componentIndex] = index
+            block.text?.fragments?.forEach { indices[it.componentIndex] = index }
+        }
+    }
+
+    private fun blockFor(componentIndex: Int): ScrollContentBlock? =
+        blockByComponent.getOrNull(componentIndex)?.let { blocks.getOrNull(it) }
+
+    fun isPositioned(componentIndex: Int): Boolean = blockFor(componentIndex)?.top?.let { it >= 0 } == true
+
     fun offsetFor(anchor: ReaderContentAnchor): Int? {
-        val top = componentOffsets[anchor.componentIndex] ?: return null
-        return text[anchor.componentIndex]?.offsetFor(anchor)?.plus(top)
-            ?: top.takeIf { content.content.getOrNull(anchor.componentIndex) !is SimpleTextComponent }
+        val block = blockFor(anchor.componentIndex)?.takeIf { it.top >= 0 } ?: return null
+        return block.text?.offsetFor(anchor)?.plus(block.top)
+            ?: block.top.takeIf { content.content.getOrNull(anchor.componentIndex) !is SimpleTextComponent }
     }
 
     fun anchorAt(y: Int): ReaderContentAnchor? {
-        val component = componentOffsets.entries.filter { it.value <= y }.maxByOrNull { it.value }
-            ?: componentOffsets.entries.minByOrNull { it.value } ?: return null
-        return text[component.key]?.anchorAt(y - component.value) ?: ReaderContentAnchor(component.key, 0)
+        // Blocks are ordered by chapter position; pure text chapters have just one block.
+        var current: ScrollContentBlock? = null
+        for (block in blocks) {
+            if (block.top < 0) continue
+            if (block.top > y && current != null) break
+            current = block
+            if (block.top > y) break
+        }
+        val block = current ?: return null
+        return block.text?.anchorAt(y - block.top) ?: ReaderContentAnchor(block.componentIndex, 0)
     }
 }
 
-/** Each job has its own measurer/cache. Cancellation never publishes a previous chapter's layout. */
+private data class ScrollMeasurementInput(
+    val sources: List<ReaderTextSource>,
+    val style: TextStyle,
+    val density: Density,
+    val direction: LayoutDirection,
+    val width: Int,
+)
+
+/** Each chapter owns only its latest line geometry. Cancellation never publishes stale work. */
 @Composable
 internal fun rememberPreparedScrollChapter(
     content: ChapterContentUiState?,
     layout: ReaderTextLayoutInput?,
     width: Int,
     viewportHeight: Int,
+    measurementDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ): PreparedScrollChapter? {
     if (content == null) return null
     if (layout == null) return remember(content) { PreparedScrollChapter(content, emptyMap()) }
     val context = LocalContext.current
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    var prepared by remember(content.id) { mutableStateOf<PreparedScrollChapter?>(null) }
-    LaunchedEffect(content, layout.settings, layout.style, density, direction, width, viewportHeight) {
-        if (width <= 0 || viewportHeight <= 0) return@LaunchedEffect
-        val result = withContext(Dispatchers.Default) {
-            val measurer = TextMeasurer(createFontFamilyResolver(context), density, direction, cacheSize = 0)
-            val cancellation = currentCoroutineContext()
-            val text = content.content.mapIndexedNotNull { index, component ->
-                if (component !is SimpleTextComponent) return@mapIndexedNotNull null
-                cancellation.ensureActive()
-                val fragments = layoutReaderText(
-                    listOf(ReaderTextSource(index, component.data.text)), width, viewportHeight,
-                    layout.paragraphSpacingPx, keepParagraphSpacingAtPageBreaks = true,
-                ) { paragraph, maxWidth ->
-                    cancellation.ensureActive()
-                    measurer.measure(paragraph, layout.style, constraints = Constraints(maxWidth = maxWidth))
-                }.flatten()
-                index to ScrollTextLayout(fragments, layout.style)
-            }.toMap()
-            PreparedScrollChapter(content, text, layout, IntSize(width, viewportHeight))
+    val workObserver = LocalReaderTextWorkObserver.current
+    val sources = remember(content.content) {
+        content.content.mapIndexedNotNull { index, component ->
+            (component as? SimpleTextComponent)?.let { ReaderTextSource(index, it.data.text) }
         }
-        prepared = result
+    }
+    val input = ScrollMeasurementInput(sources, layout.style, density, direction, width)
+    var measured by remember(content.id) {
+        mutableStateOf<Pair<ScrollMeasurementInput, Map<Int, List<MeasuredReaderParagraph>>>?>(null)
+    }
+    var prepared by remember(content.id) { mutableStateOf<PreparedScrollChapter?>(null) }
+    LaunchedEffect(content, layout, density, direction, width, viewportHeight, measurementDispatcher) {
+        if (width <= 0 || viewportHeight <= 0) return@LaunchedEffect
+        val reusable = measured?.takeIf { it.first == input }?.second
+        val result = withContext(measurementDispatcher) {
+            val cancellation = currentCoroutineContext()
+            val paragraphs = reusable ?: run {
+                val measurer = TextMeasurer(createFontFamilyResolver(context), density, direction, cacheSize = 0)
+                measureReaderText(sources, width) { paragraph, maxWidth ->
+                    cancellation.ensureActive()
+                    workObserver?.invoke("shape")
+                    measurer.measure(paragraph, layout.style, constraints = Constraints.fixedWidth(maxWidth))
+                }.groupBy { it.componentIndex }
+            }
+            val text = paragraphs.mapValues { (_, paragraphs) ->
+                cancellation.ensureActive()
+                splitReaderText(
+                    paragraphs, viewportHeight,
+                    layout.paragraphSpacingPx, keepParagraphSpacingAtPageBreaks = true,
+                ).flatten()
+            }
+            paragraphs to PreparedScrollChapter(content, text, layout, IntSize(width, viewportHeight))
+        }
+        measured = input to result.first
+        prepared = result.second
     }
     // Keep the old geometry visible while settings/content are being prepared. The chapter item
     // keeps its identity and offset; first entry remains a loading item until geometry is available.

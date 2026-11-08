@@ -297,7 +297,7 @@
       "fixtures": [
         "LOGIN-CONTRACT"
       ],
-      "evidence": "RuleSource and SourceLoginService run static forms, loginUrl/login(), loginCheckJs response hooks, login information/headers and browser login under one revision/account attempt. UI starts the new account before evaluating its form; cancellation/removal/revision changes cannot revive the previous attempt. Dynamic source headers and image verification are exercised through production worker/broker paths.",
+      "evidence": "RuleSource and SourceLoginService run standard static forms in both profiles, loginUrl/login(), loginCheckJs response hooks, login information/headers and browser login under one revision/account attempt. Without loginUi, website addresses resolve against the source key; declared forms dispatch their scripts. UI starts the new account before evaluating its form; cancellation/removal/revision changes cannot revive the previous attempt. Dynamic source headers and image verification are exercised through production worker/broker paths.",
       "productTests": [
         "hnovel.content.RuleSourceTest",
         "hnovel.content.RuleLoginFormTest",
@@ -486,7 +486,7 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "Pinned extension BaseSource/RowUi/SourceLoginDialog evidence drives an explicit profile-gated contract: @js:/<js> forms, login helper prelude, result values, default/chars/viewName, text/password/button/toggle/select, upLoginData and reLoginView. Host owns layout and explicit field actions; arbitrary fork layouts/long-click login semantics are not claimed. Unknown target fields/types fail with locations. Forms, service cancellation, profile selection and real Compose submission are tested.",
+      "evidence": "Pinned extension BaseSource/RowUi/SourceLoginDialog evidence drives profile-gated @js:/<js> forms and host configuration metadata. Standard default/chars/viewName and text/password/button/toggle/select rows are accepted in both profiles, with login helper prelude, result values, upLoginData and reLoginView. Host owns layout; click and long-click field actions reach the same isolated runner, while arbitrary fork layouts are not claimed. Unknown target fields/types fail with locations. Forms, service cancellation, profile selection and real Compose submission are tested.",
       "productTests": [
         "hnovel.content.RuleLoginFormTest",
         "indi.renakoni.nextvol.ui.home.settings.sources.SourcesScreenTest",
@@ -548,11 +548,10 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "ContentTrace, bounded script logging and SourceDiagnostics emit redacted stage/field/result/version reports. Disposable anonymous execution uses production search/detail/directory/content/discovery/login-form code with installed grants, never the normal account's cookies or mutable state. Cancellation and unknown APIs remain failures; counts/reference presence do not certify a public site's availability.",
+      "evidence": "ContentTrace and bounded script logging retain redacted stage, field and error information in the reading runtime. Cancellation and unknown APIs remain failures. The app does not provide a source-testing screen or diagnostic-report export.",
       "productTests": [
         "hnovel.rhino.RhinoScriptEngineTest",
         "hnovel.content.RuleSourceTest",
-        "indi.renakoni.nextvol.data.web.rules.SourceDiagnosticsTest",
         "indi.renakoni.nextvol.data.web.rules.MixedSourceAcceptanceTest"
       ]
     },
@@ -564,7 +563,7 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "SourceRevisionUpdates validates a staged definition and grants before atomically publishing an installed snapshot/registry replacement. Stable source/book IDs survive update and rollback; failed initialization, permissions or durable writes leave the old runtime usable. Removal during validation cannot be undone, and old tickets cannot commit into the replacement.",
+      "evidence": "SourceRevisionUpdates validates a staged definition and grants before atomically publishing an installed snapshot/registry replacement. Stable source/book IDs survive updates; failed initialization, permissions or durable writes leave the old runtime usable. Removal during validation cannot be undone, and old tickets cannot commit into the replacement.",
       "productTests": [
         "indi.renakoni.nextvol.data.web.rules.SourceRevisionUpdatesTest",
         "indi.renakoni.nextvol.ui.home.settings.sources.SourcesViewModelTest",
@@ -579,7 +578,7 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "MixedSourceAcceptanceTest runs actual Wenku8 parsing and directly imported standard/extension definitions with a real WorkerRuntime/wire/broker, one file Room database and WorkManager. Same-domain/same-book rule sources complete login, discovery/search, shelf, cache, EPUB, reading statistics, updates/rollback/diagnostics, account revocation, reconstruction and removal. Both real reader controllers render retained source-owned chapters through the production decoder/injector after removal. External documents/settings are controlled fixtures; no public novel website or private account is used. Separate API 24/35 tests provide Chromium/process evidence.",
+      "evidence": "MixedSourceAcceptanceTest runs actual Wenku8 parsing and directly imported standard/extension definitions with a real WorkerRuntime/wire/broker, one file Room database and WorkManager. Same-domain/same-book rule sources complete login, discovery/search, shelf, cache, EPUB, reading statistics, updates, account revocation, reconstruction and removal. Both real reader controllers render retained source-owned chapters through the production decoder/injector after removal. External documents/settings are controlled fixtures; no public novel website or private account is used. Separate API 24/35 tests provide Chromium/process evidence.",
       "productTests": [
         "indi.renakoni.nextvol.data.web.rules.MixedSourceAcceptanceTest",
         "indi.renakoni.nextvol.data.web.HostMultiSourceIntegrationTest",

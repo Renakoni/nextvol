@@ -50,12 +50,13 @@ fun NavGraphBuilder.updatesAvailableDialog() {
     dialog<Route.UpdatesAvailableDialog> {
         val navController = LocalNavController.current
         val viewModel = hiltViewModel<UpdatesAvailableDialogViewModel>()
+        val release by viewModel.releaseFlow.collectAsStateWithLifecycle()
         val isDownloading by viewModel.isDownloading.collectAsStateWithLifecycle()
         val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
         UpdatesAvailableDialog(
             onDismissRequest = { if (!isDownloading) navController.popBackStack() },
             onConfirmation = { viewModel.downloadUpdate() },
-            release = viewModel.release,
+            release = release,
             isDownloading = isDownloading,
             downloadProgress = downloadProgress
         )

@@ -53,7 +53,7 @@ class SourceBroker(private val storageRoot: Path, private val dns: Dns = VpnDns.
 class SourceSession internal constructor(val scope: SourceScope, grants: List<NetworkGrant>, root: Path,
     dns: Dns, private val limits: BrokerLimits, cipher: StorageCipher = StorageCipher.Plain,
     private val browser: BrowserExecutor? = null, private val routes: SourceRouteProvider,
-    private val retryPolicy: HttpRetryPolicy = HttpRetryPolicy()) : AutoCloseable {
+    private val retryPolicy: HttpRetryPolicy = HttpRetryPolicy()) : AutoCloseable, SourceStateStorage {
     internal val grants = grants.map { it.copy(headers = it.headers.toMap()) }
     private val policy = NetworkPolicy(this.grants, dns)
     private val imagePolicy = NetworkPolicy(this.grants, dns, publicImages = true)
@@ -370,7 +370,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
         storageFailure?.let { throw it }
     }
 
-    @Synchronized fun read(request: StorageRequest): StorageResult {
+    @Synchronized override fun read(request: StorageRequest): StorageResult {
         checkOpen()
         return when (request.area) {
             StorageArea.Config -> config.read(request.key)
@@ -379,7 +379,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
             StorageArea.BookState -> bookState.read(request.key)
         }
     }
-    @Synchronized fun write(request: StorageRequest): StorageResult {
+    @Synchronized override fun write(request: StorageRequest): StorageResult {
         checkOpen()
         return when (request.area) {
             StorageArea.Config -> config.write(request.key, request.value)
@@ -388,7 +388,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
             StorageArea.BookState -> bookState.write(request.key, request.value)
         }
     }
-    @Synchronized fun writeBookStates(values: Map<String, String>): StorageResult {
+    @Synchronized override fun writeBookStates(values: Map<String, String>): StorageResult {
         checkOpen()
         return bookState.writeAll(values)
     }
@@ -427,9 +427,130 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     suspend fun execute(request: BrokerRequest, guard: RequestCommitGuard = RequestCommitGuard { it() }): BrokerResult =
         execute(request, guard, policy)
 
+    /** Host audio consumer. Successful bodies are delivered once, with the existing origin and byte limits. */
+    suspend fun stream(request: BrokerRequest, guard: RequestCommitGuard,
+        receive: (ByteArray, Int, Int) -> Unit): BrokerResult =
+        execute(request.copy(cache = CacheMode.Disabled, retry = 0), guard, policy, browserDefault = false, receive = receive)
+
+    /** Inspect successful response headers before any streamed body bytes reach the host consumer. */
+    suspend fun stream(request: BrokerRequest, guard: RequestCommitGuard,
+        receive: (ByteArray, Int, Int) -> Unit, onResponse: (Map<String, List<String>>) -> Unit): BrokerResult =
+        execute(request.copy(cache = CacheMode.Disabled, retry = 0), guard, policy, browserDefault = false,
+            receive = receive, onResponse = onResponse)
+
+    /** Host-only bounded WebSocket exchange. The protocol callback runs off the caller's thread. */
+    suspend fun <T> webSocket(request: BrokerRequest, guard: RequestCommitGuard = RequestCommitGuard { it() },
+        block: (BrokerWebSocket) -> T): T {
+        checkOpen()
+        val selectedRoute = runCatching { routes.snapshot() }
+        val snapshot = request.copy(headers = request.headers.toMap())
+        val work = lifetime.async {
+            try {
+                validate(snapshot)
+                require(snapshot.method == "GET" && snapshot.body == null && snapshot.browser == null &&
+                    snapshot.cache == CacheMode.Disabled && snapshot.retry == 0 && !snapshot.followRedirects)
+                withTimeout(snapshot.timeoutMillis) {
+                    val route = selectedRoute.getOrThrow()
+                    val url = snapshot.url.toHttpUrlOrNull() ?: throw BrokerFailure(RequestStage.Parse, FailureCode.InvalidRequest)
+                    policy.check(url)
+                    prepareUserAgent(url, snapshot.headers, policy)
+                    permits.withPermit {
+                        rate.withLock {
+                            val elapsed = (System.nanoTime() - lastStart) / 1_000_000
+                            if (lastStart != 0L && elapsed < limits.minIntervalMillis) delay(limits.minIntervalMillis - elapsed)
+                            sourcePacing.awaitAdmission()
+                            currentCoroutineContext().ensureActive()
+                            checkOpen()
+                            lastStart = System.nanoTime()
+                        }
+                        val transport = clientFor(route, url)
+                        val key = java.util.Base64.getEncoder().encodeToString(ByteArray(16).also(java.security.SecureRandom()::nextBytes))
+                        val call = transport.newBuilder().protocols(listOf(Protocol.HTTP_1_1))
+                            .dns(policy.dns(url, route.dns)).callTimeout(snapshot.timeoutMillis, TimeUnit.MILLISECONDS)
+                            .readTimeout(snapshot.timeoutMillis, TimeUnit.MILLISECONDS)
+                            .writeTimeout(snapshot.timeoutMillis, TimeUnit.MILLISECONDS)
+                            // OkHttp otherwise retries 503/Retry-After:0 even with connection retries disabled.
+                            .addNetworkInterceptor { chain -> chain.proceed(chain.request()).let { response ->
+                                if (response.code == 503) response.newBuilder().removeHeader("Retry-After").build() else response
+                            } }.build().newCall(Request.Builder().url(url).tag(NetworkPolicy::class.java, policy)
+                                .headers(headers(url, snapshot.headers, policy)).header("Connection", "Upgrade")
+                                .header("Upgrade", "websocket").header("Sec-WebSocket-Version", "13")
+                                .header("Sec-WebSocket-Key", key).removeHeader("Sec-WebSocket-Extensions").build())
+                        route.track(call)
+                        try { awaitWebSocket(call, key, guard,
+                            minOf(snapshot.maxResponseBytes ?: limits.maxResponseBytes, limits.maxResponseBytes), block)
+                            .also { route.checkAvailable() } }
+                        finally { route.finished(call, transport.connectionPool) }
+                    }
+                }
+            } catch (_: TimeoutCancellationException) {
+                throw BrokerWebSocketException(BrokerResult.Failure(RequestStage.Response, FailureCode.Timeout))
+            } catch (cancelled: CancellationException) { throw cancelled }
+              catch (failure: BrokerWebSocketException) { throw failure }
+              catch (failure: BrokerFailure) {
+                  var result: BrokerResult.Failure? = null
+                  guard.commit { result = permissionResult(failure, snapshot.kind) }
+                  throw BrokerWebSocketException(checkNotNull(result))
+              } catch (_: IllegalArgumentException) {
+                  throw BrokerWebSocketException(BrokerResult.Failure(RequestStage.Parse, FailureCode.InvalidRequest))
+              } catch (failure: IOException) {
+                  val route = selectedRoute.getOrNull()
+                  val rejected = generateSequence<Throwable>(failure) { it.cause }.take(16).filterIsInstance<RejectedCertificate>().firstOrNull()
+                  if (rejected != null) guard.commit { synchronized(this@SourceSession) { checkOpen(); certificates.remember(rejected.problem) } }
+                  throw BrokerWebSocketException(BrokerResult.Failure(RequestStage.Connect, when {
+                      route?.available == false -> FailureCode.RouteUnavailable
+                      rejected != null || failure is javax.net.ssl.SSLPeerUnverifiedException -> FailureCode.Certificate
+                      failure is java.net.UnknownHostException -> FailureCode.Dns
+                      failure is java.io.InterruptedIOException -> FailureCode.Timeout
+                      else -> FailureCode.Network
+                  }, certificate = rejected?.problem))
+              }
+        }
+        // Callback failures are unwrapped outside the transport mapping, preserving their identity.
+        return try { work.await().also { checkOpen() }.getOrThrow() } finally { work.cancel() }
+    }
+
+    private suspend fun <T> awaitWebSocket(call: Call, key: String, guard: RequestCommitGuard, maxResponseBytes: Int,
+        block: (BrokerWebSocket) -> T): Result<T> = suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation { call.cancel() }
+        val callback = object : Callback {
+            override fun onFailure(call: Call, e: IOException) { if (continuation.isActive) continuation.resumeWithException(e) }
+            override fun onResponse(call: Call, response: Response) {
+                try {
+                    if (!continuation.isActive) return
+                    if (response.headers.toString().length > 65536) throw BrokerFailure(RequestStage.Response, FailureCode.ResponseTooLarge)
+                    if (response.code != 101) throw BrokerWebSocketException(
+                        BrokerResult.Failure(RequestStage.Response, FailureCode.Network), response.code)
+                    val accept = java.util.Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-1")
+                        .digest((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").toByteArray(Charsets.US_ASCII)))
+                    if (!response.header("Connection").equals("Upgrade", true) || !response.header("Upgrade").equals("websocket", true) ||
+                        response.header("Sec-WebSocket-Accept") != accept || response.header("Sec-WebSocket-Extensions") != null)
+                        throw BrokerFailure(RequestStage.Response, FailureCode.Network)
+                    val socket = response.socket ?: throw BrokerFailure(RequestStage.Response, FailureCode.Network)
+                    val result = runCatching { block(BrokerWebSocket(socket, limits.maxRequestBytes, maxResponseBytes)) }
+                    guard.commit { synchronized(this@SourceSession) {
+                        checkOpen()
+                        if (continuation.isActive) continuation.resume(result)
+                    } }
+                } catch (failure: Exception) { if (continuation.isActive) continuation.resumeWithException(failure) }
+                finally {
+                    response.socket?.let { socket ->
+                        socket.cancel()
+                        // Cancellation interrupts I/O; closing both halves releases OkHttp's exchange ownership.
+                        runCatching { socket.source.close() }
+                        runCatching { socket.sink.close() }
+                    }
+                    response.close()
+                }
+            }
+        }
+        try { guard.commit { checkOpen(); if (continuation.isActive) call.enqueue(callback) } }
+        catch (failure: Exception) { if (continuation.isActive) continuation.resumeWithException(failure) }
+    }
+
     /** Host-owned response handoffs must remain on the same live route as their original read. */
-    fun responseRoute(): SourceNetworkRoute? = runCatching {
-        checkOpen(); routes.snapshot().takeIf { it.available }
+    fun responseRoute(): SourceRouteReference? = runCatching {
+        checkOpen(); routes.snapshot().reference.takeIf { it.available }
     }.getOrNull()
 
     /** Host-only response identity, including account headers which are not in the rule request. */
@@ -439,8 +560,8 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     }
 
     /** Use the route already captured for an owned response handoff, including native browser reads. */
-    suspend fun executeOnRoute(request: BrokerRequest, guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult =
-        execute(request, guard, policy, route = route)
+    suspend fun executeOnRoute(request: BrokerRequest, guard: RequestCommitGuard, route: SourceRouteReference): BrokerResult =
+        execute(request, guard, policy, route = route.route)
 
     /** Host-only HTTP transport for synthetic/image verification documents; avoids browser re-entry. */
     suspend fun executeHttp(request: BrokerRequest, guard: RequestCommitGuard, route: SourceNetworkRoute? = null): BrokerResult {
@@ -456,7 +577,9 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     }
 
     private suspend fun execute(request: BrokerRequest, guard: RequestCommitGuard, policy: NetworkPolicy,
-        browserDefault: Boolean = true, paceSource: Boolean = true, route: SourceNetworkRoute? = null): BrokerResult {
+        browserDefault: Boolean = true, paceSource: Boolean = true, route: SourceNetworkRoute? = null,
+        receive: ((ByteArray, Int, Int) -> Unit)? = null,
+        onResponse: ((Map<String, List<String>>) -> Unit)? = null): BrokerResult {
         checkOpen()
         val selectedRoute = runCatching { route ?: routes.snapshot() }
         // A browser source keeps document reads in the same native session. Binary/image
@@ -464,7 +587,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
         val snapshot = request.copy(headers = request.headers.toMap(), browser = request.browser ?:
             if (browserDefault && browserRead && request.kind == ResourceKind.Document) BrowserOptions() else null)
         val retryContext = currentCoroutineContext()[RequestRetryContext]
-        if (!retryPolicy.safe(snapshot)) retryContext?.disallowReplay()
+        if (receive != null || !retryPolicy.safe(snapshot)) retryContext?.disallowReplay()
         val observation = requestTrace.takeUnless { it === RequestTrace.None }?.let {
             RequestObservation(it, currentCoroutineContext()[RequestObservation])
         }
@@ -525,7 +648,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
                         }
                         result
                     } else {
-                        perform(snapshot, guard, policy, paceSource, transport, browserDefault) { stage = RequestStage.Connect }
+                        perform(snapshot, guard, policy, paceSource, transport, browserDefault, receive, onResponse) { stage = RequestStage.Connect }
                     }
                 }
             } catch (_: TimeoutCancellationException) {
@@ -572,7 +695,9 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     }
 
     private suspend fun perform(request: BrokerRequest, guard: RequestCommitGuard, policy: NetworkPolicy,
-        paceSource: Boolean, route: SourceNetworkRoute, detectChallenges: Boolean, onRequest: () -> Unit): BrokerResult {
+        paceSource: Boolean, route: SourceNetworkRoute, detectChallenges: Boolean,
+        receive: ((ByteArray, Int, Int) -> Unit)? = null,
+        onResponse: ((Map<String, List<String>>) -> Unit)? = null, onRequest: () -> Unit): BrokerResult {
         val initialUrl = request.url.toHttpUrlOrNull() ?: throw BrokerFailure(RequestStage.Parse, FailureCode.InvalidRequest)
         policy.check(initialUrl)
         val observation = currentCoroutineContext()[RequestObservation]
@@ -590,7 +715,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
             }
             if (request.cache == CacheMode.Only) return BrokerResult.Failure(RequestStage.Response, FailureCode.CacheMiss)
         }
-        val safe = retryPolicy.safe(request)
+        val safe = receive == null && retryPolicy.safe(request)
         // Preserve one safe connection recovery even at retry=0 unless the host disables
         // retries. Share its budget with explicit retries, not a nested OkHttp retry loop.
         val taskOwned = currentCoroutineContext()[RequestRetryContext] != null
@@ -600,7 +725,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
             val response = try {
                 guard.commit { checkOpen() }
                 permits.withPermit {
-                    var response = redirects(request, initialUrl, guard, policy, paceSource, route, attempt, onRequest)
+                    var response = redirects(request, initialUrl, guard, policy, paceSource, route, attempt, onRequest, receive, onResponse)
                     // Cookie bootstrap has one separate credit for the whole logical read,
                     // never one credit per retry. Login/submission bodies are not replayed.
                     if (detectChallenges && request.kind == ResourceKind.Document && request.method == "GET" &&
@@ -653,7 +778,9 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     }
 
     private suspend fun redirects(request: BrokerRequest, first: HttpUrl, guard: RequestCommitGuard, policy: NetworkPolicy,
-        paceSource: Boolean, route: SourceNetworkRoute, attempt: Int, onRequest: () -> Unit): BrokerResponse {
+        paceSource: Boolean, route: SourceNetworkRoute, attempt: Int, onRequest: () -> Unit,
+        receive: ((ByteArray, Int, Int) -> Unit)? = null,
+        onResponse: ((Map<String, List<String>>) -> Unit)? = null): BrokerResponse {
         val observation = currentCoroutineContext()[RequestObservation]
         var url = first
         var method = request.method
@@ -706,7 +833,8 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
                     .headers(headers).method(method, requestBody).build())
             route.track(call)
             val response = try {
-                awaitResponse(call, request.responseCharset, hop, guard, minOf(request.maxResponseBytes ?: limits.maxResponseBytes, limits.maxResponseBytes))
+                awaitResponse(call, request.responseCharset, hop, guard,
+                    minOf(request.maxResponseBytes ?: limits.maxResponseBytes, limits.maxResponseBytes), receive, onResponse)
             } finally { route.finished(call, transport.connectionPool) }
             val location = response.headers.entries.firstOrNull { it.key.equals("Location", true) }?.value?.firstOrNull()
             if (!request.followRedirects || response.status !in setOf(301, 302, 303, 307, 308) || location == null) return response
@@ -797,7 +925,9 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     }
 
     /** The continuation remains cancellable through body consumption, so call.cancel interrupts reads too. */
-    private suspend fun awaitResponse(call: Call, forcedCharset: String?, redirects: Int, guard: RequestCommitGuard, maxResponseBytes: Int): BrokerResponse = suspendCancellableCoroutine { continuation ->
+    private suspend fun awaitResponse(call: Call, forcedCharset: String?, redirects: Int, guard: RequestCommitGuard,
+        maxResponseBytes: Int, receive: ((ByteArray, Int, Int) -> Unit)? = null,
+        onResponse: ((Map<String, List<String>>) -> Unit)? = null): BrokerResponse = suspendCancellableCoroutine { continuation ->
         continuation.invokeOnCancellation { call.cancel() }
         val callback = object : Callback {
             override fun onFailure(call: Call, e: IOException) { if (continuation.isActive) continuation.resumeWithException(e) }
@@ -809,13 +939,20 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
                         val body = response.body
                         if (body.contentLength() > maxResponseBytes) throw BrokerFailure(RequestStage.Response, FailureCode.ResponseTooLarge)
                         val bytes = ByteArrayOutputStream()
+                        val sink = receive?.takeIf { response.isSuccessful }
+                        if (sink != null && onResponse != null) guard.commit {
+                            checkOpen()
+                            if (continuation.isActive) onResponse.invoke(response.headers.toMultimap())
+                        }
+                        var total = 0
                         body.byteStream().use { stream ->
                             val buffer = ByteArray(8192)
                             while (true) {
                                 val read = stream.read(buffer)
                                 if (read < 0) break
-                                if (bytes.size() + read > maxResponseBytes) throw BrokerFailure(RequestStage.Response, FailureCode.ResponseTooLarge)
-                                bytes.write(buffer, 0, read)
+                                total += read
+                                if (total > maxResponseBytes) throw BrokerFailure(RequestStage.Response, FailureCode.ResponseTooLarge)
+                                if (sink == null) bytes.write(buffer, 0, read) else sink(buffer, 0, read)
                             }
                         }
                         val responseBytes = bytes.toByteArray()

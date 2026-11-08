@@ -8,7 +8,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.dialog
 import androidx.navigation.compose.navigation
 import androidx.navigation.toRoute
-import indi.renakoni.nextvol.ui.dialog.EditTextFormattingRuleDialog
 import indi.renakoni.nextvol.ui.home.settings.textformatting.rules.navigateToSettingsTextFormattingRulesDestination
 import indi.renakoni.nextvol.ui.home.settings.textformatting.rules.settingsTextFormattingRulesDestination
 import indi.renakoni.nextvol.utils.isResumed

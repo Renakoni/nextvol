@@ -5,13 +5,16 @@ import android.app.Application
 import android.content.Intent
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.webkit.ServiceWorkerController
 import android.webkit.WebView
 import android.window.OnBackInvokedCallback
 import hnovel.network.*
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.unmockkObject
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.serialization.json.Json
 import org.junit.After
@@ -27,9 +30,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowApplication
 import org.robolectric.shadows.ShadowLooper.idleMainLooper
 import org.robolectric.util.ReflectionHelpers
+import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [24, 27, 35], application = Application::class)
+@Config(sdk = [24, 35], application = Application::class)
 class SourceBrowserBackTest {
     @Before fun enableSystemBack() {
         if (Build.VERSION.SDK_INT >= 33) ShadowApplication.setEnableOnBackInvokedCallback(true)
@@ -39,6 +43,7 @@ class SourceBrowserBackTest {
         SourceBrowserService.active = null
         NativeSourceBrowserService.active = null
         unmockkObject(BrowserWire)
+        unmockkStatic(ServiceWorkerController::class)
     }
 
     @Test fun nativeBackNavigatesHistoryBeforeCancelling() {
@@ -54,6 +59,25 @@ class SourceBrowserBackTest {
         back(controller.get())
         verify(exactly = 1) { service.cancel("native-job") }
         controller.pause().stop().destroy()
+    }
+
+    @Test @Config(sdk = [35]) fun engineLoginWaitsForConfirmationBeforeReadingStorage() {
+        // Robolectric has no Chromium provider for ServiceWorkerController.getInstance().
+        mockkStatic(ServiceWorkerController::class)
+        every { ServiceWorkerController.getInstance() } returns mockk(relaxed = true)
+        val results = mutableListOf<BrokerResult>()
+        val service = sourceService(results)
+        val url = "https://source.invalid/"
+        ReflectionHelpers.setField(service, "job", BrowserJob(BrokerRequest("login", url),
+            BrowserOptions(interactive = true, script = "localStorage.getItem('token')", waitForConfirmation = true)))
+        ReflectionHelpers.callInstanceMethod<Unit>(service, "open")
+        val view = service.webView!!
+        view.webViewClient.onPageFinished(view, url)
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertNull(shadowOf(view).lastEvaluatedJavascript)
+        assertTrue(results.isEmpty())
+        service.evaluate()
+        assertTrue(shadowOf(view).lastEvaluatedJavascript.contains("localStorage.getItem"))
     }
 
     @Test fun loginBackNavigatesHistoryThenCancelsOnceEvenAfterDestruction() {

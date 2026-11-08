@@ -43,13 +43,17 @@ internal object WorkerDiscoveryReadPlan {
     }
 
     private fun rule(value: String): Boolean = RuleParser().parse(value, RuleLocation("ruleExplore"), RuleBudget()).steps.all {
-        if (it.script) script(it.text, selectors = true) else ExecutionTask.BookOverviews.supports(it.text)
+        // RuleEvaluator interpolates scripts before execution, including inside string literals.
+        // Their raw AST cannot prove the behavior of template or capture substitutions.
+        if (it.script) listOf("{{", "@get:", "@put:").none { marker -> it.text.contains(marker, true) } &&
+            !Regex("""\$\d""").containsMatchIn(it.text) && script(it.text, selectors = true)
+        else ExecutionTask.BookOverviews.supports(it.text)
     }
 
     internal fun isReadOnlyRule(value: String): Boolean = value.length <= 65536 && runCatching { rule(value) }.getOrDefault(false)
 
     private val reserved = setOf("baseUrl", "result", "key", "page", "infoMap", "java", "cache", "JSON", "String", "Number",
-        "parseInt", "parseFloat", "encodeURIComponent", "decodeURIComponent", "undefined")
+        "parseInt", "parseFloat", "encodeURIComponent", "decodeURIComponent", "undefined", "org")
     private val properties = setOf("constructor", "prototype", "__proto__", "get", "set", "save")
     private val operators = setOf(Token.ADD, Token.SUB, Token.MUL, Token.DIV, Token.MOD, Token.EQ, Token.NE,
         Token.SHEQ, Token.SHNE, Token.LT, Token.LE, Token.GT, Token.GE, Token.AND, Token.OR,
@@ -104,6 +108,8 @@ internal object WorkerDiscoveryReadPlan {
                         val owner = (target.target as? Name)?.identifier
                         val method = target.property.identifier
                         when {
+                            selectors && target.target.toSource() == "org.jsoup.Jsoup" ->
+                                method == "parse" && node.arguments.size == 1 && node.arguments.all(::safe)
                             owner == "cache" -> !selectors && method == "get" && node.arguments.size == 1 &&
                                 node.arguments.single() is StringLiteral
                             owner == "java" -> if (method == "getWebViewUA") node.arguments.isEmpty()
@@ -111,6 +117,10 @@ internal object WorkerDiscoveryReadPlan {
                                     (node.arguments.single() as? StringLiteral)?.value?.let(ExecutionTask.BookOverviews::supports) == true
                             owner == "JSON" -> method == "stringify" && node.arguments.size == 1 && node.arguments.all(::safe)
                             owner == "String" -> method == "fromCharCode" && node.arguments.all(::safe)
+                            selectors && method in setOf("select", "selectFirst", "attr") ->
+                                node.arguments.size == 1 && safe(target.target) && node.arguments.all(::safe)
+                            selectors && method in setOf("first", "text", "html") ->
+                                node.arguments.isEmpty() && safe(target.target)
                             else -> method in setOf("match", "test", "split", "slice", "join", "replace", "trim", "toLowerCase", "toUpperCase") &&
                                 safe(target.target) && node.arguments.all(::safe)
                         }

@@ -32,36 +32,44 @@ class UpdateCheckRepositoryTest {
     @Before fun prepare() {
         coEvery { dao.get(any()) } answers { preferences[firstArg<String>()] }
         coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "false"
-        mockkObject(GithubParser)
+        mockkObject(GithubParser, NextvolApiParser)
         every { GithubParser.parser(any()) } returns release
+        every { NextvolApiParser.parser(any()) } answers { GithubParser.parser(firstArg()) }
     }
 
     @After fun finish() {
-        unmockkObject(GithubParser)
+        unmockkObject(GithubParser, NextvolApiParser)
         coVerify(exactly = 0) { dao.insert(any(), any(), any(), any()) }
     }
 
-    private suspend fun check(phaseId: Int): Pair<UpdateCheckRepository, UpdatePhase> {
-        val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao))
+    private suspend fun check(phaseId: Int = R.string.update_phase_available): Pair<UpdateCheckRepository, UpdatePhase> {
+        val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao), mockk(), mockk())
         repository.check()
         val phase = withTimeout(10_000) { repository.updatePhase.first { it.messageId == phaseId } }
         return repository to phase
     }
 
-    @Test fun missingImportedAndInvalidPreferencesAllUseNextVolStableReleases() = runBlocking {
+    @Test fun missingImportedAndInvalidPreferencesUseOwnStablePlatforms() = runBlocking {
         for ((platform, channel) in listOf(null to null, "GitHub" to "Release",
             "LnrAPI" to "Development", "LnrAPI" to "CI", "old-platform" to "old-channel")) {
             preferences.clear()
             platform?.let { preferences[UserDataPath.Settings.App.DistributionPlatform.path] = it }
-            channel?.let { preferences[UserDataPath.Settings.App.UpdateChannel.path] = it }
+            channel?.let { preferences["settings.app.update_channel"] = it }
             val (repository, phase) = check(R.string.update_phase_available)
             assertSame(release, repository.release)
             assertEquals(listOf("fixture"), phase.arguments.drop(1))
             assertTrue(withTimeout(10_000) { repository.availableFlow.first { it } })
         }
         verify(exactly = 5) { GithubParser.parser(any()) }
-        coVerify(exactly = 0) { dao.get(UserDataPath.Settings.App.DistributionPlatform.path) }
-        coVerify(exactly = 0) { dao.get(UserDataPath.Settings.App.UpdateChannel.path) }
+        verify(exactly = 4) { NextvolApiParser.parser(any()) }
+        coVerify(exactly = 0) { dao.get("settings.app.update_channel") }
+    }
+
+    @Test fun enabledAutomaticCheckUsesTheDefaultNextvolApi() = runBlocking {
+        coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "true"
+        val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao), mockk(), mockk())
+        withTimeout(10_000) { repository.availableFlow.first { it } }
+        verify(exactly = 1) { NextvolApiParser.parser(any()) }
     }
 
     @Test fun repositoryWithNoReleasesReportsAnEmptyChannel() = runBlocking {

@@ -26,6 +26,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import dagger.hilt.android.AndroidEntryPoint
 import indi.renakoni.nextvol.data.bookshelf.BookshelfRepository
+import indi.renakoni.nextvol.data.logging.CrashLogHandler
 import indi.renakoni.nextvol.data.logging.LoggerRepository
 import indi.renakoni.nextvol.data.update.UpdateCheckRepository
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
@@ -34,7 +35,6 @@ import indi.renakoni.nextvol.theme.NextVolTheme
 import indi.renakoni.nextvol.ui.NextVolApp
 import indi.renakoni.nextvol.ui.ExternalFileViewModel
 import indi.renakoni.nextvol.utils.FormattingSettings
-import indi.renakoni.nextvol.utils.LogUtils
 import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
 import io.nightfish.lightnovelreader.api.bookshelf.BookshelfSortType
 import io.nightfish.lightnovelreader.api.ui.ReaderStyle
@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        Thread.setDefaultUncaughtExceptionHandler(LogUtils(applicationContext, loggerRepository))
+        Thread.setDefaultUncaughtExceptionHandler(CrashLogHandler(applicationContext, loggerRepository))
 
         workManager.enqueueUniquePeriodicWork(
             "checkUpdate",

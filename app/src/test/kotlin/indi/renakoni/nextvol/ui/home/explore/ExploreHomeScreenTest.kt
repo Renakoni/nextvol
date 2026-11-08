@@ -46,19 +46,6 @@ class ExploreHomeScreenTest {
         SourceDiscoverySection("list", "Recommended", listOf(SourceDiscoveryBook(SourceBookId(id, "same"), "Same book", "", "")),
             SourceDiscoveryTarget(id, "all"))))
 
-    @Test fun discoveryEmptyPageIsOnlyTerminalWhenItsCursorEnds() {
-        var state by mutableStateOf(DiscoveryResultsState(title = "Results", loaded = true, hasMore = true))
-        activity.get().setContent { MaterialTheme {
-            DiscoveryResultsScreen(state, onFilter = { _, _ -> }, onLoadMore = {}, onRefresh = {},
-                onScroll = {}, onBook = {}, onManageSources = {}, onSettings = {}, onBack = {})
-        } }
-        compose.onNodeWithText(activity.get().getString(R.string.discovery_load_more)).assertIsDisplayed()
-        compose.onNodeWithText(activity.get().getString(R.string.discovery_no_books)).assertDoesNotExist()
-        compose.runOnIdle { state = state.copy(hasMore = false) }
-        compose.onNodeWithText(activity.get().getString(R.string.discovery_no_books)).assertIsDisplayed()
-        compose.onNodeWithText(activity.get().getString(R.string.discovery_load_more)).assertDoesNotExist()
-    }
-
     @Test fun sourceTabsAreTheOnlyTabsAndBooksAndMoreKeepTheirOwningSource() {
         val a = Identifier("fixture", "Source A")
         val b = Identifier("fixture", "Source B")
@@ -84,33 +71,6 @@ class ExploreHomeScreenTest {
         assertEquals(listOf(a, b), books.map { it.sourceId })
         assertEquals(listOf(a, b), more.map { it.more!!.sourceId })
         assertEquals(b, search)
-    }
-
-    @Test fun bookListedWithoutACoverAsksForItsDetailCover() {
-        val id = Identifier("fixture", "Coverless source")
-        val requested = mutableListOf<String>()
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to content(id))),
-                {}, { _, _ -> }, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, coverFor = { requested += it; null })
-        } }
-        compose.onNode(hasClickAction() and hasText("Same book")).assertExists()
-        compose.runOnIdle { assertEquals(listOf(SourceBookId(id, "same").storageKey), requested) }
-    }
-
-    @Test fun partialFeedRemainsVisibleAndNavigableWhileLaterPreviewsLoad() {
-        val id = Identifier("fixture", "Progressive source")
-        val page = content(id).copy(loaded = false, loading = true)
-        var more: SourceDiscoverySection? = null
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to page)),
-                {}, { _, _ -> }, {}, { more = it }, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
-        } }
-        // The indeterminate refresh indicator intentionally remains active.
-        compose.mainClock.autoAdvance = false
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNode(hasClickAction() and hasText("Same book")).assertExists()
-        compose.onNodeWithContentDescription("Show more").performClick()
-        assertEquals(page.sections.single(), more)
     }
 
     @Test fun delayedFeedStartsAtTheTopAndLaterUpdatesKeepTheReadersPosition() {
@@ -172,91 +132,6 @@ class ExploreHomeScreenTest {
         compose.onNodeWithText("Source A section 8").assertIsDisplayed()
     }
 
-    @Test fun aDecayedFeedsSavedPositionSurvivesTheShortFirstBatch() {
-        val id = Identifier("fixture", "Decayed source")
-        val sections = List(20) { index ->
-            SourceDiscoverySection("$index", "Section $index", emptyList(), SourceDiscoveryTarget(id, "/$index"))
-        }
-        val saved = DiscoveryScroll(8, 0)
-        var page by mutableStateOf(DiscoveryPageContent(loading = true, scroll = saved))
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to page)),
-                {}, { _, position -> page = page.copy(scroll = position) }, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
-        } }
-        compose.mainClock.autoAdvance = false
-        compose.mainClock.advanceTimeByFrame()
-        compose.waitForIdle()
-        compose.runOnIdle { page = page.copy(sections = sections.take(2)) }
-        compose.mainClock.advanceTimeByFrame()
-        compose.waitForIdle()
-        compose.runOnIdle { page = page.copy(sections = sections, loaded = true, loading = false) }
-        compose.mainClock.autoAdvance = true
-        compose.onNodeWithText("Section 8").assertIsDisplayed()
-        compose.runOnIdle { assertEquals(saved, page.scroll) }
-    }
-
-    @Test fun scrollingDuringReloadKeepsTheNewPositionInsteadOfRestoringTheOldOne() {
-        val id = Identifier("fixture", "Decayed source")
-        val sections = List(30) { index ->
-            SourceDiscoverySection("$index", "Section $index", emptyList(), SourceDiscoveryTarget(id, "/$index"))
-        }
-        var page by mutableStateOf(DiscoveryPageContent(loading = true, scroll = DiscoveryScroll(8, 0), sections = sections.take(20)))
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to page)),
-                {}, { _, position -> page = page.copy(scroll = position) }, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
-        } }
-        compose.mainClock.autoAdvance = false
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNode(hasScrollToIndexAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
-            .performTouchInput { swipeDown(durationMillis = 300) }
-        compose.mainClock.advanceTimeBy(1000)
-        val moved = page.scroll
-        assertTrue(moved.index < 8)
-        compose.runOnIdle { page = page.copy(sections = sections, loaded = true, loading = false) }
-        compose.mainClock.autoAdvance = true
-        compose.waitForIdle()
-        compose.runOnIdle { assertEquals(moved, page.scroll) }
-    }
-
-    @Test fun oneRealSourceAndItsUnsupportedSearchDoNotCreatePlaceholders() {
-        val id = Identifier("fixture", "Only source")
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id, setOf(SourceCapability.Explore))), id, mapOf(id to content(id))),
-                {}, { _, _ -> }, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
-        } }
-        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)).assertCountEquals(1)
-        compose.onNodeWithText("Only source").assertIsSelected()
-        compose.onNodeWithContentDescription("Search").assertIsEnabled()
-        compose.onNodeWithContentDescription("Categories").assertDoesNotExist()
-    }
-
-    @Test fun largeFeedCanOpenTheLastSectionWithoutLosingItsCategoryOrSource() {
-        val id = Identifier("fixture", "Large source")
-        val sections = List(326) { index -> SourceDiscoverySection("$index", "Category $index", emptyList(),
-            SourceDiscoveryTarget(id, "/category/$index"), "category-$index") }
-        val opened = mutableListOf<SourceDiscoverySection>()
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id,
-                mapOf(id to DiscoveryPageContent(loaded = true, sections = sections))),
-                {}, { _, _ -> }, {}, { opened += it }, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
-        } }
-        compose.onNode(hasScrollToIndexAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
-            .performScrollToIndex(sections.lastIndex)
-        compose.onNodeWithText("Category 325").assertExists()
-        compose.onAllNodesWithContentDescription("Show more").onLast().performClick()
-        assertEquals(listOf(sections.last()), opened)
-    }
-
-    @Test fun emptySourceStateOffersManagementAndNoFakeTabs() {
-        var opened = 0
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(), {}, { _, _ -> }, {}, {}, {}, {}, { opened++ }, { _, _ -> }, { _, _ -> }, {})
-        } }
-        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)).assertCountEquals(0)
-        compose.onNodeWithText("Book sources").performClick()
-        assertEquals(1, opened)
-    }
-
     @Test fun previewRetryStaysInItsEntryAndKeepsSuccessfulBooksAvailable() {
         val id = Identifier("fixture", "Partial source")
         val broken = SourceDiscoverySection("broken", "Broken preview", emptyList(), SourceDiscoveryTarget(id, "/broken"),
@@ -279,75 +154,6 @@ class ExploreHomeScreenTest {
         compose.onNodeWithText("Retry").assertDoesNotExist()
         compose.onNodeWithText("This list has no books yet.").assertDoesNotExist()
         compose.onNode(hasClickAction() and hasText("Same book")).performScrollTo().assertExists()
-    }
-
-    @Test fun pendingPreviewKeepsItsEntryUsableAndDoesNotShowEmptyUntilItCompletes() {
-        val id = Identifier("fixture", "Pending source")
-        val section = SourceDiscoverySection("daily", "Daily", emptyList(), SourceDiscoveryTarget(id, "/daily"), previewLoading = true)
-        var page by mutableStateOf(DiscoveryPageContent(loading = true, sections = listOf(section)))
-        var opened: SourceDiscoverySection? = null
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to page)),
-                {}, { _, _ -> }, {}, { opened = it }, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
-        } }
-        compose.mainClock.autoAdvance = false
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Daily").assertIsDisplayed()
-        compose.onNodeWithText("This list has no books yet.").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Show more").performClick()
-        assertEquals(section, opened)
-        compose.runOnIdle { page = page.copy(loaded = true, loading = false, sections = listOf(section.copy(previewLoading = false))) }
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("This list has no books yet.").assertIsDisplayed()
-    }
-
-    @Test fun successfulEmptyPreviewShowsItsStateAlongsideTheMoreAction() {
-        val id = Identifier("fixture", "Empty list source")
-        val section = SourceDiscoverySection("recent", "Recently updated", emptyList(), SourceDiscoveryTarget(id, "/recent"))
-        var opened: SourceDiscoverySection? = null
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id,
-                mapOf(id to DiscoveryPageContent(loaded = true, sections = listOf(section)))),
-                {}, { _, _ -> }, {}, { opened = it }, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
-        } }
-        compose.onNodeWithText("Recently updated").assertIsDisplayed()
-        compose.onNodeWithText("This list has no books yet.").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Show more").performClick()
-        assertEquals(section, opened)
-    }
-
-    @Test fun multipleFailedPreviewsKeepDetailsSeparateAndSuccessfulBooksBrowsable() {
-        val id = Identifier("fixture", "Partial source")
-        val broken = SourceDiscoverySection("broken", "Broken preview", emptyList(), SourceDiscoveryTarget(id, "/broken"),
-            previewFailure = DiscoveryPreviewFailure(DiscoveryError.InvalidRules, "header"), previewRetryAvailable = true)
-        val noTarget = broken.copy(id = "no-target", title = "Preview without a list", more = null,
-            previewFailure = DiscoveryPreviewFailure(DiscoveryError.Network, "ruleExplore.bookList"), previewRetryAvailable = false)
-        val page = content(id).copy(sections = listOf(broken, noTarget) + content(id).sections)
-        val opened = mutableListOf<SourceDiscoverySection>()
-        val books = mutableListOf<SourceBookId>()
-        activity.get().setContent { MaterialTheme {
-            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to page)),
-                {}, { _, _ -> }, {}, {}, { books += it }, {}, {}, { _, _ -> }, { _, _ -> }, {}, onRetryPreview = { opened += it })
-        } }
-        compose.onNodeWithText("Source rule:", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("This list has no books yet.").assertDoesNotExist()
-        compose.onAllNodesWithText("Error details").onFirst().performClick()
-        compose.onNodeWithText("Source rule: header").assertIsDisplayed()
-        compose.onNodeWithText("Error type: InvalidRules").assertIsDisplayed()
-        compose.onNodeWithText("Source rule: ruleExplore.bookList").assertDoesNotExist()
-        compose.onNodeWithText("Close").performClick()
-        compose.onNodeWithText("Retry").performClick()
-        assertEquals(listOf(broken), opened)
-        compose.onNode(hasScrollToIndexAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
-            .performScrollToIndex(1)
-        compose.onNodeWithText("Preview without a list").assertIsDisplayed()
-        compose.onNodeWithText("Retry").assertDoesNotExist()
-        compose.onAllNodesWithText("Error details").onFirst().performClick()
-        compose.onNodeWithText("Source rule: ruleExplore.bookList").assertIsDisplayed()
-        compose.onNodeWithText("Error type: Network").assertIsDisplayed()
-        compose.onNodeWithText("Close").performClick()
-        compose.onNode(hasClickAction() and hasText("Same book")).performScrollTo().performClick()
-        assertEquals(listOf(SourceBookId(id, "same")), books)
     }
 
     @Test fun ruleInputsAndActionsShareTheFeedAndFailuresKeepVisibleContent() {

@@ -5,4 +5,5 @@ interface Release {
     val versionName: String
     val releaseNotes: String
     val downloadUrl: String
+    val sha256: String? get() = null
 }

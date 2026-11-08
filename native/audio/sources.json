@@ -1,0 +1,19 @@
+{
+  "sonic": {
+    "url": "https://github.com/waywardgeek/sonic",
+    "commit": "b93885dcb70aae50c6f76b0fe4e0868f029a077e",
+    "license": "Apache-2.0",
+    "changes": [
+      "Java package renamed to indi.renakoni.nextvol.tts.audio",
+      "Use long multiplication for PCM volume scaling to avoid overflow before saturation"
+    ]
+  },
+  "soundtouch": {
+    "url": "https://www.surina.net/soundtouch/soundtouch-2.3.2.tar.gz",
+    "version": "2.3.2",
+    "sha256": "3bde8ddbbc3661f04e151f72cf21ca9d8f8c88e265833b65935b8962d12d6b08",
+    "license": "LGPL-2.1-or-later",
+    "changes": [],
+    "scope": "Unmodified processor sources and headers; excludes BPM analysis and command-line tools"
+  }
+}

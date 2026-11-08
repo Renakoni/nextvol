@@ -11,6 +11,11 @@ internal class ScriptRequestTemplates(private val scope: Scriptable, private val
     private var depth = 0
     private var resolvingHeaders = false
 
+    fun multiTts(cx: Context, bridge: HostBridge, args: List<JsonElement>): JsonObject {
+        require(args.size == 1 && frame.speakText != null)
+        return MultiTtsRequests(cx, bridge, frame).prepare(args.single().jsonObject)
+    }
+
     /** Local URL preparation stays pure; only an actual broker operation requests source headers. */
     fun call(cx: Context, bridge: HostBridge, name: String, args: List<JsonElement>): JsonElement {
         if (name == "java.getUserAgent") {

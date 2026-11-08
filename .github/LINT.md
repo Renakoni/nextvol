@@ -59,13 +59,13 @@ than recording it as a baseline exception.
 - Cleartext base configuration is intentional for user-supplied HTTP sources;
   requests still pass source permission/address policy, and Release trusts only
   system CAs. It is not a reason to expand fixture trust.
-- DefaultUncaughtExceptionDelegation is a real retained limitation: LogUtils
+- DefaultUncaughtExceptionDelegation is a real retained limitation: CrashLogHandler
   writes a panic report and exits directly instead of delegating to the previous
   handler. It is not suppressed or claimed fixed here. Scheduler fixed-rate
   behavior in the isolated execution service also remains a visible warning for
   that subsystem's lifecycle/performance work.
 - PluralsCandidate and Chinese unused `one` branches need language-specific
-  judgement; working Russian plurals are covered by #327 tests. UnusedResources,
+  judgement. UnusedResources,
   logging/style/KTX suggestions and dependency updates remain visible; this
   change does not mechanically delete resources or update dependencies to
   reduce the warning count.

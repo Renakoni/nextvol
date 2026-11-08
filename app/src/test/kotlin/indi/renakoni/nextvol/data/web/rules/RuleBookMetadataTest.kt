@@ -18,6 +18,27 @@ import java.time.LocalDateTime
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class RuleBookMetadataTest {
+    @Test fun displayAndDownloadInformationSkipCatalogueWhileBackgroundStillChecksForUpdates(): Unit = runBlocking {
+        RuleSourceFixture().use { fixture -> fixture.source().use { source ->
+            val adapter = RuleWebBookDataSource(Identifier("rules", "metadata"), source)
+            val id = fixture.server.url("/book/one").toString()
+            val queuedUpdate = hnovel.execution.SourceWorkRequest(0)
+            kotlinx.coroutines.withContext(indi.renakoni.nextvol.data.web.ForegroundSourceRequest()) {
+                assertEquals("Same title", adapter.getBookInformation(id).getOrElse { error(it.toString()) }.title)
+            }
+            assertEquals(1, fixture.server.requestCount)
+            kotlinx.coroutines.withContext(indi.renakoni.nextvol.data.web.DownloadSourceRequest()) {
+                assertEquals("Same title", adapter.getBookInformation(id).getOrElse { error(it.toString()) }.title)
+            }
+            assertEquals(2, fixture.server.requestCount)
+            kotlinx.coroutines.withContext(queuedUpdate) { adapter.getBookInformation(id).getOrElse { error(it.toString()) } }
+            assertEquals(5, fixture.server.requestCount)
+            val requests = fixture.server.requestCount
+            assertEquals(2, adapter.getBookVolumes(id).getOrElse { error(it.toString()) }.volumes.single().chapters.size)
+            assertEquals(requests, fixture.server.requestCount)
+        } }
+    }
+
     @Test fun invalidRefreshKeepsLastValidMetadataAcrossRestartWithoutChangingRawValues(): Unit = runBlocking {
         RuleSourceFixture().use { fixture ->
             var words = "1.23万"

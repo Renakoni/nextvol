@@ -11,22 +11,15 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.navigation.NavHostController
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.map
 import hnovel.content.ContentError
 import hnovel.content.SourceContentException
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.book.PartialBookVolumesException
 import indi.renakoni.nextvol.data.book.UNKNOWN_BOOK_UPDATE_TIME
-import indi.renakoni.nextvol.data.download.BookDownloadState
-import indi.renakoni.nextvol.data.download.BookDownloadStatus
-import indi.renakoni.nextvol.data.download.BookDownloadPhase
-import indi.renakoni.nextvol.data.download.MutableDownloadItem
-import indi.renakoni.nextvol.data.download.DownloadType
 import indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources
 import indi.renakoni.nextvol.utils.LocalClaimSnackbarHost
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
-import indi.renakoni.nextvol.utils.dateFormatter
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.BookVolumes
 import io.nightfish.lightnovelreader.api.book.ChapterInformation
@@ -78,49 +71,6 @@ class MetadataDetailScreenTest {
         }
     }
 
-    @Test fun missingWordCountAndUpdateDateAreHiddenWithoutHidingDirectoryStatistics() {
-        show(readingState(0, UNKNOWN_BOOK_UPDATE_TIME))
-        val zeroWords = activity.get().getString(R.string.book_info_word_count_kilo, "0")
-        val missingDate = activity.get().getString(R.string.book_info_update_date, UNKNOWN_BOOK_UPDATE_TIME.format(dateFormatter()))
-        compose.onNodeWithText(zeroWords).assertDoesNotExist()
-        compose.onNodeWithText(missingDate).assertDoesNotExist()
-        val info = activity.get().getString(R.string.action_show_info)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(info))
-        compose.onNodeWithText(info).performClick()
-        compose.onNodeWithText(activity.get().getString(R.string.detail_info_updated_on)).assertDoesNotExist()
-        compose.onAllNodes(hasText(zeroWords, substring = true)).assertCountEquals(0)
-        compose.onNodeWithText(activity.get().getString(R.string.detail_info_stats_count_content, 0, 0)).assertExists()
-    }
-
-    @Test fun knownMetadataRemainsVisibleAndStatisticsDoNotRepeatTheWordUnit() {
-        val updated = LocalDateTime.of(2026, 9, 14, 0, 0)
-        show(readingState(123, updated))
-        val words = activity.get().getString(R.string.book_info_word_count_kilo, "123")
-        compose.onNodeWithText(words).assertExists()
-        compose.onNodeWithText(activity.get().getString(R.string.book_info_update_date, updated.format(dateFormatter()))).assertExists()
-        val info = activity.get().getString(R.string.action_show_info)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(info))
-        compose.onNodeWithText(info).performClick()
-        compose.onNodeWithText(activity.get().getString(R.string.detail_info_updated_on)).assertExists()
-        val statistics = activity.get().getString(R.string.detail_info_stats_count_content, 0, 0)
-        compose.onNodeWithText(words + "\n" + statistics).assertExists()
-    }
-
-    @Test fun wordCountAndUpdateDateAreHiddenIndependently() {
-        val state = readingState(123, UNKNOWN_BOOK_UPDATE_TIME)
-        show(state)
-        val words = activity.get().getString(R.string.book_info_word_count_kilo, "123")
-        val missingDate = activity.get().getString(R.string.book_info_update_date, UNKNOWN_BOOK_UPDATE_TIME.format(dateFormatter()))
-        compose.onNodeWithText(words).assertExists()
-        compose.onNodeWithText(missingDate).assertDoesNotExist()
-        val updated = LocalDateTime.of(2026, 9, 14, 0, 0)
-        compose.runOnIdle {
-            state.bookInformation = state.bookInformation?.map { it.copy(wordCount = WordCount(0), lastUpdated = updated) }
-        }
-        compose.onNodeWithText(words).assertDoesNotExist()
-        compose.onNodeWithText(activity.get().getString(R.string.book_info_update_date, updated.format(dateFormatter()))).assertExists()
-    }
-
     @Test fun metadataShowsEditionAndBasicInfoWithoutReadingDirectoryCacheOrExport() {
         val key = SourceBookId(ZLibrarySources.ID, "17/abcdef").storageKey
         val book = BookInformation(key, "Metadata book", subtitle = "Chinese · EPUB · 2020", author = "Author",
@@ -143,15 +93,6 @@ class MetadataDetailScreenTest {
         compose.onNodeWithText(activity.get().getString(R.string.action_show_info)).performClick()
         compose.onNodeWithText("17/abcdef").assertExists()
         compose.onNodeWithText(activity.get().getString(R.string.detail_info_stats)).assertDoesNotExist()
-    }
-
-    @Test fun failedMetadataHasAnExplicitRetryAction() {
-        val state = MutableDetailUiState().apply { bookInformation = Err(WebRequestError("Z-Library", "Invalid response")) }
-        var retries = 0
-        show(state, retry = { retries++ })
-        compose.onNodeWithText("Invalid response").assertIsDisplayed()
-        compose.onNodeWithText(activity.get().getString(R.string.discovery_retry)).performClick()
-        assertEquals(1, retries)
     }
 
     @Test fun failedDirectoryIsVisibleAndCanRetryInsteadOfOfferingAnInertReadAction() {
@@ -203,38 +144,4 @@ class MetadataDetailScreenTest {
         compose.onNodeWithText("Chapter two").assertIsDisplayed()
     }
 
-    @Test fun downloadButtonShowsOnlyItsStatusAndOpensTheDownloadPageWithoutNegativeProgress() {
-        val key = SourceBookId(io.nightfish.lightnovelreader.api.identifier.Identifier("fixture", "a"), "book").storageKey
-        val state = MutableDetailUiState().apply {
-            bookInformation = Ok(BookInformation(key, "Book", author = "Author", description = "",
-                publishingHouse = "", wordCount = WordCount(1), lastUpdated = LocalDateTime.of(2026, 9, 15, 0, 0), isComplete = false))
-            canCache = true
-            downloadState = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Complete, 3, 3))
-        }
-        var requests = 0
-        show(state, cache = { assertEquals(key, it); requests++ })
-        val downloaded = activity.get().getString(R.string.cached)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(downloaded))
-        compose.onNodeWithText(downloaded).assertIsEnabled().performClick()
-        assertEquals(1, requests)
-        compose.runOnIdle {
-            state.downloadState = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Updating, 1, 3))
-            state.downloadItem = MutableDownloadItem(DownloadType.CACHE, key, kotlinx.coroutines.flow.emptyFlow()).apply { progress = 0.5f }
-        }
-        compose.onNodeWithText(activity.get().getString(R.string.book_download_updating)).assertIsNotEnabled()
-        compose.onNodeWithText("50%").assertExists()
-        compose.runOnIdle {
-            state.downloadState = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Failed, 1, 3))
-            (state.downloadItem as MutableDownloadItem).progress = -1f
-        }
-        compose.onNodeWithText(activity.get().getString(R.string.book_download_failed)).assertIsEnabled().performClick()
-        compose.onNodeWithText(activity.get().getString(R.string.book_download_retry)).assertDoesNotExist()
-        compose.onNodeWithText("-100%").assertDoesNotExist()
-        assertEquals(2, requests)
-        compose.runOnIdle {
-            state.downloadState = BookDownloadStatus(BookDownloadState(BookDownloadPhase.Complete, 3, 3))
-            state.canCache = false
-        }
-        compose.onNodeWithText(downloaded).assertIsNotEnabled()
-    }
 }

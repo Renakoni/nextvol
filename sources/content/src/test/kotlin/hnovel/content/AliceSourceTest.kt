@@ -39,6 +39,8 @@ class AliceSourceTest {
                 assertEquals(0, fixture.server.requestCount)
                 val catalog = source.openDiscovery("alice").catalog()
                 assertEquals(35, catalog.rows.size)
+                assertEquals(29, catalog.rows.count { it.showInCategories })
+                assertTrue(catalog.rows.filter { it.showInCategories }.all { it.url.contains("/lists/") })
                 assertEquals(listOf("最新") + ranks, RuleDiscoveryClassifier.feed(catalog).map { it.title })
                 val navigationRequest = requireNotNull(fixture.server.takeRequest(1, TimeUnit.SECONDS))
                 assertEquals("/", navigationRequest.path)

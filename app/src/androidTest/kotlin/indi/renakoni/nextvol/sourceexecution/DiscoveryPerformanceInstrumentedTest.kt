@@ -7,7 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.github.michaelbull.result.get
 import com.github.michaelbull.result.getError
 import hnovel.content.ContentTrace
-import hnovel.content.RuleSource
+import hnovel.content.createRuleSource
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
 import hnovel.execution.ExecutionIdentity
@@ -171,7 +171,7 @@ class DiscoveryPerformanceInstrumentedTest {
                     val session = broker.open(SourceScope("discovery-performance", definition.sourceId, definition.profile),
                         listOf(NetworkGrant(server.url("/").toString(), allowPrivateAddresses = true)))
                     val identity = authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "discovery-performance")
-                    try { RuleSource(definition, identity, authority, session, runner, trace).use { source ->
+                    try { createRuleSource(definition, identity, authority, session, runner, trace).use { source ->
                         var completed = emptyList<DiscoverySection>()
                         for (iteration in 0..repeats) {
                             if (view == "handoff" || view == "resume") {

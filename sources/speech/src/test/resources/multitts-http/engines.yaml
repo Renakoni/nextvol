@@ -1,0 +1,9 @@
+!!org.nobody.multitts.tts.engine.EngineConfig
+engines:
+- code: http_fixture
+  header: ''
+  name: 测试HTTP音源
+  note: '脱敏静态协议样例'
+  param: ''
+  type: http
+  url: https://speech.example.invalid/runtime/v1/synthesize?voiceId={{voiceCode}}&text={{java.encodeURI(speakText)}}&speed={{2-speakSpeed*0.015}}&volume={{speakVolume*4}}&audioType=mp3&mp3Quality=high&sampleRate=16000

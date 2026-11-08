@@ -1,0 +1,12 @@
+<resources>
+    <string name="tts_name_algorithm">Name discovery algorithm</string>
+    <string name="tts_name_ner">NER (Chinese)</string>
+    <string name="tts_name_test">Name analysis test</string>
+    <string name="tts_name_input">Text</string>
+    <string name="tts_name_run">Recognize names</string>
+    <string name="tts_name_results">Recognized names</string>
+    <string name="tts_name_empty">No names recognized.</string>
+    <string name="tts_name_unavailable">NER requires Android 8 or later and the built-in arm64 runtime.</string>
+    <string name="tts_name_error">Name recognition failed: %1$s</string>
+    <string name="tts_name_sample">王小明和欧阳娜娜正在交谈。小红走了过来。</string>
+</resources>

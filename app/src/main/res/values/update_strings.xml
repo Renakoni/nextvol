@@ -26,4 +26,5 @@
     <string name="update_wrong_package">This APK belongs to a different app or build variant</string>
     <string name="update_wrong_version">The APK version does not match the release or is not newer</string>
     <string name="update_wrong_signature">The APK signing certificate does not match the installed app</string>
+    <string name="update_phase_nextvol_api">Nextvol api: checking the latest release</string>
 </resources>

@@ -51,7 +51,7 @@ class ReaderProgressPersistenceTest {
         coEvery { markBookFinished(any()) } answers { finished += firstArg<String>() }
     }
     private val records = ReaderReadingRecords(
-        store, env.scope, env.scope, { "book" }, { "Chapter" }, { 1 }, ioDispatcher = env.dispatcher,
+        store, env.scope, env.scope, { "book" }, { "Chapter" }, { setOf("chapter") }, ioDispatcher = env.dispatcher,
     )
 
     @After fun close() = env.close()

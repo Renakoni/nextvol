@@ -60,7 +60,7 @@ class NetworkFailureTest {
                 val session = broker.open(SourceScope("rules", definition.sourceId, definition.profile),
                     listOf(NetworkGrant("https://source.invalid/")))
                 val identity = fixture.authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "rules")
-                RuleSource(definition, identity, fixture.authority, session, fixture.runner).use { source ->
+                createRuleSource(definition, identity, fixture.authority, session, fixture.runner).use { source ->
                     val failure = runCatching { source.search("title") }.exceptionOrNull() as SourceContentException
                     assertEquals("script=$script", expected, failure.code.name)
                     assertEquals("searchUrl", failure.field)

@@ -1,4 +1,4 @@
-plugins { kotlin("jvm"); `java-library` }
+plugins { kotlin("jvm"); `java-library`; alias(libs.plugins.kotlin.serialization) }
 java { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
 kotlin { jvmToolchain(21); compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 
@@ -7,6 +7,8 @@ dependencies {
     implementation(project(":source-execution"))
     implementation(project(":source-network"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.snakeyaml)
+    implementation("com.belerweb:pinyin4j:2.5.1")
     testImplementation(libs.junit)
     testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation(project(":source-rhino"))

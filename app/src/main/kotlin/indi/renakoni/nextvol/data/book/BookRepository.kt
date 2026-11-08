@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.combine
 import java.util.UUID
@@ -264,10 +265,13 @@ class BookRepository @Inject constructor(
             combine(downloads.observe(book), sourceRegistry.sources) { _, _ -> downloads.entry(book) }
                 .flatMapLatest { owner ->
                     val work = owner?.taskWorkId?.takeIf { it.isNotEmpty() }
-                        ?.let { workManager.getWorkInfoByIdFlow(UUID.fromString(it)) } ?: flowOf(null)
-                    work.map { info ->
+                        ?.let { downloadScheduler.observeTask(UUID.fromString(it)) } ?: flowOf(null)
+                    work.mapNotNull { info ->
+                        // WorkManager can finish before Room delivers the worker's final owner update.
+                        val current = if (info?.state?.isFinished == true) downloads.entry(book) else owner
+                        if (current?.taskWorkId != owner?.taskWorkId) return@mapNotNull null
                         val volumes = localBookDataSource.getBookVolumes(book.storageKey)
-                        val task = owner?.taskState(info?.state) ?: DownloadTaskState()
+                        val task = current?.taskState(info?.state) ?: DownloadTaskState()
                         val chapterId = task.chapterId.takeIf { it.isNotEmpty() }?.let {
                             SourceChapterId(BookIdentity.book(bookId), BookIdentity.chapter(it, book).remoteId).storageKey
                         }.orEmpty()
@@ -336,10 +340,10 @@ class BookRepository @Inject constructor(
         downloads.state(book, localBookDataSource.getBookVolumes(book.storageKey), active)
     }
 
-    /** Download refresh must report remote failures even when the reader can keep showing local content. */
-    internal suspend fun downloadDirectory(book: SourceBookId): Result<BookVolumes, WebRequestError> =
+    /** Reuse the recent complete UI directory; otherwise refresh and report remote failures. */
+    internal suspend fun downloadDirectory(book: SourceBookId, fresh: Boolean = false): Result<BookVolumes, WebRequestError> =
         if (LocalBookStore.isLocal(book)) localBooks.readVolumes(book)
-        else chapterRepository.refreshBookVolumes(book, WebDataSourcePriority.Low, fresh = true)
+        else chapterRepository.refreshBookVolumes(book, WebDataSourcePriority.Low, fresh = true, reuseRecent = !fresh)
 
     internal suspend fun downloadChapter(book: SourceBookId, chapterId: String): Result<ChapterContent, WebRequestError> {
         val chapter = BookIdentity.chapter(chapterId, book)

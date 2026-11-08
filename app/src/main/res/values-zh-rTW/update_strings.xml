@@ -26,4 +26,5 @@
     <string name="update_wrong_package">此 APK 的應用程式或建置類型與目前安裝不一致</string>
     <string name="update_wrong_version">APK 版本與發布資訊不符，或不高於目前版本</string>
     <string name="update_wrong_signature">APK 簽署憑證與目前安裝的應用程式不一致</string>
+    <string name="update_phase_nextvol_api">Nextvol api：正在檢查最新正式版本</string>
 </resources>

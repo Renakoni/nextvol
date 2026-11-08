@@ -17,6 +17,7 @@ fun interface SourceRouteProvider {
  * Sessions own their clients/pools; only physical network changes retire a route. */
 class SourceNetworkRoute(val mode: SourceNetworkMode, val dns: Dns,
     val socketFactory: SocketFactory = SocketFactory.getDefault()) {
+    val reference = SourceRouteReference(this)
     private val pools = mutableSetOf<ConnectionPool>()
     private val calls = mutableSetOf<Call>()
     private val invalidations = mutableSetOf<() -> Unit>()

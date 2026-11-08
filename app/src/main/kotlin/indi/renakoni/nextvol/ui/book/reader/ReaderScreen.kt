@@ -60,15 +60,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -79,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
 import coil3.compose.AsyncImagePainter
 import com.github.michaelbull.result.get
@@ -95,12 +102,9 @@ import indi.renakoni.nextvol.ui.book.reader.content.ReaderSpeechFollow
 import indi.renakoni.nextvol.ui.components.AnimatedText
 import indi.renakoni.nextvol.ui.components.AnimatedTextLine
 import indi.renakoni.nextvol.ui.components.LnrSnackbar
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 import indi.renakoni.nextvol.ui.tts.ReadAloudSheet
 import indi.renakoni.nextvol.utils.LocalClaimSnackbarHost
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
-import indi.renakoni.nextvol.utils.readerBackgroundColor
-import indi.renakoni.nextvol.utils.rememberReaderBackgroundPainter
 import indi.renakoni.nextvol.utils.showSnackbar
 import kotlinx.coroutines.launch
 import indi.renakoni.nextvol.data.bookmark.ReadingBookmark
@@ -134,6 +138,7 @@ fun ReaderScreen(
     onSpeechCommand: (SpeechAction) -> Unit,
     onSpeechSettings: () -> Unit,
     onSleepTimer: (Int?) -> Unit,
+    onChapterSleepTimer: ((Int) -> Unit)? = null,
     bookmarks: List<ReadingBookmark> = emptyList(),
     bookmarksBusy: Boolean = false,
     bookmarkNotice: Int? = null,
@@ -145,12 +150,27 @@ fun ReaderScreen(
 ) = ReaderMotionTheme(settingState.reduceMotion) {
     ReaderPaperTheme(settingState, manageSystemBars = true) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    var isImmersive by remember { mutableStateOf(true) }
+    var isImmersive by rememberSaveable { mutableStateOf(true) }
     val context = LocalContext.current
     val snackbarHostState = LocalSnackbarHost.current
     val backBlockMode = settingState.backBlockMode
     var lastBackPressTime: Long by remember { mutableLongStateOf(0) }
-    var showSettingsBottomSheet by remember { mutableStateOf(false) }
+    var showSettingsBottomSheet by rememberSaveable { mutableStateOf(false) }
+    var restoreSettingsOnResume by rememberSaveable { mutableStateOf(false) }
+    val settingsStateHolder = rememberSaveableStateHolder()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        // Wait for the return transition to finish before restoring the reader overlay.
+        if (restoreSettingsOnResume) {
+            restoreSettingsOnResume = false
+            showSettingsBottomSheet = true
+        }
+    }
+    val settingsButtonFocus = remember { FocusRequester() }
+    val inputMode = LocalInputModeManager.current
+    LaunchedEffect(showSettingsBottomSheet) {
+        if (!showSettingsBottomSheet && !isImmersive && inputMode.inputMode == InputMode.Keyboard)
+            settingsButtonFocus.requestFocus()
+    }
     val contentState = readingScreenUiState.contentUiState
     // Scroll geometry depends on the viewport, not the chapter. Flip capability still does.
     val layoutResult = remember(contentState,
@@ -203,7 +223,6 @@ fun ReaderScreen(
             }
         }
     }
-    val settingsBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
     val chaptersBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
 
     val claim = LocalClaimSnackbarHost.current
@@ -213,13 +232,13 @@ fun ReaderScreen(
         onDispose { claim(false) }
     }
 
-    BackHandler {
+    BackHandler(enabled = !showSettingsBottomSheet) {
         when (backBlockMode) {
-            MenuOptions.ReaderBackBlockMode.None -> {
+            ReaderBackBlockMode.None -> {
                 isImmersive = false
                 onClickBackButton()
             }
-            MenuOptions.ReaderBackBlockMode.DoublePress -> {
+            ReaderBackBlockMode.DoublePress -> {
                 val now = System.currentTimeMillis()
                 if (!isImmersive || now - lastBackPressTime < 1500) {
                     onClickBackButton()
@@ -234,7 +253,7 @@ fun ReaderScreen(
                 }
             }
 
-            MenuOptions.ReaderBackBlockMode.FullyBlocked -> {}
+            ReaderBackBlockMode.FullyBlocked -> {}
         }
     }
     DisposableEffect(Unit) {
@@ -243,7 +262,9 @@ fun ReaderScreen(
         }
     }
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+            .focusProperties { canFocus = !showSettingsBottomSheet }
+            .then(if (showSettingsBottomSheet) Modifier.clearAndSetSemantics {} else Modifier),
         snackbarHost = {
             SnackbarHost(LocalSnackbarHost.current) { data ->
                 LnrSnackbar(
@@ -327,6 +348,7 @@ fun ReaderScreen(
                 onClickPrevChapter = previousChapter,
                 onClickNextChapter = nextChapter,
                 onClickSettings = { showSettingsBottomSheet = true },
+                settingsButtonModifier = Modifier.focusRequester(settingsButtonFocus),
                 onClickChapterSelector = { showChapterSelectionBottomSheet = true },
                 onClickBookmarks = {
                     bookmarkPosition = bookmarkSession.capture?.invoke()
@@ -384,28 +406,28 @@ fun ReaderScreen(
             onSettings = { showReadAloud = false; onSpeechSettings() },
             onDismiss = { showReadAloud = false },
             onSleepTimer = onSleepTimer,
+            onChapterSleepTimer = onChapterSleepTimer,
         )
     }
     if (showSettingsBottomSheet) {
+        settingsStateHolder.SaveableStateProvider("reader-settings") {
+        val settingsBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
         CompositionLocalProvider(LocalReaderLayoutResult provides layoutResult) {
         SettingsBottomSheet(
             sheetState = settingsBottomSheetState,
             onDismissRequest = {
-                coroutineScope.launch { settingsBottomSheetState.hide() }.invokeOnCompletion {
-                    if (!settingsBottomSheetState.isVisible) {
-                        showSettingsBottomSheet = false
-                    }
-                }
                 showSettingsBottomSheet = false
+                settingsStateHolder.removeState("reader-settings")
             },
             settingState = settingState,
             onClickThemeSettings = {
                 // Unmount the reader sheet before the destination transition starts.
+                restoreSettingsOnResume = true
                 showSettingsBottomSheet = false
-                coroutineScope.launch { settingsBottomSheetState.hide() }
                 onClickThemeSettings()
             }
         )
+        }
         }
     }
 
@@ -525,7 +547,7 @@ fun Content(
                                 end = settingState.rightPadding.dp
                             )
                         ),
-                    enableBatteryIndicator = settingState.batteryIndicatorDisplayMode == "classic",
+                    enableBatteryIndicator = settingState.batteryIndicatorDisplayMode == ReaderBatteryDisplayMode.Classic,
                     enableTimeIndicator = settingState.enableTimeIndicator,
                     enableChapterTitle = settingState.enableChapterTitleIndicator,
                     chapterTitle = readingScreenUiState.chapterTitle(readingScreenUiState.contentUiState?.readingChapterId)
@@ -593,6 +615,7 @@ internal fun ReaderBottomBar(
     onClickSettings: () -> Unit,
     onClickChapterSelector: () -> Unit,
     onClickBookmarks: () -> Unit = {},
+    settingsButtonModifier: Modifier = Modifier,
 ) {
     BottomAppBar(
         windowInsets = WindowInsets.navigationBarsIgnoringVisibility
@@ -646,7 +669,7 @@ internal fun ReaderBottomBar(
                     )
                 }
 
-                IconButton(onClick = onClickSettings) {
+                IconButton(onClick = onClickSettings, modifier = settingsButtonModifier) {
                     Icon(
                         painter = painterResource(R.drawable.outline_settings_24px),
                         contentDescription = stringResource(R.string.settings)

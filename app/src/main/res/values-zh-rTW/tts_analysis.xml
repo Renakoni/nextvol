@@ -1,0 +1,19 @@
+<resources>
+    <string name="tts_analysis_title">文本人物分析</string>
+    <string name="tts_analysis_description">分析文本中出場的人物</string>
+    <string name="tts_analysis_only_new">只分析新詞語</string>
+    <string name="tts_analysis_only_new_on">已啟用，只會顯示新詞語</string>
+    <string name="tts_analysis_only_new_off">已關閉，將顯示所有詞語</string>
+    <string name="tts_analysis_auto_checked">自動選擇上限</string>
+    <string name="tts_analysis_name">名稱</string>
+    <string name="tts_analysis_frequency">詞頻</string>
+    <string name="tts_analysis_cached">分析已快取正文</string>
+    <string name="tts_analysis_download">補齊全書並分析</string>
+    <string name="tts_analysis_coverage">已快取 %1$d / %2$d 章</string>
+    <string name="tts_analysis_preparing">正在準備正文…</string>
+    <string name="tts_analysis_running">正在分析正文…</string>
+    <string name="tts_analysis_edit">編輯人物</string>
+    <string name="tts_analysis_aliases">別名（每行一個）</string>
+    <string name="tts_analysis_gender_action">%1$s，%2$s。切換性別</string>
+    <string name="tts_analysis_original_word">分析詞語：%1$s</string>
+</resources>

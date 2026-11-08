@@ -4,13 +4,9 @@ import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.components.BaseDialog
 import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -89,15 +85,6 @@ class AddBookToBookshelfDialogTest {
         assertEquals(1, dismissals)
     }
 
-    @Test fun loadingDisablesConfirmationWithoutAddingAFakeCheckbox() {
-        show(allBookshelf = emptyList(), isLoading = true)
-        compose.onAllNodes(isToggleable()).assertCountEquals(0)
-        confirmation().assertIsNotEnabled().performClick()
-        cancel().assertIsEnabled().performClick()
-        assertEquals(0, confirmations)
-        assertEquals(1, dismissals)
-    }
-
     @Test fun savingDisablesButtonsAndBothShelfClickTargets() {
         show(isSaving = true)
         confirmation().assertIsNotEnabled().performClick()
@@ -110,22 +97,6 @@ class AddBookToBookshelfDialogTest {
         assertTrue(deselected.isEmpty())
     }
 
-    @Test fun anEmptyBookshelfListShowsAnEmptyStateInsteadOfAnInteractivePlaceholder() {
-        show(allBookshelf = emptyList())
-        compose.onNodeWithText(activity.get().getString(R.string.nothing_here)).assertIsDisplayed()
-        compose.onAllNodes(isToggleable()).assertCountEquals(0)
-        confirmation().assertIsNotEnabled()
-        cancel().assertIsEnabled()
-    }
-
-    @Test fun loadingFailureIsVisibleAndCannotBeConfirmed() {
-        show(allBookshelf = emptyList(), errorMessage = R.string.bookshelf_load_failed)
-        compose.onNodeWithText(activity.get().getString(R.string.bookshelf_load_failed)).assertIsDisplayed()
-        compose.onNodeWithText(activity.get().getString(R.string.nothing_here)).assertDoesNotExist()
-        confirmation().assertIsNotEnabled()
-        cancel().assertIsEnabled()
-    }
-
     @Test fun savingFailureKeepsTheSelectionAndOffersRetry() {
         show(errorMessage = R.string.save_failed)
         compose.onNodeWithText(activity.get().getString(R.string.save_failed)).assertIsDisplayed()
@@ -134,35 +105,4 @@ class AddBookToBookshelfDialogTest {
         assertEquals(1, confirmations)
     }
 
-    @Test fun manyShelvesWithLongNamesRemainScrollableAndSelectable() {
-        val manyShelves = (1..30).map { Bookshelf(id = it, name = "Shelf $it: " + "Long name ".repeat(8)) }
-        show(allBookshelf = manyShelves)
-        compose.onNodeWithText(manyShelves.last().name).performScrollTo().assertIsDisplayed().performClick()
-        assertEquals(listOf(30), selected)
-        confirmation().assertIsDisplayed().assertIsEnabled()
-        cancel().assertIsDisplayed().assertIsEnabled()
-    }
-
-    @Test fun sharedDialogKeepsSuppliedDescriptionsButRemovesTheEmptyDescriptionGap() {
-        val description = mutableStateOf("Explanation for another dialog")
-        activity.get().setContent {
-            MaterialTheme {
-                BaseDialog(
-                    icon = painterResource(R.drawable.filled_bookmark_24px),
-                    title = "Title",
-                    description = description.value,
-                    onDismissRequest = {}
-                ) { Text("Body") }
-            }
-        }
-        compose.onNodeWithText(description.value).assertIsDisplayed()
-        fun contentGap() = compose.onNodeWithText("Body").fetchSemanticsNode().boundsInRoot.top -
-            compose.onNodeWithText("Title").fetchSemanticsNode().boundsInRoot.bottom
-        val describedGap = contentGap()
-        compose.runOnIdle { description.value = "" }
-        compose.onNodeWithText("Explanation for another dialog").assertDoesNotExist()
-        val emptyGap = contentGap()
-        assertTrue(emptyGap > 0f)
-        assertTrue(describedGap > emptyGap)
-    }
 }

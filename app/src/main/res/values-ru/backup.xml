@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="backup_invalid">Резервная копия повреждена или имеет неверный формат. Выберите копию NextVol или поддерживаемый старый файл .lnr.</string>
-    <string name="backup_unsupported_version">Эта версия резервной копии не поддерживается. Используйте совместимую версию NextVol.</string>
-    <string name="backup_too_large">Резервная копия превышает допустимый размер. Попробуйте копию без кэша глав.</string>
-    <string name="backup_export_failed">Не удалось экспортировать резервную копию. Целевой файл может быть неполным; повторите экспорт.</string>
-</resources>

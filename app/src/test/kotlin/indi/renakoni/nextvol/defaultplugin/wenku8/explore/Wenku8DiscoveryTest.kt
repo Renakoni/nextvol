@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.defaultplugin.wenku8.explore
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.get
 import io.nightfish.lightnovelreader.api.web.discovery.DiscoveryError
+import io.nightfish.lightnovelreader.api.web.discovery.DiscoveryFilter
 import io.nightfish.lightnovelreader.api.web.discovery.DiscoveryRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -120,16 +121,19 @@ class Wenku8DiscoveryTest {
     @Test fun localFilteringRetainsPagingAndSortSemantics() = runBlocking {
         val calls = mutableListOf<String>()
         val provider = Wenku8Discovery(host) { url -> calls.add(url); Jsoup.parse(cards(2, if ("page=2" in url) "2/2" else "1/2")) }
-        val base = DiscoveryRequest("tag:校园", filters = mapOf("completed" to "true", "publisher" to "电击文库", "minWords" to "120000"))
+        val base = DiscoveryRequest("tag:校园", filters = mapOf("completed" to "true", "publisher" to "电击文库"))
         assertEquals(2, provider.page(base).get()!!.books.size)
-        val filtered = provider.page(base.copy(filters = base.filters + ("minWords" to "120001"))).get()!!
+        val filtered = provider.page(base.copy(filters = base.filters + ("publisher" to "角川文库"))).get()!!
         assertTrue(filtered.books.isEmpty())
         assertEquals("2", filtered.nextCursor)
         assertNull(provider.page(base.copy(cursor = "2")).get()!!.nextCursor)
         provider.page(base.copy(filters = mapOf("sort" to "anime")))
         assertTrue(calls.last().endsWith("&v=3"))
-        provider.page(base.copy(filters = mapOf("sort" to "updated")))
+        provider.page(base.copy(filters = mapOf("sort" to "default")))
         assertFalse("&v=" in calls.last())
+        assertFalse(provider.filters(base.target).any { it.id == "minWords" })
+        assertEquals(setOf("default", "popular", "anime"),
+            (provider.filters(base.target).single { it.id == "sort" } as DiscoveryFilter.Choice).options.keys)
     }
 
     @Test fun invalidRequestsDoNotFetchAndMalformedPaginationIsAnError() = runBlocking {
@@ -207,7 +211,7 @@ class Wenku8DiscoveryTest {
             <td>最后更新：2026-09-09</td><td>全文长度：120000字</td></tr></table>
             <img src="/only.jpg"><a href="/novel/0/42/index.htm">小说目录</a></div></div>
         """) }
-        val page = provider.page(DiscoveryRequest("tag:校园", filters = mapOf("completed" to "true", "minWords" to "120000"))).get()!!
+        val page = provider.page(DiscoveryRequest("tag:校园", filters = mapOf("completed" to "true", "publisher" to "电击文库"))).get()!!
         assertEquals("42", page.books.single().remoteId)
         assertEquals("Only book", page.books.single().title)
         assertEquals("Author", page.books.single().author)

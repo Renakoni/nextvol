@@ -1,0 +1,26 @@
+<resources>
+    <string name="tts_pool_title">聲音の池</string>
+    <string name="tts_pool_tab">聲音池</string>
+    <string name="tts_pool_pairs">分配表</string>
+    <string name="tts_pool_search">尋找聲音或角色</string>
+    <string name="tts_pool_add">新聲音</string>
+    <string name="tts_pool_edit">編輯聲音</string>
+    <string name="tts_pool_person">人物名稱</string>
+    <string name="tts_pool_male">失配男</string>
+    <string name="tts_pool_female">失配女</string>
+    <string name="tts_pool_auto_assign">自動分配聲音</string>
+    <string name="tts_pool_auto_on">已啟用，未匹配的人物也會自動分配聲音</string>
+    <string name="tts_pool_auto_off">已關閉，未匹配的人物不自動分配聲音</string>
+    <string name="tts_pool_cache_limit">快取聲音上限</string>
+    <string name="tts_pool_empty">為抽象角色新增聲音，也可在音源中多選後加入聲音池。</string>
+    <string name="tts_pool_pairs_empty">正文朗讀時的人物聲音配對會顯示在這裡。</string>
+    <string name="tts_pool_clear_pairs">清空分配表</string>
+    <string name="tts_pool_reassign">重新分配聲音</string>
+    <string name="tts_pool_delete_items_confirm">從聲音池中移除所選聲音？</string>
+    <string name="tts_pool_delete_pairs_confirm">刪除這些配對？再次匹配到人物時會重新分配聲音。</string>
+    <string name="tts_pool_join">加入聲音池</string>
+    <string name="tts_pool_added">已將 %d 個聲音加入聲音池</string>
+    <string name="tts_pool_group_required">請選擇抽象角色。</string>
+    <string name="tts_pool_duplicate">該角色下已存在此聲音！</string>
+    <string name="tts_pool_no_candidate">該角色的聲音池沒有可用聲音，已保留原配對。</string>
+</resources>

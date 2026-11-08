@@ -196,7 +196,7 @@ internal class RuleDiscoveryProvider(private val source: RuleSource,
     }
 
     private fun map(catalog: RuleDiscoveryCatalog) = DiscoveryCatalog(
-        catalog.rows.filter { it.type == "url" }
+        catalog.rows.filter { it.type == "url" && it.showInCategories }
             .map { DiscoveryCategory(it.id, it.title, it.url) },
         catalog.rows.filter { it.targetPrefixes.isEmpty() }.mapNotNull(::filter),
         catalog.values, catalog.rows.filter { it.type == "button" }.map { DiscoveryButton(it.id, it.title) })

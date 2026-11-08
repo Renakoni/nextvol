@@ -37,7 +37,6 @@ internal fun RegisteredSourceSettings(entry: SourceListing?, network: SourceNetw
             TextButton(onClick = { advanced = !advanced }) { Text(stringResource(R.string.sources_advanced)) }
             if (advanced) {
                 Text(entry.metadata.id.toString())
-                Text(stringResource(R.string.sources_revision, entry.metadata.revision))
             }
         }
     }

@@ -3,8 +3,7 @@ package indi.renakoni.nextvol.benchmark.tts
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
-import androidx.test.uiautomator.UiScrollable
-import androidx.test.uiautomator.UiSelector
+import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.Until
 import indi.renakoni.nextvol.benchmark.ui.UiAutomatorTest
 import org.junit.Assert.assertFalse
@@ -21,35 +20,42 @@ class ReadAloudSmokeTest : UiAutomatorTest() {
         configureEngine("invalid.nextvol.speech.engine")
         launchApp()
         shell("am start -W -n $TARGET_PACKAGE/.MainActivity -a indi.renakoni.nextvol.OPEN_READ_ALOUD")
-        // The entry is now the first setting. Await navigation before any scrolling.
-        clickText("Voices")
+        // Await the settings screen before opening the voice library.
+        clickText("Voice sources")
         assertDescription("Library options")
-        scrollSpeechListTo("Imported test voice")
+        openImportedVoices()
+        scrollToText("Imported test voice")
         clickText("Imported test voice")
-        device.pressBack()
+        pressBack()
+        assertTrue("Voice library did not close", device.wait(Until.gone(By.desc("Library options")), TIMEOUT))
         assertText("Imported test voice")
-        clickScrolledText("Preview voice")
-        assertText("Finished")
-        clickDescription("Stop")
-        assertServiceStopped()
-        scrollSpeechListTo("Voices")
-        clickText("Voices")
+        clickText("Voice sources")
         assertDescription("Library options")
-        scrollSpeechListTo("Imported test voice")
+        openImportedVoices()
+        // A wrapped voice name can enter the viewport before its action buttons.
+        scrollTo(By.desc("Preview Imported test voice"))
+        clickDescription("Preview Imported test voice")
+        clickText("Finished")
+        clickText("Stop")
+        assertServiceStopped()
+        scrollTo(By.desc("Voice options"))
         clickDescription("Voice options")
         clickText("Remove voice")
+        // Narrator selection no longer changes the legacy system/default voice.
+        clickText("Confirm")
         assertTrue(device.wait(Until.gone(By.text("Imported test voice")), TIMEOUT))
-        device.pressBack()
-        assertText("System speech")
     }
 
-    private fun scrollSpeechListTo(text: String) {
-        // Compact settings may fit on screen and expose no scrollable container.
-        if (!device.hasObject(By.text(text))) {
-            assertTrue("Speech list did not contain: $text",
-                UiScrollable(UiSelector().scrollable(true)).scrollTextIntoView(text))
+    private fun openImportedVoices() {
+        val tabs = device.wait(Until.findObject(By.res("speech-source-tabs")), TIMEOUT)
+        repeat(12) {
+            if (device.findObject(By.text("Voices"))?.visibleBounds?.isEmpty == false) {
+                clickText("Voices")
+                return
+            }
+            tabs.scroll(Direction.RIGHT, 0.8f)
         }
-        assertText(text)
+        clickText("Voices")
     }
 
     private fun assertServiceStopped() {

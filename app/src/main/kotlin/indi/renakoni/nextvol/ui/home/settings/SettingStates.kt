@@ -4,6 +4,9 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import indi.renakoni.nextvol.data.setting.AbstractSettingState
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
+import indi.renakoni.nextvol.data.update.UpdatePlatform
+import indi.renakoni.nextvol.utils.DateFormat
+import indi.renakoni.nextvol.utils.DateOrder
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath
 import kotlinx.coroutines.CoroutineScope
 
@@ -12,6 +15,9 @@ class SettingState(
     userDataRepository: UserDataRepository,
     coroutineScope: CoroutineScope
 ) : AbstractSettingState(coroutineScope) {
+    val distributionPlatformKeyUserData = userDataRepository.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path)
+    private val storedDistributionPlatformKey by distributionPlatformKeyUserData.asState(UpdatePlatform.default.key)
+    val distributionPlatformKey get() = UpdatePlatform.fromKey(storedDistributionPlatformKey).key
     val checkUpdateUserData = userDataRepository.booleanUserData(UserDataPath.Settings.App.AutoCheckUpdate.path)
     val appLocaleKeyUserData = userDataRepository.stringUserData(UserDataPath.Settings.Display.AppLocale.path)
     val enableSimplifiedTraditionalTransformUserData = userDataRepository.booleanUserData(
@@ -24,8 +30,8 @@ class SettingState(
     val checkUpdate by checkUpdateUserData.asState(true)
     val appLocaleKey by appLocaleKeyUserData.asState("none")
     val enableSimplifiedTraditionalTransform by enableSimplifiedTraditionalTransformUserData.safeAsState(false)
-    val dateFormat by dateFormatUserData.safeAsState("numeric")
+    val dateFormat by dateFormatUserData.safeAsState(DateFormat.NUMERIC.key)
     val dateShowYear by dateShowYearUserData.asState(true)
-    val dateOrder by dateOrderUserData.safeAsState("auto")
+    val dateOrder by dateOrderUserData.safeAsState(DateOrder.AUTO.key)
     val useRelativeTime by useRelativeTimeUserData.asState(true)
 }

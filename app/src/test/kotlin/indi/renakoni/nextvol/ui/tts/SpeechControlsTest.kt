@@ -10,6 +10,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -18,9 +20,21 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.ui.book.reader.ReaderTopBar
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -48,38 +62,84 @@ class SpeechControlsTest {
     }
     @After fun destroy() { activity.pause().stop().destroy() }
 
+    @Test fun voiceManagementFiltersBulkActionsWithoutChangingNarrationDialogueOrPlayback() {
+        val voices = listOf("Alpha one", "Alpha two", "Beta").mapIndexed { index, name ->
+            SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
+                """{"id":"manage-$index","name":"$name","url":"https://example.org"}""").sources.single(),
+                listOf("https://example.org:443"))
+        }
+        var selectedCalls = 0
+        val playbackActions = mutableListOf<SpeechAction>()
+        var deleted = emptyList<SavedHttpSpeechSource>()
+        val settings = SpeechSettings(voiceRoutingConfigured = true,
+            narrationVoices = listOf(SpeechVoiceRef(httpSource = voices.first().definition.id)))
+        activity.get().setContent {
+            MaterialTheme {
+                HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = voices, loaded = true), {}, {},
+                    { selectedCalls++ }, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                    selection = settings, onDialogue = { selectedCalls++ }, onPreview = {},
+                    playback = ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Paused),
+                    onCommand = { playbackActions += it }, onDeleteHttp = { deleted = it },
+                    focusVoiceKey = "http:${voices.first().definition.id}")
+            }
+        }
+        fun label(id: Int) = activity.get().getString(id)
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_library_actions)).performClick()
+        compose.onNodeWithText(label(indi.renakoni.nextvol.R.string.tts_manage_voices)).performClick()
+        val previewLabel = activity.get().getString(indi.renakoni.nextvol.R.string.tts_preview_voice, "Alpha one")
+        compose.onNodeWithContentDescription(previewLabel).assertDoesNotExist()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_resume)).assertDoesNotExist()
+        compose.onNodeWithText("Alpha one").performClick()
+        compose.onNodeWithText("Beta").performClick()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_voice_search)).performClick()
+        compose.onNodeWithTag("voice-search-input").performTextInput("Alpha")
+        compose.onNodeWithTag("voice-select-inverse").performClick()
+        compose.onNodeWithTag("voice-delete-selected").performClick()
+        compose.runOnIdle { assertEquals(listOf(voices[1]), deleted) }
+        compose.onNodeWithTag("voice-select-all").performClick()
+        compose.onNodeWithTag("voice-delete-selected").performClick()
+        compose.runOnIdle { assertEquals(voices.take(2), deleted) }
+        compose.onNodeWithTag("voice-select-none").performClick()
+        compose.onNodeWithTag("voice-delete-selected").assertIsNotEnabled()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_manage_exit)).performClick()
+        compose.onNodeWithTag("voice-select-all").assertDoesNotExist()
+        compose.onNodeWithContentDescription(previewLabel).assertIsDisplayed()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_resume)).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(0, selectedCalls)
+            assertTrue(playbackActions.isEmpty())
+        }
+        compose.onNodeWithText("Alpha two").performClick()
+        compose.runOnIdle { assertEquals(1, selectedCalls) }
+    }
+
     @Test
     @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h640dp")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun sleepTimerCanBeSetAndCancelledOnANarrowLargeTextScreen() {
-        checkSleepTimerMenu("Sleep timer", "15 min", "Off", "Pause", "Stop")
-    }
-
-    @Test
-    @Config(sdk = [35], qualifiers = "zh-rCN-w320dp-h640dp")
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun sleepTimerUsesChineseLabelsAndKeepsPlaybackControlsReachable() {
-        checkSleepTimerMenu("定时停止", "15 分钟", "关闭定时", "暂停", "停止")
-    }
-
-    private fun checkSleepTimerMenu(title: String, minutes: String, off: String, pause: String, stop: String) {
         val selected = mutableListOf<Int?>()
+        val playback = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("book", "one"), SpeechPhase.Playing,
+            bookTitle = "Book", nextChapterId = "two"))
         activity.get().setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.8f)) {
                 MaterialTheme(typography = AppTypography) {
-                    ReadAloudControls(ReadAloudState(SpeechRequest("book", "one"), SpeechPhase.Playing,
-                        bookTitle = "Book", nextChapterId = "two"), {}, {},
-                        Modifier.width(320.dp).padding(horizontal = 24.dp), onSleepTimer = { selected += it })
+                    ReadAloudControls(playback.value, {}, {},
+                        Modifier.width(320.dp).padding(horizontal = 24.dp), onSleepTimer = {
+                            selected += it
+                            playback.value = playback.value.copy(sleepTimerDeadline = it?.let { minutes ->
+                                android.os.SystemClock.elapsedRealtime() + minutes * 60_000L
+                            })
+                        })
                 }
             }
         }
-        compose.onNodeWithContentDescription(pause).assertIsDisplayed()
-        compose.onNodeWithText(stop).assertIsDisplayed()
-        compose.onNodeWithContentDescription(title).assertIsDisplayed().performClick()
-        compose.onNodeWithText(minutes).assertIsDisplayed().performClick()
-        compose.onNodeWithContentDescription(title).performClick()
-        compose.onNodeWithText(off).assertIsDisplayed().performClick()
-        assertEquals(listOf(15, null), selected)
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
+        compose.onNodeWithText("Stop").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Sleep timer").assertIsDisplayed().performClick()
+        compose.onNodeWithText("10 min").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Sleep timer").performClick()
+        compose.onNodeWithContentDescription("Off").assertIsDisplayed().performClick()
+        assertEquals(listOf(10, null), selected)
     }
 
     @Test fun previewDoesNotOfferASleepTimerAndFinishedPlaybackCannotSetOne() {
@@ -145,19 +205,81 @@ class SpeechControlsTest {
         assertEquals(listOf(SpeechAction.Resume), actions)
     }
 
-    @Test fun loadingCanBePausedAndFailedPlaybackCanRetry() {
+    @Test fun loadingCanPauseAndFailedPlaybackOpensListeningSettingsWithBookContext() {
         val actions = mutableListOf<SpeechAction>()
         val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Preparing))
+        val sources = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState())
+        val definition = hnovel.speech.previewHttpSpeech(
+            """{"id":"cloud-voice","name":"Cloud voice","url":"https://example.org"}""",
+        ).sources.single()
+        val source = SavedHttpSpeechSource(definition, listOf("https://example.org:443"),
+            group = "Cloud engine", credentialKeys = listOf("AppKey"))
+        val voice = SpeechVoiceRef(httpSource = source.definition.id, label = source.definition.name)
+        val role = SpeechRoleMatch("Alice", "character", "Female role", true, voice)
+        var configured: Map<String, String>? = null
+        lateinit var nav: NavHostController
         activity.get().setContent {
-            MaterialTheme { ReadAloudControls(state.value, { actions += it }) }
+            MaterialTheme {
+                nav = rememberNavController()
+                NavHost(nav, startDestination = "reader",
+                    enterTransition = { androidx.compose.animation.EnterTransition.None },
+                    exitTransition = { androidx.compose.animation.ExitTransition.None }) {
+                    composable("reader") {
+                        ReadAloudControls(state.value, { actions += it },
+                            onSettings = { nav.navigateToSpeechSettings("reader-book") })
+                    }
+                    composable<SpeechSettingsRoute> { androidx.compose.material3.Text("Listening settings") }
+                    composable<HttpSpeechSourcesRoute> { entry ->
+                        val route = entry.toRoute<HttpSpeechSourcesRoute>()
+                        HttpSpeechSourcesScreen(sources.value, {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                            focusVoiceKey = route.voiceKey, configureCredentials = route.configureCredentials,
+                            catalogReady = sources.value.loaded, onConfigure = { target, values ->
+                                assertEquals(source.definition.id, target.definition.id)
+                                configured = values
+                                sources.value = sources.value.copy(configurationSaved = 1)
+                            })
+                    }
+                }
+            }
         }
         compose.mainClock.autoAdvance = false
         compose.onNodeWithContentDescription("Pause").performClick()
-        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.NoEngine) }
+        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.HttpLogin,
+            failedVoice = voice, failedRole = role) }
         compose.mainClock.autoAdvance = true
         compose.onNodeWithContentDescription("Retry").performClick()
         assertEquals(listOf(SpeechAction.Pause, SpeechAction.Resume), actions)
         compose.onNodeWithContentDescription("Next passage").assertIsNotEnabled()
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
+            "Alice · Cloud voice", activity.get().getString(SpeechError.HttpLogin.messageResource))).assertIsDisplayed()
+        compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
+        compose.onNodeWithText("Listening settings").assertIsDisplayed()
+        compose.onNodeWithText("AppKey").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(SpeechSettingsRoute("reader-book"), nav.currentBackStackEntry!!.toRoute<SpeechSettingsRoute>())
+            // Opening the source editor explicitly still waits for its catalog before configuring credentials.
+            nav.navigate(HttpSpeechSourcesRoute("http:${source.definition.id}", true))
+        }
+        compose.onNodeWithText("AppKey").assertDoesNotExist()
+        compose.runOnIdle {
+            sources.value = sources.value.copy(sources = listOf(source), loaded = true)
+        }
+        compose.onNodeWithText("AppKey").assertIsDisplayed().performTextInput("account-key")
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.confirm)).performClick()
+        assertEquals(mapOf("AppKey" to "account-key"), configured)
+        compose.onNodeWithText("Cloud engine").assertIsSelected()
+        compose.onNodeWithText(source.definition.name).assertIsDisplayed()
+        compose.runOnIdle {
+            nav.popBackStack("reader", false)
+            state.value = state.value.copy(error = SpeechError.MissingVoice, failedRole = role.copy(voiceRef = null))
+        }
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_voice_error,
+            "Alice", activity.get().getString(indi.renakoni.nextvol.R.string.tts_role_voice_missing))).assertIsDisplayed()
+        compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_settings)).performClick()
+        compose.onNodeWithText("Listening settings").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(SpeechSettingsRoute("reader-book"), nav.currentBackStackEntry!!.toRoute<SpeechSettingsRoute>())
+        }
     }
 
     @Test
@@ -181,8 +303,9 @@ class SpeechControlsTest {
     @Test
     @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h480dp")
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun settingsKeepPauseAndStopReachableWhileScrollingWithLargeText() {
+    fun settingsKeepPauseReachableAndOfferStopInTheExpandedPlayerWithLargeText() {
         val actions = mutableListOf<SpeechAction>()
+        var enginesOpened = 0
         activity.get().setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.8f)) {
                 MaterialTheme(typography = AppTypography) {
@@ -190,79 +313,105 @@ class SpeechControlsTest {
                         SpeechSettingsUiState(loading = false),
                         ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Playing,
                             bookTitle = "A long book title ".repeat(8)),
-                        {}, {}, {}, {}, {}, {}, { actions += it }, {}, {},
+                        {}, onSources = { fail("The engine entry must not open voice sources") },
+                        onPreferences = {}, onCommand = { actions += it }, onEngines = { enginesOpened++ },
                     )
                 }
             }
         }
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Stop").assertIsDisplayed()
-        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasText("System speech settings"))
+        compose.onNodeWithContentDescription("Stop").assertDoesNotExist()
+        compose.onNodeWithTag("speech-settings-list").performScrollToNode(hasTestTag("speech-engines-entry"))
+        compose.onNodeWithTag("speech-engines-entry").performClick()
+        assertEquals(1, enginesOpened)
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed().performClick()
-        compose.onNodeWithContentDescription("Stop").assertIsDisplayed().performClick()
+        compose.onNodeWithText("A long book title ".repeat(8)).performClick()
+        compose.onNodeWithText("Stop").assertIsDisplayed().performClick()
         assertEquals(listOf(SpeechAction.Pause, SpeechAction.Stop), actions)
     }
 
-    @Test fun speakingRateCanBeAdjustedDirectlyAndResetToEngineDefault() {
+    @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
+    fun readAloudSettingsExposeOnlyTheThreeOriginalControlScales() {
         val state = androidx.compose.runtime.mutableStateOf(SpeechSettingsUiState(loading = false))
         activity.get().setContent {
             MaterialTheme(typography = AppTypography) {
-                SpeechSettingsScreen(state.value, ReadAloudState(),
-                    {}, {}, {},
+                SpeechPreferencesScreen(state.value, {},
                     onRate = { state.value = state.value.copy(settings = state.value.settings.copy(rate = it)) },
-                    onPitch = {}, onPreview = {}, onCommand = {}, onSystemSettings = {}, onRefresh = {})
+                    onVolume = { state.value = state.value.copy(settings = state.value.settings.copy(volume = it)) },
+                    onPitch = { state.value = state.value.copy(settings = state.value.settings.copy(pitch = it)) })
             }
         }
-        assertNull(state.value.settings.rate)
-        compose.onNodeWithContentDescription("Speaking rate").performSemanticsAction(SemanticsActions.SetProgress) { it(1.5f) }
+        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)).assertCountEquals(3)
+        compose.onAllNodesWithText("50").assertCountEquals(2)
+        compose.onNodeWithText("25").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Speed").performSemanticsAction(SemanticsActions.SetProgress) { it(51f) }
+        compose.onNodeWithContentDescription("Volume").performSemanticsAction(SemanticsActions.SetProgress) { it(73f) }
+        compose.onNodeWithContentDescription("Pitch").performSemanticsAction(SemanticsActions.SetProgress) { it(32f) }
         compose.runOnIdle {
-            assertEquals(1.5f, state.value.settings.rate)
-            assertNull(state.value.settings.pitch)
+            assertEquals(SpeechSettings(rate = 1.02f, volume = 1.46f, pitch = 1.14f), state.value.settings)
         }
-        compose.onNodeWithText("Reset").performClick()
-        compose.runOnIdle { assertNull(state.value.settings.rate) }
     }
 
-    @Test fun voiceLibraryIsTheFirstChoiceEvenWhenUsingASystemEngine() {
-        var opened = false
+    @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
+    fun refreshingTheSameMissingEngineKeepsTheErrorAndDisablesVoiceSelection() {
+        val repository = mockk<SpeechSettingsEditor>()
+        every { repository.changes } returns MutableStateFlow(SpeechSettings())
+        val engines = mockk<SystemSpeechEngines>()
+        coEvery { engines.installed() } returns emptyList()
+        coEvery { engines.inspect("") } throws SpeechException(SpeechError.NoEngine)
+        val model = SpeechSettingsViewModel(repository, engines, mockk(), mockk(), mockk())
+        val inspection = CompletableDeferred<SpeechEngineState>()
+        fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10000) {
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            condition()
+        }
+        try {
+            activity.get().setContent { MaterialTheme {
+                val state by model.state.collectAsState()
+                HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                    onRefresh = model::refresh,
+                    systemSettings = { SystemSpeechSettings(state, {}, {}, {}) })
+            } }
+            waitUntil { !model.state.value.loading }
+            val error = activity.get().getString(SpeechError.NoEngine.messageResource)
+            compose.onNodeWithText(error).assertIsDisplayed()
+            coEvery { engines.inspect("") } coAnswers { inspection.await() }
+            compose.onNodeWithContentDescription(activity.get().getString(indi.renakoni.nextvol.R.string.tts_library_actions)).performClick()
+            compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_refresh)).performClick()
+            waitUntil { model.state.value.loading }
+            compose.onNodeWithText(error).assertIsDisplayed()
+            compose.onNodeWithText("Voice").assertIsNotEnabled()
+            inspection.completeExceptionally(SpeechException(SpeechError.NoEngine))
+            waitUntil { !model.state.value.loading }
+            compose.onNodeWithText(error).assertIsDisplayed()
+        } finally {
+            model.viewModelScope.cancel()
+        }
+    }
+
+    @Test fun systemVoiceAuditionAndSelectionKeepTheDialogOpenForFurtherGestures() {
+        var selected: String? = null
+        var previewed: String? = null
+        var dialogue: String? = null
         activity.get().setContent {
             MaterialTheme {
-                SpeechSettingsScreen(SpeechSettingsUiState(loading = false), ReadAloudState(),
-                    {}, {}, {}, {}, {}, {}, {}, {}, {}, onHttpSources = { opened = true })
+                HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                    systemSettings = {
+                        SystemSpeechSettings(SpeechSettingsUiState(loading = false,
+                            voices = listOf(SpeechVoice("candidate", "en-US", false, true))), {}, { selected = it }, {},
+                            onPreviewVoice = { previewed = it }, onDialogue = { dialogue = it })
+                    })
             }
         }
-        compose.onNodeWithText("Voices").assertIsDisplayed().performClick()
-        assertTrue(opened)
-    }
-
-    @Test fun builtInVoicesAreSelectableAndKeysHaveASeparateMaskedEditor() {
-        val definition = hnovel.speech.previewHttpSpeech("""{"id":"builtin-test","name":"Test voice","url":"https://example.org"}""").sources.single()
-        val ready = SavedHttpSpeechSource(definition, listOf("https://example.org:443"), group = "Built-in service")
-        val locked = ready.copy(definition = hnovel.speech.previewHttpSpeech("""{"id":"key-test","name":"Key voice","url":"https://example.org"}""").sources.single(),
-            group = "Key service", credentialKeys = listOf("Token"))
-        var selected: String? = null
-        var saved: Map<String, String>? = null
-        val state = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState(sources = listOf(ready, locked)))
-        activity.get().setContent {
-            MaterialTheme { HttpSpeechSourcesScreen(state.value,
-                {}, {}, { selected = it }, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
-                onConfigure = { _, values ->
-                    saved = values
-                    state.value = state.value.copy(configurationSaved = state.value.configurationSaved + 1)
-                }) }
-        }
-        compose.onNodeWithText("Import voices").assertDoesNotExist()
-        compose.onNodeWithText("Built-in service").performClick()
-        compose.onNodeWithText("Test voice").performClick()
-        assertEquals("builtin-test", selected)
-        compose.onNodeWithText("Remove voice").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Configure Key service").performClick()
-        compose.onNodeWithText("Confirm").assertIsNotEnabled()
-        compose.onNode(hasSetTextAction()).performTextInput("test-token")
-        compose.onNodeWithText("Confirm").performClick()
-        assertEquals(mapOf("Token" to "test-token"), saved)
-        compose.onNodeWithText("Token").assertDoesNotExist()
-        assertEquals("builtin-test", selected)
+        compose.onNodeWithText("Voice").performClick()
+        compose.onNodeWithContentDescription("Preview candidate").performClick()
+        assertEquals("candidate", previewed)
+        assertNull(selected)
+        compose.onNodeWithText("candidate · Offline").performClick()
+        assertEquals("candidate", selected)
+        compose.onNodeWithContentDescription("Preview candidate").assertIsDisplayed()
+        compose.onNodeWithText("candidate · Offline").performTouchInput { longClick() }
+        assertEquals("candidate", dialogue)
     }
 
     @Test

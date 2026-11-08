@@ -10,7 +10,8 @@ import org.junit.Test
 class RuleSettingsPresentationTest {
     private fun declaration(fields: Map<String, JsonElement>, profile: String = LEGADO_PROFILE) =
         RuleSettingsPresentation.read(SourceDefinition("fixture", "legado", profile, "https://example.invalid/", "Fixture",
-            true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, JsonObject(fields).toString()))
+            true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1,
+            JsonObject(mapOf("bookSourceUrl" to JsonPrimitive("https://example.invalid/")) + fields).toString()))
 
     @Test fun absentAndCheckOnlyAndEmptyFormsDoNotInventLogin() {
         for (fields in listOf(emptyMap(), mapOf("loginCheckJs" to JsonPrimitive("@js:throw 'never run'")),
@@ -27,7 +28,7 @@ class RuleSettingsPresentationTest {
         assertTrue(form.loginDeclared)
         assertTrue(form.configurationDeclared)
         assertNull(form.loginErrorField)
-        val browser = declaration(mapOf("loginUrl" to JsonPrimitive("https://example.invalid/login"), "browserRead" to JsonPrimitive(true)))
+        val browser = declaration(mapOf("loginUrl" to JsonPrimitive("/login"), "browserRead" to JsonPrimitive(true)))
         assertTrue(browser.loginDeclared)
         assertFalse(browser.configurationDeclared)
         assertTrue(browser.nativeBrowser)

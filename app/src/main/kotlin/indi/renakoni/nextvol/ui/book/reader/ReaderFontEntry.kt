@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.paddingFromBaseline
@@ -53,8 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.utils.loadReaderFontFamilySafe
-import indi.renakoni.nextvol.utils.loadReaderTypeface
+import indi.renakoni.nextvol.ui.components.SectionHeader
 import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
 import java.io.File
 import java.util.UUID
@@ -100,6 +100,19 @@ internal fun ReaderFontEntry(settings: ReaderSettingsEditor, modifier: Modifier 
     }
     val select: (Uri) -> Unit = { settings.fontFamilyUriUserData.asynchronousSet(it) }
     Column(modifier.padding(vertical = 8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SectionHeader(
+                modifier = Modifier.weight(1f),
+                text = stringResource(R.string.settings_theme_text_font),
+            )
+            TextButton(onClick = { picker.launch("*/*") }) {
+                Text(stringResource(R.string.reader_font_import))
+            }
+        }
         LazyRow(
             Modifier.fillMaxWidth().selectableGroup().testTag("reader-font-list"),
             state = listState,
@@ -114,9 +127,6 @@ internal fun ReaderFontEntry(settings: ReaderSettingsEditor, modifier: Modifier 
                     else stringResource(R.string.reader_font_imported)
                 ReaderFontCard(title, file.toUri(), selectedUri, select)
             }
-        }
-        TextButton(onClick = { picker.launch("*/*") }, modifier = Modifier.padding(start = 8.dp)) {
-            Text(stringResource(R.string.reader_font_import))
         }
     }
 }

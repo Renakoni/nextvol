@@ -39,9 +39,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.LocalAppTheme
-import indi.renakoni.nextvol.utils.readerBackgroundColor
-import indi.renakoni.nextvol.utils.readerTextColor
-import indi.renakoni.nextvol.utils.rememberReaderBackgroundPainter
 
 @Composable
 internal fun ReaderPaperSelector(settings: ReaderSettingsEditor) = CompositionLocalProvider(

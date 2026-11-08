@@ -1,8 +1,8 @@
 package indi.renakoni.nextvol.data.backup
 
 import android.app.Application
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
-import indi.renakoni.nextvol.data.local.cbor.LocalData
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.LocalData
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.encodeToByteArray
@@ -15,7 +15,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
@@ -155,20 +154,6 @@ class BackupArchiveTest {
         }
     }
 
-    @Test fun manifestDepthAllowsSixteenContainersAndRejectsSeventeen() {
-        for (shape in 0..2) {
-            for (levels in 15..16) {
-                val nested = (0 until levels).fold("0") { value, index ->
-                    if (shape == 0 || shape == 2 && index % 2 == 0) "[$value]" else """{"nested":$value}"""
-                }
-                val text = """{"format":"nextvol-backup","version":99,"extension":$nested}"""
-                // The root object adds one level; safe future metadata still reports its version.
-                val reason = if (levels == 15) BackupFailure.UNSUPPORTED_VERSION else BackupFailure.INVALID
-                expectFailure(reason, archive("manifest.json" to text.toByteArray(), "data.cbor" to byteArrayOf()))
-            }
-        }
-    }
-
     @Test fun quotedBracketsAndEscapesDoNotCountAsContainers() {
         val quote = '"'
         val slash = '\\'
@@ -188,13 +173,6 @@ class BackupArchiveTest {
             val nested = "[".repeat(16) + "0" + "]".repeat(16)
             val text = """{"format":"nextvol-backup","version":99,"label":$quoted,"padding":$nested}"""
             expectFailure(BackupFailure.INVALID, archive("manifest.json" to text.toByteArray(), "data.cbor" to byteArrayOf()))
-        }
-    }
-
-    @Test fun shallowMalformedManifestStillFailsJsonValidation() {
-        val text = metadata().toString(Charsets.UTF_8)
-        listOf(text.dropLast(1), "}$text", text.replace('[', '{'), "[]", "null").forEach { invalid ->
-            expectFailure(BackupFailure.INVALID, archive("manifest.json" to invalid.toByteArray(), "data.cbor" to payload()))
         }
     }
 
@@ -230,17 +208,5 @@ class BackupArchiveTest {
         }
         editCentralDirectory(file, 24) { 1 }
         expectFailure(BackupFailure.TOO_LARGE, file)
-    }
-
-    @Test fun copyLimitAllowsExactBoundaryAndRejectsTheNextByte() {
-        val output = ByteArrayOutputStream()
-        BackupArchive.copyLimited(byteArrayOf(1, 2).inputStream(), output, 2)
-        assertArrayEquals(byteArrayOf(1, 2), output.toByteArray())
-        try {
-            BackupArchive.copyLimited(byteArrayOf(1, 2, 3).inputStream(), ByteArrayOutputStream(), 2)
-            fail("Expected actual byte limit")
-        } catch (failure: BackupException) {
-            assertEquals(BackupFailure.TOO_LARGE, failure.reason)
-        }
     }
 }

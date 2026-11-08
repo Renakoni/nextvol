@@ -50,8 +50,8 @@ class ReadingPanelInstrumentedTest {
                     "loginUrl" to JsonPrimitive("function login(){}"),
                     "loginUi" to JsonPrimitive("""@js:JSON.stringify([
                         {name:'context',default:book===null?'none':book.durChapterTitle+':'+book.readingProgress+':'+chapter.url},
-                        {name:'same',type:'button',action:${JsonPrimitive(post + "java.refreshBookInfo();java.refreshBookToc();")}},
-                        {name:'same',type:'button',action:'java.refreshContent();'},
+                        {name:'same',type:'button',action:${JsonPrimitive("if(!isLongClick)throw 'missing long press';" + post + "java.refreshBookInfo();java.refreshBookToc();")}},
+                        {name:'same',type:'button',action:"if(isLongClick)throw 'stale long press';java.refreshContent();"},
                         {name:'fail',type:'button',action:${JsonPrimitive(post + "throw 'fixture-failure';")}}]);
                     """.trimIndent())))
                 val preview = sources.importer.preview(raw.toString(), EXTENSION_PROFILE)
@@ -69,7 +69,7 @@ class ReadingPanelInstrumentedTest {
                 assertEquals("Two:0.75:/c/2", login.form(other).fields[0].default)
                 val buttons = form.fields.filter { it.name == "same" }
                 assertEquals(setOf(LoginRefreshTarget.BookInformation, LoginRefreshTarget.Directory),
-                    login.submit(panel, form.values, buttons[0].id, form.id).refreshTargets)
+                    login.submit(panel, form.values, buttons[0].id, form.id, longClick = true).refreshTargets)
                 assertEquals(1, writes.get())
                 assertEquals(setOf(LoginRefreshTarget.Content), login.submit(panel, form.values, buttons[1].id, form.id).refreshTargets)
                 assertEquals(1, writes.get())

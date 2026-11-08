@@ -1,12 +1,12 @@
 package hnovel.content
 
 import hnovel.network.BrokerRequest
-import hnovel.network.SourceNetworkRoute
+import hnovel.network.SourceRouteReference
 import kotlinx.serialization.json.JsonObject
 
 /** Short handoff from successful homepage previews to a resumed feed or its full list. */
 internal class DiscoveryPreviewDocuments(private val pool: Pool = sharedPool) {
-    data class Key(val request: BrokerRequest, val route: SourceNetworkRoute, val cookies: List<String>,
+    data class Key(val request: BrokerRequest, val route: SourceRouteReference, val cookies: List<String>,
         val headers: Map<String, String>, val environment: JsonObject?)
     data class Entry(val document: PageDocument, val userAgent: String?, val savedAt: Long)
     data class OwnedKey(val owner: Any, val key: Key)

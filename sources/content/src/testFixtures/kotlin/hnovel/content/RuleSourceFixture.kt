@@ -99,7 +99,7 @@ class RuleSourceFixture(browser: BrowserExecutor? = null, private val trace: Con
         val session = broker.open(SourceScope("rules", definition.sourceId, definition.profile),
             listOf(NetworkGrant(server.url("/").toString(), allowPrivateAddresses = true)))
         val identity = authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "rules")
-        return RuleSource(definition, identity, authority, session, runner, trace)
+        return createRuleSource(definition, identity, authority, session, runner, trace)
     }
     override fun close() { worker.close(); broker.close(); server.close() }
 }

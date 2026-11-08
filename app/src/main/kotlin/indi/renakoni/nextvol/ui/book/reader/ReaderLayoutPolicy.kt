@@ -29,7 +29,7 @@ internal data class ReaderLayoutInput(
     val fontSizePx: Float,
     val lineHeightPx: Float,
     val mode: ReaderMode,
-    val preference: String = "auto",
+    val preference: String = ReaderPageLayoutPreference.Auto,
     // Only validated chapter components opt in; unknown content stays single-page.
     val supportsDoublePage: Boolean = false,
 )
@@ -73,14 +73,14 @@ internal fun resolveReaderLayout(input: ReaderLayoutInput): ReaderLayoutResult =
             ReaderLayoutReason.ScrollMode,
         )
     }
-    if (preference == "single") return ReaderLayoutResult(single)
+    if (preference == ReaderPageLayoutPreference.Single) return ReaderLayoutResult(single)
     if (!supportsDoublePage) return ReaderLayoutResult(single, ReaderLayoutReason.UnsupportedContent)
 
     val gutter = (DOUBLE_GUTTER_DP * density).roundToInt()
     val leafWidth = (usableWidth - gutter) / 2
     val reason = when {
         hostSize.height < DOUBLE_MIN_HEIGHT_DP * density -> ReaderLayoutReason.WindowTooShort
-        preference != "double" && hostSize.width < AUTO_DOUBLE_MIN_WIDTH_DP * density ->
+        preference != ReaderPageLayoutPreference.Double && hostSize.width < AUTO_DOUBLE_MIN_WIDTH_DP * density ->
             ReaderLayoutReason.WindowTooNarrow
         leafWidth < DOUBLE_MIN_LEAF_WIDTH_DP * density -> ReaderLayoutReason.WindowTooNarrow
         leafWidth < DOUBLE_MIN_LEAF_WIDTH_EM * fontSizePx -> ReaderLayoutReason.TextTooLarge

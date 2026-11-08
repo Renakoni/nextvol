@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
-import indi.renakoni.nextvol.utils.loadReaderFontFamilySafe
+import indi.renakoni.nextvol.ui.book.reader.loadReaderFontFamilySafe
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
 import io.nightfish.lightnovelreader.api.userdata.UriUserData
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath

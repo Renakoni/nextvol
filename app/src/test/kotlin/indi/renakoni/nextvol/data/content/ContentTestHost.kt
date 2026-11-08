@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.data.content
 
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
+import indi.renakoni.nextvol.ui.book.reader.content.ContentComponentFactory
 import indi.renakoni.nextvol.ui.book.reader.content.ContentRenderer
 import io.mockk.mockk
 import org.robolectric.RuntimeEnvironment

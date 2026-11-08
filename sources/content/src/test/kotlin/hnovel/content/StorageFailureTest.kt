@@ -12,8 +12,8 @@ class StorageFailureTest {
             limits = BrokerLimits(maxBookStorageBytes = 1024)).use { broker ->
             val authority = ExecutionAuthority()
             val identity = authority.issue("fixture", "legado", "revision", "rules")
-            val session = broker.open(SourceScope("rules", "fixture", "legado"), emptyList())
-            val store = RuleBookStore(session, authority, identity)
+            val storage: SourceStateStorage = broker.open(SourceScope("rules", "fixture", "legado"), emptyList())
+            val store = RuleBookStore(storage, authority, identity)
             val original = BookRecord("revision", RuleBook("book", title = "Saved"))
             store.write(original)
             val failure = runCatching { store.write(original.copy(book = original.book.copy(description = "x".repeat(2048)))) }

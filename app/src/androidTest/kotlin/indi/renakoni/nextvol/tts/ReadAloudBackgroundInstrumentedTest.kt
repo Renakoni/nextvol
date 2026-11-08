@@ -70,9 +70,7 @@ class ReadAloudBackgroundInstrumentedTest {
             assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
             val data = UserDataRepository(NextVolDatabase.getInstance(fixture.context).userDataDao())
             withContext(Dispatchers.IO) {
-                val stored = data.stringUserData("tts.settings")
-                val current = Json.decodeFromString<SpeechSettings>(stored.get()!!)
-                stored.set(Json.encodeToString(current.copy(pitch = 1.2f)))
+                SpeechSettingsRepository(data).update { it.copy(pitch = 1.2f) }
             }
             fixture.assertPlaybackAdvances("after voice adjustment with timer")
             assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
@@ -100,27 +98,63 @@ class ReadAloudBackgroundInstrumentedTest {
         }
     }
 
-    @Test fun newPlaybackCompletionFailureAndStopClearTheTimer() = runBlocking {
+    @Test fun previewsRestoreTheBookAndKeepItsDeadlineAcrossPauseFailureAndExpiry() = runBlocking {
+        withBook(chapterCount = 10) { fixture ->
+            fixture.await("book before previews") { fixture.player.isPlaying }
+            val deadline = fixture.setTimer(1)!!
+            val data = UserDataRepository(NextVolDatabase.getInstance(fixture.context).userDataDao())
+            val stored = data.stringUserData("tts.schemes")
+            val original = withContext(Dispatchers.IO) { stored.get()!! }
+            withContext(Dispatchers.Main) {
+                fixture.commands.preview("This is a short preview of another voice.",
+                    Json.decodeFromString<SpeechSchemes>(original).forBook(null).copy(pitch = 1.2f))
+            }
+            fixture.await("sample playing with original timer") {
+                fixture.player.isPlaying && fixture.commands.state.value.request?.isPreview == true
+            }
+            assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
+            fixture.await("book restored after sample") {
+                fixture.player.isPlaying && fixture.commands.state.value.request?.bookId == fixture.book.storageKey
+            }
+            assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
+            assertEquals(original, withContext(Dispatchers.IO) { stored.get() })
+            withContext(Dispatchers.Main) {
+                fixture.commands.command(SpeechAction.Pause)
+                fixture.commands.preview("This voice is unavailable.", SpeechSettings(engine = "invalid.nextvol.preview.engine"))
+            }
+            fixture.await("failed sample restores paused book") {
+                fixture.commands.state.value.request?.bookId == fixture.book.storageKey &&
+                    fixture.commands.state.value.phase == SpeechPhase.Paused
+            }
+            assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
+            withContext(Dispatchers.Main) { fixture.commands.preview("A quiet morning begins our next chapter. ".repeat(100)) }
+            fixture.await("sample before expiry") {
+                fixture.player.isPlaying && fixture.commands.state.value.request?.isPreview == true
+            }
+            fixture.assertTimerStopped(deadline)
+            assertFalse(fixture.progress.load(fixture.book.storageKey)!!.completed)
+            assertEquals(original, withContext(Dispatchers.IO) { stored.get() })
+        }
+    }
+
+    @Test fun explicitBookStartFailureAndStopClearTheTimer() = runBlocking {
         withBook(chapterCount = 10) { fixture ->
             fixture.await("playing before timer lifecycle checks") { fixture.player.isPlaying }
             fixture.setTimer(15)
-            withContext(Dispatchers.Main) { fixture.commands.preview("This is a short preview of the selected voice.") }
+            withContext(Dispatchers.Main) {
+                androidx.core.content.ContextCompat.startForegroundService(fixture.context,
+                    ReadAloudController.intent(fixture.context, SpeechAction.Start, fixture.commands.state.value.request!!))
+            }
             fixture.await("new Start clears the old timer") {
-                fixture.player.isPlaying && fixture.commands.state.value.request?.isPreview == true &&
+                fixture.player.isPlaying && fixture.commands.state.value.request?.isPreview == false &&
                     fixture.commands.state.value.sleepTimerDeadline == null
             }
             fixture.setTimer(15)
-            fixture.await("completion clears timer") {
-                fixture.commands.state.value.phase == SpeechPhase.Completed && fixture.commands.state.value.sleepTimerDeadline == null
-            }
-            withContext(Dispatchers.Main) { fixture.commands.preview("A quiet morning begins our next chapter. ".repeat(50)) }
-            fixture.await("playing before failure") { fixture.player.isPlaying }
-            fixture.setTimer(15)
             val data = UserDataRepository(NextVolDatabase.getInstance(fixture.context).userDataDao())
-            val stored = data.stringUserData("tts.settings")
+            val stored = data.stringUserData("tts.schemes")
             val valid = withContext(Dispatchers.IO) { stored.get()!! }
             withContext(Dispatchers.IO) {
-                stored.set(Json.encodeToString(SpeechSettings(engine = "invalid.nextvol.timer.engine")))
+                SpeechSettingsRepository(data).update { SpeechSettings(engine = "invalid.nextvol.timer.engine") }
             }
             fixture.await("failure clears timer") {
                 fixture.commands.state.value.phase == SpeechPhase.Failed && fixture.commands.state.value.sleepTimerDeadline == null
@@ -264,7 +298,7 @@ class ReadAloudBackgroundInstrumentedTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = NextVolDatabase.getInstance(context)
         val data = UserDataRepository(database.userDataDao())
-        val stored = data.stringUserData("tts.settings")
+        val stored = data.stringUserData("tts.schemes")
         val original = withContext(Dispatchers.IO) { stored.get() }
         val books = LocalBookStore(context, database)
         val originalShelves = withContext(Dispatchers.IO) { database.bookshelfDao().getAllBookshelfIds() }
@@ -277,7 +311,7 @@ class ReadAloudBackgroundInstrumentedTest {
         val commands = dagger.hilt.android.EntryPointAccessors.fromApplication(context, SpeechDebugEntryPoint::class.java).controller()
         try {
             withContext(Dispatchers.IO) {
-                stored.set(Json.encodeToString(SpeechSettings(engine = engine!!, rate = 1.4f)))
+                SpeechSettingsRepository(data).update { SpeechSettings(engine = engine!!, rate = 1.4f) }
                 file.writeText((1..chapterCount).joinToString("\n") { chapter ->
                     "Chapter $chapter\n" + if (chapterCount == 2 && chapter == 2)
                         "The next chapter begins without another tap. The reader can rest while the story continues. This is the end of the book."
@@ -315,7 +349,7 @@ class ReadAloudBackgroundInstrumentedTest {
             }
             withContext(Dispatchers.IO) {
                 createdShelf?.let { database.bookshelfDao().deleteBookshelf(it) }
-                if (original == null) data.remove("tts.settings") else stored.set(original)
+                if (original == null) data.remove("tts.schemes") else stored.set(original)
                 file.delete()
             }
         }

@@ -35,6 +35,8 @@ class WorkerDiscoveryReadPlanTest {
             assertFalse(code, accepts(urls = listOf("/list?q={{$code}}")))
             assertFalse(code, accepts(header = "@js:$code"))
         }
+        assertFalse(accepts(rules = listOf("@js:'{{java.ajax(\"/next\")}}'")))
+        assertFalse(accepts(rules = listOf("@js:'\$1'")))
     }
 
     @Test fun fixedAccountCacheReadsCanBeSnapshottedButWritesAndDynamicCallsCannot() {

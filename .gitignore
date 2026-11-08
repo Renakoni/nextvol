@@ -1,17 +1,7 @@
 *.iml
 .gradle
 local.properties
-.idea/caches
-.idea/libraries
-.idea/modules.xml
-.idea/workspace.xml
-.idea/navEditor.xml
-.idea/assetWizardSettings.xml
-.idea/dataSources.local.xml
-.idea/deploymentTargetDropDown.xml
-.idea/deploymentTargetSelector.xml
-.idea/misc.xml
-.idea/compiler.xml
+/.idea/
 .DS_Store
 build/
 captures/
@@ -20,10 +10,11 @@ captures/
 .kotlin/
 /app/snapshot/
 /artifacts/
-/docs/
+/release-artifacts/
 /.codex-logs/
 
 # Local research, handoff notes and browser captures are never project sources.
+/archive/
 /.local/
 /.playwright-mcp/
 /ref/

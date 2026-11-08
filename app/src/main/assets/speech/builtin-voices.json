@@ -1278,59 +1278,5 @@
     "origins": [
       "http://120.24.87.124:80"
     ]
-  },
-  {
-    "group": "起点",
-    "definition": {
-      "concurrentRate": "0",
-      "contentType": "audio/mpeg",
-      "header": "",
-      "id": "nextvol:builtin:1788290245785",
-      "name": "起点 · 说书先生",
-      "url": "@js:'https://shenmobook.top/tts/legado?token=' + encodeURIComponent(nextvolCredentials.Token) + '&v=6001&t=' + encodeURIComponent(speakText)"
-    },
-    "origins": [
-      "https://shenmobook.top:443",
-      "https://qd-tts-mnm.yuewen.com:443"
-    ],
-    "credentials": [
-      "Token"
-    ]
-  },
-  {
-    "group": "起点",
-    "definition": {
-      "concurrentRate": "0",
-      "contentType": "audio/mpeg",
-      "header": "",
-      "id": "nextvol:builtin:1788290245793",
-      "name": "起点 · 狐狸小姐",
-      "url": "@js:'https://shenmobook.top/tts/legado?token=' + encodeURIComponent(nextvolCredentials.Token) + '&v=6002&t=' + encodeURIComponent(speakText)"
-    },
-    "origins": [
-      "https://shenmobook.top:443",
-      "https://qd-tts-mnm.yuewen.com:443"
-    ],
-    "credentials": [
-      "Token"
-    ]
-  },
-  {
-    "group": "阿里云",
-    "definition": {
-      "id": "nextvol:builtin:2",
-      "name": "阿里云 · 小云",
-      "url": "@js:\n(function () {\n  function encode(value) { return encodeURIComponent(value).replace(/[!'()*]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }); }\n  var token = null;\n  try { token = JSON.parse(cache.get('aliyunToken') || 'null'); } catch (e) {}\n  if (!token || token.ExpireTime * 1000 <= Date.now() + 60000) {\n    var params = {AccessKeyId:nextvolCredentials.AccessKeyId, Action:'CreateToken', Format:'JSON', RegionId:'cn-shanghai', SignatureMethod:'HMAC-SHA1', SignatureNonce:java.randomUUID(), SignatureVersion:'1.0', Timestamp:java.timeFormatUTC(Date.now(), \"yyyy-MM-dd'T'HH:mm:ss'Z'\", 0), Version:'2019-02-28'};\n    var query = Object.keys(params).sort().map(function (key) { return encode(key) + '=' + encode(params[key]); }).join('&');\n    var signature = java.HMacBase64('GET&%2F&' + encode(query), 'HmacSHA1', nextvolCredentials.AccessKeySecret + '&');\n    var result = JSON.parse(java.ajax('https://nls-meta.cn-shanghai.aliyuncs.com/?Signature=' + encode(signature) + '&' + query));\n    token = result.Token;\n    if (!token || !token.Id || !(token.ExpireTime * 1000 > Date.now() + 60000)) throw new Error('Authentication failed');\n    cache.put('aliyunToken', JSON.stringify(token), 300);\n  }\n  return 'https://nls-gateway.cn-shanghai.aliyuncs.com/stream/v1/tts,' + JSON.stringify({method:'POST', headers:{'X-NLS-Token':token.Id}, body:{appkey:nextvolCredentials.AppKey, text:speakText, format:'mp3', voice:'xiaoyun', volume:100, speech_rate:Math.max(-500, Math.min(500, Math.round((speakSpeed / 10 - 1) * 500)))}});\n})()",
-      "contentType": "audio/mpeg"
-    },
-    "origins": [
-      "https://nls-meta.cn-shanghai.aliyuncs.com:443",
-      "https://nls-gateway.cn-shanghai.aliyuncs.com:443"
-    ],
-    "credentials": [
-      "AppKey",
-      "AccessKeyId",
-      "AccessKeySecret"
-    ]
   }
 ]

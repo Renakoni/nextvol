@@ -5,17 +5,22 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import indi.renakoni.nextvol.data.book.BookIdentity
+import indi.renakoni.nextvol.data.logging.LoggerRepository
+import indi.renakoni.nextvol.data.logging.SpeechLogEvent
+import indi.renakoni.nextvol.data.logging.SpeechLogRecord
+import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class SpeechAction { Start, Pause, Resume, Stop, Previous, Next, PreviousChapter, NextChapter, SleepTimer }
+enum class SpeechAction { Start, Pause, Resume, Stop, Previous, Next, PreviousChapter, NextChapter, SleepTimer, ChapterSleepTimer }
 
 /** UI sends explicit commands. Merely observing this state never starts a service or an engine. */
 @Singleton
-class ReadAloudController @Inject constructor(@ApplicationContext private val context: Context) {
+class ReadAloudController @Inject constructor(@ApplicationContext private val context: Context,
+    private val logger: LoggerRepository) {
     private val mutableState = MutableStateFlow(ReadAloudState())
     val state = mutableState.asStateFlow()
     private var closingPlayer = false
@@ -25,13 +30,13 @@ class ReadAloudController @Inject constructor(@ApplicationContext private val co
         val chapter = BookIdentity.chapter(chapterId, book)
         val current = state.value
         if (current.request?.bookId == book.storageKey && current.phase !in setOf(SpeechPhase.Stopped, SpeechPhase.Completed)) {
-            if (current.phase in setOf(SpeechPhase.Paused, SpeechPhase.Failed)) command(SpeechAction.Resume)
+            // Reopening this book's controls preserves its playback intent; Resume is explicit.
             return
         }
         start(SpeechRequest(book.storageKey, chapter.storageKey))
     }
 
-    fun preview(text: String) = start(SpeechRequest("", "", text))
+    fun preview(text: String, settings: SpeechSettings? = null) = start(SpeechRequest("", "", text, settings))
 
     private fun start(request: SpeechRequest) {
         closingPlayer = false
@@ -48,8 +53,12 @@ class ReadAloudController @Inject constructor(@ApplicationContext private val co
         send(action, state.value.request)
     }
     fun setSleepTimer(minutes: Int?) {
-        require(minutes == null || minutes in 1..60)
+        require(minutes == null || minutes in 1..MAX_SLEEP_TIMER_MINUTES)
         send(SpeechAction.SleepTimer, state.value.request, minutes)
+    }
+    fun setChapterSleepTimer(chapters: Int) {
+        require(chapters in setOf(1, 3, 5))
+        send(SpeechAction.ChapterSleepTimer, state.value.request, timerChapters = chapters)
     }
     internal fun publish(state: ReadAloudState) {
         val terminal = state.phase in setOf(SpeechPhase.Stopped, SpeechPhase.Completed)
@@ -63,23 +72,30 @@ class ReadAloudController @Inject constructor(@ApplicationContext private val co
             position = if (terminal || closingPlayer || state.request?.isPreview != false) null else state.position)
     }
 
-    private fun send(action: SpeechAction, request: SpeechRequest?, timerMinutes: Int? = null) {
+    private fun send(action: SpeechAction, request: SpeechRequest?, timerMinutes: Int? = null, timerChapters: Int? = null) {
         if (request == null) return
         try {
             val intent = intent(context, action, request).putExtra(TIMER_MINUTES, timerMinutes ?: 0)
+                .putExtra(TIMER_CHAPTERS, timerChapters ?: 0)
             if (action == SpeechAction.Start || action == SpeechAction.Resume) ContextCompat.startForegroundService(context, intent)
             else context.startService(intent)
         } catch (_: IllegalStateException) {
-            mutableState.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.ServiceUnavailable)
+            serviceUnavailable()
         } catch (_: SecurityException) {
-            mutableState.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.ServiceUnavailable)
+            serviceUnavailable()
         }
+    }
+
+    private fun serviceUnavailable() {
+        logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Initialization, SpeechLogEvent.Failed, SpeechError.ServiceUnavailable))
+        mutableState.value = state.value.copy(phase = SpeechPhase.Failed, error = SpeechError.ServiceUnavailable)
     }
 
     companion object {
         internal const val ACTION = "speech.action"
         internal const val REQUEST = "speech.request"
         internal const val TIMER_MINUTES = "speech.timerMinutes"
+        internal const val TIMER_CHAPTERS = "speech.timerChapters"
         const val OPEN_PLAYER = "indi.renakoni.nextvol.OPEN_READ_ALOUD"
         internal fun intent(context: Context, action: SpeechAction, request: SpeechRequest): Intent =
             Intent(context, ReadAloudService::class.java).putExtra(ACTION, action.name)

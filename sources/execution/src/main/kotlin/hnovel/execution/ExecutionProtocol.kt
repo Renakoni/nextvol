@@ -36,9 +36,19 @@ internal val ExecutionLimits.scriptDataLimit: Int get() = maxDataBytes ?: maxOut
 @Serializable sealed interface ExecutionTask {
  @Serializable data class Echo(val value: String): ExecutionTask
  @Serializable data class Sleep(val millis: Long): ExecutionTask
+ @Serializable data class RegexReplacement(val input: String, val source: String, val target: String): ExecutionTask
+ @Serializable data class RegexMatch(val input: String, val pattern: String): ExecutionTask
  @Serializable data class ContentMarkup(val html: String,
   val location: RuleLocation = RuleLocation("ruleContent.parts"), val formatted: Boolean = false) : ExecutionTask
  @Serializable data class DiscoveryReadPlan(val urls: List<String>, val header: String, val rules: List<String>) : ExecutionTask
+ @Serializable data class DirectoryPages(val html: String, val url: String, val next: List<String>, val rules: List<String>) : ExecutionTask
+ @Serializable data class DirectoryRows(val inputs: List<RuleValue>, val rules: Map<String, String>, val context: Rule,
+  val documentUrl: String, val requestUrl: String, val startIndex: Int = 0) : ExecutionTask {
+  companion object {
+   const val MAX_ROWS = 64
+   val FIELDS = listOf("chapterName", "chapterUrl", "updateTime", "isVolume", "isVip", "isPay")
+  }
+ }
  @Serializable data class SearchBooks(val inputs: List<RuleValue>, val rules: Map<String, String>, val baseUrl: String,
   val fallbackTitle: String = "") : ExecutionTask {
   companion object {
@@ -75,6 +85,7 @@ internal val ExecutionLimits.scriptDataLimit: Int get() = maxDataBytes ?: maxOut
 fun ExecutionTask.libraryCode(): String? = when (this) {
  is ExecutionTask.Script -> libraryCode
  is ExecutionTask.Rule -> libraryCode
+ is ExecutionTask.DirectoryRows -> context.libraryCode
  else -> null
 }
 @Serializable sealed interface ExecutionResult {
@@ -102,7 +113,8 @@ class ExecutionAuthority {
   commit()
   active.values.filter { it.sourceId == replacement.sourceId && it.namespace == replacement.namespace && it != replacement }.forEach(::revoke)
  }
- @Synchronized internal fun bindSession(identity: ExecutionIdentity, session: hnovel.network.SourceSession) {
+ /** Trusted host assembly/invocation entry, after checking identity and session scope. */
+ @Synchronized fun bindSession(identity: ExecutionIdentity, session: hnovel.network.SourceSession) {
   check(accepts(identity) && !session.closed)
   val previous = sessions.putIfAbsent(identity.nonce, session)
   check(previous == null || previous === session) { "Execution ticket already belongs to another session" }
@@ -247,10 +259,15 @@ class WorkerRuntime(private val archives: hnovel.rhino.ArchiveDecoder = hnovel.r
    (!wire.task.libraryCode.isNullOrBlank() || !WorkerDiscoveryReadPlan.isReadOnlyRule(wire.task.rule)))
    return kotlinx.serialization.json.Json.encodeToString(ExecutionResult.serializer(), ExecutionResult.Failure(FailureCode.InvalidTask))
   val result = when (val task = wire.task) {
+   is ExecutionTask.RegexReplacement -> WorkerRegexReplacement.evaluate(task, wire.limits)
+   is ExecutionTask.RegexMatch -> WorkerRegexMatch.evaluate(task, wire.limits)
    is ExecutionTask.ContentMarkup -> WorkerContentMarkup.evaluate(task, wire.limits)
    is ExecutionTask.DiscoveryReadPlan -> WorkerDiscoveryReadPlan.evaluate(task, wire.limits)
+   is ExecutionTask.DirectoryPages -> WorkerDirectoryPages.evaluate(task, wire.limits)
    is ExecutionTask.BookOverviews -> WorkerBookOverviews.evaluate(task, wire.identity, wire.limits)
    is ExecutionTask.SearchBooks -> WorkerSearchBooks.evaluate(task, wire.identity, wire.limits)
+   is ExecutionTask.DirectoryRows -> WorkerDirectoryRows.evaluate(task, wire.identity, wire.limits, bridge,
+    library(wire.identity, task.context.libraryCode, wire.libraryScripts), archives)
    is ExecutionTask.Rule -> WorkerRuleEvaluator.evaluate(task, wire.identity, wire.limits, bridge,
     library(wire.identity, task.libraryCode, wire.libraryScripts), archives)
    is ExecutionTask.Echo -> if (task.value.toByteArray().size > wire.limits.maxOutputBytes) ExecutionResult.Failure(FailureCode.OutputLimit) else ExecutionResult.Success(task.value)

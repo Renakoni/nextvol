@@ -245,6 +245,7 @@
     <string name="book_manager_clear_orphaned_content">Remove chapter data that is no longer linked to any local book?</string>
     <string name="book_manager_group_index_only">Books without cached content (%1$d)</string>
     <string name="book_manager_cleared_items">Cleared %1$d items</string>
+    <string name="book_manager_delete_failed">Could not finish deleting the selected books. Please try again.</string>
     <string name="storage_manager_title">Storage &amp; cleanup</string>
     <string name="storage_manager_empty_description">There is no local cache available to analyze.</string>
     <string name="storage_manager_used">used</string>
@@ -469,7 +470,6 @@
     <string name="key_customize_text">Customize Image</string>
     <!-- Distribution Platform -->
     <string name="key_platform_github" translatable="false">GitHub</string>
-    <string name="key_platform_appcenter" translatable="false">AppCenter</string>
     <!-- Dark Mode -->
     <string name="key_dark_mode_follow_system">Follow System</string>
     <string name="key_dark_mode_enabled">Override Enabled</string>
@@ -550,7 +550,6 @@
     <string name="sources_profile_extension">Extended Legado source</string>
     <string name="sources_profile_help">Follow the source author’s instructions. Extended mode supports scripted login forms and additional controls.</string>
     <string name="sources_apply_field">Apply field action</string>
-    <string name="source_diagnostics_login_form">Check login form</string>
     <string name="source_verification_download_paused">Stopped: website verification required</string>
     <string name="source_verification_background_open">Open verification</string>
     <string name="source_verification_background">%1$s needs verification. Background reading stopped; retry the download after verifying.</string>
@@ -635,4 +634,41 @@
     <string name="external_file_busy">Finish or cancel the current import before opening another file.</string>
     <string name="external_file_unsupported">This file type is not supported. Choose an EPUB, TXT, .nvbackup or .lnr file.</string>
     <string name="external_file_unreadable">Cannot read this file. Download it first, then open it again from the sending app.</string>
+    <string name="tts_manage_voices">Manage voices</string>
+    <string name="tts_manage_select_all">Select all</string>
+    <string name="tts_manage_select_none">Clear</string>
+    <string name="tts_manage_select_inverse">Invert</string>
+    <string name="tts_manage_delete">Delete</string>
+    <string name="tts_manage_selected">%1$d selected</string>
+    <string name="tts_manage_exit">Exit management</string>
+    <string name="tts_voice_reorder">Reorder %1$s</string>
+    <string name="tts_manage_search_scope">Selection count and deletion apply to the current search results.</string>
+    <string name="tts_engine_cache_capacity">Cached engine limit</string>
+    <string name="tts_audio_processor">Audio processor</string>
+    <string name="tts_audio_minimum_rate">Minimum sample rate</string>
+    <string name="tts_audio_check_silence">Detect silence</string>
+    <string name="tts_audio_check_silence_off">Disabled, silent frames will not be skipped</string>
+    <string name="tts_audio_check_silence_on">Enabled, silent frames will be skipped</string>
+    <string name="tts_error_audio_processing">Audio processing failed. Check the processor and voice parameters.</string>
+    <string name="tts_audio_sonic" translatable="false">Sonic</string>
+    <string name="tts_audio_soundtouch" translatable="false">SoundTouch</string>
+    <string name="tts_sample_rate_16000" translatable="false">16,000 Hz</string>
+    <string name="tts_sample_rate_22050" translatable="false">22,050 Hz</string>
+    <string name="tts_sample_rate_24000" translatable="false">24,000 Hz</string>
+    <string name="tts_sample_rate_32000" translatable="false">32,000 Hz</string>
+    <string name="tts_sample_rate_44100" translatable="false">44,100 Hz</string>
+    <string name="tts_sample_rate_48000" translatable="false">48,000 Hz</string>
+    <string name="tts_sample_rate_64000" translatable="false">64,000 Hz</string>
+    <string name="tts_sample_rate_96000" translatable="false">96,000 Hz</string>
+    <string name="tts_language_detector">Language detection algorithm</string>
+    <string name="tts_language_optimaize">Optimaize</string>
+    <string name="tts_language_media_pipe">Media Pipe</string>
+    <string name="tts_filter_language">Filter language</string>
+    <string name="tts_filter_language_description">Filter incoming voices by language during online updates.</string>
+    <string name="tts_role_mode_language">Language</string>
+    <string name="tts_role_secondary_language">Alternative language</string>
+    <string name="tts_role_language_required">Select a language supported by the current detector.</string>
+    <string name="tts_language_detector_unavailable">The selected language detector or its model could not be loaded. Check the language rules and detection algorithm.</string>
+    <string name="tts_segment_language">Language: %1$s</string>
+    <string name="key_platform_nextvol_api" translatable="false">Nextvol api</string>
 </resources>

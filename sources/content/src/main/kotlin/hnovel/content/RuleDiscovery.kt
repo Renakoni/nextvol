@@ -9,7 +9,7 @@ data class RuleDiscoveryEnvironment(val themeMode: String = "0", val theme: Json
     val reading: JsonObject = JsonObject(emptyMap()))
 data class RuleDiscoveryRow(val id: String, val title: String, val type: String, val url: String = "",
     val action: String = "", val choices: List<String> = emptyList(), val default: String = "", val field: String = "exploreUrl",
-    val viewName: String = "", val targetPrefixes: List<String> = emptyList())
+    val viewName: String = "", val targetPrefixes: List<String> = emptyList(), val showInCategories: Boolean = true)
 data class RuleDiscoveryCatalog(val rows: List<RuleDiscoveryRow>, val values: Map<String, String>,
     val homepage: List<RuleDiscoveryRow>? = null)
 data class RuleDiscoveryAction(val kind: String, val value: String = "", val title: String = "",

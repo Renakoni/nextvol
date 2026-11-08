@@ -1,7 +1,5 @@
 package indi.renakoni.nextvol.ui.home
 
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
@@ -34,15 +32,14 @@ import indi.renakoni.nextvol.utils.currentMainRoute
 import io.nightfish.lightnovelreader.api.Route
 import kotlinx.serialization.json.Json
 
-@OptIn(ExperimentalSharedTransitionApi::class)
-fun NavGraphBuilder.homeNavigation(sharedTransitionScope: SharedTransitionScope) {
+fun NavGraphBuilder.homeNavigation() {
     navigation<Route.Main>(
         startDestination = Route.Main.Reading
     ) {
-        readingNavigation(sharedTransitionScope)
+        readingNavigation()
         exploreNavigation()
         categoriesDestination()
-        bookshelfNavigation(sharedTransitionScope)
+        bookshelfNavigation()
         settingsNavigation()
     }
 }

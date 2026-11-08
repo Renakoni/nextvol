@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="reader_reduce_motion">Уменьшить анимацию чтения</string>
-    <string name="reader_reduce_motion_description">Меньше анимации при смене страниц, глав и панелей чтения</string>
-</resources>

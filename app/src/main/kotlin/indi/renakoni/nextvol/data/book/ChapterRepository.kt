@@ -64,10 +64,10 @@ class ChapterRepository @Inject constructor(
     }
 
     internal suspend fun refreshBookVolumes(book: SourceBookId, priority: WebDataSourcePriority, fresh: Boolean = false,
-        expectedRuntime: indi.renakoni.nextvol.data.web.SourceRuntime? = null): Result<BookVolumes, WebRequestError> {
+        expectedRuntime: indi.renakoni.nextvol.data.web.SourceRuntime? = null, reuseRecent: Boolean = false): Result<BookVolumes, WebRequestError> {
         val requested = localBookDataSource.aliases.resolve(book)
         return sourceRegistry.request(requested, expectedRuntime) { runtime -> runtime.execute {
-            runtime.getBookVolumes(requested.remoteId, priority, refresh = fresh).mapError { error ->
+            runtime.getBookVolumes(requested.remoteId, priority, refresh = fresh, reuseRecent = reuseRecent).mapError { error ->
                 error.mapAvailableVolumes { requested.bind(it).rebind(requested, book) }
             }.andThen { remote ->
                 runtime.persistCanonicalBook(requested, localBookDataSource, downloads).map { canonical ->

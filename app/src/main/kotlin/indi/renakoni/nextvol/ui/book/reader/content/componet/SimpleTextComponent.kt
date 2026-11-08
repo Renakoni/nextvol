@@ -1,55 +1,42 @@
 package indi.renakoni.nextvol.ui.book.reader.content.componet
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.text.selection.rememberSelectionState
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import android.content.Context
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.sp
-import io.nightfish.lightnovelreader.api.ui.LocalTextLocaleList
-import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSelectionState
+import io.nightfish.lightnovelreader.api.content.component.AbstractDivisibleContentComponent
+import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
+import io.nightfish.lightnovelreader.api.userdata.UriUserData
+import io.nightfish.lightnovelreader.api.userdata.UserDataRepositoryApi
 
-@Composable
-fun SimpleTextComponentContent(
-    modifier: Modifier,
-    text: String,
-    fontSize: TextUnit,
-    fontLineHeight: TextUnit,
-    fontWeight: FontWeight,
-    fontFamily: FontFamily?,
-    color: Color
-) {
-    val localeList = LocalTextLocaleList.current
+// Host rendering and measurement live in the UI layer.
+class SimpleTextComponent(
+    data: SimpleTextComponentData,
+    val userDataRepositoryApi: UserDataRepositoryApi,
+    val context: Context
+): AbstractDivisibleContentComponent<SimpleTextComponent, SimpleTextComponentData>(data) {
+    private val pagination = TextPagination(userDataRepositoryApi, context)
+    val fontSizeUserData get() = pagination.fontSizeUserData
+    val fontLineHeightUserData get() = pagination.fontLineHeightUserData
+    val fontWeightUserData get() = pagination.fontWeightUserData
+    val fontFamilyUriUserData get() = pagination.fontFamilyUriUserData
+    val textMeasurer get() = pagination.textMeasurer
 
-    val readerSelection = LocalReaderSelectionState.current
-    val selectionState = rememberSelectionState()
-    DisposableEffect(readerSelection, selectionState) {
-        readerSelection.register(selectionState)
-        onDispose { readerSelection.unregister(selectionState) }
+    override val id = SimpleTextComponentData.id
+
+    @Composable
+    override fun Content(modifier: Modifier) {
+        ReaderTextContent(data.text, fontFamilyUriUserData, modifier)
     }
-    SelectionContainer(state = selectionState) {
-        Text(
-            modifier = modifier.fillMaxSize(),
-            text = text,
-            textAlign = TextAlign.Start,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                localeList = localeList
-            ),
-            fontWeight = fontWeight,
-            fontSize = fontSize,
-            fontFamily = fontFamily,
-            color = color,
-            lineHeight = (fontSize.value + fontLineHeight.value).sp,
-            onTextLayout = {
-            }
-        )
-    }
+
+    override suspend fun split(height: Int, width: Int): List<SimpleTextComponent> =
+        pagination.split(data.text, height, width)
+            .map { SimpleTextComponent(SimpleTextComponentData(it), userDataRepositoryApi, context) }
+
+    suspend fun readerFontFamily(fontFamilyUriUserData: UriUserData): FontFamily? =
+        pagination.readerFontFamily(fontFamilyUriUserData)
+
+    fun TextLayoutResult.getSlipString(text: String, width: Int, height: Int): List<String> =
+        pageText(text, width, height)
 }

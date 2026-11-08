@@ -65,6 +65,7 @@ class RuleReadingPanelTest {
                 panel.close()
                 assertTrue(runCatching { panel.login(form.values, form.fields[1].id, form.id) }.isFailure)
                 assertNotNull(source.loginForm())
+                assertEquals("Same title", source.search("after-panel").single().title)
             }
         }
         for (value in listOf(Float.NaN, Float.POSITIVE_INFINITY, -.1f, 1.1f))

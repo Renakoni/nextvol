@@ -16,6 +16,7 @@ import io.mockk.mockk
 
 internal class BookRepositoryFixture {
     private val aliases = mockk<BookAliasStore> {
+        every { observe(any()) } answers { kotlinx.coroutines.flow.flowOf(firstArg()) }
         coEvery { resolve(any()) } coAnswers { firstArg() }
         coEvery { withResolved<Any?>(any(), any()) } coAnswers { secondArg<suspend (SourceBookId) -> Any?>().invoke(firstArg()) }
     }

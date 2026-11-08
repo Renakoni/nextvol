@@ -1,0 +1,63 @@
+name: Sync formal app release to Nextvol api
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published app release tag (vX.Y.Z)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# One writer protects stable.json from concurrent releases or manual backfills.
+concurrency:
+  group: nextvol-stable-release-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      github.repository == 'Renakoni/nextvol' &&
+      (github.event_name == 'release' || github.ref == 'refs/heads/main') &&
+      (github.event_name != 'release' ||
+       (!github.event.release.draft && !github.event.release.prerelease && startsWith(github.event.release.tag_name, 'v')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Select formal app tag
+        id: app
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          formal = bool(re.fullmatch(r'v[0-9]+[.][0-9]+[.][0-9]+', os.environ['RELEASE_TAG']))
+          if os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch' and not formal:
+              raise SystemExit('Expected a published app tag vX.Y.Z')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"run={str(formal).lower()}\n")
+          PY
+      - name: Prepare fixed Android SDK
+        if: steps.app.outputs.run == 'true'
+        uses: ./.github/actions/android-sdk
+      - name: Install R2 S3 client
+        if: steps.app.outputs.run == 'true'
+        run: python3 -m pip install 'boto3==1.40.61'
+      - name: Verify and synchronize signed artifacts
+        if: steps.app.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: >-
+          python3 .github/scripts/sync_release.py --tag "$RELEASE_TAG"
+          --android-tools "$ANDROID_HOME/build-tools/36.0.0"

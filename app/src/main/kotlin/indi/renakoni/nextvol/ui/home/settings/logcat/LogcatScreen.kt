@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.ui.home.settings.logcat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -57,7 +58,7 @@ import indi.renakoni.nextvol.data.logging.LogLevel
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.home.settings.data.SettingsMenuOptions
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.utils.showSnackbar
 import java.time.LocalDateTime
@@ -101,7 +102,7 @@ fun LogcatScreen(
                 painter = painterResource(R.drawable.bug_report_24px),
                 title = stringResource(R.string.settings_app_log_level),
                 description = stringResource(R.string.settings_app_log_level_desc),
-                options = MenuOptions.LogLevelOptions,
+                options = SettingsMenuOptions.LogLevelOptions,
                 selectedOptionKey = logLevelKey,
                 onOptionChange = { option ->
                     onLogLevelChange(option)
@@ -152,7 +153,7 @@ fun LogcatScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LogToolbar(
+internal fun LogToolbar(
     uiState: LogcatUiState,
     logFiles: List<String>,
     hasEntries: Boolean,
@@ -244,7 +245,7 @@ private fun logFileLabel(fileName: String): Pair<String, String?> {
 }
 
 @Composable
-private fun EmptyLogListContent(isFileMode: Boolean, logLevelKey: String) {
+internal fun EmptyLogListContent(isFileMode: Boolean, logLevelKey: String, showDescription: Boolean = true) {
     val title = if (!isFileMode && logLevelKey == "none") R.string.log_recording_off else R.string.log_empty_list
     val description = when {
         isFileMode -> R.string.log_empty_file_desc
@@ -256,8 +257,10 @@ private fun EmptyLogListContent(isFileMode: Boolean, logLevelKey: String) {
             Icon(painterResource(R.drawable.article_24px), null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.outline)
             Spacer(Modifier.height(16.dp))
             Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            Text(stringResource(description), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            if (showDescription) {
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(description), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            }
         }
     }
 }
@@ -277,10 +280,12 @@ private fun colorOf(logLevel: LogLevel): Color {
 @Composable
 fun LogListContent(
     logEntries: List<LogEntry>,
-    listState: LazyListState
+    listState: LazyListState,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
 ) {
     LazyColumn(
         state = listState,
+        verticalArrangement = verticalArrangement,
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 8.dp),

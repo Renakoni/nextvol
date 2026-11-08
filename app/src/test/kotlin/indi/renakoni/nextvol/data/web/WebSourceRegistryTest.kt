@@ -41,6 +41,57 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class WebSourceRegistryTest {
+    @Test(timeout = 10000)
+    fun overlappingDetailRequestsHandOffTheirMatchingInformationAndDirectory() = runBlocking {
+        for (informationFirst in listOf(true, false)) {
+            val registry = WebSourceRegistry()
+            val meta = metadata("handoff")
+            val infoEntered = CompletableDeferred<Unit>()
+            val infoRelease = CompletableDeferred<Unit>()
+            val directoryEntered = CompletableDeferred<Unit>()
+            val directoryRelease = CompletableDeferred<Unit>()
+            val infoCalls = AtomicInteger()
+            val directoryCalls = AtomicInteger()
+            val information = io.nightfish.lightnovelreader.api.book.BookInformation("book", "Title",
+                author = "", description = "", publishingHouse = "", wordCount = io.nightfish.lightnovelreader.api.book.WordCount(0),
+                lastUpdated = java.time.LocalDateTime.MIN, isComplete = false)
+            val volumes = BookVolumes("book", listOf(io.nightfish.lightnovelreader.api.book.Volume("v", "",
+                listOf(io.nightfish.lightnovelreader.api.book.ChapterInformation("1", "One")))))
+            registry.register(object : CountingSource(meta.id, cache = null) {
+                override suspend fun getBookInformation(id: String) = run {
+                    infoCalls.incrementAndGet(); infoEntered.complete(Unit); infoRelease.await(); Ok(information)
+                }
+                override suspend fun getBookVolumes(id: String) = run {
+                    directoryCalls.incrementAndGet(); directoryEntered.complete(Unit); directoryRelease.await(); Ok(volumes)
+                }
+            }, meta)
+            try {
+                val runtime = registry.ready(meta.id)
+                val info = async { runtime.getBookInformation("book", refresh = true) }
+                infoEntered.await()
+                val directory = async { runtime.getBookVolumes("book", refresh = true) }
+                directoryEntered.await()
+                if (informationFirst) {
+                    infoRelease.complete(Unit); assertEquals(information, info.await().get())
+                    directoryRelease.complete(Unit); assertEquals(volumes, directory.await().get())
+                } else {
+                    directoryRelease.complete(Unit); assertEquals(volumes, directory.await().get())
+                    infoRelease.complete(Unit); assertEquals(information, info.await().get())
+                }
+                assertEquals(volumes, runtime.getBookVolumes("book", refresh = true, reuseRecent = true).get())
+                kotlinx.coroutines.withContext(DownloadSourceRequest()) {
+                    assertEquals(information, runtime.getBookInformation("book", refresh = true).get())
+                    assertEquals(volumes, runtime.getBookVolumes("book", refresh = true, reuseRecent = true).get())
+                }
+                assertEquals(1, infoCalls.get())
+                assertEquals(if (informationFirst) 1 else 2, directoryCalls.get())
+            } finally {
+                infoRelease.complete(Unit); directoryRelease.complete(Unit)
+                registry.unregister(meta.id)
+            }
+        }
+    }
+
     @Test fun removalRevokesOnlyItsNamespaceAndStaleRegistrationsCannotRevokeReplacements() {
         val authority = hnovel.execution.ExecutionAuthority()
         val registry = WebSourceRegistry(authority)

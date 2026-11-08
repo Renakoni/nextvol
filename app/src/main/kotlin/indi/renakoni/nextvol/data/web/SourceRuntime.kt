@@ -4,6 +4,10 @@ import io.nightfish.lightnovelreader.api.image.SourceImageProvider
 
 import android.content.Context
 import android.util.Log
+import android.os.SystemClock
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.get
+import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.data.web.proxy.ProxyCachedWebBookDataSource
 import indi.renakoni.nextvol.data.web.proxy.ProxyCoalescingWebBookDataSource
 import indi.renakoni.nextvol.data.web.proxy.ProxyPriorityWebBookDataSource
@@ -11,6 +15,7 @@ import indi.renakoni.nextvol.data.explore.PagedSearchProvider
 import indi.renakoni.nextvol.data.explore.SearchPage
 import io.nightfish.lightnovelreader.api.book.ChapterContent
 import io.nightfish.lightnovelreader.api.book.BookInformation
+import io.nightfish.lightnovelreader.api.book.BookVolumes
 import io.nightfish.lightnovelreader.api.book.Volume
 import io.nightfish.lightnovelreader.api.util.Cache
 import io.nightfish.lightnovelreader.api.web.WebBookDataSource
@@ -38,6 +43,7 @@ class SourceRuntime internal constructor(
     private val cleanupScope: CoroutineScope,
     internal val discoveryResolved: (Boolean) -> Unit = {},
 ) {
+    private companion object { const val DIRECTORY_HANDOFF_MILLIS = 120_000 }
     val id get() = metadata.id
     val isAvailable get() = lifetime.isActive
     internal val canReplayDownloads get() = (source as? indi.renakoni.nextvol.data.web.rules.RuleWebBookDataSource)?.canReplayDownloads == true
@@ -49,6 +55,15 @@ class SourceRuntime internal constructor(
     // A source's Cache is configuration, not shared runtime storage. Even adapters
     // accidentally returning one Cache instance cannot share host response entries.
     private val cached = ProxyCachedWebBookDataSource(coalescing, responseCache)
+    // A bounded handoff from details/selection to one download, never an offline fallback.
+    private data class RecentInformation(val id: String, val information: BookInformation, val completedAt: Long)
+    private data class RecentDirectory(val id: String, val volumes: BookVolumes, val completedAt: Long,
+        val information: BookInformation?)
+    private val directoryLock = Any()
+    private var directoryGeneration = 0L
+    private var informationGeneration = 0L
+    private var recentDirectory: RecentDirectory? = null
+    private var recentInformation: RecentInformation? = null
 
     internal fun checkAvailable() {
         if (!isAvailable) throw SourceUnavailableException(id)
@@ -62,10 +77,11 @@ class SourceRuntime internal constructor(
         val interaction = currentCoroutineContext()[ForegroundSourceRequest] ?: kotlin.coroutines.EmptyCoroutineContext
         val retry = currentCoroutineContext()[hnovel.network.RequestRetryContext] ?: kotlin.coroutines.EmptyCoroutineContext
         val background = currentCoroutineContext()[BackgroundSourceRequest] ?: kotlin.coroutines.EmptyCoroutineContext
+        val download = currentCoroutineContext()[DownloadSourceRequest] ?: kotlin.coroutines.EmptyCoroutineContext
         val scheduling = currentCoroutineContext()[hnovel.execution.SourceWorkRequest] ?:
             if (interaction is ForegroundSourceRequest && interaction.allowsInteraction && interaction.isActive)
                 hnovel.execution.SourceWorkRequest(WebDataSourcePriority.High.priority) else kotlin.coroutines.EmptyCoroutineContext
-        val request = lifetime.async(interaction + retry + background + scheduling + (version ?: kotlin.coroutines.EmptyCoroutineContext) + SourceRequestOwner(id)) { block() }
+        val request = lifetime.async(interaction + retry + background + download + scheduling + (version ?: kotlin.coroutines.EmptyCoroutineContext) + SourceRequestOwner(id)) { block() }
         return try {
             request.await().also { checkAvailable() }
         } finally {
@@ -116,8 +132,28 @@ class SourceRuntime internal constructor(
         (source as SourceImageProvider).getImage(bookId, url, cover)
     }
 
-    suspend fun getBookInformation(bookId: String, priority: WebDataSourcePriority = WebDataSourcePriority.Default, refresh: Boolean = false) =
-        execute { cached.getBookInformation(bookId, priority, refresh) }
+    suspend fun getBookInformation(bookId: String, priority: WebDataSourcePriority = WebDataSourcePriority.Default, refresh: Boolean = false) = execute {
+        val download = currentCoroutineContext()[DownloadSourceRequest] != null
+        val generation: Long
+        synchronized(directoryLock) {
+            val recent = recentDirectory
+            if (download && recent?.id == bookId && SystemClock.elapsedRealtime() - recent.completedAt < DIRECTORY_HANDOFF_MILLIS)
+                recent.information?.let { return@execute Ok(it) }
+            // Information scripts can change book variables and the directory URL.
+            // Keep a directory only when its matching information can also be reused.
+            recentDirectory = null
+            recentInformation = null
+            directoryGeneration++
+            generation = ++informationGeneration
+        }
+        cached.getBookInformation(bookId, priority, refresh).also { result -> synchronized(directoryLock) {
+            if (generation == informationGeneration && isAvailable) {
+                // A directory completed before this information response may use an older URL/state.
+                recentDirectory = null
+                recentInformation = result.get()?.let { RecentInformation(bookId, it, SystemClock.elapsedRealtime()) }
+            }
+        } }
+    }
 
     internal suspend fun bookInformationForDisplay(bookId: String, information: BookInformation) = execute {
         (source as? indi.renakoni.nextvol.data.web.rules.RuleWebBookDataSource)
@@ -129,8 +165,31 @@ class SourceRuntime internal constructor(
         (source as? indi.renakoni.nextvol.data.web.rules.RuleWebBookDataSource)?.canonicalBookId(bookId) ?: bookId
     }
 
-    suspend fun getBookVolumes(bookId: String, priority: WebDataSourcePriority = WebDataSourcePriority.Default, refresh: Boolean = false) =
-        execute { cached.getBookVolumes(bookId, priority, refresh) }
+    suspend fun getBookVolumes(bookId: String, priority: WebDataSourcePriority = WebDataSourcePriority.Default,
+        refresh: Boolean = false, reuseRecent: Boolean = false) = execute {
+        val consume = currentCoroutineContext()[DownloadSourceRequest] != null
+        val generation: Long
+        synchronized(directoryLock) {
+            val recent = recentDirectory
+            if (reuseRecent && recent?.id == bookId && SystemClock.elapsedRealtime() - recent.completedAt < DIRECTORY_HANDOFF_MILLIS) {
+                if (consume) recentDirectory = null
+                return@execute Ok(recent.volumes)
+            }
+            // Invalidate before refresh, including failure/cancellation. An older request
+            // finishing later must not republish a superseded snapshot.
+            recentDirectory = null
+            generation = ++directoryGeneration
+        }
+        cached.getBookVolumes(bookId, priority, refresh).onOk { volumes ->
+            if (!consume && volumes.volumes.any { it.chapters.isNotEmpty() }) synchronized(directoryLock) {
+                if (generation == directoryGeneration && isAvailable) {
+                    val now = SystemClock.elapsedRealtime()
+                    val information = recentInformation?.takeIf { it.id == bookId && now - it.completedAt < DIRECTORY_HANDOFF_MILLIS }?.information
+                    recentDirectory = RecentDirectory(bookId, volumes, now, information)
+                }
+            }
+        }
+    }
 
     suspend fun getChapterContent(chapterId: String, bookId: String, priority: WebDataSourcePriority = WebDataSourcePriority.Default, refresh: Boolean = false) =
         execute { cached.getChapterContent(chapterId, bookId, priority, refresh) }
@@ -154,6 +213,7 @@ class SourceRuntime internal constructor(
 
     internal fun retire() {
         lifetime.cancel()
+        synchronized(directoryLock) { recentDirectory = null; recentInformation = null; directoryGeneration++ }
         coalescing.close()
         cleanupScope.launch {
             try {

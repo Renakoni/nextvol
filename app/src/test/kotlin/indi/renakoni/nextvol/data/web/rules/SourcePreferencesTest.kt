@@ -181,7 +181,7 @@ class SourcePreferencesTest {
         }
     }
 
-    @Test fun revisionRollbackAndProcessRestartKeepUserPreferencesOverNewDefaults() = runBlocking {
+    @Test fun revisionUpdateAndProcessRestartKeepUserPreferencesOverNewDefaults() = runBlocking {
         val context = host()
         RuleSourceFixture().use { fixture ->
             val accounts = SourceSessionManager(fixture.authority)
@@ -204,11 +204,7 @@ class SourcePreferencesTest {
                 sources.restore()
                 assertEquals(SourcePreferences(false, false, true), sources.installedSources().single().preferences)
                 assertTrue(registry.resolve(id) is SourceResolution.Missing)
-                fixture.afterRun = { error("Disabled rollback must not execute source code") }
-                SourceRevisionUpdates(context, sources, accounts, fixture.runner, fixture.authority).rollback(id, grants)
-                assertEquals(first.contentDigest, sources.installedSources().single().definition.contentDigest)
-                assertEquals(SourcePreferences(false, false, true), sources.installedSources().single().preferences)
-                assertTrue(registry.resolve(id) is SourceResolution.Missing)
+                assertEquals(updated.contentDigest, sources.installedSources().single().definition.contentDigest)
                 sources.setPreferences(id, enabled = true)
                 val restored = (registry.resolve(id) as SourceResolution.Ready).runtime
                 assertEquals(id, restored.id)

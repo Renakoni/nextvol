@@ -1,4 +1,3 @@
 <resources>
-    <string name="source_diagnostics_dependency">此书源的 %2$s 使用了 %1$s，当前 profile（%3$s）不提供该接口。请书源作者改用受支持的脚本工具和受限请求接口，再逐阶段检查。</string>
-    <string name="sources_dependency_unavailable">此书源依赖暂不支持的 Java 接口，请查看书源诊断并使用适配后的规则。</string>
+    <string name="sources_dependency_unavailable">此书源依赖暂不支持的 Java 接口，请使用适配后的规则。</string>
 </resources>

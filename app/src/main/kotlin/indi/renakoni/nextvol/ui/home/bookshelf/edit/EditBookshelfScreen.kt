@@ -37,7 +37,7 @@ import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.components.SettingsSwitchEntry
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions.BookshelfSortTypeOptions
+import indi.renakoni.nextvol.ui.home.bookshelf.BookshelfSortTypeOptions
 import indi.renakoni.nextvol.utils.LocalClaimSnackbarHost
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.utils.showSnackbar

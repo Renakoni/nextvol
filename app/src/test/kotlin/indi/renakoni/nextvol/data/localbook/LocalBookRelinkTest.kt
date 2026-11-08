@@ -14,8 +14,8 @@ import indi.renakoni.nextvol.data.bookmark.ReadingBookmark
 import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.download.BookDownloadStore
-import indi.renakoni.nextvol.data.local.LocalDataManager
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
+import indi.renakoni.nextvol.data.backup.BackupDataManager
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.room.entity.UserReadingDataEntity
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
@@ -68,7 +68,7 @@ class LocalBookRelinkTest {
             .allowMainThreadQueries().addMigrations(NextVolDatabase.MIGRATION_22_23, NextVolDatabase.MIGRATION_23_24, NextVolDatabase.MIGRATION_24_25, NextVolDatabase.MIGRATION_25_26, NextVolDatabase.MIGRATION_26_27, NextVolDatabase.MIGRATION_27_28, NextVolDatabase.MIGRATION_28_29).build().also(databases::add)
         val store = LocalBookStore(context, db)
         val coordinator = StatisticsWriteCoordinator()
-        val backup = LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
+        val backup = BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
             db.bookshelfDao(), db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(),
             db.userReadingDataDao(), db.userDataDao(), mockk(relaxed = true), coordinator,
             StatsRepository(db.bookRecordDao(), db.dailyCountDao(), mockk(), coordinator),

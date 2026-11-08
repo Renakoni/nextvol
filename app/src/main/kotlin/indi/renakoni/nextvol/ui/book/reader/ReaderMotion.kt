@@ -16,12 +16,11 @@ import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
 
 internal val LocalReduceReaderMotion = compositionLocalOf { false }
 
 internal val ReaderSettings.animatePageTurns: Boolean
-    get() = !reduceMotion && flipAnime != MenuOptions.FlipAnimationOptions.None
+    get() = !reduceMotion && flipAnime != ReaderFlipAnimation.None
 
 /** Scope component motion to the reader, retaining the same composition and saved preferences. */
 @Composable

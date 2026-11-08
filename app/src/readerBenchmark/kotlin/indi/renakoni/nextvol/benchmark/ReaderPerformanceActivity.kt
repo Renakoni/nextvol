@@ -5,12 +5,14 @@ import android.os.Trace
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -30,7 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import com.github.michaelbull.result.get
 import dagger.hilt.android.AndroidEntryPoint
 import indi.renakoni.nextvol.data.book.ChapterRepository
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.web.BackgroundSourceRequest
 import indi.renakoni.nextvol.data.web.SourceRegistration
@@ -41,7 +43,9 @@ import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout
 import indi.renakoni.nextvol.ui.book.reader.ReaderViewModel
 import indi.renakoni.nextvol.ui.book.reader.rememberReaderTextLayout
 import indi.renakoni.nextvol.ui.book.reader.content.ContentComponent
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderPositionSession
 import indi.renakoni.nextvol.ui.book.reader.content.flip.FlipPageContentUiState
+import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor
 import indi.renakoni.nextvol.ui.book.reader.content.componet.LocalReaderTextDrawObserver
 import indi.renakoni.nextvol.ui.book.reader.content.componet.ReaderTextFragment
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
@@ -72,14 +76,14 @@ class ReaderPerformanceActivity : ComponentActivity() {
     private var expectedFont: Float? = null
     private var expectedFlip: Boolean? = null
     private var sequence = 0
-    private var requiredOffset = 0
-    private var lastVisibleOffset = 0
+    private var requiredAnchor = ReaderContentAnchor(0, 0)
+    private var lastVisibleAnchor = ReaderContentAnchor(0, 0)
     private var firstReadable = true
     private var firstVisibleY = Float.MAX_VALUE
     private var pendingDraw: DrawEvidence? = null
     private var completionPosted = false
-    private lateinit var originalText: Map<String, String>
-    private data class DrawEvidence(val chapter: String, val offset: Int, val preserved: Boolean)
+    private lateinit var originalText: Map<String, List<String?>>
+    private data class DrawEvidence(val chapter: String, val anchor: ReaderContentAnchor, val preserved: Boolean)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,8 +91,11 @@ class ReaderPerformanceActivity : ComponentActivity() {
         ReaderPerformanceStats.reset()
         begin("startup")
         interactionCookie = cookies.incrementAndGet().also { Trace.beginAsyncSection("reader.to_interactive", it) }
-        originalText = listOf("1", "2").associateWith {
-            ReaderPerformanceFixture.text(it, ReaderPerformanceFixture.profile(this))
+        val profile = ReaderPerformanceFixture.profile(this)
+        originalText = listOf("1", "2").associateWith { id ->
+            ReaderPerformanceFixture.textComponents(id, profile).let {
+                if (profile == "mixed") it + listOf(null, ReaderPerformanceFixture.afterImageText(id)) else it
+            }
         }
         window.decorView.viewTreeObserver.addOnPreDrawListener { firstVisibleY = Float.MAX_VALUE; true }
         registry.unregister(ReaderPerformanceFixture.sourceId)
@@ -109,12 +116,13 @@ class ReaderPerformanceActivity : ComponentActivity() {
                 CompositionLocalProvider(
                     LocalNavController provides rememberNavController(),
                     LocalReaderBookId provides ReaderPerformanceFixture.book.storageKey,
+                    LocalReaderPositionSession provides model.positions,
                     LocalReaderTextLayout provides layout,
                     LocalReaderStyle provides ReaderStyle(settings.fontSize, settings.fontLineHeight,
                         settings.fontWeigh, settings.textColor, settings.textDarkColor),
                     LocalReaderTextDrawObserver provides ::drawn,
                 ) {
-                    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
                         Row {
                             TextButton(onClick = { navigate("1") }) { Text("Previous") }
                             TextButton(onClick = { navigate("2") }) { Text("Next") }
@@ -132,11 +140,11 @@ class ReaderPerformanceActivity : ComponentActivity() {
                                 background?.cancel()
                             }) { Text("Cancel") }
                             TextButton(onClick = {
-                                begin("font", lastVisibleOffset)
+                                begin("font", lastVisibleAnchor)
                                 lifecycleScope.launch { settings.fontSizeUserData.set(settings.fontSize + 2f) }
                             }) { Text("Bigger") }
                             TextButton(onClick = {
-                                begin("mode", lastVisibleOffset)
+                                begin("mode", lastVisibleAnchor)
                                 lifecycleScope.launch { settings.isUsingFlipPageUserData.set(!settings.isUsingFlipPage) }
                             }) { Text("Mode") }
                             TextButton(onClick = ::recreate) { Text("Recreate") }
@@ -169,10 +177,10 @@ class ReaderPerformanceActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private fun begin(action: String, offset: Int = 0) {
+    private fun begin(action: String, anchor: ReaderContentAnchor = ReaderContentAnchor(0, 0)) {
         traceCookie?.let { Trace.endAsyncSection("reader.to_readable", it) }
         sequence++
-        requiredOffset = offset
+        requiredAnchor = anchor
         expectedFont = if (action == "font") model.readerSettings.fontSize + 2f else null
         expectedFlip = if (action == "mode") !model.readerSettings.isUsingFlipPage else null
         pendingDraw = null
@@ -218,18 +226,19 @@ class ReaderPerformanceActivity : ComponentActivity() {
     }
 
     private fun drawn(fragment: ReaderTextFragment, text: TextLayoutResult, coordinates: LayoutCoordinates) {
-        if (!opened || fragment.componentIndex != 0 || fragment.text.isEmpty()) return
+        if (!opened || fragment.text.isEmpty()) return
         if (expectedFont?.let { text.layoutInput.style.fontSize.value != it } == true) return
         if (expectedFlip?.let { (model.uiState.contentUiState is FlipPageContentUiState) != it } == true) return
         val key = model.uiState.contentUiState?.readingChapterId ?: return
         val id = indi.renakoni.nextvol.data.book.SourceChapterId.fromStorageKey(key).remoteId
-        val original = originalText[id] ?: return
+        val original = originalText[id]?.getOrNull(fragment.componentIndex) ?: return
         if (fragment.start < 0 || fragment.start + fragment.text.length > original.length ||
             !original.regionMatches(fragment.start, fragment.text, 0, fragment.text.length)) return
         val clip = coordinates.boundsInWindow()
         if (clip.isEmpty) return
         val origin = coordinates.positionInWindow()
-        val target = requiredOffset - fragment.start
+        val target = if (fragment.componentIndex == requiredAnchor.componentIndex)
+            requiredAnchor.offset - fragment.start else -1
         val candidates = if (target in fragment.text.indices) listOf(target)
             else (0 until text.lineCount).map(text::getLineStart)
         val visible = candidates.firstOrNull { offset ->
@@ -240,13 +249,14 @@ class ReaderPerformanceActivity : ComponentActivity() {
             }
         } ?: return
         val y = text.getBoundingBox(visible).top + origin.y
+        val anchor = ReaderContentAnchor(fragment.componentIndex, fragment.start + visible)
         if (y < firstVisibleY) {
             firstVisibleY = y
-            lastVisibleOffset = fragment.start + visible
+            lastVisibleAnchor = anchor
         }
         if (traceCookie == null) return
         val expectedSequence = sequence
-        val evidence = DrawEvidence(id, fragment.start + visible, fragment.start + visible == requiredOffset)
+        val evidence = DrawEvidence(id, anchor, anchor == requiredAnchor)
         if (pendingDraw == null || evidence.preserved) pendingDraw = evidence
         if (completionPosted) return
         completionPosted = true
@@ -256,14 +266,15 @@ class ReaderPerformanceActivity : ComponentActivity() {
             if (sequence != expectedSequence || traceCookie == null) return@post
             val drawn = pendingDraw ?: return@post
             val components = model.uiState.contentUiState?.readingChapterContent?.get()?.content
-            val sourceText = (components?.firstOrNull() as? SimpleTextComponent)?.data?.text
-            ReaderPerformanceStats.contentVerified = sourceText == originalText[drawn.chapter] &&
-                components?.size == if (ReaderPerformanceFixture.profile(this) == "mixed") 3 else 1
+            val expected = originalText.getValue(drawn.chapter)
+            ReaderPerformanceStats.contentVerified = components?.map {
+                (it as? SimpleTextComponent)?.data?.text
+            } == expected
             if (!ReaderPerformanceStats.contentVerified) {
                 ReaderPerformanceStats.error = "Prepared chapter differs from complete fixture content"
                 return@post
             }
-            ReaderPerformanceStats.anchor = "${drawn.chapter}:0:${drawn.offset}"
+            ReaderPerformanceStats.anchor = "${drawn.chapter}:${drawn.anchor.componentIndex}:${drawn.anchor.offset}"
             ReaderPerformanceStats.anchorPreserved = drawn.preserved
             ReaderPerformanceStats.readable = drawn.chapter
             traceCookie?.let { Trace.endAsyncSection("reader.to_readable", it) }

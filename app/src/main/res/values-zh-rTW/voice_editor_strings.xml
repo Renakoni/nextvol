@@ -1,0 +1,33 @@
+<resources>
+    <string name="tts_voice_locale_unspecified">未指定語言</string>
+    <string name="tts_voice_copy">複製音源</string>
+    <string name="tts_voice_disabled">已停用</string>
+    <string name="tts_voice_locale">語言</string>
+    <string name="tts_voice_description">描述</string>
+    <string name="tts_voice_avatar">更換頭像</string>
+    <string name="tts_voice_extension_invalid">擴充控制項 JSON 無效。</string>
+    <string name="tts_voice_volume">音量</string>
+    <string name="tts_voice_sample_rate">取樣率</string>
+    <string name="tts_voice_gender">性別</string>
+    <string name="tts_voice_type">類型</string>
+    <string name="tts_voice_parameters">參數</string>
+    <string name="tts_voice_extensions">擴充定義</string>
+    <string name="tts_voice_audition_text">試聽文字</string>
+    <string name="tts_voice_invalid">請檢查名稱、數值和參數引用。</string>
+    <string name="tts_voice_save_failed">音源儲存或使用失敗，請檢查參數和已安裝資源。</string>
+    <string name="tts_voice_search">搜尋音源</string>
+    <string name="tts_voice_enable">啟用</string>
+    <string name="tts_voice_disable">停用</string>
+    <string name="tts_voice_delete_confirm">刪除 %1$d 個音源？</string>
+    <string name="tts_voice_copy_suffix">%1$s（副本）</string>
+    <string name="tts_playback_preferences">播放設定</string>
+    <string name="tts_voice_hide_parameters">隱藏參數編輯框</string>
+    <string name="tts_voice_hide_extensions">隱藏拓展UI編輯框</string>
+    <string name="tts_voice_speed">語速</string>
+    <string name="tts_voice_female">女</string>
+    <string name="tts_voice_male">男</string>
+    <string name="tts_voice_avatar_failed">無法保留圖片讀取權限，請重新選擇。</string>
+    <string name="tts_voice_code">代碼</string>
+    <string name="tts_voice_type_offline">離線</string>
+    <string name="tts_voice_type_online">線上%1$d</string>
+</resources>

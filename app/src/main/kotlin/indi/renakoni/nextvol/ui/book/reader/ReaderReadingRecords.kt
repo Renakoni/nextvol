@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.ui.book.reader
 
 import android.util.Log
+import indi.renakoni.nextvol.data.book.bookReadingProgress
 import indi.renakoni.nextvol.data.reading.ReaderRecordStore
 import indi.renakoni.nextvol.data.statistics.ReadingStatsUpdate
 import kotlinx.coroutines.CoroutineDispatcher
@@ -20,7 +21,7 @@ internal class ReaderReadingRecords(
     private val statisticsScope: CoroutineScope,
     private val currentBookId: () -> String,
     private val currentChapterTitle: () -> String?,
-    private val chapterCount: suspend (String) -> Int,
+    private val catalogChapterIds: suspend (String) -> Set<String>?,
     private val now: () -> LocalDateTime = LocalDateTime::now,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -81,14 +82,14 @@ internal class ReaderReadingRecords(
                     if (pendingProgress === event) pendingProgress = null
                 }
                 val currentTime = now()
-                // Resolve the count after the event has been queued and bind it to the
+                // Resolve the catalog after the event has been queued and bind it to the
                 // captured book. The UI's current-book state may have changed by now.
-                val total = try {
-                    chapterCount(bookId)
+                val catalog = try {
+                    catalogChapterIds(bookId)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: Exception) {
-                    0
+                    null
                 }
 
                 var finished = false
@@ -100,14 +101,12 @@ internal class ReaderReadingRecords(
                         maxChapterReadingProgressMap = userReadingData.maxChapterReadingProgressMap +
                             (chapterId to event.peak.coerceAtLeast(userReadingData.maxChapterReadingProgressMap[chapterId] ?: 0f)),
                     )
-                    val readingProgress = if (total > 0) {
-                        (updatedData.maxChapterReadingProgressMap.values.sum() / total).coerceIn(0f, 1f)
-                    } else {
-                        userReadingData.readingProgress
-                    }
+                    val readingProgress = catalog?.let {
+                        bookReadingProgress(it, updatedData.maxChapterReadingProgressMap)
+                    } ?: userReadingData.readingProgress
                     // A queued save may still update its chapter's history after navigation,
                     // but must not replace the newer resume chapter and title.
-                    finished = readingProgress >= 1f
+                    finished = !catalog.isNullOrEmpty() && readingProgress >= 1f
                     val current = event.isCurrentChapter()
                     updatedData.copy(
                         lastReadTime = if (current) currentTime else userReadingData.lastReadTime,

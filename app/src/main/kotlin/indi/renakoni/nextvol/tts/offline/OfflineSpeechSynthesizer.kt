@@ -1,0 +1,182 @@
+package indi.renakoni.nextvol.tts.offline
+
+import android.content.Context
+import hnovel.speech.OfflineVoiceConfig
+import hnovel.speech.multiTtsControl
+import indi.renakoni.nextvol.tts.*
+import indi.renakoni.nextvol.tts.offline.legacy.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+internal fun offlineSpeechExclusiveGroup(engine: String): String = when (engine) {
+    "sougou", "bdetts" -> engine
+    else -> "legacy"
+}
+
+internal val legacySpeechPermit = Semaphore(1)
+
+/** Owns a vendor runtime for its entire open/synthesize/close lifetime. */
+internal class OfflineSpeechSynthesizer(
+    context: Context,
+    directory: File,
+    private val voice: OfflineVoiceConfig,
+    private val engineFactory: () -> OfflineEngine = { createEngine(context, directory, voice) },
+) : SpeechSynthesizer {
+    override val maxInputLength get() = speechOfflineInputLimit(voice.engine)
+    private val lock = ReentrantLock()
+    private val cancelled = AtomicBoolean()
+    private val opened = AtomicBoolean()
+    @Volatile private var engine: OfflineEngine? = null
+    private var ownsPermit = false
+    private var closed = false
+    private var speed = 50f
+    private var volume = 50f
+    private val instances = permits.getValue(offlineSpeechExclusiveGroup(voice.engine))
+
+    override suspend fun open(settings: SpeechSettings): String {
+        check(opened.compareAndSet(false, true))
+        val job = currentCoroutineContext().job
+        try {
+            speed = multiTtsControl(settings.rate).toFloat()
+            volume = multiTtsControl(settings.volume).toFloat()
+            instances.acquire()
+            var transferred = false
+            try {
+                withContext(Dispatchers.IO) {
+                    lock.withLock {
+                        job.ensureActive()
+                        checkCancelled()
+                        check(!closed)
+                        ownsPermit = true
+                        transferred = true
+                        engine = engineFactory()
+                        job.ensureActive()
+                        checkCancelled()
+                    }
+                }
+            } finally {
+                if (!transferred) instances.release()
+            }
+            return voice.engine
+        } catch (failure: Throwable) {
+            // Keep the dispatcher return non-cancellable too, so it cannot replace
+            // the original failure after cleanup has attached its suppressed errors.
+            withContext(NonCancellable) {
+                withContext(Dispatchers.IO) {
+                    try { close() } catch (cleanup: Throwable) {
+                        if (cleanup !== failure) failure.addSuppressed(cleanup)
+                    }
+                }
+            }
+            if (failure is CancellationException || failure is SpeechException) throw failure
+            if (failure is LinkageError || failure is Exception)
+                throw SpeechException(SpeechError.OfflineUnavailable).apply { initCause(failure) }
+            throw failure
+        }
+    }
+
+    override suspend fun synthesize(text: String, output: File): List<SpeechTiming> {
+        val job = currentCoroutineContext().job
+        val partial = File(output.parentFile, output.name + ".part")
+        var ownsPartial = false
+        var committed = false
+        try {
+            withContext(Dispatchers.IO) {
+                lock.withLock {
+                    check(!closed)
+                    val active = checkNotNull(engine)
+                    require(!output.exists() && !partial.exists())
+                    job.ensureActive()
+                    checkCancelled()
+                    ownsPartial = true
+                    OfflinePcmFile(partial, active.sampleRate).use { audio ->
+                        active.synthesize(text, speed, volume) { buffer, count ->
+                            job.ensureActive()
+                            checkCancelled()
+                            audio.append(buffer, count)
+                        }
+                        job.ensureActive()
+                        checkCancelled()
+                        audio.finish(active.sampleRate)
+                    }
+                    validateSpeechWav(partial)
+                    job.ensureActive()
+                    checkCancelled()
+                    if (!partial.renameTo(output)) throw SpeechException(SpeechError.Storage)
+                    committed = true
+                }
+            }
+            return emptyList()
+        } catch (failure: Exception) {
+            if (committed) output.delete()
+            if (failure is CancellationException || failure is SpeechException) throw failure
+            throw SpeechException(SpeechError.SynthesisFailed).apply { initCause(failure) }
+        } finally {
+            if (ownsPartial) partial.delete()
+        }
+    }
+
+    override fun cancel() {
+        cancelled.set(true)
+        engine?.cancel()
+    }
+
+    override fun close() {
+        val cancellationFailure = runCatching { cancel() }.exceptionOrNull()
+        lock.withLock {
+            closed = true
+            try { engine?.close() } catch (failure: Throwable) {
+                if (cancellationFailure != null && cancellationFailure !== failure)
+                    failure.addSuppressed(cancellationFailure)
+                throw failure
+            } finally {
+                engine = null
+                if (ownsPermit) {
+                    ownsPermit = false
+                    instances.release()
+                }
+            }
+        }
+        cancellationFailure?.let { throw it }
+    }
+
+    private fun checkCancelled() {
+        if (cancelled.get()) throw CancellationException("Offline synthesis cancelled")
+    }
+
+    private companion object {
+        // Sogou/Baidu use separate runtimes and handles. Other SDKs retain the shared lifecycle limit.
+        val permits = mapOf("sougou" to Semaphore(1), "bdetts" to Semaphore(1), "legacy" to legacySpeechPermit)
+
+        fun createEngine(context: Context, directory: File, voice: OfflineVoiceConfig): OfflineEngine = when (voice.engine) {
+            "espeak" -> EspeakEngine(directory, voice)
+            "bytedance" -> BytedanceEngine(context, directory, voice)
+            "bdetts" -> BaiduEngine(context, directory, voice)
+            "sougou" -> SogouEngine(context, directory, voice)
+            "microsoft" -> MicrosoftEngine(context, directory, voice)
+            "weread" -> WeReadEngine(context, directory, voice)
+            "xiaomi" -> XiaomiEngine(context, directory, voice)
+            "samsung" -> SamsungEngine(context, directory, voice)
+            "msctts" -> MscEngine(context, directory, voice)
+            "isstts" -> IssEngine(context, directory, voice)
+            "google" -> GoogleEngine(context, directory, voice)
+            "vocalizer" -> VocalizerEngine(context, directory, voice)
+            "audio" -> AudioEffectEngine(context, directory, voice)
+            "vcstts" -> VcsEngine(context, directory, voice)
+            "larktts" -> LarkEngine(context, directory, voice)
+            "acapela" -> AcapelaEngine(context, directory, voice)
+            "cereproc" -> CereProcEngine(context, directory, voice)
+            else -> throw SpeechException(SpeechError.OfflineUnavailable)
+        }
+    }
+}

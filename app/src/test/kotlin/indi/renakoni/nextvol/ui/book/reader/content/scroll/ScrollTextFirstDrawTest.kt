@@ -186,6 +186,10 @@ class ScrollTextFirstDrawTest {
     @Config(sdk = [27])
     @GraphicsMode(GraphicsMode.Mode.LEGACY)
     @Test fun overlappingTextKeepsSelectionWhenTheWindowAdvances() {
+        // Adjacent source components now share this selection scope and viewport.
+        prepared.value = ScrollTextLayout(chapter().fragments.mapIndexed { index, fragment ->
+            fragment.copy(componentIndex = index)
+        }, chapter().style)
         mount(lookahead = true, lazy = true)
         compose.runOnIdle { runBlocking { listState.scrollToItem(0, 5_000) } }
         compose.waitForIdle()

@@ -1,0 +1,29 @@
+<resources>
+    <string name="tts_roles">Role management</string>
+    <string name="tts_roles_failed">A role rule could not be applied. Open role management to edit it.</string>
+    <string name="tts_role_add">Add role</string>
+    <string name="tts_role_edit">Edit role</string>
+    <string name="tts_role_context_template">Role matching rule</string>
+    <string name="tts_role_search">Find a role or rule</string>
+    <string name="tts_role_empty">Add characters or rules to assign voices to matching passages.</string>
+    <string name="tts_role_mode_text">Text</string>
+    <string name="tts_role_mode_character">Role</string>
+    <string name="tts_role_abstract">Abstract role</string>
+    <string name="tts_role_voice_missing">No voice assigned</string>
+    <string name="tts_role_regex">Role regex</string>
+    <string name="tts_role_before">Forward match</string>
+    <string name="tts_role_after">Backward match</string>
+    <string name="tts_role_mode">Matching mode</string>
+    <string name="tts_role_name">Role name</string>
+    <string name="tts_role_engine">Engine group</string>
+    <string name="tts_role_voice">Voice</string>
+    <string name="tts_role_defaults">Defaults</string>
+    <string name="tts_role_voice_required">Select a voice.</string>
+    <string name="tts_role_direction_required">Select at least one matching direction.</string>
+    <string name="tts_role_group_count">%1$s (%2$d/%3$d)</string>
+    <string name="tts_role_edit_group">Edit group name</string>
+    <string name="tts_role_delete_confirm">Delete %1$s?</string>
+    <string name="tts_role_context_default">__ROLE__</string>
+    <string name="tts_role_group">Role group</string>
+    <string name="tts_role_activate">Activate</string>
+</resources>

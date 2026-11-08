@@ -21,7 +21,6 @@ import indi.renakoni.nextvol.ui.book.reader.ReaderFontLicensesEntry
 import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.components.SettingsAboutInfoDialog
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar

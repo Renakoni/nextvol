@@ -97,6 +97,7 @@ class RuleImageRecoveryInstrumentedTest {
             val raw = buildJsonObject {
                 put("bookSourceUrl", base); put("bookSourceName", "Rule recovery fixture"); put("bookSourceType", 0)
                 put("enabled", true); put("enabledCookieJar", true)
+                put("loginUi", "[]")
                 put("loginUrl", "function login(){source.putLoginHeader(JSON.stringify({Cookie:'auth=fresh'}));}")
             }
             val saved = sources.importer.commit(sources.importer.preview(raw.toString()), listOf(ImportSelection(0, ImportDecision.Add)))

@@ -1,0 +1,32 @@
+# Fixed CPU-only profile. Dependencies are already patched and live in this tree.
+get_filename_component(NEXTVOL_ORT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+set(FETCHCONTENT_FULLY_DISCONNECTED ON CACHE BOOL "" FORCE)
+set(FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER CACHE STRING "" FORCE)
+foreach(dependency IN ITEMS abseil_cpp date eigen flatbuffers google_nsync mp11
+        onnx protobuf pytorch_cpuinfo re2 safeint utf8_range)
+    string(TOUPPER "${dependency}" dependency_upper)
+    set(FETCHCONTENT_SOURCE_DIR_${dependency_upper}
+        "${NEXTVOL_ORT_ROOT}/vendor/${dependency}" CACHE PATH "" FORCE)
+endforeach()
+set(FETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON "${NEXTVOL_ORT_ROOT}/vendor/json" CACHE PATH "" FORCE)
+set(FETCHCONTENT_SOURCE_DIR_GSL "${NEXTVOL_ORT_ROOT}/vendor/microsoft_gsl" CACHE PATH "" FORCE)
+
+set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
+set(CMAKE_OBJECT_PATH_MAX 180 CACHE STRING "" FORCE)
+set(ANDROID_ABI arm64-v8a CACHE STRING "" FORCE)
+set(ANDROID_PLATFORM android-26 CACHE STRING "" FORCE)
+set(ANDROID_STL c++_static CACHE STRING "" FORCE)
+set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384" CACHE STRING "" FORCE)
+set(onnxruntime_BUILD_SHARED_LIB ON CACHE BOOL "" FORCE)
+set(onnxruntime_ENABLE_CPUINFO ON CACHE BOOL "" FORCE)
+set(onnxruntime_MINIMAL_BUILD OFF CACHE BOOL "" FORCE)
+set(onnxruntime_REDUCED_OPS_BUILD OFF CACHE BOOL "" FORCE)
+set(onnxruntime_DISABLE_CONTRIB_OPS OFF CACHE BOOL "" FORCE)
+foreach(option IN ITEMS BUILD_UNIT_TESTS BUILD_BENCHMARKS RUN_ONNX_TESTS
+        ENABLE_PYTHON BUILD_JAVA BUILD_CSHARP BUILD_OBJC
+        ENABLE_TRAINING ENABLE_TRAINING_OPS ENABLE_TRAINING_APIS
+        USE_CUDA USE_ROCM USE_TENSORRT USE_NNAPI_BUILTIN USE_XNNPACK USE_QNN
+        USE_OPENVINO USE_DNNL USE_NEURAL_SPEED USE_COREML USE_DML USE_CANN
+        USE_EXTENSIONS USE_MIMALLOC USE_TELEMETRY)
+    set(onnxruntime_${option} OFF CACHE BOOL "" FORCE)
+endforeach()

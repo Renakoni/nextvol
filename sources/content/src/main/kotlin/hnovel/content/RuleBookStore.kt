@@ -6,14 +6,14 @@ import hnovel.network.*
 import kotlinx.serialization.json.Json
 
 /** Source storage retains rule state and catalog snapshots across account changes. */
-internal class RuleBookStore(private val session: SourceSession, private val authority: ExecutionAuthority,
+internal class RuleBookStore(private val storage: SourceStateStorage, private val authority: ExecutionAuthority,
     private val identity: ExecutionIdentity) {
     fun canonicalId(bookId: String): String = authority.authorized(identity) {
         var id = bookId
         val visited = mutableSetOf<String>()
         repeat(16) {
             if (!visited.add(id)) throw SourceContentException(ContentError.Storage, "bookAlias")
-            val result = session.read(StorageRequest(StorageArea.BookState, aliasKey(id)))
+            val result = storage.read(StorageRequest(StorageArea.BookState, aliasKey(id)))
             if (result !is StorageResult.Value) throw storageException(result, "bookAlias")
             id = result.value ?: return@authorized id
         }
@@ -21,10 +21,10 @@ internal class RuleBookStore(private val session: SourceSession, private val aut
     }
     fun read(bookId: String): BookRecord? = authority.authorized(identity) {
         val id = canonicalId(bookId)
-        val current = session.read(StorageRequest(StorageArea.BookState, key(id)))
+        val current = storage.read(StorageRequest(StorageArea.BookState, key(id)))
         // Existing installations stored these snapshots beside small script settings.
         val result = if (current is StorageResult.Value && current.value == null)
-            session.read(StorageRequest(StorageArea.Config, key(id))) else current
+            storage.read(StorageRequest(StorageArea.Config, key(id))) else current
         if (result !is StorageResult.Value) throw storageException(result, "bookState")
         result.value?.let { Json.decodeFromString(BookRecord.serializer(), it) }?.takeIf { it.book.id == id }
     }
@@ -34,11 +34,11 @@ internal class RuleBookStore(private val session: SourceSession, private val aut
         if (records.isEmpty()) return@authorized
         val values = records.associate { key(it.book.id) to Json.encodeToString(BookRecord.serializer(), it) } +
             aliases.mapKeys { aliasKey(it.key) }
-        val result = session.writeBookStates(values)
+        val result = storage.writeBookStates(values)
         if (result !is StorageResult.Value) throw storageException(result, "bookState")
-        // Release the old quota only after the new snapshot has been committed atomically.
+        // Release the old quota only after the new batch has succeeded.
         values.keys.forEach {
-            val cleared = session.write(StorageRequest(StorageArea.Config, it))
+            val cleared = storage.write(StorageRequest(StorageArea.Config, it))
             if (cleared !is StorageResult.Value) throw storageException(cleared, "bookState")
         }
         Unit

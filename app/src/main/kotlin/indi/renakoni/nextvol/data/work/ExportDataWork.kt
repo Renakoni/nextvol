@@ -17,7 +17,7 @@ import indi.renakoni.nextvol.data.backup.BackupContent
 import indi.renakoni.nextvol.data.backup.BackupException
 import indi.renakoni.nextvol.data.backup.BackupFiles
 import indi.renakoni.nextvol.data.backup.BackupKind
-import indi.renakoni.nextvol.data.local.LocalDataManager
+import indi.renakoni.nextvol.data.backup.BackupDataManager
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 
@@ -25,7 +25,7 @@ import java.io.IOException
 class ExportDataWork @AssistedInject constructor(
     @Assisted private val appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val localDataManager: LocalDataManager
+    private val backupDataManager: BackupDataManager
 ) : CoroutineWorker(appContext, workerParams) {
     companion object {
         const val TAG = "ExportDataWork"
@@ -45,7 +45,7 @@ class ExportDataWork @AssistedInject constructor(
             if (exportSetting) add(BackupContent.SETTINGS)
             if (exportBookmark) add(BackupContent.BOOKMARKS)
         })
-        localDataManager.exportAppLocalData(
+        backupDataManager.exportAppLocalData(
             localBookCache = exportLocalBookCache,
             bookshelf = exportBookshelf,
             readingRecord = exportReadingData,
@@ -53,7 +53,7 @@ class ExportDataWork @AssistedInject constructor(
             settings = exportSetting
         ).andThen { appLocalData ->
             runCatching {
-                localDataManager.validateBackup(appLocalData)
+                backupDataManager.validateBackup(appLocalData)
                 BackupFiles.write(applicationContext.cacheDir, appLocalData, manifest) {
                     applicationContext.contentResolver.openOutputStream(fileUri, "wt")
                         ?: throw IOException("Cannot open backup destination")

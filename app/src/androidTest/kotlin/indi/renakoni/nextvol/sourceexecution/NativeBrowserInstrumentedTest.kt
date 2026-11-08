@@ -105,6 +105,41 @@ class NativeBrowserInstrumentedTest {
         return (result as BrokerResult.Success).response
     }
 
+    @Test fun bundledBilinovelReadsVisibleParagraphsAndLazyImagesWithoutMergingChapters(): Unit = runBlocking { fixture { broker, server ->
+        val definition = context.assets.open("source-catalog/Anime.json").bufferedReader().use {
+            Json.parseToJsonElement(it.readText()).jsonArray.map { row -> row.jsonObject }
+                .single { row -> row["bookSourceUrl"]?.jsonPrimitive?.content == "https://www.bilinovel.com" }
+        }
+        val script = definition.getValue("ruleContent").jsonObject.getValue("webJs").jsonPrimitive.content
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val next = if (request.path == "/novel/1/100.html") "/novel/1/100_2.html" else "/novel/1/101.html"
+                return MockResponse().setHeader("Content-Type", "text/html; charset=utf-8").setBody("""
+                    <html><head><link rel="icon" href="data:,"></head><body>
+                    <script>window.ReadParams={url_next:'$next'};</script>
+                    <div id="acontent">
+                        <p style="position:absolute;transform:scale(0)">隐藏的干扰段落</p>
+                        <p>第一段 &amp; 引号“保持原样”。</p>
+                        <div class="csgo">广告</div><p>第二段。</p>
+                        <img data-src="/images/one.jpg">
+                        <img data-src="/images/two.jpg" style="position:absolute;top:10000px">
+                    </div><div id="comments">评论内容</div></body></html>
+                """.trimIndent())
+            }
+        }
+        val account = session(broker, server)
+        for (path in listOf("/novel/1/100.html", "/novel/1/100_2.html")) {
+            val html = render(account, server.url(path).toString(), script).text()
+            val doc = org.jsoup.Jsoup.parse(html)
+            assertEquals(listOf("第一段 & 引号“保持原样”。", "第二段。"), doc.select("#chapter p").map { it.text() })
+            assertEquals(listOf("one.jpg", "two.jpg"), doc.select("#chapter img").map { it.attr("src").substringAfterLast('/') })
+            assertFalse(html.contains("广告"))
+            assertFalse(html.contains("评论内容"))
+            assertEquals(if (path.endsWith("100.html")) server.url("/novel/1/100_2.html").toString() else "",
+                doc.select("#next-page").attr("href"))
+        }
+    } }
+
     @Test fun automaticIdentityMatchesTheProviderAcrossHttpNativeBrowserAndJavascript(): Unit = runBlocking { fixture { broker, server ->
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
@@ -423,6 +458,22 @@ class NativeBrowserInstrumentedTest {
             assertEquals(FailureCode.BrowserRequired, result.code)
             assertEquals(kind, result.challenge)
         }
+    } }
+
+    @Test fun onlyVisibleAliyunSliderRequiresVerification(): Unit = runBlocking { fixture { broker, server ->
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = MockResponse().setHeader("Content-Type", "text/html")
+                .setBody("""<html><head><title>Reading fixture</title><link rel='icon' href='data:,'></head><body>
+                    <div ${if (request.path == "/hidden") "style='display:none'" else ""}>
+                    <div id='aliyunCaptcha-sliding-wrapper'>Slide to verify</div></div><p>Chapter fixture</p></body></html>""")
+        }
+        val account = session(broker, server)
+        assertEquals("Reading fixture", render(account, server.url("/hidden").toString()).text())
+        val target = server.url("/visible").toString()
+        val blocked = account.execute(BrokerRequest("slider", target)) as BrokerResult.Failure
+        assertEquals(FailureCode.BrowserRequired, blocked.code)
+        assertEquals(BrowserChallengeKind.SiteVerification, blocked.challenge)
+        assertEquals(target, blocked.verificationRequest?.url)
     } }
 
     @Test fun suppliedHtmlUsesTheSyntheticBrowserWithoutNetwork(): Unit = runBlocking { fixture { broker, server ->

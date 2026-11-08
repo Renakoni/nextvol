@@ -46,7 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
@@ -55,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -65,7 +66,6 @@ import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
 import indi.renakoni.nextvol.ui.book.reader.resolveReaderBodyLayout
 import indi.renakoni.nextvol.ui.book.reader.LocalReaderLayoutResult
@@ -87,12 +87,12 @@ import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechFollow
 import indi.renakoni.nextvol.ui.book.reader.content.PrepareReaderSpeechIndex
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechRanges
 import indi.renakoni.nextvol.ui.book.reader.content.readerSpeechManualScroll
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions
+import indi.renakoni.nextvol.ui.book.reader.ReaderBackgroundImageMode
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
-import indi.renakoni.nextvol.utils.readerTextColor
-import indi.renakoni.nextvol.utils.rememberReaderBackgroundPainter
+import indi.renakoni.nextvol.ui.book.reader.readerTextColor
+import indi.renakoni.nextvol.ui.book.reader.rememberReaderBackgroundPainter
 import indi.renakoni.nextvol.ui.book.reader.usesBackgroundImage
-import indi.renakoni.nextvol.utils.rememberReaderFontFamily
+import indi.renakoni.nextvol.ui.book.reader.rememberReaderFontFamily
 import indi.renakoni.nextvol.utils.showSnackbar
 import indi.renakoni.nextvol.ui.book.reader.bookmark.LocalReaderBookmarks
 import indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarkPosition
@@ -170,13 +170,18 @@ fun ScrollContentTextComponent(
     val chapterEntries = uiState.contentList.toList()
     val showAdjacentChapters = settingState.isUsingContinuousScrolling &&
         chapterEntries.getOrNull(1)?.second?.isErr != true
-    val preparedChapters = chapterEntries.mapIndexed { index, entry ->
+    // Native font/layout work contends across chapters. Share one worker within this reader,
+    // submitting the current chapter first; keyed neighbours keep their geometry as slots move.
+    val measurementDispatcher = remember { Dispatchers.Default.limitedParallelism(1) }
+    val preparedBySlot = chapterEntries.indices.sortedBy { if (it == 1) 0 else 1 }.associateWith { index ->
+        val entry = chapterEntries[index]
         key(listState, entry?.first ?: "placeholder-$index") {
             PrepareReaderSpeechIndex(entry?.second?.get())
             rememberPreparedScrollChapter(entry?.second?.get(), textLayout,
-                lazyColumnSize.width, lazyColumnSize.height)
+                lazyColumnSize.width, lazyColumnSize.height, measurementDispatcher)
         }
     }
+    val preparedChapters = chapterEntries.indices.map { preparedBySlot[it] }
     val bookmarks = LocalReaderBookmarks.current
     val positions = LocalReaderPositionSession.current
     var bookmarkReady by remember(listState) { mutableStateOf(false) }
@@ -320,7 +325,7 @@ fun ScrollContentTextComponent(
                 listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == prepared.content.id && it.contentType == true }
             }.filterNotNull().first()
             val sourceOffset = if (anchor != null) {
-                snapshotFlow { prepared.componentOffsets.containsKey(anchor.componentIndex) }.first { it }
+                snapshotFlow { prepared.isPositioned(anchor.componentIndex) }.first { it }
                 prepared.offsetFor(anchor)
             } else null
             if (uiState.lazyListState !== listState || !ownsRenderer() ||
@@ -444,17 +449,17 @@ fun ScrollContentTextComponent(
             }
     }
 
-    if (settingState.usesBackgroundImage && settingState.backgroundImageDisplayMode == MenuOptions.ReaderBgImageDisplayModeOptions.Loop) {
+    if (settingState.usesBackgroundImage && settingState.backgroundImageDisplayMode == ReaderBackgroundImageMode.Loop) {
         Image(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(with(density) {
                     screenHeight.toDp()
                 })
-                .offset(y = with(density) {
-                    ((uiState.lazyListState.layoutInfo.visibleItemsInfo.getOrNull(0)?.offset
-                        ?: 0) % screenHeight + screenHeight).toDp()
-                }),
+                .offset {
+                    IntOffset(0, (listState.layoutInfo.visibleItemsInfo.firstOrNull()?.offset
+                        ?: 0) % screenHeight + screenHeight)
+                },
             painter = rememberReaderBackgroundPainter(settingState),
             contentDescription = null,
             contentScale = ContentScale.Crop
@@ -465,10 +470,10 @@ fun ScrollContentTextComponent(
                 .height(with(density) {
                     screenHeight.toDp()
                 })
-                .offset(y = with(density) {
-                    ((uiState.lazyListState.layoutInfo.visibleItemsInfo.getOrNull(0)?.offset
-                        ?: 0) % screenHeight).toDp()
-                }),
+                .offset {
+                    IntOffset(0, (listState.layoutInfo.visibleItemsInfo.firstOrNull()?.offset
+                        ?: 0) % screenHeight)
+                },
             painter = rememberReaderBackgroundPainter(settingState),
             contentDescription = null,
             contentScale = ContentScale.Crop
@@ -649,16 +654,12 @@ private fun TextContent(
                 Spacer(Modifier.height(16.dp))
             }
         }
-        val components = content.content.withIndex().filterNot { (it.value as? SimpleTextComponent)?.data?.text?.isEmpty() == true }
-        val paragraphSpacing = LocalReaderTextLayout.current?.paragraphSpacingPx ?: 0
         val colors = LocalReaderStyle.current
-        components.forEachIndexed { index, (componentIndex, component) ->
-            if (component is SimpleTextComponent && components.getOrNull(index - 1)?.value is SimpleTextComponent) {
-                Spacer(Modifier.height(with(density) { paragraphSpacing.toDp() }))
-            }
-            val text = prepared.text[componentIndex]
-            Box(Modifier.onGloballyPositioned {
-                prepared.componentOffsets[componentIndex] = it.positionInParent().y.toInt()
+        prepared.blocks.forEach { block ->
+            val component = content.content[block.componentIndex]
+            val text = block.text
+            Box(Modifier.onPlaced {
+                block.top = it.positionInParent().y.toInt()
             }) {
                 CompositionLocalProvider(LocalReaderSpeechRanges provides speechRanges,
                     indi.renakoni.nextvol.ui.LocalReaderChapterId provides content.id) {

@@ -1,7 +1,7 @@
 package indi.renakoni.nextvol.ui.book.reader
 
 import android.app.Application
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderPosition
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderContentAnchor

@@ -13,6 +13,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import indi.renakoni.nextvol.reader.ReaderLayoutTestActivity
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
+import indi.renakoni.nextvol.data.logging.LoggerRepository
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -39,10 +40,10 @@ class SystemSpeechInstrumentedTest {
         assumeTrue("Supply speechEngine for the separate real-engine acceptance run", !engine.isNullOrEmpty())
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val data = UserDataRepository(NextVolDatabase.getInstance(context).userDataDao())
-        val stored = data.stringUserData("tts.settings")
+        val stored = data.stringUserData("tts.schemes")
         val original = withContext(Dispatchers.IO) { stored.get() }
         val activity = ActivityScenario.launch(ReaderLayoutTestActivity::class.java)
-        val commands = ReadAloudController(context)
+        val commands = ReadAloudController(context, LoggerRepository(context))
         val audio = context.getSystemService(AudioManager::class.java)
         val competingFocus = AudioManager.OnAudioFocusChangeListener { }
         val activities = context.getSystemService(ActivityManager::class.java)
@@ -54,7 +55,7 @@ class SystemSpeechInstrumentedTest {
         var media: MediaController? = null
         try {
             withContext(Dispatchers.IO) {
-                stored.set(Json.encodeToString(SpeechSettings(engine = engine!!, rate = 0.7f)))
+                SpeechSettingsRepository(data).update { SpeechSettings(engine = engine!!, rate = 0.7f) }
             }
             withContext(Dispatchers.Main) {
                 commands.preview("A quiet morning begins a new chapter of our story. ".repeat(12))
@@ -105,7 +106,7 @@ class SystemSpeechInstrumentedTest {
             }
             awaitState { service() == null }
             withContext(Dispatchers.IO) {
-                if (original == null) data.remove("tts.settings") else stored.set(original)
+                if (original == null) data.remove("tts.schemes") else stored.set(original)
             }
             activity.close()
         }
@@ -157,7 +158,7 @@ class SystemSpeechInstrumentedTest {
                 assertFalse(File(directory, "preview.wav.part").exists())
                 val started = CompletableDeferred<Unit>()
                 val chapter = SpeechChapter("", "", "", "Preview", text)
-                val clip = SpeechClip(chapter, SpeechSegment(0, text.length, text), 0, 1, audio)
+                val clip = SpeechClip(prepareSpeechPlan(chapter, SpeechSettings()) {}, 0, audio)
                 val playing = launch(Dispatchers.Main) {
                     playback.play(clip, true, onRange = {}) { phase, _ -> if (phase == SpeechPhase.Playing) started.complete(Unit) }
                 }

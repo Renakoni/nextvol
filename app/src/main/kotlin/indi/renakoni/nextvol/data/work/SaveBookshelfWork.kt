@@ -14,9 +14,9 @@ import indi.renakoni.nextvol.data.backup.BackupContent
 import indi.renakoni.nextvol.data.backup.BackupException
 import indi.renakoni.nextvol.data.backup.BackupFiles
 import indi.renakoni.nextvol.data.backup.BackupKind
-import indi.renakoni.nextvol.data.local.LocalDataManager
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
-import indi.renakoni.nextvol.data.local.cbor.LocalData
+import indi.renakoni.nextvol.data.backup.BackupDataManager
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.LocalData
 import indi.renakoni.nextvol.data.local.room.dao.BookshelfDao
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
@@ -25,7 +25,7 @@ import java.io.IOException
 class SaveBookshelfWork @AssistedInject constructor(
     @Assisted private val appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val localDataManager: LocalDataManager,
+    private val backupDataManager: BackupDataManager,
     private val bookshelfDao: BookshelfDao
 ) : CoroutineWorker(appContext, workerParams) {
     companion object {
@@ -56,9 +56,9 @@ class SaveBookshelfWork @AssistedInject constructor(
                 )
             }
         val appLocalData = AppLocalData(
-            version = localDataManager.currentAppDataVersion,
+            version = backupDataManager.currentAppDataVersion,
             localDataList = listOf(
-                localDataManager.localFileReferences(bookshelfEntityList.flatMap { it.allBookIds }.toSet()).copy(
+                backupDataManager.localFileReferences(bookshelfEntityList.flatMap { it.allBookIds }.toSet()).copy(
                     bookshelfEntities = bookshelfEntityList,
                     bookshelfBookMetadataEntities = bookshelfBookMetadataEntities
                 )
@@ -66,7 +66,7 @@ class SaveBookshelfWork @AssistedInject constructor(
             globalLocalData = LocalData.empty()
         )
         try {
-            localDataManager.validateBackup(appLocalData)
+            backupDataManager.validateBackup(appLocalData)
             val manifest = BackupArchive.manifest(BackupKind.BOOKSHELF, setOf(BackupContent.BOOKSHELF))
             BackupFiles.write(applicationContext.cacheDir, appLocalData, manifest) {
                 applicationContext.contentResolver.openOutputStream(uri, "wt")

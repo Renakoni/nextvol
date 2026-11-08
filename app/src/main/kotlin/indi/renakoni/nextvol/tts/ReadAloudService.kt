@@ -9,6 +9,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.media3.common.AudioAttributes
@@ -25,11 +26,19 @@ import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import indi.renakoni.nextvol.MainActivity
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.logging.LoggerRepository
+import indi.renakoni.nextvol.data.logging.SpeechLogEvent
+import indi.renakoni.nextvol.data.logging.SpeechLogRecord
+import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -41,10 +50,17 @@ class ReadAloudService : MediaSessionService() {
     @Inject lateinit var controller: ReadAloudController
     @Inject lateinit var chapters: SpeechChapterSource
     @Inject lateinit var settings: SpeechSettingsRepository
+    @Inject lateinit var music: BackgroundMusicRepository
     @Inject lateinit var progress: SpeechProgressStore
     @Inject lateinit var synthesizers: SpeechSynthesizers
+    @Inject lateinit var plans: SpeechPlanPreparer
+    @Inject lateinit var voices: SpeechVoiceCatalog
+    @Inject lateinit var pairs: SpeechVoicePoolRepository
+    @Inject lateinit var languages: SpeechLanguageDetection
+    @Inject lateinit var logger: LoggerRepository
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
+    private var backgroundMusic: BackgroundMusicPlayback? = null
     private lateinit var speech: ReadAloudSession
     private lateinit var sleepTimer: SpeechSleepTimer
     private lateinit var preparationWakeLock: PowerManager.WakeLock
@@ -54,6 +70,7 @@ class ReadAloudService : MediaSessionService() {
     // Negative IDs also keep these entries separate from the app's update/export notifications.
     private val notificationId = -notificationIds.updateAndGet { if (it == Int.MAX_VALUE) 1 else it + 1 }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
         // The speech session owns buffering; completed or paused audio needs no player grace period.
@@ -66,18 +83,31 @@ class ReadAloudService : MediaSessionService() {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             setHandleAudioBecomingNoisy(true)
         }
-        speech = ReadAloudSession(scope, chapters, settings::get, progress, synthesizers::synthesizer,
-            ExoSpeechPlayback(player, this) { speech.pause() }, File(cacheDir, "read-aloud"))
+        speech = ReadAloudSession(scope, chapters, { request ->
+            voices.revised(settings.forBook(request.bookId)).also { logger.speechDebugEnabled = it.diagnosticLogging }
+        }, progress, synthesizers::synthesizer,
+            ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"), preparePlan = plans::prepare,
+            diagnostics = logger::recordSpeech, detailedLogging = { logger.speechDebugEnabled })
         sleepTimer = SpeechSleepTimer(scope, SystemClock::elapsedRealtime,
             onChanged = { deadline ->
                 if (!shuttingDown && speech.state.value.request != null)
-                    controller.publish(speech.state.value.copy(sleepTimerDeadline = deadline))
+                    controller.publish(speech.state.value.copy(sleepTimerDeadline = deadline,
+                        sleepTimerRemainingMillis = sleepTimer.remainingMillis))
             },
             onExpired = {
                 speech.stop()
                 controller.publish(speech.state.value)
                 stopSelf()
             })
+        player.addListener(object : Player.Listener {
+            override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+                backgroundMusic?.setSuppressed(playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE)
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (!shuttingDown) sleepTimer.setPlaying(isPlaying && speech.state.value.request?.isPreview == false)
+            }
+        })
         val controls = object : ForwardingSimpleBasePlayer(player) {
             override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
                 if (playWhenReady) { if (!sleepTimer.expireIfDue() && foreground()) speech.resume() } else speech.pause()
@@ -108,12 +138,17 @@ class ReadAloudService : MediaSessionService() {
                 if (!shuttingDown && it.request != null) {
                     // Audio focus can resume the player without a UI/media-session Resume command.
                     if (it.isActive && sleepTimer.expireIfDue()) return@collect
+                    if (it.request.isPreview && it.phase in setOf(SpeechPhase.Completed, SpeechPhase.Failed)) {
+                        if (sleepTimer.expireIfDue() || speech.restoreAfterPreview()) return@collect
+                    }
+                    backgroundMusic?.updateSession(it.request, it.phase)
                     // ExoPlayer owns playback wakefulness; chapter loading and synthesis have no player yet.
                     if (it.phase == SpeechPhase.Preparing || it.phase == SpeechPhase.Buffering) {
                         if (!preparationWakeLock.isHeld) preparationWakeLock.acquire(90_000)
                     } else if (preparationWakeLock.isHeld) preparationWakeLock.release()
                     if (it.phase in setOf(SpeechPhase.Stopped, SpeechPhase.Completed, SpeechPhase.Failed)) sleepTimer.cancel()
-                    controller.publish(it.copy(sleepTimerDeadline = sleepTimer.deadline))
+                    controller.publish(it.copy(sleepTimerDeadline = sleepTimer.deadline,
+                        sleepTimerRemainingMillis = sleepTimer.remainingMillis))
                     // Word boundaries update the reader, not the system notification/foreground service.
                     val summary = it.copy(position = null)
                     if (summary != notificationState) {
@@ -125,11 +160,41 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            var previous: SpeechSettings? = null
-            settings.changes.collect { value ->
-                if (previous != null && previous != value) speech.reloadSettings()
-                previous = value
+            combine(music.changes, settings.schemes, speech.state.map { it.request }.distinctUntilChanged()) { library, schemes, request ->
+                // Follow live music edits in the audition's scheme; a deleted scheme retains its snapshot.
+                val selected = request?.previewSettings?.let { preview ->
+                    schemes.items.find { it.id == preview.schemeId }?.settings?.backgroundMusic ?: preview.backgroundMusic
+                } ?: schemes.forBook(request?.bookId).backgroundMusic
+                library.forScheme(selected)
+            }.distinctUntilChanged().collect { settings ->
+                if (backgroundMusic == null && settings.enabled && settings.tracks.any { it.selected }) {
+                    backgroundMusic = BackgroundMusicPlayback(ExoPlayer.Builder(this@ReadAloudService)
+                        .setWakeMode(C.WAKE_MODE_LOCAL).build().apply {
+                            setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)
+                                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), false)
+                        }, music::file, music::markUnavailable).also {
+                            it.setSuppressed(player.playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE)
+                        }
+                }
+                backgroundMusic?.updateSettings(settings)
+                val current = speech.state.value
+                current.request?.let { backgroundMusic?.updateSession(it, current.phase) }
             }
+        }
+        scope.launch {
+            speech.state.map { it.request?.takeUnless { it.isPreview }?.bookId }.distinctUntilChanged()
+                .flatMapLatest { bookId ->
+                    combine(settings.changesForBook(bookId), voices.changes, pairs.revisions) { selected, _, _ ->
+                        pairs.setCacheLimit(selected.maxCacheVoiceNum)
+                        voices.revised(selected)
+                    }.distinctUntilChanged()
+                }.collect { selected ->
+                    logger.speechDebugEnabled = selected.diagnosticLogging
+                    if (speech.state.value.request?.bookId == selected.bookId && speech.state.value.request?.isPreview == false) {
+                        speech.updateSettings(selected)
+                    }
+                    if (selected.roleRules.none { it.isLanguageRule }) languages.release()
+                }
         }
     }
 
@@ -147,9 +212,14 @@ class ReadAloudService : MediaSessionService() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (action == SpeechAction.Start) sleepTimer.cancel()
+        if (action == SpeechAction.Start) {
+            if (request?.isPreview == true) {
+                if (sleepTimer.expireIfDue()) return START_NOT_STICKY
+            } else sleepTimer.cancel()
+        }
         if (action == SpeechAction.Resume && sleepTimer.expireIfDue()) return START_NOT_STICKY
         if ((action == SpeechAction.Start || action == SpeechAction.Resume) && !foreground()) return START_NOT_STICKY
+        val wasChapterTimer = speech.state.value.sleepTimerChapters != null
         when (action) {
             SpeechAction.Start -> if (request != null) speech.start(request) else stopSelf()
             SpeechAction.Resume -> if (speech.state.value.request != null) speech.resume() else if (request != null) speech.start(request) else stopSelf()
@@ -161,11 +231,25 @@ class ReadAloudService : MediaSessionService() {
             SpeechAction.NextChapter -> speech.changeChapter(true)
             SpeechAction.SleepTimer -> {
                 val minutes = intent.getIntExtra(ReadAloudController.TIMER_MINUTES, 0)
-                if (minutes in 0..60 && speech.state.value.phase in setOf(
+                if (minutes in 0..MAX_SLEEP_TIMER_MINUTES && speech.state.value.phase in setOf(
                         SpeechPhase.Preparing, SpeechPhase.Buffering, SpeechPhase.Playing, SpeechPhase.Paused)) {
-                    sleepTimer.set(minutes.takeIf { it > 0 })
+                    speech.setChapterSleepTimer(null)
+                    sleepTimer.set(minutes.takeIf { it > 0 }, player.isPlaying && speech.state.value.request?.isPreview == false)
                 }
             }
+            SpeechAction.ChapterSleepTimer -> {
+                val chapters = intent.getIntExtra(ReadAloudController.TIMER_CHAPTERS, 0)
+                val current = speech.state.value
+                if (chapters in setOf(1, 3, 5) && current.request?.isPreview == false &&
+                    (current.isActive || current.phase == SpeechPhase.Paused)) {
+                    sleepTimer.cancel()
+                    speech.setChapterSleepTimer(chapters)
+                }
+            }
+        }
+        if (wasChapterTimer && speech.state.value.sleepTimerChapters == null && action in setOf(
+                SpeechAction.Previous, SpeechAction.Next, SpeechAction.PreviousChapter, SpeechAction.NextChapter)) {
+            Toast.makeText(this, R.string.tts_timer_chapter_cancelled, Toast.LENGTH_SHORT).show()
         }
         return START_NOT_STICKY
     }
@@ -204,8 +288,11 @@ class ReadAloudService : MediaSessionService() {
 
     private fun serviceUnavailable() {
         shuttingDown = true
+        logger.recordSpeech(SpeechLogRecord(SpeechLogStage.Initialization, SpeechLogEvent.Failed, SpeechError.ServiceUnavailable))
         val last = speech.state.value.takeIf { it.request != null } ?: controller.state.value
         speech.stop()
+        backgroundMusic?.close()
+        backgroundMusic = null
         controller.publish(last.copy(phase = SpeechPhase.Failed, error = SpeechError.ServiceUnavailable))
         stopSelf()
     }
@@ -242,6 +329,7 @@ class ReadAloudService : MediaSessionService() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
     override fun onDestroy() {
+        plans.reset()
         shuttingDown = true
         val last = speech.state.value
         sleepTimer.cancel()
@@ -249,12 +337,16 @@ class ReadAloudService : MediaSessionService() {
         speech.stop()
         mediaSession?.release()
         mediaSession = null
+        backgroundMusic?.close()
+        backgroundMusic = null
         player.release()
         if (preparationWakeLock.isHeld) preparationWakeLock.release()
         getSystemService(NotificationManager::class.java).cancel(notificationId)
         if (last.isActive && controller.state.value.error != SpeechError.ServiceUnavailable) {
-            controller.publish(last.copy(phase = SpeechPhase.Paused))
-        } else controller.publish(controller.state.value.copy(sleepTimerDeadline = null))
+            controller.publish(last.copy(phase = SpeechPhase.Paused, sleepTimerDeadline = null,
+                sleepTimerRemainingMillis = null, sleepTimerChapters = null))
+        } else controller.publish(controller.state.value.copy(sleepTimerDeadline = null,
+            sleepTimerRemainingMillis = null, sleepTimerChapters = null))
         super.onDestroy()
     }
 

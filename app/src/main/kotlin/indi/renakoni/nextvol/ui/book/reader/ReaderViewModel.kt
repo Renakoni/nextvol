@@ -52,7 +52,7 @@ class ReaderViewModel @Inject constructor(
     private val _uiState = MutableReaderScreenUiState(modeHost.uiState)
     val uiState: ReaderScreenUiState = _uiState
     private val statisticsScope = CoroutineScope(Dispatchers.IO)
-    private val chapterCountsByBook = ConcurrentHashMap<String, Int>()
+    private val catalogChapterIdsByBook = ConcurrentHashMap<String, Set<String>>()
     private val readingRecords = ReaderReadingRecords(
         store = RepositoryReaderRecordStore(readingData, statsRepository, userDataRepository),
         scope = viewModelScope,
@@ -61,7 +61,7 @@ class ReaderViewModel @Inject constructor(
         currentChapterTitle = {
             _uiState.contentUiState?.readingChapterContent?.map { it.title }?.getOrElse { null }
         },
-        chapterCount = { id -> chapterCountsByBook[id] ?: 0 },
+        catalogChapterIds = { id -> catalogChapterIdsByBook[id] },
     )
     private var bookVolumesJob: Job? = null
     private var bookVolumesRequest = 0L
@@ -80,10 +80,11 @@ class ReaderViewModel @Inject constructor(
                 chapterSource.getBookVolumesFlow(value).collect {
                     withContext(Dispatchers.Main.immediate) {
                         if (request == bookVolumesRequest) {
+                            // Errors may expose a partial directory to the UI. Keep only the
+                            // last successful catalog for completion, including a confirmed empty one.
                             it.map { volumes ->
-                                val count = volumes.volumes.sumOf { volume -> volume.chapters.size }
-                                if (count > 0) chapterCountsByBook[value] = count
-                                else chapterCountsByBook.remove(value)
+                                catalogChapterIdsByBook[value] = volumes.volumes
+                                    .flatMap { volume -> volume.chapters }.map { chapter -> chapter.id }.toSet()
                             }
                             _uiState.bookVolumes = it
                         }
@@ -131,7 +132,8 @@ class ReaderViewModel @Inject constructor(
             ++bookVolumesRequest
             bookVolumesJob?.cancel()
             _uiState.bookVolumes = com.github.michaelbull.result.Ok(volumes)
-            chapterCountsByBook[bookId] = volumes.volumes.sumOf { it.chapters.size }
+            catalogChapterIdsByBook[bookId] = volumes.volumes
+                .flatMap { it.chapters }.map { it.id }.toSet()
         }
         if (update.contentChanged && chapter != null) modeHost.changeChapter(chapter)
     }

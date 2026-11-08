@@ -198,10 +198,10 @@ class SettingsHierarchyTest {
         assertEquals(1, deletions)
     }
 
-    @Test fun updatesPageUsesGitHubDespiteImportedLegacySettings() {
+    @Test fun updatesPageOffersOwnApiAndGitHubDespiteImportedLegacySettings() {
         runBlocking {
             data.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path).set("LnrAPI")
-            data.stringUserData(UserDataPath.Settings.App.UpdateChannel.path).set("CI")
+            data.stringUserData("settings.app.update_channel").set("CI")
         }
         val state = SettingState(data, scope)
         var checks = 0
@@ -211,13 +211,12 @@ class SettingsHierarchyTest {
         entry(R.string.settings_auto_check_updates).performClick()
         compose.waitUntil { !state.checkUpdate }
         entry(R.string.settings_distribution_platform).assertIsDisplayed()
-        compose.onNodeWithText("Renakoni/nextvol", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("GitHub", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Nextvol api").assertIsDisplayed()
         compose.onNodeWithText("LightNovelReader API").assertDoesNotExist()
         compose.onNodeWithText("Test Update Channel").assertDoesNotExist()
         entry(R.string.settings_distribution_platform).performClick()
-        assertEquals("https://github.com/Renakoni/nextvol/releases",
-            org.robolectric.Shadows.shadowOf(activity.get()).nextStartedActivity.data.toString())
+        compose.onNodeWithText("GitHub").performClick()
+        compose.waitUntil { state.distributionPlatformKey == "GitHub" }
         entry(R.string.settings_get_updates).performClick()
         compose.onNodeWithContentDescription(label(R.string.sources_back)).performClick()
         assertEquals(1, checks)

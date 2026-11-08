@@ -5,61 +5,34 @@ import java.text.BreakIterator
 import java.util.Locale
 
 /** Offsets refer to the processed chapter text, before any speech-only transformations. */
-data class SpeechSegment(val start: Int, val end: Int, val text: String)
+data class SpeechSegment(val start: Int, val end: Int, val text: String,
+    val dialogue: Boolean = false, val speaker: String? = null,
+    val speakerHint: String? = null, val language: String? = null,
+    val beforeText: List<String> = emptyList(), val afterText: List<String> = emptyList(),
+    val rememberedText: List<String> = emptyList(), val previousVoice: String? = null,
+    val changeVoice: Boolean = false,
+    val selectedVoice: SpeechResolvedVoice? = null,
+    val voiceReason: SpeechVoiceReason = SpeechVoiceReason.Narration,
+    val roleMatch: SpeechRoleMatch? = null,
+    val audioParameters: SpeechAudioParameters = SpeechAudioParameters(),
+    val pauseMs: Int? = null)
 
 internal fun speechDigest(text: String): String = MessageDigest.getInstance("SHA-256")
     .digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
-/** Bounded UTF-16 input, preserving sentence boundaries and never splitting a surrogate pair. */
-fun speechSegments(text: String, maxLength: Int = 200, firstLength: Int = 80): List<SpeechSegment> {
-    require(maxLength >= 2 && firstLength >= 2)
-    val result = mutableListOf<SpeechSegment>()
-    val sentences = speechSentences(text)
-    var sentenceIndex = 0
-    var start = 0
-    while (start < text.length) {
-        while (start < text.length && text[start].isWhitespace()) start++
-        if (start == text.length) break
-        val limit = if (result.isEmpty()) minOf(firstLength, maxLength) else maxLength
-        var end = minOf(text.length, start + limit)
-        if (end < text.length && text[end - 1].isHighSurrogate() && text[end].isLowSurrogate()) end--
-        val paragraphEnd = text.indexOf('\n', start).takeIf { it >= 0 && it < end }
-        if (paragraphEnd != null) end = paragraphEnd + 1
-        else {
-            // Group short sentences around 80 characters; a short paragraph stays together.
-            while (sentenceIndex < sentences.size && sentences[sentenceIndex].end <= start) sentenceIndex++
-            var sentence: Int? = null
-            var index = sentenceIndex
-            while (index < sentences.size && sentences[index].end <= end) {
-                sentence = sentences[index++].end
-                if (sentence - start >= minOf(80, limit)) break
-            }
-            val whitespace = (start until end).lastOrNull { text[it].isWhitespace() }
-            if (sentence != null) end = sentence
-            else if (end < text.length) end = whitespace?.takeIf { it > start } ?: end
-        }
-        var spokenEnd = end
-        while (spokenEnd > start && text[spokenEnd - 1].isWhitespace()) spokenEnd--
-        val spoken = text.substring(start, spokenEnd)
-        if (spoken.codePoints().anyMatch(Character::isLetterOrDigit)) {
-            result += SpeechSegment(start, spokenEnd, spoken)
-        }
-        start = end
-    }
-    return result
-}
-
 /** Platform sentence rules handle punctuation/closing quotes; newlines are hard paragraph edges. */
-internal fun speechSentences(text: String): List<SpeechSegment> {
+internal fun speechSentences(text: String, checkCancelled: () -> Unit = {}): List<SpeechSegment> {
     val iterator = BreakIterator.getSentenceInstance(Locale.ROOT)
     val result = mutableListOf<SpeechSegment>()
     var paragraphStart = 0
     while (paragraphStart < text.length) {
+        checkCancelled()
         val paragraphEnd = text.indexOf('\n', paragraphStart).let { if (it < 0) text.length else it }
         iterator.setText(text.substring(paragraphStart, paragraphEnd))
         var start = iterator.first()
         var end = iterator.next()
         while (end != BreakIterator.DONE) {
+            checkCancelled()
             var from = paragraphStart + start
             var to = paragraphStart + end
             while (from < to && text[from].isWhitespace()) from++

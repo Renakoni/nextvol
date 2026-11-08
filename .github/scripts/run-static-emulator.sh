@@ -64,8 +64,9 @@ prepare_emulator() {
     echo "Setting $setting=0"
     timeout 10s adb shell settings put global "$setting" 0 || return $?
   done
-  echo 'Unlocking emulator: input keyevent 82'
-  timeout 10s adb shell input keyevent 82
+  # Sending a key to the booting launcher can trigger an input-dispatch ANR.
+  echo 'Unlocking emulator: wm dismiss-keyguard'
+  timeout 10s adb shell wm dismiss-keyguard
 }
 booted=false
 readiness_status=1

@@ -7,6 +7,7 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -24,6 +25,7 @@ object GithubParser : UpdateParser {
         override val versionName: String,
         override val releaseNotes: String,
         override val downloadUrl: String,
+        override val sha256: String? = null,
     ) : Release
 
     override fun parser(updatePhase: MutableStateFlow<UpdatePhase>): Release? = fetchRelease(
@@ -38,11 +40,28 @@ object GithubParser : UpdateParser {
         rawBase: HttpUrl,
     ): Release? {
         updatePhase.value = UpdatePhase(R.string.update_phase_github_release)
-        val latest = apiBase.newBuilder()
-            .addPathSegments("repos/${ProjectLinks.REPOSITORY}/releases/latest").build()
-        val body = get(httpClient, latest, allowMissing = true) ?: return null
-        val json = JSONObject(body)
-        if (json.getBoolean("draft") || json.getBoolean("prerelease")) return null
+        val candidates = mutableListOf<JSONObject>()
+        var page = 1
+        do {
+            val url = apiBase.newBuilder()
+                .addPathSegments("repos/${ProjectLinks.REPOSITORY}/releases")
+                .addQueryParameter("per_page", "100").addQueryParameter("page", page.toString()).build()
+            val body = get(httpClient, url, allowMissing = true) ?: return null
+            val releases = JSONArray(body)
+            for (index in 0 until releases.length()) {
+                val item = releases.getJSONObject(index)
+                if (!item.getBoolean("draft") && !item.getBoolean("prerelease") &&
+                    Regex("v[0-9]+[.][0-9]+[.][0-9]+").matches(item.getString("tag_name"))) {
+                    candidates += item
+                }
+            }
+            page++
+        } while (releases.length() == 100)
+        val json = candidates.maxWithOrNull(compareBy<JSONObject>(
+            { it.getString("tag_name").drop(1).split('.')[0].toLong() },
+            { it.getString("tag_name").drop(1).split('.')[1].toLong() },
+            { it.getString("tag_name").drop(1).split('.')[2].toLong() },
+        )) ?: return null
         val tag = json.getString("tag_name")
         updatePhase.value = UpdatePhase(R.string.update_phase_github_download_link)
         val assets = json.getJSONArray("assets")
@@ -50,11 +69,16 @@ object GithubParser : UpdateParser {
             .filter { it.getString("name").endsWith(".apk", ignoreCase = true) }
         // The release contract is one universal APK, avoiding arbitrary ABI/build selection.
         if (apks.size != 1) throw IOException("Expected one NextVol release APK, found ${apks.size}")
-        val downloadUrl = apks.single().getString("browser_download_url").toHttpUrl()
-        if (downloadUrl.scheme != "https" || downloadUrl.host != "github.com" ||
-            downloadUrl.port != 443 || downloadUrl.username.isNotEmpty() || downloadUrl.password.isNotEmpty() ||
-            downloadUrl.pathSegments.take(5) != listOf("Renakoni", "nextvol", "releases", "download", tag)) {
+        val asset = apks.single()
+        val fileName = "NextVol-${tag.drop(1)}-release.apk"
+        val downloadUrl = asset.getString("browser_download_url").toHttpUrl()
+        if (asset.getString("name") != fileName ||
+            downloadUrl.toString() != "${ProjectLinks.GITHUB}/releases/download/$tag/$fileName") {
             throw IOException("APK does not belong to ${ProjectLinks.REPOSITORY}")
+        }
+        val digest = asset.optString("digest", "").takeIf { it.isNotEmpty() }
+        if (digest != null && !Regex("sha256:[a-f0-9]{64}").matches(digest)) {
+            throw IOException("Invalid GitHub APK digest")
         }
 
         updatePhase.value = UpdatePhase(R.string.update_phase_github_version)
@@ -68,7 +92,8 @@ object GithubParser : UpdateParser {
         val versionName = Regex("(?m)^\\s*versionName\\s*=\\s*\"([^\"]+)\"")
             .find(gradle)?.groupValues?.get(1)
             ?: throw IOException("Release tag has no valid versionName")
-        return GithubRelease(version, versionName, json.optString("body", ""), downloadUrl.toString())
+        if (version <= 0 || "v$versionName" != tag) throw IOException("Release version does not match its tag")
+        return GithubRelease(version, versionName, json.optString("body", ""), downloadUrl.toString(), digest?.removePrefix("sha256:"))
     }
 
     private fun get(client: OkHttpClient, url: HttpUrl, allowMissing: Boolean = false): String? {

@@ -24,7 +24,7 @@ import indi.renakoni.nextvol.data.export.EpubExportRequest
 import indi.renakoni.nextvol.data.export.EpubExportResult
 import indi.renakoni.nextvol.data.export.ExportBookToEpubUseCase
 import indi.renakoni.nextvol.data.export.ExportType
-import indi.renakoni.nextvol.ui.book.detail.EpubShareActivity
+import indi.renakoni.nextvol.ui.export.EpubShareActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive

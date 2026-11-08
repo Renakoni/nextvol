@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_http_check_network">檢查網路</string>
+    <string name="tts_error_http_network_unavailable">目前網路無法使用，請連接網路或關閉「檢查網路」。</string>
+    <string name="tts_error_http_configuration">請檢查引擎請求設定與發音人參數。</string>
+    <string name="tts_error_http_authentication">語音服務驗證失敗，請更新引擎設定中的帳號資訊。</string>
+</resources>

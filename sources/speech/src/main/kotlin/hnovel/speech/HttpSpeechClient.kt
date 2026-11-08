@@ -2,6 +2,7 @@ package hnovel.speech
 
 import hnovel.execution.*
 import hnovel.network.*
+import hnovel.rules.RequestOptionsJson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -12,7 +13,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.*
 import java.util.Base64
 
-enum class HttpSpeechError { InvalidSource, Script, UnsupportedDependency, LoginRequired, PermissionDenied, Network, Timeout, TooLarge, InvalidAudio }
+enum class HttpSpeechError { InvalidSource, Script, UnsupportedDependency, LoginRequired, Authentication, PermissionDenied, Network, Timeout, TooLarge, InvalidAudio }
 
 /** Contains stable errors and origin-only permission requests, never scripts, credentials or response bodies. */
 class HttpSpeechException(val error: HttpSpeechError, val statusCode: Int? = null,
@@ -24,6 +25,8 @@ class HttpSpeechClient(
     private val owner: SourceBroker,
     private val grants: List<NetworkGrant>,
     private val authority: ExecutionAuthority,
+    createSdkBackend: ((JsonObject, suspend (BrokerRequest) -> BrokerResponse,
+        suspend (BrokerRequest, (BrokerWebSocket) -> ByteArray) -> ByteArray) -> OnlineSpeechBackend)? = null,
     private val run: suspend (ExecutionIdentity, ExecutionTask, ExecutionLimits, SourceExecutionBroker) -> ExecutionResult,
 ) : AutoCloseable {
     private val session = owner.open(SourceScope("speech", source.id, "http-tts"), grants)
@@ -39,15 +42,73 @@ class HttpSpeechClient(
 
     private val identity = authority.issue(source.id, "http-tts", source.revision, "speech")
     private val microsoft = source.microsoft?.let { MicrosoftSpeechClient(it, ::executeMicrosoft) }
+    private val edge = if (source.nativeEngine == "edgetts") EdgeSpeechClient(
+        requireNotNull(source.multiTts).getValue("voice").jsonObject, ::executeEdge) else null
+    private val online = if (source.nativeEngine in dedicatedOnlineSpeechEngines)
+        OnlineSpeechClient(requireNotNull(source.multiTts), ::executeOnline, ::executeEdge, createSdkBackend) else null
+    val supportsStreaming: Boolean get() = source.supportsStreaming
+    val updatedEngineParameters: String? get() = online?.updatedEngineParameters
     @Volatile private var microsoftSession: SourceSession? = null
+    private var audioSink: ((ByteArray, Int, Int) -> Unit)? = null
 
-    suspend fun synthesize(text: String, rate: Float? = null): ByteArray = mutex.withLock {
+    // A client owns one immutable source revision; static bindings need parsing only once.
+    private val multiTtsRequest: JsonObject? by lazy {
+        source.multiTts?.let { metadata ->
+            val voice = metadata.getValue("voice").jsonObject
+            fun JsonObject.text(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
+            val defaults = mutableMapOf<String, JsonPrimitive>()
+            voice.text("extendUI").takeIf(String::isNotEmpty)?.let { extension ->
+                RequestOptionsJson.parse(extension).jsonArray.forEach { entry ->
+                    if (entry == JsonNull) return@forEach
+                    val item = entry.jsonObject
+                    if (item.text("name").isNotEmpty()) {
+                        defaults["@${item["code"]?.jsonPrimitive?.contentOrNull}"] =
+                            item["value"]?.jsonPrimitive?.contentOrNull?.let(::JsonPrimitive) ?: JsonNull
+                    }
+                }
+            }
+            val parameters = voice.text("param").takeIf(String::isNotEmpty)
+                ?.let { java.util.regex.Pattern.compile(",").split(it).toList() }.orEmpty().map { parameter ->
+                    val value = parameter.trim { Character.isWhitespace(it) }
+                    if (value.startsWith('@')) defaults[value] ?: JsonNull else JsonPrimitive(value)
+                }
+            val headers = source.text("header").takeIf(String::isNotBlank)?.let { RequestOptionsJson.parse(it).jsonObject }
+                .orEmpty().mapValues { (_, value) ->
+                    require(value != JsonNull)
+                    JsonPrimitive(if (value is JsonPrimitive) value.content else value.toString())
+                }
+            buildJsonObject {
+                put("url", source.url); put("headers", JsonObject(headers))
+                put("voiceCode", voice.text("code")); put("params", JsonArray(parameters))
+            }
+        }
+    }
+
+    suspend fun synthesize(text: String, rate: Float? = null, volume: Float = 1f,
+        sentenceLength: Int = onlineSpeechSentenceLength(),
+        receive: ((ByteArray, Int, Int) -> Unit)? = null): ByteArray = mutex.withLock {
         if (text.isBlank() || text.length > 65536) throw HttpSpeechException(HttpSpeechError.InvalidSource)
         if (source.text("loginCheckJs").isNotBlank()) throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
         try {
+            audioSink = receive?.let { sink ->
+                { bytes, offset, count -> authority.authorized(identity) { sink(bytes, offset, count) } }
+            }
             withTimeout(60_000) {
+                if (source.nativeEngine in setOf("azure", "microsoft", "msctts")) {
+                    // Audited host SDKs own their transport; no source script receives this capability.
+                    authority.authorized(identity) {}
+                    val endpoint = if (source.nativeEngine == "microsoft") microsoftSubscriptionPackageUrl(
+                        requireNotNull(source.multiTts).getValue("voice").jsonObject.string("param")) else source.url
+                    session.permissionFailureDetail(endpoint, ResourceKind.Api)?.let { failure ->
+                        throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code,
+                            deniedOrigins = listOfNotNull(failure.denial?.origin))
+                    }
+                }
                 val speed = source.scriptSpeed(rate)
-                val audio = microsoft?.synthesize(text, rate ?: speed / 10f) ?: request(text, speed)
+                val synthesisRate = rate ?: speed / 10f
+                val audio = online?.synthesize(text, synthesisRate, volume, sentenceLength, audioSink)
+                    ?: edge?.synthesize(text, synthesisRate, volume, audioSink)
+                    ?: microsoft?.synthesize(text, synthesisRate, volume) ?: request(text, speed, synthesisRate, volume)
                 currentCoroutineContext().ensureActive()
                 if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
                 audio
@@ -57,15 +118,69 @@ class HttpSpeechClient(
         catch (failure: Exception) {
             if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
             throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidSource)
+        } finally { audioSink = null }
+    }
+
+    /** Explicit network operation; package import and preview never call this. */
+    suspend fun refreshVoices(): List<HttpSpeechDefinition> = mutex.withLock {
+        try {
+            withTimeout(60_000) {
+                val voices = (online ?: throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)).voices()
+                currentCoroutineContext().ensureActive()
+                if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
+                voices
+            }
+        } catch (_: TimeoutCancellationException) { throw HttpSpeechException(HttpSpeechError.Timeout) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
+            throw failure as? HttpSpeechException ?: HttpSpeechException(HttpSpeechError.InvalidAudio)
         }
+    }
+
+    private suspend fun executeOnline(request: BrokerRequest): BrokerResponse =
+        if (source.nativeEngine == "clipchamp") executeMicrosoft(request)
+        else if (source.nativeEngine == "doubao" && request.url == DoubaoSpeechClient.VOICES_URL) executeDoubaoCatalog(request)
+        else onlineResponse(session.execute(request, RequestCommitGuard { authority.authorized(identity, it) }))
+
+    private suspend fun executeDoubaoCatalog(request: BrokerRequest): BrokerResponse {
+        session.permissionFailureDetail(DoubaoSpeechClient.ENDPOINT, ResourceKind.Api)?.let { failure ->
+            throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code,
+                deniedOrigins = listOfNotNull(failure.denial?.origin))
+        }
+        // The audited directory is a fixed companion endpoint of the authorized Doubao engine.
+        val origin = "https://www.doubao.com"
+        return owner.open(SourceScope("speech", source.id, "doubao-catalog"), listOf(NetworkGrant(origin))).use { catalog ->
+            catalog.configureSource(origin, cookiesEnabled = false)
+            onlineResponse(catalog.execute(request, RequestCommitGuard { authority.authorized(identity, it) }))
+        }
+    }
+
+    private suspend fun onlineResponse(result: BrokerResult): BrokerResponse {
+        currentCoroutineContext().ensureActive()
+        if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
+        return when (result) {
+            is BrokerResult.Success -> result.response
+            is BrokerResult.Failure -> throw HttpSpeechException(result.code.speechError(), networkCode = result.code,
+                deniedOrigins = listOfNotNull(result.denial?.origin))
+        }
+    }
+
+    private suspend fun executeEdge(request: BrokerRequest, receive: (BrokerWebSocket) -> ByteArray): ByteArray = try {
+        session.webSocket(request, RequestCommitGuard { authority.authorized(identity, it) }, receive)
+    } catch (failure: BrokerWebSocketException) {
+        throw HttpSpeechException(failure.statusCode?.let(::httpStatusError) ?: failure.failure.code.speechError(),
+            statusCode = failure.statusCode, networkCode = failure.failure.code,
+            deniedOrigins = listOfNotNull(failure.failure.denial?.origin))
     }
 
     private suspend fun executeMicrosoft(request: BrokerRequest): BrokerResponse {
         val guard = RequestCommitGuard { authority.authorized(identity, it) }
-        val received = if (request.url == MicrosoftSpeechClient.AUTH_URL) session.execute(request, guard) else {
+        val authUrl = source.microsoft?.authUrl ?: source.url
+        val received = if (request.url == authUrl) session.execute(request, guard) else {
             // The audited protocol derives only a regional Microsoft endpoint after successful auth.
             // This grant stays in the adapter's session; scripts never receive regional grants.
-            if (grants.none { sourceOrigin(it.origin) == MicrosoftSpeechClient.AUTH_ORIGIN })
+            if (grants.none { sourceOrigin(it.origin) == sourceOrigin(authUrl) })
                 throw HttpSpeechException(HttpSpeechError.PermissionDenied)
             var regional: SourceSession? = null
             guard.commit {
@@ -79,7 +194,9 @@ class HttpSpeechClient(
                     }
                 }
             }
-            checkNotNull(regional).execute(request, guard)
+            val sink = audioSink.takeIf { microsoft != null }
+            if (sink == null) checkNotNull(regional).execute(request, guard)
+            else checkNotNull(regional).stream(request, guard, sink)
         }
         return when (received) {
             is BrokerResult.Success -> received.response
@@ -88,8 +205,14 @@ class HttpSpeechClient(
         }
     }
 
-    private suspend fun request(text: String, speed: Int): ByteArray {
-        val task = ExecutionTask.Script(
+    private suspend fun request(text: String, speed: Int, rate: Float, volume: Float): ByteArray {
+        val multiTts = multiTtsRequest
+        val task = if (multiTts != null) {
+            require(volume.isFinite() && volume in 0f..2f)
+            ExecutionTask.Script("host.call('request.multitts',result)", result = JsonObject(multiTts + buildJsonObject {
+                put("speakSpeed", multiTtsControl(rate)); put("speakVolume", multiTtsControl(volume))
+            }), baseUrl = baseUrl, speakText = text, speakSpeed = speed)
+        } else ExecutionTask.Script(
             "({request:host.call('request.speech',result),headers:host.call('request.headers')})",
             result = JsonPrimitive(source.url), baseUrl = baseUrl, sourceHeaderRule = source.text("header"),
             libraryCode = source.text("jsLib").takeIf { it.isNotBlank() }, sourceLoginUrl = source.text("loginUrl"),
@@ -100,59 +223,82 @@ class HttpSpeechClient(
             if (broker.interactionRequired) throw HttpSpeechException(HttpSpeechError.LoginRequired)
             when (result) {
                 is ExecutionResult.Success -> result.output
-                is ExecutionResult.Failure -> throw HttpSpeechException(when (result.code) {
-                    hnovel.execution.FailureCode.Timeout -> HttpSpeechError.Timeout
-                    hnovel.execution.FailureCode.InputLimit, hnovel.execution.FailureCode.OutputLimit -> HttpSpeechError.TooLarge
-                    hnovel.execution.FailureCode.UnsupportedDependency -> HttpSpeechError.UnsupportedDependency
-                    hnovel.execution.FailureCode.BridgeDenied -> broker.requestFailure?.code?.speechError() ?: HttpSpeechError.Script
-                    else -> HttpSpeechError.Script
-                }, networkCode = broker.requestFailure?.code, deniedOrigins = session.deniedOrigins.map { it.origin })
+                is ExecutionResult.Failure -> {
+                    val status = broker.speechStatus.takeIf { result.code == hnovel.execution.FailureCode.BridgeDenied }
+                    throw HttpSpeechException(when (result.code) {
+                        hnovel.execution.FailureCode.Timeout -> HttpSpeechError.Timeout
+                        hnovel.execution.FailureCode.InputLimit, hnovel.execution.FailureCode.OutputLimit -> HttpSpeechError.TooLarge
+                        hnovel.execution.FailureCode.UnsupportedDependency -> HttpSpeechError.UnsupportedDependency
+                        hnovel.execution.FailureCode.BridgeDenied -> status?.let(::httpStatusError)
+                            ?: broker.requestFailure?.code?.speechError() ?: HttpSpeechError.Script
+                        else -> HttpSpeechError.Script
+                    }, statusCode = status, networkCode = broker.requestFailure?.code,
+                        deniedOrigins = session.deniedOrigins.map { it.origin })
+                }
             }
         }
         currentCoroutineContext().ensureActive()
         if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
         val result = Json.parseToJsonElement(BridgeWire.validate(output.toByteArray(Charsets.UTF_8), limits.maxOutputBytes)).jsonObject
-        val prepared = result.getValue("request").jsonObject
-        val rule = prepared.getValue("rule").jsonPrimitive.content
-        if (rule.startsWith("data:", true)) return decodeSpeechDataUri(rule).also(::checkSpeechAudioContainer)
-        val compiled = RequestCompiler().compile("speech", rule, baseUrl, speakText = text, speakSpeed = speed,
-            headers = result.getValue("headers").jsonObject.mapValues { it.value.jsonPrimitive.content }, kind = ResourceKind.Api,
-            expandTemplates = prepared.getValue("templates").jsonPrimitive.boolean,
-            templateValues = prepared.getValue("values").jsonObject.mapValues { it.value.jsonPrimitive.content })
-        val request = (compiled as? CompiledRequest.Ready)?.request ?: throw HttpSpeechException(HttpSpeechError.InvalidSource)
+        val request = if (multiTts != null) {
+            val url = result.getValue("url").jsonPrimitive.content
+            if (url.startsWith("base64://")) return inlineAudio(url)
+            MultiTtsRequest.compile(result, "speech")
+        } else {
+            val prepared = result.getValue("request").jsonObject
+            val rule = prepared.getValue("rule").jsonPrimitive.content
+            if (rule.startsWith("data:", true)) return inlineAudio(rule)
+            val compiled = RequestCompiler().compile("speech", rule, baseUrl, speakText = text, speakSpeed = speed,
+                headers = result.getValue("headers").jsonObject.mapValues { it.value.jsonPrimitive.content }, kind = ResourceKind.Api,
+                expandTemplates = prepared.getValue("templates").jsonPrimitive.boolean,
+                templateValues = prepared.getValue("values").jsonObject.mapValues { it.value.jsonPrimitive.content })
+            (compiled as? CompiledRequest.Ready)?.request ?: throw HttpSpeechException(HttpSpeechError.InvalidSource)
+        }
         if (request.browser != null) throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
-        val response = when (val received = session.execute(request.copy(maxResponseBytes = MAX_AUDIO_BYTES),
-            RequestCommitGuard { authority.authorized(identity, it) })) {
+        val guard = RequestCommitGuard { authority.authorized(identity, it) }
+        val bounded = request.copy(maxResponseBytes = MAX_AUDIO_BYTES)
+        val sink = audioSink
+        val response = when (val received = if (sink == null) session.execute(bounded, guard) else session.stream(bounded, guard, sink)) {
             is BrokerResult.Success -> received.response
             is BrokerResult.Failure -> throw HttpSpeechException(received.code.speechError(), networkCode = received.code,
                 deniedOrigins = listOfNotNull(received.denial?.origin))
         }
         currentCoroutineContext().ensureActive()
         if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
-        if (response.status !in 200..299) throw HttpSpeechException(HttpSpeechError.Network, statusCode = response.status)
-        return response.body.also(::checkSpeechAudioContainer)
+        if (response.status !in 200..299) throw HttpSpeechException(httpStatusError(response.status), statusCode = response.status)
+        return response.body
     }
 
-    override fun close() { authority.revoke(identity); session.close(); microsoftSession?.close() }
+    private fun inlineAudio(value: String): ByteArray {
+        val bytes = decodeSpeechDataUri(value)
+        val sink = audioSink ?: return bytes
+        sink(bytes, 0, bytes.size)
+        return byteArrayOf()
+    }
+
+    /** Retire execution immediately without closing sockets on the caller's thread.
+     * The owner also cancels the synthesis coroutine to interrupt pending requests. */
+    fun cancel() { authority.revoke(identity); online?.cancel() }
+
+    /** Network teardown must run off the main thread, after synthesis has stopped. */
+    override fun close() {
+        authority.revoke(identity)
+        try { online?.close() } finally {
+            try { session.close() } finally { microsoftSession?.close() }
+        }
+    }
 }
 
 internal const val MAX_AUDIO_BYTES = 2 * 1024 * 1024
 
-/** Reject text/error payloads. The platform must still validate the audio track before committing a file. */
-internal fun checkSpeechAudioContainer(bytes: ByteArray) {
-    fun starts(value: String, offset: Int = 0) = bytes.size >= offset + value.length &&
-        value.indices.all { bytes[offset + it].toInt() and 255 == value[it].code }
-    val sync = bytes.size >= 4 && bytes[0].toInt() and 255 == 255 && bytes[1].toInt() and 224 == 224
-    if (bytes.size < 12 || !(starts("RIFF") && starts("WAVE", 8) || starts("ID3") || sync ||
-            starts("OggS") || starts("fLaC") || starts("ftyp", 4))) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
-}
-
 /** Audio data may exceed the ordinary URL limit. Decode it here without enlarging book-source URLs. */
 internal fun decodeSpeechDataUri(value: String): ByteArray {
-    val comma = value.indexOf(',')
-    if (comma !in 5..128 || !value.substring(0, comma).endsWith(";base64", true))
-        throw HttpSpeechException(HttpSpeechError.InvalidAudio)
-    val encoded = value.substring(comma + 1)
+    val encoded = if (value.startsWith("base64://")) value.substring(9).filterNot { it in " \t\r\n" } else {
+        val comma = value.indexOf(',')
+        if (comma !in 5..128 || !value.substring(0, comma).endsWith(";base64", true))
+            throw HttpSpeechException(HttpSpeechError.InvalidAudio)
+        value.substring(comma + 1)
+    }
     if (encoded.length > (MAX_AUDIO_BYTES + 2) / 3 * 4) throw HttpSpeechException(HttpSpeechError.TooLarge)
     val bytes = try { Base64.getDecoder().decode(encoded) }
         catch (_: IllegalArgumentException) { throw HttpSpeechException(HttpSpeechError.InvalidAudio) }
@@ -162,8 +308,13 @@ internal fun decodeSpeechDataUri(value: String): ByteArray {
 }
 
 private fun hnovel.network.FailureCode.speechError() = when (this) {
+    hnovel.network.FailureCode.InvalidRequest, hnovel.network.FailureCode.UnknownOption,
+    hnovel.network.FailureCode.ScriptRequired -> HttpSpeechError.InvalidSource
+    hnovel.network.FailureCode.BrowserRequired -> HttpSpeechError.UnsupportedDependency
     hnovel.network.FailureCode.Timeout -> HttpSpeechError.Timeout
     hnovel.network.FailureCode.OriginDenied, hnovel.network.FailureCode.AddressDenied -> HttpSpeechError.PermissionDenied
     hnovel.network.FailureCode.ResponseTooLarge -> HttpSpeechError.TooLarge
     else -> HttpSpeechError.Network
 }
+
+internal fun httpStatusError(status: Int) = if (status == 401 || status == 403) HttpSpeechError.Authentication else HttpSpeechError.Network

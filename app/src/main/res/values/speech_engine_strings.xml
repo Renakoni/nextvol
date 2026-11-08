@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_engines">Engines</string>
+    <string name="tts_engine_edit">Edit engine</string>
+    <string name="tts_engine_name">Engine name</string>
+    <string name="tts_engine_parameters">Engine parameters</string>
+    <string name="tts_engine_note">Notes</string>
+    <string name="tts_engine_save">Save</string>
+    <string name="tts_engine_new">New engine</string>
+    <string name="tts_engine_code">Code</string>
+    <string name="tts_engine_type">Type</string>
+    <string name="tts_engine_url">URL</string>
+    <string name="tts_engine_header">Request headers</string>
+    <string name="tts_engine_disabled">Engine disabled</string>
+    <string name="tts_engine_missing">Engine configuration removed</string>
+    <string name="tts_engine_invalid">Check the engine code and request configuration.</string>
+    <string name="tts_engine_add_speaker">New speaker</string>
+    <string name="tts_engine_empty">Import a voice package or add an HTTP engine.</string>
+    <string name="tts_engine_repair">Repair engine</string>
+    <string name="tts_engine_search">Search engines</string>
+    <string name="tts_engine_login">Sign in</string>
+</resources>

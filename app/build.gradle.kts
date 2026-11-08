@@ -15,7 +15,97 @@ plugins {
     id("com.mikepenz.aboutlibraries.plugin.android")
 }
 
+// The ordinary APK includes the source-built backend; other ABIs retain system/HTTP speech.
+val matchaNative = providers.gradleProperty("matchaNative").map(String::toBoolean).getOrElse(true)
+val matchaOutput = providers.gradleProperty("matchaBuildDir").map { file(it) }
+    .getOrElse(layout.buildDirectory.dir("matcha").get().asFile)
+// Voice packages supply models; ordinary APKs embed the separate SDK runtime bundle.
+val suppliedOfflineRuntime = providers.gradleProperty("offlineRuntimeDir").map { file(it) }.orNull
+val offlineRuntime = suppliedOfflineRuntime ?: layout.buildDirectory.dir("offline-runtime").get().asFile
+if (suppliedOfflineRuntime != null) {
+    require(offlineRuntime.resolve("jniLibs").isDirectory) { "offlineRuntimeDir must contain jniLibs" }
+} else {
+    val runtimeSpec = groovy.json.JsonSlurper().parse(rootProject.file("native/offline/runtime.json")) as Map<*, *>
+    val runtimeUrl = providers.gradleProperty("offlineRuntimeUrl").getOrElse(runtimeSpec["url"] as String)
+    val runtimeSha256 = providers.gradleProperty("offlineRuntimeSha256").getOrElse(runtimeSpec["sha256"] as String)
+    val prepareOfflineRuntime by tasks.registering(Exec::class) {
+        inputs.property("runtimeUrl", runtimeUrl)
+        inputs.property("runtimeSha256", runtimeSha256)
+        inputs.file(rootProject.file("native/offline/fetch_runtime.py"))
+        outputs.dir(offlineRuntime)
+        commandLine(
+            providers.gradleProperty("matchaPython").getOrElse("python"),
+            rootProject.file("native/offline/fetch_runtime.py"),
+            "--url", runtimeUrl,
+            "--sha256", runtimeSha256,
+            "--output", offlineRuntime,
+        )
+    }
+    tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareOfflineRuntime) }
+}
+if (matchaNative) {
+    val buildMatchaNative by tasks.registering(Exec::class) {
+        inputs.property("host", System.getProperty("os.name"))
+        inputs.files(rootProject.fileTree("native/matcha") { exclude("build/**", "__pycache__/**") })
+        inputs.files(rootProject.fileTree("native/onnxruntime") { exclude("build/**", "__pycache__/**") })
+        inputs.properties(listOf("matchaPython", "matchaNdk", "matchaCmake", "matchaNinja", "matchaOrtCacheKey")
+            .associateWith { providers.gradleProperty(it).getOrElse("") })
+        outputs.dir(matchaOutput.resolve("jniLibs"))
+        outputs.dir(matchaOutput.resolve("assets"))
+        outputs.cacheIf { true }
+        commandLine(
+            providers.gradleProperty("matchaPython").getOrElse("python"),
+            rootProject.file("native/matcha/build_android.py"),
+            "--ndk", providers.gradleProperty("matchaNdk").getOrElse(
+                androidComponents.sdkComponents.sdkDirectory.get().asFile.resolve("ndk/28.2.13676358").path),
+            "--cmake", providers.gradleProperty("matchaCmake").getOrElse("cmake"),
+            "--ninja", providers.gradleProperty("matchaNinja").getOrElse("ninja"),
+            "--output", matchaOutput,
+            "--ort-cache-key", providers.gradleProperty("matchaOrtCacheKey").getOrElse(""),
+        )
+    }
+    tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(buildMatchaNative) }
+}
+
+// Audio processing is independent of the arm64-only offline model runtime.
+val audioOutput = layout.buildDirectory.dir("speech-audio").get().asFile
+val buildSpeechAudioNative by tasks.registering(Exec::class) {
+    inputs.property("host", System.getProperty("os.name"))
+    inputs.files(rootProject.fileTree("native/audio") { exclude("build/**", "__pycache__/**") })
+    inputs.properties(listOf("matchaPython", "matchaNdk", "matchaCmake", "matchaNinja")
+        .associateWith { providers.gradleProperty(it).getOrElse("") })
+    outputs.dir(audioOutput.resolve("jniLibs"))
+    outputs.cacheIf { true }
+    commandLine(
+        providers.gradleProperty("matchaPython").getOrElse("python"),
+        rootProject.file("native/audio/build_android.py"),
+        "--ndk", providers.gradleProperty("matchaNdk").getOrElse(
+            androidComponents.sdkComponents.sdkDirectory.get().asFile.resolve("ndk/28.2.13676358").path),
+        "--cmake", providers.gradleProperty("matchaCmake").getOrElse("cmake"),
+        "--ninja", providers.gradleProperty("matchaNinja").getOrElse("ninja"),
+        "--output", audioOutput,
+    )
+}
+val prepareSpeechAudioLicenses by tasks.registering(Sync::class) {
+    from(rootProject.file("native/audio/Sonic-LICENSE"))
+    from(rootProject.file("native/audio/vendor/soundtouch/COPYING.TXT")) { rename { "SoundTouch-LICENSE" } }
+    from(rootProject.file("native/audio/sources.json"))
+    into(audioOutput.resolve("assets/audio-native"))
+}
+// JVM checks do not package native libraries and do not need the Android NDK.
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("JniLibFolders") }
+    .configureEach { dependsOn(buildSpeechAudioNative) }
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareSpeechAudioLicenses) }
+
 android {
+    sourceSets.getByName("main").jniLibs.srcDir(audioOutput.resolve("jniLibs"))
+    sourceSets.getByName("main").assets.srcDir(audioOutput.resolve("assets"))
+    sourceSets.getByName("main").jniLibs.srcDir(offlineRuntime.resolve("jniLibs"))
+    sourceSets.getByName("main").assets.srcDir(offlineRuntime.resolve("assets"))
+    if (matchaNative) {
+        sourceSets.getByName("main").jniLibs.srcDir(matchaOutput.resolve("jniLibs"))
+        sourceSets.getByName("main").assets.srcDir(matchaOutput.resolve("assets"))
+    }
     sourceSets.getByName("androidTest").assets.srcDir("../sources/rhino/src/test/resources")
     sourceSets.getByName("androidTest").assets.srcDir("../tests/source-compatibility/browser")
     sourceSets.getByName("androidTest").assets.srcDir("../tests/source-compatibility/fixtures/native-routing/site")
@@ -33,12 +123,13 @@ android {
         applicationId = "indi.renakoni.nextvol"
         minSdk = 24
         targetSdk = 37
-        // 版本号为x.y.z则versionCode为x*1000000+y*10000+z*1000+debug版本号(开发需要时迭代, 三位数)
-        versionCode = 1_03_00_008
-        versionName = "1.3.0"
+        // 独立发布从 0.1.0 起，versionCode 延续历史值并递增，避免 Android 判定为降级。
+        versionCode = 10_300_010
+        versionName = "0.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "BENCHMARK", "false")
+        buildConfigField("boolean", "MATCHA_NATIVE", matchaNative.toString())
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -136,11 +227,21 @@ android {
         }
     }
     packaging {
+        // Embedded engines such as Sogou open companion libraries by their filesystem paths.
+        jniLibs.useLegacyPackaging = true
+        if (matchaNative) {
+            // Preserve the source-build manifest's hashes in every APK.
+            jniLibs.keepDebugSymbols += setOf("**/libnextvol-matcha.so", "**/libonnxruntime.so")
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             // JAR lookup indexes are not used by Android; both pinned Hutool artifacts contain one.
             excludes += "META-INF/INDEX.LIST"
         }
+    }
+    androidResources {
+        // Media Pipe opens the shipped model as an uncompressed asset, as in MultiTTS.
+        noCompress += "tflite"
     }
 }
 
@@ -163,10 +264,70 @@ kotlin {
 // PotatoEPUB ships Java 22 bytecode. Exercise real exports on the JDK already used by CI.
 tasks.withType<Test>().configureEach {
     javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(22)) })
+    val scopes = providers.gradleProperty("ciTestScope").orElse("full").get().split(",").toSet()
+    val uiTests = mapOf(
+        "bookshelf" to listOf("ui.home.bookshelf.*", "ui.home.BookshelfHomeLifecycleTest"),
+        "explore" to listOf("ui.home.explore.*"),
+        "catalog" to listOf(
+            "ui.home.discovery.*", "ui.home.categories.*", "ui.home.explore.*",
+            "ui.home.MainNavigationTest", "data.web.rules.DiscoveryRoutingTest",
+        ),
+        "stats" to listOf("ui.home.reading.stats.*"),
+        "bangumi" to listOf("ui.bangumi.*"),
+        "about" to listOf("ui.home.settings.SettingsHierarchyTest"),
+        "logs" to listOf("ui.home.settings.SettingsHierarchyTest", "data.logging.LoggerRepositoryTest"),
+    )
+    // Directory search, fonts, reading records and reader controls have consumers
+    // outside the reader package. Add scopes by union, without exclusions.
+    val readerTests = listOf(
+        "ui.book.reader.*", "data.content.*", "data.web.rules.MixedSourceAcceptanceTest",
+        "ui.book.detail.*", "ui.dialog.MarkAllChaptersAsReadDialogViewModelTest",
+        "ui.home.settings.SettingsHierarchyTest", "ui.tts.SpeechControlsTest",
+    )
+    val scopeTests = uiTests + mapOf(
+        "ui" to uiTests.values.flatten(),
+        "reader" to readerTests,
+        "speech" to readerTests + listOf("tts.*", "ui.tts.*"),
+        "update" to listOf("data.update.*", "ui.home.settings.SettingsHierarchyTest"),
+        "export" to listOf(
+            "data.export.*", "data.work.EpubExportWorkerAdapterTest", "data.work.EpubExportRegressionTest",
+            "data.work.EpubXhtmlWorkerTest", "data.work.SourceExportWorkerTest", "data.work.BookWorkIdentityTest",
+            "data.download.BookDownloadTest", "data.book.BookRepositoryOperationsTest",
+            "data.web.HostMultiSourceIntegrationTest", "data.web.rules.MixedSourceAcceptanceTest",
+            "ui.book.detail.DetailExportTest",
+        ),
+        "backup" to listOf(
+            "data.backup.*", "data.local.SourceIdentityRoomTest", "data.bookmark.ReadingBookmarkTest",
+            "data.download.BookDownloadTest", "data.web.HostMultiSourceIntegrationTest",
+            "data.localbook.LocalBookRelinkTest", "data.ExternalFilesTest", "ui.ExternalFileViewModelTest",
+            "ui.book.reader.bookmark.ReaderBookmarksUiTest",
+        ),
+        "storage" to listOf(
+            "data.download.*", "data.localbook.*", "ui.bookmanager.*", "ui.book.download.*", "ui.localbook.*",
+            "data.local.SourceIdentityRoomTest", "data.local.UserReadingDataTransactionTest",
+            "data.work.BookWorkIdentityTest", "data.backup.BackupRestoreTransactionTest",
+            "ui.book.reader.ReaderReadingRecordsTest", "ui.book.reader.ReaderDirectoryProgressTest",
+            "ui.home.settings.SettingsHierarchyTest",
+        ),
+    )
+    require(scopes.all { it == "full" || it in scopeTests }) { "Unknown ciTestScope: $scopes" }
+    failOnNoDiscoveredTests.set(true)
+    if ("full" !in scopes) {
+        filter {
+            isFailOnNoMatchingTests = true
+            scopes.flatMap { scopeTests.getValue(it) }.distinct().forEach {
+                includeTestsMatching("indi.renakoni.nextvol.$it")
+            }
+        }
+    }
 }
 
 composeCompiler {
     includeSourceInformation = true
+}
+
+aboutLibraries {
+    collect { configPath.set(layout.projectDirectory.dir("license-config")) }
 }
 
 tasks.withType<KotlinJvmCompile>().configureEach {
@@ -185,6 +346,22 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 dependencies {
+    implementation("com.optimaize.languagedetector:language-detector:0.6") {
+        exclude(group = "com.intellij", module = "annotations")
+        // Profiles are read with the existing kotlinx JSON parser, without JSONIC's desktop reflection.
+        exclude(group = "net.arnx", module = "jsonic")
+    }
+    implementation("com.google.mediapipe:tasks-text:0.10.32")
+    // Matches MultiTTS's SpeechEngine companion; native libraries come from the pinned runtime.
+    implementation("com.bytedance.frameworks.baselib:ttnet:4.1.127.6-tob") {
+        exclude(group = "org.chromium.net", module = "cronet-so")
+        exclude(group = "com.android.support")
+        exclude(group = "org.jetbrains.kotlin", module = "kotlin-android-extensions-runtime")
+    }
+    implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.45.0") {
+        // Embedded synthesis does not use Azure token credentials; azure-core requires API 26.
+        exclude(group = "com.azure", module = "azure-core")
+    }
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation("me.zhanghai.android.libarchive:library:1.1.6")
@@ -192,6 +369,7 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     // Android lib
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.emoji2.bundled)
     implementation("androidx.webkit:webkit:1.12.1")
     implementation(libs.androidx.foundation)
     implementation(libs.core.splashscreen)
@@ -318,6 +496,7 @@ tasks.register("printVersionCode") {
 dependencies {
     implementation(project(":source-execution"))
     implementation(project(":source-speech"))
+    implementation(project(":source-rules"))
     implementation(project(":source-rhino"))
     implementation(project(":source-content"))
     testImplementation(testFixtures(project(":source-content")))

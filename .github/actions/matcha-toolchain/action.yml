@@ -1,0 +1,55 @@
+name: Matcha source toolchain
+description: Fixed tools for the native backend included in ordinary APKs
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      id: tools
+      with:
+        path: ${{ runner.temp }}/matcha-toolchain
+        key: matcha-linux-ndk28c-cmake3.31.6-ninja1.13.0-v1
+    - name: Prepare native tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        tools="$RUNNER_TEMP/matcha-toolchain"
+        mkdir -p "$tools"
+        if [[ ! -f "$tools/android-ndk-r28c/source.properties" ]]; then
+          curl --fail --location --retry 2 https://dl.google.com/android/repository/android-ndk-r28c-linux.zip -o "$tools/ndk.zip"
+          unzip -q "$tools/ndk.zip" -d "$tools"
+          rm "$tools/ndk.zip"
+        fi
+        if [[ ! -x "$tools/python/cmake/data/bin/cmake" || ! -x "$tools/python/bin/ninja" ]]; then
+          python3 -m pip install --disable-pip-version-check --no-deps --upgrade --target "$tools/python" cmake==3.31.6 ninja==1.13.0
+        fi
+        "$tools/python/cmake/data/bin/cmake" --version
+        "$tools/python/bin/ninja" --version
+        cat >> "$GITHUB_ENV" <<EOF
+        ORG_GRADLE_PROJECT_matchaNdk=$tools/android-ndk-r28c
+        ORG_GRADLE_PROJECT_matchaCmake=$tools/python/cmake/data/bin/cmake
+        ORG_GRADLE_PROJECT_matchaNinja=$tools/python/bin/ninja
+        EOF
+    - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      if: github.ref == 'refs/heads/main' && steps.tools.outputs.cache-hit != 'true'
+      with:
+        path: ${{ runner.temp }}/matcha-toolchain
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+    - name: Identify the ONNX Runtime build inputs
+      id: runtime
+      shell: bash
+      env:
+        ORT_INPUTS: ${{ hashFiles('native/onnxruntime/vendor/**', 'native/onnxruntime/sources.sha256', 'native/onnxruntime/sources.json', 'native/onnxruntime/cmake/**', 'native/onnxruntime/build_android.py', 'native/onnxruntime/verify_sources.py', '.github/actions/matcha-toolchain/action.yml') }}
+      run: |
+        set -euo pipefail
+        test -n "$ORT_INPUTS"
+        # The runner image fixes the host compiler used for protoc. Neither the
+        # application commit nor Matcha/JNI inputs change this runtime identity.
+        key="onnxruntime-linux-v1-${ImageOS:?}-${ImageVersion:?}-$ORT_INPUTS"
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+        echo "ORG_GRADLE_PROJECT_matchaOrtCacheKey=$key" >> "$GITHUB_ENV"
+    - name: Restore and save the source-built ONNX Runtime install
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: app/build/matcha/onnxruntime/install
+        # Exact inputs only. GitHub isolates PR writes from the shared main cache.
+        key: ${{ steps.runtime.outputs.key }}

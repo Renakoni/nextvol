@@ -38,7 +38,7 @@ class GithubParserTest {
     )
 
     @Test fun stableReleaseReadsItsOwnTagAndPreservesMarkdown() {
-        server.enqueue(MockResponse().setBody(metadata().toString()))
+        server.enqueue(MockResponse().setBody(JSONArray().put(metadata()).toString()))
         server.enqueue(MockResponse().setBody("""
             android {
                 defaultConfig {
@@ -52,8 +52,16 @@ class GithubParserTest {
         assertEquals("1.4.0", result.versionName)
         assertEquals("## Changes\nA new version", result.releaseNotes)
         assertEquals(apkUrl, result.downloadUrl)
-        assertEquals("/api/repos/Renakoni/nextvol/releases/latest", server.takeRequest().path)
+        assertEquals("/api/repos/Renakoni/nextvol/releases?per_page=100&page=1", server.takeRequest().path)
         assertEquals("/raw/Renakoni/nextvol/refs/tags/v1.4.0/app/build.gradle.kts", server.takeRequest().path)
+    }
+
+    @Test fun runtimeReleasesAreIgnoredEvenWhenPublishedAfterTheApp() {
+        server.enqueue(MockResponse().setBody(JSONArray()
+            .put(metadata().put("tag_name", "offline-runtime-4"))
+            .put(metadata()).toString()))
+        server.enqueue(MockResponse().setBody("versionCode = 10400001\nversionName = \"1.4.0\""))
+        assertEquals("1.4.0", parse()!!.versionName)
     }
 
     @Test fun noReleasesIsNotANetworkFailure() {
@@ -71,7 +79,7 @@ class GithubParserTest {
 
     @Test fun draftsAndPrereleasesAreNeverOffered() {
         for (flag in listOf("draft", "prerelease")) {
-            server.enqueue(MockResponse().setBody(metadata().put(flag, true).toString()))
+            server.enqueue(MockResponse().setBody(JSONArray().put(metadata().put(flag, true)).toString()))
             assertNull(parse())
         }
         assertEquals(2, server.requestCount)
@@ -82,7 +90,7 @@ class GithubParserTest {
             val json = metadata()
             val asset = json.getJSONArray("assets").getJSONObject(0)
             json.put("assets", JSONArray().apply { repeat(count) { put(asset) } })
-            server.enqueue(MockResponse().setBody(json.toString()))
+            server.enqueue(MockResponse().setBody(JSONArray().put(json).toString()))
             assertThrows(IOException::class.java) { parse() }
         }
     }
@@ -94,16 +102,16 @@ class GithubParserTest {
             apkUrl.replace("https://", "http://"),
             apkUrl.replace("/v1.4.0/", "/v1.3.0/"),
         )) {
-            server.enqueue(MockResponse().setBody(metadata(url).toString()))
+            server.enqueue(MockResponse().setBody(JSONArray().put(metadata(url)).toString()))
             assertThrows(IOException::class.java) { parse() }
         }
     }
 
     @Test fun invalidOrMissingTagMetadataDoesNotInventAVersion() {
-        server.enqueue(MockResponse().setBody(metadata().toString()))
+        server.enqueue(MockResponse().setBody(JSONArray().put(metadata()).toString()))
         server.enqueue(MockResponse().setBody("versionName = \"1.4.0\""))
         assertThrows(IOException::class.java) { parse() }
-        server.enqueue(MockResponse().setBody(metadata().toString()))
+        server.enqueue(MockResponse().setBody(JSONArray().put(metadata()).toString()))
         server.enqueue(MockResponse().setResponseCode(404))
         assertThrows(IOException::class.java) { parse() }
     }

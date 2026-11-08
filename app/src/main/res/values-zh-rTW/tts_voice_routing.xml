@@ -1,0 +1,13 @@
+<resources>
+    <string name="tts_voice_error">%1$s：%2$s</string>
+    <string name="tts_voice_none">未選擇聲音</string>
+    <string name="tts_assign_voice">指定聲音</string>
+    <string name="tts_voice_enable_dialogue">請先啟動「合成對話」功能</string>
+    <string name="tts_voice_narrator">旁白</string>
+    <string name="tts_voice_dialogue">對話</string>
+    <string name="tts_voice_select_narrator">選擇或取消旁白發音人</string>
+    <string name="tts_voice_select_dialogue">選擇或取消對話發音人</string>
+    <string name="tts_voice_multiple">允許多選</string>
+    <string name="tts_voice_multiple_on">已啟用，允許選擇多個發音人</string>
+    <string name="tts_voice_multiple_off">已停用，只能選擇單個發音人</string>
+</resources>

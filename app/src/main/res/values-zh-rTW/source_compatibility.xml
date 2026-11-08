@@ -1,4 +1,3 @@
 <resources>
-    <string name="source_diagnostics_dependency">此書源的 %2$s 使用了 %1$s，目前的 profile（%3$s）不提供此介面。請書源作者改用支援的指令碼工具與受限請求介面，再逐階段檢查。</string>
-    <string name="sources_dependency_unavailable">此書源依賴暫不支援的 Java 介面，請查看書源診斷並使用適配後的規則。</string>
+    <string name="sources_dependency_unavailable">此書源依賴暫不支援的 Java 介面，請使用適配後的規則。</string>
 </resources>

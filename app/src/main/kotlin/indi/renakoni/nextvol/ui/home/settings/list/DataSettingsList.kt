@@ -25,7 +25,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.components.ImportUserDataDialog
+import indi.renakoni.nextvol.ui.home.settings.ImportUserDataDialog
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.components.backupFailureMessage
 import indi.renakoni.nextvol.utils.uriLauncher

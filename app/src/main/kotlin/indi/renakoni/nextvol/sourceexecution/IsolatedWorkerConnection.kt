@@ -10,6 +10,7 @@ import hnovel.execution.ExecutionAuthority
 import hnovel.execution.ExecutionIdentity
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
@@ -58,7 +59,7 @@ internal class IsolatedWorkerConnection(private val context: Context, val author
 
     init { if (!bound) died.complete(Unit) }
 
-    suspend fun close() = withContext(Dispatchers.Main.immediate) {
+    suspend fun close() = withContext(NonCancellable + Dispatchers.Main.immediate) {
         if (closed.compareAndSet(false, true)) {
             try {
                 try { remote?.terminate() } catch (_: RemoteException) { }

@@ -56,16 +56,17 @@ class StorageUsageRepository @Inject constructor(
 
         val volumeRows = storageStatsDao.getVolumeStorageRows()
         val bookVolumeBytesMap = mutableMapOf<String, Long>()
-        val chapterToBookMap = mutableMapOf<String, String>()
         volumeRows.forEach { row ->
             bookVolumeBytesMap[row.bookId] =
                 (bookVolumeBytesMap[row.bookId] ?: 0L) + row.bytes
-            ListConverter.stringToStringList(row.chapterIdList)
-                .filter { it.isNotBlank() }
-                .forEach { chapterToBookMap[it] = row.bookId }
         }
-        // A removed remote chapter still belongs to its saved offline book.
-        downloadedChapters.forEach { chapterToBookMap[it.id] = it.bookId }
+        val chapterToBookMap = chapterOwners(
+            catalogChapters = volumeRows.asSequence().flatMap { row ->
+                ListConverter.stringToStringList(row.chapterIdList).asSequence()
+                    .filter { it.isNotBlank() }.map { it to row.bookId }
+            },
+            downloadedChapters = downloadedChapters.asSequence().map { it.id to it.bookId },
+        )
 
         var orphanChapterInformationBytes = 0L
         val bookChapterInfoBytesMap = mutableMapOf<String, Long>()

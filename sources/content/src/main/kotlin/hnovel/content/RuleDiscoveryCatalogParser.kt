@@ -69,7 +69,7 @@ internal object RuleDiscoveryCatalogParser {
             val row = item as? JsonObject ?: throw SourceContentException(ContentError.InvalidRule, location)
             // Keep style acceptance aligned with LoginForm.parse: sources may declare it, but the
             // host owns layout. Tightening either row schema must preserve this shared decision.
-            val unknown = row.keys - setOf("id", "title", "url", "type", "action", "chars", "default", "viewName", "style", "targetPrefixes")
+            val unknown = row.keys - setOf("id", "title", "url", "type", "action", "chars", "default", "viewName", "style", "targetPrefixes", "showInCategories")
             if (unknown.isNotEmpty()) throw SourceContentException(ContentError.InvalidRule, "$location.${unknown.first()}")
             // Blank URL rows only fill Legado's grid. Skip inert spacers before assigning IDs,
             // but keep unnamed targets: ExploreKind permits a clickable URL without a title.
@@ -79,6 +79,13 @@ internal object RuleDiscoveryCatalogParser {
             if (type !in inputTypes + setOf("url", "button") || field == "exploreScreen" && type == "url")
                 throw SourceContentException(ContentError.InvalidRule, "$location.type")
             val url = row.string("url")
+            // Maintained catalogues can retain homepage targets without presenting them as genres.
+            // Imported definitions keep their existing category behaviour unless they opt in.
+            val showInCategories = row["showInCategories"]?.let {
+                if (type != "url" || it !in listOf(JsonPrimitive(true), JsonPrimitive(false)))
+                    throw SourceContentException(ContentError.InvalidRule, "$location.showInCategories")
+                it == JsonPrimitive(true)
+            } ?: true
             // Input IDs are form/infoMap keys; only URL/button rows may use explicit IDs or digests.
             // viewName is presentation-only, and host result routes carry drafts under these same keys.
             val key = if (type in inputTypes) name else row.string("id").ifBlank {
@@ -106,7 +113,7 @@ internal object RuleDiscoveryCatalogParser {
                     text
                 }
             }.orEmpty()
-            RuleDiscoveryRow(key, name, type, url, row.string("action"), choices, default, location, row.string("viewName"), prefixes)
+            RuleDiscoveryRow(key, name, type, url, row.string("action"), choices, default, location, row.string("viewName"), prefixes, showInCategories)
         }
     }
 

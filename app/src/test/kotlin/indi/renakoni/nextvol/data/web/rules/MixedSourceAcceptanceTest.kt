@@ -212,7 +212,7 @@ class MixedSourceAcceptanceTest {
                     val exported = awaitWork(OneTimeWorkRequestBuilder<ExportBookToEPUBWork>().setInputData(workDataOf(
                         "bookId" to book.storageKey, "exportType" to "BOOK")).build())
                     assertEquals(exported.outputData.toString(), WorkInfo.State.SUCCEEDED, exported.state)
-                    ZipFile(indi.renakoni.nextvol.data.work.EpubShareFiles.files(context.applicationContext, exported.id).single()).use { zip ->
+                    ZipFile(indi.renakoni.nextvol.data.export.EpubShareFiles.files(context.applicationContext, exported.id).single()).use { zip ->
                         val text = zip.entries().asSequence().filter { it.name.endsWith(".xhtml") }
                             .joinToString { zip.getInputStream(it).bufferedReader().use { reader -> reader.readText() } }
                         assertTrue(text.contains(listOf("Wenku8 first", "A first", "B first")[index]))
@@ -233,15 +233,6 @@ class MixedSourceAcceptanceTest {
                 val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
                 updates.apply(a, candidate, grants)
                 assertFalse(oldRuntime.isAvailable)
-                updates.rollback(a, grants)
-                assertEquals(prior.contentDigest, (registry.resolve(a) as SourceResolution.Ready).runtime.metadata.revision)
-                assertEquals(LoginStatus.LoginSubmitted, login.status(a))
-                val diagnostics = SourceDiagnostics(context, sources, fixture.runner, fixture.authority, accounts, registry, StorageCipher.Plain)
-                val report = diagnostics.run(b, DiagnosticStage.LoginForm, "", "", "")
-                assertEquals("Success", report.result)
-                assertEquals(EXTENSION_PROFILE, report.profile)
-                assertFalse(report.export().contains("sid=bob"))
-                assertFalse(report.export().contains(fixture.server.url("/").toString()))
 
                 fixture.extraChapter = true
                 val update = awaitWork(OneTimeWorkRequestBuilder<CheckUpdateWork>().build())
@@ -274,7 +265,7 @@ class MixedSourceAcceptanceTest {
                 loader = imageLoader(); coil3.SingletonImageLoader.setUnsafe(loader)
                 assertEquals(generation, accounts.current(a).generation)
                 assertEquals(LoginStatus.LoginSubmitted, login.status(b))
-                assertEquals(prior.contentDigest, sources.installedSources().single { ImportedRuleSources.id(it.definition) == a }.definition.contentDigest)
+                assertEquals(candidate, sources.installedSources().single { ImportedRuleSources.id(it.definition) == a }.definition.reference())
                 for (id in listOf(a, b, searchOnly)) sources.remove(id)
                 registry.unregister(native.id)
                 val requests = fixture.documents.get(); val nativeRequests = nativeReads.get()

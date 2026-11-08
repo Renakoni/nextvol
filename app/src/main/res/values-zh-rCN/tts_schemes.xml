@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_schemes">听书方案</string>
+    <string name="tts_scheme_initial">标准方案</string>
+    <string name="tts_scheme_new_name">新方案</string>
+    <string name="tts_scheme_new">新建方案</string>
+    <string name="tts_scheme_name">方案名称</string>
+    <string name="tts_scheme_default">默认</string>
+    <string name="tts_scheme_set_default">设为默认</string>
+    <string name="tts_scheme_follow_default">跟随默认</string>
+    <string name="tts_scheme_follow_name">跟随默认：%1$s</string>
+    <string name="tts_scheme_book">本书方案</string>
+    <string name="tts_scheme_copy_for_book">复制为本书方案</string>
+    <string name="tts_scheme_copy">复制方案</string>
+    <string name="tts_scheme_rename">重命名方案</string>
+    <string name="tts_scheme_delete">删除方案</string>
+    <string name="tts_scheme_delete_replacement">使用此方案的书籍将改用以下方案；若删除默认方案，所选方案也将成为新默认。</string>
+    <string name="tts_scheme_editing">正在编辑：%1$s</string>
+    <string name="tts_scheme_actions">%1$s的操作</string>
+    <string name="tts_scheme_default_usage">跟随默认的书籍</string>
+    <string name="tts_scheme_used_by">使用书籍：%1$s</string>
+    <string name="tts_scheme_unused">尚无书籍使用</string>
+    <string name="tts_scheme_unknown_book">未命名书籍</string>
+    <string name="tts_diagnostic_scheme">书籍／方案</string>
+</resources>

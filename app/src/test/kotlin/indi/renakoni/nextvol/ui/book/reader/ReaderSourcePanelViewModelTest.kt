@@ -54,8 +54,8 @@ class ReaderSourcePanelViewModelTest {
             f.open(); runCurrent()
             assertTrue(f.model.visible); assertFalse(f.model.busy)
             coVerify { f.login.begin(f.id, any(), LoginReadingContext("A", "one", .25f)) }
-            coEvery { f.login.submit(any(), any(), any(), any()) } coAnswers { awaitCancellation() }
-            f.model.submit(emptyMap(), "opaque-button", f.form.id) { _, _, _ -> fail("Stale result") }
+            coEvery { f.login.submit(any(), any(), any(), any(), any()) } coAnswers { awaitCancellation() }
+            f.model.submit(emptyMap(), "opaque-button", f.form.id, longClick = true) { _, _, _ -> fail("Stale result") }
             f.model.submit(emptyMap(), "opaque-button", f.form.id) { _, _, _ -> fail("Duplicate result") }
             runCurrent()
             f.model.bind(SourceBookId(f.id, "B").storageKey, null)
@@ -63,7 +63,8 @@ class ReaderSourcePanelViewModelTest {
             assertFalse(f.model.visible); assertFalse(f.model.busy)
             assertEquals(R.string.reader_source_panel_expired, f.model.notice)
             assertFalse(f.panel.lifetime.isActive)
-            coVerify(exactly = 1) { f.login.submit(any(), any(), any(), any()) }
+            coVerify(exactly = 1) { f.login.submit(f.panel, emptyMap(), "opaque-button", f.form.id, true) }
+            coVerify(exactly = 1) { f.login.submit(any(), any(), any(), any(), any()) }
             coVerify(exactly = 0) { f.refresh.refresh(any(), any(), any(), any()) }
         } finally { f.store.clear(); Dispatchers.resetMain() }
     }

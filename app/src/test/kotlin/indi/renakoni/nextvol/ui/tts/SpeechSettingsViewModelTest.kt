@@ -1,0 +1,353 @@
+package indi.renakoni.nextvol.ui.tts
+
+import android.app.Application
+import androidx.lifecycle.viewModelScope
+import indi.renakoni.nextvol.tts.*
+import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
+import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
+import hnovel.speech.SpeechEngineConfig
+import hnovel.speech.OfflineVoiceConfig
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.*
+import kotlinx.coroutines.withContext
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [27], application = Application::class)
+class SpeechSettingsViewModelTest {
+    private val settings = MutableStateFlow(SpeechSettings(rate = 1.5f, pitch = 0.8f))
+    private val repository = mockk<SpeechSettingsEditor>()
+    private val engines = mockk<SystemSpeechEngines>()
+    private val http = mockk<HttpSpeechRepository>()
+    private lateinit var model: SpeechSettingsViewModel
+    private val engine = SpeechEngine("engine", "Engine")
+    private val voices = listOf(SpeechVoice("voice", "zh-CN", false, true))
+
+    @Test fun editorPinsItsTargetAcrossBookRebindingAndRestoresItFromSavedState() = runTest {
+        val snapshots = MutableStateFlow(SpeechSchemes(items = listOf(SpeechScheme("a", "A"), SpeechScheme("b", "B")),
+            defaultId = "a", bindings = mapOf("book" to "a")))
+        val schemesRepository = mockk<SpeechSettingsRepository>()
+        every { schemesRepository.schemes } returns snapshots
+        coEvery { schemesRepository.snapshot() } answers { snapshots.value }
+        coEvery { schemesRepository.update(any(), any()) } returns Unit
+        val saved = androidx.lifecycle.SavedStateHandle(mapOf("bookId" to "book"))
+        val editor = SpeechSettingsEditor(schemesRepository, saved)
+        assertEquals("a", editor.get().schemeId)
+        snapshots.value = snapshots.value.copy(defaultId = "b", bindings = mapOf("book" to "b"))
+        assertEquals("a", editor.get().schemeId)
+        assertEquals("a", SpeechSettingsEditor(schemesRepository, saved).get().schemeId)
+        editor.update { it.copy(rate = 1.5f) }
+        coVerify(exactly = 1) { schemesRepository.update("a", any()) }
+        assertEquals("b", SpeechSettingsEditor(schemesRepository, androidx.lifecycle.SavedStateHandle()).get().schemeId)
+    }
+
+    @Before fun create() {
+        Dispatchers.setMain(StandardTestDispatcher())
+        every { repository.changes } returns settings
+        coEvery { repository.updateAll(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
+        }
+        every { http.changes } returns MutableStateFlow(0L)
+        coEvery { engines.installed() } returns emptyList()
+        coEvery { engines.inspect(any()) } throws SpeechException(SpeechError.NoEngine)
+        model = SpeechSettingsViewModel(repository, engines, mockk(), http, mockk())
+    }
+
+    @After fun destroy() {
+        model.viewModelScope.cancel()
+        Dispatchers.resetMain()
+    }
+
+    @Test fun dialogueSelectionRequiresDialogueSynthesisButNarrationRemainsAvailable() = runTest {
+        coEvery { repository.update(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
+        }
+        runCurrent()
+        val voice = SpeechVoiceRef(httpSource = "voice")
+        var prompted = false
+        model.toggleVoice(true, voice) { prompted = true }
+        runCurrent()
+        assertTrue(prompted)
+        coVerify(exactly = 0) { repository.update(any()) }
+        model.toggleVoice(false, voice)
+        runCurrent()
+        assertEquals(listOf(voice), settings.value.narrationVoices)
+        model.toggleVoice(false, voice)
+        runCurrent()
+        assertTrue(settings.value.narrationVoices.isEmpty())
+        settings.value = settings.value.copy(text = settings.value.text.copy(dialogue = true))
+        runCurrent()
+        model.toggleVoice(true, voice)
+        runCurrent()
+        assertEquals(listOf(voice), settings.value.dialogueVoices)
+        settings.value = settings.value.copy(text = settings.value.text.copy(dialogue = false))
+        runCurrent()
+        prompted = false
+        model.toggleVoice(false, voice) { prompted = true }
+        runCurrent()
+        assertTrue(prompted)
+        assertEquals(listOf(voice), settings.value.dialogueVoices)
+        val narrator = SpeechVoiceRef(httpSource = "narrator")
+        model.toggleVoice(false, narrator)
+        runCurrent()
+        assertEquals(listOf(narrator), settings.value.narrationVoices)
+    }
+
+    @Test fun auditionPreservesSelectionAndDeletingTheVoiceClearsOnlyItsCandidates() = runTest {
+        val source = SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
+            """{"id":"candidate","name":"Candidate","url":"https://example.org"}""").sources.single(), listOf("https://example.org:443"))
+        val candidate = SpeechVoiceRef(httpSource = "candidate")
+        val other = SpeechVoiceRef(httpSource = "other")
+        settings.value = SpeechSettings(voiceRoutingConfigured = true, narrationVoices = listOf(candidate),
+            dialogueVoices = listOf(other), speakerVoices = mapOf("甲" to candidate))
+        coEvery { repository.update(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
+        }
+        coEvery { http.sources() } returns listOf(source)
+        every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
+        coEvery { http.delete(setOf(source.definition.id)) } returns Unit
+        val playback = MutableStateFlow(ReadAloudState())
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns playback
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk())
+        try {
+            library.state.first { it.loaded }
+            library.previewVoice("candidate", "Sample.")
+            verify { controller.preview("Sample.", settings.value.copy(httpSource = "candidate")) }
+            coVerify(exactly = 0) { repository.update(any()) }
+            assertNull(library.state.value.selected)
+            playback.value = ReadAloudState(SpeechRequest("", "", "Sample.", settings.value.copy(httpSource = "candidate")), SpeechPhase.Playing)
+            library.delete(source)
+            library.state.first { !it.busy }
+            verify { controller.command(SpeechAction.Stop) }
+            assertTrue(settings.value.selectedNarrators.isEmpty())
+            assertEquals(listOf(other), settings.value.dialogueVoices)
+            assertEquals(candidate, settings.value.speakerVoices["甲"])
+        } finally { library.viewModelScope.cancel() }
+    }
+
+    @Test fun packagePreviewWaitsForConfirmationAndSavingDoesNotSelectOrPlayAVoice() = runTest {
+        val definition = hnovel.speech.previewHttpSpeech(
+            """{"name":"Package voice","url":"https://speech.example.invalid/audio"}""").sources.single()
+        var saved = emptyList<SavedHttpSpeechSource>()
+        val changes = MutableStateFlow(0L)
+        every { http.changes } returns changes
+        coEvery { http.sources() } coAnswers { saved }
+        coEvery { http.save(any()) } coAnswers { saved = firstArg(); changes.value++ }
+        every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns MutableStateFlow(ReadAloudState())
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk())
+        try {
+            library.state.first { it.loaded }
+            library.previewPackage(listOf(definition), null)
+            assertEquals(definition.id, library.state.value.pending!!.single().definition.id)
+            assertEquals(listOf("https://speech.example.invalid:443"), library.state.value.pending!!.single().origins)
+            coVerify(exactly = 0) { http.save(any()) }
+            library.dismissPreview()
+            assertNull(library.state.value.pending)
+            library.previewPackage(listOf(definition), null)
+            library.confirmImport()
+            library.state.first { !it.busy && it.sources.isNotEmpty() }
+            coVerify(exactly = 1) { http.save(any()) }
+            assertNull(library.state.value.pending)
+            assertEquals(definition.id, library.state.value.sources.single().definition.id)
+            coVerify(exactly = 0) { repository.update(any()) }
+            verify(exactly = 0) { controller.preview(any(), any()) }
+        } finally { library.viewModelScope.cancel() }
+    }
+
+    @Test fun editingOfflineParametersStopsAnAffectedPreviewButRenamingDoesNot() = runTest {
+        val configuration = SpeechEngineConfig("msctts", "MSC")
+        val reference = OfflineVoiceRef("voice", "revision")
+        val offline = mockk<OfflineSpeechRepository>()
+        coEvery { offline.voices() } returns listOf(InstalledOfflineVoice(reference, "Voice", emptyMap(),
+            configuration = OfflineVoiceConfig("msctts", "voice")))
+        coEvery { http.engines() } returns listOf(configuration)
+        val catalog = mockk<OfflineEngineRepository>()
+        every { catalog.changes } returns MutableStateFlow(0L)
+        coEvery { catalog.all() } returns listOf(configuration)
+        coEvery { http.saveEngine(any(), any()) } returns Unit
+        coEvery { repository.get() } returns settings.value
+        coEvery { http.sources() } returns emptyList()
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns MutableStateFlow(ReadAloudState(
+            SpeechRequest("", "", "Sample", SpeechSettings(offlineVoice = reference)), SpeechPhase.Playing))
+        val editor = SpeechEnginesViewModel(catalog, http, offline, mockk(), controller, mockk())
+        try {
+            runCurrent()
+            editor.save(configuration.copy(name = "Renamed"), false) {}
+            runCurrent()
+            verify(exactly = 0) { controller.command(any()) }
+            editor.save(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) {}
+            runCurrent()
+            verify(exactly = 1) { controller.command(SpeechAction.Stop) }
+            coVerify { http.saveEngine(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) }
+        } finally { editor.viewModelScope.cancel() }
+    }
+
+    @Test fun leavingTheVoiceLibraryDuringDeletionStillClearsTheSelectedReference() = runTest {
+        val reference = OfflineVoiceRef("voice", "revision")
+        val voice = InstalledOfflineVoice(reference, "Voice", emptyMap())
+        val narrator = SpeechVoiceRef(httpSource = "narrator")
+        settings.value = SpeechSettings(offlineVoice = reference, voiceRoutingConfigured = true,
+            narrationVoices = listOf(narrator), dialogueVoices = listOf(SpeechVoiceRef(offlineVoice = reference)))
+        val offline = mockk<OfflineSpeechRepository>()
+        every { offline.changes } returns MutableStateFlow(0L)
+        coEvery { offline.voices() } returns emptyList()
+        val deleting = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        coEvery { offline.delete(setOf(reference)) } coAnswers { deleting.complete(Unit); release.await(); 0L }
+        coEvery { repository.update(any()) } coAnswers {
+            settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
+        }
+        val availability = mockk<indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker>()
+        every { availability.changes } returns MutableStateFlow(0L)
+        val engines = mockk<indi.renakoni.nextvol.tts.offline.OfflineEngineRepository>()
+        every { engines.changes } returns MutableStateFlow(0L)
+        coEvery { engines.all() } returns emptyList()
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns MutableStateFlow(ReadAloudState())
+        val library = OfflineSpeechSourcesViewModel(offline, repository, controller, availability, engines)
+        try {
+            runCurrent()
+            val deletion = library.delete(voice)
+            runCurrent()
+            assertTrue(deleting.isCompleted)
+            library.viewModelScope.cancel()
+            release.complete(Unit)
+            deletion.join()
+            assertNull(settings.value.offlineVoice)
+            assertEquals(listOf(narrator), settings.value.narrationVoices)
+            assertTrue(settings.value.dialogueVoices.isEmpty())
+        } finally { release.complete(Unit); library.viewModelScope.cancel() }
+    }
+
+    @Test fun sameTargetRefreshRetainsKnownResultsUntilTheNewCheckCompletes() = runTest {
+        runCurrent()
+        assertEquals(SpeechError.NoEngine, model.state.value.error)
+        var inspection = CompletableDeferred<SpeechEngineState>()
+        coEvery { engines.inspect(any()) } coAnswers { inspection.await() }
+
+        model.refresh()
+        runCurrent()
+        assertTrue(model.state.value.loading)
+        assertEquals(SpeechError.NoEngine, model.state.value.error)
+        inspection.completeExceptionally(SpeechException(SpeechError.NoEngine))
+        runCurrent()
+        assertFalse(model.state.value.loading)
+        assertEquals(SpeechError.NoEngine, model.state.value.error)
+
+        inspection = CompletableDeferred()
+        coEvery { engines.installed() } returns listOf(engine)
+        model.refresh()
+        runCurrent()
+        assertEquals(SpeechError.NoEngine, model.state.value.error)
+        assertTrue(model.state.value.engines.isEmpty())
+        inspection.complete(SpeechEngineState(engine, voices, "voice"))
+        runCurrent()
+        assertNull(model.state.value.error)
+        assertEquals(listOf(engine), model.state.value.engines)
+        assertEquals(voices, model.state.value.voices)
+
+        inspection = CompletableDeferred()
+        model.refresh()
+        runCurrent()
+        assertEquals(voices, model.state.value.voices)
+        inspection.completeExceptionally(SpeechException(SpeechError.EngineUnavailable))
+        runCurrent()
+        assertEquals(SpeechError.EngineUnavailable, model.state.value.error)
+        assertTrue(model.state.value.voices.isEmpty())
+        assertFalse(model.state.value.loading)
+        assertEquals(settings.value, model.state.value.settings)
+    }
+
+    @Test fun changingEnginesClearsOldResultsAndLateInspectionCannotReplaceTheNewEngine() = runTest {
+        val oldEngine = SpeechEngine("old", "Old")
+        coEvery { engines.installed() } returns listOf(oldEngine)
+        coEvery { engines.inspect("") } returns SpeechEngineState(oldEngine, voices, "voice")
+        runCurrent()
+        assertEquals(voices, model.state.value.voices)
+        val oldInspection = CompletableDeferred<SpeechEngineState>()
+        coEvery { engines.inspect("") } coAnswers { withContext(NonCancellable) { oldInspection.await() } }
+        model.refresh()
+        runCurrent()
+
+        val newInspection = CompletableDeferred<SpeechEngineState>()
+        coEvery { engines.installed() } returns listOf(engine)
+        coEvery { engines.inspect(engine.packageName) } coAnswers { newInspection.await() }
+        settings.value = settings.value.copy(engine = engine.packageName)
+        runCurrent()
+        assertTrue(model.state.value.loading)
+        assertNull(model.state.value.error)
+        assertTrue(model.state.value.voices.isEmpty())
+        oldInspection.complete(SpeechEngineState(oldEngine, voices, "voice"))
+        runCurrent()
+        assertTrue(model.state.value.loading)
+        assertTrue(model.state.value.voices.isEmpty())
+        newInspection.complete(SpeechEngineState(engine, voices, "voice"))
+        runCurrent()
+        val selected = model.state.value
+        assertEquals(listOf(engine), selected.engines)
+        assertEquals(voices, selected.voices)
+        assertFalse(selected.loading)
+    }
+
+    @Test fun httpRefreshRecoversFromMissingCredentialsAndCannotOverwriteASystemSelection() = runTest {
+        runCurrent()
+        val definition = hnovel.speech.previewHttpSpeech(
+            """{"id":"http","name":"HTTP voice","url":"https://example.org"}""",
+        ).sources.single()
+        val locked = SavedHttpSpeechSource(definition, listOf("https://example.org:443"), credentialKeys = listOf("key"))
+        var sources = CompletableDeferred<List<SavedHttpSpeechSource>>()
+        coEvery { http.sources() } coAnswers { withContext(NonCancellable) { sources.await() } }
+        settings.value = settings.value.copy(httpSource = definition.id)
+        runCurrent()
+        assertNull(model.state.value.error)
+        sources.complete(listOf(locked))
+        runCurrent()
+        assertEquals(SpeechError.HttpLogin, model.state.value.error)
+
+        sources = CompletableDeferred()
+        model.refresh()
+        runCurrent()
+        assertEquals(SpeechError.HttpLogin, model.state.value.error)
+        val configured = locked.copy(credentials = mapOf("key" to "configured"))
+        sources.complete(listOf(configured))
+        runCurrent()
+        assertNull(model.state.value.error)
+        assertTrue(model.state.value.httpSources.single().isConfigured)
+
+        sources = CompletableDeferred()
+        model.refresh()
+        runCurrent()
+        settings.value = settings.value.copy(httpSource = null)
+        runCurrent()
+        val system = model.state.value
+        assertEquals(SpeechError.NoEngine, system.error)
+        assertFalse(system.loading)
+        sources.complete(emptyList())
+        runCurrent()
+        assertEquals(system, model.state.value)
+    }
+}

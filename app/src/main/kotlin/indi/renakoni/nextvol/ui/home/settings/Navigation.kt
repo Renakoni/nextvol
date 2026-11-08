@@ -26,9 +26,6 @@ import androidx.work.WorkManager
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.backup.BackupArchive
 import indi.renakoni.nextvol.ui.components.backupFailureMessage
-import indi.renakoni.nextvol.ui.components.ExportContext
-import indi.renakoni.nextvol.ui.components.ExportUserDataDialog
-import indi.renakoni.nextvol.ui.components.MutableExportContext
 import indi.renakoni.nextvol.ui.components.SliderValueDialog
 import indi.renakoni.nextvol.ui.dialog.SliderValueDialogViewModel
 import indi.renakoni.nextvol.ui.home.settings.about.settingsAboutDestination
@@ -38,7 +35,6 @@ import indi.renakoni.nextvol.ui.home.settings.licenses.settingsLicensesDestinati
 import indi.renakoni.nextvol.ui.home.settings.logcat.navigateToSettingsLogcatDestination
 import indi.renakoni.nextvol.ui.home.settings.logcat.settingsLogcatDestination
 import indi.renakoni.nextvol.ui.home.settings.sources.settingsSourcesDestination
-import indi.renakoni.nextvol.ui.home.settings.sources.sourceDiagnosticDestination
 import indi.renakoni.nextvol.ui.home.settings.textformatting.editTextFormattingRuleDialog
 import indi.renakoni.nextvol.ui.home.settings.textformatting.navigateToSettingsTextFormattingManagerDestination
 import indi.renakoni.nextvol.ui.home.settings.textformatting.settingsTextFormattingNavigation
@@ -81,7 +77,6 @@ fun NavGraphBuilder.settingsDestination() {
         )
     }
     settingsSourcesDestination()
-    sourceDiagnosticDestination()
     exportUserDataDialog()
     editTextFormattingRuleDialog()
     sliderValueDialog()
@@ -162,7 +157,7 @@ private fun NavGraphBuilder.exportUserDataDialog() {
         ExportUserDataDialog(
             onDismissRequest = { navController.popBackStack() },
             onClickSaveAndSend = {
-                viewModel.exportAndSendToFile(exportContext, context) {
+                viewModel.exportAndSendToFile(it, context) {
                     navController.popBackStack()
                 }
             },

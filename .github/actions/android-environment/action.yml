@@ -1,9 +1,15 @@
 name: Fixed Android environment
 description: Exact JDK and Android revisions with reusable tool and Gradle caches
 inputs:
+  write-gradle-cache:
+    description: Allow the serialized main cache warmer to publish Gradle state
+    default: 'false'
   api:
     description: Optional emulator API, 24 or 35
     default: ''
+  native-tools:
+    description: Prepare native tools, the ORT cache and the embedded SDK for APK builds
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -21,10 +27,14 @@ runs:
       with:
         # All checks reuse main's dependencies/transforms/build cache. Avoid six
         # competing PR snapshots evicting the shared cache and fixed images.
-        cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+        cache-read-only: ${{ github.ref != 'refs/heads/main' || inputs.write-gradle-cache != 'true' }}
     - uses: ./.github/actions/android-sdk
       with:
         api: ${{ inputs.api }}
+    - uses: ./.github/actions/matcha-toolchain
+      if: inputs.native-tools == 'true'
+    - uses: ./.github/actions/offline-runtime
+      if: inputs.native-tools == 'true'
     - name: Select fixed JDKs and local license data
       shell: bash
       env:

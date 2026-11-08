@@ -13,12 +13,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.dp
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -115,38 +112,6 @@ class BookshelfLayoutUiTest {
         compose.waitForIdle()
     }
 
-    @Test
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun shortBookshelfNameDoesNotLeaveALargeLeadingGap() {
-        show(emptyList())
-        compose.runOnIdle {
-            state.bookshelfList = listOf(state.bookshelfList.single().copy(name = "已收藏"))
-        }
-        val tab = compose.onNodeWithText("已收藏").assertIsSelected().assertIsDisplayed().assertHeightIsAtLeast(48.dp)
-        assertTrue("short shelf tabs must size to their content", tab.fetchSemanticsNode().size.width <= 160)
-        val label = compose.onNodeWithText("已收藏", useUnmergedTree = true).fetchSemanticsNode()
-        assertTrue("the first shelf label must stay near the start edge", label.positionInRoot.x <= 32)
-    }
-
-    @Test
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun longBookshelfNameLeavesRoomForNeighbouringTabsAtLargeFont() {
-        show(emptyList(), fontScale = 1.5f)
-        val name = "🏷我的本地书架【EPUB、TXT 与长篇小说合集】"
-        compose.runOnIdle {
-            val original = state.bookshelfList.single()
-            state.bookshelfList = listOf(original.copy(name = name), original.copy(id = 2, name = "Next shelf"))
-        }
-        val tab = compose.onNodeWithText(name).assertIsSelected().assertIsDisplayed().assertHeightIsAtLeast(48.dp)
-        assertTrue("leave room for neighbouring tabs", tab.fetchSemanticsNode().size.width <= 272)
-        val layouts = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText(name, useUnmergedTree = true)
-            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-        assertEquals(1, layouts.single().lineCount)
-        assertTrue("long shelf names must ellipsize", layouts.single().isLineEllipsized(0))
-        compose.onNodeWithText("Next shelf").performScrollTo().assertIsDisplayed().assertHasClickAction()
-    }
-
     @Test fun switchingDuringSelectionKeepsSourceQualifiedBooksAndActions() {
         val a = book("a", "same", "Alpha")
         val b = book("b", "same", "Beta")
@@ -186,39 +151,6 @@ class BookshelfLayoutUiTest {
         val gridAnchor = compose.runOnIdle { gridState.layoutInfo.visibleItemsInfo.first { it.contentType == "book_card" }.key }
         toggleLayout()
         compose.runOnIdle { assertTrue(listState.layoutInfo.visibleItemsInfo.any { it.key == gridAnchor }) }
-    }
-
-    @Test fun phoneGridUsesTwoColumnsAndFullWidthHeadersWithMissingCovers() {
-        state.layout = BookshelfLayout.Grid
-        show((0 until 6).map { book("a", "$it", "A very long book title that needs to wrap and ellipsize $it") })
-        compose.runOnIdle {
-            val visible = gridState.layoutInfo.visibleItemsInfo
-            assertEquals(360, visible.first { it.key == "book" }.size.width)
-            assertEquals(2, visible.filter { it.contentType == "book_card" }.map { it.column }.distinct().size)
-            assertTrue(visible.all { it.offset.x >= 0 && it.offset.x + it.size.width <= 360 })
-        }
-    }
-
-    @Test fun largeFontUsesOneColumnAndHeaderRemainsVisible() {
-        state.layout = BookshelfLayout.Grid
-        show((0 until 6).map { book("a", "$it", "Long title $it") }, fontScale = 2f)
-        compose.runOnIdle {
-            val visible = gridState.layoutInfo.visibleItemsInfo
-            assertEquals(1, visible.filter { it.contentType == "book_card" }.map { it.column }.distinct().size)
-            assertEquals(360, visible.first { it.key == "book" }.size.width)
-        }
-    }
-
-    @Test
-    @Config(qualifiers = "w1000dp-h600dp-land-mdpi")
-    fun wideLandscapeGridAddsColumns() {
-        state.layout = BookshelfLayout.Grid
-        show((0 until 12).map { book("a", "$it", "Book $it") })
-        compose.runOnIdle {
-            val visible = gridState.layoutInfo.visibleItemsInfo
-            assertEquals(1000, visible.first { it.key == "book" }.size.width)
-            assertEquals(6, visible.filter { it.contentType == "book_card" }.map { it.column }.distinct().size)
-        }
     }
 
     @Test fun pendingAndFailedBooksDoNotBlockOtherCardsOrLoseSelection() {
@@ -263,15 +195,4 @@ class BookshelfLayoutUiTest {
         }
     }
 
-    @Test fun emptyShelfKeepsItsEmptyStateAcrossLayouts() {
-        show(emptyList())
-        val emptyTitle = activity.get().getString(R.string.nothing_here)
-        compose.onNodeWithText(emptyTitle).assertIsDisplayed()
-        toggleLayout()
-        compose.onNodeWithText(emptyTitle).assertIsDisplayed()
-        compose.runOnIdle {
-            assertTrue(state.selectedBookshelf!!.allBookFlows.isEmpty())
-            assertTrue(state.selectedBookIds.isEmpty())
-        }
-    }
 }

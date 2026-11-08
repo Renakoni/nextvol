@@ -1,8 +1,7 @@
 package indi.renakoni.nextvol.ui.book.reader.content
 
-import indi.renakoni.nextvol.data.content.ContentComponentFactory
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
-import indi.renakoni.nextvol.data.content.component.ErrorContentComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ErrorContentComponent
 import io.nightfish.lightnovelreader.api.content.ContentData
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject

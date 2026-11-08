@@ -48,7 +48,7 @@ class HttpSpeechDefinitionTest {
         assertEquals(5, source("0").scriptSpeed())
         assertEquals(85, source("80").scriptSpeed())
         assertEquals(10, source("80").scriptSpeed(1f))
-        assertEquals(5, source().scriptSpeed(0.5f))
+        assertEquals(0, source().scriptSpeed(0f))
         assertEquals(20, source().scriptSpeed(2f))
         assertThrows(IllegalArgumentException::class.java) { source().scriptSpeed(Float.NaN) }
     }
@@ -59,7 +59,9 @@ class HttpSpeechDefinitionTest {
         assertTrue(previewHttpSpeech(quotedBraces).issues.isEmpty())
         assertEquals(SpeechImportError.InvalidJson, previewHttpSpeech("{secret").issues.single().error)
         assertEquals(SpeechImportError.TooLarge, previewHttpSpeech("x".repeat(4 * 1024 * 1024 + 1)).issues.single().error)
-        assertEquals(SpeechImportError.TooLarge, previewHttpSpeech(List(513) { "{}" }.joinToString(",", "[", "]")).issues.single().error)
+        val catalog = List(1024) { """{"id":$it,"name":"Voice","url":"https://example.com"}""" }.joinToString(",", "[", "]")
+        assertEquals(1024, previewHttpSpeech(catalog).sources.size)
+        assertEquals(SpeechImportError.TooLarge, previewHttpSpeech(List(1025) { "{}" }.joinToString(",", "[", "]")).issues.single().error)
         val preview = previewHttpSpeech("""{"name":"Voice","url":42,"header":"private"}""")
         assertEquals("url", preview.issues.single().field)
         assertFalse(preview.issues.toString().contains("private"))

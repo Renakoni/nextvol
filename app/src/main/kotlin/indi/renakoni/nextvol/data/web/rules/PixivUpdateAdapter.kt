@@ -12,9 +12,7 @@ internal class PixivUpdateAdapter(private val catalog: SourceCatalog) {
     private val adapted by lazy { catalog.definitions(setOf(KEY)) }
     private val adaptedDigest by lazy { digest(Json.parseToJsonElement(adapted).jsonArray.single()) }
 
-    fun manages(definition: SourceDefinition): Boolean =
-        definition.profile == EXTENSION_PROFILE && definition.importKey == KEY &&
-            (definition.contentDigest in catalog.entry(definition)?.replaces.orEmpty() || accepts(definition))
+    fun manages(definition: SourceDefinition): Boolean = accepts(definition)
 
     fun accepts(definition: SourceDefinition): Boolean =
         definition.profile == EXTENSION_PROFILE && definition.importKey == KEY &&

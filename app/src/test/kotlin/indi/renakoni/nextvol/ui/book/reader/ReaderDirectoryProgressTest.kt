@@ -110,9 +110,11 @@ class ReaderDirectoryProgressTest {
 
             saveProgress.captured("chapter", 0.5f)
             assertEquals(0.4f, writes.receive().readingProgress)
-            for ((count, expected) in listOf(0 to 0.4f, 2 to 0.25f, 4 to 0.125f)) {
+            for ((count, expected) in listOf(0 to 0f, 2 to 0.25f, 4 to 0.125f)) {
                 val applied = CompletableDeferred<Unit>()
-                directory.send(BookVolumes("book", listOf(Volume("volume", "Title", List(count) { ChapterInformation("$it", "Chapter $it") }))) to applied)
+                val ids = List(count) { if (it == 0) "chapter" else "$it" }
+                directory.send(BookVolumes("book", listOf(Volume("volume", "Title",
+                    ids.map { ChapterInformation(it, it) }))) to applied)
                 while (!applied.isCompleted) {
                     scheduler.runCurrent()
                     delay(1)
@@ -164,5 +166,10 @@ class ReaderDirectoryProgressTest {
         verify(exactly = 1) { controller.changeChapter(chapter) }
         verify(exactly = 1) { controller.flushProgress() }
         assertEquals(Ok(volumes), reader.uiState.bookVolumes)
+        saveProgress.captured(chapter, .5f)
+        withTimeout(5_000) {
+            while (data.get().currentChapterReadingProgressMap[chapter] != .5f) delay(1)
+        }
+        assertEquals(.5f, data.get().readingProgress)
     }
 }

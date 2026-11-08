@@ -39,7 +39,7 @@ class SpeechInterruptionTest {
         player.setHandleAudioBecomingNoisy(true)
         val gate = CompletableDeferred<Unit>()
         lateinit var session: ReadAloudSession
-        val playback = ExoSpeechPlayback(player, context) { session.pause() }
+        val playback = ExoSpeechPlayback(player, context) { session.interrupt() }
         session = ReadAloudSession(this,
             SpeechChapterSource { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "A quiet morning.") },
             { SpeechSettings() }, object : SpeechProgressStore {
@@ -109,7 +109,7 @@ class SpeechInterruptionTest {
             }
             val gate = CompletableDeferred<Unit>()
             lateinit var session: ReadAloudSession
-            val playback = ExoSpeechPlayback(player, RuntimeEnvironment.getApplication()) { session.pause() }
+            val playback = ExoSpeechPlayback(player, RuntimeEnvironment.getApplication()) { session.interrupt() }
             session = ReadAloudSession(this, SpeechChapterSource { book, chapter ->
                 if (chapter == "two") gate.await()
                 SpeechChapter(book, chapter, "Book", chapter, "A quiet morning.", nextId = if (chapter == "one") "two" else null)

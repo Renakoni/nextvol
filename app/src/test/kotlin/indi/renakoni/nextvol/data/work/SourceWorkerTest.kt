@@ -86,7 +86,7 @@ class SourceWorkerTest {
                 coEvery { execute<Any?>(any()) } coAnswers { firstArg<suspend () -> Any?>().invoke() }
                 coEvery { canonicalBookId(any()) } coAnswers { firstArg() }
                 coEvery { getBookInformation("same", any(), any()) } returns Ok(info("same"))
-                coEvery { getBookVolumes("same", any(), any()) } returns Ok(BookVolumes("same", listOf(Volume("v", "Volume", listOf(ChapterInformation("c", "Chapter"))))))
+                coEvery { getBookVolumes("same", any(), refresh = true, reuseRecent = true) } returns Ok(BookVolumes("same", listOf(Volume("v", "Volume", listOf(ChapterInformation("c", "Chapter"))))))
                 coEvery { getChapterContent("c", "same", any(), any()) } returns Ok(ChapterContent("c", book.sourceId.id, JsonObject(emptyMap())))
             }
             coEvery { fixture.registry.resolve(book.sourceId) } returns SourceResolution.Ready(runtime)
@@ -110,7 +110,7 @@ class SourceWorkerTest {
         every { repository.downloadSource(any()) } returns null
         coEvery { repository.canonicalBook(any()) } coAnswers { firstArg() }
         coEvery { repository.refreshBookInformation(a, any(), any()) } returns Ok(info(a.storageKey))
-        every { repository.getBookInformationFlow(any<String>(), any()) } returns kotlinx.coroutines.flow.emptyFlow()
+        every { repository.downloadInformationFlow(any()) } returns kotlinx.coroutines.flow.emptyFlow()
         every { repository.sourceRevision(any()) } returns "1"
         val items = mutableListOf<DownloadItem>()
         val progress = mockk<DownloadProgressRepository> { every { addExportItem(capture(items)) } just Runs }

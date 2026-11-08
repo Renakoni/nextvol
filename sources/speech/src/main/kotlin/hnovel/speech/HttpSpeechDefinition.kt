@@ -9,8 +9,24 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
     val name: String get() = raw.getValue("name").jsonPrimitive.content
     val url: String get() = raw.getValue("url").jsonPrimitive.content
     val revision: String = digest(raw.canonical().toString())
-    internal val microsoft: MicrosoftSpeechConfiguration? by lazy { MicrosoftSpeechConfiguration.recognize(this) }
-    val usesMicrosoftTranslator: Boolean get() = microsoft != null
+    internal val microsoft: MicrosoftSpeechConfiguration? by lazy {
+        when (nativeEngine) {
+            "mstrans" -> MicrosoftSpeechConfiguration.fromPackage(requireNotNull(multiTts))
+            null -> MicrosoftSpeechConfiguration.recognize(this)
+            else -> null
+        }
+    }
+    val usesMicrosoftTranslator: Boolean get() = nativeEngine == "mstrans" || microsoft != null
+    internal val multiTts: JsonObject? get() = (raw["multiTts"] as? JsonObject)?.takeIf { metadata ->
+        val engine = metadata["engine"] as? JsonObject
+        engine != null && isOnlineSpeechEngine((engine["code"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            (engine["type"] as? JsonPrimitive)?.contentOrNull)
+    }
+    internal val nativeEngine: String? get() = multiTts?.get("engine")?.jsonObject?.let {
+        if ((it["type"] as? JsonPrimitive)?.contentOrNull == "http") null else it["code"]?.jsonPrimitive?.contentOrNull
+    }
+    val usesMultiTts: Boolean get() = multiTts != null
+    val supportsStreaming: Boolean get() = nativeEngine !in dedicatedOnlineSpeechEngines || nativeEngine == "doubao"
     val unknownFields: Set<String> get() = raw.keys - fields
     val speed: Int? get() = raw["speed"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.int
     val hasScripts: Boolean get() = url.contains("{{") || url.contains("@js:", true) || url.contains("<js>", true)
@@ -25,7 +41,7 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
 
     /** Config speed=5 is 1x; the reference passes speed+5 to the speakSpeed script binding. */
     fun scriptSpeed(rate: Float? = null): Int {
-        require(rate == null || rate.isFinite() && rate in 0.5f..2f)
+        require(rate == null || rate.isFinite() && rate in 0f..2f)
         return if (rate == null) (speed ?: 5) + 5 else kotlin.math.round(rate * 10).toInt()
     }
 
@@ -36,6 +52,9 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
             "loginCheckJs", "concurrentRate", "enabledCookieJar", "speed", "lastUpdateTime")
 
         internal fun parse(raw: JsonObject): HttpSpeechDefinition {
+            // A withdrawn package must not fall back to the generic HTTP request path.
+            val engine = (raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject
+            require((engine?.get("code") as? JsonPrimitive)?.contentOrNull !in withdrawnSpeechEngines)
             fun string(key: String): String? = raw[key]?.takeUnless { it == JsonNull }?.let {
                 require(it is JsonPrimitive && it.isString) { key }
                 it.content
@@ -68,6 +87,8 @@ enum class SpeechImportError { TooLarge, InvalidJson, InvalidEntry, DuplicateId 
 data class SpeechImportIssue(val index: Int?, val error: SpeechImportError, val field: String? = null)
 data class SpeechImportPreview(val sources: List<HttpSpeechDefinition>, val issues: List<SpeechImportIssue>)
 
+const val MAX_HTTP_SPEECH_SOURCES = 1024
+
 /** Unknown fields survive preview and saving, including dependencies not supported by the current runtime. */
 fun previewHttpSpeech(text: String): SpeechImportPreview {
     fun failed(error: SpeechImportError) = SpeechImportPreview(emptyList(), listOf(SpeechImportIssue(null, error)))
@@ -79,7 +100,7 @@ fun previewHttpSpeech(text: String): SpeechImportPreview {
         is JsonArray -> element.toList()
         else -> return failed(SpeechImportError.InvalidJson)
     }
-    if (entries.size > 512) return failed(SpeechImportError.TooLarge)
+    if (entries.size > MAX_HTTP_SPEECH_SOURCES) return failed(SpeechImportError.TooLarge)
     val sources = mutableListOf<HttpSpeechDefinition>()
     val issues = mutableListOf<SpeechImportIssue>()
     val seen = mutableSetOf<String>()

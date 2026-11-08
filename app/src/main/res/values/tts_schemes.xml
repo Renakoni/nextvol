@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_schemes">Listening schemes</string>
+    <string name="tts_scheme_initial">Standard scheme</string>
+    <string name="tts_scheme_new_name">New scheme</string>
+    <string name="tts_scheme_new">New scheme</string>
+    <string name="tts_scheme_name">Scheme name</string>
+    <string name="tts_scheme_default">Default</string>
+    <string name="tts_scheme_set_default">Set as default</string>
+    <string name="tts_scheme_follow_default">Follow default</string>
+    <string name="tts_scheme_follow_name">Follow default: %1$s</string>
+    <string name="tts_scheme_book">Scheme for this book</string>
+    <string name="tts_scheme_copy_for_book">Copy as this book’s scheme</string>
+    <string name="tts_scheme_copy">Copy scheme</string>
+    <string name="tts_scheme_rename">Rename scheme</string>
+    <string name="tts_scheme_delete">Delete scheme</string>
+    <string name="tts_scheme_delete_replacement">Replace this scheme with the selection below for all books that use it. If it is the default, the selection becomes the new default.</string>
+    <string name="tts_scheme_editing">Editing: %1$s</string>
+    <string name="tts_scheme_actions">Actions for %1$s</string>
+    <string name="tts_scheme_default_usage">Books following the default</string>
+    <string name="tts_scheme_used_by">Used by: %1$s</string>
+    <string name="tts_scheme_unused">No books use this scheme</string>
+    <string name="tts_scheme_unknown_book">Untitled book</string>
+    <string name="tts_diagnostic_scheme">Book / scheme</string>
+</resources>

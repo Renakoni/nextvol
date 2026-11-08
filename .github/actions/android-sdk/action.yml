@@ -30,10 +30,10 @@ runs:
       env:
         API_LEVEL: ${{ inputs.api }}
       run: bash .github/scripts/prepare-android-sdk.sh "$API_LEVEL"
-    # Save successful preparation before tests, so a test failure does not force
-    # the next run to download the same multi-gigabyte image again.
+    # Only main publishes shared tools. PR misses may download locally, but must
+    # not fill the repository quota with private copies of the same images.
     - name: Save SDK cache
-      if: steps.sdk.outputs.cache-hit != 'true'
+      if: github.ref == 'refs/heads/main' && steps.sdk.outputs.cache-hit != 'true'
       uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: |
@@ -42,7 +42,7 @@ runs:
           ${{ runner.temp }}/hnovel-android-sdk/platform-tools
         key: ${{ steps.sdk.outputs.cache-primary-key }}
     - name: Save emulator cache
-      if: inputs.api != '' && steps.emulator.outputs.cache-hit != 'true'
+      if: github.ref == 'refs/heads/main' && inputs.api != '' && steps.emulator.outputs.cache-hit != 'true'
       uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: |

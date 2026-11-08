@@ -1,0 +1,51 @@
+name: 维护／重构任务
+description: 跟踪职责调整、规则统一、性能改进、文档或开发工具维护。
+title: "[Task] "
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先搜索[已有 issue](https://github.com/Renakoni/nextvol/issues)，避免重复建项。
+        一个实施 issue 聚焦一个可独立交付的主要问题；跨多个 PR 的总览请关联各自的子 issue。
+        正文描述现状、目标和必要证据，不记录执行日记、CI 状态流水账或工作区路径。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 现状与问题
+      description: 当前结构或行为造成了什么具体问题、维护成本或性能损失？给出必要依据，并区分实际观察与推测。
+      placeholder: 阅读与手动已读各自计算完成度，同一份目录和历史进度可能得到不同结果。
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 目标与范围
+      description: 本次要解决什么问题？涉及哪些职责或流程？有容易混淆的相邻工作时，说明必要的范围限制。
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 完成标准
+      description: 列出可核对的完成结果，避免只写“提高可维护性”。可复用现有测试、定向验证或代码审查，不要求为每一项新增测试。
+      placeholder: |
+        - [ ] 各实际写入入口使用同一套完成度规则。
+        - [ ] 相同目录和历史进度经过不同入口得到一致结果。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 技术依据／建议（可选）
+      description: 可补充关键代码位置、已有测量、可能方案及必要取舍；只保留定位或决策需要的信息。
+
+  - type: textarea
+    id: relations
+    attributes:
+      label: 关联与依赖（可选）
+      description: 列出前置 issue、与其他工作的分工，或实施前需要确定的事项。总览任务在此关联子 issue。

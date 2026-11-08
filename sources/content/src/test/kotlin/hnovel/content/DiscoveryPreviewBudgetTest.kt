@@ -8,7 +8,7 @@ import org.junit.Test
 class DiscoveryPreviewBudgetTest {
     private val route = SourceNetworkRoute.systemDefault()
     private fun key(index: Int = 0) = DiscoveryPreviewDocuments.Key(
-        BrokerRequest("content", "https://fixture.test/$index"), route, emptyList(), emptyMap(), null)
+        BrokerRequest("content", "https://fixture.test/$index"), route.reference, emptyList(), emptyMap(), null)
     private fun document(body: String) = PageDocument(body, "https://fixture.test/list", successfulResponse = true)
 
     @Test fun aThousandSourcesShareBothTheDocumentAndBodyBudget() {

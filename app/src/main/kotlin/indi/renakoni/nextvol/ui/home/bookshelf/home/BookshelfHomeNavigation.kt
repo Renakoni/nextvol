@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.ui.home.bookshelf.home
 
-import androidx.compose.animation.SharedTransitionScope
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,8 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 
-@Suppress("UNUSED_PARAMETER")
-fun NavGraphBuilder.bookshelfHomeDestination(sharedTransitionScope: SharedTransitionScope) {
+fun NavGraphBuilder.bookshelfHomeDestination() {
     composable<Route.Main.Bookshelf.Home> {
         val navController = LocalNavController.current
         val parentEntry = remember(it) { navController.getBackStackEntry(Route.Main) }

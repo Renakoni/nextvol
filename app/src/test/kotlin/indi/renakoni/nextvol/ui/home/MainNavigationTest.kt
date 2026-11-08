@@ -30,9 +30,8 @@ import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.ui.home.settings.navigateToSettingsDestination
 import indi.renakoni.nextvol.utils.currentMainRoute
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
-import indi.renakoni.nextvol.utils.expandEnter
+import indi.renakoni.nextvol.ui.navigation.destinationEnter
 import indi.renakoni.nextvol.utils.expandExit
-import indi.renakoni.nextvol.utils.expandPopEnter
 import indi.renakoni.nextvol.utils.expandPopExit
 import io.nightfish.lightnovelreader.api.Route
 import kotlinx.coroutines.runBlocking
@@ -75,9 +74,9 @@ class MainNavigationTest {
             val root = entry?.destination.currentMainRoute()
             Box(Modifier.fillMaxSize()) {
                 NavHost(controller, startDestination = Route.Main,
-                    enterTransition = { if (animated) expandEnter() else EnterTransition.None },
+                    enterTransition = { if (animated) destinationEnter() else EnterTransition.None },
                     exitTransition = { if (animated) expandExit() else ExitTransition.None },
-                    popEnterTransition = { if (animated) expandPopEnter() else EnterTransition.None },
+                    popEnterTransition = { if (animated) destinationEnter(pop = true) else EnterTransition.None },
                     popExitTransition = { if (animated) expandPopExit() else ExitTransition.None }) {
                     navigation<Route.Main>(startDestination = Route.Main.Reading) {
                         navigation<Route.Main.Reading>(startDestination = Route.Main.Reading.Home) {

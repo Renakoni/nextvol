@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_http_check_network">检查网络</string>
+    <string name="tts_error_http_network_unavailable">当前网络不可用，请连接网络或关闭“检查网络”。</string>
+    <string name="tts_error_http_configuration">请检查引擎请求配置与发音人参数。</string>
+    <string name="tts_error_http_authentication">语音服务鉴权失败，请更新引擎配置中的账号信息。</string>
+</resources>

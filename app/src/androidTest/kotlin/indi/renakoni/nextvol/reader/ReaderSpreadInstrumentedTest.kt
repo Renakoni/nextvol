@@ -37,8 +37,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.get
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.data.content.component.ImageComponent
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ImageComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.theme.AppTheme

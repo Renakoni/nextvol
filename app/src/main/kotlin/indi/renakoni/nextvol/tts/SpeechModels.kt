@@ -4,7 +4,8 @@ import androidx.compose.runtime.Stable
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class SpeechRequest(val bookId: String, val chapterId: String, val previewText: String? = null) {
+data class SpeechRequest(val bookId: String, val chapterId: String, val previewText: String? = null,
+    val previewSettings: SpeechSettings? = null) {
     val isPreview get() = previewText != null
 }
 
@@ -23,10 +24,11 @@ data class SpeechChapter(
 enum class SpeechPhase { Stopped, Preparing, Playing, Paused, Buffering, Completed, Failed }
 
 enum class SpeechError {
-    NoEngine, EngineUnavailable, MissingVoice, MissingLanguageData, InitializationTimeout,
-    SynthesisTimeout, SynthesisFailed, Network, InvalidAudio, Storage, SourceUnavailable,
+    NoEngine, EngineUnavailable, MissingVoice, MissingNarrationVoice, MissingDialogueVoice, MissingLanguageData, InitializationTimeout,
+    SynthesisTimeout, SynthesisFailed, AudioProcessing, Network, NetworkUnavailable, InvalidAudio, Storage, SourceUnavailable,
     SourceTimeout, EmptyText, UnsupportedContent, Playback, ServiceUnavailable,
-    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin,
+    HttpSourceUnavailable, HttpPermission, HttpUnsupported, HttpLogin, HttpConfiguration, HttpAuthentication, OfflineUnavailable, ReplacementRule, RoleRule,
+    LanguageDetectorUnavailable,
 }
 
 class SpeechException(val error: SpeechError) : Exception(error.name)
@@ -58,6 +60,14 @@ data class ReadAloudState(
     val sleepTimerDeadline: Long? = null,
     val showFloatingPlayer: Boolean = false,
     val position: SpeechPosition? = null,
+    val sleepTimerChapters: Int? = null,
+    /** Frozen duration while paused; sleepTimerDeadline is present only during book playback. */
+    val sleepTimerRemainingMillis: Long? = null,
+    val replacementFailure: SpeechReplacementFailure? = null,
+    val planContext: SpeechContext = SpeechContext(),
+    val failedVoice: SpeechVoiceRef? = null,
+    val roleFailure: SpeechRoleFailure? = null,
+    val failedRole: SpeechRoleMatch? = null,
 ) {
     val isActive get() = phase in setOf(SpeechPhase.Preparing, SpeechPhase.Playing, SpeechPhase.Buffering)
 }

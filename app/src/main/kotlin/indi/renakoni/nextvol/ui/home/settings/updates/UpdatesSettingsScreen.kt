@@ -11,11 +11,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingState
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.components.SettingsSwitchEntry
+import indi.renakoni.nextvol.ui.home.settings.data.SettingsMenuOptions
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.utils.navigationBarSpacer
@@ -55,12 +56,13 @@ private fun UpdatesSettingsList(
         checked = settingState.checkUpdate,
         booleanUserData = settingState.checkUpdateUserData
     )
-    SettingsClickableEntry(
+    SettingsMenuEntry(
         modifier = Modifier.background(colorScheme.surfaceContainer),
         painter = painterResource(R.drawable.outline_explore_24px),
         title = stringResource(R.string.settings_distribution_platform),
-        description = "${stringResource(R.string.key_platform_github)} · ${ProjectLinks.REPOSITORY}",
-        openUrl = ProjectLinks.RELEASES
+        options = SettingsMenuOptions.UpdatePlatformOptions,
+        selectedOptionKey = settingState.distributionPlatformKey,
+        onOptionChange = settingState.distributionPlatformKeyUserData::asynchronousSet
     )
     SettingsClickableEntry(
         modifier = Modifier.background(colorScheme.surfaceContainer),

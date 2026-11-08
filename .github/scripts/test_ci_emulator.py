@@ -53,8 +53,8 @@ case "$*" in
       touch "$CASE_ROOT/prepare-retried"
       exit 124
     fi ;;
-  'shell settings put global '* )
-    if [[ "$CASE" == settings-fail ]]; then exit 31; fi ;;
+  'shell wm dismiss-keyguard')
+    if [[ "$CASE" == unlock-fail ]]; then exit 31; fi ;;
   'emu kill')
     if [[ "$CASE" == cleanup-fail ]]; then exit 29; fi ;;
 esac
@@ -87,6 +87,8 @@ exit "$TEST_EXIT"
         self.assertEqual('one argument\n', (self.root / 'ran').read_text())
         self.assertIn('-no-snapshot', (self.root / 'emulator-args').read_text())
         self.assertIn('emu kill', (self.root / 'adb-calls').read_text())
+        self.assertIn('shell wm dismiss-keyguard', (self.root / 'adb-calls').read_text())
+        self.assertNotIn('input keyevent', (self.root / 'adb-calls').read_text())
         pid = int((self.root / 'emulator-pid').read_text())
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
@@ -128,14 +130,17 @@ exit "$TEST_EXIT"
         self.assertEqual(['one argument'], (self.root / 'ran').read_text().splitlines())
 
     def test_readiness_failure_stops_before_tests(self):
-        result = self.run_case('settings-fail')
+        result = self.run_case('unlock-fail')
         self.assertEqual(31, result.returncode, result.stderr)
         self.assertFalse((self.root / 'ran').exists())
 
     def test_viewport_timeout_restarts_before_running_tests_once(self):
         result = self.run_case('prepare-recovers')
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(2, len((self.root / 'launches').read_text().splitlines()))
+        # The first emulator process can be killed before its background mock
+        # records the launch. Both attempts still synchronously start ADB; the
+        # successful command proves the second preparation completed.
+        self.assertEqual(2, (self.root / 'adb-calls').read_text().splitlines().count('start-server'))
         self.assertEqual(['one argument'], (self.root / 'ran').read_text().splitlines())
 
     def test_persistent_viewport_timeout_never_runs_tests_or_later_setup(self):

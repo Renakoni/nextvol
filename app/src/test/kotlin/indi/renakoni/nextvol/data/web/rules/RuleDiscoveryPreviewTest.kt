@@ -3,7 +3,7 @@ package indi.renakoni.nextvol.data.web.rules
 import android.app.Application
 import com.github.michaelbull.result.get
 import hnovel.content.RuleSourceFixture
-import hnovel.content.RuleSource
+import hnovel.content.createRuleSource
 import hnovel.execution.ExecutionTask
 import hnovel.network.NetworkGrant
 import hnovel.network.SourceScope
@@ -237,7 +237,7 @@ class RuleDiscoveryPreviewTest {
                 val session = fixture.broker.open(SourceScope("rules", definition.sourceId, definition.profile, 1),
                     listOf(NetworkGrant(fixture.server.url("/").toString(), allowPrivateAddresses = true)))
                 val identity = fixture.authority.issue(definition.sourceId, definition.profile, definition.contentDigest, "rules", 1)
-                RuleSource(definition, identity, fixture.authority, session, fixture.runner)
+                createRuleSource(definition, identity, fixture.authority, session, fixture.runner)
             } else fixture.source { JsonObject(configured(it) + ("bookSourceComment" to JsonPrimitive("New revision"))) }
             var restored = false
             fixture.beforeRun = { task, _ -> if (task is ExecutionTask.Rule && task.location.field.startsWith("ruleExplore.")) restored = true }

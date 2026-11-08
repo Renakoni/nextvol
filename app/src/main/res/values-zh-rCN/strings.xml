@@ -235,6 +235,7 @@
     <string name="book_manager_clear_orphaned_content">删除未关联到任何本地书本的章节数据？</string>
     <string name="book_manager_group_index_only">书本内容未缓存（ %1$d ）</string>
     <string name="book_manager_cleared_items">已删除 %1$d 个项目</string>
+    <string name="book_manager_delete_failed">未能完成所选书籍的删除，请重试。</string>
     <string name="storage_manager_title">存储与清理</string>
     <string name="storage_manager_empty_description">没有可分析的本地缓存。</string>
     <string name="storage_manager_used">已使用</string>
@@ -525,7 +526,6 @@
     <string name="sources_profile_extension">扩展阅读书源</string>
     <string name="sources_profile_help">按书源作者的说明选择。扩展模式支持动态登录表单和扩展控件。</string>
     <string name="sources_apply_field">执行字段动作</string>
-    <string name="source_diagnostics_login_form">检查登录表单</string>
     <string name="source_verification_download_paused">已停止：需要完成网站验证</string>
     <string name="source_verification_background_open">打开验证</string>
     <string name="source_verification_background">%1$s 需要验证，后台读取已停止。验证后请重新开始下载。</string>
@@ -609,4 +609,30 @@
     <string name="external_file_busy">请先完成或取消当前导入，再打开其他文件。</string>
     <string name="external_file_unsupported">不支持此文件类型，请选择 EPUB、TXT、.nvbackup 或 .lnr 文件。</string>
     <string name="external_file_unreadable">无法读取此文件。请先下载文件，再从发送应用重新打开。</string>
+    <string name="tts_manage_voices">管理声音</string>
+    <string name="tts_manage_select_all">全选</string>
+    <string name="tts_manage_select_none">清除选择</string>
+    <string name="tts_manage_select_inverse">反选</string>
+    <string name="tts_manage_delete">删除</string>
+    <string name="tts_manage_selected">已选 %1$d 项</string>
+    <string name="tts_manage_exit">退出管理</string>
+    <string name="tts_voice_reorder">拖动排序：%1$s</string>
+    <string name="tts_manage_search_scope">数量与删除仅针对当前搜索结果</string>
+    <string name="tts_engine_cache_capacity">引擎缓存上限</string>
+    <string name="tts_audio_processor">音频处理器</string>
+    <string name="tts_audio_minimum_rate">最低采样率</string>
+    <string name="tts_audio_check_silence">静音检测</string>
+    <string name="tts_audio_check_silence_off">已关闭，不跳过无声片段</string>
+    <string name="tts_audio_check_silence_on">已启用，会跳过无声片段</string>
+    <string name="tts_error_audio_processing">音频处理失败，请检查处理器和声音参数。</string>
+    <string name="tts_language_detector">语言检测算法</string>
+    <string name="tts_language_optimaize">Optimaize</string>
+    <string name="tts_language_media_pipe">Media Pipe</string>
+    <string name="tts_filter_language">过滤语言</string>
+    <string name="tts_filter_language_description">在线更新时，依据语言过滤返回的发音人。</string>
+    <string name="tts_role_mode_language">语言</string>
+    <string name="tts_role_secondary_language">备选语言</string>
+    <string name="tts_role_language_required">请选择当前检测算法支持的语言。</string>
+    <string name="tts_language_detector_unavailable">所选语言检测器或模型无法加载，请检查语言规则和语言检测算法。</string>
+    <string name="tts_segment_language">语言：%1$s</string>
 </resources>

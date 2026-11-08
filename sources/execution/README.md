@@ -1,5 +1,16 @@
 # Source execution isolation (#86)
 
+Content activation is assembled by [createRuleSource](../content/src/main/kotlin/hnovel/content/RuleSourceHost.kt).
+It checks definition/ticket/session ownership and binds the ticket before configuration,
+configures the existing session and supplies bound storage, `SourceInvocations` and
+content-only network capabilities. Network and execution never depend on content;
+content retains its `api` dependencies for public request, response and error contracts.
+`SourceSession` owns cookies, storage, transport and resource closure. `RuleSource`
+owns its queue, parsing state and previews; closing it only revokes its ticket and
+clears previews. Login panels receive new tickets through the same factory and share
+the account session. Each invocation gets a fresh broker with its own budget, while
+the host retains ownership of the session even when content construction fails.
+
 `IsolatedExecutor` creates a fresh worker JVM for each invocation and sends only a serialized, host-issued identity, task and limits. The host locates the worker classpath from actual code sources, drains stdout concurrently under a 256 KiB wire cap, bounds input before launch, includes startup/pipe work in its wall-clock deadline, watches host revocation while the worker runs, forcibly terminates late workers and rejects results after revocation. `ExecutionAuthority` issues unguessable nonces and revokes identities; forged identities are rejected.
 
 The Android app uses a non-exported `isolatedProcess` service with an AIDL request/callback protocol. The service checks the calling UID inside Binder transactions against the installed package UID, never against `onBind`'s calling UID or an Intent extra. Callbacks are checked against the worker UID. A debug-only second isolated service verifies that forwarding the worker Binder does not grant access to another UID.
@@ -70,7 +81,7 @@ java.androidId() is a host-broker operation returning a persisted 16-lowercase-h
 
 The fixed jsLib profile intentionally uses trimmed-brace classification before parsing a URL map, matching upstream SharedJsScope and isJsonObject. A brace-delimited malformed map/block does not fall back to executable JS. Prefixing a block with a statement such as a semicolon selects the inline-script representation in both constructions.
 
-The full #87 compatibility matrix remains incomplete: broader book/chapter metadata, traditional/simplified conversion, archive/directory/font tools, arbitrary-file charset detection and additional response/DOM methods are still pending. Cookie/login/browser/UI integrations retain their own issue ownership. Safe response views expose only the methods documented in ../rhino/README.md. #90 owns production rule-source routing and #94 owns revision activation/rollback. Those integrations must use the shared authority/current source generation and the existing execution/broker boundary; importing a definition does not itself activate a runtime.
+The full #87 compatibility matrix remains incomplete: broader book/chapter metadata, traditional/simplified conversion, archive/directory/font tools, arbitrary-file charset detection and additional response/DOM methods are still pending. Cookie/login/browser/UI integrations retain their own issue ownership. Safe response views expose only the methods documented in ../rhino/README.md. #90 owns production rule-source routing and #94 owns revision activation. Those integrations must use the shared authority/current source generation and the existing execution/broker boundary; importing a definition does not itself activate a runtime.
 
 Nested rules and request templates now use the caller's Rhino ContextFactory and budgets. #113 supplies the original Rule input and shared RuleContext so nested writes are returned with ExecutedRule. The JVM child includes Hutool crypto/core for the three modern data-only crypto factories; Android excludes duplicate JAR-only INDEX.LIST metadata. Request-option/header/body JSON embedded in strings is depth-checked before host parsing.
 

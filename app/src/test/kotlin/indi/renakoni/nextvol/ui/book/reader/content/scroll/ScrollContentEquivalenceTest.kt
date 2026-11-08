@@ -19,7 +19,7 @@ import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Density
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.get
-import indi.renakoni.nextvol.data.content.ContentComponentFactory
+import indi.renakoni.nextvol.ui.book.reader.content.ContentComponentFactory
 import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
@@ -122,7 +122,7 @@ class ScrollContentEquivalenceTest {
         compose.runOnIdle { locales = LocaleList("ja-JP") }; awaitPreparation(8)
         assertEquals(4, publications)
         assertEquals(4, decodeNanos.size)
-        assertTrue(prepared!!.text.isNotEmpty())
+        assertTrue(prepared!!.blocks.any { it.text != null })
         println("Host-only measurement: publications=$publications, decodes=${decodeNanos.size}, preparations=$preparations, decodeNanos=$decodeNanos")
     }
 

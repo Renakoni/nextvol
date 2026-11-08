@@ -12,10 +12,19 @@ import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import io.nightfish.lightnovelreader.api.error.WebRequestError
+import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.userdata.UserDataPath
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -28,7 +37,14 @@ class ReadingHomeViewModel @Inject constructor(
     private val readingBooksUserData =
         userDataRepository.stringListUserData(UserDataPath.ReadingBooks.path)
 
-    var recentReadingBooks: List<Pair<String, Flow<Result<RecentReadingBook, WebRequestError>>>> by mutableStateOf(emptyList())
+    private class BookObservation(
+        val job: Job,
+        val state: StateFlow<Result<RecentReadingBook, WebRequestError>?>,
+    )
+
+    private val observations = mutableMapOf<String, BookObservation>()
+
+    var recentReadingBooks: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>> by mutableStateOf(emptyList())
         private set
 
     var chapterSheetUiState by mutableStateOf<ChapterSheetUiState?>(null)
@@ -37,25 +53,37 @@ class ReadingHomeViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             readingBooksUserData.getFlowWithDefault(emptyList()).collect { ids ->
-                recentReadingBooks = ids
-                    .reversed()
-                    .filter(String::isNotBlank)
-                    .map { id ->
-                        val bookInformationFlow = bookRepository.getBookInformationFlow(id)
-                        val userReadingDataFlow = bookRepository.getUserReadingDataFlow(id)
-                        id to bookInformationFlow
-                            .combine(userReadingDataFlow) { bookInformationResult, userReadingData ->
-                                bookInformationResult.map {
-                                    RecentReadingBook(
-                                        id = id,
-                                        bookInformation = it,
-                                        userReadingData = userReadingData
-                                    )
-                                }
-                            }
-                    }
+                val ordered = ids.asReversed().filter(String::isNotBlank).distinct()
+                val retained = ordered.toSet()
+                observations.keys.filter { it !in retained }.forEach { id ->
+                    observations.remove(id)?.job?.cancel()
+                }
+                recentReadingBooks = ordered.map { id ->
+                    id to observations.getOrPut(id) { observeBook(id) }.state
+                }
             }
         }
+    }
+
+    private fun observeBook(id: String): BookObservation {
+        val job = SupervisorJob(viewModelScope.coroutineContext[Job])
+        val scope = CoroutineScope(viewModelScope.coroutineContext + job)
+        var information: Result<BookInformation, WebRequestError>? = null
+        val state = bookRepository.getBookInformationFlow(id)
+            .map { result ->
+                // A failed refresh must not clear a known book or stop live progress updates.
+                if (result.isOk || information?.isOk != true) information = result
+                requireNotNull(information)
+            }
+            .onStart { information?.let { emit(it) } }
+            .combine(bookRepository.getUserReadingDataFlow(id)) { result, reading ->
+                result.map { RecentReadingBook(id, it, reading) }
+            }
+            .flowOn(Dispatchers.IO)
+            // Header and history share one upstream. Returning restarts the repository refresh
+            // while the last result remains available; removing the ID cancels its child scope.
+            .stateIn(scope, SharingStarted.WhileSubscribed(), null)
+        return BookObservation(job, state)
     }
 
     fun openChapters(bookId: String) {

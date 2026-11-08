@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.data.explore
 import com.github.michaelbull.result.getOrElse
 import hnovel.execution.ExecutionResult
 import hnovel.execution.FailureCode
+import hnovel.network.BrokerLimits
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.discovery.DiscoveryError
 import io.nightfish.lightnovelreader.api.web.search.SearchResult
@@ -13,7 +14,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 internal const val SEARCH_RESULT_LIMIT = 1000
-internal const val SEARCH_CONCURRENCY = 8
+internal const val SEARCH_CONCURRENCY = BrokerLimits.DEFAULT_CONCURRENCY
 internal data class SearchRequest(val source: Identifier, val page: Int, val query: String? = null)
 internal data class SearchBatch(
     val request: SearchRequest,

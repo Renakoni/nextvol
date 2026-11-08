@@ -39,8 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.data.content.component.ErrorContentComponent
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.ErrorContentComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.theme.AppTheme
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import io.mockk.every

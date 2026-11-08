@@ -2,8 +2,6 @@ package indi.renakoni.nextvol.utils
 
 import android.icu.text.DateTimePatternGenerator
 import android.icu.util.ULocale
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions.DateFormatOptions
-import indi.renakoni.nextvol.ui.home.settings.data.MenuOptions.DateOrderOptions
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
@@ -14,14 +12,14 @@ import java.util.Locale
  *  - NUMERIC → 2025/12/31
  *  - WRITTEN → 2025年12月31日, December 31, 2025
  */
-enum class DateFormat {
-    NUMERIC, WRITTEN;
+enum class DateFormat(val key: String) {
+    NUMERIC("numeric"), WRITTEN("written");
 
     companion object {
         fun fromString(value: String, default: DateFormat = NUMERIC): DateFormat =
             when (value.lowercase()) {
-                DateFormatOptions.Numeric -> NUMERIC
-                DateFormatOptions.Written -> WRITTEN
+                NUMERIC.key -> NUMERIC
+                WRITTEN.key -> WRITTEN
                 else -> default
             }
     }
@@ -30,14 +28,14 @@ enum class DateFormat {
 val appDisplayLocale: Locale
     get() = Locale.getDefault()
 
-enum class DateOrder {
-    AUTO, YMD, DMY, MDY;
+enum class DateOrder(val key: String) {
+    AUTO("auto"), YMD("ymd"), DMY("dmy"), MDY("mdy");
 
     companion object {
         fun fromString(value: String): DateOrder = when (value.lowercase()) {
-            DateOrderOptions.YMD -> YMD
-            DateOrderOptions.DMY -> DMY
-            DateOrderOptions.MDY -> MDY
+            YMD.key -> YMD
+            DMY.key -> DMY
+            MDY.key -> MDY
             else -> AUTO
         }
     }

@@ -50,6 +50,7 @@ class ProxyCoalescingWebBookDataSource(
         if (currentCoroutineContext()[hnovel.network.RequestRetryContext] != null ||
             currentCoroutineContext()[indi.renakoni.nextvol.data.web.SourceRequestVersion] != null) return block()
         if (currentCoroutineContext()[indi.renakoni.nextvol.data.web.BackgroundSourceRequest] != null) return block()
+        if (currentCoroutineContext()[indi.renakoni.nextvol.data.web.DownloadSourceRequest] != null) return block()
         val owner = currentCoroutineContext()[SourceRequestOwner] ?: kotlin.coroutines.EmptyCoroutineContext
         return withContext(RequestContext(key)) { coalescing.execute { withContext(owner) { block() } } }
     }

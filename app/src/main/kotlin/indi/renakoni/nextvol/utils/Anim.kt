@@ -16,7 +16,7 @@ import kotlin.math.roundToInt
 val cubicBezierEasing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
 const val animDuration = 360
 
-fun expandEnter(): EnterTransition =
+fun expandEnter(fadeThrough: Boolean = true): EnterTransition =
     slideInHorizontally(
         animationSpec = tween(
             durationMillis = animDuration,
@@ -25,7 +25,7 @@ fun expandEnter(): EnterTransition =
         initialOffsetX = { (0.1f * it).roundToInt() }
     ) + fadeIn(
         animationSpec = tween(
-            delayMillis = (0.35f * animDuration).roundToInt(),
+            delayMillis = if (fadeThrough) (0.35f * animDuration).roundToInt() else 0,
             durationMillis = (0.45f * animDuration).roundToInt(),
             easing = LinearEasing
         )
@@ -45,7 +45,7 @@ fun expandExit(): ExitTransition =
         )
     )
 
-fun expandPopEnter(): EnterTransition =
+fun expandPopEnter(fadeThrough: Boolean = true): EnterTransition =
     slideInHorizontally(
         animationSpec = tween(
             durationMillis = animDuration,
@@ -54,7 +54,7 @@ fun expandPopEnter(): EnterTransition =
         initialOffsetX = { (-0.1f * it).roundToInt() }
     ) + fadeIn(
         animationSpec = tween(
-            delayMillis = (0.35f * animDuration).roundToInt(),
+            delayMillis = if (fadeThrough) (0.35f * animDuration).roundToInt() else 0,
             durationMillis = (0.45f * animDuration).roundToInt(),
             easing = LinearEasing
         )

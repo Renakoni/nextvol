@@ -4,19 +4,24 @@ import android.content.Intent
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import indi.renakoni.nextvol.data.work.EpubShareFiles
+import indi.renakoni.nextvol.data.export.EpubShareFiles
+import indi.renakoni.nextvol.ui.export.EpubShareActivity
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.UUID
 
-/** Real Android FileProvider, including delayed reads after a chooser has been prepared. */
+/** Real Android component identity and FileProvider, including delayed reads after chooser preparation. */
 @RunWith(AndroidJUnit4::class)
 class EpubShareInstrumentedTest {
     @Suppress("DEPRECATION")
     @Test fun epubAndVolumeArchiveRemainReadable() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val entry = context.packageManager.getActivityInfo(
+            EpubShareActivity.intent(context, UUID.randomUUID()).component!!, 0)
+        assertEquals("indi.renakoni.nextvol.ui.book.detail.EpubShareActivity", entry.name)
+        assertFalse(entry.exported)
         for (count in listOf(1, 2)) {
             val id = UUID.randomUUID()
             val staging = File(context.cacheDir, "share-test-$id").apply { mkdirs() }

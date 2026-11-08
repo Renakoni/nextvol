@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
@@ -27,8 +28,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.get
-import com.valentinilk.shimmer.Shimmer
 import com.valentinilk.shimmer.shimmer
+import com.valentinilk.shimmer.Shimmer
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.home.bookshelf.BookshelfBookItem
@@ -41,7 +42,7 @@ internal fun BookshelfGridCard(
     result: Result<BookshelfBookItem, WebRequestError>?,
     selected: Boolean,
     selectMode: Boolean,
-    shimmer: Shimmer,
+    shimmer: Shimmer?,
     onClick: () -> Unit,
     onLongPress: () -> Unit
 ) {
@@ -52,7 +53,7 @@ internal fun BookshelfGridCard(
             .padding(horizontal = 8.dp, vertical = 6.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) colors.secondaryContainer else colors.surface)
+            .background(if (selected) colors.secondaryContainer else Color.Transparent)
             .semantics { this.selected = selected }
             .combinedClickable(
                 enabled = result != null || selectMode,
@@ -70,7 +71,7 @@ internal fun BookshelfGridCard(
                 } else {
                     Box(
                         Modifier.fillMaxSize()
-                            .then(if (result == null) Modifier.shimmer(shimmer) else Modifier)
+                            .then(if (result == null && shimmer != null) Modifier.shimmer(shimmer) else Modifier)
                             .background(colors.surfaceContainerHighest),
                         contentAlignment = Alignment.Center
                     ) {

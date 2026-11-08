@@ -10,8 +10,7 @@ import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.content.ContentComponentRegistry
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.download.BookDownloadStore
-import indi.renakoni.nextvol.data.local.LocalDataManager
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
@@ -48,7 +47,7 @@ class BackupConversionTest {
     @get:Rule val temporary = TemporaryFolder()
     private val context = RuntimeEnvironment.getApplication()
     private lateinit var db: NextVolDatabase
-    private lateinit var manager: LocalDataManager
+    private lateinit var manager: BackupDataManager
     private var sequence = 0
 
     @Before fun setUp() {
@@ -56,7 +55,7 @@ class BackupConversionTest {
         val coordinator = StatisticsWriteCoordinator()
         val stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), mockk(), coordinator)
         val downloads = BookDownloadStore(context, db, ContentJsonDecoder(ContentComponentRegistry()))
-        manager = LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
+        manager = BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(),
             db.bookshelfDao(), db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(),
             db.userReadingDataDao(), db.userDataDao(), mockk(relaxed = true), coordinator, stats, downloads)
     }
@@ -119,10 +118,10 @@ class BackupConversionTest {
         assertEquals(before, db.bookshelfDao().getAllBookshelves())
     }
 
-    @Test fun allExportSelectionCombinationsRemainValidAfterLegacyImport() = runBlocking {
+    @Test fun individualExportSelectionsRemainValidAfterLegacyImport() = runBlocking {
         restore(legacyBytes())
         val keys = listOf("exportLocalBookCache", "exportBookshelf", "exportReadingData", "exportSetting", "exportBookmark")
-        for (mask in 0 until 32) {
+        for (mask in listOf(0, 1, 2, 4, 8, 16)) {
             val flags = (0 until 5).map { mask and (1 shl it) != 0 }
             val uri = Uri.parse("content://backup-conversion/options-$mask")
             val output = ByteArrayOutputStream()

@@ -43,12 +43,12 @@ import indi.renakoni.nextvol.ui.home.settings.theme.ThemeScreen
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
-import indi.renakoni.nextvol.data.content.component.SimpleTextComponent
+import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.*
 import indi.renakoni.nextvol.ui.book.reader.content.componet.*
 import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderPage
 import indi.renakoni.nextvol.ui.book.reader.content.flip.paginateReaderComponents
-import indi.renakoni.nextvol.utils.loadReaderFontFamilySafe
+import indi.renakoni.nextvol.ui.book.reader.loadReaderFontFamilySafe
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
 import io.nightfish.lightnovelreader.api.ui.ReaderStyle
@@ -240,13 +240,13 @@ class ReaderLayoutInstrumentedTest {
         compose.onNodeWithTag("reader-paper-sage").performScrollTo().performClick()
         compose.waitUntil(5_000) { settings.paperId == "sage" }
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-        compose.onNodeWithText(context.getString(R.string.reader_settings)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.appearance_settings)).assertIsDisplayed()
         assertFalse(dismissed)
         compose.onNodeWithTag("reader-paper-sage").assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.paper_settings)).performClick()
         compose.onNodeWithTag("reader-paper-sage").assertIsSelected()
         compose.onNodeWithContentDescription(context.getString(R.string.sources_back)).performClick()
-        compose.onNodeWithText(context.getString(R.string.reader_settings)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.appearance_settings)).assertIsDisplayed()
     }
 
     @Test fun externalPaperSubpagePreservesSelectionAndParentScrollPosition() {

@@ -1,5 +1,5 @@
-name: Bug Report - Bug反馈
-description: Create a report to help us improve. - 反馈问题，帮助我们改进
+name: 问题反馈
+description: 反馈阅读、书源、下载、导入导出等使用中出现的异常。
 title: "[Bug] "
 labels:
   - bug
@@ -8,54 +8,91 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filling in this `issue`, please make sure that there are no similar or duplicate `issues` that have been opened.
-        填写此 `issue` 前，请先确认已经开启的 `issue` 没有类似或重复的 `issue`。
+        请先搜索[已有 issue](https://github.com/Renakoni/nextvol/issues)，相同问题请补充到原 issue。
+        标题写清触发条件和异常结果，例如“离线阅读已下载章节时仍请求网络”。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 在哪个功能遇到了什么问题？对使用有什么影响？
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤／发生经过
+      description: 写出初始状态、相关设置和操作顺序。偶发问题可记录最近一次发生经过，不要求稳定复现。
+      placeholder: |
+        1. 当时的状态或准备操作：
+        2. 执行的操作：
+        3. 出现异常的位置：
+    validations:
+      required: true
+
+  - type: textarea
+    id: results
+    attributes:
+      label: 实际结果与预期结果
+      description: 分别说明实际发生什么、正常应该怎样；有错误提示或进度数值时请写出具体内容。
+      placeholder: |
+        实际结果：
+        预期结果：
+    validations:
+      required: true
 
   - type: input
     id: version
     attributes:
-      label: Version Details - 版本信息
-      description: |
-        What version of NextVol do you use?
-        你使用的 NextVol 的构建版本是什么
-      placeholder: NextVol version code
+      label: NextVol 完整版本
+      description: 请填写完整版本号，包含构建后缀；不要只写“最新版”。
     validations:
       required: true
 
-  - type: textarea
-    id: exist
+  - type: dropdown
+    id: installation
     attributes:
-      label: Existing behavior - 现有行为
-      description: |
-        Please describe the problem you have encountered carefully.
-        请仔细描述你所遇到的问题。
-    validations:
-      required: true
-
-  - type: textarea
-    id: expect
-    attributes:
-      label: Expected behavior - 预期行为
-      description: |
-        Please describe in detail the results you wish to achieve.
-        请仔细描述你要得到的结果。
-    validations:
-      required: true
-
-  - type: textarea
-    id: reproduce
-    attributes:
-      label: To Reproduce - 复现问题
-      description: |
-        How do you trigger this bug? Please walk us through it step by step.
-        这个bug是怎么触发的？请详细告诉我们是怎样出现这个情况的。
-    validations:
-      required: false
-
-  - type: checkboxes
-    id: know
-    attributes:
-      label: This issue is unique - 这个issue是唯一的
+      label: 安装来源
       options:
-        - label: I have searched the issue tracker and did not find an issue describing my bug. - 我已经搜索问题追踪器并且没有发现相同的 issue。
-          required: true
+        - GitHub Releases
+        - GitHub Actions
+        - 应用内更新
+        - 自行构建
+        - 其他／不清楚
+    validations:
+      required: true
+
+  - type: input
+    id: android-version
+    attributes:
+      label: Android 版本
+      placeholder: 例如 Android 15
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统（可选）
+      description: 设备型号，以及 HyperOS、ColorOS、One UI 等系统的版本。
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 相关书源、数据与设置（可选）
+      description: |
+        只填写与本问题有关的信息：书源名称或规则版本、书籍／章节、翻页或滚动模式、在线／离线状态。
+        导入导出问题可补充文件类型；朗读问题可补充引擎或方案；更新问题可补充更新渠道。
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图、录屏或日志（可选）
+      description: 附上能说明问题的截图、操作录屏、相关错误片段，或便于复现的最小样本。
+
+  - type: textarea
+    id: analysis
+    attributes:
+      label: 补充分析（可选）
+      description: 可补充已知正常版本、代码位置、可能根因或相关 issue。请区分实际观察与推测，无需为提交反馈专门分析源码。

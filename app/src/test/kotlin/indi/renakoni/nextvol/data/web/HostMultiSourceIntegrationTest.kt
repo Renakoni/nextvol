@@ -23,8 +23,8 @@ import indi.renakoni.nextvol.data.download.DownloadFailure
 import indi.renakoni.nextvol.data.download.DownloadTaskStatus
 import indi.renakoni.nextvol.data.explore.ExploreRepository
 import indi.renakoni.nextvol.data.local.LocalBookDataSource
-import indi.renakoni.nextvol.data.local.LocalDataManager
-import indi.renakoni.nextvol.data.local.cbor.AppLocalData
+import indi.renakoni.nextvol.data.backup.BackupDataManager
+import indi.renakoni.nextvol.data.backup.model.AppLocalData
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
@@ -80,7 +80,7 @@ class HostMultiSourceIntegrationTest {
     private lateinit var books: BookRepository
     private lateinit var shelves: BookshelfRepository
     private lateinit var stats: StatsRepository
-    private lateinit var backup: LocalDataManager
+    private lateinit var backup: BackupDataManager
     private lateinit var progress: DownloadProgressRepository
     private lateinit var downloads: BookDownloadStore
     private lateinit var workManager: WorkManager
@@ -119,7 +119,7 @@ class HostMultiSourceIntegrationTest {
             BookReadingDataRepository(local), manager.registry, downloads, mockk(), scheduler)
         val coordinator = StatisticsWriteCoordinator()
         stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), books, coordinator)
-        backup = LocalDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(), db.bookshelfDao(),
+        backup = BackupDataManager(db, db.bookInformationDao(), db.bookRecordDao(), db.dailyCountDao(), db.bookshelfDao(),
             db.chapterContentDao(), db.bookVolumesDao(), db.formattingRuleDao(), db.userReadingDataDao(), db.userDataDao(),
             mockk(relaxed = true), coordinator, stats, downloads)
         progress = DownloadProgressRepository(db.userDataDao(), books, downloads)
@@ -211,7 +211,7 @@ class HostMultiSourceIntegrationTest {
             val exportedWork = awaitWork(request)
             assertEquals("${exportedWork.outputData}: ${org.robolectric.shadows.ShadowLog.getLogsForTag("ExportEPUB")}",
                 WorkInfo.State.SUCCEEDED, exportedWork.state)
-            ZipFile(indi.renakoni.nextvol.data.work.EpubShareFiles.files(context, exportedWork.id).single()).use { zip ->
+            ZipFile(indi.renakoni.nextvol.data.export.EpubShareFiles.files(context, exportedWork.id).single()).use { zip ->
                 val text = zip.entries().asSequence().filter { it.name.endsWith(".xhtml") }
                     .joinToString { zip.getInputStream(it).bufferedReader().use { reader -> reader.readText() } }
                 assertTrue(text.contains("${book.sourceId.id}:body:1"))
