@@ -8,11 +8,15 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
+import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.unit.Density
 import androidx.navigation.NavHostController
 import com.github.michaelbull.result.Err
@@ -82,8 +86,8 @@ class DetailDirectoryScreenTest {
         compose.onNode(hasText(range) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected))
             .performScrollTo().performClick()
     }
-    private fun show(fontScale: Float = 1f, dark: Boolean = false) {
-        activity.get().setContent {
+    private fun show(fontScale: Float = 1f, dark: Boolean = false, restoration: StateRestorationTester? = null) {
+        val content: @Composable () -> Unit = {
             CompositionLocalProvider(
                 LocalNavController provides NavHostController(activity.get()),
                 LocalSnackbarHost provides SnackbarHostState(), LocalClaimSnackbarHost provides {},
@@ -95,6 +99,7 @@ class DetailDirectoryScreenTest {
                 }
             }
         }
+        if (restoration == null) activity.get().setContent(content = content) else restoration.setContent(content)
         compose.mainClock.advanceTimeBy(1000)
     }
 
@@ -180,6 +185,33 @@ class DetailDirectoryScreenTest {
         compose.onNodeWithText("Chapter a-152").assertIsDisplayed()
         assertNull(opened)
         assertReadActionDoesNotCoverEnd("101–200")
+    }
+
+    @Test fun restorationKeepsAutomaticAndChosenPagesDistinctWhenProgressAndDirectoryChange() {
+        val contentRule = object : ComposeContentTestRule, ComposeTestRule by compose {
+            override fun setContent(composable: @Composable () -> Unit) { activity.get().setContent(content = composable) }
+        }
+        val restoration = StateRestorationTester(contentRule)
+        state.bookVolumes = Ok(BookVolumes("book", listOf(volume("a", 305))))
+        show(restoration = restoration)
+        restoration.emulateSavedInstanceStateRestore()
+        compose.runOnIdle { state.userReadingData = UserReadingData("book", lastReadChapterId = "a-152") }
+        toolbar()
+        compose.onNodeWithText("101–200").assertIsDisplayed()
+
+        chooseRange("201–300")
+        restoration.emulateSavedInstanceStateRestore()
+        compose.runOnIdle { state.userReadingData = UserReadingData("book", lastReadChapterId = "a-2") }
+        toolbar()
+        compose.onNodeWithText("201–300").assertIsDisplayed()
+        compose.runOnIdle { state.bookVolumes = Ok(BookVolumes("book", listOf(volume("a", 105)))) }
+        toolbar()
+        compose.onAllNodesWithText("101–105")[0].assertIsDisplayed()
+        compose.runOnIdle { state.bookVolumes = Ok(BookVolumes("book", listOf(volume("a", 305)))) }
+        toolbar()
+        compose.onNodeWithText("201–300").assertIsDisplayed()
+        assertNull(opened)
+        assertTrue(writes.isEmpty())
     }
 
     @Test fun searchFindsTitlesAcrossVolumesAndOutsideTheDisplayedRange() {
