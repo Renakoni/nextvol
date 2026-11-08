@@ -1,6 +1,5 @@
 package hnovel.content
 
-import hnovel.network.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import okhttp3.mockwebserver.Dispatcher
@@ -210,32 +209,6 @@ class LongCatalogueTest {
                 assertTrue(failure is SourceContentException)
                 assertFalse(failure is PartialDirectoryException)
             }
-        }
-    }
-
-    @Test fun legacySnapshotsRemainReadableAndMoveOnlyAfterASuccessfulWrite() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val id = fixture.server.url("/book/one").toString()
-            val definition = fixture.source().use { source ->
-                source.search("title")
-                source.directory(id)
-                source.definition
-            }
-            val session = fixture.broker.open(SourceScope("rules", definition.sourceId, definition.profile),
-                listOf(NetworkGrant(fixture.server.url("/").toString(), true)))
-            val key = "content/book/" + digest(id)
-            val snapshot = session.read(StorageRequest(StorageArea.BookState, key)) as StorageResult.Value
-            assertNotNull(snapshot.value)
-            assertEquals(snapshot, session.write(StorageRequest(StorageArea.Config, key, snapshot.value)))
-            session.write(StorageRequest(StorageArea.BookState, key))
-            fixture.source().use { source ->
-                val requests = fixture.server.requestCount
-                val content = source.content(id, fixture.server.url("/c/2").toString())
-                assertEquals(requests + 1, fixture.server.requestCount)
-                assertTrue(content.parts.any { it.text == "from-search:Two" })
-            }
-            assertNotNull((session.read(StorageRequest(StorageArea.BookState, key)) as StorageResult.Value).value)
-            assertEquals(StorageResult.Value(null), session.read(StorageRequest(StorageArea.Config, key)))
         }
     }
 

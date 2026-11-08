@@ -21,10 +21,7 @@ internal class RuleBookStore(private val storage: SourceStateStorage, private va
     }
     fun read(bookId: String): BookRecord? = authority.authorized(identity) {
         val id = canonicalId(bookId)
-        val current = storage.read(StorageRequest(StorageArea.BookState, key(id)))
-        // Existing installations stored these snapshots beside small script settings.
-        val result = if (current is StorageResult.Value && current.value == null)
-            storage.read(StorageRequest(StorageArea.Config, key(id))) else current
+        val result = storage.read(StorageRequest(StorageArea.BookState, key(id)))
         if (result !is StorageResult.Value) throw storageException(result, "bookState")
         result.value?.let { Json.decodeFromString(BookRecord.serializer(), it) }?.takeIf { it.book.id == id }
     }
@@ -36,12 +33,6 @@ internal class RuleBookStore(private val storage: SourceStateStorage, private va
             aliases.mapKeys { aliasKey(it.key) }
         val result = storage.writeBookStates(values)
         if (result !is StorageResult.Value) throw storageException(result, "bookState")
-        // Release the old quota only after the new batch has succeeded.
-        values.keys.forEach {
-            val cleared = storage.write(StorageRequest(StorageArea.Config, it))
-            if (cleared !is StorageResult.Value) throw storageException(cleared, "bookState")
-        }
-        Unit
     }
     private fun storageException(result: StorageResult, field: String) =
         SourceContentException(ContentError.Storage, field, storageFailure = (result as? StorageResult.Failure)?.code)
