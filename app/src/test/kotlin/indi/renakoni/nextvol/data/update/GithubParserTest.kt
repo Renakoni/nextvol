@@ -64,6 +64,19 @@ class GithubParserTest {
         assertEquals("1.4.0", parse()!!.versionName)
     }
 
+    @Test fun nullableLegacyDigestAndPresentSha256AreBothSupported() {
+        for (digest in listOf(JSONObject.NULL, "sha256:${"a".repeat(64)}")) {
+            val json = metadata()
+            json.getJSONArray("assets").getJSONObject(0).put("digest", digest)
+            server.enqueue(MockResponse().setBody(JSONArray().put(json).toString()))
+            server.enqueue(MockResponse().setBody("""
+                versionCode = 10400001
+                versionName = "1.4.0"
+            """.trimIndent()))
+            assertEquals(if (digest == JSONObject.NULL) null else "a".repeat(64), parse()!!.sha256)
+        }
+    }
+
     @Test fun noReleasesIsNotANetworkFailure() {
         server.enqueue(MockResponse().setResponseCode(404))
         assertNull(parse())

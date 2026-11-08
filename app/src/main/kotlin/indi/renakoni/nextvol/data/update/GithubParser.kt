@@ -76,7 +76,8 @@ object GithubParser : UpdateParser {
             downloadUrl.toString() != "${ProjectLinks.GITHUB}/releases/download/$tag/$fileName") {
             throw IOException("APK does not belong to ${ProjectLinks.REPOSITORY}")
         }
-        val digest = asset.optString("digest", "").takeIf { it.isNotEmpty() }
+        val digest = if (asset.isNull("digest")) null
+            else asset.getString("digest").takeIf { it.isNotEmpty() }
         if (digest != null && !Regex("sha256:[a-f0-9]{64}").matches(digest)) {
             throw IOException("Invalid GitHub APK digest")
         }

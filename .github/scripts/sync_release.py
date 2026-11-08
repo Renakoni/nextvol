@@ -127,7 +127,12 @@ def main():
         apk, checksums = Path(temporary) / name, Path(temporary) / "SHA256SUMS"
         manifest = build_manifest(release, gradle, apk, checksums, args.android_tools)
         import boto3
-        store = boto3.client("s3", endpoint_url=f"https://{ACCOUNT}.r2.cloudflarestorage.com", region_name="auto")
+        from botocore.config import Config
+        # R2 uses the S3 protocol without AWS optional streaming checksums.
+        # The release SHA-256 is verified independently before upload.
+        config = Config(request_checksum_calculation="when_required", response_checksum_validation="when_required")
+        store = boto3.client("s3", endpoint_url=f"https://{ACCOUNT}.r2.cloudflarestorage.com",
+                             region_name="auto", config=config)
         publish(store, manifest, apk, checksums)
 
 
