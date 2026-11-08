@@ -35,10 +35,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -49,14 +45,11 @@ import javax.inject.Inject
 class ReadAloudService : MediaSessionService() {
     @Inject lateinit var controller: ReadAloudController
     @Inject lateinit var chapters: SpeechChapterSource
-    @Inject lateinit var settings: SpeechSettingsRepository
+    @Inject internal lateinit var configuration: ReadAloudConfiguration
     @Inject lateinit var music: BackgroundMusicRepository
     @Inject lateinit var progress: SpeechProgressStore
     @Inject lateinit var synthesizers: SpeechSynthesizers
     @Inject lateinit var plans: SpeechPlanPreparer
-    @Inject lateinit var voices: SpeechVoiceCatalog
-    @Inject lateinit var pairs: SpeechVoicePoolRepository
-    @Inject lateinit var languages: SpeechLanguageDetection
     @Inject lateinit var logger: LoggerRepository
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
@@ -70,7 +63,6 @@ class ReadAloudService : MediaSessionService() {
     // Negative IDs also keep these entries separate from the app's update/export notifications.
     private val notificationId = -notificationIds.updateAndGet { if (it == Int.MAX_VALUE) 1 else it + 1 }
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
         // The speech session owns buffering; completed or paused audio needs no player grace period.
@@ -83,9 +75,7 @@ class ReadAloudService : MediaSessionService() {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true)
             setHandleAudioBecomingNoisy(true)
         }
-        speech = ReadAloudSession(scope, chapters, { request ->
-            voices.revised(settings.forBook(request.bookId)).also { logger.speechDebugEnabled = it.diagnosticLogging }
-        }, progress, synthesizers::synthesizer,
+        speech = ReadAloudSession(scope, chapters, configuration::resolve, progress, synthesizers::synthesizer,
             ExoSpeechPlayback(player, this) { speech.interrupt() }, File(cacheDir, "read-aloud"), preparePlan = plans::prepare,
             diagnostics = logger::recordSpeech, detailedLogging = { logger.speechDebugEnabled })
         sleepTimer = SpeechSleepTimer(scope, SystemClock::elapsedRealtime,
@@ -160,13 +150,7 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            combine(music.changes, settings.schemes, speech.state.map { it.request }.distinctUntilChanged()) { library, schemes, request ->
-                // Follow live music edits in the audition's scheme; a deleted scheme retains its snapshot.
-                val selected = request?.previewSettings?.let { preview ->
-                    schemes.items.find { it.id == preview.schemeId }?.settings?.backgroundMusic ?: preview.backgroundMusic
-                } ?: schemes.forBook(request?.bookId).backgroundMusic
-                library.forScheme(selected)
-            }.distinctUntilChanged().collect { settings ->
+            configuration.backgroundMusic(speech.state).collect { settings ->
                 if (backgroundMusic == null && settings.enabled && settings.tracks.any { it.selected }) {
                     backgroundMusic = BackgroundMusicPlayback(ExoPlayer.Builder(this@ReadAloudService)
                         .setWakeMode(C.WAKE_MODE_LOCAL).build().apply {
@@ -182,19 +166,7 @@ class ReadAloudService : MediaSessionService() {
             }
         }
         scope.launch {
-            speech.state.map { it.request?.takeUnless { it.isPreview }?.bookId }.distinctUntilChanged()
-                .flatMapLatest { bookId ->
-                    combine(settings.changesForBook(bookId), voices.changes, pairs.revisions) { selected, _, _ ->
-                        pairs.setCacheLimit(selected.maxCacheVoiceNum)
-                        voices.revised(selected)
-                    }.distinctUntilChanged()
-                }.collect { selected ->
-                    logger.speechDebugEnabled = selected.diagnosticLogging
-                    if (speech.state.value.request?.bookId == selected.bookId && speech.state.value.request?.isPreview == false) {
-                        speech.updateSettings(selected)
-                    }
-                    if (selected.roleRules.none { it.isLanguageRule }) languages.release()
-                }
+            configuration.observeSpeech(speech.state, speech::updateSettings)
         }
     }
 
