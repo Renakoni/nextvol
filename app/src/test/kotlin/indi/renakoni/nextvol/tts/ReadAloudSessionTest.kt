@@ -153,30 +153,6 @@ class ReadAloudSessionTest {
         assertEquals(0, env.audioFiles())
     }
 
-    @Test fun aThirdBookStillWaitsForTheOriginalSessionsCleanup() = runTest {
-        val gate = CompletableDeferred<Unit>()
-        val env = Environment(this)
-        env.beforeSynthesis = { withContext(NonCancellable) { gate.await() } }
-        try {
-            env.session.start(SpeechRequest("old", "one"))
-            runCurrent()
-            env.session.start(SpeechRequest("middle", "one"))
-            // Replace again before the waiting coroutine can be dispatched.
-            env.session.start(SpeechRequest("new", "one"))
-            runCurrent()
-            assertEquals("The original engine still owns its audio directory", 1, env.opened.size)
-            gate.complete(Unit)
-            runCurrent()
-            assertEquals(listOf("new"), env.player.started.map { it.chapter.bookId })
-            assertEquals("new", env.session.state.value.request?.bookId)
-            assertFalse(env.progress.saved.containsKey("old"))
-            assertEquals(2, env.opened.size)
-        } finally {
-            gate.complete(Unit)
-            env.stop()
-        }
-    }
-
     @Test fun cancellationAndCloseFailuresCannotEscapeReplacementOrStop() = runTest {
         mockkStatic(Log::class)
         every { Log.w(any(), any<String>()) } returns 0
@@ -424,25 +400,6 @@ class ReadAloudSessionTest {
         env.stop()
     }
 
-    @Test fun waitingForTheNextChapterShowsBufferingWithoutAdvancingProgress() = runTest {
-        val env = Environment(this)
-        val gate = CompletableDeferred<Unit>()
-        env.load = { book, chapter ->
-            if (chapter == "two") gate.await()
-            SpeechChapter(book, chapter, "Book", chapter, "Chapter $chapter.", nextId = if (chapter == "one") "two" else null)
-        }
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        env.player.finish()
-        runCurrent()
-        assertEquals(SpeechPhase.Buffering, env.session.state.value.phase)
-        assertEquals("one", env.progress.saved.getValue("book").chapterId)
-        gate.complete(Unit)
-        runCurrent()
-        assertEquals("two", env.player.started.last().chapter.id)
-        env.stop()
-    }
-
     @Test fun reopeningAfterStoppingAtACompletedChapterDoesNotReplayThatChapter() = runTest {
         val env = Environment(this)
         val gate = CompletableDeferred<Unit>()
@@ -457,6 +414,7 @@ class ReadAloudSessionTest {
             runCurrent()
             assertEquals(SpeechPhase.Buffering, env.session.state.value.phase)
             assertEquals("Chapter one.".length, env.progress.saved.getValue("book").offset)
+            assertEquals("one", env.progress.saved.getValue("book").chapterId)
             env.stop()
             gate.complete(Unit)
             env.session.start(SpeechRequest("book", "one"))

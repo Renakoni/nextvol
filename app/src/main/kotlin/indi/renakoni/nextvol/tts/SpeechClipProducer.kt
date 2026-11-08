@@ -123,7 +123,7 @@ internal class SpeechClipProducer(
                 subject = (failure as? SpeechReplacementException)?.failure?.ruleName
                     ?: (failure as? SpeechRoleException)?.failure?.ruleName ?: failed?.roleMatch?.ruleName,
                 processId = plan?.logId, segment = failed?.let { position + 1 }))
-            queue.send(Step.Failed(failure.speechError(SpeechError.SynthesisFailed), target, chapter, plan, position, context,
+            queue.send(Step.Failed(error, target, chapter, plan, position, context,
                 (failure as? SpeechReplacementException)?.failure, (failure as? SpeechRoleException)?.failure))
         } finally { queue.close() }
     }
