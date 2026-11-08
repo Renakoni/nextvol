@@ -1,18 +1,14 @@
 package indi.renakoni.nextvol.data.download
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
-import android.util.AtomicFile
 import androidx.room.withTransaction
-import coil3.SingletonImageLoader
 import dagger.hilt.android.qualifiers.ApplicationContext
 import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.book.SourceChapterId
 import indi.renakoni.nextvol.data.content.ContentJsonDecoder
 import indi.renakoni.nextvol.data.image.SourceImage
-import indi.renakoni.nextvol.data.image.sourceImageCacheKey
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.room.entity.BookDownloadEntity
 import indi.renakoni.nextvol.data.local.room.entity.DownloadedChapterEntity
@@ -37,9 +33,9 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Download ownership and file commits. Network requests stay outside this store's lock. */
+/** Download ownership and commit ordering. Network requests stay outside this store's lock. */
 @Singleton
-class BookDownloadStore @Inject constructor(@ApplicationContext private val context: Context,
+class BookDownloadStore @Inject constructor(@ApplicationContext context: Context,
     private val database: NextVolDatabase, private val decoder: ContentJsonDecoder) {
     data class Attempt(val book: SourceBookId, val generation: Long, val id: String, val requireTask: Boolean = false)
     data class Task(val book: SourceBookId, val generation: Long, val workId: String)
@@ -50,8 +46,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
     private val lock = Mutex()
     private val bookOperations = ConcurrentHashMap<String, Mutex>()
     private var activeBookOperations = 0 // Guarded by lock, together with ordinary cache cleanup.
-    private val root = File(context.filesDir, "book-downloads")
-    private val imageKeys = context.getSharedPreferences("source_image_cache_keys", Context.MODE_PRIVATE)
+    private val files = BookDownloadFiles(context)
 
     companion object {
         private const val GROUP = "hnovel/downloads"
@@ -121,7 +116,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             if (task.generation != generation() || owner == null || owner.taskWorkId != task.workId ||
                 owner.taskStatus == DownloadTaskStatus.Cancelled.name)
                 throw CancellationException("Download task was cleared or replaced")
-            dao.put(update(checkNotNull(owner)))
+            dao.put(update(owner))
         } }
 
     suspend fun taskStage(task: Task, stage: DownloadStage, chapterId: String = "") = updateTask(task) {
@@ -217,21 +212,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
                 Json.decodeFromString<List<String>>(chapter.images).map { it to chapter.resourceVersion }
             }.distinct()) {
                 currentCoroutineContext().ensureActive()
-                val source = imageFile(from, previous.generation, uri, false, version)
-                val destination = imageFile(to, generation, uri, false, version)
-                if (!source.isFile || destination.isFile) continue
-                check(destination.parentFile!!.isDirectory || destination.parentFile!!.mkdirs())
-                val atomic = AtomicFile(destination)
-                val output = atomic.startWrite()
-                try {
-                    source.inputStream().use { it.copyTo(output) }
-                    atomic.finishWrite(output)
-                } catch (failure: Exception) {
-                    atomic.failWrite(output)
-                    throw failure
-                }
-                // A migration preserves offline bytes, not proof of the new directory's version.
-                check(staleMarker(destination).isFile || staleMarker(destination).createNewFile())
+                files.copyImage(from, previous.generation, to, generation, uri, version)
             }
         }
         database.withTransaction {
@@ -269,11 +250,6 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
     } catch (failure: CancellationException) { throw failure }
     catch (_: Exception) { false }
 
-    private fun imageFile(book: SourceBookId, generation: Long, uri: String, cover: Boolean, version: String = ""): File {
-        val directory = if (version.isEmpty()) "" else "resources/${downloadHash(version)}/"
-        return File(root, "$generation/${book.fileKey}/$directory${downloadHash(BookIdentity.encode("download-image", listOf(cover.toString(), uri)))}")
-    }
-
     suspend fun image(image: SourceImage): File? = withContext(Dispatchers.IO) { lock.withLock {
         migrateLegacy()
         val canonical = database.bookAliasDao().get(image.book.storageKey)?.let(SourceBookId::fromStorageKey) ?: image.book
@@ -283,7 +259,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             ?.takeIf { it.bookId == canonical.storageKey } else dao.chapters(canonical.storageKey).firstOrNull {
                 image.uri in Json.decodeFromString<List<String>>(it.images)
             }
-        imageFile(canonical, owner.generation, image.uri, image.cover, chapter?.resourceVersion.orEmpty()).takeIf { it.isFile }
+        files.imageFile(canonical, owner.generation, image.uri, image.cover, chapter?.resourceVersion.orEmpty()).takeIf { it.isFile }
     } }
 
     suspend fun begin(book: SourceBookId, generation: Long, id: String, requireTask: Boolean = false): Attempt = withContext(Dispatchers.IO) { lock.withLock {
@@ -308,7 +284,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
                 attempt.requireTask && owner.taskWorkId != attempt.id ||
                 owner.taskWorkId == attempt.id && owner.taskStatus == DownloadTaskStatus.Cancelled.name)
                 throw CancellationException("Download was cleared or replaced")
-            block(checkNotNull(owner))
+            block(owner)
         } }
 
     suspend fun target(attempt: Attempt, volumes: BookVolumes, revision: String, coverUri: String) = current(attempt) {
@@ -317,9 +293,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
         val unchanged = it.directoryHash == hash && it.revision == revision && it.coverUri == coverUri
         if (it.revision != revision) {
             // Keep old bytes readable, but a failed/text-only update must not label them current.
-            val directory = imageFile(attempt.book, attempt.generation, "", false).parentFile!!
-            directory.listFiles()?.filter { file -> file.isFile && file.name.matches(Regex("[0-9a-f]{64}")) }
-                ?.forEach { file -> check(staleMarker(file).isFile || staleMarker(file).createNewFile()) }
+            files.markImagesStale(attempt.book, attempt.generation)
         }
         dao.put(it.copy(directoryHash = hash, revision = revision, coverUri = coverUri))
         val chapters = volumes.volumes.flatMap { it.chapters }.distinctBy { it.id }
@@ -365,8 +339,8 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
     }
 
     suspend fun checkpointImage(attempt: Attempt, checkpoint: ChapterCheckpoint, uri: String): File? = current(attempt) {
-        val file = imageFile(attempt.book, attempt.generation, uri, false, checkpoint.resourceVersion)
-        file.takeIf { it.isFile && it.length() > 0 && !staleMarker(it).exists() }
+        val file = files.imageFile(attempt.book, attempt.generation, uri, false, checkpoint.resourceVersion)
+        file.takeIf { it.isFile && it.length() > 0 && !files.isStale(it) }
     }
 
     suspend fun hasCheckpointImage(attempt: Attempt, checkpoint: ChapterCheckpoint, uri: String): Boolean =
@@ -377,9 +351,8 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
 
     private suspend fun pruneResources(book: SourceBookId, generation: Long) {
         val retained = (dao.chapters(book.storageKey).map { it.resourceVersion } +
-            dao.candidates(book.storageKey).map { it.resourceVersion }).map(::downloadHash).toSet()
-        File(root, "$generation/${book.fileKey}/resources").listFiles()?.filter { it.name !in retained }
-            ?.forEach { it.deleteRecursively() }
+            dao.candidates(book.storageKey).map { it.resourceVersion }).toSet()
+        files.pruneResources(book, generation, retained)
     }
 
     suspend fun reusable(attempt: Attempt, chapterId: String, signature: String): ChapterContent? = current(attempt) {
@@ -399,40 +372,23 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
         val version = if (cover) "" else dao.chapters(attempt.book.storageKey).firstOrNull {
             uri in Json.decodeFromString<List<String>>(it.images)
         }?.resourceVersion.orEmpty()
-        val file = imageFile(attempt.book, attempt.generation, uri, cover, version)
-        file.isFile && !staleMarker(file).exists()
+        val file = files.imageFile(attempt.book, attempt.generation, uri, cover, version)
+        file.isFile && !files.isStale(file)
     }
 
-    private fun staleMarker(file: File) = File(file.parentFile, "${file.name}.stale")
-
     suspend fun isImageStale(attempt: Attempt, uri: String, cover: Boolean): Boolean = current(attempt) {
-        staleMarker(imageFile(attempt.book, attempt.generation, uri, cover)).exists()
+        files.isStale(files.imageFile(attempt.book, attempt.generation, uri, cover))
     }
 
     suspend fun saveImage(attempt: Attempt, uri: String, cover: Boolean, bytes: ByteArray, resourceVersion: String = "") = current(attempt) {
-        writeImage(imageFile(attempt.book, attempt.generation, uri, cover, resourceVersion), bytes)
+        files.writeImage(files.imageFile(attempt.book, attempt.generation, uri, cover, resourceVersion), bytes)
     }
 
     /** Copy the successfully decoded source bytes, not a resized/re-encoded bitmap. */
     suspend fun retainImage(attempt: Attempt, image: SourceImage, cacheKey: String?, resourceVersion: String = "") = current(attempt) {
         require(image.book == attempt.book)
-        val bytes = cachedImageBytes(image, cacheKey) ?: error("Downloaded image bytes are unavailable")
-        writeImage(imageFile(image.book, attempt.generation, image.uri, image.cover, resourceVersion), bytes)
-    }
-
-    private fun writeImage(target: File, bytes: ByteArray) {
-        check(bytes.isNotEmpty()) { "Downloaded image is empty" }
-        val previousTime = target.lastModified()
-        val file = AtomicFile(target)
-        val output = file.startWrite()
-        try { output.write(bytes); output.fd.sync(); file.finishWrite(output) }
-        catch (failure: Exception) { file.failWrite(output); throw failure }
-        check(file.openRead().use { it.readBytes().contentEquals(bytes) }) { "Download image was not committed" }
-        // File mtime participates in Coil's key; two same-sized updates in one tick must differ.
-        if (target.lastModified() <= previousTime)
-            check(target.setLastModified(previousTime + 1)) { "Could not update downloaded image version" }
-        val stale = staleMarker(target)
-        check(!stale.exists() || stale.delete()) { "Could not commit downloaded image version" }
+        val bytes = files.cachedImageBytes(image, cacheKey) ?: error("Downloaded image bytes are unavailable")
+        files.writeImage(files.imageFile(image.book, attempt.generation, image.uri, image.cover, resourceVersion), bytes)
     }
 
     suspend fun saveChapter(attempt: Attempt, chapter: ChapterContent, signature: String, images: List<String>,
@@ -445,8 +401,8 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             require(SourceChapterId.fromStorageKey(it).book == attempt.book)
         }
         if (requireImages) check(images.all { uri ->
-            val file = imageFile(attempt.book, attempt.generation, uri, false, version)
-            file.isFile && !staleMarker(file).exists()
+            val file = files.imageFile(attempt.book, attempt.generation, uri, false, version)
+            file.isFile && !files.isStale(file)
         })
         database.withTransaction {
             database.chapterContentDao().update(chapter)
@@ -476,7 +432,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
                 val saved = records[chapter.id]
                 val candidate = candidates[chapter.id]
                 Json.decodeFromString<List<String>>(saved?.images ?: candidate?.images ?: "[]").count { uri ->
-                    val file = imageFile(book, owner.generation, uri, false,
+                    val file = files.imageFile(book, owner.generation, uri, false,
                         saved?.resourceVersion ?: candidate?.resourceVersion.orEmpty())
                     !file.isFile || file.length() == 0L
                 }
@@ -487,7 +443,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             val taskCount = chapters.count { chapter ->
                 (selection == null || BookIdentity.chapter(chapter.id, book).remoteId in selection) && chapter.id in savedChapters
             }
-            val coverSaved = owner.coverUri.isEmpty() || imageFile(book, owner.generation, owner.coverUri, true).isFile
+            val coverSaved = owner.coverUri.isEmpty() || files.imageFile(book, owner.generation, owner.coverUri, true).isFile
             val phase = when {
                 active -> BookDownloadPhase.Updating
                 !contentOnly && owner.phase == "failed" -> BookDownloadPhase.Failed
@@ -524,7 +480,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
     private fun chapterSaved(book: SourceBookId, owner: BookDownloadEntity, saved: DownloadedChapterEntity?,
         savedIds: Set<String>): Boolean = saved != null && saved.id in savedIds &&
         Json.decodeFromString<List<String>>(saved.images).all {
-            val file = imageFile(book, owner.generation, it, false, saved.resourceVersion)
+            val file = files.imageFile(book, owner.generation, it, false, saved.resourceVersion)
             file.isFile && file.length() > 0
         }
 
@@ -533,7 +489,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
         if (activeBookOperations > 0) return@withLock false
         migrateLegacy()
         dao.clearReadingContent()
-        SingletonImageLoader.get(context).apply { memoryCache?.clear(); diskCache?.clear() }
+        files.clearReadingCache()
         true
     } }
 
@@ -548,8 +504,8 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             dao.clearDownloadedContent(); dao.clearChapters(); dao.clearCandidates(); dao.clearBooks()
             clearHistory(null)
         }
-        clearCachedImages(images)
-        check(!root.exists() || root.deleteRecursively()) { "Could not remove downloaded images" }
+        files.clearCachedImages(images)
+        files.clearDownloads()
         retired
     } }
 
@@ -563,11 +519,10 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             dao.deleteContent(keys); dao.deleteChapters(keys); dao.deleteCandidates(keys); dao.deleteBooks(keys)
             clearHistory(keys.toSet())
         }
-        clearCachedImages(images)
+        files.clearCachedImages(images)
         for (book in books) {
             val generation = owners.find { it.bookId == book.storageKey }?.generation ?: generation()
-            val directory = File(root, "$generation/${book.fileKey}")
-            check(!directory.exists() || directory.deleteRecursively()) { "Could not remove downloaded images" }
+            files.removeBook(book, generation)
         }
     } }
 
@@ -587,14 +542,6 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
         }
     }
 
-    private fun clearCachedImages(images: List<SourceImage>) {
-        val loader = SingletonImageLoader.get(context)
-        loader.memoryCache?.clear()
-        images.forEach { image ->
-            imageKeys.getString(sourceImageCacheKey(image, ""), null)?.let { loader.diskCache?.remove(it) }
-        }
-    }
-
     /**
      * The caller holds the statistics lock. The library and download ownership commit together.
      * Overwrite uses a new file generation: rollback/process death can never erase the old files.
@@ -609,7 +556,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
         database.withTransaction {
             if (overwrite) {
                 val next = Math.addExact(generation(), 1)
-                check(!File(root, next.toString()).exists()) { "Download restore directory is unavailable" }
+                check(!files.generationExists(next)) { "Download restore directory is unavailable" }
                 database.userDataDao().insert(EPOCH, GROUP, "Long", next.toString())
                 dao.clearDownloadedContent(); dao.clearChapters(); dao.clearCandidates(); dao.clearBooks()
                 clearHistory(null)
@@ -637,7 +584,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
             beforeCommit()
         }
         // Cleanup is recoverable maintenance after the commit, never a failed restore.
-        if (overwrite) runCatching { clearCachedImages(images) }.onFailure {
+        if (overwrite) runCatching { files.clearCachedImages(images) }.onFailure {
             Log.w("BookDownloadStore", "Could not evict retired image cache", it)
         }
         runCatching { removeRetiredGenerations() }.onFailure {
@@ -648,10 +595,9 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
     /** Retry abandoned staging/retired file cleanup after process recreation. Keep every live owner. */
     private suspend fun removeRetiredGenerations() {
         val keep = dao.getAll().map { it.generation }.toSet() + generation()
-        root.listFiles()?.forEach { directory ->
-            val generation = directory.name.toLongOrNull() ?: return@forEach
-            if (generation !in keep) runCatching {
-                check(directory.deleteRecursively()) { "Could not remove retired download generation" }
+        files.retiredGenerations(keep).forEach { directory ->
+            runCatching {
+                files.removeRetiredGeneration(directory)
             }.onFailure { Log.w("BookDownloadStore", "Could not clean retired downloads", it) }
         }
     }
@@ -688,16 +634,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext private val cont
     }
 
     private fun retainLegacyImage(owner: BookDownloadEntity, image: SourceImage) {
-        val bytes = cachedImageBytes(image, null) ?: return
-        writeImage(imageFile(image.book, owner.generation, image.uri, image.cover), bytes)
-    }
-
-    private fun cachedImageBytes(image: SourceImage, cacheKey: String?): ByteArray? {
-        val uri = Uri.parse(image.uri)
-        if (uri.scheme in setOf("file", "content", "android.resource"))
-            return context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        val key = cacheKey ?: imageKeys.getString(sourceImageCacheKey(image, ""), null) ?: return null
-        val cache = SingletonImageLoader.get(context).diskCache ?: return null
-        return cache.openSnapshot(key)?.use { snapshot -> cache.fileSystem.read(snapshot.data) { readByteArray() } }
+        val bytes = files.cachedImageBytes(image, null) ?: return
+        files.writeImage(files.imageFile(image.book, owner.generation, image.uri, image.cover), bytes)
     }
 }
