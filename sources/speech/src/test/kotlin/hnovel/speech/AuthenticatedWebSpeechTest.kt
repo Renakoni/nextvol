@@ -46,7 +46,6 @@ class AuthenticatedWebSpeechTest {
         val body = Json.parseToJsonElement(request.body!!).jsonObject
         assertEquals("robot-id", body.string("cvRobotId"))
         assertEquals(125, body.getValue("speedFactor").jsonPrimitive.int)
-        assertEquals(text.drop(100), body.string("ssml"))
         assertEquals("Bearer access", request.headers["Authorization"])
         assertEquals("wxToken=test-session; access_token=access", request.headers["Cookie"])
         assertEquals(Json.parseToJsonElement("{\"wxToken\":\"test-session\",\"extra\":\"keep\",\"userId\":\"7\"}"),

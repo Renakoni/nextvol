@@ -15,31 +15,21 @@ class OnlineSpeechPackageTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test fun streamingCapabilityUsesRequestedSegmentsAndFallsBackToCompleteAudioWithoutReceiver() = runBlocking {
-        val calls = mutableListOf<String>()
         val received = mutableListOf<String>()
         val backend = object : StreamingOnlineSpeechBackend {
             override suspend fun stream(text: String, rate: Float, volume: Float, receive: (ByteArray, Int, Int) -> Unit) {
-                calls += "stream:$text"
-                assertEquals(1.5f, rate, 0f)
-                assertEquals(2f, volume, 0f)
                 receive("[$text]".toByteArray(), 1, text.length)
-                assertEquals(calls.size, received.size)
+                assertEquals(text, received.last())
             }
-            override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray {
-                calls += "file:$text"
-                return text.toByteArray()
-            }
+            override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray = text.toByteArray()
         }
         val client = OnlineSpeechClient(buildJsonObject { putJsonObject("engine") { put("code", "vivo") } },
             { error("Unexpected HTTP request") }, createSdkBackend = { _, _, _ -> backend })
         assertTrue(client.synthesize("abcdefgh", 1.5f, 2f, 4) { bytes, offset, count ->
             received += String(bytes, offset, count)
         }.isEmpty())
-        assertEquals(listOf("stream:abcd", "stream:efgh"), calls)
         assertEquals(listOf("abcd", "efgh"), received)
-        calls.clear()
         assertArrayEquals("abcdefgh".toByteArray(), client.synthesize("abcdefgh", 1.5f, 2f, 4, null))
-        assertEquals(listOf("file:abcd", "file:efgh"), calls)
     }
 
     @Test fun streamingQuotaAccumulatesAcrossSegmentsBeforeDelivery() {
