@@ -54,15 +54,12 @@ class UpdateArtifactDownloader @Inject constructor(
                             copied += bytes
                             if (total > 0) onProgress(copied, total)
                         }
-                        if (total >= 0 && copied != total) throw IOException("Incomplete update download")
                         if (copied == 0L) return null
                     }
                 }
             }
-            release.sha256?.let { expected ->
-                val actual = digest.digest().joinToString("") { "%02x".format(it) }
-                if (actual != expected) throw IOException("Update SHA-256 mismatch")
-            }
+            val actual = digest.digest().joinToString("") { "%02x".format(it) }
+            if (actual != release.sha256) throw IOException("Update SHA-256 mismatch")
             currentCoroutineContext().ensureActive()
             if (!files.temporary.renameTo(files.apk)) throw IOException("Cannot save update APK")
             return files.apk

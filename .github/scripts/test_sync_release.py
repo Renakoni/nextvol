@@ -43,13 +43,13 @@ class ReleaseSyncTest(unittest.TestCase):
     def publish(self):
         sync.publish(self.store, self.manifest, self.apk, self.checksums)
 
-    def test_only_formal_published_app_releases_are_eligible(self):
+    def test_only_published_matching_app_releases_are_eligible(self):
         self.assertEqual(self.apk.name, sync.validate_release(self.release, "v0.1.1"))
-        for updates in (dict(tag_name="offline-runtime-4"), dict(draft=True), dict(prerelease=True),
+        for updates in (dict(tag_name="v0.1.0"), dict(draft=True), dict(prerelease=True),
                         dict(assets=[dict(name="other.apk")])):
             release = self.release | updates
             with self.assertRaises(ValueError):
-                sync.validate_release(release, release["tag_name"])
+                sync.validate_release(release, "v0.1.1")
 
     def test_manifest_uses_verified_apk_identity_and_checksum(self):
         output = [f"Signer #1 certificate SHA-256 digest: {sync.CERTIFICATE}\n",
@@ -64,13 +64,16 @@ class ReleaseSyncTest(unittest.TestCase):
             sync.build_manifest(self.release, 'versionCode = 10300010\nversionName = "0.1.1"',
                                 self.apk, self.checksums, Path("tools"))
 
-    def test_artifacts_are_verified_before_stable_pointer_is_written(self):
+    def test_artifacts_finish_before_stable_pointer_and_retry_reuses_objects(self):
         self.publish()
         self.assertEqual("put_object", self.store.mock_calls[-1][0])
         args = self.store.put_object.call_args.kwargs
         self.assertEqual("updates/stable.json", args["Key"])
         self.assertEqual("no-store", args["CacheControl"])
         self.assertEqual(self.manifest, json.loads(args["Body"]))
+        self.assertEqual(2, self.store.upload_file.call_count)
+        self.publish()
+        self.assertEqual(2, self.store.upload_file.call_count)
 
     def test_upload_failure_preserves_previous_stable_pointer(self):
         self.store.upload_file.side_effect = OSError("upload failed")

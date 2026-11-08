@@ -16,8 +16,7 @@ class SettingState(
     coroutineScope: CoroutineScope
 ) : AbstractSettingState(coroutineScope) {
     val distributionPlatformKeyUserData = userDataRepository.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path)
-    private val storedDistributionPlatformKey by distributionPlatformKeyUserData.asState(UpdatePlatform.default.key)
-    val distributionPlatformKey get() = UpdatePlatform.fromKey(storedDistributionPlatformKey).key
+    val distributionPlatformKey by distributionPlatformKeyUserData.asState(UpdatePlatform.default.key)
     val checkUpdateUserData = userDataRepository.booleanUserData(UserDataPath.Settings.App.AutoCheckUpdate.path)
     val appLocaleKeyUserData = userDataRepository.stringUserData(UserDataPath.Settings.Display.AppLocale.path)
     val enableSimplifiedTraditionalTransformUserData = userDataRepository.booleanUserData(

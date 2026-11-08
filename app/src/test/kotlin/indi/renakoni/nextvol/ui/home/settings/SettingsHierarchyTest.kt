@@ -198,11 +198,7 @@ class SettingsHierarchyTest {
         assertEquals(1, deletions)
     }
 
-    @Test fun updatesPageOffersOwnApiAndGitHubDespiteImportedLegacySettings() {
-        runBlocking {
-            data.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path).set("LnrAPI")
-            data.stringUserData("settings.app.update_channel").set("CI")
-        }
+    @Test fun updatesPageOffersOwnApiAndPersistsGitHubSelection() {
         val state = SettingState(data, scope)
         var checks = 0
         var backs = 0

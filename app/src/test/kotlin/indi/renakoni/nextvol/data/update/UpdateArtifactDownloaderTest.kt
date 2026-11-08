@@ -30,15 +30,11 @@ class UpdateArtifactDownloaderTest {
     @Before fun start() { server.start() }
     @After fun stop() { server.shutdown() }
 
-    private fun release(hash: String? = null) = object : Release {
-        override val version = 1
-        override val versionName = "fixture"
-        override val releaseNotes = ""
-        override val downloadUrl = server.url("/update").toString()
-        override val sha256 = hash
-    }
+    private fun release(body: String) = Release(1, "fixture", "", server.url("/update").toString(),
+        java.security.MessageDigest.getInstance("SHA-256").digest(body.toByteArray())
+            .joinToString("") { "%02x".format(it) })
 
-    private suspend fun download(release: Release = release(), files: UpdateArtifactDownloader.Files = downloader.prepare()) =
+    private suspend fun download(release: Release = release("apk bytes"), files: UpdateArtifactDownloader.Files = downloader.prepare()) =
         downloader.download(release, files,
             onProgress = { copied, total -> progress += copied to total })
 
@@ -57,7 +53,7 @@ class UpdateArtifactDownloaderTest {
         assertFalse(files.temporary.exists())
         progress.clear()
         server.enqueue(MockResponse().setChunkedBody("unknown length apk", 3))
-        assertEquals("unknown length apk", download()!!.readText())
+        assertEquals("unknown length apk", download(release("unknown length apk"))!!.readText())
         assertTrue(progress.isEmpty())
     }
 
@@ -65,7 +61,7 @@ class UpdateArtifactDownloaderTest {
         server.enqueue(MockResponse().setBody("wrong apk"))
         val files = downloader.prepare()
         try {
-            download(release("0".repeat(64)), files)
+            download(release("expected apk"), files)
             fail("Expected checksum failure")
         } catch (expected: java.io.IOException) {
             assertEquals("Update SHA-256 mismatch", expected.message)
@@ -73,7 +69,6 @@ class UpdateArtifactDownloaderTest {
         assertFalse(files.apk.exists())
         assertFalse(files.temporary.exists())
         server.enqueue(MockResponse().setBody("hello"))
-        val expected = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
-        assertEquals("hello", download(release(expected), files)!!.readText())
+        assertEquals("hello", download(release("hello"), files)!!.readText())
     }
 }

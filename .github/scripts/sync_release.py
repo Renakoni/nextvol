@@ -24,8 +24,6 @@ def gh_api(path):
 
 
 def validate_release(release, tag):
-    if not re.fullmatch(r"v[0-9]+[.][0-9]+[.][0-9]+", tag):
-        raise ValueError("Expected a formal app tag vX.Y.Z")
     if release["draft"] or release["prerelease"] or release["tag_name"] != tag:
         raise ValueError("Only a published stable app release can be synchronized")
     apk_name = f"NextVol-{tag[1:]}-release.apk"
@@ -37,12 +35,12 @@ def validate_release(release, tag):
 
 def build_manifest(release, gradle, apk, checksums, tools):
     tag = release["tag_name"]
-    validate_release(release, tag)
     version = re.search(r'^\s*versionName\s*=\s*"([^\"]+)"', gradle, re.M)[1]
     code = int(re.search(r"^\s*versionCode\s*=\s*([0-9_]+)", gradle, re.M)[1].replace("_", ""))
     if f"v{version}" != tag or not 0 < code <= 2100000000:
         raise ValueError("Release tag and Android version do not match")
-    digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+    with apk.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
     entries = checksums.read_text(encoding="utf-8").splitlines()
     if entries != [f"{digest}  {apk.name}"]:
         raise ValueError("APK does not match SHA256SUMS")
@@ -85,7 +83,7 @@ def publish(store, manifest, apk, checksums):
     from botocore.exceptions import ClientError
     for path, content_type in ((apk, "application/vnd.android.package-archive"), (checksums, "text/plain")):
         key = f"releases/{manifest['tag']}/{path.name}"
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        digest = manifest["sha256"] if path == apk else hashlib.sha256(path.read_bytes()).hexdigest()
         try:
             previous = store.head_object(Bucket=BUCKET, Key=key)
         except ClientError as error:
@@ -93,16 +91,14 @@ def publish(store, manifest, apk, checksums):
                 raise
             previous = None
         if previous:
-            if previous.get("Metadata", {}).get("sha256") != digest:
+            if (previous.get("Metadata", {}).get("sha256") != digest or
+                    previous["ContentLength"] != path.stat().st_size):
                 raise ValueError("Refusing to overwrite an immutable release artifact")
         else:
             store.upload_file(str(path), BUCKET, key, ExtraArgs={
                 "ContentType": content_type, "CacheControl": "public, max-age=31536000, immutable",
                 "Metadata": {"sha256": digest},
             })
-        stored = store.head_object(Bucket=BUCKET, Key=key)
-        if stored["ContentLength"] != path.stat().st_size or stored.get("Metadata", {}).get("sha256") != digest:
-            raise ValueError("Uploaded artifact verification failed")
     store.put_object(Bucket=BUCKET, Key=MANIFEST_KEY,
                      Body=(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode(),
                      ContentType="application/json; charset=utf-8", CacheControl="no-store")

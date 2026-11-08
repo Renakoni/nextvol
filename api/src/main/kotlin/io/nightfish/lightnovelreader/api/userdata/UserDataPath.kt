@@ -129,8 +129,6 @@ sealed class UserDataPath(
             data object DistributionPlatform: UserDataPath("update_platform", App)
             /** 代理服务器URL @since Api 2 */
             data object ProxyUrl: UserDataPath("proxy_url", App)
-            /** 统计数据 @since Api 2 */
-            data object Statistics : UserDataPath("statistics", App)
             /** 最大缓存数量 @since Api 2 */
             data object MaxCache : UserDataPath("max_cache", App)
         }

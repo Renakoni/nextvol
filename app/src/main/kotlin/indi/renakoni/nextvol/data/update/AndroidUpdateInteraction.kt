@@ -53,7 +53,8 @@ class AndroidUpdateInteraction @Inject constructor(
     }
 
     fun showDownloadNotification(progress: Int, versionName: String) {
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.icon_foreground)
             .setContentTitle(context.getString(R.string.update_notification_downloading, versionName))
@@ -67,7 +68,8 @@ class AndroidUpdateInteraction @Inject constructor(
     }
 
     fun showDownloadCompleteNotification(apkFile: File) {
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val installIntent = installIntent(apkFile)
         val pendingIntent = PendingIntent.getActivity(
             context, 0, installIntent,
@@ -86,7 +88,8 @@ class AndroidUpdateInteraction @Inject constructor(
     }
 
     fun showDownloadFailedNotification(reason: String) {
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.icon_foreground)
             .setContentTitle(context.getString(R.string.update_notification_failed))

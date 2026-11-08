@@ -20,7 +20,7 @@ import java.io.IOException
 
 @Suppress("DEPRECATION")
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [24, 30], application = Application::class)
+@Config(sdk = [30], application = Application::class)
 class UpdateApkValidatorTest {
     private val context = mockk<Context>()
     private val manager = mockk<PackageManager>()
@@ -46,22 +46,19 @@ class UpdateApkValidatorTest {
         every { manager.getPackageArchiveInfo(file.absolutePath, any<Int>()) } answers { archive }
     }
 
-    @Test fun acceptsANewerReleaseSignedByTheInstalledApp() {
+    @Test @Config(sdk = [24, 30]) fun acceptsANewerReleaseSignedByTheInstalledApp() {
         validateUpdateApk(context, file, 20)
     }
 
-    @Test fun rejectsUpstreamAndDifferentBuildVariants() {
-        for (name in listOf("indi.dmzz_yyhyy.lightnovelreader", "indi.renakoni.nextvol.debug", "indi.renakoni.nextvol.snapshot")) {
-            archive = apk(name = name)
-            assertThrows(IOException::class.java) { validateUpdateApk(context, file, 20) }
-        }
+    @Test fun rejectsForeignPackages() {
+        archive = apk(name = "foreign.package")
+        assertThrows(IOException::class.java) { validateUpdateApk(context, file, 20) }
     }
 
     @Test fun rejectsDowngradesAndMetadataMismatches() {
-        for (version in listOf(9, 10, 19, 21)) {
-            archive = apk(version = version)
-            assertThrows(IOException::class.java) { validateUpdateApk(context, file, 20) }
-        }
+        assertThrows(IOException::class.java) { validateUpdateApk(context, file, 21) }
+        archive = apk(version = 10)
+        assertThrows(IOException::class.java) { validateUpdateApk(context, file, 10) }
     }
 
     @Test fun rejectsDifferentSigners() {

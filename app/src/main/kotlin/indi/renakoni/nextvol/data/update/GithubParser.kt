@@ -20,14 +20,6 @@ object GithubParser : UpdateParser {
         .callTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    data class GithubRelease(
-        override val version: Int,
-        override val versionName: String,
-        override val releaseNotes: String,
-        override val downloadUrl: String,
-        override val sha256: String? = null,
-    ) : Release
-
     override fun parser(updatePhase: MutableStateFlow<UpdatePhase>): Release? = fetchRelease(
         updatePhase, client, "https://api.github.com/".toHttpUrl(),
         "https://raw.githubusercontent.com/".toHttpUrl(),
@@ -76,9 +68,8 @@ object GithubParser : UpdateParser {
             downloadUrl.toString() != "${ProjectLinks.GITHUB}/releases/download/$tag/$fileName") {
             throw IOException("APK does not belong to ${ProjectLinks.REPOSITORY}")
         }
-        val digest = if (asset.isNull("digest")) null
-            else asset.getString("digest").takeIf { it.isNotEmpty() }
-        if (digest != null && !Regex("sha256:[a-f0-9]{64}").matches(digest)) {
+        val digest = asset.getString("digest")
+        if (!Regex("sha256:[a-f0-9]{64}").matches(digest)) {
             throw IOException("Invalid GitHub APK digest")
         }
 
@@ -94,7 +85,7 @@ object GithubParser : UpdateParser {
             .find(gradle)?.groupValues?.get(1)
             ?: throw IOException("Release tag has no valid versionName")
         if (version <= 0 || "v$versionName" != tag) throw IOException("Release version does not match its tag")
-        return GithubRelease(version, versionName, json.optString("body", ""), downloadUrl.toString(), digest?.removePrefix("sha256:"))
+        return Release(version, versionName, json.optString("body", ""), downloadUrl.toString(), digest.removePrefix("sha256:"))
     }
 
     private fun get(client: OkHttpClient, url: HttpUrl, allowMissing: Boolean = false): String? {

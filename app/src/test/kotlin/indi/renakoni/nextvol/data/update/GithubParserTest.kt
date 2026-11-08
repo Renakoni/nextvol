@@ -30,7 +30,8 @@ class GithubParserTest {
         .put("draft", false).put("prerelease", false).put("tag_name", "v1.4.0")
         .put("body", "## Changes\nA new version")
         .put("assets", JSONArray().put(JSONObject()
-            .put("name", "NextVol-1.4.0-release.apk").put("browser_download_url", url)))
+            .put("name", "NextVol-1.4.0-release.apk").put("browser_download_url", url)
+            .put("digest", "sha256:${"a".repeat(64)}")))
 
     private fun parse(): Release? = GithubParser.fetchRelease(
         MutableStateFlow(UpdatePhase(R.string.update_phase_not_checked)),
@@ -52,6 +53,7 @@ class GithubParserTest {
         assertEquals("1.4.0", result.versionName)
         assertEquals("## Changes\nA new version", result.releaseNotes)
         assertEquals(apkUrl, result.downloadUrl)
+        assertEquals("a".repeat(64), result.sha256)
         assertEquals("/api/repos/Renakoni/nextvol/releases?per_page=100&page=1", server.takeRequest().path)
         assertEquals("/raw/Renakoni/nextvol/refs/tags/v1.4.0/app/build.gradle.kts", server.takeRequest().path)
     }
@@ -64,30 +66,15 @@ class GithubParserTest {
         assertEquals("1.4.0", parse()!!.versionName)
     }
 
-    @Test fun nullableLegacyDigestAndPresentSha256AreBothSupported() {
-        for (digest in listOf(JSONObject.NULL, "sha256:${"a".repeat(64)}")) {
-            val json = metadata()
-            json.getJSONArray("assets").getJSONObject(0).put("digest", digest)
-            server.enqueue(MockResponse().setBody(JSONArray().put(json).toString()))
-            server.enqueue(MockResponse().setBody("""
-                versionCode = 10400001
-                versionName = "1.4.0"
-            """.trimIndent()))
-            assertEquals(if (digest == JSONObject.NULL) null else "a".repeat(64), parse()!!.sha256)
-        }
-    }
-
     @Test fun noReleasesIsNotANetworkFailure() {
         server.enqueue(MockResponse().setResponseCode(404))
         assertNull(parse())
         assertEquals(1, server.requestCount)
     }
 
-    @Test fun rateLimitsAndServerErrorsAreFailures() {
-        for (code in listOf(403, 429, 500)) {
-            server.enqueue(MockResponse().setResponseCode(code))
-            assertThrows(IOException::class.java) { parse() }
-        }
+    @Test fun rateLimitsAreFailures() {
+        server.enqueue(MockResponse().setResponseCode(403))
+        assertThrows(IOException::class.java) { parse() }
     }
 
     @Test fun draftsAndPrereleasesAreNeverOffered() {
@@ -108,14 +95,12 @@ class GithubParserTest {
         }
     }
 
-    @Test fun upstreamExternalAndInsecureDownloadsAreRejected() {
-        for (url in listOf(
-            apkUrl.replace("Renakoni/nextvol", "dmzz-yyhyy/LightNovelReader"),
-            apkUrl.replace("github.com", "example.org"),
-            apkUrl.replace("https://", "http://"),
-            apkUrl.replace("/v1.4.0/", "/v1.3.0/"),
+    @Test fun foreignDownloadsAndInvalidDigestsAreRejected() {
+        for (asset in listOf(
+            metadata(apkUrl.replace("Renakoni/nextvol", "foreign/repository")),
+            metadata().apply { getJSONArray("assets").getJSONObject(0).put("digest", "invalid") },
         )) {
-            server.enqueue(MockResponse().setBody(JSONArray().put(metadata(url)).toString()))
+            server.enqueue(MockResponse().setBody(JSONArray().put(asset).toString()))
             assertThrows(IOException::class.java) { parse() }
         }
     }

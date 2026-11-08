@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalTime
@@ -59,54 +58,54 @@ class UpdateCheckRepository @Inject constructor(
     }
 
     fun resetAvailable() {
-        coroutineScope.launch {
-            mutableAvailable.update { false }
-        }
+        mutableAvailable.value = false
     }
 
     @Synchronized
     fun check() {
         if (_isDownloading.value || checkJob?.isActive == true) return
+        // Clear synchronously under the same lock as download admission.
+        release = null
+        mutableAvailable.value = false
         checkJob = coroutineScope.launch {
-            release = null
-            mutableAvailable.emit(false)
             try {
                 val platform = UpdatePlatform.fromKey(userDataRepository.stringUserData(
                     UserDataPath.Settings.App.DistributionPlatform.path).get())
-                _updatePhase.emit(UpdatePhase(R.string.update_phase_waiting, listOf(platform.key)))
-                release = platform.parser.parser(_updatePhase)
-                if (release == null) _updatePhase.emit(UpdatePhase(R.string.update_phase_no_release))
+                _updatePhase.value = UpdatePhase(R.string.update_phase_waiting, listOf(platform.key))
+                val result = platform.parser.parser(_updatePhase)
+                synchronized(this@UpdateCheckRepository) {
+                    release = result
+                    _updatePhase.value = when {
+                        result == null -> UpdatePhase(R.string.update_phase_no_release)
+                        result.version > BuildConfig.VERSION_CODE -> UpdatePhase(
+                            R.string.update_phase_available, listOf(formattedNow(), result.versionName))
+                        else -> UpdatePhase(R.string.update_phase_current, listOf(formattedNow(), result.versionName))
+                    }
+                    mutableAvailable.value = result != null && result.version > BuildConfig.VERSION_CODE
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e("UpdateChecker", "failed to get release")
-                e.printStackTrace()
-                _updatePhase.emit(UpdatePhase(R.string.update_phase_check_failed, listOf(formattedNow(), e.javaClass.simpleName, e.message.orEmpty())))
+                Log.e("UpdateChecker", "Failed to get release", e)
+                _updatePhase.value = UpdatePhase(R.string.update_phase_check_failed,
+                    listOf(formattedNow(), e.javaClass.simpleName, e.message.orEmpty()))
             }
-            if (release != null) {
-                if (release!!.version > BuildConfig.VERSION_CODE) {
-                    Log.i("UpdateChecker", "Updates available: ${release!!.versionName}")
-                    _updatePhase.emit(UpdatePhase(R.string.update_phase_available, listOf(formattedNow(), release!!.versionName)))
-                } else {
-                    Log.i("UpdateChecker", "App is up to date (${release!!.versionName})")
-                    _updatePhase.emit(UpdatePhase(R.string.update_phase_current, listOf(formattedNow(), release!!.versionName)))
-                }
-            }
-            mutableAvailable.emit(release != null && release!!.version > BuildConfig.VERSION_CODE)
         }
     }
 
+    @Synchronized
     fun downloadUpdate() {
         val release = release
         if (release == null || release.version <= BuildConfig.VERSION_CODE) {
             Log.e("UpdateChecker", "Didn't find the release because release is null!")
             return
         }
-        if (!_isDownloading.compareAndSet(false, true)) {
+        if (_isDownloading.value) {
             Log.w("UpdateChecker", "Download already in progress")
             return
         }
 
+        _isDownloading.value = true
         coroutineScope.launch {
             try {
                 _downloadProgress.emit(0f)
@@ -141,6 +140,7 @@ class UpdateCheckRepository @Inject constructor(
                         apkFile.delete()
                         throw e
                     }
+                    currentCoroutineContext().ensureActive()
                     _downloadProgress.emit(1f)
                     _updatePhase.emit(UpdatePhase(R.string.update_phase_download_complete))
                     systemInteraction.showDownloadCompleteNotification(apkFile)

@@ -14,14 +14,6 @@ import java.util.concurrent.TimeUnit
 object NextvolApiParser : UpdateParser {
     private val client = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()
 
-    data class ApiRelease(
-        override val version: Int,
-        override val versionName: String,
-        override val releaseNotes: String,
-        override val downloadUrl: String,
-        override val sha256: String,
-    ) : Release
-
     override fun parser(updatePhase: MutableStateFlow<UpdatePhase>): Release? {
         updatePhase.value = UpdatePhase(R.string.update_phase_nextvol_api)
         return fetchRelease(client, ProjectLinks.UPDATE_API.toHttpUrl())
@@ -46,7 +38,7 @@ object NextvolApiParser : UpdateParser {
                 url.toString() != "${ProjectLinks.DOWNLOADS}/releases/$tag/NextVol-$name-release.apk") {
                 throw IOException("Invalid Nextvol api release metadata")
             }
-            ApiRelease(version, name, json.getString("releaseNotes"), url.toString(), hash)
+            Release(version, name, json.getString("releaseNotes"), url.toString(), hash)
         }
     }
 }

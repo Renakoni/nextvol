@@ -43,6 +43,7 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.update.Release
+import indi.renakoni.nextvol.data.update.UpdatePhase
 import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
 
@@ -53,12 +54,19 @@ fun NavGraphBuilder.updatesAvailableDialog() {
         val release by viewModel.releaseFlow.collectAsStateWithLifecycle()
         val isDownloading by viewModel.isDownloading.collectAsStateWithLifecycle()
         val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+        val phase by viewModel.updatePhaseFlow.collectAsStateWithLifecycle(UpdatePhase(R.string.update_phase_not_checked))
+        val failure = when (phase.messageId) {
+            R.string.update_phase_download_failed, R.string.update_phase_download_failed_unknown,
+            R.string.update_phase_empty_file -> stringResource(phase.messageId, *phase.arguments.toTypedArray())
+            else -> null
+        }
         UpdatesAvailableDialog(
             onDismissRequest = { if (!isDownloading) navController.popBackStack() },
             onConfirmation = { viewModel.downloadUpdate() },
             release = release,
             isDownloading = isDownloading,
-            downloadProgress = downloadProgress
+            downloadProgress = downloadProgress,
+            failure = failure,
         )
     }
 }
@@ -69,9 +77,9 @@ fun UpdatesAvailableDialog(
     onConfirmation: () -> Unit,
     release: Release?,
     isDownloading: Boolean = false,
-    downloadProgress: Float = 0f
+    downloadProgress: Float = 0f,
+    failure: String? = null,
 ) {
-    println(release?.downloadUrl)
     val context = LocalContext.current
     AlertDialog(
         icon = {
@@ -91,6 +99,7 @@ fun UpdatesAvailableDialog(
         },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
+                failure?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 release?.versionName?.let {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -179,7 +188,7 @@ fun UpdatesAvailableDialog(
                 onClick = {
                     onConfirmation()
                 },
-                enabled = !isDownloading
+                enabled = release != null && !isDownloading
             ) {
                 if (isDownloading) {
                     CircularProgressIndicator(
@@ -214,6 +223,7 @@ fun UpdatesAvailableDialog(
                 }
                 OutlinedButton(
                     modifier = Modifier.weight(1f),
+                    enabled = release != null && !isDownloading,
                     onClick = {
                         release?.downloadUrl?.let { url ->
                             val intent = Intent(Intent.ACTION_VIEW, url.toUri())
