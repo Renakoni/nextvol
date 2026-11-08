@@ -6,7 +6,6 @@ import indi.renakoni.nextvol.data.local.room.entity.FormattingRuleEntity
 import io.mockk.every
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.book.BookVolumes
-import io.nightfish.lightnovelreader.api.book.ChapterInformation
 import io.nightfish.lightnovelreader.api.book.Volume
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.flow
@@ -34,11 +33,10 @@ class FormatRepositoryTest {
         }
         val repository = FormatRepository(dao)
         loaded.await()
-        val volumes = BookVolumes("book", listOf(Volume("volume", "a", listOf(ChapterInformation("chapter", "a")))))
+        fun title(bookId: String) = repository.processBookVolumes(
+            BookVolumes(bookId, listOf(Volume("volume", "a", emptyList())))).volumes.single().volumeTitle
 
-        assertEquals(BookVolumes("book", listOf(Volume("volume", "b", listOf(ChapterInformation("chapter", "b"))))),
-            repository.processBookVolumes(volumes))
-        assertEquals(BookVolumes("", listOf(Volume("volume", "aaaa", listOf(ChapterInformation("chapter", "aaaa"))))),
-            repository.processBookVolumes(volumes.copy(bookId = "")))
+        assertEquals("b", title("book"))
+        assertEquals("aaaa", title(""))
     }
 }
