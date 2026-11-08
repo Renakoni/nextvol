@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import indi.renakoni.nextvol.data.local.room.entity.UserDataEntity
 import io.nightfish.lightnovelreader.api.userdata.UserDataDaoApi
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +20,12 @@ interface UserDataDao: UserDataDaoApi {
 
     @Query("select value from user_data where path = :path")
     override suspend fun get(path: String): String?
+
+    /** Share Room's write boundary with download cleanup and backup restore transactions. */
+    @Transaction
+    suspend fun update(path: String, group: String, type: String, transform: (String?) -> String) {
+        insert(path, group, type, transform(get(path)))
+    }
 
     @Query("select value from user_data where path = :path")
     override fun getFlow(path: String): Flow<String?>
