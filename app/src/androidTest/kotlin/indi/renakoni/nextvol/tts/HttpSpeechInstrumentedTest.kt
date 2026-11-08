@@ -187,7 +187,7 @@ class HttpSpeechInstrumentedTest {
             val source = previewHttpSpeech(raw).sources.single()
             val authority = ExecutionAuthority()
             val offline = indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository(File(directory, "offline"))
-            val engines = indi.renakoni.nextvol.tts.offline.OfflineEngineRepository(isolated, AndroidSourceStorageCipher())
+            val engines = indi.renakoni.nextvol.tts.SpeechEngineRepository(isolated, AndroidSourceStorageCipher())
             HttpSpeechRepository(isolated, AndroidSourceStorageCipher(), authority, offline, engines).save(listOf(SavedHttpSpeechSource(source, listOf("https://example.org:443"))))
             assertFalse(File(directory, "http-speech.enc").readBytes().toString(Charsets.UTF_8).contains("private-test-token"))
             val reopened = HttpSpeechRepository(isolated, AndroidSourceStorageCipher(), authority, offline, engines)

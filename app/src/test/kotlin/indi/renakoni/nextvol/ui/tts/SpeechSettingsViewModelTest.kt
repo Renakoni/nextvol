@@ -6,7 +6,6 @@ import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.OfflineVoiceConfig
 import io.mockk.coEvery
@@ -186,7 +185,7 @@ class SpeechSettingsViewModelTest {
         coEvery { offline.voices() } returns listOf(InstalledOfflineVoice(reference, "Voice", emptyMap(),
             configuration = OfflineVoiceConfig("msctts", "voice")))
         coEvery { http.engines() } returns listOf(configuration)
-        val catalog = mockk<OfflineEngineRepository>()
+        val catalog = mockk<SpeechEngineRepository>()
         every { catalog.changes } returns MutableStateFlow(0L)
         coEvery { catalog.all() } returns listOf(configuration)
         coEvery { http.saveEngine(any(), any()) } returns Unit
@@ -225,7 +224,7 @@ class SpeechSettingsViewModelTest {
         }
         val availability = mockk<indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker>()
         every { availability.changes } returns MutableStateFlow(0L)
-        val engines = mockk<indi.renakoni.nextvol.tts.offline.OfflineEngineRepository>()
+        val engines = mockk<indi.renakoni.nextvol.tts.SpeechEngineRepository>()
         every { engines.changes } returns MutableStateFlow(0L)
         coEvery { engines.all() } returns emptyList()
         val controller = mockk<ReadAloudController>(relaxed = true)
