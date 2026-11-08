@@ -43,18 +43,18 @@ internal class OnlineSpeechClient(
             if (count > MAX_AUDIO_BYTES - bytes) throw HttpSpeechException(HttpSpeechError.TooLarge)
             bytes += count
         }
-        val sink = receive?.takeIf { backend is DoubaoSpeechClient }?.let { output ->
+        val sink = receive?.takeIf { backend is StreamingOnlineSpeechBackend }?.let { output ->
             { buffer: ByteArray, offset: Int, count: Int ->
                 countBytes(count)
                 output(buffer, offset, count)
             }
         }
-        for (part in splitOnlineSpeechText(text, if (backend is GuaguaSpeechClient) 50 else sentenceLength)) {
+        for (part in splitOnlineSpeechText(text, backend.sentenceLength(sentenceLength))) {
             currentCoroutineContext().ensureActive()
             // Malformed service payloads are response failures, not invalid saved source settings.
             val audio = try {
-                if (backend is DoubaoSpeechClient && sink != null) {
-                    backend.stream(part, rate, sink)
+                if (backend is StreamingOnlineSpeechBackend && sink != null) {
+                    backend.stream(part, rate, volume, sink)
                     null
                 } else backend.synthesize(part, rate, volume)
             } catch (cancelled: CancellationException) { throw cancelled }

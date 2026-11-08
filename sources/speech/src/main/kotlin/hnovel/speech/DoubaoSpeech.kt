@@ -16,7 +16,7 @@ internal class DoubaoSpeechClient(
     metadata: JsonObject,
     private val execute: suspend (BrokerRequest) -> BrokerResponse,
     private val webSocket: suspend (BrokerRequest, (BrokerWebSocket) -> ByteArray) -> ByteArray,
-) : OnlineSpeechBackend {
+) : StreamingOnlineSpeechBackend {
     private val speaker = metadata.getValue("voice").jsonObject.string("code")
     private val cookie = metadata.getValue("engine").jsonObject.string("param").takeIf(String::isNotEmpty)
         ?.let { Json.parseToJsonElement(it).jsonObject.string("cookie") }.orEmpty()
@@ -25,7 +25,7 @@ internal class DoubaoSpeechClient(
 
     override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray = synthesize(text, rate, null)
 
-    suspend fun stream(text: String, rate: Float, receive: (ByteArray, Int, Int) -> Unit) {
+    override suspend fun stream(text: String, rate: Float, volume: Float, receive: (ByteArray, Int, Int) -> Unit) {
         synthesize(text, rate, receive)
     }
 
