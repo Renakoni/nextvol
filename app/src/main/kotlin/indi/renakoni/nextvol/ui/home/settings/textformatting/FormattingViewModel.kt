@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.ui.home.settings.textformatting
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,18 +26,19 @@ class FormattingViewModel @Inject constructor(
         private set
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
-            snapshotFlow { formattingRepository.getFormattingMap() }.collect { map ->
+        viewModelScope.launch {
+            formattingRepository.rules.collect { map ->
                 formattingGroups = map.map {
                     FormattingGroup(it.key, bookRepository.getBookInformationFlow(it.key), it.value.size)
                 }
+                rules = map[bookId].orEmpty()
             }
         }
     }
 
     fun loadBookFormattingRules(bookId: String) {
         this.bookId = bookId
-        rules = formattingRepository.getStateBookFormattingRules(bookId)
+        rules = formattingRepository.rules.value[bookId].orEmpty()
     }
     fun onToggle(id: Int) {
         viewModelScope.launch(Dispatchers.IO) {
