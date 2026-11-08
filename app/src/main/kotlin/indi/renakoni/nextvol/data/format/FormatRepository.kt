@@ -14,7 +14,6 @@ import io.nightfish.lightnovelreader.api.text.TextProcessor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.regex.PatternSyntaxException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -47,69 +46,9 @@ class FormatRepository @Inject constructor(
         }
     }
 
-    private fun String.unescapeControlChars(): String {
-        return this.replace(Regex("""\\[\\"tnrbf]|\\u[0-9a-fA-F]{4}""")) {
-            when (it.value) {
-                "\\n" -> "\n"
-                "\\t" -> "\t"
-                "\\r" -> "\r"
-                "\\b" -> "\b"
-                "\\f" -> "\u000c"
-                "\\\"" -> "\""
-                "\\\\" -> "\\"
-                else -> {
-                    if (it.value.startsWith("\\u")) {
-                        it.value.substring(2).toInt(16).toChar().toString()
-                    } else it.value
-                }
-            }
-        }
-    }
-
-    private fun String.replaceTextWithRegex(regex: Regex, replaced: String): String {
-        var result = this
-        for (matchResult in regex.findAll(this)) {
-            var progressedReplacedText = replaced
-            matchResult.groups.forEachIndexed { index, matchGroup ->
-                matchGroup?.value?.let {
-                    progressedReplacedText = progressedReplacedText.replace("$$index", it)
-                }
-            }
-            result = result.replace(matchResult.value, progressedReplacedText)
-        }
-        return result
-    }
-
     private fun processText(bookId: String, text: String): String {
-        var result = text
-        for (formattingRule in processorMap.getOrDefault("", emptyList()).filter { it.isEnabled }) {
-            try {
-                result = if (formattingRule.isRegex) result.replaceTextWithRegex(
-                    Regex(formattingRule.match.unescapeControlChars()),
-                    formattingRule.replacement.unescapeControlChars()
-                )
-                else result.replace(
-                    formattingRule.match.unescapeControlChars(),
-                    formattingRule.replacement.unescapeControlChars()
-                )
-            } catch (_: PatternSyntaxException) {
-            }
-        }
-        for (formattingRule in processorMap.getOrDefault(bookId, emptyList())
-            .filter { it.isEnabled }) {
-            try {
-                result = if (formattingRule.isRegex) result.replaceTextWithRegex(
-                    Regex(formattingRule.match.unescapeControlChars()),
-                    formattingRule.replacement.unescapeControlChars()
-                )
-                else result.replace(
-                    formattingRule.match.unescapeControlChars(),
-                    formattingRule.replacement.unescapeControlChars()
-                )
-            } catch (_: PatternSyntaxException) {
-            }
-        }
-        return result
+        val global = applyFormattingRules(text, processorMap.getOrDefault("", emptyList()))
+        return applyFormattingRules(global, processorMap.getOrDefault(bookId, emptyList()))
     }
 
     suspend fun getFormattingRules(id: Int): FormattingRule? {

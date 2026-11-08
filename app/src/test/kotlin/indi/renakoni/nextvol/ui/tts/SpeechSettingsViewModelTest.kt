@@ -6,7 +6,6 @@ import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.OfflineVoiceConfig
 import io.mockk.coEvery
@@ -37,6 +36,7 @@ import org.robolectric.annotation.Config
 class SpeechSettingsViewModelTest {
     private val settings = MutableStateFlow(SpeechSettings(rate = 1.5f, pitch = 0.8f))
     private val repository = mockk<SpeechSettingsEditor>()
+    private val schemesRepository = mockk<SpeechSettingsRepository>()
     private val engines = mockk<SystemSpeechEngines>()
     private val http = mockk<HttpSpeechRepository>()
     private lateinit var model: SpeechSettingsViewModel
@@ -64,7 +64,7 @@ class SpeechSettingsViewModelTest {
     @Before fun create() {
         Dispatchers.setMain(StandardTestDispatcher())
         every { repository.changes } returns settings
-        coEvery { repository.updateAll(any()) } coAnswers {
+        coEvery { schemesRepository.updateAll(any()) } coAnswers {
             settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
         }
         every { http.changes } returns MutableStateFlow(0L)
@@ -129,7 +129,8 @@ class SpeechSettingsViewModelTest {
         val playback = MutableStateFlow(ReadAloudState())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns playback
-        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk(),
+            SpeechVoiceOperations(http, mockk(), schemesRepository, controller))
         try {
             library.state.first { it.loaded }
             library.previewVoice("candidate", "Sample.")
@@ -157,7 +158,7 @@ class SpeechSettingsViewModelTest {
         every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
-        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk(), mockk())
         try {
             library.state.first { it.loaded }
             library.previewPackage(listOf(definition), null)
@@ -184,7 +185,7 @@ class SpeechSettingsViewModelTest {
         coEvery { offline.voices() } returns listOf(InstalledOfflineVoice(reference, "Voice", emptyMap(),
             configuration = OfflineVoiceConfig("msctts", "voice")))
         coEvery { http.engines() } returns listOf(configuration)
-        val catalog = mockk<OfflineEngineRepository>()
+        val catalog = mockk<SpeechEngineRepository>()
         every { catalog.changes } returns MutableStateFlow(0L)
         coEvery { catalog.all() } returns listOf(configuration)
         coEvery { http.saveEngine(any(), any()) } returns Unit
@@ -223,12 +224,13 @@ class SpeechSettingsViewModelTest {
         }
         val availability = mockk<indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker>()
         every { availability.changes } returns MutableStateFlow(0L)
-        val engines = mockk<indi.renakoni.nextvol.tts.offline.OfflineEngineRepository>()
+        val engines = mockk<indi.renakoni.nextvol.tts.SpeechEngineRepository>()
         every { engines.changes } returns MutableStateFlow(0L)
         coEvery { engines.all() } returns emptyList()
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
-        val library = OfflineSpeechSourcesViewModel(offline, repository, controller, availability, engines)
+        val library = OfflineSpeechSourcesViewModel(offline, SpeechVoiceOperations(http, offline, schemesRepository, controller),
+            repository, controller, availability, engines)
         try {
             runCurrent()
             val deletion = library.delete(voice)

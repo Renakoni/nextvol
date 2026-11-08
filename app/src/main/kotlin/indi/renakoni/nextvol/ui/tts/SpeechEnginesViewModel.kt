@@ -7,7 +7,6 @@ import hnovel.speech.SpeechEngineConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.matcha.*
-import indi.renakoni.nextvol.tts.offline.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.*
@@ -24,7 +23,7 @@ internal val SpeechEngineConfig.key get() = "$type:$code"
 
 @HiltViewModel
 class SpeechEnginesViewModel @Inject constructor(
-    private val repository: OfflineEngineRepository,
+    private val repository: SpeechEngineRepository,
     private val http: HttpSpeechRepository,
     private val offline: OfflineSpeechRepository,
     private val settings: SpeechSettingsRepository,

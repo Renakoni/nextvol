@@ -8,7 +8,6 @@ import hnovel.speech.*
 import indi.renakoni.nextvol.data.local.room.dao.UserDataDao
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.tts.matcha.*
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import indi.renakoni.nextvol.ui.tts.VoiceDraft
 import indi.renakoni.nextvol.ui.tts.applyTo
 import indi.renakoni.nextvol.ui.tts.from
@@ -45,7 +44,7 @@ class MscVoiceEditingTest {
 
     private fun verifyTypeEdits(code: String, parameters: String, resources: Map<String, String>, modelPath: String) = runBlocking {
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) { override fun getFilesDir() = files.root }
-        val engines = OfflineEngineRepository(context, StorageCipher.Plain)
+        val engines = SpeechEngineRepository(context, StorageCipher.Plain)
         val root = files.newFolder("offline")
         val authority = ExecutionAuthority()
         var offline = OfflineSpeechRepository(root, engines)

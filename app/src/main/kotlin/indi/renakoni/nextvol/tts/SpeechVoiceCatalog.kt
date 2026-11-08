@@ -5,7 +5,6 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -14,7 +13,7 @@ data class SpeechRoleEngine(val key: String, val name: String, val voices: List<
 
 /** Reads configuration only. Planning must not open models, run scripts or acquire runtime permits. */
 class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechRepository,
-    private val offline: OfflineSpeechRepository, private val engines: OfflineEngineRepository,
+    private val offline: OfflineSpeechRepository, private val engines: SpeechEngineRepository,
     @ApplicationContext private val context: Context,
     private val pairs: SpeechVoicePoolRepository) {
     val changes = combine(http.changes, offline.changes, engines.changes) { a, b, c -> Triple(a, b, c) }

@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.tts.offline
+package indi.renakoni.nextvol.tts
 
 import android.app.Application
 import android.content.Context
@@ -17,13 +17,13 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
-class OfflineEngineRepositoryTest {
+class SpeechEngineRepositoryTest {
     @get:Rule val files = TemporaryFolder()
 
     @Test fun onlyRegisteredEnginesPersistWithTheirSettingsAndDisabledState() = runBlocking {
         val root = files.newFolder()
         val context = mockk<Context> { every { filesDir } returns root }
-        fun repository() = OfflineEngineRepository(context, StorageCipher.Plain)
+        fun repository() = SpeechEngineRepository(context, StorageCipher.Plain)
         val first = repository()
         assertTrue(first.all().isEmpty())
         first.register(SpeechEngineConfig("sherpa", "Sherpa"))

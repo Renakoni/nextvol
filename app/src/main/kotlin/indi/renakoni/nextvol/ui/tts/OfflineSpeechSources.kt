@@ -14,17 +14,15 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.ReadAloudController
 import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
-import indi.renakoni.nextvol.tts.references
+import indi.renakoni.nextvol.tts.SpeechVoiceOperations
 import indi.renakoni.nextvol.tts.voiceSelection
-import indi.renakoni.nextvol.tts.removeVoiceSelections
 import indi.renakoni.nextvol.tts.matcha.*
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
+import indi.renakoni.nextvol.tts.SpeechEngineRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -44,10 +42,11 @@ data class OfflineSpeechState(
 @HiltViewModel
 class OfflineSpeechSourcesViewModel @Inject constructor(
     private val repository: OfflineSpeechRepository,
+    private val operations: SpeechVoiceOperations,
     private val settings: SpeechSettingsEditor,
     private val controller: ReadAloudController,
     private val availability: OfflineAvailabilityChecker,
-    private val engines: OfflineEngineRepository,
+    private val engines: SpeechEngineRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(OfflineSpeechState())
     private var refreshing: Job? = null
@@ -106,33 +105,10 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
     }
     fun delete(voice: InstalledOfflineVoice) = delete(listOf(voice))
     fun delete(voices: List<InstalledOfflineVoice>) = work {
-        if (voices.isEmpty()) return@work
-        val ids = voices.map { it.reference.id }.toSet()
-        if (inUse(ids))
-            controller.command(indi.renakoni.nextvol.tts.SpeechAction.Stop)
-        withContext(NonCancellable) {
-            repository.delete(voices.map { it.reference }.toSet())
-            settings.updateAll { current ->
-                val selected = current.removeVoiceSelections { it.offlineVoice?.id in ids }
-                if (selected.offlineVoice?.id in ids) selected.copy(offlineVoice = null, httpSource = null) else selected
-            }
-        }
+        operations.deleteOffline(voices)
     }
     fun enable(voices: List<InstalledOfflineVoice>, enabled: Boolean) = work {
-        if (voices.isEmpty()) return@work
-        val ids = voices.map { it.reference.id }.toSet()
-        withContext(NonCancellable) {
-            val updated = repository.enable(voices.map { it.reference }.toSet(), enabled)
-            settings.updateAll { selected -> updated.find { it.reference.id == selected.offlineVoice?.id && it.reference.id in ids }
-                ?.let { selected.copy(offlineVoice = it.reference) } ?: selected }
-        }
-        if (!enabled && inUse(ids))
-            controller.command(indi.renakoni.nextvol.tts.SpeechAction.Stop)
-    }
-    private suspend fun inUse(ids: Set<String>): Boolean {
-        val request = controller.state.value.request ?: return false
-        val active = request.previewSettings ?: settings.forBook(request.bookId)
-        return active.references().any { it.offlineVoice?.id in ids }
+        operations.enableOffline(voices, enabled)
     }
     private fun work(action: suspend () -> Unit) = viewModelScope.launch {
         mutableState.update { it.copy(error = false) }
