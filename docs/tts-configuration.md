@@ -122,7 +122,7 @@
 单声音投影保留 `voiceRevision`、`roleContextPattern`、方案／书籍身份、文本设置和其他未明确裁掉的字段。
 它们即使不是某个底层引擎直接读取的参数，也仍参与现有完整值判等。本次不缩小失效范围，不引入万能缓存键。
 
-## 文本 key 的持久兼容
+## 当前文本 key 编码
 
 `textProcessingKey` 使用默认 `Json`，保持 `speech-text-v5` 前缀和 SHA-256 UTF-8 摘要。
 NUL 分隔的前六段依次是：前缀、方案 ID、替换规则 JSON、文本设置 JSON、最大输入长度、locale language tag。
@@ -142,8 +142,8 @@ narrationVoices JSON
 + maxCacheVoiceNum
 ```
 
-尾部各项之间原本没有新增分隔符。不能调整 JSON 配置、字段／集合顺序、可空字符串处理、分隔符或版本前缀。
-这些字节决定已有书签的片段索引和上下文能否继续使用。
+尾部各项之间没有分隔符。本次提取保持 JSON 配置、字段／集合顺序、可空字符串处理、分隔符和版本前缀不变，
+因为这些字节参与书签片段索引和上下文的复用判断。这里描述当前算法，没有旧版本读取分支或迁移逻辑。
 
 ## 后续修改的查阅入口
 
@@ -153,7 +153,7 @@ narrationVoices JSON
 不要为配置提取扩大 `validated()` 的调用范围，或改变导入与静态预览的非执行边界。
 
 现有回归分工：`SpeechSettingsRepositoryTest` 覆盖方案／runtime／绑定与 `updateAll`；
-`SpeechPlanTest` 保护固定 v5 文本身份及“文本身份相同但完整计划不能复用”的边界；
+`SpeechPlanTest` 保护“文本身份相同但完整计划不能复用”的边界；
 `SpeechVoiceSelectionTest`、`SpeechVoiceRoutingTest`、`SpeechDiagnosticsTest` 保护选择、路由与日志投影；
 `SpeechSynthesizerCacheTest` 覆盖单声音切回、版本变化、淘汰及冲突模型；
 `ReadAloudSessionTest` 继续覆盖正式朗读、试听、设置更新、暂停和恢复。
