@@ -20,7 +20,7 @@ import indi.renakoni.nextvol.tts.removeVoiceSelections
 import indi.renakoni.nextvol.tts.matcha.*
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
+import indi.renakoni.nextvol.tts.SpeechEngineRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,7 +47,7 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
     private val settings: SpeechSettingsEditor,
     private val controller: ReadAloudController,
     private val availability: OfflineAvailabilityChecker,
-    private val engines: OfflineEngineRepository,
+    private val engines: SpeechEngineRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(OfflineSpeechState())
     private var refreshing: Job? = null

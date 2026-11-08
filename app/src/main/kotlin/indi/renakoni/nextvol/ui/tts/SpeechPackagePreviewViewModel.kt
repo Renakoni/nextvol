@@ -28,7 +28,7 @@ import indi.renakoni.nextvol.tts.SpeechConfigurationImport
 import indi.renakoni.nextvol.tts.previewSpeechConfiguration
 import indi.renakoni.nextvol.tts.speechPackageReferences
 import indi.renakoni.nextvol.tts.withInstalledEngines
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
+import indi.renakoni.nextvol.tts.SpeechEngineRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineInstallException
@@ -75,7 +75,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
     private val settings: SpeechSettingsEditor,
     private val availability: OfflineAvailabilityChecker,
     private val http: indi.renakoni.nextvol.tts.HttpSpeechRepository,
-    private val engines: OfflineEngineRepository,
+    private val engines: SpeechEngineRepository,
     private val logger: LoggerRepository,
     private val editing: indi.renakoni.nextvol.tts.MscVoiceEditing,
 ) : ViewModel() {

@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.speech.*
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
+import indi.renakoni.nextvol.tts.SpeechEngineRepository
 import indi.renakoni.nextvol.tts.orderSpeechVoices
 import indi.renakoni.nextvol.tts.offline.googleVoiceCatalog
 import indi.renakoni.nextvol.tts.offline.legacy.prepareMicrosoftResources
@@ -58,8 +58,8 @@ class OfflineInstallException(val error: OfflineInstallError) : Exception(error.
 
 /** Catalog publication is atomic. Leases keep superseded/deleted resources alive through native close. */
 @Singleton
-class OfflineSpeechRepository internal constructor(root: File, private val engines: OfflineEngineRepository? = null) {
-    @Inject constructor(@ApplicationContext context: Context, engines: OfflineEngineRepository) :
+class OfflineSpeechRepository internal constructor(root: File, private val engines: SpeechEngineRepository? = null) {
+    @Inject constructor(@ApplicationContext context: Context, engines: SpeechEngineRepository) :
         this(File(context.noBackupFilesDir, "offline-speech"), engines)
 
     private val root = root.canonicalFile

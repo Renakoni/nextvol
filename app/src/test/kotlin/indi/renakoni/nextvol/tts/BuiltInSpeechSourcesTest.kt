@@ -7,7 +7,6 @@ import hnovel.network.*
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.previewHttpSpeech
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
-import indi.renakoni.nextvol.tts.offline.OfflineEngineRepository
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -31,7 +30,34 @@ class BuiltInSpeechSourcesTest {
     private val authority = ExecutionAuthority()
     private val offline by lazy { OfflineSpeechRepository(File(directory.root, "offline")) }
     private fun repository() = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline,
-        OfflineEngineRepository(context, StorageCipher.Plain))
+        SpeechEngineRepository(context, StorageCipher.Plain))
+
+    @Test fun onlineRegistrationKeepsSharedEngineStorageAndReimportDoesNotOverwriteOrNotify() = runBlocking {
+        val engines = SpeechEngineRepository(context, StorageCipher.Plain)
+        val repository = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline, engines)
+        val offlineEngine = SpeechEngineConfig("sherpa", "Sherpa")
+        val shared = SpeechEngineConfig("msctts", "MSC")
+        val online = SpeechEngineConfig("azure", "Azure")
+        engines.register(offlineEngine)
+        repository.registerEngine(shared)
+        repository.registerEngine(online)
+        assertEquals(shared, engines.get(shared.code))
+        val changes = engines.changes.value to repository.changes.value
+
+        val edited = shared.copy(name = "My MSC", parameters = "{\"region\":\"bj\"}", enabled = false, order = 2)
+        repository.saveEngine(edited)
+        assertEquals(changes.first + 1, engines.changes.value)
+        assertEquals(changes.second + 1, repository.changes.value)
+        repository.registerEngine(shared)
+        assertEquals(changes.first + 1, engines.changes.value)
+        assertEquals(changes.second + 1, repository.changes.value)
+        assertEquals(setOf(online, edited), repository().engines().toSet())
+
+        val httpStore = Json.parseToJsonElement(File(context.filesDir, "http-speech.enc").readText()).jsonObject
+        assertEquals(listOf(online), Json.decodeFromJsonElement<List<SpeechEngineConfig>>(httpStore.getValue("engines")))
+        assertEquals(listOf(offlineEngine, edited), Json.decodeFromString<List<SpeechEngineConfig>>(
+            File(context.filesDir, "offline-engines.enc").readText()))
+    }
 
     @Test fun catalogTicketsRespectEngineEditsAndRetirementWithAndWithoutSavedVoices() = runBlocking {
         val repository = repository()

@@ -1,4 +1,4 @@
-package indi.renakoni.nextvol.tts.offline
+package indi.renakoni.nextvol.tts
 
 import android.content.Context
 import android.util.AtomicFile
@@ -16,9 +16,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.withLock
 
-/** Engine-wide parameters are distinct from each voice's parameters and may contain credentials. */
+/** Owns offline and shared HTTP/offline engine settings, including engine-wide credentials. */
 @Singleton
-class OfflineEngineRepository @Inject constructor(@ApplicationContext context: Context, private val cipher: StorageCipher) {
+class SpeechEngineRepository @Inject constructor(@ApplicationContext context: Context, private val cipher: StorageCipher) {
     private val file = AtomicFile(File(context.filesDir, "offline-engines.enc"))
     private val lock = ReentrantLock()
     private val mutableChanges = MutableStateFlow(0L)
@@ -49,6 +49,22 @@ class OfflineEngineRepository @Inject constructor(@ApplicationContext context: C
     suspend fun order(ranks: Map<String, Int>) = withContext(Dispatchers.IO) {
         lock.withLock { write(read().map { it.copy(order = ranks["inner:${it.code}"] ?: it.order) }) }
     }
+
+    /** Mixed engines share one record, even when only offline voices have been imported. */
+    internal suspend fun sharedHttpEngines(): List<SpeechEngineConfig> = all().filter(::isSharedWithHttp)
+
+    internal fun httpRecords(configurations: List<SpeechEngineConfig>): List<SpeechEngineConfig> =
+        configurations.filterNot(::isSharedWithHttp)
+
+    /** Called after the HTTP store is published, before its authorization and resource cleanup. */
+    internal suspend fun updateSharedHttpEngines(previous: List<SpeechEngineConfig>, updated: List<SpeechEngineConfig>) {
+        updated.filter { isSharedWithHttp(it) && it !in previous }.forEach { engine ->
+            if (previous.any { it.code == engine.code }) save(engine)
+            else register(engine)
+        }
+    }
+
+    private fun isSharedWithHttp(configuration: SpeechEngineConfig) = configuration.code in setOf("msctts", "microsoft")
 
     private fun read(): List<SpeechEngineConfig> {
         if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()) return emptyList()
