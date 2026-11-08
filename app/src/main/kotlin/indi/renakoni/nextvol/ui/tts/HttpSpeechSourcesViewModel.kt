@@ -54,6 +54,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     private val catalog: SpeechVoiceCatalog,
     private val engineCatalog: SpeechEngineCatalogService,
     private val editing: MscVoiceEditing,
+    private val operations: SpeechVoiceOperations,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HttpSpeechSourcesState())
     val state = mutableState.asStateFlow()
@@ -194,25 +195,11 @@ class HttpSpeechSourcesViewModel @Inject constructor(
     }
 
     fun enable(sources: List<SavedHttpSpeechSource>, enabled: Boolean) = work {
-        if (sources.isEmpty()) return@work
-        val ids = sources.map { it.definition.id }.toSet()
-        if (!enabled && isInUse(ids)) controller.command(SpeechAction.Stop)
-        withContext(NonCancellable) {
-            repository.enable(ids, enabled)
-        }
+        operations.enableHttp(sources, enabled)
     }
 
     fun delete(sources: List<SavedHttpSpeechSource>) = work {
-        if (sources.isEmpty()) return@work
-        val ids = sources.filterNot { it.isBuiltIn }.map { it.definition.id }.toSet()
-        if (isInUse(ids)) controller.command(SpeechAction.Stop)
-        withContext(NonCancellable) {
-            repository.delete(ids)
-            settings.updateAll { current ->
-                val selected = current.removeVoiceSelections { it.httpSource in ids }
-                if (selected.httpSource in ids) selected.copy(httpSource = null, offlineVoice = null) else selected
-            }
-        }
+        operations.deleteHttp(sources)
     }
 
     fun sites(source: SavedHttpSpeechSource, text: String) = work(R.string.tts_source_sites_invalid) {
