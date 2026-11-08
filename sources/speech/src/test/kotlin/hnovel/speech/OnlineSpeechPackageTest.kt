@@ -14,6 +14,42 @@ import org.junit.rules.TemporaryFolder
 class OnlineSpeechPackageTest {
     @get:Rule val directory = TemporaryFolder()
 
+    @Test fun streamingCapabilityUsesRequestedSegmentsAndFallsBackToCompleteAudioWithoutReceiver() = runBlocking {
+        val received = mutableListOf<String>()
+        val backend = object : StreamingOnlineSpeechBackend {
+            override suspend fun stream(text: String, rate: Float, volume: Float, receive: (ByteArray, Int, Int) -> Unit) {
+                receive("[$text]".toByteArray(), 1, text.length)
+                assertEquals(text, received.last())
+            }
+            override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray = text.toByteArray()
+        }
+        val client = OnlineSpeechClient(buildJsonObject { putJsonObject("engine") { put("code", "vivo") } },
+            { error("Unexpected HTTP request") }, createSdkBackend = { _, _, _ -> backend })
+        assertTrue(client.synthesize("abcdefgh", 1.5f, 2f, 4) { bytes, offset, count ->
+            received += String(bytes, offset, count)
+        }.isEmpty())
+        assertEquals(listOf("abcd", "efgh"), received)
+        assertArrayEquals("abcdefgh".toByteArray(), client.synthesize("abcdefgh", 1.5f, 2f, 4, null))
+    }
+
+    @Test fun streamingQuotaAccumulatesAcrossSegmentsBeforeDelivery() {
+        val chunk = ByteArray(MAX_AUDIO_BYTES / 2 + 1)
+        val backend = object : StreamingOnlineSpeechBackend {
+            override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray = error("Unexpected file synthesis")
+            override suspend fun stream(text: String, rate: Float, volume: Float, receive: (ByteArray, Int, Int) -> Unit) {
+                receive(chunk, 0, chunk.size)
+            }
+        }
+        val client = OnlineSpeechClient(buildJsonObject { putJsonObject("engine") { put("code", "vivo") } },
+            { error("Unexpected HTTP request") }, createSdkBackend = { _, _, _ -> backend })
+        var deliveries = 0
+        val failure = assertThrows(HttpSpeechException::class.java) {
+            runBlocking { client.synthesize("abcdefgh", 1f, 1f, 4) { _, _, _ -> deliveries++ } }
+        }
+        assertEquals(HttpSpeechError.TooLarge, failure.error)
+        assertEquals(1, deliveries)
+    }
+
     @Test fun nativeFailureIsMappedAndVendorCancellationCannotSkipSessionCleanup(): Unit = runBlocking {
         val definition = HttpSpeechDefinition.parse(buildJsonObject {
             put("name", "Native voice"); put("url", "https://tts-v2.vivo.com.cn/tts")

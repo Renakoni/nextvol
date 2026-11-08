@@ -26,6 +26,8 @@ internal class GuaguaSpeechClient(
         if (userId.isNotEmpty() && userId != (parameters["userId"] as? JsonPrimitive)?.contentOrNull.orEmpty())
             JsonObject(parameters + ("userId" to JsonPrimitive(userId))).toString() else null
 
+    override fun sentenceLength(requested: Int): Int = 50
+
     override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray {
         val token = token()
         val body = buildJsonObject {
