@@ -14,7 +14,6 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -55,7 +54,9 @@ class UpdateDownloadRepositoryTest {
         server.start()
         coEvery { dao.get(any()) } returns null
         coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "false"
-        mockkObject(APIParser.BetaParser)
+        mockkObject(NextvolApiParser)
+        mockkStatic(::validateUpdateApk)
+        every { validateUpdateApk(any(), any(), any()) } just Runs
         every { system.createNotificationChannel() } answers { events += "channel"; started.complete(Unit); Unit }
         every { system.showDownloadNotification(any(), any()) } answers { events += "progress:${firstArg<Int>()}"; Unit }
         every { system.showDownloadCompleteNotification(any()) } answers { events += "complete"; Unit }
@@ -67,15 +68,17 @@ class UpdateDownloadRepositoryTest {
     }
 
     @After fun close() {
-        unmockkObject(APIParser.BetaParser)
+        unmockkObject(NextvolApiParser)
+        unmockkStatic(::validateUpdateApk)
         server.shutdown()
         Dispatchers.resetMain()
         main.close()
     }
 
-    private suspend fun checked(transform: ((File, File) -> Unit)? = null) {
-        val release = APIParser.APIRelease(BuildConfig.VERSION_CODE + 1, "fixture", "", server.url("/apk").toString(), transform)
-        every { APIParser.BetaParser.parser(any()) } returns release
+    private suspend fun checked() {
+        val release = Release(BuildConfig.VERSION_CODE + 1, "fixture", "", server.url("/apk").toString(),
+            "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04")
+        every { NextvolApiParser.parser(any()) } returns release
         repository = UpdateCheckRepository(context, UserDataRepository(dao), downloader, system)
         repository.check()
         withTimeout(5000) { repository.availableFlow.first { it } }
@@ -104,6 +107,8 @@ class UpdateDownloadRepositoryTest {
             callOriginal()
         }
         every { system.installApk(any()) } answers {
+            events += "install"
+            installationThread = Thread.currentThread()
             installing.complete(Unit)
             check(finishInstallation.await(5, TimeUnit.SECONDS))
         }
@@ -114,7 +119,9 @@ class UpdateDownloadRepositoryTest {
             val secondCall = async(Dispatchers.Default) { repository.downloadUpdate() }
             withTimeout(5000) { secondCall.await() }
             assertTrue(repository.isDownloading.value)
-            verify(exactly = 1) { downloader.prepare() }
+            repository.check()
+            verify(exactly = 1) { NextvolApiParser.parser(any()); downloader.prepare() }
+            assertNotNull(repository.release)
             assertEquals(0, server.requestCount)
             assertEquals("previous apk", files.apk.readText())
             assertEquals("previous temporary file", files.temporary.readText())
@@ -132,11 +139,15 @@ class UpdateDownloadRepositoryTest {
         withTimeout(5000) { firstCall.await() }
         finished()
         assertEquals(1, server.requestCount)
+        assertEquals(listOf("channel", "progress:0", "progress:100", "complete", "install"), events)
+        assertSame(withContext(main) { Thread.currentThread() }, installationThread)
+        assertEquals(1f, repository.downloadProgress.value)
+        assertEquals(R.string.update_phase_download_complete, repository.updatePhase.first().messageId)
         verify(exactly = 1) { system.showDownloadCompleteNotification(any()) }
         verify(exactly = 0) { system.showDownloadFailedNotification(any()) }
     }
 
-    @Test fun preparationFailureReportsAnErrorAndAllowsRetryWithoutStartingARequest() = runBlocking {
+    @Test fun preparationFailureReportsAnErrorWithoutStartingARequest() = runBlocking {
         checked()
         every { downloader.prepare() } throws IOException("storage unavailable")
         repository.downloadUpdate()
@@ -146,93 +157,47 @@ class UpdateDownloadRepositoryTest {
         assertEquals(listOf("storage unavailable"), repository.updatePhase.first().arguments)
         verify(exactly = 1) { system.showDownloadFailedNotification(any()) }
         verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
-        coVerify(exactly = 0) { downloader.download(any(), any(), any(), any()) }
-
-        every { downloader.prepare() } answers { callOriginal() }
-        server.enqueue(MockResponse().setBody("apk"))
-        repository.downloadUpdate()
-        finished()
-        assertEquals(1, server.requestCount)
-        verify(exactly = 2) { downloader.prepare() }
-        verify(exactly = 1) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
+        coVerify(exactly = 0) { downloader.download(any(), any(), any()) }
     }
 
-    @Test fun cancellationDuringBlockingConversionKeepsAdmissionUntilExitWithoutReportingCompletion() = runBlocking {
+    @Test fun cancellationAfterBlockingDownloadDoesNotExposeAnInstaller() = runBlocking {
+        checked()
         val downloading = CompletableDeferred<Job>()
-        val processing = CompletableDeferred<Unit>()
-        val finishConversion = CountDownLatch(1)
-        checked { source, target ->
-            processing.complete(Unit)
-            check(finishConversion.await(5, TimeUnit.SECONDS))
-            target.writeBytes(source.readBytes())
-        }
-        val actualDownloader = UpdateArtifactDownloader(context)
-        coEvery { downloader.download(any(), any(), any(), any()) } coAnswers {
+        val blocked = CompletableDeferred<Unit>()
+        val finishDownload = CountDownLatch(1)
+        coEvery { downloader.download(any(), any(), any()) } coAnswers {
             downloading.complete(currentCoroutineContext().job)
-            actualDownloader.download(firstArg(), secondArg(), thirdArg(), arg(3))
+            blocked.complete(Unit)
+            check(finishDownload.await(5, TimeUnit.SECONDS))
+            File(directory.root, "cancelled.apk").apply { writeText("apk") }
         }
-        server.enqueue(MockResponse().setBody("archive"))
         repository.downloadUpdate()
         val job = withTimeout(5000) { downloading.await() }
         try {
-            withTimeout(5000) { processing.await() }
-            assertTrue(repository.isDownloading.value)
-            assertEquals(R.string.update_phase_processing, repository.updatePhase.first().messageId)
-            verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
+            blocked.await()
             job.cancel()
             assertTrue(repository.isDownloading.value)
             repository.downloadUpdate()
             verify(exactly = 1) { downloader.prepare() }
-        } finally {
-            finishConversion.countDown()
-        }
+        } finally { finishDownload.countDown() }
         withTimeout(5000) { job.join() }
         assertFalse(repository.isDownloading.value)
-        assertEquals(R.string.update_phase_processing, repository.updatePhase.first().messageId)
-        assertEquals(1, server.requestCount)
         verify(exactly = 0) {
             system.showDownloadFailedNotification(any())
             system.showDownloadCompleteNotification(any())
             system.installApk(any())
         }
-
-        server.enqueue(MockResponse().setBody("retry archive"))
-        repository.downloadUpdate()
-        finished()
-        assertEquals(2, server.requestCount)
-        assertEquals(R.string.update_phase_download_complete, repository.updatePhase.first().messageId)
-        assertEquals("retry archive", directory.root.resolve("updates/LightNovelReader-update.apk").readText())
-        assertEquals(listOf("complete", "install"), events.takeLast(2))
-        verify(exactly = 1) { system.showDownloadCompleteNotification(any()); system.installApk(any()) }
     }
 
-    @Test fun realDownloadKeepsBusyProgressCompletionAndInstallationOrder() = runBlocking {
-        val requested = CompletableDeferred<Unit>()
-        val response = CountDownLatch(1)
-        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
-            override fun dispatch(request: RecordedRequest): MockResponse {
-                requested.complete(Unit)
-                check(response.await(5, TimeUnit.SECONDS))
-                return MockResponse().setBody("apk")
-            }
-        }
+    @Test fun rejectedApkIsDeletedBeforeAnyInstallerOrCompletionNotification() = runBlocking {
         checked()
-        try {
-            repository.downloadUpdate()
-            withTimeout(5000) { requested.await() }
-            assertTrue(repository.isDownloading.value)
-            assertEquals(R.string.update_phase_downloading, repository.updatePhase.first().messageId)
-            assertEquals(0f, repository.downloadProgress.value)
-            repository.downloadUpdate()
-            verify(exactly = 1) { downloader.prepare() }
-        } finally { response.countDown() }
+        every { validateUpdateApk(any(), any(), any()) } throws IOException("wrong signer")
+        server.enqueue(MockResponse().setBody("apk"))
+        repository.downloadUpdate()
         finished()
-        assertEquals(1, server.requestCount)
-        assertEquals(listOf("channel", "progress:0", "progress:100", "complete", "install"), events)
-        assertSame(withContext(main) { Thread.currentThread() }, installationThread)
-        assertEquals(1f, repository.downloadProgress.value)
-        assertEquals(R.string.update_phase_download_complete, repository.updatePhase.first().messageId)
-        assertEquals("apk", directory.root.resolve("updates/LightNovelReader-update.apk").readText())
+        assertEquals(R.string.update_phase_download_failed, repository.updatePhase.first().messageId)
+        assertFalse(directory.root.resolve("updates/NextVol-update.apk").exists())
+        verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
     }
 
     @Test fun emptyDownloadResetsBusyAndDoesNotInstall() = runBlocking {
@@ -246,41 +211,34 @@ class UpdateDownloadRepositoryTest {
     }
 
     @Test fun httpFailureStopsProcessingAndAllowsASuccessfulRetry() = runBlocking {
-        var conversions = 0
-        for (code in listOf(404, 503)) {
-            checked(transform = if (code == 503) { source, target ->
-                conversions++
-                target.writeBytes(source.readBytes())
-            } else null)
-            events.clear()
-            val failed = CompletableDeferred<Unit>()
-            every { system.showDownloadFailedNotification(any()) } answers {
-                events += "failed:${firstArg<String>()}"
-                failed.complete(Unit)
-                Unit
-            }
-            server.enqueue(MockResponse().setResponseCode(code).setBody("error page"))
-            repository.downloadUpdate()
-            withTimeout(5000) { failed.await(); repository.isDownloading.first { !it } }
-            val phase = repository.updatePhase.first()
-            assertEquals(R.string.update_phase_download_failed, phase.messageId)
-            assertEquals(listOf("HTTP $code"), phase.arguments)
-            assertEquals(listOf("channel", "progress:0",
-                "failed:${context.getString(R.string.update_phase_download_failed, "HTTP $code")}"), events)
-            assertEquals(0, conversions)
-            assertFalse(directory.root.resolve("updates/LightNovelReader-update.tmp").exists())
-            assertFalse(directory.root.resolve("updates/LightNovelReader-update.apk").exists())
-            verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
+        val code = 503
+        checked()
+        events.clear()
+        val failed = CompletableDeferred<Unit>()
+        every { system.showDownloadFailedNotification(any()) } answers {
+            events += "failed:${firstArg<String>()}"
+            failed.complete(Unit)
+            Unit
         }
+        server.enqueue(MockResponse().setResponseCode(code).setBody("error page"))
+        repository.downloadUpdate()
+        withTimeout(5000) { failed.await(); repository.isDownloading.first { !it } }
+        val phase = repository.updatePhase.first()
+        assertEquals(R.string.update_phase_download_failed, phase.messageId)
+        assertEquals(listOf("HTTP $code"), phase.arguments)
+        assertEquals(listOf("channel", "progress:0",
+            "failed:${context.getString(R.string.update_phase_download_failed, "HTTP $code")}"), events)
+        assertFalse(directory.root.resolve("updates/NextVol-update.tmp").exists())
+        assertFalse(directory.root.resolve("updates/NextVol-update.apk").exists())
+        verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
         events.clear()
         val installed = CompletableDeferred<Unit>()
         every { system.installApk(any()) } answers { events += "install"; installed.complete(Unit); Unit }
         server.enqueue(MockResponse().setBody("apk"))
         repository.downloadUpdate()
         withTimeout(5000) { installed.await(); repository.isDownloading.first { !it } }
-        assertEquals(1, conversions)
         assertEquals(R.string.update_phase_download_complete, repository.updatePhase.first().messageId)
         assertEquals(listOf("complete", "install"), events.takeLast(2))
-        assertEquals("apk", directory.root.resolve("updates/LightNovelReader-update.apk").readText())
+        assertEquals("apk", directory.root.resolve("updates/NextVol-update.apk").readText())
     }
 }

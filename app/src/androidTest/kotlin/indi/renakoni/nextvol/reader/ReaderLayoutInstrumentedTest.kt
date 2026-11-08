@@ -272,7 +272,7 @@ class ReaderLayoutInstrumentedTest {
     }
 
     // Re-enable when #353 has a reproducible cause and regression for the initial font-list update.
-    @Ignore("Intermittent font-list timeout on API 24/35: https://github.com/Renakoni/hnovel/issues/353")
+    @Ignore("Intermittent font-list timeout on API 24/35: https://github.com/Renakoni/nextvol/issues/353")
     @Test fun tenImportedFontsRemainSelectableAfterSwitchingAndReopening() = runBlocking {
         val source = File(context.cacheDir, "appearance-font.otf")
         val files = mutableListOf<File>()

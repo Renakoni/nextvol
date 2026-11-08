@@ -19,7 +19,7 @@ class StartupProcessIsolationTest {
     @Test fun onlyTheHostProcessInitializesHostDependencies() {
         device.executeShellCommand("am force-stop $pkg")
         val main = probe("BenchmarkFixtureReceiver")
-        assertEquals("11/11", main["injected"])
+        assertEquals("10/10", main["injected"])
         assertEquals(pkg, main["process"])
         assertEquals(main["appUid"], main["uid"])
         for ((receiver, suffix) in listOf(
@@ -27,12 +27,12 @@ class StartupProcessIsolationTest {
             "StartupNativeBrowserProbeReceiver" to ":source_browser_native",
         )) {
             val browser = probe(receiver)
-            assertEquals("0/11", browser["injected"])
+            assertEquals("0/10", browser["injected"])
             assertEquals(pkg + suffix, browser["process"])
             assertEquals(main["uid"], browser["uid"])
         }
         val isolated = probe("BenchmarkFixtureReceiver", "--ez isolated true")
-        assertEquals("0/11", isolated["injected"])
+        assertEquals("0/10", isolated["injected"])
         // Android may append the isolated service's component name to this prefix.
         val prefix = pkg + ":startup_probe_isolated"
         val process = requireNotNull(isolated["process"])

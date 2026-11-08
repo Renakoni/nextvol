@@ -224,55 +224,6 @@ fun SliderDialog(
 }
 
 
-@Composable
-fun SettingsDisableStatsDialog(
-    onClickConfirm: () -> Unit,
-    onDismissRequest: () -> Unit,
-    onClickShowPrivacyPolicy: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text(
-            text = stringResource(R.string.settings_statistics_disable_dialog_title),
-            style = typography.titleLarge
-        ) },
-        text = { 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(text = stringResource(R.string.settings_statistics_disable_dialog_text))
-                Spacer(modifier = Modifier.height(12.dp))
-                TextButton(
-                    onClick = onClickShowPrivacyPolicy,
-                    modifier = Modifier.align(Alignment.Start),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.privacy_policy),
-                        color = colorScheme.primary,
-                        style = typography.labelMedium
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onClickConfirm()
-                }
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_statistics_disable_dialog_confirm),
-                    color = colorScheme.error
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text(text = stringResource(R.string.cancel))
-            }
-        }
-    )
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ColorPickerDialog(

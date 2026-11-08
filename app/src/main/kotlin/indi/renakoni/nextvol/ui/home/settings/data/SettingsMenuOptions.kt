@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.ui.home.settings.data
 
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.data.update.UpdateChannel
 import indi.renakoni.nextvol.data.update.UpdatePlatform
 import indi.renakoni.nextvol.ui.components.MenuOptions
 import indi.renakoni.nextvol.ui.components.MenuOptions.Option
@@ -9,21 +8,11 @@ import indi.renakoni.nextvol.utils.DateFormat
 import indi.renakoni.nextvol.utils.DateOrder
 
 object SettingsMenuOptions {
-    data object UpdateChannelOptions: MenuOptions(
-        UpdateChannel.entries.map { channel ->
-            Option(channel.key, when (channel) {
-                UpdateChannel.RELEASE -> R.string.key_update_channel_release
-                UpdateChannel.DEVELOPMENT -> R.string.key_update_channel_development
-                UpdateChannel.CI -> R.string.key_update_channel_ci
-            })
-        }
-    )
-
     data object UpdatePlatformOptions: MenuOptions(
         UpdatePlatform.entries.map { platform ->
             Option(platform.key, when (platform) {
                 UpdatePlatform.GITHUB -> R.string.key_platform_github
-                UpdatePlatform.LNR_API -> R.string.key_platform_lnr_api
+                UpdatePlatform.NEXTVOL_API -> R.string.key_platform_nextvol_api
             })
         }
     )

@@ -10,7 +10,7 @@ import javax.inject.Inject
 class UpdatesAvailableDialogViewModel @Inject constructor(
     private val updateCheckRepository: UpdateCheckRepository
 ) : ViewModel() {
-    val release = updateCheckRepository.release
+    val releaseFlow = updateCheckRepository.releaseFlow
     val availableFlow = updateCheckRepository.availableFlow
     val updatePhaseFlow = updateCheckRepository.updatePhase
     val isDownloading: StateFlow<Boolean> = updateCheckRepository.isDownloading

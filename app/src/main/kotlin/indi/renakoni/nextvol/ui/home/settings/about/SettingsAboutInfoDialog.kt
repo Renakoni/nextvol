@@ -21,6 +21,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.BuildConfig
+import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.AnnotatedText
 
@@ -70,8 +71,8 @@ fun SettingsAboutInfoDialog(
                 AnnotatedText(
                     text = stringResource(
                         id = R.string.settings_about_source_code,
-                        "<b><a href=\"https://github.com/dmzz-yyhyy/LightNovelReader\">GitHub</a></b>",
-                        "<b><a href=\"https://github.com/dmzz-yyhyy/LightNovelReader/issues\">GitHub Issues</a></b>"
+                        "<b><a href=\"${ProjectLinks.GITHUB}\">GitHub</a></b>",
+                        "<b><a href=\"${ProjectLinks.ISSUES}\">GitHub Issues</a></b>"
                     ),
                     style = typography.labelLarge
                 )

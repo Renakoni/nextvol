@@ -58,15 +58,6 @@ private fun UpdatesSettingsList(
     )
     SettingsMenuEntry(
         modifier = Modifier.background(colorScheme.surfaceContainer),
-        painter = painterResource(R.drawable.alt_route_24px),
-        title = stringResource(R.string.settings_update_channel),
-        description = stringResource(R.string.settings_update_channel_desc),
-        options = SettingsMenuOptions.UpdateChannelOptions,
-        selectedOptionKey = settingState.updateChannelKey,
-        onOptionChange = settingState.updateChannelKeyUserData::asynchronousSet
-    )
-    SettingsMenuEntry(
-        modifier = Modifier.background(colorScheme.surfaceContainer),
         painter = painterResource(R.drawable.outline_explore_24px),
         title = stringResource(R.string.settings_distribution_platform),
         options = SettingsMenuOptions.UpdatePlatformOptions,

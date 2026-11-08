@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.mikepenz.aboutlibraries.entity.Library
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.util.author
+import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.utils.navigationBarSpacer
 
@@ -74,7 +75,7 @@ fun LicenseList(items: List<Library>) {
         item(key = "app_license_card") {
             AppLicenseCard(
                 onClick = {
-                    uriHandler.openUri("https://github.com/dmzz-yyhyy/LightNovelReader?tab=readme-ov-file#license")
+                    uriHandler.openUri("${ProjectLinks.GITHUB}/blob/main/LICENSE")
                 }
             )
         }
@@ -168,7 +169,7 @@ private fun LicenseTypeLabel(text: String) {
 private fun AppLicenseCard(onClick: (() -> Unit)? = null) {
     LicenseCard(
         title = stringResource(R.string.app_name),
-        subtitle = "LightNovelReader Developers",
+        subtitle = "NextVol & LightNovelReader contributors",
         licenseType = "Apache License 2.0",
         onClick = onClick
     )

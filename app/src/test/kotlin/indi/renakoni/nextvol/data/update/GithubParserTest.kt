@@ -1,0 +1,116 @@
+package indi.renakoni.nextvol.data.update
+
+import android.app.Application
+import indi.renakoni.nextvol.R
+import kotlinx.coroutines.flow.MutableStateFlow
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.json.JSONArray
+import org.json.JSONObject
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.io.IOException
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [30], application = Application::class)
+class GithubParserTest {
+    private val server = MockWebServer()
+    private val apkUrl = "https://github.com/Renakoni/nextvol/releases/download/v1.4.0/NextVol-1.4.0-release.apk"
+
+    @Before fun start() = server.start()
+    @After fun stop() = server.shutdown()
+
+    private fun metadata(url: String = apkUrl) = JSONObject()
+        .put("draft", false).put("prerelease", false).put("tag_name", "v1.4.0")
+        .put("body", "## Changes\nA new version")
+        .put("assets", JSONArray().put(JSONObject()
+            .put("name", "NextVol-1.4.0-release.apk").put("browser_download_url", url)
+            .put("digest", "sha256:${"a".repeat(64)}")))
+
+    private fun parse(): Release? = GithubParser.fetchRelease(
+        MutableStateFlow(UpdatePhase(R.string.update_phase_not_checked)),
+        OkHttpClient(), server.url("/api/"), server.url("/raw/"),
+    )
+
+    @Test fun stableReleaseReadsItsOwnTagAndPreservesMarkdown() {
+        server.enqueue(MockResponse().setBody(JSONArray().put(metadata()).toString()))
+        server.enqueue(MockResponse().setBody("""
+            android {
+                defaultConfig {
+                    versionCode = 1_04_00_001 // release version
+                    versionName = "1.4.0"
+                }
+            }
+        """.trimIndent()))
+        val result = parse()!!
+        assertEquals(10400001, result.version)
+        assertEquals("1.4.0", result.versionName)
+        assertEquals("## Changes\nA new version", result.releaseNotes)
+        assertEquals(apkUrl, result.downloadUrl)
+        assertEquals("a".repeat(64), result.sha256)
+        assertEquals("/api/repos/Renakoni/nextvol/releases?per_page=100&page=1", server.takeRequest().path)
+        assertEquals("/raw/Renakoni/nextvol/refs/tags/v1.4.0/app/build.gradle.kts", server.takeRequest().path)
+    }
+
+    @Test fun runtimeReleasesAreIgnoredEvenWhenPublishedAfterTheApp() {
+        server.enqueue(MockResponse().setBody(JSONArray()
+            .put(metadata().put("tag_name", "offline-runtime-4"))
+            .put(metadata()).toString()))
+        server.enqueue(MockResponse().setBody("versionCode = 10400001\nversionName = \"1.4.0\""))
+        assertEquals("1.4.0", parse()!!.versionName)
+    }
+
+    @Test fun noReleasesIsNotANetworkFailure() {
+        server.enqueue(MockResponse().setResponseCode(404))
+        assertNull(parse())
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun rateLimitsAreFailures() {
+        server.enqueue(MockResponse().setResponseCode(403))
+        assertThrows(IOException::class.java) { parse() }
+    }
+
+    @Test fun draftsAndPrereleasesAreNeverOffered() {
+        for (flag in listOf("draft", "prerelease")) {
+            server.enqueue(MockResponse().setBody(JSONArray().put(metadata().put(flag, true)).toString()))
+            assertNull(parse())
+        }
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun missingAndAmbiguousApksFailWithoutSelectingAnArbitraryAsset() {
+        for (count in listOf(0, 2)) {
+            val json = metadata()
+            val asset = json.getJSONArray("assets").getJSONObject(0)
+            json.put("assets", JSONArray().apply { repeat(count) { put(asset) } })
+            server.enqueue(MockResponse().setBody(JSONArray().put(json).toString()))
+            assertThrows(IOException::class.java) { parse() }
+        }
+    }
+
+    @Test fun foreignDownloadsAndInvalidDigestsAreRejected() {
+        for (asset in listOf(
+            metadata(apkUrl.replace("Renakoni/nextvol", "foreign/repository")),
+            metadata().apply { getJSONArray("assets").getJSONObject(0).put("digest", "invalid") },
+        )) {
+            server.enqueue(MockResponse().setBody(JSONArray().put(asset).toString()))
+            assertThrows(IOException::class.java) { parse() }
+        }
+    }
+
+    @Test fun invalidOrMissingTagMetadataDoesNotInventAVersion() {
+        server.enqueue(MockResponse().setBody(JSONArray().put(metadata()).toString()))
+        server.enqueue(MockResponse().setBody("versionName = \"1.4.0\""))
+        assertThrows(IOException::class.java) { parse() }
+        server.enqueue(MockResponse().setBody(JSONArray().put(metadata()).toString()))
+        server.enqueue(MockResponse().setResponseCode(404))
+        assertThrows(IOException::class.java) { parse() }
+    }
+}

@@ -22,7 +22,7 @@ internal fun startupProcessProbe(app: NextVolApplication): String {
         { app.sourceImageInterceptor }, { app.importedRuleSources }, { app.zLibrarySources },
         { app.localBooks }, { app.bangumiSync }, { app.workerFactory }, { app.loggerRepository },
         { app.userDataRepository }, { app.webBookDataSourceManager },
-        { app.sourceNetworkSettings }, { app.matomoAnalytics },
+        { app.sourceNetworkSettings },
     )
     val injected = dependencies.count { read ->
         try { read(); true } catch (_: UninitializedPropertyAccessException) { false }
