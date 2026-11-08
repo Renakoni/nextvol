@@ -77,7 +77,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
     private val http: indi.renakoni.nextvol.tts.HttpSpeechRepository,
     private val engines: SpeechEngineRepository,
     private val logger: LoggerRepository,
-    private val editing: indi.renakoni.nextvol.tts.MscVoiceEditing,
+    private val references: indi.renakoni.nextvol.tts.SpeechVoiceReferences,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPackagePreviewState())
     val state = mutableState.asStateFlow()
@@ -205,7 +205,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
             try {
                 withContext(NonCancellable) {
                     val voice = offline.importConfiguration(draft)
-                    editing.replaceReference(SpeechVoiceRef(offlineVoice = draft.reference),
+                    references.replaceReference(SpeechVoiceRef(offlineVoice = draft.reference),
                         SpeechVoiceRef(offlineVoice = voice.reference, label = voice.name))
                     mutableState.update { it.copy(installed = voice.name,
                         updatedOfflineVoices = it.updatedOfflineVoices + voice.reference.id) }
@@ -243,7 +243,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                     // Keep the selected reference aligned with the committed catalog either way.
                     withContext(NonCancellable) {
                         offline.voices().singleOrNull { it.sourceKey == plan.id }?.let { installed ->
-                            editing.replaceReference(SpeechVoiceRef(offlineVoice = installed.reference),
+                            references.replaceReference(SpeechVoiceRef(offlineVoice = installed.reference),
                                 SpeechVoiceRef(offlineVoice = installed.reference, label = installed.name))
                         }
                     }

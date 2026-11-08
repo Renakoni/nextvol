@@ -39,6 +39,7 @@ class OfflineVoiceEditorViewModel @Inject constructor(
     private val repository: OfflineSpeechRepository,
     private val saved: SavedStateHandle,
     private val msc: MscVoiceEditing,
+    private val references: SpeechVoiceReferences,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(VoiceEditorState())
     val state = mutableState.asStateFlow()
@@ -94,7 +95,7 @@ class OfflineVoiceEditorViewModel @Inject constructor(
             else {
                 val result = if (creating) repository.create(edited) else repository.save(edited, copy)
                 if (!copy && !creating) {
-                    msc.replaceReference(
+                    references.replaceReference(
                         SpeechVoiceRef(offlineVoice = original.reference, externalId = original.packageVoiceId()),
                         SpeechVoiceRef(offlineVoice = result.reference, label = result.name, externalId = result.packageVoiceId()))
                 }

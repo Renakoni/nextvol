@@ -41,6 +41,7 @@ class HttpVoiceEditorViewModel @Inject constructor(
     private val repository: HttpSpeechRepository,
     private val saved: SavedStateHandle,
     private val msc: MscVoiceEditing,
+    private val references: SpeechVoiceReferences,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(VoiceEditorState())
     val state = mutableState.asStateFlow()
@@ -93,7 +94,7 @@ class HttpVoiceEditorViewModel @Inject constructor(
             else {
                 val candidate = withContext(Dispatchers.Default) { editHttpVoice(selected, edited.speakerFields(), edited.enabled, copy) }
                 repository.saveVoice(candidate)
-                if (!copy) msc.replaceReference(
+                if (!copy) references.replaceReference(
                     SpeechVoiceRef(httpSource = selected.definition.id, externalId = selected.packageVoiceId()),
                     SpeechVoiceRef(httpSource = candidate.definition.id, label = candidate.definition.name, externalId = candidate.packageVoiceId()))
             }
