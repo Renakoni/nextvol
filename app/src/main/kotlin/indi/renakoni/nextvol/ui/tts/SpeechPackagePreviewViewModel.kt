@@ -22,7 +22,7 @@ import indi.renakoni.nextvol.data.logging.LoggerRepository
 import indi.renakoni.nextvol.data.logging.SpeechLogRecord
 import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import indi.renakoni.nextvol.data.logging.SpeechLogEvent
-import indi.renakoni.nextvol.tts.SpeechVoiceRef
+import indi.renakoni.nextvol.tts.OfflineSpeechCommit
 import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechConfigurationImport
 import indi.renakoni.nextvol.tts.previewSpeechConfiguration
@@ -77,7 +77,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
     private val http: indi.renakoni.nextvol.tts.HttpSpeechRepository,
     private val engines: SpeechEngineRepository,
     private val logger: LoggerRepository,
-    private val references: indi.renakoni.nextvol.tts.SpeechVoiceReferences,
+    private val offlineCommit: OfflineSpeechCommit,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SpeechPackagePreviewState())
     val state = mutableState.asStateFlow()
@@ -203,10 +203,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
         mutableState.update { it.copy(installing = true, installingId = draft.reference.id, installed = null, installError = null) }
         viewModelScope.launch {
             try {
-                withContext(NonCancellable) {
-                    val voice = offline.importConfiguration(draft)
-                    references.replaceReference(SpeechVoiceRef(offlineVoice = draft.reference),
-                        SpeechVoiceRef(offlineVoice = voice.reference, label = voice.name))
+                offlineCommit.importConfiguration(draft) { voice ->
                     mutableState.update { it.copy(installed = voice.name,
                         updatedOfflineVoices = it.updatedOfflineVoices + voice.reference.id) }
                 }
@@ -232,22 +229,7 @@ class SpeechPackagePreviewViewModel @Inject constructor(
         mutableState.update { it.copy(installing = true, installingId = plan.id, installError = null, installed = null) }
         installing = viewModelScope.launch {
             try {
-                val voice = try {
-                    withContext(Dispatchers.IO) {
-                        context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
-                            offline.install(File("/proc/self/fd/${descriptor.fd}"), plan)
-                        } ?: error("Unreadable package")
-                    }
-                } finally {
-                    // Publication can finish just as cancellation discards the IO result.
-                    // Keep the selected reference aligned with the committed catalog either way.
-                    withContext(NonCancellable) {
-                        offline.voices().singleOrNull { it.sourceKey == plan.id }?.let { installed ->
-                            references.replaceReference(SpeechVoiceRef(offlineVoice = installed.reference),
-                                SpeechVoiceRef(offlineVoice = installed.reference, label = installed.name))
-                        }
-                    }
-                }
+                val voice = offlineCommit.install(uri, plan)
                 mutableState.update { it.copy(installed = voice.name) }
                 refreshConfiguration()
                 recordImport()
