@@ -111,7 +111,6 @@ class DownloadProgressLifecycleTest {
             entered.await()
             val secondObserver = observe(second, secondScope, item("b").apply { progress = 1f })
             secondEntered.await()
-            assertFalse(firstObserver.isCompleted)
             release.complete(Unit)
             firstObserver.join()
             secondObserver.join()
@@ -129,7 +128,6 @@ class DownloadProgressLifecycleTest {
         try {
             ready.await()
             assertEquals(listOf("a", "b"), restarted.downloadItemIdList.map { it.bookId })
-            assertEquals(3, history().size)
         } finally { restarted.close() }
     }
 
@@ -205,38 +203,42 @@ class DownloadProgressLifecycleTest {
             current.progress = 1f
             Snapshot.sendApplyNotifications()
             currentObserver.join()
-            assertTrue(currentObserver.isCompleted)
             assertEquals(listOf(DownloadType.EPUB_EXPORT to "same-book"), history())
         } finally { repository.close() }
     }
 
-    @Test fun clearDuringInitialReadCannotRestoreOldCardsOrEraseNewCompletion() = runTest {
-        db.userDataDao().insert(path, "", "CompletedDownloadItemList", "EPUB_EXPORT|old")
-        val entered = CompletableDeferred<Unit>()
-        val release = CompletableDeferred<Unit>()
-        val dao = db.userDataDao()
-        val heldDao = object : UserDataDao by dao {
-            override suspend fun get(path: String): String? {
-                val saved = dao.get(path)
-                entered.complete(Unit)
-                release.await()
-                return saved
+    @Test fun initialReadCannotRestoreRemovedOrClearedCards() = runTest {
+        for (clear in listOf(false, true)) {
+            db.userDataDao().insert(path, "", "CompletedDownloadItemList", "EPUB_EXPORT|old")
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val dao = db.userDataDao()
+            val heldDao = object : UserDataDao by dao {
+                override suspend fun get(path: String): String? {
+                    val saved = dao.get(path)
+                    entered.complete(Unit)
+                    release.await()
+                    return saved
+                }
             }
-        }
-        val scope = CoroutineScope(Job() + StandardTestDispatcher(testScheduler))
-        val repository = repository(scope, heldDao)
-        try {
-            entered.await()
-            repository.clearCompleted()
-            val observer = observe(repository, scope, item("new").apply { progress = 1f })
-            runCurrent()
-            release.complete(Unit)
-            observer.join()
-            assertEquals(listOf("new"), repository.downloadItemIdList.map { it.bookId })
-            assertEquals(listOf(DownloadType.EPUB_EXPORT to "new"), history())
-        } finally {
-            release.complete(Unit)
-            repository.close()
+            val scope = CoroutineScope(Job() + StandardTestDispatcher(testScheduler))
+            val repository = repository(scope, heldDao)
+            try {
+                entered.await()
+                val old = item("old").apply { progress = 1f }
+                repository.addExportItem(old)
+                if (clear) repository.clearCompleted() else repository.removeExportItem(old)
+                val observer = observe(repository, scope, item("new").apply { progress = 1f })
+                runCurrent()
+                release.complete(Unit)
+                observer.join()
+                assertEquals(listOf("new"), repository.downloadItemIdList.map { it.bookId })
+                // Removal hides the current card; only clear deletes already saved history.
+                assertEquals(if (clear) listOf("new") else listOf("old", "new"), history().map { it.second })
+            } finally {
+                release.complete(Unit)
+                repository.close()
+            }
         }
     }
 

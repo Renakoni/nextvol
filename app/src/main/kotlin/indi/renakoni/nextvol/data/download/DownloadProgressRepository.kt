@@ -88,7 +88,8 @@ class DownloadProgressRepository internal constructor(
     val downloadItemIdList: List<DownloadItem> get() = synchronized(stateLock) { _downloadItemList.toList() }
     private val cacheObservers = mutableMapOf<String, Job>()
     private val exportObservers = mutableMapOf<DownloadItem, Job>()
-    private var historyCleared = false
+    // Only needed until the initial read is applied or discarded by clearCompleted.
+    private var historyExclusions: MutableSet<DownloadItem>? = mutableSetOf()
     private var historyUpdate: Job? = null
 
     init {
@@ -96,7 +97,10 @@ class DownloadProgressRepository internal constructor(
             val completedBookList = completedBookListUserData.getOrDefault(emptyList())
             val saved = completedBookList.filter { it.type != DownloadType.CACHE }
             synchronized(stateLock) {
-                if (!historyCleared) _downloadItemList.addAll(saved.filterNot { it in _downloadItemList })
+                historyExclusions?.let { removed ->
+                    _downloadItemList.addAll(saved.filterNot { it in removed || it in _downloadItemList })
+                }
+                historyExclusions = null
             }
         }
         historyUpdate = loadHistory
@@ -169,6 +173,7 @@ class DownloadProgressRepository internal constructor(
     fun removeExportItem(downloadItem: DownloadItem) {
         synchronized(stateLock) {
             if (_downloadItemList.none { it === downloadItem }) return
+            historyExclusions?.add(downloadItem)
             exportObservers.remove(downloadItem)?.cancel()
             _downloadItemList.remove(downloadItem)
         }
@@ -182,7 +187,7 @@ class DownloadProgressRepository internal constructor(
 
     fun clearCompleted() {
         synchronized(stateLock) {
-            historyCleared = true
+            historyExclusions = null
             val completed = _downloadItemList.filter { it.progress >= 1f }
             val cached = completed.filter { it.type == DownloadType.CACHE }.map { it.bookId }
             completed.filter { it.type != DownloadType.CACHE }.forEach {
