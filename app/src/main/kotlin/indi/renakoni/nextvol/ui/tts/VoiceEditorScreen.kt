@@ -26,14 +26,13 @@ import indi.renakoni.nextvol.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun OfflineVoiceEditorScreen(
-    state: OfflineVoiceEditorState, copy: Boolean,
-    onEdit: (OfflineVoiceDraft) -> Unit, onSave: () -> Unit, onBack: () -> Unit,
+internal fun VoiceEditorScreen(
+    state: VoiceEditorState, copy: Boolean,
+    onEdit: (VoiceDraft) -> Unit, onSave: () -> Unit, onBack: () -> Unit,
     parametersSupported: Boolean = true,
     showParameters: Boolean = false, showExtensions: Boolean = false, newVoice: Boolean = false,
 ) {
     val draft = state.draft
-    val voice = state.voice
     val context = LocalContext.current
     val fontScale = LocalDensity.current.fontScale
     var avatarError by remember { mutableStateOf(false) }
@@ -66,7 +65,7 @@ internal fun OfflineVoiceEditorScreen(
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                     state.error?.let { item { Text(stringResource(it), color = MaterialTheme.colorScheme.error) } }
-                    if (draft != null && voice != null) {
+                    if (draft != null) {
                         if (avatarError) item { Text(stringResource(R.string.tts_voice_avatar_failed), color = MaterialTheme.colorScheme.error) }
                         item { VoiceText(draft.code, R.string.tts_voice_code, !state.busy) { onEdit(draft.copy(code = it)) } }
                         item { VoicePair(horizontalPairs,
@@ -101,7 +100,7 @@ internal fun OfflineVoiceEditorScreen(
                                 onEdit(draft.copy(extensions = updateSpeechExtension(draft.extensions, control.code, value)))
                             }
                         }
-                        val emptyCode = newVoice || voice.configuration?.code.isNullOrEmpty()
+                        val emptyCode = newVoice || state.emptyCode
                         if (parametersSupported && (showParameters || emptyCode)) {
                             item { OutlinedTextField(draft.parameters, { onEdit(draft.copy(parameters = it)) }, Modifier.fillMaxWidth(),
                                 enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 8, label = { Text(stringResource(R.string.tts_voice_parameters)) }) }

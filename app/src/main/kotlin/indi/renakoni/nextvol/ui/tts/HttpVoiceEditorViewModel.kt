@@ -7,7 +7,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import hnovel.speech.*
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
-import indi.renakoni.nextvol.tts.matcha.*
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -19,13 +18,31 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import javax.inject.Inject
 
+internal fun VoiceDraft.Companion.from(source: SavedHttpSpeechSource, id: String): VoiceDraft {
+    val data = source.speakerData()
+    fun text(key: String, fallback: String = "") = (data[key] as? JsonPrimitive)?.contentOrNull ?: fallback
+    return VoiceDraft(source.definition.name, text("code", id), text("locale"), text("param"), text("extendUI"),
+        text("speed", "1").toFloat().toString(), text("pitch", "1").toFloat().toString(), text("volume", "1").toFloat().toString(),
+        text("sampleRate", "16000").toInt().let { if (it == 0) 16000 else it }.toString(),
+        text("gender", "0").toInt().toString(), text("type", "0").toInt().toString(),
+        text("note"), text("desc"), text("avatar"), source.enabled)
+}
+
+internal fun VoiceFields.speakerFields(): JsonObject = buildJsonObject {
+    put("code", code); put("name", name); put("locale", locale)
+    put("param", parameters); put("extendUI", extensions)
+    put("speed", speed); put("pitch", pitch); put("volume", volume)
+    put("sampleRate", sampleRate); put("gender", gender); put("type", type)
+    put("note", note); put("desc", description); put("avatar", avatar)
+}
+
 @HiltViewModel
 class HttpVoiceEditorViewModel @Inject constructor(
     private val repository: HttpSpeechRepository,
     private val saved: SavedStateHandle,
     private val msc: MscVoiceEditing,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(OfflineVoiceEditorState())
+    private val mutableState = MutableStateFlow(VoiceEditorState())
     val state = mutableState.asStateFlow()
     private var source: SavedHttpSpeechSource? = null
     private var loadingControls: Job? = null
@@ -40,18 +57,11 @@ class HttpVoiceEditorViewModel @Inject constructor(
             }
             val restored = saved.get<String>("voice.draft")
             val prepared = withContext(Dispatchers.IO) {
-                val data = selected.speakerData()
-                fun text(key: String, fallback: String = "") = (data[key] as? JsonPrimitive)?.contentOrNull ?: fallback
-                val config = OfflineVoiceConfig("http", text("code", id), rawParameters = text("param"), extendUI = text("extendUI"),
-                    locale = text("locale"), speed = text("speed", "1").toFloat(), pitch = text("pitch", "1").toFloat(),
-                    volume = text("volume", "1").toFloat(), sampleRate = text("sampleRate", "16000").toInt().let { if (it == 0) 16000 else it },
-                    gender = text("gender", "0").toInt(), type = text("type", "0").toInt())
-                val voice = InstalledOfflineVoice(OfflineVoiceRef(id, "http"), selected.definition.name, emptyMap(), configuration = config,
-                    enabled = selected.enabled, metadata = OfflineVoiceMetadata(text("note"), text("desc"), text("avatar")))
-                val draft = restored?.let { runCatching { Json.decodeFromString<OfflineVoiceDraft>(it) }.getOrNull() }
-                    ?: OfflineVoiceDraft.from(voice).let { if (engineCode != null) it.copy(name = "", code = "")
+                val initial = VoiceDraft.from(selected, id)
+                val draft = restored?.let { runCatching { Json.decodeFromString<VoiceDraft>(it) }.getOrNull() }
+                    ?: initial.let { if (engineCode != null) it.copy(name = "", code = "")
                         else if (copyPattern == null) it else it.copy(name = String.format(copyPattern, it.name)) }
-                OfflineVoiceEditorState(voice, draft, busy = true, packageAvatar = repository.avatar(selected)?.path,
+                VoiceEditorState(draft, emptyCode = initial.code.isEmpty(), busy = true, packageAvatar = repository.avatar(selected)?.path,
                     controls = runCatching { speechExtensionControls(draft.extensions) }.getOrNull(),
                     availability = OfflineAvailability(if (selected.isConfigured) R.string.tts_offline_unverified else R.string.tts_needs_key,
                         canRun = selected.isConfigured))
@@ -61,7 +71,7 @@ class HttpVoiceEditorViewModel @Inject constructor(
         }
     }
 
-    fun edit(draft: OfflineVoiceDraft) {
+    fun edit(draft: VoiceDraft) {
         val extensionsChanged = state.value.draft?.extensions != draft.extensions
         saved["voice.draft"] = Json.encodeToString(draft)
         mutableState.update { it.copy(draft = draft, loadingControls = extensionsChanged || it.loadingControls, error = null) }
@@ -76,10 +86,10 @@ class HttpVoiceEditorViewModel @Inject constructor(
     fun save(copy: Boolean, onSaved: () -> Unit) = work {
         val current = state.value
         val selected = requireNotNull(source)
-        val edited = withContext(Dispatchers.Default) { requireNotNull(current.draft).applyTo(requireNotNull(current.voice)) }
+        val edited = withContext(Dispatchers.Default) { requireNotNull(current.draft).fields() }
         withContext(NonCancellable) {
             if (selected.httpEngine()?.let { it.type != "http" && it.code in setOf("msctts", "microsoft") } == true &&
-                edited.configuration?.type == 0) msc.toOffline(selected, edited, copy)
+                edited.type == 0) msc.toOffline(selected, edited.speakerFields(), edited.enabled, copy)
             else {
                 val candidate = withContext(Dispatchers.Default) { editHttpVoice(selected, edited.speakerFields(), edited.enabled, copy) }
                 repository.saveVoice(candidate)

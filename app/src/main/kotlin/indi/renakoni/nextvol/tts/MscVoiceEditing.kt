@@ -46,9 +46,11 @@ class MscVoiceEditing @Inject constructor(
         }
     }
 
-    suspend fun toOffline(source: SavedHttpSpeechSource, edited: InstalledOfflineVoice, copy: Boolean) {
+    suspend fun toOffline(source: SavedHttpSpeechSource, fields: JsonObject, enabled: Boolean, copy: Boolean) {
         val engine = requireNotNull(source.httpEngine())
-        val configuration = requireNotNull(edited.configuration).copy(engine = engine.code)
+        val configuration = fields.offlineConfiguration(engine.code)
+        val name = fields.getValue("name").jsonPrimitive.content
+        val metadata = fields.offlineMetadata()
         val defaults = source.speakerDefaults ?: source.defaultSpeaker()
         val original = defaults.offlineConfiguration(engine.code)
         val sourceKey = if (copy || source.isVoiceCopy) "" else "${engine.code}\u0000${original.code}"
@@ -58,14 +60,14 @@ class MscVoiceEditing @Inject constructor(
                 current.engine == engine.code && current.code == configuration.code && current.type == configuration.type
             } == true
         }
-        val voice = if (target != null) offline.save(target.copy(name = edited.name, configuration = configuration,
-            enabled = edited.enabled, metadata = edited.metadata), retained = source.offlineResources)
+        val voice = if (target != null) offline.save(target.copy(name = name, configuration = configuration,
+            enabled = enabled, metadata = metadata), retained = source.offlineResources)
         else {
             val existingId = source.definition.id.removePrefix("nextvol:voice:").takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,128}")) }
             val reference = OfflineVoiceRef(if (copy) UUID.randomUUID().toString() else existingId ?: UUID.randomUUID().toString(),
                 UUID.randomUUID().toString())
-            offline.create(edited.copy(reference = reference, resourceReference = reference, configuration = configuration,
-                sourceKey = sourceKey,
+            offline.create(InstalledOfflineVoice(reference, name, emptyMap(), configuration = configuration,
+                enabled = enabled, metadata = metadata, sourceKey = sourceKey,
                 defaults = OfflineVoiceDefaults(defaults["name"]?.jsonPrimitive?.content.orEmpty(), original, defaults.offlineMetadata())),
                 source.offlineResources)
         }
