@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.ui.home.settings.textformatting
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,30 +26,29 @@ class FormattingViewModel @Inject constructor(
         private set
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
-            snapshotFlow { formattingRepository.getFormattingMap() }.collect { map ->
-                formattingGroups = map.map {
-                    FormattingGroup(it.key, bookRepository.getBookInformationFlow(it.key), it.value.size)
+        viewModelScope.launch {
+            formattingRepository.rules.collect { map ->
+                val previous = formattingGroups.associateBy { it.id }
+                formattingGroups = map.map { (id, rules) ->
+                    previous[id]?.copy(size = rules.size)
+                        ?: FormattingGroup(id, bookRepository.getBookInformationFlow(id), rules.size)
                 }
+                rules = map[bookId].orEmpty()
             }
         }
     }
 
     fun loadBookFormattingRules(bookId: String) {
         this.bookId = bookId
-        rules = formattingRepository.getStateBookFormattingRules(bookId)
+        rules = formattingRepository.rules.value[bookId].orEmpty()
     }
     fun onToggle(id: Int) {
+        val target = bookId
+        val rule = rules.firstOrNull { it.id == id } ?: return
         viewModelScope.launch(Dispatchers.IO) {
             formattingRepository.updateRule(
-                bookId = bookId,
-                formattingRule = rules
-                    .firstOrNull { it.id == id }
-                    ?.let {
-                        it.copy(
-                            isEnabled = !it.isEnabled
-                        )
-                    } ?: return@launch
+                bookId = target,
+                formattingRule = rule.copy(isEnabled = !rule.isEnabled)
             )
         }
     }
