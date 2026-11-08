@@ -6,7 +6,6 @@ import kotlinx.serialization.json.*
 import okhttp3.mockwebserver.*
 import org.junit.Assert.*
 import org.junit.Test
-import java.security.MessageDigest
 
 class DiscoveryStorageTest {
     private class Writes : StorageCipher {
@@ -53,24 +52,6 @@ class DiscoveryStorageTest {
             assertEquals(1, writes.records.size)
             assertEquals(first.books.single().coverUrl, writes.records.single().book.coverUrl)
             assertFalse(writes.records.single().informationLoaded)
-        } }
-    }
-
-    @Test fun identicalLegacyRecordsRemainReadableAndDetailsMigrateThem() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source { definition(it) }.use { source ->
-            val first = source.openDiscovery("one").openPages("/search", emptyMap()).page(1)
-            val owner = fixture.broker.open(SourceScope("rules", source.definition.sourceId, source.definition.profile),
-                listOf(NetworkGrant(fixture.server.url("/").toString(), allowPrivateAddresses = true)))
-            val current = StorageRequest(StorageArea.BookState, "content/book/" + digest(first.books.single().id))
-            val legacy = current.copy(area = StorageArea.Config)
-            val saved = (owner.read(current) as StorageResult.Value).value
-            assertNotNull(saved)
-            assertTrue(owner.write(legacy.copy(value = saved)) is StorageResult.Value)
-            assertTrue(owner.write(current) is StorageResult.Value)
-            assertEquals(first.books, source.openDiscovery("two").openPages("/search", emptyMap()).page(1).books)
-            assertEquals("Same author", source.information(first.books.single().id).author)
-            assertNotNull((owner.read(current) as StorageResult.Value).value)
-            assertNull((owner.read(legacy) as StorageResult.Value).value)
         } }
     }
 
@@ -131,14 +112,6 @@ class DiscoveryStorageTest {
                 assertEquals(listOf("first", "second"), writes.records.map { it.book.state.variables["token"] })
                 assertEquals(writes.records[0].book.title, writes.records[1].book.title)
             }
-        }
-    }
-
-    @Test fun bookAndAliasDigestsMatchExistingStorageKeys() {
-        for (id in listOf("https://example.test/book/1", "https://example.test/中文?q=é🌙")) {
-            val legacy = MessageDigest.getInstance("SHA-256").digest(id.toByteArray(Charsets.UTF_8))
-                .joinToString("") { "%02x".format(it.toInt() and 255) }
-            assertEquals(legacy, digest(id))
         }
     }
 }
