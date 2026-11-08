@@ -63,9 +63,6 @@ data class SpeechSettings(
     )
 }
 
-internal val SpeechSettings.hasVoiceRouting get() =
-    voiceRoutingConfigured || narrationVoices.isNotEmpty() || dialogueVoices.isNotEmpty() || speakerVoices.isNotEmpty() || roleRules.any { it.activate } || autoAssignRole
-
 @Singleton
 class SpeechSettingsRepository @Inject constructor(userData: UserDataRepository) {
     private val stored = userData.stringUserData("tts.schemes")

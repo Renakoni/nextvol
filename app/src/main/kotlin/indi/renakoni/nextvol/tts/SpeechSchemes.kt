@@ -28,22 +28,17 @@ data class SpeechSchemes(
 ) {
     fun effectiveId(bookId: String?) = bindings[bookId] ?: defaultId
 
-    fun settings(id: String): SpeechSettings {
-        val scheme = items.first { it.id == id }
-        return scheme.settings.copy(schemeId = id, schemeName = scheme.name,
-            engineCacheCapacity = runtime.engineCacheCapacity, maxCacheVoiceNum = runtime.maxCacheVoiceNum,
-            diagnosticLogging = runtime.diagnosticLogging,
-            text = scheme.settings.text.copy(recordText = runtime.recordText,
-                recordVoice = runtime.recordVoice, filterLanguage = runtime.filterLanguage))
-    }
+    fun settings(id: String): SpeechSettings = items.first { it.id == id }.effectiveSettings(runtime)
 
-    fun forBook(bookId: String?) = settings(effectiveId(bookId)).copy(bookId = bookId)
+    fun forBook(bookId: String?): SpeechSettings {
+        val id = effectiveId(bookId)
+        return items.first { it.id == id }.effectiveSettings(runtime, bookId)
+    }
 
     internal fun update(id: String, change: (SpeechSettings) -> SpeechSettings): SpeechSchemes {
         val updated = change(settings(id)).validated()
         return copy(items = items.map { if (it.id == id) it.copy(settings = updated.schemeContent()) else it },
-            runtime = SpeechRuntimeSettings(updated.engineCacheCapacity, updated.maxCacheVoiceNum,
-                updated.diagnosticLogging, updated.text.recordText, updated.text.recordVoice, updated.text.filterLanguage))
+            runtime = updated.runtimeSettings())
     }
 
     internal fun delete(id: String, replacement: String): SpeechSchemes {
@@ -52,8 +47,3 @@ data class SpeechSchemes(
             bindings = bindings.mapValues { if (it.value == id) replacement else it.value })
     }
 }
-
-internal fun SpeechSettings.schemeContent() = copy(schemeId = DEFAULT_SPEECH_SCHEME, schemeName = "", bookId = null,
-    engineCacheCapacity = 10, maxCacheVoiceNum = 50, diagnosticLogging = false,
-    text = text.copy(recordText = false, recordVoice = false, filterLanguage = false),
-    speakerVoices = emptyMap(), speakerBookId = "", voiceRevision = "", httpRevision = "")
