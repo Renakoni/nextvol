@@ -175,8 +175,17 @@ class BackupRestoreTransactionTest {
     }
 
     @Test fun successfulOverwriteCommitsAllPartsAndRevokesPreviousAttempts() = runBlocking {
+        val rules = db.formattingRuleDao()
+        val backedUp = FormattingRuleEntity(1, "", "Backed up", false, "before", "after", true)
+        rules.insertRuleEntity(backedUp.copy(replacement = "local edit", isEnabled = false))
+        rules.insertRuleEntity(backedUp.copy(id = 2, name = "Not backed up"))
+        val data = payload(incoming, later).let {
+            it.copy(localDataList = listOf(it.localDataList.first().copy(formattingRuleEntities = listOf(backedUp))) +
+                it.localDataList.drop(1))
+        }
         stats.accumulateBookReadTime(old.storageKey, 15)
-        withTimeout(5000) { assertTrue(backup.importAppLocalData(payload(incoming, later), overwrite = true).isOk) }
+        withTimeout(5000) { assertTrue(backup.importAppLocalData(data, overwrite = true).isOk) }
+        assertEquals(listOf(backedUp), rules.getAllBookRuleEntity())
         assertNull(db.bookInformationDao().getEntity(old.storageKey))
         assertNotNull(db.bookInformationDao().getEntity(incoming.storageKey))
         assertNotNull(db.bookInformationDao().getEntity(later.storageKey))

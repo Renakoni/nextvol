@@ -34,6 +34,6 @@ interface FormattingRuleDao {
     @Query("delete from formatting_rule where id = :id")
     suspend fun deleteRule(id: Int)
 
-    @Query("delete from book_shelf")
+    @Query("delete from formatting_rule")
     suspend fun clear()
 }
