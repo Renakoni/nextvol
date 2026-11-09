@@ -42,6 +42,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.security.MessageDigest
 import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
@@ -57,11 +58,10 @@ class LocalBookDraft internal constructor(
 ) {
     internal var rule: String? = null
     internal var encoding: String? = null
+    internal var originalDigest: String = ""
+    internal var preview: PreparedLocalBook? = null
     internal val original get() = File(directory, "original.${format.name.lowercase()}")
 }
-
-@Serializable
-private data class LocalChapterIndex(val title: String, val volume: String)
 
 @Serializable
 private data class LocalBookIndex(
@@ -71,7 +71,7 @@ private data class LocalBookIndex(
     val publisher: String,
     val cover: String?,
     val importedAt: String,
-    val wordCount: Int,
+    val wordCount: Long,
     val chapters: List<LocalChapterIndex>,
     val manifest: LocalBookFileManifest? = null,
 )
@@ -90,7 +90,6 @@ class LocalBookStore @Inject constructor(
     companion object {
         val SOURCE = Identifier("nextvol", "local")
         fun isLocal(book: SourceBookId) = book.sourceId == SOURCE
-        private const val MAX_FILE_BYTES = 64L * 1024 * 1024
     }
 
     suspend fun stage(uri: Uri, displayName: String? = null, knownFormat: LocalBookFormat? = null): LocalBookDraft {
@@ -113,6 +112,7 @@ class LocalBookStore @Inject constructor(
                 val draft = LocalBookDraft(book, name, format, directory)
                 staged = draft
                 drafts += directory
+                val digest = MessageDigest.getInstance("SHA-256")
                 requireImportNotNull(context.contentResolver.openInputStream(uri), LocalBookImportReason.FileAccess) { "Cannot open the selected file." }.use { input ->
                     draft.original.outputStream().use { output ->
                         val buffer = ByteArray(8192)
@@ -122,14 +122,13 @@ class LocalBookStore @Inject constructor(
                             val count = input.read(buffer)
                             if (count < 0) break
                             size += count
-                            requireImport(size <= MAX_FILE_BYTES && (format != LocalBookFormat.TXT || size <= 16L * 1024 * 1024), LocalBookImportReason.FileTooLarge) {
-                                "The selected file exceeds the import size limit."
-                            }
                             output.write(buffer, 0, count)
+                            digest.update(buffer, 0, count)
                         }
                         requireImport(size > 0, LocalBookImportReason.EmptyFile) { "The selected file is empty." }
                     }
                 }
+                draft.originalDigest = digest.finishDigest()
                 draft
             } }
         } catch (failure: Exception) {
@@ -138,41 +137,73 @@ class LocalBookStore @Inject constructor(
         }
     }
 
-    suspend fun preview(draft: LocalBookDraft, encoding: String? = null, rule: String = TxtBookParser.DEFAULT_RULE, fallbackTitle: String? = null): ParsedLocalBook =
+    suspend fun preview(draft: LocalBookDraft, encoding: String? = null, rule: String = TxtBookParser.DEFAULT_RULE, fallbackTitle: String? = null): PreparedLocalBook =
         withContext(Dispatchers.IO) { lock.withLock {
             requireImport(draft.directory in drafts, LocalBookImportReason.SessionExpired) { "This import session is no longer available." }
             currentCoroutineContext().ensureActive()
             val title = (fallbackTitle ?: draft.originalName.substringBeforeLast('.')).ifBlank { "Local book" }
-            val parsed = when (draft.format) {
-                LocalBookFormat.TXT -> TxtBookParser.parse(draft.original.readBytes(), title, encoding, rule)
-                LocalBookFormat.EPUB -> EpubBookParser.parse(draft.original, File(draft.directory, "assets"), title)
+            draft.preview = null
+            clearPrepared(draft)
+            val chapters = mutableListOf<LocalChapterIndex>()
+            val digest = MessageDigest.getInstance("SHA-256")
+            var words = 0L
+            val operation = currentCoroutineContext()
+            fun write(chapter: LocalBookChapter) {
+                operation.ensureActive()
+                val bytes = Json.encodeToString(chapter).toByteArray(Charsets.UTF_8)
+                File(draft.directory, "${chapters.size}.json").writeBytes(bytes)
+                digest.update(bytes)
+                digest.update(0.toByte())
+                words += chapter.blocks.filterIsInstance<LocalBookBlock.Text>().sumOf { it.value.length.toLong() }
+                chapters += LocalChapterIndex(chapter.title, chapter.volume)
             }
-            currentCoroutineContext().ensureActive()
-            draft.rule = rule.takeIf { draft.format == LocalBookFormat.TXT }
-            draft.encoding = parsed.encoding
-            parsed
+            try {
+                val parsed = when (draft.format) {
+                    LocalBookFormat.TXT -> {
+                        val detected = TxtBookParser.parse(draft.original::inputStream, title, encoding, rule, operation::ensureActive, ::write)
+                        PreparedLocalBook(title, chapters, draft.directory, words, digest.finishDigest(), encoding = detected)
+                    }
+                    LocalBookFormat.EPUB -> {
+                        val epub = EpubBookParser.parse(draft.original, File(draft.directory, "assets"), title)
+                        epub.chapters.forEach(::write)
+                        PreparedLocalBook(epub.title, chapters, draft.directory, words, digest.finishDigest(), epub.author,
+                            epub.description, epub.publishingHouse, epub.coverPath)
+                    }
+                }
+                operation.ensureActive()
+                draft.rule = rule.takeIf { draft.format == LocalBookFormat.TXT }
+                draft.encoding = parsed.encoding
+                draft.preview = parsed
+                parsed
+            } catch (failure: Exception) {
+                clearPrepared(draft)
+                throw failure
+            }
         } }
+
+    private fun clearPrepared(draft: LocalBookDraft) {
+        draft.directory.listFiles().orEmpty().filter { it.name != draft.original.name }.forEach {
+            requireImport(it.deleteRecursively(), LocalBookImportReason.Storage) { "Cannot remove the previous preview." }
+        }
+    }
 
     suspend fun discard(draft: LocalBookDraft) = withContext(NonCancellable + Dispatchers.IO) { lock.withLock {
         if (drafts.remove(draft.directory)) deleteDirectory(draft.directory)
     } }
 
     /** Confirmation cannot be cancelled halfway through publishing files and the Room transaction. */
-    suspend fun publish(draft: LocalBookDraft, parsed: ParsedLocalBook, title: String, shelfId: Int?,
+    suspend fun publish(draft: LocalBookDraft, parsed: PreparedLocalBook, title: String, shelfId: Int?,
         localShelfName: String? = null): Pair<SourceBookId, Int> =
         withContext(NonCancellable + Dispatchers.IO) { lock.withLock {
             requireImport(draft.directory in drafts, LocalBookImportReason.SessionExpired) { "This import session is no longer available." }
+            requireImport(draft.preview === parsed, LocalBookImportReason.SessionExpired) { "This preview is no longer current." }
             requireImport(title.isNotBlank() && title.length <= 200, LocalBookImportReason.InvalidTitle) { "Enter a book title of at most 200 characters." }
             val index = LocalBookIndex(title.trim(), parsed.author, parsed.description, parsed.publishingHouse,
                 parsed.coverPath, LocalDateTime.now().toString(),
-                parsed.chapters.sumOf { chapter -> chapter.blocks.filterIsInstance<LocalBookBlock.Text>().sumOf { it.value.length } },
-                parsed.chapters.map { LocalChapterIndex(it.title, it.volume) }, manifest(draft, parsed, draft.book))
+                parsed.wordCount, parsed.chapters, manifest(draft, parsed, draft.book))
             val directory = File(root, draft.book.fileKey)
             var moved = false
             try {
-                parsed.chapters.forEachIndexed { number, chapter ->
-                    File(draft.directory, "$number.json").writeText(Json.encodeToString(chapter))
-                }
                 File(draft.directory, "index.json").writeText(Json.encodeToString(index))
                 requireImport(draft.directory.renameTo(directory), LocalBookImportReason.Storage) { "Cannot publish the imported files." }
                 moved = true
@@ -196,8 +227,8 @@ class LocalBookStore @Inject constructor(
                     val info = information(draft.book, index, directory)
                     database.bookInformationDao().insert(info)
                     database.bookVolumesDao().insertVolume(info.id, volumes(draft.book, index))
-                    parsed.chapters.forEachIndexed { number, chapter ->
-                        database.chapterContentDao().cache(content(draft.book, index, directory, number, chapter))
+                    parsed.chapters.indices.forEach { number ->
+                        database.chapterContentDao().cache(content(draft.book, index, directory, number, parsed.chapter(number, directory)))
                     }
                     shelves.insertBookshelf(shelf.copy(allBookIds = shelf.allBookIds + info.id))
                     shelves.addBookshelfMetadata(info.id, info.lastUpdated, listOf(shelf.id))
@@ -223,31 +254,18 @@ class LocalBookStore @Inject constructor(
         // A renamed file must retain the original fallback chapter title and therefore chapter mapping.
         val parsed = preview(draft, encoding, rule, expected?.originalName?.substringBeforeLast('.'))
         return withContext(Dispatchers.IO) { lock.withLock {
+            requireImport(draft.preview === parsed, LocalBookImportReason.SessionExpired) { "This preview is no longer current." }
             val candidate = manifest(draft, parsed, book).let {
                 it.copy(originalName = expected?.originalName ?: it.originalName)
             }
             database.withTransaction {
                 val info = database.bookInformationDao().get(book.storageKey)
                 val catalog = database.bookVolumesDao().getBookVolumes(book.storageKey)
-                val match = if (expected != null) when {
+                val match = when {
+                    expected == null -> LocalBookRelinkMatch.MissingManifest
                     expected.format != candidate.format || expected.originalDigest != candidate.originalDigest -> LocalBookRelinkMatch.DifferentFile
                     expected.mappingDigest != candidate.mappingDigest -> LocalBookRelinkMatch.DifferentMapping
                     else -> LocalBookRelinkMatch.Exact
-                } else {
-                    val chapters = catalog?.volumes.orEmpty().flatMap { volume -> volume.chapters.map { volume.volumeTitle to it } }
-                    when {
-                        chapters.isEmpty() -> LocalBookRelinkMatch.MissingMapping
-                        chapters.size != parsed.chapters.size || chapters.indices.any { number ->
-                            val (volume, chapter) = chapters[number]
-                            val parsedChapter = parsed.chapters[number]
-                            // Older catalogs used the book title for chapters without an explicit volume.
-                            val sameVolume = volume == parsedChapter.volume ||
-                                (parsedChapter.volume.isBlank() && volume == (info?.title ?: parsed.title))
-                            chapter.id != SourceChapterId(book, number.toString()).storageKey ||
-                                chapter.title != parsedChapter.title || !sameVolume
-                        } -> LocalBookRelinkMatch.DifferentMapping
-                        else -> LocalBookRelinkMatch.Legacy
-                    }
                 }
                 LocalBookRelinkPreview(book, parsed, match, draft, candidate, expected,
                     database.importedBookDao().get(book.storageKey), info, catalog)
@@ -256,23 +274,19 @@ class LocalBookStore @Inject constructor(
     }
 
     /** Complete a new file generation before atomically switching its owner. Reading data is untouched. */
-    suspend fun relink(preview: LocalBookRelinkPreview, confirmLegacy: Boolean = false) = withContext(Dispatchers.IO) {
+    suspend fun relink(preview: LocalBookRelinkPreview) = withContext(Dispatchers.IO) {
         lock.withLock {
             val draft = preview.draft
             requireImport(draft.directory in drafts, LocalBookImportReason.SessionExpired) { "This relink session is no longer available." }
-            require(preview.canRelink && (preview.match != LocalBookRelinkMatch.Legacy || confirmLegacy)) { "The original file must be verified before relinking." }
+            requireImport(draft.preview === preview.parsed, LocalBookImportReason.SessionExpired) { "This preview is no longer current." }
+            require(preview.canRelink) { "The original file must be verified before relinking." }
             val book = preview.book
             val parsed = preview.parsed
             val oldDirectory = bookDirectory(book)
             val directory = File(root, "linked-${book.fileKey}-${UUID.randomUUID()}")
             val index = LocalBookIndex(preview.information?.title ?: parsed.title, parsed.author, parsed.description,
                 parsed.publishingHouse, parsed.coverPath, LocalDateTime.now().toString(),
-                parsed.chapters.sumOf { chapter -> chapter.blocks.filterIsInstance<LocalBookBlock.Text>().sumOf { it.value.length } },
-                parsed.chapters.map { LocalChapterIndex(it.title, it.volume) }, preview.manifest)
-            parsed.chapters.forEachIndexed { number, chapter ->
-                currentCoroutineContext().ensureActive()
-                File(draft.directory, "$number.json").writeText(Json.encodeToString(chapter))
-            }
+                parsed.wordCount, parsed.chapters, preview.manifest)
             File(draft.directory, "index.json").writeText(Json.encodeToString(index))
             currentCoroutineContext().ensureActive()
             withContext(NonCancellable) {
@@ -291,8 +305,8 @@ class LocalBookStore @Inject constructor(
                         database.localBookFileManifestDao().save(preview.manifest)
                         database.bookInformationDao().insert(information(book, index, directory))
                         database.bookVolumesDao().insertVolume(book.storageKey, volumes(book, index))
-                        parsed.chapters.forEachIndexed { number, chapter ->
-                            database.chapterContentDao().cache(content(book, index, directory, number, chapter))
+                        parsed.chapters.indices.forEach { number ->
+                            database.chapterContentDao().cache(content(book, index, directory, number, parsed.chapter(number, directory)))
                         }
                     }
                     committed = true
@@ -324,9 +338,9 @@ class LocalBookStore @Inject constructor(
         return directory
     }
 
-    private fun manifest(draft: LocalBookDraft, parsed: ParsedLocalBook, book: SourceBookId) = LocalBookFileManifest(
-        book.storageKey, draft.format.name, draft.originalName, draft.original.originalDigest(),
-        parsed.chapters.mappingDigest(), draft.encoding, draft.rule)
+    private fun manifest(draft: LocalBookDraft, parsed: PreparedLocalBook, book: SourceBookId) = LocalBookFileManifest(
+        book.storageKey, draft.format.name, draft.originalName, draft.originalDigest,
+        parsed.mappingDigest, draft.encoding, draft.rule)
 
     suspend fun readInformation(book: SourceBookId) = read(book) { index, directory -> information(book, index, directory) }
     suspend fun readVolumes(book: SourceBookId) = read(book) { index, _ -> volumes(book, index) }

@@ -16,7 +16,7 @@ import indi.renakoni.nextvol.data.localbook.LocalBookImportFailure
 import indi.renakoni.nextvol.data.localbook.LocalBookDraft
 import indi.renakoni.nextvol.data.localbook.LocalBookFormat
 import indi.renakoni.nextvol.data.localbook.LocalBookStore
-import indi.renakoni.nextvol.data.localbook.ParsedLocalBook
+import indi.renakoni.nextvol.data.localbook.PreparedLocalBook
 import indi.renakoni.nextvol.data.localbook.TxtBookParser
 import indi.renakoni.nextvol.data.storage.StorageUsageRepository
 import kotlinx.coroutines.CancellationException
@@ -45,7 +45,7 @@ data class LocalBookImportState(
     val cover: Uri = Uri.EMPTY,
     val encoding: String? = null,
     val rule: String = TxtBookParser.DEFAULT_RULE,
-    val preview: ParsedLocalBook? = null,
+    val preview: PreparedLocalBook? = null,
     val error: LocalBookImportFailure? = null,
 ) {
     val canImport get() = !busy && !importing && error == null && preview != null && title.isNotBlank() && title.length <= 200

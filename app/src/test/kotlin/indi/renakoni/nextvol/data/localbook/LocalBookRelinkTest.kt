@@ -143,18 +143,14 @@ class LocalBookRelinkTest {
         assertEquals(LocalBookRelinkMatch.Exact, third.preview(book, renamed).match)
     }
     @Test fun txtRestoreWithoutCacheRetainsIdentityShelfProgressAndBookmarks() = runBlocking { roundTrip(txt(text = "Preface\nChapter 1\nText")) }
+    @Test fun shiftJisManifestAndRelinkRetainReadingData() = runBlocking {
+        val text = "Chapter 1\n" + "これは日本語の小説です。登場人物たちは長い旅に出かけました。読者は物語を楽しみます。".repeat(40)
+        roundTrip(temporary.newFile("japanese.txt").apply { writeBytes(text.toByteArray(java.nio.charset.Charset.forName("Shift_JIS"))) })
+    }
     @Test fun extensionOnlyFileNameKeepsItsFallbackChapterAcrossDevices() = runBlocking { roundTrip(txt(name = ".txt", text = "A book without headings")) }
     @Test fun epubRestoreResolvesImagesFromTheNewDeviceDirectory() = runBlocking { roundTrip(epub()) }
 
     @Test fun sharedBookshelfRetainsLocalFileEvidenceWithoutOtherBooksOrPrivateReadingData() = runBlocking {
-        sharedShelfRoundTrip(legacy = false)
-    }
-
-    @Test fun sharedLegacyBookshelfRetainsTheDirectoryRequiredForConfirmedRelink() = runBlocking {
-        sharedShelfRoundTrip(legacy = true)
-    }
-
-    private suspend fun sharedShelfRoundTrip(legacy: Boolean) {
         val file = txt()
         val old = Library("old")
         val book = old.import(file)
@@ -163,7 +159,6 @@ class LocalBookRelinkTest {
         old.db.bookshelfDao().insertBookshelf(shelf.copy(id = 2, allBookIds = emptyList()))
         val otherDraft = old.store.stage(txt("private.txt").toUri())
         old.store.publish(otherDraft, old.store.preview(otherDraft), "Private book", 2)
-        if (legacy) old.db.localBookFileManifestDao().delete(book.storageKey)
         val uri = Uri.parse("content://shelf-export/selected")
         val output = ByteArrayOutputStream()
         shadowOf(old.context.contentResolver).registerOutputStream(uri, output)
@@ -175,18 +170,18 @@ class LocalBookRelinkTest {
         val target = Library("new")
         target.restore(data)
         val preview = target.preview(book, file)
-        assertEquals(if (legacy) LocalBookRelinkMatch.Legacy else LocalBookRelinkMatch.Exact, preview.match)
+        assertEquals(LocalBookRelinkMatch.Exact, preview.match)
         val part = data.localDataList.single()
         assertEquals(listOf(shelf.id), part.bookshelfEntities.map { it.id })
         assertEquals(listOf(book.storageKey), part.bookInformationEntities.map { it.id })
-        assertEquals(if (legacy) emptyList<String>() else listOf(book.storageKey), part.localBookFiles.map { it.bookId })
+        assertEquals(listOf(book.storageKey), part.localBookFiles.map { it.bookId })
         assertTrue(part.chapterContentEntities.isEmpty())
         assertTrue(part.readingBookmarks.isEmpty())
         assertTrue(part.userReadingDataEntities.isEmpty())
         assertTrue(part.bookRecordEntities.isEmpty())
         assertTrue(part.userDataEntities.isEmpty())
         assertTrue(target.db.importedBookDao().allIds().isEmpty())
-        target.store.relink(preview, confirmLegacy = legacy)
+        target.store.relink(preview)
         assertEquals(listOf(book.storageKey), target.db.importedBookDao().allIds())
         assertEquals("My saved title", target.store.readInformation(book).get()!!.title)
         assertTrue(target.store.readChapter(SourceChapterId(book, "0")).isOk)
@@ -215,7 +210,7 @@ class LocalBookRelinkTest {
         file.writeText("Chapter 1\nEntirely different text\nChapter 2\nSecond text")
         val preview = target.preview(book, file)
         assertEquals(LocalBookRelinkMatch.DifferentFile, preview.match)
-        assertTrue(runCatching { target.store.relink(preview, confirmLegacy = true) }.isFailure)
+        assertTrue(runCatching { target.store.relink(preview) }.isFailure)
         assertFalse(target.store.contains(book))
         assertEquals(listOf(book.storageKey), target.db.bookshelfDao().getAllBookshelves().single().allBookIds)
     }
@@ -243,71 +238,21 @@ class LocalBookRelinkTest {
         val correct = library.store.previewRelink(book, draft, encoding = "UTF-8")
         assertEquals(LocalBookRelinkMatch.Exact, correct.match)
     }
-    @Test fun legacyBackupRequiresMatchingFullDirectoryAndExplicitConfirmation() = runBlocking {
+    @Test fun missingManifestCannotRelinkEvenWithAMatchingDirectory() = runBlocking {
         val file = txt()
         val old = Library("old")
         val book = old.import(file)
-        old.seedPosition(book)
-        val exported = old.export()
-        val legacy = exported.copy(localDataList = exported.localDataList.map { it.copy(localBookFiles = emptyList()) })
+        val data = old.export()
         val target = Library("new")
-        target.restore(legacy)
+        target.restore(data.copy(localDataList = data.localDataList.map { it.copy(localBookFiles = emptyList()) }))
+        assertEquals(old.store.readVolumes(book).get(), target.db.bookVolumesDao().getBookVolumes(book.storageKey))
         val preview = target.preview(book, file)
-        assertEquals(LocalBookRelinkMatch.Legacy, preview.match)
+        assertEquals(LocalBookRelinkMatch.MissingManifest, preview.match)
         assertTrue(runCatching { target.store.relink(preview) }.isFailure)
-        target.store.relink(preview, confirmLegacy = true)
-        assertTrue(target.store.contains(book))
-        assertEquals(1, target.db.readingBookmarkDao().all().size)
-    }
-    @Test fun legacyBookTitlePlaceholderRelinksWithoutRestoringASyntheticVolume() = runBlocking {
-        val file = txt()
-        val old = Library("old")
-        val book = old.import(file)
-        old.seedPosition(book)
-        val data = old.export()
-        val target = Library("new")
-        target.restore(data.copy(localDataList = data.localDataList.map { it.copy(localBookFiles = emptyList()) }))
-        val catalog = target.db.bookVolumesDao().getBookVolumes(book.storageKey)!!
-        assertEquals("", catalog.volumes.single().volumeTitle)
-        target.db.bookVolumesDao().insertVolume(book.storageKey, catalog.copy(
-            volumes = catalog.volumes.map { it.copy(volumeTitle = "My saved title") }))
-        val progress = target.db.userReadingDataDao().getEntity(book.storageKey)
-        val bookmarks = target.db.readingBookmarkDao().all()
-        val preview = target.preview(book, file)
-        assertEquals(LocalBookRelinkMatch.Legacy, preview.match)
-        assertTrue(runCatching { target.store.relink(preview) }.isFailure)
-        target.store.relink(preview, confirmLegacy = true)
-        assertEquals(catalog, target.store.readVolumes(book).get())
-        assertEquals(progress, target.db.userReadingDataDao().getEntity(book.storageKey))
-        assertEquals(bookmarks, target.db.readingBookmarkDao().all())
-    }
-    @Test fun legacyRelinkStillRequiresMatchingExplicitVolumeNames() = runBlocking {
-        val text = "第一卷 起点\n第一章 开端\n正文甲\n第二章 旅途\n正文乙"
-        val file = txt(text = text)
-        val old = Library("old")
-        val book = old.import(file)
-        val data = old.export()
-        val target = Library("new")
-        target.restore(data.copy(localDataList = data.localDataList.map { it.copy(localBookFiles = emptyList()) }))
-        assertEquals(LocalBookRelinkMatch.Legacy, target.preview(book, file).match)
-        file.writeText(text.replace("第一卷 起点", "第二卷 归途"))
-        val changed = target.preview(book, file)
-        assertEquals(LocalBookRelinkMatch.DifferentMapping, changed.match)
-        assertTrue(runCatching { target.store.relink(changed, confirmLegacy = true) }.isFailure)
-        file.writeText(text.substringAfter('\n'))
-        assertEquals(LocalBookRelinkMatch.DifferentMapping, target.preview(book, file).match)
-    }
-    @Test fun legacyBackupWithoutDirectoryOrWithChangedTitlesIsRejected() = runBlocking {
-        val file = txt()
-        val old = Library("old")
-        val book = old.import(file)
-        val target = Library("new")
-        val data = old.export()
-        target.restore(data.copy(localDataList = data.localDataList.map { it.copy(localBookFiles = emptyList()) }))
-        file.writeText("Chapter 3\nFirst text\nChapter 4\nSecond text")
-        assertEquals(LocalBookRelinkMatch.DifferentMapping, target.preview(book, file).match)
-        target.db.bookVolumesDao().clear()
-        assertEquals(LocalBookRelinkMatch.MissingMapping, target.preview(book, file).match)
+        assertFalse(target.store.contains(book))
+        val exported = target.export(cache = false).localDataList.single()
+        assertTrue(exported.volumeEntities.isEmpty())
+        assertTrue(exported.chapterInformationEntities.isEmpty())
     }
     @Test fun sqlFailureRollsBackOwnerMetadataAndNewFilesAndRetainsReadableOldCopy() = runBlocking {
         val file = txt()
@@ -393,9 +338,5 @@ class LocalBookRelinkTest {
         assertTrue(reopened.db.localBookFileManifestDao().all().isEmpty())
         assertEquals(81, reopened.db.userReadingDataDao().getEntity(book.storageKey)!!.totalReadTime)
         assertEquals(1, reopened.db.readingBookmarkDao().all().size)
-        // Exporting an upgraded copy without cache still carries its legacy verification directory.
-        val data = reopened.export(cache = false).localDataList.single()
-        assertTrue(data.volumeEntities.isNotEmpty())
-        assertTrue(data.chapterInformationEntities.isNotEmpty())
     }
 }

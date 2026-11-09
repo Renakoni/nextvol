@@ -7,6 +7,7 @@ import org.jsoup.nodes.TextNode
 import org.jsoup.parser.Parser
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.OutputStream
 import java.net.URLDecoder
 import java.security.MessageDigest
 import java.util.zip.ZipEntry
@@ -15,8 +16,6 @@ import java.util.zip.CRC32
 
 /** Reads the publication's spine, never ZIP entry order. Assets stay in the draft directory. */
 object EpubBookParser {
-    private const val MAX_ENTRY_BYTES = 16 * 1024 * 1024
-    private const val MAX_EXPANDED_BYTES = 128 * 1024 * 1024
     private const val MAX_ENTRIES = 20_000
     private val blocks = setOf("p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6",
         "li", "blockquote", "pre", "tr", "td", "br", "hr")
@@ -39,28 +38,21 @@ object EpubBookParser {
             val path = normalizePath(entry.name)
             requireImport(entries.put(path, entry) == null, LocalBookImportReason.CorruptEpub) { "The EPUB has duplicate resource paths." }
         }
-        var expanded = 0L
-        fun read(path: String): ByteArray {
+        fun copy(path: String, output: OutputStream) {
             val entry = requireImportNotNull(entries[path], LocalBookImportReason.CorruptEpub) { "An EPUB resource is missing: $path" }
-            requireImport(entry.size <= MAX_ENTRY_BYTES, LocalBookImportReason.EpubLimit) { "An EPUB resource is too large." }
-            return zip.getInputStream(entry).use { input ->
-                val output = ByteArrayOutputStream()
+            zip.getInputStream(entry).use { input ->
                 val crc = CRC32()
                 val buffer = ByteArray(8192)
-                var size = 0
                 while (true) {
                     val read = input.read(buffer)
                     if (read < 0) break
-                    size += read
-                    expanded += read
-                    requireImport(size <= MAX_ENTRY_BYTES && expanded <= MAX_EXPANDED_BYTES, LocalBookImportReason.EpubLimit) { "The EPUB expands beyond the import limit." }
                     output.write(buffer, 0, read)
                     crc.update(buffer, 0, read)
                 }
                 requireImport(entry.crc == crc.value, LocalBookImportReason.CorruptEpub) { "An EPUB resource is damaged." }
-                output.toByteArray()
             }
         }
+        fun read(path: String) = ByteArrayOutputStream().also { copy(path, it) }.toByteArray()
         fun xml(path: String) = Jsoup.parse(read(path).inputStream(), null, "", Parser.xmlParser())
         val container = xml("META-INF/container.xml")
         val packagePath = container.named("rootfile").firstOrNull {
@@ -118,7 +110,7 @@ object EpubBookParser {
             val digest = MessageDigest.getInstance("SHA-256").digest(path.toByteArray()).joinToString("") { "%02x".format(it) }
             val extension = path.substringAfterLast('.', "img").takeIf { it.matches(Regex("[a-zA-Z0-9]{1,6}")) } ?: "img"
             val name = "$digest.$extension"
-            File(assetsDirectory, name).writeBytes(read(path))
+            File(assetsDirectory, name).outputStream().use { copy(path, it) }
             "assets/$name"
         }
         val coverId = metadata.named("meta").firstOrNull { it.attr("name") == "cover" }?.attr("content")

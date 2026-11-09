@@ -104,7 +104,6 @@ fun NavGraphBuilder.bookDetailDestination() {
             onDismiss = relinkViewModel::dismiss, onTitleChange = {},
             onEncodingChange = relinkViewModel::changeEncoding, onRuleChange = relinkViewModel::changeRule,
             onImport = relinkViewModel::confirm, relinkState = relinkState,
-            onConfirmLegacy = relinkViewModel::confirmLegacy,
         )
         DetailScreen(
             blockingMenu = if (blocking.state.book == null) null else { dismiss -> PixivBlockMenu(blocking, dismiss) },

@@ -5,12 +5,12 @@ import indi.renakoni.nextvol.data.local.room.entity.ImportedBookEntity
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.BookVolumes
 
-enum class LocalBookRelinkMatch { Exact, Legacy, DifferentFile, DifferentMapping, MissingMapping }
+enum class LocalBookRelinkMatch { Exact, DifferentFile, DifferentMapping, MissingManifest }
 
 /** A preview belongs to one target and one staged copy; publication rechecks its database snapshot. */
 class LocalBookRelinkPreview internal constructor(
     val book: SourceBookId,
-    val parsed: ParsedLocalBook,
+    val parsed: PreparedLocalBook,
     val match: LocalBookRelinkMatch,
     internal val draft: LocalBookDraft,
     internal val manifest: LocalBookFileManifest,
@@ -19,5 +19,5 @@ class LocalBookRelinkPreview internal constructor(
     internal val information: BookInformation?,
     internal val volumes: BookVolumes?,
 ) {
-    val canRelink get() = match == LocalBookRelinkMatch.Exact || match == LocalBookRelinkMatch.Legacy
+    val canRelink get() = match == LocalBookRelinkMatch.Exact
 }

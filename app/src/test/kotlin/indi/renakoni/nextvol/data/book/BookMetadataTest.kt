@@ -2,11 +2,20 @@ package indi.renakoni.nextvol.data.book
 
 import hnovel.content.parseBookUpdateTime
 import hnovel.content.parseBookWordCount
+import indi.renakoni.nextvol.data.local.room.converter.WorldCountConverter
+import io.nightfish.lightnovelreader.api.book.WordCount
+import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.LocalDateTime
 
 class BookMetadataTest {
+    @Test fun largeWordCountsSurviveStorageRoundTrips() {
+        val large = WordCount(3_000_000_000L)
+        assertEquals(large, WorldCountConverter.stringToWorld(WorldCountConverter.worldCountToString(large)))
+        assertEquals(large, Json.decodeFromString<WordCount>(Json.encodeToString(large)))
+    }
+
     @Test fun wordCountsKeepUnitsAndGrouping() {
         val cases = mapOf(
             "12345" to 12345, "12,345字" to 12345, "12，345" to 12345,

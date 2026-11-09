@@ -12,12 +12,12 @@ class LocalBookImportFailureTest {
     }
 
     @Test fun txtValidationAndParserFailuresKeepSpecificReasons() {
-        assertEquals(LocalBookImportReason.EmptyFile, reason { TxtBookParser.parse(byteArrayOf(), "Book") })
-        assertEquals(LocalBookImportReason.NoContent, reason { TxtBookParser.parse("\n  ".toByteArray(), "Book") })
-        assertEquals(LocalBookImportReason.UnsupportedEncoding, reason { TxtBookParser.decode(byteArrayOf(65), "unknown") })
-        assertEquals(LocalBookImportReason.InvalidEncoding, reason { TxtBookParser.decode(byteArrayOf(0xFF.toByte()), "UTF-8") })
-        assertEquals(LocalBookImportReason.InvalidRule, reason { TxtBookParser.parse(byteArrayOf(65), "Book", rule = "(") })
-        assertEquals(LocalBookImportReason.RuleTooLong, reason { TxtBookParser.parse(byteArrayOf(65), "Book", rule = "a".repeat(1025)) })
+        assertEquals(LocalBookImportReason.EmptyFile, reason { parseTxt(byteArrayOf()) })
+        assertEquals(LocalBookImportReason.NoContent, reason { parseTxt("\n  ".toByteArray()) })
+        assertEquals(LocalBookImportReason.UnsupportedEncoding, reason { parseTxt(byteArrayOf(65), encoding = "unknown") })
+        assertEquals(LocalBookImportReason.InvalidEncoding, reason { parseTxt(byteArrayOf(0xFF.toByte()), encoding = "UTF-8") })
+        assertEquals(LocalBookImportReason.InvalidRule, reason { parseTxt(byteArrayOf(65), rule = "(") })
+        assertEquals(LocalBookImportReason.RuleTooLong, reason { parseTxt(byteArrayOf(65), rule = "a".repeat(1025)) })
     }
 
     @Test fun exceptionTypesDetermineTheReasonWithoutMatchingDiagnosticText() {

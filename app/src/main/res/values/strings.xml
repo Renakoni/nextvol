@@ -552,7 +552,6 @@
     <string name="source_verification_failed">Verification did not complete, or this source account has changed. Retry from the source.</string>
     <string name="discovery_verification_required">Website verification is not complete. Retry to open the verification page.</string>
     <string name="local_book_supported_formats">Choose an EPUB or TXT file.</string>
-    <string name="local_book_file_too_large">Import supports TXT files up to 16 MB and EPUB files up to 64 MB.</string>
     <string name="local_book_shelf_changed">The target bookshelf changed. Choose the file again from a bookshelf.</string>
     <string name="local_bookshelf_name">Local Books</string>
     <string name="local_book_unavailable">Local book unavailable</string>

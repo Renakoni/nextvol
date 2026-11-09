@@ -6,9 +6,16 @@ import org.junit.Test
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.Charset
 
+internal fun parseTxt(bytes: ByteArray, title: String = "Example", encoding: String? = null,
+    rule: String = TxtBookParser.DEFAULT_RULE): ParsedLocalBook {
+    val chapters = mutableListOf<LocalBookChapter>()
+    val detected = TxtBookParser.parse({ bytes.inputStream() }, title, encoding, rule, onChapter = { chapters += it })
+    return ParsedLocalBook(title, chapters, encoding = detected)
+}
+
 class TxtBookParserTest {
     private fun parse(text: String, rule: String = TxtBookParser.DEFAULT_RULE) =
-        TxtBookParser.parse(text.toByteArray(), "Example", rule = rule)
+        parseTxt(text.toByteArray(), rule = rule)
 
     private fun body(book: ParsedLocalBook) = book.chapters.flatMap { it.blocks }
         .filterIsInstance<LocalBookBlock.Text>().joinToString("\n") { it.value }
@@ -65,16 +72,6 @@ class TxtBookParserTest {
         }
     }
 
-    @Test fun longLinesAreBoundedWithoutCuttingASupplementaryCharacter() {
-        val text = "甲".repeat(TxtBookParser.MAX_CHAPTER_CHARACTERS - 1) + "😀" + "乙".repeat(20)
-        val book = parse(text, "")
-        assertEquals(2, book.chapters.size)
-        val blocks = book.chapters.flatMap { it.blocks }.filterIsInstance<LocalBookBlock.Text>()
-        assertEquals(text, blocks.joinToString("") { it.value })
-        assertTrue(blocks.all { it.value.length <= TxtBookParser.MAX_CHAPTER_CHARACTERS })
-        assertTrue(blocks.all { it.value == it.value.toByteArray().toString(Charsets.UTF_8) })
-    }
-
     @Test fun utf8AndUtf16ByteOrderMarksAreHandledBeforeOtherEncodings() {
         val text = "第一章 开始\r\n完整正文"
         val cases = listOf(
@@ -83,11 +80,11 @@ class TxtBookParserTest {
             "UTF-16BE" to byteArrayOf(0xFE.toByte(), 0xFF.toByte()),
         )
         for ((encoding, prefix) in cases) {
-            val decoded = TxtBookParser.decode(prefix + text.toByteArray(Charset.forName(encoding)))
+            val decoded = parseTxt(prefix + text.toByteArray(Charset.forName(encoding)), rule = "")
             assertEquals(encoding, decoded.encoding)
-            assertEquals(text.replace("\r\n", "\n"), decoded.text)
+            assertEquals(text.replace("\r\n", "\n"), body(decoded))
         }
-        assertEquals(text.replace("\r\n", "\n"), TxtBookParser.decode(text.toByteArray()).text)
+        assertEquals(text.replace("\r\n", "\n"), body(parseTxt(text.toByteArray(), rule = "")))
     }
 
     @Test fun gb18030AndBig5CanBeDetectedAndExplicitlySelected() {
@@ -97,18 +94,54 @@ class TxtBookParserTest {
         )
         for ((encoding, text) in cases) {
             val bytes = text.toByteArray(Charset.forName(encoding))
-            assertEquals(text, TxtBookParser.decode(bytes, encoding).text)
-            assertEquals(text, TxtBookParser.decode(bytes).text)
+            assertEquals(text.trimEnd('\n'), body(parseTxt(bytes, encoding = encoding, rule = "")))
+            assertEquals(text.trimEnd('\n'), body(parseTxt(bytes, rule = "")))
         }
     }
 
     @Test fun explicitUtf16WithoutBomWorksAndMalformedInputIsNotReplaced() {
         val text = "完整正文"
-        assertEquals(text, TxtBookParser.decode(text.toByteArray(Charsets.UTF_16LE), "UTF-16LE").text)
+        assertEquals(text, body(parseTxt(text.toByteArray(Charsets.UTF_16LE), encoding = "UTF-16LE")))
         assertThrows(CharacterCodingException::class.java) {
-            TxtBookParser.decode(byteArrayOf(0xE4.toByte(), 0xB8.toByte()), "UTF-8")
+            parseTxt(byteArrayOf(0xE4.toByte(), 0xB8.toByte()), encoding = "UTF-8")
         }
-        assertThrows(IllegalArgumentException::class.java) { parse("\u0000binary") }
         assertThrows(IllegalArgumentException::class.java) { parse("\n\t ") }
+    }
+
+    @Test fun detectedShiftJisAndTextWithFormFeedsAreAccepted() {
+        val text = "これは日本語の小説です。登場人物たちは長い旅に出かけました。読者は物語を楽しみます。".repeat(40)
+        val bytes = text.toByteArray(Charset.forName("Shift_JIS"))
+        val automatic = parseTxt(bytes)
+        assertEquals("Shift_JIS", automatic.encoding)
+        assertEquals(text, body(automatic))
+        assertEquals(text, body(parseTxt(bytes, encoding = "Shift_JIS")))
+        assertEquals("正文\u000c下一页\u0000结尾", body(parse("正文\u000c下一页\u0000结尾")))
+    }
+
+    @Test fun chunkBoundariesAndLongLogicalLinesPreserveTextAndHeadingRules() {
+        val prefix = "甲".repeat(8191) + "😀" + "乙".repeat(TxtBookParser.MAX_CHAPTER_CHARACTERS - 8194) +
+            "😀" + "丙".repeat(TxtBookParser.MAX_CHAPTER_CHARACTERS)
+        val text = prefix + "\r\n" + " ".repeat(70_000) + "Chapter II\t\r" + "尾文😀"
+        val book = parse(text)
+        assertEquals(prefix, book.chapters.dropLast(1).flatMap { it.blocks }.joinToString("") { (it as LocalBookBlock.Text).value })
+        val blocks = book.chapters.flatMap { it.blocks }.filterIsInstance<LocalBookBlock.Text>()
+        assertTrue(blocks.all { it.value.length <= TxtBookParser.MAX_CHAPTER_CHARACTERS &&
+            it.value == it.value.toByteArray().toString(Charsets.UTF_8) })
+        assertEquals("Chapter II", book.chapters.last().title)
+        assertEquals("尾文😀", (book.chapters.last().blocks.single() as LocalBookBlock.Text).value)
+    }
+
+    @Test fun completedChaptersAreDeliveredBeforeTheRemainingBodyIsRead() {
+        val text = buildString {
+            repeat(12) { append("Chapter ${it + 1}\n").append("x".repeat(60_000)).append('\n') }
+        }.toByteArray()
+        val inputs = mutableListOf<java.io.ByteArrayInputStream>()
+        var delivered = 0
+        TxtBookParser.parse({ text.inputStream().also { inputs += it } }, "Book") { chapter ->
+            if (delivered == 0) assertTrue(inputs.all { it.available() > 0 })
+            assertEquals("Chapter ${++delivered}", chapter.title)
+            assertEquals(60_000, (chapter.blocks.single() as LocalBookBlock.Text).value.length)
+        }
+        assertEquals(12, delivered)
     }
 }

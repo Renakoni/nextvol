@@ -130,16 +130,12 @@ class BackupDataManager @Inject constructor(
                     addAll(backupDataCollector.bookRecordEntities.map { it.bookId })
                     addAll(readingBookmarks.map { it.bookId })
                 }
-                val references = localFileReferences(localIds, includeLegacyDirectory = !localBookCache)
+                val references = localFileReferences(localIds)
                 bookAliases = database.bookAliasDao().all().filter { it.canonicalId in localIds || it.id in localIds }
                 localBookFiles = references.localBookFiles
                 backupDataCollector.bookInformationEntities.addAll(references.bookInformationEntities.filter { info ->
                     backupDataCollector.bookInformationEntities.none { it.id == info.id }
                 })
-                if (!localBookCache) {
-                    backupDataCollector.volumeEntities.addAll(references.volumeEntities)
-                    backupDataCollector.chapterInformationEntities.addAll(references.chapterInformationEntities)
-                }
             } }
         }.andThen {
             Ok(
@@ -166,20 +162,14 @@ class BackupDataManager @Inject constructor(
     }
 
     /** Both backup and bookshelf sharing need portable relink evidence, never originals or reading data. */
-    internal suspend fun localFileReferences(bookIds: Set<String>, includeLegacyDirectory: Boolean = true): LocalData = database.withTransaction {
+    internal suspend fun localFileReferences(bookIds: Set<String>): LocalData = database.withTransaction {
         val localIds = bookIds.filter {
             indi.renakoni.nextvol.data.localbook.LocalBookStore.isLocal(indi.renakoni.nextvol.data.book.BookIdentity.book(it))
         }.toSet()
         val files = database.localBookFileManifestDao().all().filter { it.bookId in localIds }
-        // Old imported copies have no fingerprint; their full directory is the minimum evidence.
-        val volumes = if (includeLegacyDirectory) localIds.filter { key -> files.none { it.bookId == key } }
-            .flatMap { database.bookVolumesDao().getVolumeEntitiesByBookId(it) } else emptyList()
         LocalData.empty().copy(
             localBookFiles = files,
             bookInformationEntities = localIds.mapNotNull { database.bookInformationDao().getEntity(it) },
-            volumeEntities = volumes,
-            chapterInformationEntities = volumes.flatMap { it.chapterIds }.distinct()
-                .mapNotNull { database.bookVolumesDao().getChapterInformationEntity(it) },
         )
     }
 

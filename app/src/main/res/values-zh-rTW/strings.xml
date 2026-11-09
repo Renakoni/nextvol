@@ -513,7 +513,6 @@
     <string name="sources_apply_field">執行欄位動作</string>
     <string name="source_verification_code">圖片驗證碼</string>
     <string name="local_book_supported_formats">請選擇 EPUB 或 TXT 檔案。</string>
-    <string name="local_book_file_too_large">支援匯入最大 16 MB 的 TXT 或 64 MB 的 EPUB 檔案。</string>
     <string name="local_book_shelf_changed">目標書架已變更，請從書架重新選擇檔案。</string>
     <string name="local_bookshelf_name">本機書籍</string>
     <string name="local_book_unavailable">本機書籍無法使用</string>

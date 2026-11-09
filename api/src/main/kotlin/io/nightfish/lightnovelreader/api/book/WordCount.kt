@@ -17,11 +17,12 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class WordCount(
-    val count: Int,
+    val count: Long,
     val unit: String?,
     @param:StringRes val unitResId: Int?
 ) {
-    constructor(count: Int): this(count, null, null)
-    constructor(count: Int, unit: String): this(count, unit, null)
-    constructor(count: Int, @StringRes unitResId: Int): this(count, null, unitResId)
+    constructor(count: Long): this(count, null, null)
+    constructor(count: Int): this(count.toLong(), null, null)
+    constructor(count: Int, unit: String): this(count.toLong(), unit, null)
+    constructor(count: Int, @StringRes unitResId: Int): this(count.toLong(), null, unitResId)
 }

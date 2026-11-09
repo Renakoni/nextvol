@@ -121,10 +121,13 @@ class EpubBookParserTest {
         assertThrows(IllegalArgumentException::class.java) { parse(epub(extra = mapOf("OPS/./one.xhtml" to byteArrayOf(1)))) }
     }
 
-    @Test fun compressedOversizedResourcesAndDamagedArchivesAreRejected() {
-        assertReason(LocalBookImportReason.EpubLimit) {
-            parse(epub(extra = mapOf("OPS/one.xhtml" to ByteArray(16 * 1024 * 1024 + 1) { 65 })))
-        }
+    @Test fun compressedTextBeyondTheFormerResourceLimitIsComplete() {
+        val text = "A".repeat(16 * 1024 * 1024 + 1)
+        val book = parse(epub(resources = mapOf("OPS/one.xhtml" to "<html><body><p>$text</p></body></html>")))
+        assertEquals(text, body(book))
+    }
+
+    @Test fun damagedArchivesAreRejected() {
         assertReason(LocalBookImportReason.CorruptEpub) {
             parse(temporary.newFile().apply { writeText("not a ZIP") })
         }

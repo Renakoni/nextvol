@@ -103,9 +103,10 @@ class LocalBookImportInstrumentedTest {
             "UTF-16BE" to "第一章开端\n中文与😀\n第二章旅途\n完整正文",
         )
         for ((encoding, text) in samples) {
-            val parsed = TxtBookParser.parse(text.toByteArray(Charset.forName(encoding)), "Book", encoding)
-            assertEquals(encoding, 2, parsed.chapters.size)
-            assertEquals(text.lineSequence().elementAt(1), (parsed.chapters.first().blocks.single() as LocalBookBlock.Text).value)
+            val chapters = mutableListOf<LocalBookChapter>()
+            TxtBookParser.parse({ text.byteInputStream(Charset.forName(encoding)) }, "Book", encoding, onChapter = { chapters += it })
+            assertEquals(encoding, 2, chapters.size)
+            assertEquals(text.lineSequence().elementAt(1), (chapters.first().blocks.single() as LocalBookBlock.Text).value)
         }
     }
 }
