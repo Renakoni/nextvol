@@ -137,7 +137,7 @@ internal object ScriptDom {
                 finally {
                     if (pure && value is Node) checkNode(value, false)
                     else if (pure && value is Elements && !collectionRead) value.forEach { checkNode(it, false) }
-                    else checkState?.invoke()
+                    else if (!collectionRead) checkState?.invoke()
                 }
                 if (collectionRead && returned is Node) checkNode(returned, false)
                 if (value is Elements && (name in collectionWrites || name == "remove" && args.isNotEmpty())) {

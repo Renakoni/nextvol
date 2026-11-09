@@ -90,7 +90,7 @@ internal object ScriptData {
         val result = ScriptRealm.current(cx).arrayIn(scope, values.map { wrap(cx, scope, it) }.toTypedArray())
         fun method(name: String, changes: Boolean = false, action: (Context, Scriptable, Array<out Any>) -> Any?) {
             result.defineProperty(name, ScriptCalls.method(scope, "invalid list argument") { c, s, a ->
-                val answer = try { action(c, s, a) } finally { ownerCheck?.invoke() }
+                val answer = try { action(c, s, a) } finally { if (changes) ownerCheck?.invoke() }
                 if (changes) {
                     for (i in values.size until result.length.toInt()) result.delete(i)
                     result.put("length", result, values.size)
