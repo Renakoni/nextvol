@@ -17,6 +17,10 @@ interface BookDownloadDao {
     @Query("select * from download_chapter_candidate where bookId = :bookId")
     suspend fun candidates(bookId: String): List<DownloadChapterCandidateEntity>
 
+    @Query("select exists(select 1 from download_chapter_candidate where bookId = :bookId and resourceVersion = :version) " +
+        "or exists(select 1 from downloaded_chapter where bookId = :bookId and resourceVersion = :version)")
+    suspend fun hasResourceVersion(bookId: String, version: String): Boolean
+
     @Query("select * from download_chapter_candidate where bookId = :bookId")
     fun observeCandidates(bookId: String): Flow<List<DownloadChapterCandidateEntity>>
 

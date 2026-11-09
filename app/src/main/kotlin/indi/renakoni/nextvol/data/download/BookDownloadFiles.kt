@@ -9,6 +9,8 @@ import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.image.SourceImage
 import indi.renakoni.nextvol.data.image.sourceImageCacheKey
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 
 /** Resource file operations; callers own locking, cancellation and catalog decisions. */
 internal class BookDownloadFiles(private val context: Context) {
@@ -50,16 +52,31 @@ internal class BookDownloadFiles(private val context: Context) {
     }
 
     fun writeImage(target: File, bytes: ByteArray) {
+        val temporary = prepareImage(target, bytes)
+        try { publishImage(temporary, target) } finally { temporary.delete() }
+    }
+
+    fun prepareImage(target: File, bytes: ByteArray): File {
         check(bytes.isNotEmpty()) { "Downloaded image is empty" }
+        val parent = target.parentFile!!
+        check(parent.mkdirs() || parent.isDirectory)
+        val temporary = File.createTempFile("${target.name}.", ".tmp", parent)
+        try {
+            FileOutputStream(temporary).use { output -> output.write(bytes); output.fd.sync() }
+            return temporary
+        } catch (failure: Exception) {
+            temporary.delete()
+            throw failure
+        }
+    }
+
+    fun publishImage(temporary: File, target: File) {
         val previousTime = target.lastModified()
-        val file = AtomicFile(target)
-        val output = file.startWrite()
-        try { output.write(bytes); output.fd.sync(); file.finishWrite(output) }
-        catch (failure: Exception) { file.failWrite(output); throw failure }
-        check(file.openRead().use { it.readBytes().contentEquals(bytes) }) { "Download image was not committed" }
         // File mtime participates in Coil's key; two same-sized updates in one tick must differ.
-        if (target.lastModified() <= previousTime)
-            check(target.setLastModified(previousTime + 1)) { "Could not update downloaded image version" }
+        if (temporary.lastModified() <= previousTime)
+            check(temporary.setLastModified(previousTime + 1)) { "Could not update downloaded image version" }
+        // Same-directory rename publishes atomically; unlike AtomicFile.finishWrite it reports failure.
+        if (!temporary.renameTo(target)) throw IOException("Could not publish downloaded image")
         val stale = staleMarker(target)
         check(!stale.exists() || stale.delete()) { "Could not commit downloaded image version" }
     }
