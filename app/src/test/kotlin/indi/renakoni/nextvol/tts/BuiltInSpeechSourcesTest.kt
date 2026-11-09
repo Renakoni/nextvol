@@ -7,6 +7,9 @@ import hnovel.network.*
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.previewHttpSpeech
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import indi.renakoni.nextvol.ui.tts.VoiceDraft
+import indi.renakoni.nextvol.ui.tts.from
+import indi.renakoni.nextvol.ui.tts.speakerFields
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -96,13 +99,16 @@ class BuiltInSpeechSourcesTest {
             put("code", code); put("name", code); put("locale", locale)
         }, true, false).copy(isVoiceCopy = false, speakerDefaults = null)
         val japanese = voice("japanese", "ja-JP")
-        val chinese = voice("chinese", "zh-CN")
+        val chinese = voice("chinese", "zh-CN-liaoning")
         val english = voice("english", "en-US")
         val french = voice("french", "fr-FR")
         repository.save(listOf(japanese, chinese))
         val selected = repository.sources().single { it.definition.id == chinese.definition.id }
-        repository.saveVoice(editHttpVoice(selected, buildJsonObject { put("name", "My voice") }, true, false))
-        val copy = editHttpVoice(japanese, buildJsonObject { put("name", "My copy") }, true, true)
+        val draft = VoiceDraft.from(selected, selected.definition.id)
+        assertEquals("zh-CN", draft.copy(locale = "zh-CN").fields().locale)
+        assertEquals("en-US", draft.copy(name = "Voice", locale = "").fields().locale)
+        repository.saveVoice(editHttpVoice(selected, draft.copy(name = "My voice").fields().speakerFields(), true, false))
+        val copy = editHttpVoice(selected, draft.copy(name = "My copy").fields().speakerFields(), true, true)
         repository.saveVoice(copy)
         val incoming = listOf(chinese, english, french).map { it.definition }
         val filtered = filterSpeechCatalog(engine.code, incoming, true, Locale.CHINA)
@@ -113,6 +119,8 @@ class BuiltInSpeechSourcesTest {
         val refreshed = repository().sources().filterNot { it.isBuiltIn }.associateBy { it.definition.id }
         assertEquals(setOf(japanese.definition.id, chinese.definition.id, english.definition.id, copy.definition.id), refreshed.keys)
         assertEquals("My voice", refreshed.getValue(chinese.definition.id).definition.name)
+        assertEquals("zh-CN-liaoning", refreshed.getValue(chinese.definition.id).speakerData().getValue("locale").jsonPrimitive.content)
+        assertEquals("zh-CN-liaoning", refreshed.getValue(copy.definition.id).speakerData().getValue("locale").jsonPrimitive.content)
         assertEquals(japanese.definition.raw, refreshed.getValue(japanese.definition.id).definition.raw)
         assertEquals(copy.definition.raw, refreshed.getValue(copy.definition.id).definition.raw)
         repository.saveCatalog(engine, filterSpeechCatalog(engine.code, incoming, false, Locale.CHINA), emptyList(), null)
