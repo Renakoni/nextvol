@@ -57,6 +57,8 @@ internal object ScriptDom {
 
     private val queries = names("select selectFirst expectFirst selectXpath is closest getElementsByTag getElementById getElementsByClass getElementsByAttribute getElementsByAttributeValue getElementsContainingText getElementsContainingOwnText hasAttr hasClass hasText")
     private val getters = names("text wholeText wholeOwnText ownText html outerHtml toString data val attr tagName id className children childrenSize first last getAllElements")
+    private val collectionReads = names("get size isEmpty contains containsAll indexOf lastIndexOf subList toArray")
+    private val collectionWrites = names("add addAll set clear removeAll retainAll")
     private fun readOnly(name: String, args: Array<out Any>) = name in queries ||
         args.isEmpty() && name in getters || name == "attr" && args.size == 1
 
@@ -124,18 +126,21 @@ internal object ScriptDom {
                 val selected = candidates.sortedBy { it.isVarArgs }.firstNotNullOfOrNull { method ->
                     arguments(method.parameterTypes, method.isVarArgs, args)?.let { method to it }
                 } ?: error("Unsupported DOM overload")
-                if (!readOnly(name, args)) ScriptRealm.current(context).checkedDomLimits.clear()
+                val collectionRead = value is Elements && name in collectionReads
+                val pure = collectionRead || readOnly(name, args)
+                if (!pure) ScriptRealm.current(context).checkedDomLimits.clear()
                 // Derived maps/lists retain this check, including void-returning mutations.
                 val returned = try { selected.first.invoke(value, *selected.second) }
                 catch (failure: java.lang.reflect.InvocationTargetException) {
                     when (val cause = failure.cause) { is Error -> throw cause; is java.util.concurrent.CancellationException -> throw cause; else -> throw IllegalArgumentException("Invalid DOM operation") }
                 }
                 finally {
-                    if (readOnly(name, args) && value is Node) checkNode(value, false)
-                    else if (readOnly(name, args) && value is Elements && value.isNotEmpty()) value.forEach { checkNode(it, false) }
-                    else checkState?.invoke()
+                    if (pure && value is Node) checkNode(value, false)
+                    else if (pure && value is Elements && !collectionRead) value.forEach { checkNode(it, false) }
+                    else if (!collectionRead) checkState?.invoke()
                 }
-                if (value is Elements) {
+                if (collectionRead && returned is Node) checkNode(returned, false)
+                if (value is Elements && (name in collectionWrites || name == "remove" && args.isNotEmpty())) {
                     for (i in value.size until (result as NativeArray).length.toInt()) result.delete(i)
                     result.put("length", result, value.size)
                     value.forEachIndexed { index, element -> result.put(index, result, wrap(context, active, element)) }

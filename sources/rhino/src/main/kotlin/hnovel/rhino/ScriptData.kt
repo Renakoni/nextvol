@@ -88,12 +88,14 @@ internal object ScriptData {
         val values = source as MutableList<Any?>
         fun wrap(c: Context, s: Scriptable, value: Any?) = ScriptDom.wrap(c, s, value, ownerCheck)
         val result = ScriptRealm.current(cx).arrayIn(scope, values.map { wrap(cx, scope, it) }.toTypedArray())
-        fun method(name: String, action: (Context, Scriptable, Array<out Any>) -> Any?) {
+        fun method(name: String, changes: Boolean = false, action: (Context, Scriptable, Array<out Any>) -> Any?) {
             result.defineProperty(name, ScriptCalls.method(scope, "invalid list argument") { c, s, a ->
-                val answer = try { action(c, s, a) } finally { ownerCheck?.invoke() }
-                for (i in values.size until result.length.toInt()) result.delete(i)
-                result.put("length", result, values.size)
-                values.forEachIndexed { index, value -> result.put(index, result, wrap(c, s, value)) }
+                val answer = try { action(c, s, a) } finally { if (changes) ownerCheck?.invoke() }
+                if (changes) {
+                    for (i in values.size until result.length.toInt()) result.delete(i)
+                    result.put("length", result, values.size)
+                    values.forEachIndexed { index, value -> result.put(index, result, wrap(c, s, value)) }
+                }
                 answer
             }, ScriptableObject.DONTENUM)
         }
@@ -102,10 +104,10 @@ internal object ScriptData {
         method("isEmpty") { _, _, a -> require(a.isEmpty()); values.isEmpty() }
         method("contains") { c, s, a -> require(a.size == 1); values.contains(argument(c, s, a[0])) }
         fun check(next: List<Any?>) { JsonScriptData(Context.getCurrentContext(), scope, Context.getCurrentContext().getThreadLocal(bridgeLimitKey) as Int).convert(json(next)) }
-        method("add") { c, s, a -> require(a.size == 1); val value = argument(c, s, a[0]); check(values + value); values.add(value) }
-        method("set") { c, s, a -> require(a.size == 2); val index = Context.toNumber(a[0]).toInt(); val value = argument(c, s, a[1]); check(values.toMutableList().apply { set(index, value) }); wrap(c, s, values.set(index, value)) }
-        method("remove") { c, s, a -> require(a.size == 1); if (a[0] is Number) wrap(c, s, values.removeAt(Context.toNumber(a[0]).toInt())) else values.remove(argument(c, s, a[0])) }
-        method("clear") { _, _, a -> require(a.isEmpty()); values.clear(); null }
+        method("add", true) { c, s, a -> require(a.size == 1); val value = argument(c, s, a[0]); check(values + value); values.add(value) }
+        method("set", true) { c, s, a -> require(a.size == 2); val index = Context.toNumber(a[0]).toInt(); val value = argument(c, s, a[1]); check(values.toMutableList().apply { set(index, value) }); wrap(c, s, values.set(index, value)) }
+        method("remove", true) { c, s, a -> require(a.size == 1); if (a[0] is Number) wrap(c, s, values.removeAt(Context.toNumber(a[0]).toInt())) else values.remove(argument(c, s, a[0])) }
+        method("clear", true) { _, _, a -> require(a.isEmpty()); values.clear(); null }
         return result
     }
 
