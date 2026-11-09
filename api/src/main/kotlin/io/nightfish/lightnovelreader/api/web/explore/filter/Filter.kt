@@ -14,8 +14,7 @@ import io.nightfish.lightnovelreader.api.util.LocalString
  */
 abstract class Filter<T>(default: T) {
     private data class Listener<T> (
-        val listener: (T) -> Unit,
-        val weight: Int = 0
+        val listener: (T) -> Unit
     )
 
     /**
@@ -48,7 +47,6 @@ abstract class Filter<T>(default: T) {
 
     /**
      * 注册一个监听器，当[value]发生变化时调用
-     * 监听器按默认权重0插入
      *
      * @param onChange 当值发生变化时被调用的回调
      *
@@ -56,20 +54,6 @@ abstract class Filter<T>(default: T) {
      */
     fun addOnChangeListener(onChange: (T) -> Unit) {
         listeners.add(Listener(onChange))
-        listeners = listeners.distinct().sortedBy { it.weight }.reversed().toMutableList()
-    }
-
-    /**
-     * 注册一个指定权重的监听器，当[value]发生变化时调用
-     * 权重越高的监听器越先被调用
-     *
-     * @param weight 监听器的权重，权重越高越先触发
-     * @param onChange 当值发生变化时被调用的回调
-     *
-     * @since Api 2
-     */
-    fun addOnChangeListener(weight: Int, onChange: (T) -> Unit) {
-        listeners.add(Listener(onChange, weight))
-        listeners = listeners.distinct().sortedBy { it.weight }.reversed().toMutableList()
+        listeners = listeners.distinct().reversed().toMutableList()
     }
 }

@@ -2,6 +2,4 @@
     <string name="filter_completed">Completed</string>
     <string name="filter_word_limit">Word count limit</string>
     <string name="filter_word_count">Word count</string>
-    <string name="filter_word_limit_description">Show books with at least this word count. Zero includes all books.</string>
-    <string name="filter_no_limit">No limit</string>
 </resources>

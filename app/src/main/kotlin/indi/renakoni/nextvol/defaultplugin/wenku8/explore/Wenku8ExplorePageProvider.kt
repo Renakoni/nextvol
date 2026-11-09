@@ -110,12 +110,6 @@ class Wenku8ExplorePageProvider(
                                 title = "排序".local(),
                                 dialogTitle = "文库筛选".local(),
                                 description = "根据小说的文库筛选".local(),
-                                choices = listOf(
-                                    "默认",
-                                    "按更新时间排序",
-                                    "按热度排序",
-                                    "仅动画化"
-                                ),
                                 defaultChoice = "默认"
                             ).apply {
                                 addOnChangeListener {
