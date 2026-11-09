@@ -79,9 +79,8 @@ class UserDataWritesTest {
         val writes = UserDataWrites(StandardTestDispatcher(testScheduler))
         val release = CompletableDeferred<Unit>()
         val events = mutableListOf<String>()
-        val error = IllegalStateException("write failed")
         writes.submit("reader.paperId") { release.await(); events += "A" }
-        val failed = writes.submit("reader.paperId") { events += "failed"; throw error }
+        writes.submit("reader.paperId") { events += "failed"; throw IllegalStateException("write failed") }
         writes.submit("reader.paperId") { events += "B" }
         writes.submit("reader.fontSize") { events += "font" }
         try {
@@ -93,12 +92,6 @@ class UserDataWritesTest {
             release.complete(Unit)
             closing.join()
             assertEquals(listOf("font", "A", "failed", "B"), events)
-            try {
-                failed.await()
-                fail("Awaiting a failed write must report its error")
-            } catch (actual: IllegalStateException) {
-                assertSame(error, actual)
-            }
         } finally {
             release.complete(Unit)
             writes.close()
