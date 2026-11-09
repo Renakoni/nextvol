@@ -39,6 +39,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.util.zip.CRC32
+import java.util.zip.Deflater
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
@@ -137,6 +141,54 @@ class LocalBookStoreTest {
         assertEquals(reading, books.getUserReadingData(book.storageKey))
         assertEquals(count, store.readVolumes(book).get()!!.volumes.sumOf { it.chapters.size })
         assertTrue(store.readChapter(SourceChapterId(book, (count - 1).toString())).get()!!.content.toString().contains(body(count - 1)))
+    }
+
+    @Test fun largeEpubPassesTheFormerArchiveResourceAndExpandedLimits() = runBlocking {
+        val file = temporary.newFile("large.epub")
+        val bytes = 129L * 1024 * 1024
+        val buffer = ByteArray(8192) { (it % 251).toByte() }
+        val expectedCrc = CRC32()
+        ZipOutputStream(file.outputStream()).use { zip ->
+            zip.setLevel(Deflater.NO_COMPRESSION)
+            fun entry(name: String, text: String) {
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(text.toByteArray())
+                zip.closeEntry()
+            }
+            entry("META-INF/container.xml", "<container><rootfiles><rootfile full-path='book.opf'/></rootfiles></container>")
+            entry("book.opf", """<package><metadata><title>Large EPUB</title></metadata><manifest>
+                <item id="body" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+                <item id="cover" href="cover.png" media-type="image/png" properties="cover-image"/>
+                </manifest><spine><itemref idref="body"/></spine></package>""")
+            entry("chapter.xhtml", "<html><body><h1>Chapter one</h1><p>Complete text.</p><img src='cover.png'/></body></html>")
+            zip.putNextEntry(ZipEntry("cover.png"))
+            repeat((bytes / buffer.size).toInt()) {
+                zip.write(buffer)
+                expectedCrc.update(buffer)
+            }
+            zip.closeEntry()
+        }
+        assertTrue(file.length() > 64L * 1024 * 1024)
+        val draft = store.stage(file.toUri())
+        val preview = store.preview(draft)
+        assertEquals(listOf("Chapter one"), preview.chapters.map { it.title })
+        val book = store.publish(draft, preview, preview.title, 7).first
+        database.close()
+        openDatabase()
+        val information = store.readInformation(book).get()!!
+        val cover = File(information.coverUri.path!!)
+        assertEquals("Large EPUB", information.title)
+        assertEquals(bytes, cover.length())
+        val actualCrc = CRC32()
+        cover.inputStream().use { input ->
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                actualCrc.update(buffer, 0, read)
+            }
+        }
+        assertEquals(expectedCrc.value, actualCrc.value)
+        assertTrue(store.readChapter(SourceChapterId(book, "0")).get()!!.content.toString().contains("Complete text."))
     }
 
     @Test fun reparsingInvalidatesOldBodiesAndOnlyTheCurrentPreviewCanPublish() = runBlocking {

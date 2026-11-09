@@ -2,7 +2,6 @@
 <resources>
     <string name="local_import_error_empty">所选文件是空的。请选择包含正文的文件。</string>
     <string name="local_import_error_format">请选择 EPUB 或 TXT 文件。</string>
-    <string name="local_import_error_size">EPUB 文件超过 64 MiB 导入限制，请选择较小的 EPUB 文件。</string>
     <string name="local_import_error_file_access">无法读取或保存文件。请检查文件访问权限与设备剩余空间，然后重新选择文件。</string>
     <string name="local_import_error_storage">无法保存书籍文件。请释放设备空间后重新选择文件。</string>
     <string name="local_import_error_encoding">当前编码无法正确读取正文，请尝试其他编码。</string>
@@ -14,7 +13,7 @@
     <string name="local_import_error_epub_damaged">EPUB 文件不完整或已损坏。请重新下载或导出原文件后再试。</string>
     <string name="local_import_error_epub_encrypted">此 EPUB 的正文或图片已加密，暂时无法导入。</string>
     <string name="local_import_error_epub_unsupported">此 EPUB 含不支持的正文格式或矢量插图。请转换为包含 HTML 正文及 PNG、JPEG 图片的 EPUB。</string>
-    <string name="local_import_error_epub_limit">解压后的 EPUB 内容过大或结构过于复杂，超过导入限制。请简化或拆分原书文件。</string>
+    <string name="local_import_error_epub_limit">EPUB 内的文件数量过多或标记嵌套过深，请简化或拆分原书文件。</string>
     <string name="local_import_error_session">本次导入已失效，请返回后重新选择原文件。</string>
     <string name="local_import_error_title">请输入 1 至 200 个字符的书名。</string>
     <string name="local_import_error_shelf">所选书架已不可用，请返回后重新选择书架。</string>

@@ -6,7 +6,7 @@ import java.nio.charset.CharacterCodingException
 import java.util.zip.ZipException
 
 enum class LocalBookImportReason {
-    EmptyFile, UnsupportedFormat, FileTooLarge, FileAccess, Storage,
+    EmptyFile, UnsupportedFormat, FileAccess, Storage,
     InvalidEncoding, UnsupportedEncoding, InvalidRule, RuleTooLong, TooManyChapters,
     NoContent, CorruptEpub, EncryptedEpub, UnsupportedEpub, EpubLimit,
     SessionExpired, InvalidTitle, ShelfChanged, Unknown,

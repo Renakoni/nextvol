@@ -2,7 +2,6 @@
 <resources>
     <string name="local_import_error_empty">The selected file is empty. Choose a file that contains book text.</string>
     <string name="local_import_error_format">Choose an EPUB or TXT file.</string>
-    <string name="local_import_error_size">The EPUB exceeds the 64 MiB import limit. Choose a smaller EPUB file.</string>
     <string name="local_import_error_file_access">The file could not be read or saved. Check file access and available storage, then select it again.</string>
     <string name="local_import_error_storage">The book files could not be saved. Free up storage and select the file again.</string>
     <string name="local_import_error_encoding">The text cannot be read with this encoding. Try another encoding.</string>
@@ -14,7 +13,7 @@
     <string name="local_import_error_epub_damaged">The EPUB is incomplete or damaged. Download or export the original file again.</string>
     <string name="local_import_error_epub_encrypted">This EPUB contains encrypted text or images and cannot be imported.</string>
     <string name="local_import_error_epub_unsupported">This EPUB uses unsupported content or vector artwork. Convert it to an EPUB with HTML text and PNG or JPEG images.</string>
-    <string name="local_import_error_epub_limit">The expanded EPUB is too large or its structure is too complex. Simplify or split the original book.</string>
+    <string name="local_import_error_epub_limit">The EPUB contains too many files or its markup is nested too deeply. Simplify or split the original book.</string>
     <string name="local_import_error_session">This import session has ended. Go back and select the original file again.</string>
     <string name="local_import_error_title">Enter a book title of 1 to 200 characters.</string>
     <string name="local_import_error_shelf">The selected bookshelf is no longer available. Go back and choose a bookshelf again.</string>

@@ -35,7 +35,6 @@ import indi.renakoni.nextvol.data.localbook.LocalBookImportReason
 internal fun LocalBookImportReason.messageResource(): Int = when (this) {
     LocalBookImportReason.EmptyFile -> R.string.local_import_error_empty
     LocalBookImportReason.UnsupportedFormat -> R.string.local_import_error_format
-    LocalBookImportReason.FileTooLarge -> R.string.local_import_error_size
     LocalBookImportReason.FileAccess -> R.string.local_import_error_file_access
     LocalBookImportReason.Storage -> R.string.local_import_error_storage
     LocalBookImportReason.InvalidEncoding -> R.string.local_import_error_encoding

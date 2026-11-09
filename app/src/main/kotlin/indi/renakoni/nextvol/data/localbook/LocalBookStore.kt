@@ -90,7 +90,6 @@ class LocalBookStore @Inject constructor(
     companion object {
         val SOURCE = Identifier("nextvol", "local")
         fun isLocal(book: SourceBookId) = book.sourceId == SOURCE
-        private const val MAX_FILE_BYTES = 64L * 1024 * 1024
     }
 
     suspend fun stage(uri: Uri, displayName: String? = null, knownFormat: LocalBookFormat? = null): LocalBookDraft {
@@ -123,9 +122,6 @@ class LocalBookStore @Inject constructor(
                             val count = input.read(buffer)
                             if (count < 0) break
                             size += count
-                            requireImport(format != LocalBookFormat.EPUB || size <= MAX_FILE_BYTES, LocalBookImportReason.FileTooLarge) {
-                                "The selected file exceeds the import size limit."
-                            }
                             output.write(buffer, 0, count)
                             digest.update(buffer, 0, count)
                         }
