@@ -35,7 +35,7 @@ class DownloadProgressRepository internal constructor(
         override val path: String,
         private val userDataDao: UserDataDao,
         private val bookRepository: BookRepository
-    ) : UserData<List<DownloadItem>>(path) {
+    ) : UserData<List<DownloadItem>>(path, userDataDao) {
         override suspend fun set(value: List<DownloadItem>) {
             userDataDao.insert(path, group, "CompletedDownloadItemList", value.joinToString {
                 "${it.type.name}|${it.bookId}"

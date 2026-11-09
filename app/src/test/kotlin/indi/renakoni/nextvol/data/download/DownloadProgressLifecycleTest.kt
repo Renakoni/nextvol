@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.room.Room
 import indi.renakoni.nextvol.data.book.BookRepository
+import indi.renakoni.nextvol.data.local.ForwardingUserDataDao
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.room.dao.UserDataDao
 import io.mockk.coEvery
@@ -81,7 +82,7 @@ class DownloadProgressLifecycleTest {
         val secondEntered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
         val dao = db.userDataDao()
-        val heldDao = object : UserDataDao by dao {
+        val heldDao = object : ForwardingUserDataDao(dao) {
             override suspend fun update(path: String, group: String, type: String, transform: (String?) -> String) {
                 dao.update(path, group, type) { value ->
                     val updated = transform(value)
@@ -94,7 +95,7 @@ class DownloadProgressLifecycleTest {
         }
         val firstScope = CoroutineScope(Job() + StandardTestDispatcher(testScheduler))
         val secondScope = CoroutineScope(Job() + StandardTestDispatcher(testScheduler))
-        val secondDao = object : UserDataDao by dao {
+        val secondDao = object : ForwardingUserDataDao(dao) {
             override suspend fun update(path: String, group: String, type: String, transform: (String?) -> String) {
                 secondEntered.complete(Unit)
                 dao.update(path, group, type, transform)
@@ -135,7 +136,7 @@ class DownloadProgressLifecycleTest {
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
         val dao = db.userDataDao()
-        val heldDao = object : UserDataDao by dao {
+        val heldDao = object : ForwardingUserDataDao(dao) {
             override suspend fun update(path: String, group: String, type: String, transform: (String?) -> String) {
                 entered.complete(Unit)
                 release.await()
@@ -213,7 +214,7 @@ class DownloadProgressLifecycleTest {
             val entered = CompletableDeferred<Unit>()
             val release = CompletableDeferred<Unit>()
             val dao = db.userDataDao()
-            val heldDao = object : UserDataDao by dao {
+            val heldDao = object : ForwardingUserDataDao(dao) {
                 override suspend fun get(path: String): String? {
                     val saved = dao.get(path)
                     entered.complete(Unit)

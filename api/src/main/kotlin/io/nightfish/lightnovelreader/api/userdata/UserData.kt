@@ -1,10 +1,7 @@
 package io.nightfish.lightnovelreader.api.userdata
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 /**
  * 用户数据抽象基类
@@ -16,13 +13,15 @@ import kotlinx.coroutines.launch
  * @since Api 4
  */
 abstract class UserData<T> (
-    open val path: String
+    open val path: String,
+    private val writeOwner: UserDataDaoApi,
 ) {
     /** 该条数据所属的组路径 */
     val group get() = path.split(".").dropLast(1).joinToString(".")
 
     /**
      * 写入用户数据
+     * 直接执行写入；需与异步设置提交保持顺序时使用[setAndAwait]
      * 此函数为阻塞函数, 请务必不要在初始化阶段或主线程上调用
      *
      * @param value 需要写入的值
@@ -33,16 +32,24 @@ abstract class UserData<T> (
 
     /**
      * 异步写入用户数据
-     * 内部会在IO协程中执行[set]
+     * 由存储负责人按同一路径的提交顺序执行[set]，不随页面退出取消
      *
      * @param value 需要写入的值
      *
      * @since Api 2
      */
     fun asynchronousSet(value: T) {
-        CoroutineScope(Dispatchers.IO).launch {
-            set(value)
-        }
+        writeOwner.submit(path) { set(value) }
+    }
+
+    /** Submit alongside asynchronous settings writes and await persistence, propagating failures. */
+    suspend fun setAndAwait(value: T) {
+        writeOwner.submit(path) { set(value) }.await()
+    }
+
+    /** Compare within the same path's queue so stale cleanup cannot overwrite a newer selection. */
+    suspend fun setIfUnchanged(expected: T, value: T) {
+        writeOwner.submit(path) { if (get() == expected) set(value) }.await()
     }
 
     /**

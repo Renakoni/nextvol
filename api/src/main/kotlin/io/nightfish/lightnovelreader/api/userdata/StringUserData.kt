@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
 class StringUserData (
     override val path: String,
     private val userDataDao: UserDataDaoApi
-) : UserData<String>(path) {
+) : UserData<String>(path, userDataDao) {
     override suspend fun set(value: String) {
         userDataDao.insert(path, group, "String", value)
     }

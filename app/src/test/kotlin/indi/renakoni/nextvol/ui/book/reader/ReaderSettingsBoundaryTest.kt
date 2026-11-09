@@ -268,7 +268,7 @@ class ReaderSettingsBoundaryTest {
             listOf(restored.topPadding, restored.bottomPadding, restored.leftPadding, restored.rightPadding))
     }
 
-    private class InMemoryUserDataDao : UserDataDao {
+    private class InMemoryUserDataDao : UserDataDao() {
         private val values = ConcurrentHashMap<String, UserDataEntity>()
         private val flows = ConcurrentHashMap<String, MutableStateFlow<String?>>()
         private val writeLock = Any()

@@ -450,8 +450,9 @@ fun BackgroundSettings(settingState: ReaderSettingsEditor, context: Context) {
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri ?: return@rememberLauncherForActivityResult
+        val target = if (isDarkSelection) settingState.backgroundDarkImageUriUserData else settingState.backgroundImageUriUserData
+        val fileName = if (isDarkSelection) "readerDarkBackgroundImage" else "readerBackgroundImage"
         scope.launch(Dispatchers.IO) {
-            val fileName = if (isDarkSelection) "readerDarkBackgroundImage" else "readerBackgroundImage"
             val file = context.filesDir.resolve(fileName).apply {
                 if (exists()) delete()
                 createNewFile()
@@ -462,10 +463,7 @@ fun BackgroundSettings(settingState: ReaderSettingsEditor, context: Context) {
                 }
             }
             val fileUri = file.toUri()
-            if (isDarkSelection)
-                settingState.backgroundDarkImageUriUserData.set(fileUri)
-            else
-                settingState.backgroundImageUriUserData.set(fileUri)
+            target.setAndAwait(fileUri)
         }
     }
 

@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.map
 class ColorUserData (
     override val path: String,
     private val userDataDao: UserDataDaoApi
-) : UserData<Color>(path) {
+) : UserData<Color>(path, userDataDao) {
     override suspend fun set(value: Color) {
         userDataDao.insert(path, group, "Color", value.value.toString())
     }

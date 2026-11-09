@@ -43,6 +43,7 @@ import io.nightfish.lightnovelreader.api.book.WordCount
 import io.nightfish.lightnovelreader.api.content.builder.ContentBuilder
 import io.nightfish.lightnovelreader.api.content.builder.image
 import io.nightfish.lightnovelreader.api.content.builder.simpleText
+import kotlinx.coroutines.runBlocking
 
 @Database(
     entities = [
@@ -87,6 +88,11 @@ abstract class NextVolDatabase : RoomDatabase() {
     abstract fun dailyCountDao(): DailyCountDao
     abstract fun formattingRuleDao(): FormattingRuleDao
     abstract fun storageStatsDao(): StorageStatsDao
+
+    override fun close() {
+        runBlocking { userDataDao().closeSettingsWrites() }
+        super.close()
+    }
 
     companion object {
         const val NAME = "light_novel_reader_source_database"

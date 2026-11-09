@@ -1,5 +1,6 @@
 package io.nightfish.lightnovelreader.api.userdata
 
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -9,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
  * @since Api 2
  */
 interface UserDataDaoApi {
+    /** Accept a settings write before dispatch, preserving submission order for this store and path. */
+    fun submit(path: String, write: suspend () -> Unit): Deferred<Unit>
+
     /**
      * 写入或更新一条用户数据
      *
