@@ -80,7 +80,6 @@ fun LocalBookImportDialog(
     onRuleChange: (String) -> Unit,
     onImport: () -> Unit,
     relinkState: LocalBookRelinkState? = null,
-    onConfirmLegacy: (Boolean) -> Unit = {},
 ) {
     var encodingMenu by remember { mutableStateOf(false) }
     var editingRule by rememberSaveable { mutableStateOf(false) }
@@ -154,7 +153,7 @@ fun LocalBookImportDialog(
                             }
                         }
                         if (relinkState != null) item {
-                            LocalBookRelinkNotice(relinkState, onConfirmLegacy,
+                            LocalBookRelinkNotice(relinkState,
                                 Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
                         }
                         if (state.format == LocalBookFormat.TXT) {
