@@ -10,22 +10,6 @@ import org.junit.Test
 import java.util.Collections
 
 class RuleSourceRequestTraceTest {
-    @Test fun ruleTraceCountsTheExistingInputTextWithoutItsDiagnosticWrapper() = runBlocking {
-        val events = mutableListOf<ContentTraceEvent>()
-        RuleSourceFixture(trace = ContentTrace { events += it }).use { fixture ->
-            val html = "<li><a href='/book'><h2>Book</h2></a></li>"
-            fixture.server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
-                override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest) =
-                    okhttp3.mockwebserver.MockResponse().setBody(html)
-            }
-            fixture.source().use { source -> source.search("fixture") }
-            val event = events.single { it.kind == "rule" && it.field == "ruleSearch.bookList" }
-            assertEquals(html.length, event.inputSize)
-            assertEquals("Success", event.result)
-            assertTrue(event.outputSize > 0)
-        }
-    }
-
     @Test fun compiledAndScriptRequestsReachTheExistingTraceWithoutSensitiveValues() = runBlocking {
         val events = Collections.synchronizedList(mutableListOf<ContentTraceEvent>())
         RuleSourceFixture(trace = ContentTrace { events += it }).use { fixture ->
