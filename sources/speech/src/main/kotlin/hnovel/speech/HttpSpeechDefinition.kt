@@ -51,7 +51,7 @@ class HttpSpeechDefinition internal constructor(val id: String, val raw: JsonObj
         internal val fields = setOf("id", "name", "url", "contentType", "header", "jsLib", "loginUrl", "loginUi",
             "loginCheckJs", "concurrentRate", "enabledCookieJar", "speed", "lastUpdateTime")
 
-        internal fun parse(raw: JsonObject): HttpSpeechDefinition {
+        fun parse(raw: JsonObject): HttpSpeechDefinition {
             // A withdrawn package must not fall back to the generic HTTP request path.
             val engine = (raw["multiTts"] as? JsonObject)?.get("engine") as? JsonObject
             require((engine?.get("code") as? JsonPrimitive)?.contentOrNull !in withdrawnSpeechEngines)
