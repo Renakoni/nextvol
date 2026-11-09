@@ -35,6 +35,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -54,7 +55,10 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.localbook.LocalBookBlock
+import indi.renakoni.nextvol.data.localbook.LocalBookChapter
 import indi.renakoni.nextvol.data.localbook.LocalBookFormat
+import indi.renakoni.nextvol.data.localbook.LocalBookImportFailure
+import indi.renakoni.nextvol.data.localbook.PreparedLocalBook
 import indi.renakoni.nextvol.data.localbook.TxtBookParser
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.ui.components.Cover
@@ -62,6 +66,9 @@ import indi.renakoni.nextvol.ui.components.SectionDescription
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.utils.formatSize
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -217,11 +224,7 @@ fun LocalBookImportDialog(
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     if (expandedChapter == index) {
-                                        val excerpt = remember(chapter) { chapter.blocks.filterIsInstance<LocalBookBlock.Text>().take(4).joinToString("\n") { it.value }.take(500) }
-                                        Text(excerpt.ifBlank { stringResource(if (chapter.blocks.isEmpty()) R.string.local_book_empty_chapter else R.string.local_book_image_chapter) },
-                                            Modifier.padding(start = 64.dp, end = 24.dp, bottom = 16.dp),
-                                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 7, overflow = TextOverflow.Ellipsis)
+                                        LocalChapterPreview(preview, index)
                                     }
                                     HorizontalDivider(Modifier.padding(horizontal = 24.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                                 }
@@ -234,5 +237,24 @@ fun LocalBookImportDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LocalChapterPreview(preview: PreparedLocalBook, index: Int) {
+    val loaded by produceState<Result<LocalBookChapter>?>(null, preview, index) {
+        value = try { Result.success(withContext(Dispatchers.IO) { preview.chapter(index) }) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { Result.failure(failure) }
+    }
+    loaded?.getOrNull()?.let { chapter ->
+        val excerpt = remember(chapter) { chapter.blocks.filterIsInstance<LocalBookBlock.Text>().take(4).joinToString("\n") { it.value }.take(500) }
+        Text(excerpt.ifBlank { stringResource(if (chapter.blocks.isEmpty()) R.string.local_book_empty_chapter else R.string.local_book_image_chapter) },
+            Modifier.padding(start = 64.dp, end = 24.dp, bottom = 16.dp),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 7, overflow = TextOverflow.Ellipsis)
+    }
+    (loaded?.exceptionOrNull() as? Exception)?.let { failure ->
+        LocalBookImportError(LocalBookImportFailure.from(failure), Modifier.padding(horizontal = 24.dp, vertical = 16.dp))
     }
 }

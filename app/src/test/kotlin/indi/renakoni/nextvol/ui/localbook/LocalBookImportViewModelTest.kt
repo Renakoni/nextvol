@@ -9,14 +9,13 @@ import androidx.room.Room
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.room.entity.BookshelfEntity
-import indi.renakoni.nextvol.data.localbook.LocalBookBlock
-import indi.renakoni.nextvol.data.localbook.LocalBookChapter
 import indi.renakoni.nextvol.data.localbook.LocalBookDraft
 import indi.renakoni.nextvol.data.localbook.LocalBookFormat
 import indi.renakoni.nextvol.data.localbook.LocalBookImportException
 import indi.renakoni.nextvol.data.localbook.LocalBookImportReason
 import indi.renakoni.nextvol.data.localbook.LocalBookStore
-import indi.renakoni.nextvol.data.localbook.ParsedLocalBook
+import indi.renakoni.nextvol.data.localbook.PreparedLocalBook
+import indi.renakoni.nextvol.data.localbook.LocalChapterIndex
 import indi.renakoni.nextvol.data.localbook.TxtBookParser
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -209,16 +208,11 @@ class LocalBookImportViewModelTest {
         assertTrue(file.isFile)
     }
 
-    @Test fun emptyAndOversizedFilesHaveStableReasonsBeforePreview() = runBlocking {
+    @Test fun emptyFilesHaveAStableReasonBeforePreview() = runBlocking {
         val model = model()
         model.open(temporary.newFile("empty.txt").toUri())
         await { !model.state.busy }
         assertEquals(LocalBookImportReason.EmptyFile, model.state.error!!.reason)
-        val large = temporary.newFile("large.txt")
-        java.io.RandomAccessFile(large, "rw").use { it.setLength(16L * 1024 * 1024 + 1) }
-        model.open(large.toUri())
-        await { !model.state.busy }
-        assertEquals(LocalBookImportReason.FileTooLarge, model.state.error!!.reason)
         assertTrue(database.importedBookDao().allIds().isEmpty())
     }
 
@@ -247,8 +241,7 @@ class LocalBookImportViewModelTest {
         assertTrue(model.state.error!!.details.contains("private raw diagnostic"))
         val staged = LocalBookDraft(SourceBookId(LocalBookStore.SOURCE, "retry"), "book.txt", LocalBookFormat.TXT, temporary.newFolder())
         coEvery { store.stage(any()) } returns staged
-        coEvery { store.preview(any(), any(), any()) } returns ParsedLocalBook("Retry", listOf(
-            LocalBookChapter("Chapter", blocks = listOf(LocalBookBlock.Text("Text")))))
+        coEvery { store.preview(any(), any(), any()) } returns PreparedLocalBook("Retry", listOf(LocalChapterIndex("Chapter", "")), staged.directory)
         model.open(source.toUri())
         await { model.state.canImport }
         assertNull(model.state.error)
@@ -259,7 +252,7 @@ class LocalBookImportViewModelTest {
         val release = CompletableDeferred<Unit>()
         val finished = CompletableDeferred<Unit>()
         val staged = LocalBookDraft(SourceBookId(LocalBookStore.SOURCE, "draft"), "book.txt", LocalBookFormat.TXT, temporary.newFolder())
-        fun parsed(title: String) = ParsedLocalBook(title, listOf(LocalBookChapter(title, blocks = listOf(LocalBookBlock.Text(title)))))
+        fun parsed(title: String) = PreparedLocalBook(title, listOf(LocalChapterIndex(title, "")), staged.directory)
         val store = mockk<LocalBookStore>(relaxed = true)
         coEvery { store.stage(any()) } returns staged
         coEvery { store.preview(any(), any(), any()) } coAnswers {
@@ -292,7 +285,7 @@ class LocalBookImportViewModelTest {
         val started = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
         val staged = LocalBookDraft(SourceBookId(LocalBookStore.SOURCE, "publishing"), "book.txt", LocalBookFormat.TXT, temporary.newFolder())
-        val parsed = ParsedLocalBook("Book", listOf(LocalBookChapter("Chapter", blocks = listOf(LocalBookBlock.Text("Body")))))
+        val parsed = PreparedLocalBook("Book", listOf(LocalChapterIndex("Chapter", "")), staged.directory)
         val store = mockk<LocalBookStore>(relaxed = true)
         coEvery { store.stage(any()) } returns staged
         coEvery { store.preview(any(), any(), any()) } returns parsed

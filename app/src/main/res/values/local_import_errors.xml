@@ -2,14 +2,14 @@
 <resources>
     <string name="local_import_error_empty">The selected file is empty. Choose a file that contains book text.</string>
     <string name="local_import_error_format">Choose an EPUB or TXT file.</string>
-    <string name="local_import_error_size">The file exceeds the import limit: 16 MiB for TXT or 64 MiB for EPUB. Choose a smaller file.</string>
+    <string name="local_import_error_size">The EPUB exceeds the 64 MiB import limit. Choose a smaller EPUB file.</string>
     <string name="local_import_error_file_access">The file could not be read or saved. Check file access and available storage, then select it again.</string>
     <string name="local_import_error_storage">The book files could not be saved. Free up storage and select the file again.</string>
     <string name="local_import_error_encoding">The text cannot be read with this encoding. Try another encoding.</string>
     <string name="local_import_error_encoding_unsupported">This text encoding is not supported. Choose an encoding from the list.</string>
     <string name="local_import_error_rule">The chapter rule is invalid or uses unsupported syntax. Edit it or restore the default rule.</string>
     <string name="local_import_error_rule_length">The chapter rule is too long. Shorten it to 1,024 characters or fewer.</string>
-    <string name="local_import_error_chapters">The file produces more than 10,000 chapters. Adjust the TXT chapter rule or split the original book.</string>
+    <string name="local_import_error_chapters">The EPUB contains more than 10,000 chapters. Split the original book.</string>
     <string name="local_import_error_no_content">No readable content was found. Check the file contents; for TXT, also check the encoding and chapter rule.</string>
     <string name="local_import_error_epub_damaged">The EPUB is incomplete or damaged. Download or export the original file again.</string>
     <string name="local_import_error_epub_encrypted">This EPUB contains encrypted text or images and cannot be imported.</string>

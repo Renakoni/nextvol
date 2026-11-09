@@ -185,7 +185,7 @@ fun BookCardContent(
                 val dateText = bookInformation.lastUpdated.format(dateFormatter())
 
                 // Unknown reading metadata must not render as a 1970 update and zero-word book.
-                if (bookInformation.subtitle.isNotBlank() && bookInformation.lastUpdated.year <= 1970 && bookInformation.wordCount.count == 0) Text(
+                if (bookInformation.subtitle.isNotBlank() && bookInformation.lastUpdated.year <= 1970 && bookInformation.wordCount.count == 0L) Text(
                     text = bookInformation.subtitle,
                     style = typography.labelMedium.copy(color = colorScheme.secondary),
                     maxLines = 1,

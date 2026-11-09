@@ -34,7 +34,7 @@ class BundledBookMetadataTest {
                 val information = adapter.getBookInformation(id).getOrElse { error(it.toString()) }
                 val display = adapter.informationForDisplay(id, information)
                 assertEquals("Fixture", display.title)
-                assertEquals(count, display.wordCount.count)
+                assertEquals(count.toLong(), display.wordCount.count)
                 assertEquals(LocalDateTime.of(2026, 9, 14, 8, 0), display.lastUpdated)
                 assertFalse(display.tags.any { it.contains("2026-09-14") })
                 assertEquals("Detail and display must use only the existing detail request", 1, fixture.server.requestCount)

@@ -26,6 +26,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
@@ -35,12 +36,14 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.util.Locale
+import kotlinx.serialization.json.Json
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class, qualifiers = "en-rUS-w360dp-h800dp")
 @GraphicsMode(GraphicsMode.Mode.LEGACY)
 class LocalBookRelinkUiTest {
     @get:Rule val compose = createEmptyComposeRule()
+    @get:Rule val files = TemporaryFolder()
     private lateinit var activity: ActivityController<ComponentActivity>
     @Before fun create() {
         activity = Robolectric.buildActivity(ComponentActivity::class.java)
@@ -50,7 +53,9 @@ class LocalBookRelinkUiTest {
     @After fun destroy() { activity.pause().stop().destroy() }
     private fun state(match: LocalBookRelinkMatch): LocalBookRelinkState {
         val book = SourceBookId(LocalBookStore.SOURCE, "restored")
-        val parsed = ParsedLocalBook("Saved book", listOf(LocalBookChapter("Chapter 1", blocks = listOf(LocalBookBlock.Text("Preview text")))))
+        val directory = files.newFolder()
+        File(directory, "0.json").writeText(Json.encodeToString(LocalBookChapter("Chapter 1", blocks = listOf(LocalBookBlock.Text("Preview text")))))
+        val parsed = PreparedLocalBook("Saved book", listOf(LocalChapterIndex("Chapter 1", "")), directory)
         val manifest = LocalBookFileManifest(book.storageKey, "TXT", "novel.txt", "a".repeat(64), "b".repeat(64))
         return LocalBookRelinkState(visible = true, fileName = "novel.txt", format = LocalBookFormat.TXT,
             preview = LocalBookRelinkPreview(book, parsed, match, LocalBookDraft(book, "novel.txt", LocalBookFormat.TXT, File("unused")),

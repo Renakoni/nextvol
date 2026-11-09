@@ -518,7 +518,7 @@ private fun sortBooks(
         )
         BookshelfSortType.WordCount -> source.sortedWith(
             compareByDescending<Pair<String, Result<BookshelfBookItem, WebRequestError>?>> { pair ->
-                pair.second?.map { it.bookInformation.wordCount.count }?.getOrElse { 0 } ?: 0
+                pair.second?.map { it.bookInformation.wordCount.count }?.getOrElse { 0L } ?: 0L
             }.thenBy { stableIndexMap[it.first] ?: Int.MAX_VALUE }
         )
     }

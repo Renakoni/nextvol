@@ -101,6 +101,76 @@ class LocalBookStoreTest {
         assertEquals(2, volume.chapters.size)
     }
 
+    @Test fun largeTxtIsPreparedPerChapterPublishedReopenedAndRelinkedWithoutLosingPositions() = runBlocking {
+        val count = 1150
+        fun body(number: Int) = "body-$number:".let { it + "x".repeat(60_000 - it.length) }
+        val file = temporary.newFile("large.txt")
+        file.bufferedWriter().use { output ->
+            repeat(count) { number -> output.append("Chapter ${number + 1}\r\n").append(body(number)).append("\r\n") }
+        }
+        assertTrue(file.length() > 64L * 1024 * 1024)
+        val draft = store.stage(file.toUri())
+        val preview = store.preview(draft)
+        assertEquals(count, preview.chapters.size)
+        assertEquals(count * 60_000L, preview.wordCount)
+        assertEquals(count, draft.directory.listFiles()!!.count { it.extension == "json" })
+        val selected = listOf(0, count / 2, count - 1)
+        selected.forEach { number ->
+            assertEquals("Chapter ${number + 1}", preview.chapters[number].title)
+            assertEquals(body(number), (preview.chapter(number).blocks.single() as LocalBookBlock.Text).value)
+        }
+        // The preview contains only LocalChapterIndex records; bodies are loaded one at a time.
+        val book = store.publish(draft, preview, "Large", 7).first
+        val chapter = SourceChapterId(book, (count / 2).toString()).storageKey
+        local.updateUserReadingData(book.storageKey) { it.copy(totalReadTime = 42, lastReadChapterId = chapter, readingProgress = .5f) }
+        val reading = books.getUserReadingData(book.storageKey)
+        database.close()
+        openDatabase()
+        assertEquals(count * 60_000L, store.readInformation(book).get()!!.wordCount.count)
+        selected.forEach { number ->
+            assertTrue(store.readChapter(SourceChapterId(book, number.toString())).get()!!.content.toString().contains(body(number)))
+        }
+        val relink = store.previewRelink(book, store.stage(file.toUri()))
+        assertEquals(LocalBookRelinkMatch.Exact, relink.match)
+        relink.manifest.validate()
+        store.relink(relink)
+        assertEquals(reading, books.getUserReadingData(book.storageKey))
+        assertEquals(count, store.readVolumes(book).get()!!.volumes.sumOf { it.chapters.size })
+        assertTrue(store.readChapter(SourceChapterId(book, (count - 1).toString())).get()!!.content.toString().contains(body(count - 1)))
+    }
+
+    @Test fun reparsingInvalidatesOldBodiesAndOnlyTheCurrentPreviewCanPublish() = runBlocking {
+        val draft = store.stage(source().toUri())
+        val old = store.preview(draft)
+        val current = store.preview(draft, rule = "")
+        assertEquals(1, current.chapters.size)
+        assertFalse(File(draft.directory, "1.json").exists())
+        val stale = runCatching { store.publish(draft, old, "Old", 7) }.exceptionOrNull()
+        assertEquals(LocalBookImportReason.SessionExpired, (stale as LocalBookImportException).reason)
+        val failed = runCatching { store.preview(draft, encoding = "unknown") }.exceptionOrNull()
+        assertEquals(LocalBookImportReason.UnsupportedEncoding, (failed as LocalBookImportException).reason)
+        assertTrue(draft.directory.listFiles()!!.none { it.extension == "json" })
+        assertTrue(runCatching { store.publish(draft, current, "Old", 7) }.isFailure)
+        val ready = store.preview(draft, rule = "")
+        val book = store.publish(draft, ready, "Current", 7).first
+        assertEquals(1, store.readVolumes(book).get()!!.volumes.single().chapters.size)
+    }
+
+    @Test fun decodingFailureAfterCompletedChaptersRemovesThePartialPreview() = runBlocking {
+        val file = temporary.newFile("malformed.txt")
+        file.outputStream().use { output ->
+            repeat(4) { output.write("Chapter ${it + 1}\n${"x".repeat(60_000)}\n".toByteArray()) }
+            output.write(0xff)
+        }
+        val draft = store.stage(file.toUri())
+        val failure = runCatching { store.preview(draft, encoding = "UTF-8") }.exceptionOrNull()!!
+        assertEquals(LocalBookImportReason.InvalidEncoding, LocalBookImportFailure.from(failure as Exception).reason)
+        assertNull(draft.preview)
+        assertEquals(listOf(draft.original), draft.directory.listFiles()!!.toList())
+        assertTrue(database.importedBookDao().allIds().isEmpty())
+        store.discard(draft)
+    }
+
     @Test fun originalAndParsedContentSurviveCacheClearingAndDatabaseReopening() = runBlocking {
         val original = source()
         val book = importBook(original)

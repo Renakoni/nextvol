@@ -532,7 +532,6 @@
     <string name="source_verification_failed">验证未完成，或书源账号已经改变。请从该书源重试。</string>
     <string name="discovery_verification_required">网站验证尚未完成，请重试以打开验证页面。</string>
     <string name="local_book_supported_formats">请选择 EPUB 或 TXT 文件。</string>
-    <string name="local_book_file_too_large">支持导入最大 16 MB 的 TXT 或 64 MB 的 EPUB 文件。</string>
     <string name="local_book_shelf_changed">目标书架已变更，请从书架重新选择文件。</string>
     <string name="local_bookshelf_name">本地书籍</string>
     <string name="local_book_unavailable">本地书籍不可用</string>

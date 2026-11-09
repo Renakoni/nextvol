@@ -143,6 +143,10 @@ class LocalBookRelinkTest {
         assertEquals(LocalBookRelinkMatch.Exact, third.preview(book, renamed).match)
     }
     @Test fun txtRestoreWithoutCacheRetainsIdentityShelfProgressAndBookmarks() = runBlocking { roundTrip(txt(text = "Preface\nChapter 1\nText")) }
+    @Test fun shiftJisManifestAndRelinkRetainReadingData() = runBlocking {
+        val text = "Chapter 1\n" + "これは日本語の小説です。登場人物たちは長い旅に出かけました。読者は物語を楽しみます。".repeat(40)
+        roundTrip(temporary.newFile("japanese.txt").apply { writeBytes(text.toByteArray(java.nio.charset.Charset.forName("Shift_JIS"))) })
+    }
     @Test fun extensionOnlyFileNameKeepsItsFallbackChapterAcrossDevices() = runBlocking { roundTrip(txt(name = ".txt", text = "A book without headings")) }
     @Test fun epubRestoreResolvesImagesFromTheNewDeviceDirectory() = runBlocking { roundTrip(epub()) }
 

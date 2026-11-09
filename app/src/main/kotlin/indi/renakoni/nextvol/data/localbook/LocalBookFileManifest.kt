@@ -8,8 +8,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import indi.renakoni.nextvol.data.book.SourceBookId
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import java.io.File
+import java.nio.charset.Charset
 import java.security.MessageDigest
 
 /** Portable evidence of the original and its parsed chapter mapping; never contains the original. */
@@ -29,7 +28,7 @@ data class LocalBookFileManifest(
         require(format in LocalBookFormat.entries.map { it.name })
         require(originalDigest.matches(Regex("[0-9a-f]{64}")) && mappingDigest.matches(Regex("[0-9a-f]{64}")))
         require(originalName.length <= 1024 && (rule == null || rule.length <= 1024))
-        require(encoding == null || encoding in TxtBookParser.encodings)
+        require(encoding == null || Charset.isSupported(encoding))
     }
 }
 
@@ -49,24 +48,4 @@ interface LocalBookFileManifestDao {
     suspend fun clearUnowned()
 }
 
-internal fun File.originalDigest(): String {
-    val digest = MessageDigest.getInstance("SHA-256")
-    inputStream().use { input ->
-        val buffer = ByteArray(8192)
-        while (true) {
-            val read = input.read(buffer)
-            if (read < 0) break
-            digest.update(buffer, 0, read)
-        }
-    }
-    return digest.digest().joinToString("") { "%02x".format(it) }
-}
-
-internal fun List<LocalBookChapter>.mappingDigest(): String {
-    val digest = MessageDigest.getInstance("SHA-256")
-    for (chapter in this) {
-        digest.update(Json.encodeToString(chapter).toByteArray(Charsets.UTF_8))
-        digest.update(0.toByte())
-    }
-    return digest.digest().joinToString("") { "%02x".format(it) }
-}
+internal fun MessageDigest.finishDigest(): String = digest().joinToString("") { "%02x".format(it) }
