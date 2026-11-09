@@ -984,11 +984,18 @@ class RuleSourceTest {
     }
 
     @Test fun decodedImagesUseCompactByteTransport() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source().use { source ->
-            fixture.imageBytes = ByteArray(16000) { (it % 256).toByte() }
-            val id = fixture.server.url("/book/one").toString()
-            assertArrayEquals(fixture.imageBytes.reversedArray(), source.image(id, fixture.server.url("/image.png").toString(), false))
-        } }
+        val jpeg = javaClass.getResourceAsStream("/images/decoded.jpg")!!.use { it.readBytes() }
+        for ((cover, rule) in listOf(true to "result", false to "if (src.indexOf('/image.png') < 0) throw 'url'; result.reverse()")) {
+            RuleSourceFixture().use { fixture -> fixture.source(customize = { raw -> JsonObject(raw + mapOf(
+                "coverDecodeJs" to JsonPrimitive(rule),
+                "ruleContent" to JsonObject(raw.getValue("ruleContent").jsonObject + ("imageDecode" to JsonPrimitive(rule)))
+            )) }).use { source ->
+                fixture.imageBytes = jpeg
+                val id = fixture.server.url("/book/one").toString()
+                val expected = if (rule == "result") jpeg else jpeg.reversedArray()
+                assertArrayEquals(expected, source.image(id, fixture.server.url("/image.png").toString(), cover))
+            } }
+        }
     }
 
     @Test fun revocationAndCancellationDiscardLateRuleWrites() = runBlocking {

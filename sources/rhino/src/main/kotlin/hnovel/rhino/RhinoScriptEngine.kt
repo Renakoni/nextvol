@@ -187,7 +187,7 @@ data class ScriptFrame(val sourceId: String, val profile: String, val bookId: St
     val chapter: JsonObject = JsonObject(emptyMap()), val chineseConverter: Int = 0, val sourceHeaderRule: String = "",
     val discovery: ScriptDiscovery? = null, val sourceLoginUrl: String = "", val sourceComment: String? = null,
     val nextChapterUrl: String? = null, val speakText: String? = null, val speakSpeed: Int = 10,
-    val scriptInput: RuleValue? = null)
+    val scriptInput: RuleValue? = null, val imageInput: ByteArray? = null)
 
 data class ScriptLimits(val instructionLimit: Int? = null, val maxResultChars: Int = 256 * 1024,
     val maxScriptChars: Int = 256 * 1024, val maxBridgeChars: Int = DEFAULT_BRIDGE_CHARS,
@@ -327,7 +327,9 @@ class RhinoScriptEngine(private val bridge: HostBridge, private val limits: Scri
                 val rules = ScriptRuleHelpers(scope, frame.copy(ruleContext = ruleContext), limits)
                 // BaseSource discovery callbacks have no rule input and may declare their own result.
                 if (frame.discovery?.snapshot?.get("noResult")?.jsonPrimitive?.boolean != true) {
-                    scope.put("result", scope, if (frame.scriptInput != null)
+                    scope.put("result", scope, if (frame.imageInput != null)
+                        context.newArray(scope, Array<Any>(frame.imageInput.size) { frame.imageInput[it].toInt() })
+                    else if (frame.scriptInput != null)
                         rules.inputView(context, scope, frame.scriptInput, inputLimit)
                     else JsonScriptData(context, scope, inputLimit).convert(frame.variables["result"] ?: JsonNull))
                 }
@@ -351,7 +353,8 @@ class RhinoScriptEngine(private val bridge: HostBridge, private val limits: Scri
                 ruleContext.bookMetadata = ScriptMetadata.capture(book, limits.maxBridgeChars).toString()
                 ruleContext.chapterMetadata = ScriptMetadata.capture(chapter, limits.maxBridgeChars).toString()
                 checkDeadline()
-                val json = BoundedJsonResult(limits.maxResultChars).encode(value)
+                val json = BoundedJsonResult(limits.maxResultChars).encode(
+                    if (frame.imageInput != null) imageBytesResult(value, limits.maxResultChars) else value)
                 checkDeadline()
                 ScriptResult.Success(json)
             }

@@ -34,7 +34,8 @@ internal object WorkerRuleEvaluator {
             val frame = ScriptFrame(identity.sourceId, identity.profile, task.bookId, task.chapterId,
                 emptyMap(), task.key, task.page, task.baseUrl, current, task.input, budget, task.book, task.chapter, task.chineseConverter,
                 sourceHeaderRule = task.sourceHeaderRule, discovery = discovery, sourceLoginUrl = task.sourceLoginUrl,
-                sourceComment = task.sourceComment, nextChapterUrl = task.nextChapterUrl, scriptInput = request.input)
+                sourceComment = task.sourceComment, nextChapterUrl = task.nextChapterUrl, scriptInput = request.input,
+                imageInput = task.imageInput?.let { java.util.Base64.getDecoder().decode(it) })
             when (val result = RhinoScriptEngine(bridge, ScriptLimits(timeoutMillis = limits.timeoutMillis, maxResultChars = limits.maxOutputBytes,
                 maxBridgeChars = limits.scriptDataLimit), archives, compilations)
                 .evaluate(request.script, frame, library)) {

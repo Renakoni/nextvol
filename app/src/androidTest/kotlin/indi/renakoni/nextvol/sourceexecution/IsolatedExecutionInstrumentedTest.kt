@@ -43,6 +43,21 @@ import org.junit.runner.RunWith
 class IsolatedExecutionInstrumentedTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    @Test fun imageBytesRoundTripThroughTheIsolatedPacketWithoutTextFieldLimits() = runBlocking {
+        val authority = ExecutionAuthority()
+        val executor = AndroidIsolatedExecutor(context, authority)
+        val id = authority.issue("image-bytes", "legado", "1")
+        val bytes = ByteArray(288102).also { java.util.Random(956).nextBytes(it) }
+        val task = ExecutionTask.Rule("@js:result", hnovel.rules.RuleValue.Empty, hnovel.rules.OutputKind.Element,
+            hnovel.rules.RuleLocation("ruleContent.imageDecode"), imageInput = java.util.Base64.getEncoder().encodeToString(bytes))
+        try {
+            val result = executor.execute(id, task, ExecutionLimits(timeoutMillis = 30000, maxOutputBytes = 16 * 1024 * 1024))
+            assertTrue(result.toString(), result is ExecutionResult.Success)
+            val value = Json.decodeFromString(hnovel.execution.ExecutedRule.serializer(), (result as ExecutionResult.Success).output).value
+            assertArrayEquals(bytes, java.util.Base64.getDecoder().decode((value as hnovel.rules.RuleValue.Text).value))
+        } finally { executor.close() }
+    }
+
     @Test fun unchangedInputIsEncodedOnceAndResolvedLibrariesReceiveANewEnvelope() = runBlocking {
         val authority = ExecutionAuthority()
         val executor = AndroidIsolatedExecutor(context, authority)
