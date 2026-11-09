@@ -54,7 +54,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
             unescapeHtml = unescape, sourceHeaderRule = if (field == "header") "" else headerRule, discovery = discovery,
             sourceLoginUrl = sourceLoginUrl, sourceComment = sourceComment, nextChapterUrl = nextChapterUrl,
             scriptTemplates = scriptTemplates, readOnly = readOnly)
-        val executed = execute(task, field, input.toString().length)
+        val executed = execute(task, field, diagnosticSize(input))
         if (discovery != null) discovery = executed.discovery ?: throw SourceContentException(ContentError.InvalidRule, field)
         book = book.copy(metadata = executed.book ?: book.metadata,
             variables = applyWrites(book.variables, executed.bookWrites),
@@ -80,7 +80,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
             throw SourceContentException(ContentError.Limit, "$field.overviews")
         val task = ExecutionTask.BookOverviews(inputs, nameRule, urlRule, baseUrl,
             book.metadata["name"]?.jsonPrimitive?.content.orEmpty(), field, coverRule)
-        return execute(task, "$field.overviews", inputs.sumOf { it.toString().length }).value.items().map {
+        return execute(task, "$field.overviews", diagnosticSize(inputs)).value.items().map {
             val fields = it.items()
             Triple(fields[0].text(), fields[1].text(), fields[2].text())
         }
@@ -91,7 +91,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         if (count > 1 && calls.addAndGet(count - 1) >= maxRuleCalls)
             throw SourceContentException(ContentError.Limit, "ruleSearch.books")
         val task = ExecutionTask.SearchBooks(inputs, rules, baseUrl, book.metadata["name"]?.jsonPrimitive?.content.orEmpty())
-        return execute(task, "ruleSearch.books", inputs.sumOf { it.toString().length }).value.items().map {
+        return execute(task, "ruleSearch.books", diagnosticSize(inputs)).value.items().map {
             ExecutionTask.SearchBooks.FIELDS.zip(it.items().map { value -> value.text() }).toMap()
         }
     }
@@ -119,7 +119,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
                 sourceLoginUrl = sourceLoginUrl, sourceComment = sourceComment)
             val pending = inputs.subList(offset, inputs.size)
             val executed = execute(ExecutionTask.DirectoryRows(pending, rules, context, documentUrl, requestUrl, startIndex + offset),
-                "ruleToc.rows", pending.sumOf { it.toString().length })
+                "ruleToc.rows", diagnosticSize(pending))
             if (executed.directoryInputs !in 1..pending.size)
                 throw SourceContentException(ContentError.InvalidRule, "ruleToc.rows")
             offset += executed.directoryInputs
@@ -130,6 +130,17 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
                 row.updateTime, ScriptState(row.metadata, row.variables, row.bigVariables, row.inherited)) }
         }
         return chapters
+    }
+
+    private fun diagnosticSize(inputs: List<RuleValue>): Int =
+        if (trace === ContentTrace.None) 0 else inputs.sumOf { diagnosticSize(it) }
+
+    private fun diagnosticSize(input: RuleValue): Int = if (trace === ContentTrace.None) 0 else when (input) {
+        is RuleValue.Text -> input.value.length
+        is RuleValue.Node -> input.content.length
+        is RuleValue.Items -> diagnosticSize(input.values)
+        is RuleValue.Captures -> input.groups.sumOf { it.length }
+        RuleValue.Empty -> 0
     }
 
     private suspend fun execute(task: ExecutionTask, field: String, inputChars: Int): ExecutedRule {
