@@ -44,11 +44,6 @@ fun NavGraphBuilder.homeNavigation() {
     }
 }
 
-@Suppress("unused")
-fun NavController.navigateToHomeNavigation() {
-    navigate(Route.Main)
-}
-
 // NavHost derives hasBottomBarByRoute from currentMainRoute() != null. Settings and its
 // secondary destinations return null there, which hides this bar without changing NavHost.
 @OptIn(ExperimentalAnimationGraphicsApi::class)

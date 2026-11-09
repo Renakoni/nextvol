@@ -329,11 +329,9 @@
       "implementation": "implemented",
       "verification": "product-android",
       "fixtures": [],
-      "evidence": "One disposable browser process owns the WebView directory, including API 24. Native network/file/content access, Service Workers, frames and WebSockets cannot bypass the broker; browser fetch/XHR/forms use checked source requests. API 24/35 tests verify same-domain source separation, preserved source localStorage after logout, denied worker registration, late-cookie cancellation and process-directory cleanup.",
+      "evidence": "AndroidSourceBrowser routes broker-mediated rendering to the disposable SourceBrowserService, with SourceSession and RequestCommitGuard controlling source-owned state and cancellation. SourceBrowserInstrumentedTest exercises this path on API 24/35: same-domain account/localStorage separation, denied subresource and worker requests, late-cookie cancellation and disposable-directory cleanup. NativeSourceBrowser uses a separate profile lifecycle; these broker-path assertions do not describe native website networking.",
       "productTests": [
-        "indi.renakoni.nextvol.sourceexecution.SourceBrowserInstrumentedTest",
-        "indi.renakoni.nextvol.data.web.BrowserSessionRegistryTest",
-        "indi.renakoni.nextvol.data.web.BrowserRequestPolicyTest"
+        "indi.renakoni.nextvol.sourceexecution.SourceBrowserInstrumentedTest"
       ]
     },
     {

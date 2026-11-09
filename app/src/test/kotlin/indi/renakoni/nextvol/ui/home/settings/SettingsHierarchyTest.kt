@@ -115,8 +115,6 @@ class SettingsHierarchyTest {
         compose.onNodeWithText(label(R.string.settings_updates_desc)).assertIsDisplayed()
         entry(R.string.about_settings).assertIsDisplayed().performClick()
         compose.onNodeWithText(label(R.string.settings_about_desc)).assertIsDisplayed()
-        compose.onNodeWithText(label(R.string.debug_settings)).assertDoesNotExist()
-        compose.onNodeWithText(label(R.string.settings_debug_tools)).assertDoesNotExist()
         for (id in listOf(R.string.settings_app_log_level, R.string.settings_auto_check_updates,
             R.string.settings_distribution_platform, R.string.settings_get_updates,
             R.string.settings_github_repo,

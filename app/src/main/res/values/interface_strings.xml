@@ -16,14 +16,6 @@
     <string name="data_export_success">Export successful</string>
     <string name="share_file">Share file</string>
     <string name="reader_content_error">Content could not be displayed</string>
-    <string name="debug_open_book">Open book</string>
-    <string name="debug_book_key">Wenku8 ID / source-scoped book key</string>
-    <string name="debug_sql">SQL debugging</string>
-    <string name="debug_sql_statement">SQL statement</string>
-    <string name="debug_run">Run</string>
-    <string name="debug_crash_tests">Crash tests</string>
-    <string name="debug_looper_crash">Main thread crash</string>
-    <string name="debug_null_crash">Null pointer crash</string>
     <string name="mark_read_all_description">Mark all chapters of this book as read.</string>
     <string name="mark_read_range_description">Choose the first and last chapters to mark the range as read.</string>
     <string name="mark_read_all">Mark all as read</string>

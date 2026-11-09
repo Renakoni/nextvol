@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.ui.home.reading
 
-import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.navigation
 import indi.renakoni.nextvol.ui.home.reading.home.readingHomeDestination
@@ -14,9 +13,4 @@ fun NavGraphBuilder.readingNavigation() {
         readingHomeDestination()
         readingStatsNavigation()
     }
-}
-
-@Suppress("unused")
-fun NavController.navigateToHomeReadingDestination() {
-    navigate(Route.Main.Reading)
 }

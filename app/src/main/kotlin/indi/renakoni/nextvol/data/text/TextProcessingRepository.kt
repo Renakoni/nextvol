@@ -39,11 +39,6 @@ class TextProcessingRepository @Inject constructor(
 
     fun processText(block: () -> String): String = process(block.invoke()) { it::processText }
     fun processBookInformation(block: () -> BookInformation): BookInformation = process(block.invoke()) { it::processBookInformation }
-    suspend fun coroutineProcessBookInformation(block: suspend () -> BookInformation): BookInformation = process(block.invoke()) { processor ->
-        {
-            processor.processBookInformation(it)
-        }
-    }
 
     fun processBookVolumes(block: () -> BookVolumes): BookVolumes = process(block.invoke()) { it::processBookVolumes }
     fun processChapterContent(bookId: String, block: () -> ChapterContent): ChapterContent = process(block.invoke()) { processor ->

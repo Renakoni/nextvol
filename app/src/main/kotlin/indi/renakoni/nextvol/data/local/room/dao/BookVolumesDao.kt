@@ -86,13 +86,6 @@ interface BookVolumesDao {
     }
 
     @Transaction
-    suspend fun insertVolumeEntities(vararg entities: VolumeEntity) {
-        for (entity in entities) {
-            insertVolume(entity)
-        }
-    }
-
-    @Transaction
     suspend fun insertChapterInformationEntities(vararg entities: ChapterInformationEntity) {
         for (entity in entities) {
             insertChapterInformation(entity)

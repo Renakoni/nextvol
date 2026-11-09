@@ -98,11 +98,6 @@ fun NavGraphBuilder.bookshelfHomeDestination() {
     addBookToBookshelfDialog()
 }
 
-@Suppress("unused")
-fun NavController.navigateToBookshelfHomeDestination() {
-    navigate(Route.Main.Bookshelf.Home)
-}
-
 private fun NavGraphBuilder.addBookToBookshelfDialog() {
     dialog<Route.Main.Bookshelf.AddBookToBookshelfDialog> { entry ->
         val navController = LocalNavController.current

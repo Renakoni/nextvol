@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.ui.home.explore
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.navigation
 import indi.renakoni.nextvol.ui.home.explore.home.exploreHomeDestination
@@ -18,10 +17,5 @@ fun NavGraphBuilder.exploreNavigation() {
         searchHubDestination()
         exploreSearchDestination()
     }
-}
-
-@Suppress("unused")
-fun NavController.navigateToExploreNavigation() {
-    navigate(Route.Main.Explore)
 }
 

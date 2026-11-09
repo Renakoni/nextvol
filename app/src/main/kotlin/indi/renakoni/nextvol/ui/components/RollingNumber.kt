@@ -17,7 +17,6 @@ import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -59,23 +58,6 @@ fun rememberTextStyleNumberMaxSize(textStyle: TextStyle): DpSize {
             "0123456789".maxOfWith({ (aw, _), (bw, _) -> aw - bw }) { char ->
                 textMeasurer.measure("$char", textStyle).size
             }.toSize().toDpSize()
-        }
-    }
-}
-
-@Suppress("UNUSED")
-@Composable
-fun RollingNumberPlaceholder(number: Int, style: TextStyle = LocalTextStyle.current) {
-    val styleNoSpacing = style.copy(letterSpacing = TextUnit.Unspecified)
-    val size = rememberTextStyleNumberMaxSize(style)
-    Row(horizontalArrangement = Arrangement.Center) {
-        "$number".forEach { char ->
-            Text(
-                text = "$char",
-                style = styleNoSpacing,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.size(size),
-            )
         }
     }
 }

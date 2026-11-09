@@ -159,12 +159,6 @@ class StatsRepository @Inject constructor(
         }
     }
 
-    suspend fun getBookFirstReadDate(bookId: String): LocalDate? =
-        bookRecordDao.getFirstReadDate(BookIdentity.bookKey(bookId))
-
-    suspend fun getBookFinishedDate(bookId: String): LocalDate? =
-        bookRecordDao.getFirstFinishedDate(BookIdentity.bookKey(bookId))
-
     suspend fun getBookFirstReadDateMap(): Map<String, LocalDate> =
         bookRecordDao.getFirstReadDates().associate { it.bookId to it.date }
 

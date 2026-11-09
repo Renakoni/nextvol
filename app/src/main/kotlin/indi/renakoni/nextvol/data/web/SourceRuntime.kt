@@ -102,14 +102,6 @@ class SourceRuntime internal constructor(
         }
     }.flowOn(SourceRequestOwner(id))
 
-    internal fun ownedScope(parent: CoroutineScope): CoroutineScope {
-        checkAvailable()
-        val child = Job(parent.coroutineContext[Job])
-        val handle = requireNotNull(lifetime.coroutineContext[Job]).invokeOnCompletion { child.cancel() }
-        child.invokeOnCompletion { handle.dispose() }
-        return CoroutineScope(parent.coroutineContext + child + SourceRequestOwner(id))
-    }
-
     fun bookTagPage(tag: String): String? {
         checkAvailable()
         return source.bookTagPage(tag)

@@ -98,49 +98,4 @@ interface StorageStatsDao {
         """
     )
     suspend fun getUserReadingBytes(): List<StorageBytes>
-
-    @Query(
-        """
-        select ifnull(sum(
-            ifnull(length(cast(id as blob)), 0) +
-            ifnull(length(cast(title as blob)), 0) +
-            ifnull(length(cast(subtitle as blob)), 0) +
-            ifnull(length(cast(cover_uri as blob)), 0) +
-            ifnull(length(cast(author as blob)), 0) +
-            ifnull(length(cast(description as blob)), 0) +
-            ifnull(length(cast(tags as blob)), 0) +
-            ifnull(length(cast(publishing_house as blob)), 0) +
-            ifnull(length(cast(word_count as blob)), 0) +
-            ifnull(length(cast(last_update as blob)), 0) +
-            1
-        ), 0) as bytes
-        from book_information
-        """
-    )
-    suspend fun totalBookInformationBytes(): Long?
-
-    @Query(
-        """
-        select ifnull(sum(
-            ifnull(length(cast(book_id as blob)), 0) +
-            ifnull(length(cast(volume_id as blob)), 0) +
-            ifnull(length(cast(volume_title as blob)), 0) +
-            ifnull(length(cast(chapter_id_list as blob)), 0) +
-            4
-        ), 0) as bytes
-        from volume
-        """
-    )
-    suspend fun totalVolumeBytes(): Long?
-
-    @Query(
-        """
-        select ifnull(sum(
-            ifnull(length(cast(id as blob)), 0) +
-            ifnull(length(cast(title as blob)), 0)
-        ), 0) as bytes
-        from chapter_information
-        """
-    )
-    suspend fun totalChapterInformationBytes(): Long?
 }

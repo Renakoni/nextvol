@@ -15,15 +15,3 @@ fun BookRecordEntity.toData(bookRepository: BookRepository): BookRecord =
         firstSeen = firstSeen,
         lastSeen = lastSeen,
     )
-
-fun BookRecord.toEntity(): BookRecordEntity =
-    BookRecordEntity(
-        bookId = bookId,
-        date = date,
-        reads = reads,
-        seconds = seconds,
-        isFinished = isFinished,
-        isFavorited = isFavorited,
-        firstSeen = firstSeen,
-        lastSeen = lastSeen,
-    )
