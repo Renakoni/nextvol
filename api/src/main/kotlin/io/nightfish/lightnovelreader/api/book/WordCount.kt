@@ -25,5 +25,4 @@ data class WordCount(
     constructor(count: Int): this(count.toLong(), null, null)
     constructor(count: Int, unit: String): this(count.toLong(), unit, null)
     constructor(count: Int, @StringRes unitResId: Int): this(count.toLong(), null, unitResId)
-    constructor(count: Int, unit: String?, @StringRes unitResId: Int?): this(count.toLong(), unit, unitResId)
 }

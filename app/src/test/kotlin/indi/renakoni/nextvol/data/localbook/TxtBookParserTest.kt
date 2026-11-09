@@ -72,16 +72,6 @@ class TxtBookParserTest {
         }
     }
 
-    @Test fun longLinesAreBoundedWithoutCuttingASupplementaryCharacter() {
-        val text = "甲".repeat(TxtBookParser.MAX_CHAPTER_CHARACTERS - 1) + "😀" + "乙".repeat(20)
-        val book = parse(text, "")
-        assertEquals(2, book.chapters.size)
-        val blocks = book.chapters.flatMap { it.blocks }.filterIsInstance<LocalBookBlock.Text>()
-        assertEquals(text, blocks.joinToString("") { it.value })
-        assertTrue(blocks.all { it.value.length <= TxtBookParser.MAX_CHAPTER_CHARACTERS })
-        assertTrue(blocks.all { it.value == it.value.toByteArray().toString(Charsets.UTF_8) })
-    }
-
     @Test fun utf8AndUtf16ByteOrderMarksAreHandledBeforeOtherEncodings() {
         val text = "第一章 开始\r\n完整正文"
         val cases = listOf(
@@ -129,10 +119,14 @@ class TxtBookParserTest {
     }
 
     @Test fun chunkBoundariesAndLongLogicalLinesPreserveTextAndHeadingRules() {
-        val prefix = "甲".repeat(8191) + "😀" + "乙".repeat(2 * TxtBookParser.MAX_CHAPTER_CHARACTERS)
+        val prefix = "甲".repeat(8191) + "😀" + "乙".repeat(TxtBookParser.MAX_CHAPTER_CHARACTERS - 8194) +
+            "😀" + "丙".repeat(TxtBookParser.MAX_CHAPTER_CHARACTERS)
         val text = prefix + "\r\n" + " ".repeat(70_000) + "Chapter II\t\r" + "尾文😀"
         val book = parse(text)
         assertEquals(prefix, book.chapters.dropLast(1).flatMap { it.blocks }.joinToString("") { (it as LocalBookBlock.Text).value })
+        val blocks = book.chapters.flatMap { it.blocks }.filterIsInstance<LocalBookBlock.Text>()
+        assertTrue(blocks.all { it.value.length <= TxtBookParser.MAX_CHAPTER_CHARACTERS &&
+            it.value == it.value.toByteArray().toString(Charsets.UTF_8) })
         assertEquals("Chapter II", book.chapters.last().title)
         assertEquals("尾文😀", (book.chapters.last().blocks.single() as LocalBookBlock.Text).value)
     }

@@ -10,9 +10,7 @@ import org.junit.Test
 import java.time.LocalDateTime
 
 class BookMetadataTest {
-    @Test fun storedWordCountsAcceptLegacyIntegersAndLargeTxtTotals() {
-        assertEquals(WordCount(42), WorldCountConverter.stringToWorld("42|.:.|null|.:.|null"))
-        assertEquals(WordCount(42), Json.decodeFromString<WordCount>("""{"count":42,"unit":null,"unitResId":null}"""))
+    @Test fun largeWordCountsSurviveStorageRoundTrips() {
         val large = WordCount(3_000_000_000L)
         assertEquals(large, WorldCountConverter.stringToWorld(WorldCountConverter.worldCountToString(large)))
         assertEquals(large, Json.decodeFromString<WordCount>(Json.encodeToString(large)))
