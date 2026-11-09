@@ -466,16 +466,8 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         val decode = if (cover) spec.coverDecode else spec.content.string("imageDecode")
         if (decode.isBlank()) return response.body
         return operation("imageDecode") {
-            // A single numeric array avoids one serialized RuleValue object per image byte.
-            val input = JsonArray(response.body.map { JsonPrimitive(it.toInt()) }).toString()
-            if (input.length > 196608) throw SourceContentException(ContentError.Limit, "imageDecode")
-            val bytes = context.script("var src=${JsonPrimitive(response.finalUrl)};result=JSON.parse(result);" +
-                "JSON.stringify(eval(${JsonPrimitive(scriptBody(decode))}))",
-                RuleValue.Text(input), if (cover) "coverDecodeJs" else "ruleContent.imageDecode")
-            val values = Json.parseToJsonElement(bytes.text()).jsonArray.map { it.jsonPrimitive.intOrNull
-                ?: throw SourceContentException(ContentError.InvalidRule, "imageDecode") }
-            if (values.any { it !in -128..255 }) throw SourceContentException(ContentError.InvalidRule, "imageDecode")
-            values.map { it.toByte() }.toByteArray()
+            context.image(decode, response.body, response.finalUrl,
+                if (cover) "coverDecodeJs" else "ruleContent.imageDecode")
         }
     }
 
