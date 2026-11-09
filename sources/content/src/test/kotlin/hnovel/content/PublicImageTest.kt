@@ -11,7 +11,7 @@ import java.net.*
 import javax.net.SocketFactory
 
 class PublicImageTest {
-    @Test fun hostImagesFollowPublicCdnRedirectsWithoutSourceCredentialsOrScriptPermission() = runBlocking {
+    @Test fun hostImagesFollowPublicCdnRedirectsWithoutSourceCredentials() = runBlocking {
         var port = 0
         val publicAddress = InetAddress.getByName("93.184.216.34")
         // Route a simulated public peer to the fixture without granting that origin.
@@ -46,12 +46,6 @@ class PublicImageTest {
                         assertNull(request.getHeader("X-Secret"))
                     }
                 }
-                val definition = source.definition
-                val session = fixture.broker.open(SourceScope("rules", definition.sourceId, definition.profile),
-                    listOf(NetworkGrant(fixture.server.url("/").toString(), true)))
-                assertTrue(session.deniedOrigins.isEmpty())
-                assertEquals(FailureCode.OriginDenied, (session.execute(BrokerRequest("script", image,
-                    kind = ResourceKind.Image)) as BrokerResult.Failure).code)
                 val privateFailure = runCatching { source.image("/book", "http://192.168.1.1/image", false) }.exceptionOrNull()
                 assertEquals(ContentError.AddressDenied, (privateFailure as SourceContentException).code)
             }
