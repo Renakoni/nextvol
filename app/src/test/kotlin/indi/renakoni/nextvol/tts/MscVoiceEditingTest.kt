@@ -59,8 +59,9 @@ class MscVoiceEditingTest {
         val pairs = SpeechVoicePoolRepository(data)
         val voiceReferences = SpeechVoiceReferences(settings, pairs)
         val archive = files.newFile("$code.zip")
+        val locale = if (code == "microsoft") "zh-CN-liaoning" else "zh-CN"
         ZipOutputStream(archive.outputStream()).use { zip ->
-            (mapOf("config.yaml" to "$code: [{code: voice, name: Original, locale: zh-CN, type: 0, param: \"$parameters\"}]") +
+            (mapOf("config.yaml" to "$code: [{code: voice, name: Original, locale: $locale, type: 0, param: \"$parameters\"}]") +
                 resources.mapKeys { "$code/${it.key}" }).forEach { (path, value) ->
                 zip.putNextEntry(ZipEntry(path)); zip.write(value.toByteArray()); zip.closeEntry()
             }
@@ -105,6 +106,7 @@ class MscVoiceEditingTest {
         val offlineFields = VoiceDraft.from(source, source.definition.id).copy(type = "0").fields()
         MscVoiceEditing(online, offline, voiceReferences).toOffline(source, offlineFields.speakerFields(), offlineFields.enabled, copy = true)
         val copied = offline.voices().single()
+        assertEquals(locale, copied.configuration!!.locale)
         assertEquals(original.resourceReference, copied.resourceReference)
         assertTrue(authority.accepts(ticket))
         offline.delete(copied.reference)
@@ -130,6 +132,7 @@ class MscVoiceEditingTest {
         assertEquals(reimported.sourceKey, restored.sourceKey)
         assertEquals(reimported.defaults, restored.defaults)
         assertEquals("Edited", restored.name)
+        assertEquals(locale, restored.configuration!!.locale)
         assertEquals(1.4f, restored.configuration!!.speed)
         assertEquals(restored.reference, settings.get().offlineVoice)
         assertEquals(restored.reference, pairs.pairs().single().value.offlineVoice)

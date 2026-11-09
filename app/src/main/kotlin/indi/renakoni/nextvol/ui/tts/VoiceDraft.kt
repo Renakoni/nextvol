@@ -17,11 +17,6 @@ data class VoiceDraft(
         require(pitch.toFloat() in 0.1f..2f)
         require(sampleRate.matches(Regex("[0-9]{4,5}")))
         require(listOf(parameters, extensions, note, description, avatar).all { it.length <= 64 * 1024 })
-        if (locale.isNotEmpty()) {
-            val parts = locale.split('-')
-            require(parts.size == 2)
-            java.util.Locale(parts[0], parts[1]).let { require(it.isO3Language.isNotEmpty() && it.isO3Country.isNotEmpty()) }
-        }
         val language = locale.ifEmpty {
             if (name.matches(Regex("^[-+_a-zA-Z0-9() ]+\\d*$"))) "en-US"
             else java.util.Locale.getDefault().let { "${it.language.lowercase()}-${it.country.uppercase()}" }
