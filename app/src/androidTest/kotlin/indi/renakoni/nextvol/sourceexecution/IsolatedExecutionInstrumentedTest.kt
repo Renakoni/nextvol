@@ -43,6 +43,46 @@ import org.junit.runner.RunWith
 class IsolatedExecutionInstrumentedTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    @Test fun unchangedInputIsEncodedOnceAndResolvedLibrariesReceiveANewEnvelope() = runBlocking {
+        val authority = ExecutionAuthority()
+        val executor = AndroidIsolatedExecutor(context, authority)
+        val id = authority.issue("encoding", "legado", "1", "fixture")
+        val text = "chapter text ".repeat(100000)
+        val limits = ExecutionLimits(timeoutMillis = 15000, maxDataBytes = 16 * 1024 * 1024)
+        val root = java.io.File(context.cacheDir, "encoding-${System.nanoTime()}")
+        try {
+            MockWebServer().use { server ->
+                server.start()
+                SourceBroker(root.toPath()).use { sessions ->
+                    val session = sessions.open(SourceScope("fixture", "encoding", "legado"),
+                        listOf(NetworkGrant(server.url("/").toString(), true)))
+                    for (remoteLibrary in listOf(false, true)) {
+                        var visits = 0
+                        val inputs = object : AbstractList<hnovel.rules.RuleValue>() {
+                            override val size = 1
+                            override fun get(index: Int): hnovel.rules.RuleValue {
+                                visits++
+                                return hnovel.rules.RuleValue.Text(text)
+                            }
+                        }
+                        val library = if (remoteLibrary) buildJsonObject { put("lib", server.url("/lib").toString()) }.toString() else null
+                        if (remoteLibrary) server.enqueue(MockResponse().setBody("var extra=7;"))
+                        val task = ExecutionTask.Rule("@js:result[0].length" + if (remoteLibrary) "+extra" else "",
+                            hnovel.rules.RuleValue.Items(inputs), hnovel.rules.OutputKind.Text, hnovel.rules.RuleLocation("ruleContent.content"),
+                            libraryCode = library)
+                        SourceExecutionBroker(id, authority, session, limits).use { broker ->
+                            val result = executor.execute(id, task, limits, broker)
+                            assertTrue(result.toString(), result is ExecutionResult.Success)
+                            val value = Json.decodeFromString(hnovel.execution.ExecutedRule.serializer(), (result as ExecutionResult.Success).output).value
+                            assertEquals(hnovel.rules.RuleValue.Text((text.length + if (remoteLibrary) 7 else 0).toString()), value)
+                            assertEquals(if (remoteLibrary) 2 else 1, visits)
+                        }
+                    }
+                }
+            }
+        } finally { executor.close(); root.deleteRecursively() }
+    }
+
     @Test fun largeWorkerResultsUseAPipeAndStillEnforceTheOutputBudget() = runBlocking {
         val authority = ExecutionAuthority()
         val executor = AndroidIsolatedExecutor(context, authority)
