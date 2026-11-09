@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.map
 class UriUserData (
     override val path: String,
     private val userDataDao: UserDataDaoApi
-) : UserData<Uri>(path) {
+) : UserData<Uri>(path, userDataDao) {
     override suspend fun set(value: Uri) {
         userDataDao.insert(path, group, "Uri", value.toString())
     }

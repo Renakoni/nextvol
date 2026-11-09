@@ -20,7 +20,7 @@ internal class UserDataReaderFontFamilySettings(
 ) : ReaderFontFamilySettings {
     override fun getFlow(): Flow<Uri> = userData.getFlowWithDefault(Uri.EMPTY)
 
-    override suspend fun clear() = userData.set(Uri.EMPTY)
+    override suspend fun clear() = userData.setAndAwait(Uri.EMPTY)
 }
 
 interface ReaderSettings {

@@ -6,39 +6,47 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import indi.renakoni.nextvol.data.local.room.entity.UserDataEntity
+import indi.renakoni.nextvol.data.userdata.UserDataWrites
 import io.nightfish.lightnovelreader.api.userdata.UserDataDaoApi
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface UserDataDao: UserDataDaoApi {
+abstract class UserDataDao: UserDataDaoApi {
+    private val settingsWrites = UserDataWrites()
+
+    override fun submit(path: String, write: suspend () -> Unit): Deferred<Unit> = settingsWrites.submit(path, write)
+
+    internal suspend fun closeSettingsWrites() = settingsWrites.close()
+
     @Query("replace into user_data (path, `group`, type, value) " +
             "values (:path, :group, :type, :value)")
-    override suspend fun insert(path: String, group: String, type: String, value: String)
+    abstract override suspend fun insert(path: String, group: String, type: String, value: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(userDataEntity: UserDataEntity)
+    abstract suspend fun insert(userDataEntity: UserDataEntity)
 
     @Query("select value from user_data where path = :path")
-    override suspend fun get(path: String): String?
+    abstract override suspend fun get(path: String): String?
 
     /** Share Room's write boundary with download cleanup and backup restore transactions. */
     @Transaction
-    suspend fun update(path: String, group: String, type: String, transform: (String?) -> String) {
+    open suspend fun update(path: String, group: String, type: String, transform: (String?) -> String) {
         insert(path, group, type, transform(get(path)))
     }
 
     @Query("select value from user_data where path = :path")
-    override fun getFlow(path: String): Flow<String?>
+    abstract override fun getFlow(path: String): Flow<String?>
 
     @Query("select * from user_data where path = :path")
-    fun getEntity(path: String): UserDataEntity?
+    abstract fun getEntity(path: String): UserDataEntity?
 
     @Query("select * from user_data where `group` = :group")
-    fun getGroupValues(group: String): List<UserDataEntity>
+    abstract fun getGroupValues(group: String): List<UserDataEntity>
 
     @Query("delete from user_data where path = :path")
-    override suspend fun remove(path: String)
+    abstract override suspend fun remove(path: String)
 
     @Query("select * from user_data")
-    fun getAllEntities(): List<UserDataEntity>
+    abstract fun getAllEntities(): List<UserDataEntity>
 }

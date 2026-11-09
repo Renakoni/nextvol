@@ -31,7 +31,6 @@ class DebugScreenViewModel @Inject constructor (
                 } while (cursor.moveToNext())
             }
             cursor.close()
-            db.close()
         }
 
 

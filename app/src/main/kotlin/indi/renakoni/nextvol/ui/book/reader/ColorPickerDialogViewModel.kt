@@ -6,10 +6,7 @@ import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import io.nightfish.lightnovelreader.api.userdata.ColorUserData
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -27,8 +24,6 @@ class ColorPickerDialogViewModel @Inject constructor(
         if (colorUserData == null) {
             Log.e("ColorPickerDialogViewModel", "change color user data before init!")
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            colorUserData!!.set(color)
-        }
+        colorUserData!!.asynchronousSet(color)
     }
 }

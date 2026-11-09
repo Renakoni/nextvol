@@ -63,7 +63,7 @@ fun rememberReaderFontFamily(
 ): FontFamily {
     return rememberReaderFontFamily(
         fontFamilyUriFlow = fontFamilyUriUserData.getFlowWithDefault(Uri.EMPTY),
-        clearInvalidFontFamily = { fontFamilyUriUserData.set(Uri.EMPTY) },
+        clearInvalidFontFamily = { fontFamilyUriUserData.setAndAwait(Uri.EMPTY) },
     )
 }
 

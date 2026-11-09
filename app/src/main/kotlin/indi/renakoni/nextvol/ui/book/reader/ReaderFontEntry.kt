@@ -180,7 +180,7 @@ internal suspend fun importReaderFont(context: Context, uri: Uri, settings: Read
         withContext(NonCancellable) {
             check(temporary.renameTo(file))
             published = file
-            settings.fontFamilyUriUserData.set(file.toUri())
+            settings.fontFamilyUriUserData.setAndAwait(file.toUri())
             committed = true
         }
     } finally {

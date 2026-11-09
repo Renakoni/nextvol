@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.map
 class BooleanUserData (
     override val path: String,
     private val userDataDao: UserDataDaoApi
-) : UserData<Boolean>(path) {
+) : UserData<Boolean>(path, userDataDao) {
     override suspend fun set(value: Boolean) {
         userDataDao.insert(path, group, "Float", value.toString())
     }
