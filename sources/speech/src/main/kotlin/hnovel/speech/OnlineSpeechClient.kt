@@ -38,14 +38,10 @@ internal class OnlineSpeechClient(
     suspend fun synthesize(text: String, rate: Float, volume: Float, sentenceLength: Int,
         receive: ((ByteArray, Int, Int) -> Unit)?): ByteArray {
         val parts = mutableListOf<ByteArray>()
-        var bytes = 0
-        fun countBytes(count: Int) {
-            if (count > MAX_AUDIO_BYTES - bytes) throw HttpSpeechException(HttpSpeechError.TooLarge)
-            bytes += count
-        }
+        var hasAudio = false
         val sink = receive?.takeIf { backend is StreamingOnlineSpeechBackend }?.let { output ->
             { buffer: ByteArray, offset: Int, count: Int ->
-                countBytes(count)
+                if (count > 0) hasAudio = true
                 output(buffer, offset, count)
             }
         }
@@ -64,11 +60,11 @@ internal class OnlineSpeechClient(
             }
             if (audio != null) {
                 currentCoroutineContext().ensureActive()
-                countBytes(audio.size)
+                if (audio.isNotEmpty()) hasAudio = true
                 parts += audio
             }
         }
-        if (bytes == 0) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
+        if (!hasAudio) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
         if (sink != null) return byteArrayOf()
         val audio = onlineSpeechBytes(parts)
         if (receive != null) {

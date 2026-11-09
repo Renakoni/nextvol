@@ -32,7 +32,7 @@ class OnlineSpeechPackageTest {
         assertArrayEquals("abcdefgh".toByteArray(), client.synthesize("abcdefgh", 1.5f, 2f, 4, null))
     }
 
-    @Test fun streamingQuotaAccumulatesAcrossSegmentsBeforeDelivery() {
+    @Test fun streamingDeliversSuccessfulSegmentsBeyondFormerAggregateLimit() = runBlocking {
         val chunk = ByteArray(MAX_AUDIO_BYTES / 2 + 1)
         val backend = object : StreamingOnlineSpeechBackend {
             override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray = error("Unexpected file synthesis")
@@ -43,11 +43,8 @@ class OnlineSpeechPackageTest {
         val client = OnlineSpeechClient(buildJsonObject { putJsonObject("engine") { put("code", "vivo") } },
             { error("Unexpected HTTP request") }, createSdkBackend = { _, _, _ -> backend })
         var deliveries = 0
-        val failure = assertThrows(HttpSpeechException::class.java) {
-            runBlocking { client.synthesize("abcdefgh", 1f, 1f, 4) { _, _, _ -> deliveries++ } }
-        }
-        assertEquals(HttpSpeechError.TooLarge, failure.error)
-        assertEquals(1, deliveries)
+        assertTrue(client.synthesize("abcdefgh", 1f, 1f, 4) { _, _, _ -> deliveries++ }.isEmpty())
+        assertEquals(2, deliveries)
     }
 
     @Test fun nativeFailureIsMappedAndVendorCancellationCannotSkipSessionCleanup(): Unit = runBlocking {
