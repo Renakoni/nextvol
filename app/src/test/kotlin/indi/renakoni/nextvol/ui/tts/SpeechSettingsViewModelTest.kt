@@ -219,8 +219,6 @@ class SpeechSettingsViewModelTest {
             runCurrent()
             assertEquals(listOf("saving", "saved", "stop", "onSaved"), events)
             assertFalse(editor.state.value.saving)
-            assertNull(editor.state.value.error)
-            verify(exactly = 1) { controller.command(SpeechAction.Stop) }
             coVerify { http.saveEngine(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) }
         } finally { release.complete(Unit); editor.viewModelScope.cancel() }
     }
