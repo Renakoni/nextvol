@@ -7,10 +7,8 @@
     <string name="local_file_relink_confirm">Relink</string>
     <string name="local_file_relink_preserves">The book keeps its existing identity, bookshelf entries, progress and bookmarks. No duplicate book is created.</string>
     <string name="local_file_match_exact">The original file and chapter mapping match the backup.</string>
-    <string name="local_file_match_legacy">This older backup has no file fingerprint. The chapter titles and order match, but the text cannot be verified. Check the preview before continuing; saved positions may differ.</string>
     <string name="local_file_match_different_file">This is a different or modified original file. Choose the unchanged original. You can import this version as a separate book from your bookshelf.</string>
     <string name="local_file_match_different_mapping">The chapter mapping or text differs. For TXT, use the original encoding and chapter rule. If they cannot be matched, import this file as a separate book.</string>
-    <string name="local_file_match_missing_mapping">This backup has no chapter mapping to verify. Relinking is unavailable; import the file as a separate book from your bookshelf.</string>
-    <string name="local_file_legacy_confirmation">I checked the preview and confirm this is the original book.</string>
+    <string name="local_file_match_missing_manifest">This backup has no original file record and cannot be relinked. Import the file as a new book from your bookshelf.</string>
     <string name="local_file_relink_success">Original file relinked</string>
 </resources>

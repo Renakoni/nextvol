@@ -12,7 +12,6 @@ import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.localbook.LocalBookDraft
 import indi.renakoni.nextvol.data.localbook.LocalBookFormat
 import indi.renakoni.nextvol.data.localbook.LocalBookImportFailure
-import indi.renakoni.nextvol.data.localbook.LocalBookRelinkMatch
 import indi.renakoni.nextvol.data.localbook.LocalBookRelinkPreview
 import indi.renakoni.nextvol.data.localbook.LocalBookStore
 import indi.renakoni.nextvol.data.localbook.TxtBookParser
@@ -39,11 +38,9 @@ data class LocalBookRelinkState(
     val encoding: String? = null,
     val rule: String = TxtBookParser.DEFAULT_RULE,
     val preview: LocalBookRelinkPreview? = null,
-    val confirmed: Boolean = false,
     val error: LocalBookImportFailure? = null,
 ) {
-    val canRelink get() = !busy && !saving && error == null && preview?.canRelink == true &&
-        (preview.match != LocalBookRelinkMatch.Legacy || confirmed)
+    val canRelink get() = !busy && !saving && error == null && preview?.canRelink == true
 }
 
 @HiltViewModel
@@ -94,14 +91,13 @@ class LocalBookRelinkViewModel @Inject constructor(
         state = state.copy(rule = value)
         updatePreview()
     }
-    fun confirmLegacy(value: Boolean) { if (!state.saving) state = state.copy(confirmed = value) }
 
     private fun updatePreview() {
         val staged = draft ?: return
         val book = target ?: return
         operation?.cancel()
         val current = ++revision
-        state = state.copy(busy = true, preview = null, confirmed = false, error = null)
+        state = state.copy(busy = true, preview = null, error = null)
         operation = viewModelScope.launch {
             try {
                 delay(300)
@@ -125,11 +121,10 @@ class LocalBookRelinkViewModel @Inject constructor(
     fun confirm() {
         if (!state.canRelink) return
         val preview = state.preview ?: return
-        val confirmed = state.confirmed
         state = state.copy(saving = true)
         operation = viewModelScope.launch {
             try {
-                books.relink(preview, confirmed)
+                books.relink(preview)
                 draft = null
                 runCatching { storage.invalidateSnapshot() }.onFailure { Log.e("LocalBookRelink", "Cannot invalidate storage estimate", it) }
                 state = LocalBookRelinkState()

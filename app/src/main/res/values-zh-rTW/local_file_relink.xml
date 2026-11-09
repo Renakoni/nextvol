@@ -7,10 +7,8 @@
     <string name="local_file_relink_confirm">確認關聯</string>
     <string name="local_file_relink_preserves">關聯後保留原書籍身分、書架、閱讀進度和書籤，不會建立重複書籍。</string>
     <string name="local_file_match_exact">原始檔案和章節對應與備份一致。</string>
-    <string name="local_file_match_legacy">此舊備份沒有檔案指紋。章節標題和順序一致，但無法核驗正文。請檢查預覽後再確認；儲存的位置可能不準確。</string>
     <string name="local_file_match_different_file">所選檔案與原始檔案不同，或已被修改。請選擇未經修改的原始檔案；也可從書架將此版本作為新書匯入。</string>
     <string name="local_file_match_different_mapping">章節對應或正文不一致。TXT 請使用原來的編碼和章節規則；無法符合時，可將此檔案作為新書匯入。</string>
-    <string name="local_file_match_missing_mapping">此備份缺少可核驗的章節對應，無法重新關聯。請從書架將檔案作為新書匯入。</string>
-    <string name="local_file_legacy_confirmation">我已檢查預覽，確認這是原來的書籍。</string>
+    <string name="local_file_match_missing_manifest">此備份缺少原始檔案記錄，無法重新關聯。請從書架將檔案作為新書匯入。</string>
     <string name="local_file_relink_success">原始檔案已重新關聯</string>
 </resources>

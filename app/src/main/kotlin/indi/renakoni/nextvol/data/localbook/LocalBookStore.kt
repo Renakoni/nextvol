@@ -261,25 +261,11 @@ class LocalBookStore @Inject constructor(
             database.withTransaction {
                 val info = database.bookInformationDao().get(book.storageKey)
                 val catalog = database.bookVolumesDao().getBookVolumes(book.storageKey)
-                val match = if (expected != null) when {
+                val match = when {
+                    expected == null -> LocalBookRelinkMatch.MissingManifest
                     expected.format != candidate.format || expected.originalDigest != candidate.originalDigest -> LocalBookRelinkMatch.DifferentFile
                     expected.mappingDigest != candidate.mappingDigest -> LocalBookRelinkMatch.DifferentMapping
                     else -> LocalBookRelinkMatch.Exact
-                } else {
-                    val chapters = catalog?.volumes.orEmpty().flatMap { volume -> volume.chapters.map { volume.volumeTitle to it } }
-                    when {
-                        chapters.isEmpty() -> LocalBookRelinkMatch.MissingMapping
-                        chapters.size != parsed.chapters.size || chapters.indices.any { number ->
-                            val (volume, chapter) = chapters[number]
-                            val parsedChapter = parsed.chapters[number]
-                            // Older catalogs used the book title for chapters without an explicit volume.
-                            val sameVolume = volume == parsedChapter.volume ||
-                                (parsedChapter.volume.isBlank() && volume == (info?.title ?: parsed.title))
-                            chapter.id != SourceChapterId(book, number.toString()).storageKey ||
-                                chapter.title != parsedChapter.title || !sameVolume
-                        } -> LocalBookRelinkMatch.DifferentMapping
-                        else -> LocalBookRelinkMatch.Legacy
-                    }
                 }
                 LocalBookRelinkPreview(book, parsed, match, draft, candidate, expected,
                     database.importedBookDao().get(book.storageKey), info, catalog)
@@ -288,12 +274,12 @@ class LocalBookStore @Inject constructor(
     }
 
     /** Complete a new file generation before atomically switching its owner. Reading data is untouched. */
-    suspend fun relink(preview: LocalBookRelinkPreview, confirmLegacy: Boolean = false) = withContext(Dispatchers.IO) {
+    suspend fun relink(preview: LocalBookRelinkPreview) = withContext(Dispatchers.IO) {
         lock.withLock {
             val draft = preview.draft
             requireImport(draft.directory in drafts, LocalBookImportReason.SessionExpired) { "This relink session is no longer available." }
             requireImport(draft.preview === preview.parsed, LocalBookImportReason.SessionExpired) { "This preview is no longer current." }
-            require(preview.canRelink && (preview.match != LocalBookRelinkMatch.Legacy || confirmLegacy)) { "The original file must be verified before relinking." }
+            require(preview.canRelink) { "The original file must be verified before relinking." }
             val book = preview.book
             val parsed = preview.parsed
             val oldDirectory = bookDirectory(book)
