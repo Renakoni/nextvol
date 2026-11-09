@@ -380,15 +380,31 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
         files.isStale(files.imageFile(attempt.book, attempt.generation, uri, cover))
     }
 
-    suspend fun saveImage(attempt: Attempt, uri: String, cover: Boolean, bytes: ByteArray, resourceVersion: String = "") = current(attempt) {
-        files.writeImage(files.imageFile(attempt.book, attempt.generation, uri, cover, resourceVersion), bytes)
-    }
+    suspend fun saveImage(attempt: Attempt, uri: String, cover: Boolean, bytes: ByteArray, resourceVersion: String = "") =
+        writeImage(attempt, uri, cover, resourceVersion) { bytes }
 
     /** Copy the confirmed source bytes, not a resized/re-encoded bitmap. */
-    suspend fun retainImage(attempt: Attempt, image: SourceImage, cacheKey: String?, resourceVersion: String = "") = current(attempt) {
+    suspend fun retainImage(attempt: Attempt, image: SourceImage, cacheKey: String?, resourceVersion: String = "") {
         require(image.book == attempt.book)
-        val bytes = files.cachedImageBytes(image, cacheKey) ?: error("Downloaded image bytes are unavailable")
-        files.writeImage(files.imageFile(image.book, attempt.generation, image.uri, image.cover, resourceVersion), bytes)
+        writeImage(attempt, image.uri, image.cover, resourceVersion) {
+            files.cachedImageBytes(image, cacheKey) ?: error("Downloaded image bytes are unavailable")
+        }
+    }
+
+    private suspend fun writeImage(attempt: Attempt, uri: String, cover: Boolean, resourceVersion: String,
+        bytes: () -> ByteArray) = withContext(Dispatchers.IO) {
+        val snapshot = current(attempt) { it }
+        val target = files.imageFile(attempt.book, attempt.generation, uri, cover, resourceVersion)
+        val temporary = files.prepareImage(target, bytes())
+        try {
+            current(attempt) { owner ->
+                if (owner.revision != snapshot.revision || owner.directoryHash != snapshot.directoryHash || owner.coverUri != snapshot.coverUri)
+                    throw CancellationException("Download target changed")
+                if (resourceVersion.isNotEmpty() && !dao.hasResourceVersion(attempt.book.storageKey, resourceVersion))
+                    throw CancellationException("Download image version was replaced")
+                files.publishImage(temporary, target)
+            }
+        } finally { temporary.delete() }
     }
 
     suspend fun saveChapter(attempt: Attempt, chapter: ChapterContent, signature: String, images: List<String>,
