@@ -384,7 +384,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
         files.writeImage(files.imageFile(attempt.book, attempt.generation, uri, cover, resourceVersion), bytes)
     }
 
-    /** Copy the successfully decoded source bytes, not a resized/re-encoded bitmap. */
+    /** Copy the confirmed source bytes, not a resized/re-encoded bitmap. */
     suspend fun retainImage(attempt: Attempt, image: SourceImage, cacheKey: String?, resourceVersion: String = "") = current(attempt) {
         require(image.book == attempt.book)
         val bytes = files.cachedImageBytes(image, cacheKey) ?: error("Downloaded image bytes are unavailable")

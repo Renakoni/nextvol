@@ -41,14 +41,14 @@ import java.util.concurrent.atomic.AtomicReference
 class SourceImageRecoveryInstrumentedTest {
     @get:Rule val compose = createAndroidComposeRule<ReaderLayoutTestActivity>()
 
-    @Test fun failedVisibleCoverBypassesCorruptDiskCacheOnceWithoutLeavingThePage() {
+    @Test fun invalidImagesStayOutOfCacheAndVisibleCoversRecoverOnceWithoutLeavingThePage() {
         val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.BLUE)
         val png = ByteArrayOutputStream().use { output ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, output); output.toByteArray()
         }
         bitmap.recycle()
-        // A valid signature gets cached by the fetcher, but the truncated file cannot decode.
+        // A signature alone does not establish a decodable image.
         val broken = png.copyOf(8)
         val healthy = AtomicBoolean(false)
         MockWebServer().use { server ->
@@ -72,18 +72,18 @@ class SourceImageRecoveryInstrumentedTest {
             compose.waitUntil(15_000) { fallback.get() == true }
             compose.waitForIdle()
             assertEquals(1, server.requestCount)
-            // Re-executing the original request alone still hits the broken disk entry.
-            val cached = runBlocking { loader.execute(request) }
-            assertTrue(cached.toString(), cached is ErrorResult)
-            assertEquals(1, server.requestCount)
+            // Invalid bytes must not become a disk hit on the next request.
+            val rejected = runBlocking { loader.execute(request) }
+            assertTrue(rejected.toString(), rejected is ErrorResult)
+            assertEquals(2, server.requestCount)
             compose.runOnIdle { SourceImageRetryEvents.request(Identifier("fixture", "unrelated")) }
             compose.waitForIdle()
-            assertEquals(1, server.requestCount)
+            assertEquals(2, server.requestCount)
             healthy.set(true)
             compose.runOnIdle { SourceImageRetryEvents.request(source) }
             compose.waitUntil(15_000) { fallback.get() == false }
             compose.waitForIdle()
-            assertEquals(2, server.requestCount)
+            assertEquals(3, server.requestCount)
             val rendered = compose.onNodeWithContentDescription(compose.activity.getString(R.string.cover_description, "Fixture"))
                 .captureToImage().asAndroidBitmap()
             assertEquals(Color.BLUE, rendered.getPixel(rendered.width / 2, rendered.height / 2))
@@ -94,10 +94,10 @@ class SourceImageRecoveryInstrumentedTest {
             }
             val repaired = runBlocking { loader.execute(request) }
             assertTrue(repaired.toString(), repaired is SuccessResult)
-            assertEquals(2, server.requestCount)
+            assertEquals(3, server.requestCount)
             compose.runOnIdle { SourceImageRetryEvents.request(source) }
             compose.waitForIdle()
-            assertEquals(2, server.requestCount)
+            assertEquals(3, server.requestCount)
         }
     }
 }
