@@ -110,7 +110,7 @@ class AndroidIsolatedExecutor @Inject constructor(@ApplicationContext context: C
                 trace(call, slot, task, "Start", "queueMs=${admittedAt - queuedAt} active=$active")
                 var outcome = "Cancelled"
                 try {
-                    invoke(slot, worker, identity, task, limits, broker).also {
+                    invoke(slot, worker, identity, task, limits, broker, request).also {
                         outcome = (it as? ExecutionResult.Failure)?.code?.name ?: "Success"
                     }
                 } finally {
@@ -153,7 +153,7 @@ class AndroidIsolatedExecutor @Inject constructor(@ApplicationContext context: C
     }
 
     private suspend fun invoke(slot: WorkerSlot, worker: IsolatedWorkerConnection, identity: ExecutionIdentity, task: ExecutionTask,
-        limits: ExecutionLimits, broker: SourceExecutionBroker?): ExecutionResult = coroutineScope {
+        limits: ExecutionLimits, broker: SourceExecutionBroker?, encoded: ByteArray): ExecutionResult = coroutineScope {
         val result = CompletableDeferred<ExecutionResult>()
         val finished = AtomicBoolean()
         val callingBroker = AtomicBoolean()
@@ -200,8 +200,11 @@ class AndroidIsolatedExecutor @Inject constructor(@ApplicationContext context: C
                         } ?: return@withTimeoutOrNull if (result.isCompleted) result.await() else failure(FailureCode.ProcessExited)
                     } finally { loading.cancel() }
                 } else null
-                val request = ExecutionWire.encode(identity, task, limits, scripts)
-                if (request.size > ExecutionWire.MAX_INPUT_BYTES) return@withTimeoutOrNull failure(FailureCode.InputLimit)
+                val request = if (scripts == null) encoded else {
+                    val resolved = ExecutionWire.encode(identity, task, limits, scripts)
+                    if (resolved.size > ExecutionWire.MAX_INPUT_BYTES) return@withTimeoutOrNull failure(FailureCode.InputLimit)
+                    resolved
+                }
                 val packet = ExecutionPayload.pack(request, ExecutionWire.MAX_INPUT_PACKET_BYTES)
                     ?: return@withTimeoutOrNull failure(FailureCode.InputLimit)
                 val workerUid = service.workerUid()

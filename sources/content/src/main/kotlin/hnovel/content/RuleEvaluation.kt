@@ -47,14 +47,15 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
     }
 
     suspend fun value(rule: String, input: RuleValue, field: String, output: OutputKind = OutputKind.Text,
-        unescape: Boolean = true, scriptTemplates: Boolean = true): RuleValue {
+        unescape: Boolean = true, scriptTemplates: Boolean = true, imageBytes: ByteArray? = null): RuleValue {
         val task = ExecutionTask.Rule(rule, input, output, RuleLocation(field), bookId, chapterId,
             keyword, page, baseUrl, library, book.inherited + chapter.inherited, book.variables,
             chapter.variables, book.metadata, chapter.metadata, book.bigVariables, chapter.bigVariables,
             unescapeHtml = unescape, sourceHeaderRule = if (field == "header") "" else headerRule, discovery = discovery,
             sourceLoginUrl = sourceLoginUrl, sourceComment = sourceComment, nextChapterUrl = nextChapterUrl,
-            scriptTemplates = scriptTemplates, readOnly = readOnly)
-        val executed = execute(task, field, input.toString().length)
+            scriptTemplates = scriptTemplates, readOnly = readOnly,
+            imageInput = imageBytes?.let { java.util.Base64.getEncoder().encodeToString(it) })
+        val executed = execute(task, field, imageBytes?.size ?: diagnosticSize(input))
         if (discovery != null) discovery = executed.discovery ?: throw SourceContentException(ContentError.InvalidRule, field)
         book = book.copy(metadata = executed.book ?: book.metadata,
             variables = applyWrites(book.variables, executed.bookWrites),
@@ -80,7 +81,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
             throw SourceContentException(ContentError.Limit, "$field.overviews")
         val task = ExecutionTask.BookOverviews(inputs, nameRule, urlRule, baseUrl,
             book.metadata["name"]?.jsonPrimitive?.content.orEmpty(), field, coverRule)
-        return execute(task, "$field.overviews", inputs.sumOf { it.toString().length }).value.items().map {
+        return execute(task, "$field.overviews", diagnosticSize(inputs)).value.items().map {
             val fields = it.items()
             Triple(fields[0].text(), fields[1].text(), fields[2].text())
         }
@@ -91,7 +92,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         if (count > 1 && calls.addAndGet(count - 1) >= maxRuleCalls)
             throw SourceContentException(ContentError.Limit, "ruleSearch.books")
         val task = ExecutionTask.SearchBooks(inputs, rules, baseUrl, book.metadata["name"]?.jsonPrimitive?.content.orEmpty())
-        return execute(task, "ruleSearch.books", inputs.sumOf { it.toString().length }).value.items().map {
+        return execute(task, "ruleSearch.books", diagnosticSize(inputs)).value.items().map {
             ExecutionTask.SearchBooks.FIELDS.zip(it.items().map { value -> value.text() }).toMap()
         }
     }
@@ -119,7 +120,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
                 sourceLoginUrl = sourceLoginUrl, sourceComment = sourceComment)
             val pending = inputs.subList(offset, inputs.size)
             val executed = execute(ExecutionTask.DirectoryRows(pending, rules, context, documentUrl, requestUrl, startIndex + offset),
-                "ruleToc.rows", pending.sumOf { it.toString().length })
+                "ruleToc.rows", diagnosticSize(pending))
             if (executed.directoryInputs !in 1..pending.size)
                 throw SourceContentException(ContentError.InvalidRule, "ruleToc.rows")
             offset += executed.directoryInputs
@@ -132,6 +133,17 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         return chapters
     }
 
+    private fun diagnosticSize(inputs: List<RuleValue>): Int =
+        if (trace === ContentTrace.None) 0 else inputs.sumOf { diagnosticSize(it) }
+
+    private fun diagnosticSize(input: RuleValue): Int = if (trace === ContentTrace.None) 0 else when (input) {
+        is RuleValue.Text -> input.value.length
+        is RuleValue.Node -> input.content.length
+        is RuleValue.Items -> diagnosticSize(input.values)
+        is RuleValue.Captures -> input.groups.sumOf { it.length }
+        RuleValue.Empty -> 0
+    }
+
     private suspend fun execute(task: ExecutionTask, field: String, inputChars: Int): ExecutedRule {
         currentCoroutineContext().ensureActive()
         if (!authority.accepts(identity)) throw SourceContentException(ContentError.Unavailable, field)
@@ -139,6 +151,8 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         // Lists carry complete API objects; chapter text also needs room for UTF-8 and the
         // paragraph envelope. Keep metadata fields small and the whole-chapter bound in RuleSource.
         val limits = when (field) {
+            "coverDecodeJs", "ruleContent.imageDecode" -> this.limits.copy(
+                maxOutputBytes = 16 * 1024 * 1024, maxDataBytes = BridgeWire.MAX_REPLY_BYTES)
             // These hooks return a whole response, before the actual field selectors run.
             "loginCheckJs", "ruleBookInfo.init" -> this.limits.copy(maxOutputBytes = 16 * 1024 * 1024)
             // A single JSON response can contain thousands of complete chapter objects.
@@ -215,6 +229,12 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
     suspend fun script(code: String, input: RuleValue, field: String): RuleValue =
         value(if (code.startsWith("@js:", true) || code.startsWith("<js>", true)) code else "@js:$code", input, field, OutputKind.Element,
             scriptTemplates = false)
+
+    suspend fun image(code: String, bytes: ByteArray, url: String, field: String): ByteArray {
+        val encoded = value("@js:var src=${JsonPrimitive(url)};eval(${JsonPrimitive(scriptBody(code))})",
+            RuleValue.Empty, field, OutputKind.Element, scriptTemplates = false, imageBytes = bytes).text()
+        return java.util.Base64.getDecoder().decode(encoded)
+    }
 
     fun bookField(name: String, value: String) { book = book.copy(metadata = JsonObject(book.metadata + (name to JsonPrimitive(value)))) }
     fun chapterField(name: String, value: JsonElement) { chapter = chapter.copy(metadata = JsonObject(chapter.metadata + (name to value))) }

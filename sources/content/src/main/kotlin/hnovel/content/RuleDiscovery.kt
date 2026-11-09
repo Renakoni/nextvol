@@ -92,7 +92,7 @@ class RuleDiscoverySession internal constructor(private val source: RuleSource, 
 
     suspend fun page(url: String, page: Int, filters: Map<String, String>): List<RuleBook> = source.operation("ruleExplore") {
         if (!source.canDiscover || source.spec.explore.isEmpty()) throw SourceContentException(ContentError.MissingCapability, "ruleExplore")
-        if (page !in 1..64) throw SourceContentException(ContentError.Limit, "ruleExplore.page")
+        if (page < 1) throw SourceContentException(ContentError.InvalidRule, "ruleExplore.page")
         validateValues(filters)
         source.discoveryPage(context(page = page, draft = values + filters, noBook = false), url)
     }

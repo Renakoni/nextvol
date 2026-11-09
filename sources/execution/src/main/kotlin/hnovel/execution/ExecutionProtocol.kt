@@ -79,7 +79,7 @@ internal val ExecutionLimits.scriptDataLimit: Int get() = maxDataBytes ?: maxOut
   val chapterBigVariables: Map<String, String> = emptyMap(), val chineseConverter: Int = 0,
   val unescapeHtml: Boolean = true, val sourceHeaderRule: String = "", val discovery: JsonObject? = null,
   val sourceLoginUrl: String = "", val sourceComment: String? = null, val nextChapterUrl: String? = null,
-  val scriptTemplates: Boolean = true, val readOnly: Boolean = false) : ExecutionTask
+  val scriptTemplates: Boolean = true, val readOnly: Boolean = false, val imageInput: String? = null) : ExecutionTask
 }
 
 fun ExecutionTask.libraryCode(): String? = when (this) {
