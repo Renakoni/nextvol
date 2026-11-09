@@ -374,7 +374,8 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
                 usingPartialDirectory = true
             }
         }
-        if (record.chapters.isEmpty()) record = directory(record)
+        val loadedDirectory = record.chapters.isEmpty()
+        if (loadedDirectory) record = directory(record)
         val index = record.chapters.indexOfFirst { it.id == chapterId && !it.isVolume }
         if (index < 0) throw SourceContentException(ContentError.Unavailable, "chapter")
         val chapter = record.chapters[index]
@@ -446,9 +447,12 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         if (parts.isEmpty()) throw SourceContentException(ContentError.EmptyContent, "ruleContent.content")
         title = context.chapter.metadata["title"]?.jsonPrimitive?.content ?: title
         val updated = chapter.copy(title = title, state = context.chapter)
-        val updatedChapters = record.chapters.toMutableList().apply { set(index, updated) }
-        if (usingPartialDirectory) store.write(saved.copy(partialDirectory = DirectorySnapshot(updatedChapters, context.book)))
-        else store.write(record.copy(book = record.book.copy(state = context.book), chapters = updatedChapters))
+        if (loadedDirectory || updated != chapter || context.book != record.book.state) {
+            val updatedChapters = if (updated == chapter) record.chapters
+                else record.chapters.toMutableList().apply { set(index, updated) }
+            if (usingPartialDirectory) store.write(saved.copy(partialDirectory = DirectorySnapshot(updatedChapters, context.book)))
+            else store.write(record.copy(book = record.book.copy(state = context.book), chapters = updatedChapters))
+        }
         RuleContent(chapter.id, title, parts, previous, next)
     }
 
