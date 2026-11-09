@@ -73,7 +73,6 @@
     <string name="download_item_finished">%s completed</string>
     <string name="download_item_failed">%s failed</string>
     <string name="book_updated_to_title">Updated to:</string>
-    <string name="book_word_count_limit">Word limit: </string>
     <string name="unavailable">Unavailable</string>
     <string name="overview">Overview</string>
     <string name="settings">Settings</string>
@@ -259,15 +258,12 @@
     <string name="storage_manager_section_other_description">Other local files stored in the app data directory.</string>
 
     <string name="about_settings">About</string>
-    <string name="settings_debug_tools">Debug Options</string>
-    <string name="settings_debug_tools_desc">Advanced debugging controls for development use</string>
     <string name="settings_about_source_code"><![CDATA[View the source code at %1$s<br/>Report bugs & request features via %2$s]]></string>
     <string name="settings_about_oss">NextVol is an open-source reader based on LightNovelReader. Usage analytics are not collected.</string>
     <string name="settings_github_repo">GitHub Repository</string>
     <string name="settings_github_repo_desc">Star our repo to help us reach more users</string>
     <string name="settings_open_source_licenses">Open-source licenses</string>
     <string name="experimental_settings">Experimental</string>
-    <string name="debug_settings">Debug</string>
     <string name="item_view_details">View Details</string>
     <string name="settings_auto_cache">Auto Cache</string>
     <string name="settings_auto_cache_desc">Automatically cache content of newly added books</string>

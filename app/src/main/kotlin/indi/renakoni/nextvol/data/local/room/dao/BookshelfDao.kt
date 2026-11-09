@@ -41,16 +41,6 @@ interface BookshelfDao {
     @Query("select * from book_shelf_book_metadata")
     suspend fun getAllBookshelfBookMetadataEntities(): List<BookshelfBookMetadataEntity>
 
-    @Transaction
-    suspend fun getAllBookshelfBookMetadata(): List<BookshelfBookMetadata> = getAllBookshelfBookMetadataEntities()
-        .map {
-            BookshelfBookMetadata(
-                it.id,
-                it.lastUpdate,
-                it.bookShelfIds
-            )
-        }
-
     @Query("select * from book_shelf_book_metadata where id=:id")
     suspend fun getBookshelfBookMetadataEntity(id: String): BookshelfBookMetadataEntity?
 
@@ -97,9 +87,6 @@ interface BookshelfDao {
 
     @Query("delete from book_shelf_book_metadata where id=:id")
     suspend fun deleteBookshelfBookMetadata(id: String)
-
-    @Query("select * from book_shelf_book_metadata")
-    fun getAllBookshelfBookEntitiesFlow(): Flow<List<BookshelfBookMetadataEntity>>
 
     @Query("select * from book_shelf_book_metadata")
     suspend fun getAllBookshelfBookEntities(): List<BookshelfBookMetadataEntity>

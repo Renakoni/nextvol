@@ -16,14 +16,6 @@
     <string name="data_export_success">匯出成功</string>
     <string name="share_file">分享檔案</string>
     <string name="reader_content_error">無法顯示內容</string>
-    <string name="debug_open_book">開啟書籍</string>
-    <string name="debug_book_key">Wenku8 ID / 來源限定書籍鍵</string>
-    <string name="debug_sql">SQL 偵錯</string>
-    <string name="debug_sql_statement">SQL 指令</string>
-    <string name="debug_run">執行</string>
-    <string name="debug_crash_tests">當機測試</string>
-    <string name="debug_looper_crash">主執行緒當機</string>
-    <string name="debug_null_crash">空指標當機</string>
     <string name="mark_read_all_description">將本書所有章節標記為已讀。</string>
     <string name="mark_read_range_description">選擇起點和終點章節，將範圍內章節標記為已讀。</string>
     <string name="mark_read_all">全部標記為已讀</string>

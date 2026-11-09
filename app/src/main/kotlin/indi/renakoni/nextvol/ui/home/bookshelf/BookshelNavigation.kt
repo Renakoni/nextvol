@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.ui.home.bookshelf
 
-import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.navigation
 import indi.renakoni.nextvol.ui.home.bookshelf.edit.bookshelfEditDestination
@@ -16,9 +15,4 @@ fun NavGraphBuilder.bookshelfNavigation() {
         bookshelfEditDestination()
         bookshelfReorderDestination()
     }
-}
-
-@Suppress("unused")
-fun NavController.navigateToBookshelfNavigation() {
-    navigate(Route.Main.Bookshelf)
 }

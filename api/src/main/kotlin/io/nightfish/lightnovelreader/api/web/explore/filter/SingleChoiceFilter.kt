@@ -4,7 +4,7 @@ import io.nightfish.lightnovelreader.api.util.LocalString
 
 /**
  * 单选过滤器
- * 允许用户从一组选项中选择一个选项作为过滤条件
+ * 保存单选过滤条件的当前值与默认选项
  *
  * @property dialogTitle 选择对话框的标题
  * @property description 过滤器的描述文字
@@ -15,7 +15,6 @@ open class SingleChoiceFilter(
     private val title: LocalString,
     val dialogTitle: LocalString,
     val description: LocalString,
-    private val choices: List<String>,
     private val defaultChoice: String
 ): Filter<String>(defaultChoice) {
     /**
@@ -26,15 +25,6 @@ open class SingleChoiceFilter(
      * @since Api 2
      */
     override fun getTitle(): LocalString = title
-
-    /**
-     * 获取所有可选项目名列表
-     *
-     * @return 所有可选项目的字符串列表
-     *
-     * @since Api 2
-     */
-    fun getAllChoices(): List<String> = choices
 
     /**
      * 获取过滤器的默认选项

@@ -144,9 +144,6 @@ object Route {
                 @Serializable
                 data class Rules(val bookId: String)
             }
-            /** 调试信息界面路由 */
-            @Serializable
-            object Debug
             /** 主题设置界面路由 */
             @Serializable
             object Theme

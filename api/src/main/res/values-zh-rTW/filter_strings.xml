@@ -2,6 +2,4 @@
     <string name="filter_completed">已完結</string>
     <string name="filter_word_limit">字數限制</string>
     <string name="filter_word_count">字數</string>
-    <string name="filter_word_limit_description">僅顯示字數不少於此值的書籍；設為 0 時顯示全部。</string>
-    <string name="filter_no_limit">無限制</string>
 </resources>

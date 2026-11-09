@@ -141,11 +141,6 @@ class HeatMapCalState internal constructor(
         )
     }
 
-    @Suppress("UNUSED")
-    suspend fun animateScrollToMonth(month: YearMonth) {
-        listState.animateScrollToItem(getScrollIndex(month) ?: return)
-    }
-
     private fun getScrollIndex(month: YearMonth): Int? {
         if (month !in startMonth..endMonth) {
             Log.d("CalendarState", "Attempting to scroll out of range: $month")

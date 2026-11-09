@@ -72,7 +72,6 @@
     <string name="download_item_finished">%s完成</string>
     <string name="download_item_failed">%s失敗, 請檢查您的網絡環境或尋求開發者幫助</string>
     <string name="book_updated_to_title">更新至:</string>
-    <string name="book_word_count_limit">字數限制:</string>
     <string name="unavailable">無法使用</string>
     <string name="overview">概覽</string>
     <string name="settings">設定</string>
@@ -248,15 +247,12 @@
     <string name="storage_manager_section_other_title">其他本地檔案</string>
     <string name="storage_manager_section_other_description">其他儲存在應用程式資料夾的本地檔案。</string>
     <string name="about_settings">關於</string>
-    <string name="settings_debug_tools">調試選項</string>
-    <string name="settings_debug_tools_desc">供開發使用的調試與診斷功能</string>
     <string name="settings_about_source_code"><![CDATA[在 %1$s 查看原始碼<br/>在 %2$s 提交 Bug 或新功能請求]]></string>
     <string name="settings_about_oss">NextVol 是基於 LightNovelReader 開發的開源閱讀器，不收集使用統計。</string>
     <string name="settings_github_repo">GitHub 儲存庫</string>
     <string name="settings_github_repo_desc">給本專案點顆 star，幫助我們被更多人發現</string>
     <string name="settings_open_source_licenses">開放原始碼授權</string>
     <string name="experimental_settings">實驗性</string>
-    <string name="debug_settings">除錯</string>
     <string name="item_view_details">查看詳細資訊</string>
     <string name="settings_auto_cache">自動快取</string>
     <string name="settings_auto_cache_desc">自動快取新加入的書本內容</string>

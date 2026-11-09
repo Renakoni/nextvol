@@ -255,9 +255,6 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         sources.setPreferences(id, enabled = enabled, discoveryVisible = enabled && hasDiscovery)
         if (state.value.selected == id) selectSource(id) else reload()
     }
-    fun setDiscoveryVisible(id: Identifier, visible: Boolean) = launch {
-        sources.setPreferences(id, discoveryVisible = visible); selectSource(id)
-    }
     fun setZLibraryEnabled(enabled: Boolean) = launch {
         zLibrary.update(zLibrary.state.value.settings.copy(enabled = enabled))
     }

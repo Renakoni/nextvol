@@ -104,7 +104,6 @@ class SpeechSettingsViewModel @Inject constructor(
     }
 
     fun selectEngine(engine: String) = update { it.copy(engine = engine, voice = "", httpSource = null, offlineVoice = null) }
-    fun selectVoice(voice: String) = update { it.copy(voice = voice) }
     fun toggleVoice(dialogue: Boolean, voice: SpeechVoiceRef, onDialogueDisabled: () -> Unit = {}) {
         val selected = state.value.settings
         if (!selected.text.dialogue && (dialogue || selected.dialogueVoices.any { it.key == voice.key })) {

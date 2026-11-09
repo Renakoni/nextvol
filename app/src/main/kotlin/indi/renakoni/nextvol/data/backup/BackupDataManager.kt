@@ -221,17 +221,11 @@ class BackupDataManager @Inject constructor(
         return Ok(Unit)
     }
 
-    suspend fun importLocalData(localData: LocalData): Result<Unit, Throwable> =
-        importLocalDataToDatabase(localData)
-
     fun validateBackup(appLocalData: AppLocalData) {
         require(appLocalData.version == currentAppDataVersion) { "Unsupported data version" }
         appLocalData.globalLocalData.validateIdentities()
         appLocalData.localDataList.forEach { it.validateIdentities() }
     }
-
-    suspend fun importLocalDataToDatabase(localData: LocalData): Result<Unit, Throwable> =
-        importAppLocalData(AppLocalData(localDataList = listOf(localData), globalLocalData = LocalData.empty()))
 
     /** The caller holds the statistics/download locks and the entire restore transaction. */
     private suspend fun restoreAliases(parts: List<LocalData>) {

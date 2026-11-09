@@ -29,7 +29,6 @@ import indi.renakoni.nextvol.ui.components.backupFailureMessage
 import indi.renakoni.nextvol.ui.components.SliderValueDialog
 import indi.renakoni.nextvol.ui.dialog.SliderValueDialogViewModel
 import indi.renakoni.nextvol.ui.home.settings.about.settingsAboutDestination
-import indi.renakoni.nextvol.ui.home.settings.debug.settingsDebugDestination
 import indi.renakoni.nextvol.ui.home.settings.formats.settingsFormatsDestination
 import indi.renakoni.nextvol.ui.home.settings.licenses.settingsLicensesDestination
 import indi.renakoni.nextvol.ui.home.settings.logcat.navigateToSettingsLogcatDestination
@@ -88,7 +87,6 @@ fun NavGraphBuilder.settingsNavigation() {
         startDestination = Route.Main.Settings.Home
     ) {
         settingsDestination()
-        settingsDebugDestination()
         settingsLogcatDestination()
         settingsUpdatesDestination()
         settingsAboutDestination()

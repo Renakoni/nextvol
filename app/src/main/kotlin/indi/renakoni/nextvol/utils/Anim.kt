@@ -91,20 +91,3 @@ fun fadeExit(): ExitTransition =
             easing = cubicBezierEasing
         )
     )
-
-fun fadePopEnter(): EnterTransition =
-    fadeIn(
-        animationSpec = tween(
-            durationMillis = animDuration,
-            delayMillis = 50,
-            easing = cubicBezierEasing
-        )
-    )
-
-fun fadePopExit(): ExitTransition =
-    fadeOut(
-        animationSpec = tween(
-            durationMillis = 360,
-            easing = cubicBezierEasing
-        )
-    )
