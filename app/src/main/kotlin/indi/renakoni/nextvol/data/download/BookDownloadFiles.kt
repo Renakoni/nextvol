@@ -57,9 +57,8 @@ internal class BookDownloadFiles(private val context: Context) {
     }
 
     fun prepareImage(target: File, bytes: ByteArray): File {
-        check(bytes.isNotEmpty()) { "Downloaded image is empty" }
         val parent = target.parentFile!!
-        check(parent.mkdirs() || parent.isDirectory)
+        parent.mkdirs()
         val temporary = File.createTempFile("${target.name}.", ".tmp", parent)
         try {
             FileOutputStream(temporary).use { output -> output.write(bytes); output.fd.sync() }

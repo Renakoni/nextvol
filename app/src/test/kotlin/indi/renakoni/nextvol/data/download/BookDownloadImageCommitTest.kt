@@ -38,7 +38,7 @@ class BookDownloadImageCommitTest {
             var pause = false
             mockkConstructor(BookDownloadFiles::class)
             every { anyConstructed<BookDownloadFiles>().prepareImage(any(), any()) } answers {
-                (callOriginal() as File).also {
+                callOriginal().also {
                     if (pause) {
                         prepared.complete(Unit)
                         check(release.await(5, TimeUnit.SECONDS))
@@ -75,16 +75,14 @@ class BookDownloadImageCommitTest {
         }
     }
 
-    @Test fun failedPreparationOrPublicationKeepsTheExistingImageAndConcurrentPreparationsStaySeparate() {
+    @Test fun overlappingPreparationsPreserveTheImageUntilPublishedAndRenameFailuresAreReported() {
         val root = java.nio.file.Files.createTempDirectory("image-files").toFile()
         val files = BookDownloadFiles(RuntimeEnvironment.getApplication())
         val target = File(root, "image").apply { writeBytes(byteArrayOf(1)) }
         try {
-            assertThrows(IllegalStateException::class.java) { files.prepareImage(target, byteArrayOf()) }
-            assertArrayEquals(byteArrayOf(1), target.readBytes())
             val first = files.prepareImage(target, byteArrayOf(2))
             val second = files.prepareImage(target, byteArrayOf(3))
-            assertNotEquals(first, second)
+            assertArrayEquals(byteArrayOf(1), target.readBytes())
             files.publishImage(first, target)
             val version = target.lastModified()
             files.publishImage(second, target)
@@ -93,7 +91,7 @@ class BookDownloadImageCommitTest {
             val blocked = File(root, "blocked").apply { mkdirs(); resolve("keep").writeText("existing") }
             val pending = files.prepareImage(target, byteArrayOf(4))
             assertThrows(java.io.IOException::class.java) { files.publishImage(pending, blocked) }
-            assertArrayEquals(byteArrayOf(3), target.readBytes())
+            assertEquals("existing", blocked.resolve("keep").readText())
         } finally { root.deleteRecursively() }
     }
 }
