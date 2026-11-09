@@ -11,12 +11,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 
 /** One owner per store; only explicitly submitted settings writes enter this queue. */
-internal class UserDataWrites(
-    dispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val onFailure: (String, Exception) -> Unit = { path, error ->
-        Log.e("UserData", "Failed to save $path", error)
-    },
-) {
+internal class UserDataWrites(dispatcher: CoroutineDispatcher = Dispatchers.IO) {
     private val lifetime = SupervisorJob()
     private val scope = CoroutineScope(lifetime + dispatcher)
     private val lock = Any()
@@ -33,7 +28,7 @@ internal class UserDataWrites(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                onFailure(path, error)
+                Log.e("UserData", "Failed to save $path", error)
                 throw error
             }
         }

@@ -47,6 +47,11 @@ abstract class UserData<T> (
         writeOwner.submit(path) { set(value) }.await()
     }
 
+    /** Compare within the same path's queue so stale cleanup cannot overwrite a newer selection. */
+    suspend fun setIfUnchanged(expected: T, value: T) {
+        writeOwner.submit(path) { if (get() == expected) set(value) }.await()
+    }
+
     /**
      * 读取用户数据
      * 此函数为阻塞函数, 请务必不要在初始化阶段或主线程上调用

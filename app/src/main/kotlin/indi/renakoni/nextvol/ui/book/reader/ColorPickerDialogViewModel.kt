@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.ui.book.reader
 
-import android.util.Log
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,9 +20,6 @@ class ColorPickerDialogViewModel @Inject constructor(
     }
 
     fun changeBackgroundColor(color: Color) {
-        if (colorUserData == null) {
-            Log.e("ColorPickerDialogViewModel", "change color user data before init!")
-        }
         colorUserData!!.asynchronousSet(color)
     }
 }

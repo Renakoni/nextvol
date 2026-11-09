@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 interface ReaderFontFamilySettings {
     fun getFlow(): Flow<Uri>
 
-    suspend fun clear()
+    suspend fun clear(expected: Uri)
 }
 
 internal class UserDataReaderFontFamilySettings(
@@ -20,7 +20,7 @@ internal class UserDataReaderFontFamilySettings(
 ) : ReaderFontFamilySettings {
     override fun getFlow(): Flow<Uri> = userData.getFlowWithDefault(Uri.EMPTY)
 
-    override suspend fun clear() = userData.setAndAwait(Uri.EMPTY)
+    override suspend fun clear(expected: Uri) = userData.setIfUnchanged(expected, Uri.EMPTY)
 }
 
 interface ReaderSettings {

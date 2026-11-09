@@ -63,7 +63,7 @@ fun rememberReaderFontFamily(
 ): FontFamily {
     return rememberReaderFontFamily(
         fontFamilyUriFlow = fontFamilyUriUserData.getFlowWithDefault(Uri.EMPTY),
-        clearInvalidFontFamily = { fontFamilyUriUserData.setAndAwait(Uri.EMPTY) },
+        clearInvalidFontFamily = { fontFamilyUriUserData.setIfUnchanged(it, Uri.EMPTY) },
     )
 }
 
@@ -80,17 +80,17 @@ fun rememberReaderFontFamily(
 @Composable
 private fun rememberReaderFontFamily(
     fontFamilyUriFlow: Flow<Uri>,
-    clearInvalidFontFamily: suspend () -> Unit,
+    clearInvalidFontFamily: suspend (Uri) -> Unit,
 ): FontFamily {
     val snackbarScope = rememberCoroutineScope()
-    val uri by fontFamilyUriFlow.collectAsStateWithLifecycle(Uri.EMPTY)
+    val uri = fontFamilyUriFlow.collectAsStateWithLifecycle(Uri.EMPTY).value
     val fontFamily = remember(uri) { loadReaderFontFamilySafe(uri) }
 
     val snackbarHostState = LocalSnackbarHost.current
     val message = stringResource(R.string.reader_custom_font_load_failed)
     if (fontFamily == null && uri != Uri.EMPTY) {
         LaunchedEffect(uri) {
-            withContext(Dispatchers.IO) { clearInvalidFontFamily() }
+            clearInvalidFontFamily(uri)
             snackbarScope.launch {
                 snackbarHostState.showSnackbar(message)
             }
