@@ -222,7 +222,7 @@ class SourceRevisionUpdatesTest {
         }
     }
 
-    @Test fun approvingACoverOriginRetiresOnlyItsOwnerAndClearsOldRequests() = runBlocking {
+    @Test fun approvingAPrivateImageOriginRetiresOnlyItsOwner() = runBlocking {
         val host = Host()
         RuleSourceFixture().use { fixture -> okhttp3.mockwebserver.MockWebServer().use { cdn ->
             cdn.start()
@@ -240,10 +240,10 @@ class SourceRevisionUpdatesTest {
                 val runtimeB = (registry.resolve(b) as SourceResolution.Ready).runtime
                 val cover = cdn.url("/cover.png?signature=secret").toString()
                 val failure = oldA.imageBytes("book", cover, true).getError()!!.throwable as hnovel.content.SourceContentException
-                assertEquals(hnovel.network.ResourceKind.Image, failure.denial!!.kind)
-                assertEquals(hnovel.network.sourceOrigin(cover), failure.denial!!.origin)
+                assertEquals(hnovel.content.ContentError.AddressDenied, failure.code)
+                assertNull(failure.denial)
                 assertEquals(0, cdn.requestCount)
-                assertEquals(1, sources.installedSources().single { ImportedRuleSources.id(it.definition) == a }.deniedOrigins.size)
+                assertTrue(sources.installedSources().single { ImportedRuleSources.id(it.definition) == a }.deniedOrigins.isEmpty())
                 assertTrue(sources.installedSources().single { ImportedRuleSources.id(it.definition) == b }.deniedOrigins.isEmpty())
                 val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
                 updates.updatePermissions(a, grants + NetworkGrant(cdn.url("/").toString(), true))

@@ -47,7 +47,7 @@ class RuleListSession internal constructor(private val field: String, private va
     }
 
     private suspend fun read(number: Int, cursor: String?): RuleListPage {
-        if (number !in 1..64) throw SourceContentException(ContentError.Limit, "$field.page")
+        if (number < 1) throw SourceContentException(ContentError.InvalidRule, "$field.page")
         if (nextPage == null || (explicit || previousPage != null) && number != nextPage)
             throw SourceContentException(ContentError.InvalidRule, "$field.page")
         val draft = memory.copy()
@@ -71,7 +71,7 @@ class RuleListSession internal constructor(private val field: String, private va
         val freshBooks = result.books.filterNot { it.id in books }
         books += result.books.map { it.id }
         urls += result.url
-        nextPage = (number + 1).takeIf { more && !repeatedBooks && !repeatedCursor }
+        nextPage = (number + 1).takeIf { number < Int.MAX_VALUE && more && !repeatedBooks && !repeatedCursor }
         nextUrl = result.nextUrl.takeIf { nextPage != null }
         previousPage = number
         previousCursor = cursor

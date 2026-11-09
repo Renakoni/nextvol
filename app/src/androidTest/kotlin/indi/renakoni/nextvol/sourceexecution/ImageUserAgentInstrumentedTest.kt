@@ -27,6 +27,59 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ImageUserAgentInstrumentedTest {
+    @Test
+    @androidx.test.filters.SdkSuppress(minSdkVersion = 31)
+    @OptIn(coil3.annotation.DelicateCoilApi::class)
+    fun supportedAvifIsCachedRetainedAndExportedWithoutDecodingPixelsForDownload() = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        // Generated 32x24 AVIF, outside the former hand-written format list.
+        val bytes = instrumentation.context.assets.open("images/supported.avif").use { it.readBytes() }
+        val originalLoader = SingletonImageLoader.get(context)
+        var displayDecodes = 0
+        val loader = originalLoader.newBuilder().eventListener(object : coil3.EventListener() {
+            override fun decodeEnd(request: ImageRequest, decoder: coil3.decode.Decoder,
+                options: coil3.request.Options, result: coil3.decode.DecodeResult?) {
+                if (result?.image is coil3.BitmapImage) displayDecodes++
+            }
+        }).build()
+        val root = File(context.cacheDir, "original-avif-${System.nanoTime()}").apply { mkdirs() }
+        val isolated = object : android.content.ContextWrapper(context) { override fun getFilesDir() = root }
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context,
+            indi.renakoni.nextvol.data.local.room.NextVolDatabase::class.java).build()
+        val store = indi.renakoni.nextvol.data.download.BookDownloadStore(isolated, db,
+            indi.renakoni.nextvol.data.content.ContentJsonDecoder(indi.renakoni.nextvol.data.content.ContentComponentRegistry()))
+        SingletonImageLoader.setUnsafe(loader)
+        try { MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setBody(Buffer().write(bytes)))
+            val source = Wenku8Api { SourceNetworkRoute(SourceNetworkMode.SystemDefault, okhttp3.Dns.SYSTEM) }.use { it.id }
+            val book = SourceBookId(source, root.name)
+            val image = SourceImage(book, server.url("/original.avif").toString(), preferDownloaded = false)
+            val raw = indi.renakoni.nextvol.data.image.originalSourceImage(context, image, false)
+            assertArrayEquals(bytes, raw)
+            assertEquals(0, displayDecodes)
+            assertArrayEquals(bytes, indi.renakoni.nextvol.data.image.originalSourceImage(context, image, false))
+            val shown = loader.execute(ImageRequest.Builder(context).data(image).build())
+            assertTrue(shown.toString(), shown is SuccessResult)
+            assertEquals(32, (shown as SuccessResult).image.width)
+            assertEquals(1, displayDecodes)
+            val attempt = store.begin(book, 0, "retain")
+            store.saveImage(attempt, image.uri, false, raw)
+            val retained = store.image(image)!!
+            assertArrayEquals(bytes, retained.readBytes())
+            val exported = File(root, "export.jpg")
+            assertTrue(indi.renakoni.nextvol.data.export.EpubImagePreparer(context, book, listOf(
+                indi.renakoni.nextvol.data.export.EpubImagePreparer.Task(exported, android.net.Uri.parse(image.uri),
+                    sourceFile = retained))) { _, _ -> }.run())
+            assertNotNull(android.graphics.BitmapFactory.decodeFile(exported.path))
+            assertEquals(1, server.requestCount)
+        } } finally {
+            SingletonImageLoader.setUnsafe(originalLoader)
+            loader.shutdown(); db.close(); root.deleteRecursively()
+        }
+    }
+
     @Test fun directCoilBuiltinProviderAndRuleHttpReachTheImageWithTheirResolvedIdentity() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)

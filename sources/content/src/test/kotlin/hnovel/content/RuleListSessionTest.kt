@@ -32,17 +32,19 @@ class RuleListSessionTest {
         assertEquals("RepeatedBooks", events.last().result)
     }
 
-    @Test fun emptyPagesWithUniqueCursorsStillObeyTheSixtyFourPageBudget() = runBlocking {
-        var calls = 0
-        val session = RuleListSession("ruleExplore", true, ContentTrace.None) { page, _, _ ->
-            calls++
-            RuleListResult(emptyList(), "https://example.invalid/$page", "https://example.invalid/${page + 1}")
+    @Test fun explicitAndNumericSessionsKeepReturningUsableContinuationsPastPageSixtyFour() = runBlocking {
+        for (explicit in listOf(false, true)) {
+            val session = RuleListSession("ruleExplore", explicit, ContentTrace.None) { page, _, _ ->
+                RuleListResult(listOf(RuleBook("$page")), "https://example.invalid/$page", "https://example.invalid/${page + 1}")
+            }
+            var cursor: String? = null
+            repeat(70) { index ->
+                val page = session.page(cursor)
+                assertEquals("${index + 1}", page.books.single().id)
+                assertEquals(index + 2, page.nextPage)
+                cursor = page.nextCursor
+            }
         }
-        var cursor: String? = null
-        repeat(64) { cursor = session.page(cursor).nextCursor; assertNotNull(cursor) }
-        try { session.page(cursor); fail("The next attempt must fail before requesting") }
-        catch (failure: SourceContentException) { assertEquals(ContentError.Limit, failure.code) }
-        assertEquals(64, calls)
     }
 
     @Test fun failuresKeepTheCursorAndRollbackMemoryBeforeRetry() = runBlocking {
@@ -94,8 +96,7 @@ class RuleListSessionTest {
         catch (failure: SourceContentException) { assertEquals(ContentError.InvalidRule, failure.code) }
         val restored = session()
         assertEquals("65", restored.page("64").nextCursor)
-        try { restored.page("65"); fail("Budget exceeded") }
-        catch (failure: SourceContentException) { assertEquals(ContentError.Limit, failure.code) }
-        assertEquals(listOf(1, 2, 64), requested)
+        assertEquals("66", restored.page("65").nextCursor)
+        assertEquals(listOf(1, 2, 64, 65), requested)
     }
 }

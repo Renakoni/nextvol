@@ -95,10 +95,9 @@ class SourceImageTest {
         assertEquals(a, SourceBookId.fromStorageKey(a.storageKey))
     }
 
-    @Test fun failedImagesRetryAndDecodedImagesReadDiskAfterSourceRemoval() = runBlocking {
+    @Test fun cachedImagesRemainReadableAfterSourceRemovalUntilEvicted() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
         val registry = WebSourceRegistry()
-        val accounts = SourceSessionManager()
         val calls = mutableListOf<Pair<String, Boolean>>()
         val png = java.io.ByteArrayOutputStream().also {
             Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -107,7 +106,7 @@ class SourceImageTest {
             override val id = a.sourceId
             override suspend fun getImage(bookId: String, url: String, cover: Boolean): com.github.michaelbull.result.Result<ByteArray, io.nightfish.lightnovelreader.api.error.WebRequestError> {
                 calls += bookId to cover
-                return com.github.michaelbull.result.Ok(if (calls.size == 1) ByteArray(0) else png)
+                return com.github.michaelbull.result.Ok(png)
             }
         }
         registry.register(source, SourceMetadata(WebDataSourceItem(a.sourceId, "Rule", "fixture"), emptySet()))
@@ -121,19 +120,15 @@ class SourceImageTest {
             .data(SourceImage(a, url, cover)).size(2, 2).build())
         try {
             assertTrue(load(true) is SuccessResult)
-            loader.memoryCache?.clear()
-            assertTrue(load(true) is SuccessResult)
             assertTrue(load(false) is SuccessResult)
-            assertEquals(listOf("same" to true, "same" to true, "same" to false), calls)
+            assertEquals(listOf("same" to true, "same" to false), calls)
             registry.unregister(a.sourceId)
             loader.memoryCache?.clear()
             assertEquals(DataSource.DISK, (load(true) as SuccessResult).dataSource)
             assertEquals(DataSource.DISK, (load(false) as SuccessResult).dataSource)
-            accounts.begin(a.sourceId)
-            assertTrue(load(false) is SuccessResult)
             loader.memoryCache?.clear(); cache.clear()
             assertFalse(load(true) is SuccessResult)
-            assertEquals(3, calls.size)
+            assertEquals(2, calls.size)
         } finally { registry.unregister(a.sourceId); loader.shutdown(); cache.shutdown() }
     }
 }

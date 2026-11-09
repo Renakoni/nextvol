@@ -35,7 +35,7 @@ class RuleDiscoveryTest {
                 val page = source.openDiscovery("trailing-comma")
                 val catalog = page.catalog()
                 assertEquals(listOf("Latest"), catalog.rows.map { it.title })
-                assertEquals("Same title", page.page(catalog.rows.single().url, 1, emptyMap()).single().title)
+                assertEquals("Same title", page.page(catalog.rows.single().url, 65, emptyMap()).single().title)
             }
             fixture.source { definition(it, "[null,]") }.use { source ->
                 assertFalse(source.canFeed)

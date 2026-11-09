@@ -454,14 +454,13 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
 
     suspend fun image(bookId: String, url: String, cover: Boolean): ByteArray {
         // Rule preparation still owns the worker; waiting for image bytes does not hold the book queue.
-        val (context, request, knownCover) = operation("image") {
+        val (context, request) = operation("image") {
             val id = sourceLink(spec.baseUrl, bookId)
             val book = store.read(id)?.book ?: RuleBook(id)
             val context = evaluation(book)
-            Triple(context, prepareRequest(context, sourceLink(id, url), "image", ResourceKind.Image),
-                cover && book.coverUrl.isNotBlank() && book.coverUrl == url)
+            context to prepareRequest(context, sourceLink(id, url), "image", ResourceKind.Image)
         }
-        val response = executeRequest(request, "image", publicImage = knownCover && request.method == "GET" &&
+        val response = executeRequest(request, "image", publicImage = request.method == "GET" &&
             request.body == null && request.browser == null)
         val decode = if (cover) spec.coverDecode else spec.content.string("imageDecode")
         if (decode.isBlank()) return response.body

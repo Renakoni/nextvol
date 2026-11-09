@@ -41,4 +41,10 @@
     <string name="reader_chapter">Chapter</string>
     <string name="reader_empty_chapter">This chapter has no readable content.</string>
     <string name="reader_pagination_failed">Unable to lay out this chapter. Please retry.</string>
+    <string name="image_error_http">The image server returned HTTP %1$d.</string>
+    <string name="image_error_address">The image address is blocked by the network policy.</string>
+    <string name="image_error_limit">The image exceeds the supported transfer size.</string>
+    <string name="image_error_rule">The source image rule could not be executed.</string>
+    <string name="image_error_network">Could not connect to the image server. Check your connection and retry.</string>
+    <string name="image_error_decode">The response could not be decoded as an image.</string>
 </resources>
