@@ -374,12 +374,13 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
                 usingPartialDirectory = true
             }
         }
-        if (record.chapters.isEmpty()) record = directory(record)
+        val loadedDirectory = record.chapters.isEmpty()
+        if (loadedDirectory) record = directory(record)
         val index = record.chapters.indexOfFirst { it.id == chapterId && !it.isVolume }
         if (index < 0) throw SourceContentException(ContentError.Unavailable, "chapter")
         val chapter = record.chapters[index]
-        val previous = record.chapters.take(index).lastOrNull { !it.isVolume }?.id
-        val next = record.chapters.drop(index + 1).firstOrNull { !it.isVolume }?.id
+        val previous = record.chapters.subList(0, index).lastOrNull { !it.isVolume }?.id
+        val next = record.chapters.subList(index + 1, record.chapters.size).firstOrNull { !it.isVolume }?.id
         val context = evaluation(record.book, chapter)
         context.nextChapterUrl = next
         val rule = spec.content.string("content")
@@ -445,10 +446,13 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         }.map { part -> if (part.image != null) part.copy(image = sourceLink(context.baseUrl, part.image)) else part }
         if (parts.isEmpty()) throw SourceContentException(ContentError.EmptyContent, "ruleContent.content")
         title = context.chapter.metadata["title"]?.jsonPrimitive?.content ?: title
-        val updated = chapter.copy(title = title, state = context.chapter)
-        val updatedChapters = record.chapters.toMutableList().apply { set(index, updated) }
-        if (usingPartialDirectory) store.write(saved.copy(partialDirectory = DirectorySnapshot(updatedChapters, context.book)))
-        else store.write(record.copy(book = record.book.copy(state = context.book), chapters = updatedChapters))
+        val chapterChanged = title != chapter.title || context.chapter != chapter.state
+        if (loadedDirectory || chapterChanged || context.book != record.book.state) {
+            val updatedChapters = if (!chapterChanged) record.chapters
+                else record.chapters.toMutableList().apply { set(index, chapter.copy(title = title, state = context.chapter)) }
+            if (usingPartialDirectory) store.write(saved.copy(partialDirectory = DirectorySnapshot(updatedChapters, context.book)))
+            else store.write(record.copy(book = record.book.copy(state = context.book), chapters = updatedChapters))
+        }
         RuleContent(chapter.id, title, parts, previous, next)
     }
 
