@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.tts
 import android.content.Context
 import android.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
-import hnovel.execution.BridgeWire
 import hnovel.execution.ExecutionAuthority
 import hnovel.imports.SourceOriginCandidates
 import hnovel.network.StorageCipher
@@ -11,7 +10,6 @@ import hnovel.network.sourceOrigin
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.isOnlineSpeechEngine
 import hnovel.speech.HttpSpeechDefinition
-import hnovel.speech.MAX_HTTP_SPEECH_SOURCES
 import hnovel.speech.SpeechPackageValue
 import hnovel.speech.previewHttpSpeech
 import hnovel.speech.speechPackageAvatarPath
@@ -260,7 +258,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val previous = combined(stored.sources, stored.engines)
             val updated = updatedStore.sources
             val sources = combined(updated, updatedStore.engines)
-            require(updated.size <= MAX_HTTP_SPEECH_SOURCES && updated.map { it.definition.id }.distinct().size == updated.size)
+            require(updated.map { it.definition.id }.distinct().size == updated.size)
             val entries = JsonArray(updated.map { source ->
                 require(source.origins.size <= 32 && source.origins.all { sourceOrigin(it) == it })
                 buildJsonObject {
@@ -279,7 +277,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 val ids = sources.map { it.definition.id }.toSet()
                 put("voiceOrder", Json.encodeToJsonElement(updatedStore.voiceOrder.filter { it in ids }))
             }.toString().toByteArray(Charsets.UTF_8)
-            BridgeWire.validate(raw, MAX_BYTES)
             val encrypted = cipher.seal(raw, IDENTITY)
             val resources = updated.mapNotNull { it.offlineResources?.reference }.toSet()
             offline.retainOnlineResources(resources, keepPrevious = true)
@@ -334,23 +331,12 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         val sharedEngines = engineRepository.sharedHttpEngines()
         if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists())
             return HttpSpeechStore(engines = sharedEngines)
-        val encrypted = file.openRead().use { input ->
-            val bytes = java.io.ByteArrayOutputStream()
-            val buffer = ByteArray(8192)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                require(bytes.size() + count <= MAX_BYTES + 512)
-                bytes.write(buffer, 0, count)
-            }
-            bytes.toByteArray()
-        }
+        val encrypted = file.openRead().use { it.readBytes() }
         val raw = cipher.open(encrypted, IDENTITY)
-        val document = Json.parseToJsonElement(BridgeWire.validate(raw, MAX_BYTES)).jsonObject
+        val document = Json.parseToJsonElement(raw.toString(Charsets.UTF_8)).jsonObject
         val entries = document.getValue("sources").jsonArray
-        val preview = previewHttpSpeech(JsonArray(entries.map { it.jsonObject.getValue("definition") }).toString())
-        require(preview.issues.isEmpty())
-        val sources = preview.sources.zip(entries) { source, entry ->
+        val sources = entries.map { entry ->
+            val source = HttpSpeechDefinition.parse(entry.jsonObject.getValue("definition").jsonObject)
             val origins = entry.jsonObject.getValue("origins").jsonArray.map { it.jsonPrimitive.content }
             require(origins.size <= 32 && origins.all { sourceOrigin(it) == it })
             val credentials = entry.jsonObject["credentials"]?.jsonObject?.mapValues { it.value.jsonPrimitive.content }.orEmpty()
@@ -361,6 +347,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 packageAvatar = entry.jsonObject["packageAvatar"]?.jsonPrimitive?.contentOrNull,
                 offlineResources = entry.jsonObject["offlineResources"]?.let { Json.decodeFromJsonElement<OfflineSpeechResources>(it) })
         }
+        require(sources.map { it.definition.id }.distinct().size == sources.size)
         val engines = engineRepository.httpRecords(Json.decodeFromJsonElement(document.getValue("engines"))) + sharedEngines
         val order = document["voiceOrder"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
         offline.retainOnlineResources(sources.mapNotNull { it.offlineResources?.reference }.toSet())
@@ -395,7 +382,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     companion object {
-        private const val MAX_BYTES = 4 * 1024 * 1024
         private const val IDENTITY = "http-speech-definitions-v1"
         private const val BUILT_IN_PREFIX = "nextvol:builtin:"
     }
