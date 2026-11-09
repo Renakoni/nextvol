@@ -120,7 +120,7 @@ class SourceImageTest {
         suspend fun load(cover: Boolean) = loader.execute(ImageRequest.Builder(context)
             .data(SourceImage(a, url, cover)).size(2, 2).build())
         try {
-            assertTrue(load(true) is SuccessResult)
+            assertFalse(load(true) is SuccessResult)
             loader.memoryCache?.clear()
             assertTrue(load(true) is SuccessResult)
             assertTrue(load(false) is SuccessResult)

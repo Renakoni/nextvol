@@ -548,6 +548,14 @@ class BookDownloadTest {
 
     @Test fun missingImagesAreRepairedWithoutRefetchingUnchangedBodies() = runBlocking {
         val source = register(a).apply { withImages = true }
+        var displayDecodes = 0
+        loader = loader.newBuilder().components {
+            add(coil3.decode.Decoder.Factory { _, _, _ ->
+                displayDecodes++
+                error("A download must not invoke a display decoder")
+            })
+        }.build()
+        SingletonImageLoader.setUnsafe(loader)
         assertEquals(ListenableWorker.Result.success(), download())
         val image = SourceImage(a, IMAGE)
         assertTrue(downloads.image(image)!!.delete())
@@ -556,6 +564,7 @@ class BookDownloadTest {
         assertEquals(ListenableWorker.Result.success(), download())
         assertEquals(mapOf("1" to 1, "2" to 1, "3" to 1), source.chapterCalls)
         assertEquals(2, source.imageCalls)
+        assertEquals(0, displayDecodes)
         assertEquals(BookDownloadPhase.Complete, state().phase)
     }
 

@@ -13,11 +13,6 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
-import coil3.SingletonImageLoader
-import coil3.request.CachePolicy
-import coil3.request.ErrorResult
-import coil3.request.ImageRequest
-import coil3.request.SuccessResult
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.Err
 import dagger.assisted.Assisted
@@ -42,6 +37,7 @@ import indi.renakoni.nextvol.data.download.DownloadType
 import indi.renakoni.nextvol.data.download.MutableDownloadItem
 import indi.renakoni.nextvol.data.download.downloadChapterSignature
 import indi.renakoni.nextvol.data.image.SourceImage
+import indi.renakoni.nextvol.data.image.originalSourceImage
 import indi.renakoni.nextvol.data.web.SourceRequestVersion
 import indi.renakoni.nextvol.data.web.BackgroundSourceRequest
 import indi.renakoni.nextvol.data.web.DownloadSourceRequest
@@ -354,19 +350,8 @@ class CacheBookWork @AssistedInject constructor(
     private suspend fun cacheImage(attempt: BookDownloadStore.Attempt, image: SourceImage, force: Boolean,
         resourceVersion: String = "",
         beforeSave: suspend () -> Unit) {
-        val request = ImageRequest.Builder(applicationContext)
-            .data(image.copy(preferDownloaded = false))
-            .coroutineContext((currentCoroutineContext()[RequestRetryContext] ?: kotlin.coroutines.EmptyCoroutineContext) +
-                (currentCoroutineContext()[SourceRequestVersion] ?: kotlin.coroutines.EmptyCoroutineContext))
-            .memoryCachePolicy(CachePolicy.DISABLED)
-            .diskCachePolicy(if (force) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
-            .build()
-        when (val result = SingletonImageLoader.get(applicationContext).execute(request)) {
-            is ErrorResult -> throw result.throwable
-            is SuccessResult -> {
-                beforeSave()
-                downloads.retainImage(attempt, image, result.diskCacheKey, resourceVersion)
-            }
-        }
+        val bytes = originalSourceImage(applicationContext, image, force)
+        beforeSave()
+        downloads.saveImage(attempt, image.uri, image.cover, bytes, resourceVersion)
     }
 }
