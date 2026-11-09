@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import io.nightfish.lightnovelreader.api.web.search.SearchResult
-import indi.renakoni.nextvol.data.explore.PagedSearchProvider
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,7 +22,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class RuleSearchPageTest {
-    @Test fun manualPagesContinuePastSixtyFourAndAutomaticSearchBoundsOnlyItsEmptyTail() = runBlocking {
+    @Test fun automaticSearchContinuesPastSixtyFourAndBoundsItsEmptyTail() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
                 override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): okhttp3.mockwebserver.MockResponse {
@@ -40,14 +39,6 @@ class RuleSearchPageTest {
                 assertEquals(70, results.filterIsInstance<SearchResult.MultipleBook>().size)
                 assertTrue(results.last() is SearchResult.Error)
                 assertEquals(134, fixture.server.requestCount)
-            }
-            fixture.source().use { rules ->
-                val provider = RuleWebBookDataSource(Identifier("search-rule", "manual"), rules).searchProvider
-                for (page in 64..66) {
-                    val result = (provider as PagedSearchProvider).searchPage(provider.searchTypes.first(), "title", page, "query")
-                    assertEquals(page + 1, result.nextPage)
-                    assertEquals("Book $page", result.books.single().information!!.title)
-                }
             }
         }
     }

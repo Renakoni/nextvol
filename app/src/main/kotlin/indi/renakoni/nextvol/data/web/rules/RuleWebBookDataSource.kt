@@ -65,20 +65,20 @@ internal class RuleWebBookDataSource(override val id: Identifier, private val so
             var page = 1
             var emptyPages = 0
             while (emptyPages < 64) {
-                val result = request { filtered(pager.page(page)) }
-                result.onErr { emit(SearchResult.Error(it.throwable ?: IllegalStateException(it.message))) }
-                if (result.isErr) return@flow
-                result.onOk { data ->
-                    val fresh = data.books.filter { seen.add(it.id) }
-                    emptyPages = if (fresh.isEmpty()) emptyPages + 1 else 0
-                    fresh.forEach { emit(SearchResult.MultipleBook(it.id, it.information())) }
+                val data = request { filtered(pager.page(page)) }.getOrElse {
+                    emit(SearchResult.Error(it.throwable ?: IllegalStateException(it.message)))
+                    return@flow
                 }
-                if (result.getOrElse { return@flow }.nextPage == null) {
+                val fresh = data.books.filter { seen.add(it.id) }
+                emptyPages = if (fresh.isEmpty()) emptyPages + 1 else 0
+                fresh.forEach { emit(SearchResult.MultipleBook(it.id, it.information())) }
+                val next = data.nextPage
+                if (next == null) {
                     if (seen.isEmpty()) emit(SearchResult.Empty())
                     emit(SearchResult.End())
                     return@flow
                 }
-                page = result.getOrElse { return@flow }.nextPage!!
+                page = next
             }
             emit(SearchResult.Error(SourceContentException(ContentError.Limit, "ruleSearch")))
         }

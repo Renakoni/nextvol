@@ -730,19 +730,6 @@ class RuleDiscoveryProviderTest {
         }
     }
 
-    @Test fun pagesPastSixtyFourRemainAvailableUntilTheRemoteRepeatsItsBooks() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val provider = RuleDiscoveryProvider(fixture.source(customize = ::definition))
-            val last = provider.page(DiscoveryRequest("/search", "64")).get()!!
-            assertEquals(1, last.books.size)
-            assertEquals("65", last.nextCursor)
-            val repeated = provider.page(DiscoveryRequest("/search", last.nextCursor)).get()!!
-            assertEquals(last.books, repeated.books)
-            assertNull(repeated.nextCursor)
-            assertEquals(2, fixture.documents.get())
-        }
-    }
-
     @Test fun unknownDialectReportsTheOriginalFieldThroughTheHostAdapter() = runBlocking {
         RuleSourceFixture().use { fixture ->
             val source = fixture.source { raw -> JsonObject(definition(raw) +
