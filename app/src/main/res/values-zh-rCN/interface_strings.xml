@@ -39,4 +39,10 @@
     <string name="reader_chapter">章节</string>
     <string name="reader_empty_chapter">本章没有可阅读的内容。</string>
     <string name="reader_pagination_failed">本章排版失败，请重试。</string>
+    <string name="image_error_http">图片服务器返回 HTTP %1$d。</string>
+    <string name="image_error_address">图片地址被网络策略阻止。</string>
+    <string name="image_error_limit">图片超出支持的传输大小。</string>
+    <string name="image_error_rule">书源图片规则执行失败。</string>
+    <string name="image_error_network">无法连接图片服务器，请检查网络后重试。</string>
+    <string name="image_error_decode">返回的内容无法解码为图片。</string>
 </resources>

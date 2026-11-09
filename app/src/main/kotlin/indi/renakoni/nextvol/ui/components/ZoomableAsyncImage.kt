@@ -22,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,7 +60,6 @@ fun ZoomableImage(
 ) {
     val context = LocalContext.current
     var retryKey by remember { mutableIntStateOf(0) }
-    var lastError by remember { mutableStateOf<String?>(null) }
     val imageTransPostProcessingViewModel = hiltViewModel<ImageTransPostProcessingViewModel>()
     val request = remember(imageUri, bookId, chapterId) {
         val transformations = imageTransPostProcessingViewModel
@@ -100,7 +98,7 @@ fun ZoomableImage(
                         Loading()
                     }
                 },
-                error = {
+                error = { state ->
                     Column(
                         modifier = Modifier
                             .height(placeholderHeight)
@@ -117,17 +115,14 @@ fun ZoomableImage(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(stringResource(R.string.image_load_failed), style = typography.labelLarge)
-                        lastError?.let {
-                            Text(
-                                text = it,
-                                style = typography.labelMedium,
-                                color = colorScheme.error
-                            )
-                        }
+                        Text(
+                            text = imageFailureMessage(context, state.result.throwable),
+                            style = typography.labelMedium,
+                            color = colorScheme.error
+                        )
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = {
                             retryKey++
-                            lastError = null
                         }) {
                             Text(stringResource(R.string.action_retry))
                         }

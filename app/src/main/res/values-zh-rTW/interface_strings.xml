@@ -39,4 +39,10 @@
     <string name="reader_chapter">章節</string>
     <string name="reader_empty_chapter">本章沒有可閱讀的內容。</string>
     <string name="reader_pagination_failed">本章排版失敗，請重試。</string>
+    <string name="image_error_http">圖片伺服器回傳 HTTP %1$d。</string>
+    <string name="image_error_address">圖片位址遭網路原則阻擋。</string>
+    <string name="image_error_limit">圖片超出支援的傳輸大小。</string>
+    <string name="image_error_rule">書源圖片規則執行失敗。</string>
+    <string name="image_error_network">無法連線至圖片伺服器，請檢查網路後重試。</string>
+    <string name="image_error_decode">回傳的內容無法解碼為圖片。</string>
 </resources>
