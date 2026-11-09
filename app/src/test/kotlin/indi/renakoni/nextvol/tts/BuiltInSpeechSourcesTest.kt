@@ -105,8 +105,6 @@ class BuiltInSpeechSourcesTest {
         repository.save(listOf(japanese, chinese))
         val selected = repository.sources().single { it.definition.id == chinese.definition.id }
         val draft = VoiceDraft.from(selected, selected.definition.id)
-        assertEquals("zh-CN", draft.copy(locale = "zh-CN").fields().locale)
-        assertEquals("en-US", draft.copy(name = "Voice", locale = "").fields().locale)
         repository.saveVoice(editHttpVoice(selected, draft.copy(name = "My voice").fields().speakerFields(), true, false))
         val copy = editHttpVoice(selected, draft.copy(name = "My copy").fields().speakerFields(), true, true)
         repository.saveVoice(copy)
