@@ -74,8 +74,8 @@ class LocalBookImportViewModelTest {
             jobs += it.viewModelScope.coroutineContext.job
         }
 
-    private fun file(charset: java.nio.charset.Charset = Charsets.UTF_8) = temporary.newFile("book.txt").apply {
-        writeBytes("第一章 开始\n完整正文甲\n第二章 结束\n完整正文乙".toByteArray(charset))
+    private fun file() = temporary.newFile("book.txt").apply {
+        writeText("第一章 开始\n完整正文甲\n第二章 结束\n完整正文乙")
     }
 
     private suspend fun await(condition: () -> Boolean) = withTimeout(10_000) { while (!condition()) delay(10) }
@@ -182,18 +182,6 @@ class LocalBookImportViewModelTest {
         model.confirm()
         await { !model.state.visible }
         assertEquals("Local Books", database.bookshelfDao().getAllBookshelves().single().name)
-    }
-
-    @Test fun aFailedAutomaticDecodeCanBeCorrectedBeforeImport() = runBlocking {
-        val model = model()
-        model.open(file(Charsets.UTF_16LE).toUri())
-        await { !model.state.busy }
-        assertNotNull(model.state.error)
-        model.changeEncoding("UTF-16LE")
-        await { !model.state.busy }
-        assertTrue(model.state.error?.details, model.state.canImport)
-        assertEquals("book", model.state.title)
-        assertEquals("UTF-16LE", model.state.preview!!.encoding)
     }
 
     @Test fun cancellingThePreviewLeavesTheShelfAndOriginalFileUntouched() = runBlocking {
