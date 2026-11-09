@@ -5,10 +5,10 @@ import java.nio.ByteOrder
 
 /** Services can return WAV despite declaring MP3; subsequent RIFF headers are not audio frames. */
 internal fun onlineSpeechBytes(parts: List<ByteArray>): ByteArray {
-    val size = parts.sumOf { it.size.toLong() }
-    if (size > MAX_AUDIO_BYTES) throw HttpSpeechException(HttpSpeechError.TooLarge)
     if (parts.size == 1) return parts.single()
     if (parts.none { it.waveHeader() }) {
+        val size = parts.sumOf { it.size.toLong() }
+        if (size > Int.MAX_VALUE) throw HttpSpeechException(HttpSpeechError.TooLarge)
         return ByteArray(size.toInt()).also { output ->
             var offset = 0
             for (part in parts) { part.copyInto(output, offset); offset += part.size }
@@ -20,11 +20,13 @@ internal fun onlineSpeechBytes(parts: List<ByteArray>): ByteArray {
     val frameSize = ByteBuffer.wrap(format).order(ByteOrder.LITTLE_ENDIAN).getShort(12).toInt() and 0xffff
     if (frameSize == 0 || waves.any { wave -> wave.data.sumOf { it.last - it.first + 1 } % frameSize != 0 })
         throw HttpSpeechException(HttpSpeechError.InvalidAudio)
-    val dataSize = waves.sumOf { wave -> wave.data.sumOf { it.last - it.first + 1 } }
-    val output = ByteBuffer.allocate(44 + dataSize + (dataSize and 1)).order(ByteOrder.LITTLE_ENDIAN)
+    val dataSize = waves.sumOf { wave -> wave.data.sumOf { (it.last - it.first + 1).toLong() } }
+    val size = 44 + dataSize + (dataSize and 1)
+    if (size > Int.MAX_VALUE) throw HttpSpeechException(HttpSpeechError.TooLarge)
+    val output = ByteBuffer.allocate(size.toInt()).order(ByteOrder.LITTLE_ENDIAN)
     output.put("RIFF".toByteArray(Charsets.US_ASCII)).putInt(output.capacity() - 8)
     output.put("WAVEfmt ".toByteArray(Charsets.US_ASCII)).putInt(16).put(format)
-    output.put("data".toByteArray(Charsets.US_ASCII)).putInt(dataSize)
+    output.put("data".toByteArray(Charsets.US_ASCII)).putInt(dataSize.toInt())
     for ((index, wave) in waves.withIndex()) {
         for (range in wave.data) output.put(parts[index], range.first, range.last - range.first + 1)
     }
@@ -42,21 +44,22 @@ private fun ByteArray.pcmWave(): PcmWave {
     val buffer = ByteBuffer.wrap(this).order(ByteOrder.LITTLE_ENDIAN)
     var format: ByteArray? = null
     val data = mutableListOf<IntRange>()
-    var offset = 12
+    var offset = 12L
     while (offset + 8 <= size) {
-        val length = buffer.getInt(offset + 4).toLong() and 0xffffffffL
-        val start = offset + 8
+        val chunk = offset.toInt()
+        val length = buffer.getInt(chunk + 4).toLong() and 0xffffffffL
+        val start = chunk + 8
         val end = start.toLong() + length
         if (end > size) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
         when {
-            chunkAt(offset, "fmt ") -> {
+            chunkAt(chunk, "fmt ") -> {
                 if (length < 16 || buffer.getShort(start).toInt() != 1)
                     throw HttpSpeechException(HttpSpeechError.InvalidAudio)
                 format = copyOfRange(start, start + 16)
             }
-            chunkAt(offset, "data") -> data += start until end.toInt()
+            chunkAt(chunk, "data") -> data += start until end.toInt()
         }
-        offset = (end + (length and 1)).toInt()
+        offset = end + (length and 1)
     }
     if (format == null || data.isEmpty()) throw HttpSpeechException(HttpSpeechError.InvalidAudio)
     return PcmWave(format, data)
