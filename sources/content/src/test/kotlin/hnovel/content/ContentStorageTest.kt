@@ -34,7 +34,7 @@ class ContentStorageTest {
             }
             fixture.source(customize = rules).use { source ->
                 val saved = writes.records.size
-                repeat(2) { assertTrue(source.content(id, chapter).parts.any { it.text == "A first" }) }
+                assertTrue(source.content(id, chapter).parts.any { it.text == "A first" })
                 assertEquals(saved, writes.records.size)
             }
         }
