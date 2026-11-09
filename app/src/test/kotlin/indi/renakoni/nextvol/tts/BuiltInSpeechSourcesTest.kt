@@ -7,6 +7,10 @@ import hnovel.network.*
 import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.previewHttpSpeech
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -51,6 +55,33 @@ class BuiltInSpeechSourcesTest {
         assertEquals(listOf(online), Json.decodeFromJsonElement<List<SpeechEngineConfig>>(httpStore.getValue("engines")))
         assertEquals(listOf(offlineEngine, shared), Json.decodeFromString<List<SpeechEngineConfig>>(
             File(context.filesDir, "offline-engines.enc").readText()))
+    }
+
+    @Test fun engineEditingComparesTheNormalizedKeyAgainstTheLoadedList() = runBlocking {
+        val engines = SpeechEngineRepository(context, StorageCipher.Plain)
+        val repository = HttpSpeechRepository(context, StorageCipher.Plain, authority, offline, engines)
+        val engine = SpeechEngineConfig("http_restored", "Restored", "http", url = "https://example.org/audio")
+        repository.saveEngine(engine, creating = true)
+        val voice = newHttpVoice(engine)
+        repository.saveVoice(voice)
+        val deleted = engine.copy(deleted = true)
+        repository.saveEngine(deleted)
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns MutableStateFlow(ReadAloudState(
+            SpeechRequest("", "", "Preview", SpeechSettings(httpSource = voice.definition.id)), SpeechPhase.Playing))
+        val editing = SpeechEngineEditing(engines, repository, offline, mockk(), controller)
+        val draft = engine.copy(code = " restored ")
+
+        // The loaded list differs from storage: comparison must not re-read the deleted record.
+        editing.save(draft, creating = true, loadedEngines = listOf(engine))
+        assertEquals(listOf(engine), repository.engines())
+        verify(exactly = 0) { controller.command(any()) }
+
+        repository.saveEngine(deleted)
+        // Match after trim/prefix handling, and include type in the key.
+        editing.save(draft, creating = true, loadedEngines = listOf(engine.copy(type = "inner"), deleted))
+        assertEquals(listOf(engine), repository.engines())
+        verify(exactly = 1) { controller.command(SpeechAction.Stop) }
     }
 
     @Test fun catalogTicketsRespectEngineEditsAndRetirementWithAndWithoutSavedVoices() = runBlocking {
