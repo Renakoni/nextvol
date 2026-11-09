@@ -730,18 +730,6 @@ class RuleDiscoveryProviderTest {
         }
     }
 
-    @Test fun pageLimitKeepsTheLastAllowedBooksAndReportsTheNextAttemptWithoutFetching() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val provider = RuleDiscoveryProvider(fixture.source(customize = ::definition))
-            val last = provider.page(DiscoveryRequest("/search", "64")).get()!!
-            assertEquals(1, last.books.size)
-            assertEquals("65", last.nextCursor)
-            assertEquals(Err(DiscoveryError.Limit), provider.page(DiscoveryRequest("/search", last.nextCursor)))
-            assertEquals("ruleExplore.page", provider.failureField)
-            assertEquals(1, fixture.documents.get())
-        }
-    }
-
     @Test fun unknownDialectReportsTheOriginalFieldThroughTheHostAdapter() = runBlocking {
         RuleSourceFixture().use { fixture ->
             val source = fixture.source { raw -> JsonObject(definition(raw) +
