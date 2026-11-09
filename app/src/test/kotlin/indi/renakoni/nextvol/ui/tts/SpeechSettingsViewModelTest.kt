@@ -194,17 +194,33 @@ class SpeechSettingsViewModelTest {
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState(
             SpeechRequest("", "", "Sample", SpeechSettings(offlineVoice = reference)), SpeechPhase.Playing))
-        val editor = SpeechEnginesViewModel(catalog, http, offline, mockk(), controller, mockk())
+        val editor = SpeechEnginesViewModel(catalog, http,
+            SpeechEngineEditing(catalog, http, offline, mockk(), controller), mockk())
+        val release = CompletableDeferred<Unit>()
         try {
             runCurrent()
             editor.save(configuration.copy(name = "Renamed"), false) {}
             runCurrent()
             verify(exactly = 0) { controller.command(any()) }
-            editor.save(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) {}
+            val events = mutableListOf<String>()
+            coEvery { http.saveEngine(any(), false) } coAnswers {
+                events += "saving"
+                release.await()
+                events += "saved"
+            }
+            every { controller.command(SpeechAction.Stop) } answers { events += "stop" }
+            editor.save(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) { events += "onSaved" }
             runCurrent()
-            verify(exactly = 1) { controller.command(SpeechAction.Stop) }
+            assertTrue(editor.state.value.saving)
+            assertEquals(listOf("saving"), events)
+            editor.save(configuration, false) { fail("A busy editor accepted another save") }
+            editor.viewModelScope.cancel()
+            release.complete(Unit)
+            runCurrent()
+            assertEquals(listOf("saving", "saved", "stop", "onSaved"), events)
+            assertFalse(editor.state.value.saving)
             coVerify { http.saveEngine(configuration.copy(parameters = "{\"region\":\"bj\"}"), false) }
-        } finally { editor.viewModelScope.cancel() }
+        } finally { release.complete(Unit); editor.viewModelScope.cancel() }
     }
 
     @Test fun leavingTheVoiceLibraryDuringDeletionStillClearsTheSelectedReference() = runTest {
