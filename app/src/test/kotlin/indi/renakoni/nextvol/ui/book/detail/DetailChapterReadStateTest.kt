@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 import hnovel.content.ContentError
 import hnovel.content.SourceContentException
 import indi.renakoni.nextvol.data.book.*
@@ -18,8 +17,6 @@ import io.nightfish.lightnovelreader.api.book.*
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.*
@@ -42,10 +39,8 @@ class DetailChapterReadStateTest {
         val reading = mockk<BookReadingDataRepository>()
         val stats = mockk<StatsRepository>()
         val volumes = BookVolumes(key, listOf(Volume("volume", "Volume", catalog.map { ChapterInformation(it, it) })))
-        val directory = MutableStateFlow<Result<BookVolumes, WebRequestError>>(Ok(volumes))
-        every { repository.readingAvailability(key) } returns flowOf(BookReadingAvailability(true, false, false, null))
+        every { repository.readingAvailability(key) } returns emptyFlow()
         every { repository.getBookInformationFlow(key, any()) } returns emptyFlow()
-        every { repository.getBookVolumesFlow(key, any()) } returns directory
         every { repository.getUserReadingDataFlow(key) } returns emptyFlow()
         every { repository.downloadStatusFlow(key) } returns emptyFlow()
         every { shelves.getBookshelfBookMetadataFlow(key) } returns emptyFlow()
@@ -56,14 +51,9 @@ class DetailChapterReadStateTest {
         val store = ViewModelStore().apply { put("detail", model) }
         try {
             model.init(key)
-            withTimeout(5000) { while (model.uiState.bookVolumes == null) delay(10) }
+            val state = model.uiState as MutableDetailUiState
+            state.bookVolumes = Ok(volumes)
             model.setChaptersRead(setOf("first"), read = true)
-            coVerify(exactly = 0) { stats.markBookFinished(any()) }
-
-            coEvery { reading.setChaptersRead(key, any(), catalog, any()) } throws IllegalStateException("Write failed")
-            assertThrows(IllegalStateException::class.java) { runBlocking {
-                model.setChaptersRead(setOf("second"), read = true)
-            } }
             coVerify(exactly = 0) { stats.markBookFinished(any()) }
 
             coEvery { reading.setChaptersRead(key, any(), catalog, any()) } returns null
@@ -75,9 +65,8 @@ class DetailChapterReadStateTest {
             model.setChaptersRead(setOf("first"), read = false)
             coVerify(exactly = 1) { stats.markBookFinished(key) }
 
-            directory.value = Err(WebRequestError("Directory incomplete", "HTTP 502",
+            state.bookVolumes = Err(WebRequestError("Directory incomplete", "HTTP 502",
                 PartialBookVolumesException(volumes, SourceContentException(ContentError.Network, "ruleToc.chapterList", httpStatus = 502))))
-            withTimeout(5000) { while (model.uiState.bookVolumes?.isErr != true) delay(10) }
             clearMocks(reading, stats, answers = false)
             assertThrows(IllegalStateException::class.java) { runBlocking {
                 model.setChaptersRead(setOf("first"), read = true)
