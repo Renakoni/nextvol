@@ -1311,15 +1311,6 @@ private fun ChapterItem(
                 )
                 if (volumeTitle != null) Text(volumeTitle, style = typography.labelSmall,
                     color = colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (isLastRead) {
-                    Text(
-                        text = stringResource(R.string.last_read),
-                        maxLines = 1,
-                        style = typography.titleSmall,
-                        fontWeight = FontWeight.Normal,
-                        color = colorScheme.primary
-                    )
-                }
             }
             if (isLastRead) {
                 Icon(
