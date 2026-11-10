@@ -7,6 +7,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,7 +47,7 @@ class BookReadingDataRepository @Inject constructor(
         }
     }
 
-    suspend fun markChaptersUnread(bookId: String, chapterIds: Set<String>, catalogIds: Set<String>) {
+    suspend fun setChaptersRead(bookId: String, chapterIds: Set<String>, catalogIds: Set<String>, read: Boolean) {
         val book = BookIdentity.book(bookId)
         val catalog = catalogIds.mapTo(mutableSetOf()) { BookIdentity.chapter(it, book).storageKey }
         val selected = chapterIds.mapTo(mutableSetOf()) { BookIdentity.chapter(it, book).storageKey }
@@ -56,17 +57,22 @@ class BookReadingDataRepository @Inject constructor(
             // A page recreation must not interrupt publication after SQLite commits.
             withContext(NonCancellable) {
                 localBookDataSource.updateUserReadingData(book.storageKey) { data ->
-                    val maximum = data.maxChapterReadingProgressMap - selected
+                    val maximum = if (read) data.maxChapterReadingProgressMap + selected.associateWith { 1f }
+                        else data.maxChapterReadingProgressMap - selected
                     data.copy(
-                        currentChapterReadingProgressMap = data.currentChapterReadingProgressMap - selected,
+                        lastReadTime = if (read) LocalDateTime.now() else data.lastReadTime,
+                        currentChapterReadingProgressMap = if (read) data.currentChapterReadingProgressMap
+                            else data.currentChapterReadingProgressMap - selected,
                         maxChapterReadingProgressMap = maximum,
                         readingProgress = bookReadingProgress(catalog, maximum),
                     )
                 }
-                // Only selected chapters reject old queued saves; unrelated resume updates remain valid.
-                val nextRevision = revision.get() + 1
-                selected.forEach { chapterResetRevisions[it] = nextRevision }
-                revision.set(nextRevision)
+                if (!read) {
+                    // Only reset chapters reject old queued saves; unrelated resume updates remain valid.
+                    val nextRevision = revision.get() + 1
+                    selected.forEach { chapterResetRevisions[it] = nextRevision }
+                    revision.set(nextRevision)
+                }
             }
         }
     }

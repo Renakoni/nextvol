@@ -32,7 +32,6 @@ import indi.renakoni.nextvol.ui.book.reader.navigateToBookReaderDestination
 import indi.renakoni.nextvol.ui.book.reader.navigateToImageViewerDialog
 import indi.renakoni.nextvol.ui.book.download.navigateToBookDownload
 import indi.renakoni.nextvol.ui.dialog.navigateToAddBookToBookshelfDialog
-import indi.renakoni.nextvol.ui.dialog.navigateToMarkAllChaptersAsReadDialog
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
 import indi.renakoni.nextvol.utils.isResumed
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
@@ -112,7 +111,7 @@ fun NavGraphBuilder.bookDetailDestination() {
             uiState = viewModel.uiState,
             onRetry = viewModel::retryInformation,
             onRetryVolumes = viewModel::retryVolumes,
-            onMarkChaptersUnread = viewModel::markChaptersUnread,
+            onSetChaptersRead = viewModel::setChaptersRead,
             onClickExportToEpub = { settings ->
                 viewModel.exportSettings = settings
 
@@ -159,9 +158,6 @@ fun NavGraphBuilder.bookDetailDestination() {
                 }
             },
             onClickCover = { uri -> navController.navigateToImageViewerDialog(uri, bookId, cover = true) },
-            onClickMarkAsRead = {
-                navController.navigateToMarkAllChaptersAsReadDialog(bookId)
-            }
         )
     }
 }

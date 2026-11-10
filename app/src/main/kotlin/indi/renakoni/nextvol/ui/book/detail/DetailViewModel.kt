@@ -19,6 +19,7 @@ import com.github.michaelbull.result.get
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.book.BookReadingDataRepository
+import indi.renakoni.nextvol.data.statistics.StatsRepository
 import indi.renakoni.nextvol.data.bookshelf.BookshelfRepository
 import indi.renakoni.nextvol.data.download.DownloadProgressRepository
 import indi.renakoni.nextvol.data.download.DownloadType
@@ -45,6 +46,7 @@ class DetailViewModel @Inject constructor(
     private val downloadProgressRepository: DownloadProgressRepository,
     private val workManager: WorkManager,
     private val readingDataRepository: BookReadingDataRepository,
+    private val statsRepository: StatsRepository,
 ) : ViewModel() {
     private val _uiState = MutableDetailUiState()
     var exportSettings = ExportSettings()
@@ -105,13 +107,17 @@ class DetailViewModel @Inject constructor(
 
     fun retryVolumes() { if (_uiState.readingAvailable) directoryRetry.value++ }
 
-    suspend fun markChaptersUnread(chapterIds: Set<String>) {
+    suspend fun setChaptersRead(chapterIds: Set<String>, read: Boolean) {
         val bookId = checkNotNull(book).storageKey
         val volumes = checkNotNull(_uiState.bookVolumes?.availableVolumes())
         val catalogIds = volumes.volumes.flatMap { it.chapters }.mapTo(mutableSetOf()) { it.id }
+        val selected = chapterIds.intersect(catalogIds)
+        if (selected.isEmpty()) return
         withContext(Dispatchers.IO) {
-            readingDataRepository.markChaptersUnread(bookId, chapterIds, catalogIds)
-            _uiState.userReadingData = readingDataRepository.getUserReadingData(bookId)
+            readingDataRepository.setChaptersRead(bookId, selected, catalogIds, read)
+            val updated = readingDataRepository.getUserReadingData(bookId)
+            _uiState.userReadingData = updated
+            if (read && updated.readingProgress >= 1f) statsRepository.markBookFinished(bookId)
         }
     }
 

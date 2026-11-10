@@ -56,7 +56,7 @@ class DetailDirectoryLoadingTest {
         coEvery { shelves.getBookshelfBookMetadata(key) } returns null
         every { shelves.getBookshelfBookMetadataFlow(key) } returns flowOf(null)
         every { downloads.downloadItemIdList } returns mutableStateListOf()
-        val model = DetailViewModel(repository, shelves, downloads, mockk<WorkManager>(relaxed = true), mockk())
+        val model = DetailViewModel(repository, shelves, downloads, mockk<WorkManager>(relaxed = true), mockk(), mockk())
         val store = ViewModelStore().apply { put("detail", model) }
         try {
             model.init(key)

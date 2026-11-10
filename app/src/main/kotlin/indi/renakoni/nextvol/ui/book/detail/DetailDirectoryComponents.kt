@@ -87,8 +87,13 @@ internal fun DirectoryToolbar(
     var optionsExpanded by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(top = 8.dp, bottom = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.detail_contents), modifier = Modifier.weight(1f),
-                style = typography.displayMedium, fontWeight = FontWeight.W600)
+            FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.detail_contents), modifier = Modifier.alignByBaseline(),
+                    style = typography.displayMedium, fontWeight = FontWeight.W600)
+                Text(stringResource(R.string.info_volume_chapters_count, chapterCount),
+                    modifier = Modifier.alignByBaseline(), style = typography.labelMedium,
+                    color = colorScheme.onSurfaceVariant)
+            }
             IconToggleButton(checked = descending, onCheckedChange = { onToggleOrder() }, enabled = chapterCount > 0) {
                 Icon(painterResource(R.drawable.sort_24px),
                     stringResource(if (descending) R.string.detail_directory_descending else R.string.detail_directory_ascending),
@@ -118,15 +123,14 @@ internal fun DirectoryToolbar(
                 }
             }
         }
-        val summary = if (matchCount != null) pluralStringResource(R.plurals.reader_directory_matches, matchCount, matchCount)
-            else stringResource(R.string.info_volume_chapters_count, chapterCount)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (hideRead && !selecting) "$summary · ${stringResource(R.string.hide_read)}" else summary,
-                modifier = Modifier.weight(1f), style = typography.labelMedium, color = colorScheme.onSurfaceVariant,
-            )
-            if (query.isBlank() && directoryPageCount(chapterCount) > 1) {
-                DirectoryRangeMenu(chapterCount, page, descending, onPageChange)
+        val matches = if (matchCount != null) pluralStringResource(R.plurals.reader_directory_matches, matchCount, matchCount) else null
+        val status = listOfNotNull(matches, if (hideRead && !selecting) stringResource(R.string.hide_read) else null)
+            .joinToString(" · ")
+        val showPages = query.isBlank() && directoryPageCount(chapterCount) > 1
+        if (status.isNotEmpty() || showPages) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(status, modifier = Modifier.weight(1f), style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
+                if (showPages) DirectoryRangeMenu(chapterCount, page, descending, onPageChange)
             }
         }
         if (searchExpanded) {
@@ -135,8 +139,12 @@ internal fun DirectoryToolbar(
             LaunchedEffect(Unit) { focus.requestFocus() }
             OutlinedTextField(
                 value = query, onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).focusRequester(focus),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).focusRequester(focus),
                 placeholder = { Text(stringResource(R.string.reader_directory_search_hint)) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedPlaceholderColor = colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    unfocusedPlaceholderColor = colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                ),
                 leadingIcon = { Icon(painterResource(R.drawable.search_24px), null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) IconButton(onClick = { onQueryChange("") }) {

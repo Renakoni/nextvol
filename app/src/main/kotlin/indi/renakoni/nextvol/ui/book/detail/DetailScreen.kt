@@ -137,6 +137,8 @@ import kotlinx.coroutines.withContext
 import kotlin.math.nextUp
 import kotlin.time.Duration.Companion.seconds
 
+private enum class ChapterReadAction { Read, Unread }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
@@ -149,11 +151,10 @@ fun DetailScreen(
     requestAddBookToBookshelf: (String) -> Unit,
     onClickTag: (String) -> Unit,
     onClickCover: (Uri) -> Unit,
-    onClickMarkAsRead: () -> Unit,
     onRetry: () -> Unit = {},
     localFileMissing: Boolean = false,
     onRelink: () -> Unit = {},
-    onMarkChaptersUnread: suspend (Set<String>) -> Unit = {},
+    onSetChaptersRead: suspend (Set<String>, Boolean) -> Unit = { _, _ -> },
     onRetryVolumes: () -> Unit = onRetry,
     blockingMenu: (@Composable (() -> Unit) -> Unit)? = null,
 ) {
@@ -161,7 +162,7 @@ fun DetailScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val snackbarHostState = LocalSnackbarHost.current
     val context = LocalContext.current
-    val markUnreadFailedText by rememberUpdatedState(stringResource(R.string.mark_unread_failed))
+    val markReadStateFailedText by rememberUpdatedState(stringResource(R.string.mark_read_state_failed))
 
     val exportBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.PartiallyExpanded)
     val infoBottomSheetState = rememberBottomSheetState(initialValue = SheetValue.PartiallyExpanded)
@@ -173,20 +174,26 @@ fun DetailScreen(
     val lazyListState = rememberLazyListState()
     var activeDirectoryListState by remember { mutableStateOf(lazyListState) }
     val selectionListState = rememberLazyListState()
-    var selectingChapters by rememberSaveable { mutableStateOf(false) }
+    var readAction by rememberSaveable { mutableStateOf<ChapterReadAction?>(null) }
+    val selectingChapters = readAction != null
+    val actionText = if (readAction == ChapterReadAction.Read) R.string.mark_read_action else R.string.mark_unread_action
     var selectedChapterIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
-    var confirmUnread by remember { mutableStateOf(false) }
-    var savingUnread by remember { mutableStateOf(false) }
+    var confirmReadState by remember { mutableStateOf(false) }
+    var savingReadState by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val catalogIds = uiState.bookVolumes?.availableVolumes()?.volumes.orEmpty()
         .flatMap { it.chapters }.mapTo(mutableSetOf()) { it.id }
     val selectedIds = selectedChapterIds.toSet().intersect(catalogIds)
     val exitSelection = {
-        selectingChapters = false
+        readAction = null
         selectedChapterIds = emptyList()
-        confirmUnread = false
+        confirmReadState = false
     }
-    BackHandler(selectingChapters) { if (!savingUnread) exitSelection() }
+    val enterSelection: (ChapterReadAction) -> Unit = { action ->
+        selectedChapterIds = emptyList()
+        readAction = action
+    }
+    BackHandler(selectingChapters) { if (!savingReadState) exitSelection() }
     val volumesEmpty = uiState.bookVolumes?.get()?.volumes?.any { it.chapters.isNotEmpty() } != true
 
     val isCollapsed by remember {
@@ -276,10 +283,10 @@ fun DetailScreen(
                 Button(
                     modifier = Modifier.fillMaxWidth().navigationBarsPadding()
                         .padding(horizontal = 24.dp, vertical = 12.dp),
-                    enabled = selectedIds.isNotEmpty() && !savingUnread,
-                    onClick = { confirmUnread = true },
+                    enabled = selectedIds.isNotEmpty() && !savingReadState,
+                    onClick = { confirmReadState = true },
                 ) {
-                    Text(stringResource(if (savingUnread) R.string.processing else R.string.mark_unread_action))
+                    Text(stringResource(if (savingReadState) R.string.processing else actionText))
                 }
             }
         },
@@ -294,12 +301,12 @@ fun DetailScreen(
                 title = { Text(stringResource(R.string.chapters_selected, selectedIds.size),
                     style = typography.displayLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    IconButton(onClick = exitSelection, enabled = !savingUnread) {
+                    IconButton(onClick = exitSelection, enabled = !savingReadState) {
                         Icon(painterResource(R.drawable.close_24px), stringResource(R.string.cancel))
                     }
                 },
                 actions = {
-                    TextButton(enabled = !savingUnread && catalogIds.isNotEmpty(), onClick = {
+                    TextButton(enabled = !savingReadState && catalogIds.isNotEmpty(), onClick = {
                         selectedChapterIds = if (selectedIds == catalogIds) emptyList() else catalogIds.toList()
                     }) {
                         Text(stringResource(if (selectedIds == catalogIds) R.string.deselect_all else R.string.select_all))
@@ -320,12 +327,9 @@ fun DetailScreen(
                         textToast(context, it.message, Toast.LENGTH_SHORT).show()
                     }
                 },
-                onClickMarkAsRead = onClickMarkAsRead,
-                onClickMarkAsUnread = {
-                    selectedChapterIds = emptyList()
-                    selectingChapters = true
-                },
-                canMarkUnread = catalogIds.isNotEmpty() && uiState.userReadingData != null,
+                onClickMarkAsRead = { enterSelection(ChapterReadAction.Read) },
+                onClickMarkAsUnread = { enterSelection(ChapterReadAction.Unread) },
+                canMarkChapters = catalogIds.isNotEmpty() && uiState.userReadingData != null,
                 blockingMenu = blockingMenu,
                 scrollBehavior = scrollBehavior,
                 isCollapsed = isCollapsed
@@ -347,7 +351,7 @@ fun DetailScreen(
                         bookInformation = it,
                         onClickChapter = { id ->
                             if (selectingChapters) {
-                                if (!savingUnread) selectedChapterIds =
+                                if (!savingReadState) selectedChapterIds =
                                     if (id in selectedChapterIds) selectedChapterIds - id else selectedChapterIds + id
                             } else onClickChapter(id)
                         },
@@ -355,7 +359,7 @@ fun DetailScreen(
                         onActiveListStateChange = { activeDirectoryListState = it },
                         selectingChapters = selectingChapters,
                         selectedChapterIds = selectedIds,
-                        selectionEnabled = !savingUnread,
+                        selectionEnabled = !savingReadState,
                         cacheBook = cacheBook,
                         requestAddBookToBookshelf = requestAddBookToBookshelf,
                         onClickTag = onClickTag,
@@ -402,33 +406,36 @@ fun DetailScreen(
             }
         }
     }
-    if (confirmUnread) AlertDialog(
-        onDismissRequest = { if (!savingUnread) confirmUnread = false },
-        title = { Text(stringResource(R.string.mark_unread_action)) },
-        text = { Text(stringResource(R.string.mark_unread_confirmation, selectedIds.size)) },
+    if (confirmReadState) AlertDialog(
+        onDismissRequest = { if (!savingReadState) confirmReadState = false },
+        title = { Text(stringResource(actionText)) },
+        text = { Text(stringResource(if (readAction == ChapterReadAction.Read) R.string.mark_read_confirmation
+            else R.string.mark_unread_confirmation, selectedIds.size)) },
         confirmButton = {
-            TextButton(enabled = !savingUnread && selectedIds.isNotEmpty(), onClick = {
-                savingUnread = true
+            TextButton(enabled = !savingReadState && selectedIds.isNotEmpty(), onClick = {
+                if (savingReadState) return@TextButton
+                savingReadState = true
+                val read = readAction == ChapterReadAction.Read
                 coroutineScope.launch {
                     try {
-                        onMarkChaptersUnread(selectedIds)
+                        onSetChaptersRead(selectedIds, read)
                         exitSelection()
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Exception) {
-                        android.util.Log.e("DetailScreen", "Could not mark chapters unread", error)
-                        confirmUnread = false
+                        android.util.Log.e("DetailScreen", "Could not update chapter read state", error)
+                        confirmReadState = false
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar(markUnreadFailedText)
+                            snackbarHostState.showSnackbar(markReadStateFailedText)
                         }
                     } finally {
-                        savingUnread = false
+                        savingReadState = false
                     }
                 }
-            }) { Text(stringResource(if (savingUnread) R.string.processing else R.string.confirm)) }
+            }) { Text(stringResource(if (savingReadState) R.string.processing else R.string.confirm)) }
         },
         dismissButton = {
-            TextButton(enabled = !savingUnread, onClick = { confirmUnread = false }) {
+            TextButton(enabled = !savingReadState, onClick = { confirmReadState = false }) {
                 Text(stringResource(R.string.cancel))
             }
         },
@@ -788,7 +795,7 @@ private fun TopBar(
     onClickTextFormatting: () -> Unit,
     onClickMarkAsRead: () -> Unit,
     onClickMarkAsUnread: () -> Unit,
-    canMarkUnread: Boolean,
+    canMarkChapters: Boolean,
     scrollBehavior: TopAppBarScrollBehavior,
     isCollapsed: Boolean,
     blockingMenu: (@Composable (() -> Unit) -> Unit)?,
@@ -850,7 +857,7 @@ private fun TopBar(
                     onClickTextFormatting = onClickTextFormatting,
                     onClickMarkAsRead = onClickMarkAsRead,
                     onClickMarkAsUnread = onClickMarkAsUnread,
-                    canMarkUnread = canMarkUnread,
+                    canMarkChapters = canMarkChapters,
                     blockingMenu = blockingMenu,
                 )
             },
@@ -866,7 +873,7 @@ private fun TopBarActions(
     onClickTextFormatting: () -> Unit,
     onClickMarkAsRead: () -> Unit,
     onClickMarkAsUnread: () -> Unit,
-    canMarkUnread: Boolean,
+    canMarkChapters: Boolean,
     blockingMenu: (@Composable (() -> Unit) -> Unit)?,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -884,7 +891,7 @@ private fun TopBarActions(
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mark_as_unread), style = typography.bodyLarge) },
-                enabled = !volumesEmpty && canMarkUnread,
+                enabled = !volumesEmpty && canMarkChapters,
                 onClick = {
                     menuExpanded = false
                     onClickMarkAsUnread()
@@ -892,7 +899,7 @@ private fun TopBarActions(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.mark_as_read), style = typography.bodyLarge) },
-                enabled = !volumesEmpty,
+                enabled = !volumesEmpty && canMarkChapters,
                 onClick = {
                     menuExpanded = false
                     onClickMarkAsRead()

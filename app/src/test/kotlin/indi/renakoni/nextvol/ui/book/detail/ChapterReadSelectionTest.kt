@@ -40,10 +40,12 @@ import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class, qualifiers = "en-rUS-w400dp-h900dp")
-class ChapterUnreadSelectionTest {
+class ChapterReadSelectionTest {
     @get:Rule val compose = createEmptyComposeRule()
     private lateinit var activity: ActivityController<ComponentActivity>
     private var openedChapter: String? = null
+    private var read = false
+    private val readStates = mutableListOf<Boolean>()
     private val writes = mutableListOf<Set<String>>()
     private var requestedLocale by mutableStateOf(Locale.US)
     private val snackbar = SnackbarHostState()
@@ -81,8 +83,8 @@ class ChapterUnreadSelectionTest {
                 LocalSnackbarHost provides snackbar, LocalClaimSnackbarHost provides {},
             ) {
                 MaterialTheme {
-                    DetailScreen(state, {}, {}, { openedChapter = it }, {}, {}, {}, {}, {}, {},
-                        onMarkChaptersUnread = save)
+                    DetailScreen(state, {}, {}, { openedChapter = it }, {}, {}, {}, {}, {},
+                        onSetChaptersRead = { ids, targetRead -> readStates += targetRead; save(ids) })
                 }
             }
         }
@@ -91,12 +93,52 @@ class ChapterUnreadSelectionTest {
 
     private fun enterSelection() {
         compose.onNodeWithContentDescription(text(R.string.action_more_options)).performClick()
-        compose.onNodeWithText(text(R.string.mark_as_unread)).performClick()
+        compose.onNodeWithText(text(if (read) R.string.mark_as_read else R.string.mark_as_unread)).performClick()
     }
 
     private fun confirm() {
-        compose.onNodeWithText(text(R.string.mark_unread_action)).performClick()
+        compose.onNodeWithText(text(if (read) R.string.mark_read_action else R.string.mark_unread_action)).performClick()
         compose.onNodeWithText(text(R.string.confirm)).performClick()
+    }
+
+    @Test fun readSelectionSkipsMiddleChaptersAndDoesNotLeakIntoTheUnreadAction() {
+        read = true
+        show()
+        enterSelection()
+        compose.onNodeWithText(text(R.string.mark_read_action)).assertIsNotEnabled()
+        compose.onNodeWithText("Chapter 0").performClick().assertIsOn()
+        compose.onNodeWithText("Chapter 2").performClick().assertIsOn()
+        compose.onNodeWithText("Chapter 1").assertIsOff()
+        confirm()
+        assertEquals(listOf(setOf("chapter-0", "chapter-2")), writes)
+        assertEquals(listOf(true), readStates)
+        assertNull(openedChapter)
+
+        read = false
+        enterSelection()
+        compose.onNodeWithText("Chapter 0").assertIsOff()
+        compose.onNodeWithText("Chapter 2").assertIsOff()
+        compose.onNodeWithText("Chapter 1").performClick()
+        confirm()
+        assertEquals(listOf(true, false), readStates)
+        assertEquals(setOf("chapter-1"), writes.last())
+    }
+
+    @Test fun readSelectionSupportsSelectAllAndClearAndPreservesTheActionAfterFailure() {
+        read = true
+        var calls = 0
+        show { ids -> if (++calls == 1) error("Write failed") else writes += ids }
+        enterSelection()
+        compose.onNodeWithText(text(R.string.select_all)).performClick()
+        compose.onNodeWithText(text(R.string.deselect_all)).performClick()
+        compose.onNodeWithText(text(R.string.mark_read_action)).assertIsNotEnabled()
+        compose.onNodeWithText(text(R.string.select_all)).performClick()
+        confirm()
+        compose.onNodeWithText("Chapter 0").assertIsOn()
+        compose.onNodeWithText("Chapter 3").assertIsOn()
+        confirm()
+        assertEquals(listOf(true, true), readStates)
+        assertEquals(listOf((0..3).mapTo(mutableSetOf()) { "chapter-$it" }), writes)
     }
 
     @Test fun rowsSelectArbitraryChaptersWithoutNavigationAndRestoreTheHideReadPreference() {
@@ -114,7 +156,7 @@ class ChapterUnreadSelectionTest {
         assertEquals(listOf(setOf("chapter-0", "chapter-2")), writes)
         compose.onNodeWithText("Chapter 0").assertDoesNotExist()
         compose.onNodeWithContentDescription(text(R.string.detail_directory_options)).performClick()
-        compose.onNodeWithText(text(R.string.hide_read)).assertIsSelected()
+        compose.onNode(hasText(text(R.string.hide_read)) and hasClickAction()).assertIsSelected()
         assertNull(openedChapter)
     }
 
@@ -122,7 +164,7 @@ class ChapterUnreadSelectionTest {
         show()
         enterSelection()
         compose.onNodeWithText("Chapter 1").performClick()
-        compose.onNodeWithText(text(R.string.mark_unread_action)).performClick()
+        compose.onNodeWithText(text(if (read) R.string.mark_read_action else R.string.mark_unread_action)).performClick()
         compose.onNodeWithText(text(R.string.cancel)).performClick()
         compose.onNodeWithText("Chapter 1").assertIsOn()
         compose.runOnIdle { activity.get().onBackPressedDispatcher.onBackPressed() }
@@ -136,10 +178,10 @@ class ChapterUnreadSelectionTest {
     @Test fun selectAllIncludesHiddenHistoryAndCanBeClearedBeforeApplying() {
         show()
         enterSelection()
-        compose.onNodeWithText(text(R.string.mark_unread_action)).assertIsNotEnabled()
+        compose.onNodeWithText(text(if (read) R.string.mark_read_action else R.string.mark_unread_action)).assertIsNotEnabled()
         compose.onNodeWithText(text(R.string.select_all)).performClick()
         compose.onNodeWithText(text(R.string.deselect_all)).performClick()
-        compose.onNodeWithText(text(R.string.mark_unread_action)).assertIsNotEnabled()
+        compose.onNodeWithText(text(if (read) R.string.mark_read_action else R.string.mark_unread_action)).assertIsNotEnabled()
         compose.onNodeWithText(text(R.string.select_all)).performClick()
         confirm()
         assertEquals(listOf((0..3).mapTo(mutableSetOf()) { "chapter-$it" }), writes)
@@ -151,7 +193,7 @@ class ChapterUnreadSelectionTest {
         val click = compose.onNodeWithText("Chapter 1").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
         compose.runOnIdle { click(); click() }
         compose.onNodeWithText("Chapter 1").assertIsOff()
-        compose.onNodeWithText(text(R.string.mark_unread_action)).assertIsNotEnabled()
+        compose.onNodeWithText(text(if (read) R.string.mark_read_action else R.string.mark_unread_action)).assertIsNotEnabled()
     }
 
     @Test fun pendingFailureUsesTheUpdatedLocaleWithoutRestartingTheWrite() {
@@ -187,7 +229,7 @@ class ChapterUnreadSelectionTest {
         assertTrue(writes.isEmpty())
         compose.runOnIdle { completed.complete(Unit) }
         compose.onNodeWithText("Chapter 1").assertIsOn()
-        compose.onNodeWithText(text(R.string.mark_unread_action)).assertIsEnabled()
+        compose.onNodeWithText(text(if (read) R.string.mark_read_action else R.string.mark_unread_action)).assertIsEnabled()
         confirm()
         assertEquals(2, calls)
         assertEquals(listOf(setOf("chapter-1")), writes)

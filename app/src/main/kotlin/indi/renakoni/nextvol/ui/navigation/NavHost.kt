@@ -36,7 +36,6 @@ import indi.renakoni.nextvol.ui.book.download.bookDownload
 import indi.renakoni.nextvol.ui.components.LnrNavigationBar
 import indi.renakoni.nextvol.ui.components.LnrSnackbar
 import indi.renakoni.nextvol.ui.dialog.addBookToBookshelfDialog
-import indi.renakoni.nextvol.ui.dialog.markAllChaptersAsReadDialog
 import indi.renakoni.nextvol.ui.dialog.updatesAvailableDialog
 import indi.renakoni.nextvol.ui.home.homeNavigation
 import indi.renakoni.nextvol.ui.storagemanager.storageManager
@@ -114,7 +113,6 @@ fun NextVolNavHost(
                     bookManager()
                     bookDownload()
                     storageManager()
-                    markAllChaptersAsReadDialog()
                 }
 
                 LnrNavigationBar(

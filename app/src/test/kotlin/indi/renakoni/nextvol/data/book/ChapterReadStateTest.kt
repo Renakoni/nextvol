@@ -24,7 +24,7 @@ import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
-class MarkChaptersUnreadTest {
+class ChapterReadStateTest {
     private lateinit var database: NextVolDatabase
     private lateinit var repository: BookReadingDataRepository
     private val book = BookIdentity.book("book")
@@ -48,10 +48,42 @@ class MarkChaptersUnreadTest {
 
     @After fun tearDown() { database.close() }
 
+    @Test fun markingNonAdjacentChaptersReadPreservesSkippedProgressAndResumePositions() = runBlocking {
+        val before = repository.getUserReadingData(book.storageKey)
+        val revision = repository.progressRevision()
+        repository.setChaptersRead(book.storageKey, setOf(ids[1], ids[3]), catalog, read = true)
+        val after = repository.getUserReadingData(book.storageKey)
+        assertEquals(before.copy(
+            lastReadTime = after.lastReadTime,
+            maxChapterReadingProgressMap = before.maxChapterReadingProgressMap + mapOf(ids[1] to 1f, ids[3] to 1f),
+            readingProgress = .9f,
+        ), after)
+        assertEquals(revision, repository.progressRevision())
+        assertTrue(repository.updateChapterProgress(book.storageKey, ids[3], revision) {
+            it.copyWithUpdatedChapterReadingProgress(ids[3], .5f)
+        })
+        assertEquals(1f, repository.getUserReadingData(book.storageKey).maxChapterReadingProgressMap[ids[3]])
+    }
+
+    @Test fun markingAllReadFinishesTheCatalogWithoutChangingRemovedHistoryOrResume() = runBlocking {
+        val removed = BookIdentity.chapter("removed", book).storageKey
+        repository.updateUserReadingData(book.storageKey) {
+            it.copy(maxChapterReadingProgressMap = it.maxChapterReadingProgressMap + (removed to .7f))
+        }
+        val before = repository.getUserReadingData(book.storageKey)
+        repository.setChaptersRead(book.storageKey, catalog, catalog, read = true)
+        val after = repository.getUserReadingData(book.storageKey)
+        assertEquals(before.copy(
+            lastReadTime = after.lastReadTime,
+            maxChapterReadingProgressMap = before.maxChapterReadingProgressMap + catalog.associateWith { 1f },
+            readingProgress = 1f,
+        ), after)
+    }
+
     @Test fun oneOrSeveralHistoricalChaptersKeepTheExactResumePositionAndMetadata() = runBlocking {
         for (selection in listOf(setOf(ids[0]), setOf(ids[1], ids[3]))) {
             val before = repository.getUserReadingData(book.storageKey)
-            repository.markChaptersUnread(book.storageKey, selection, catalog)
+            repository.setChaptersRead(book.storageKey, selection, catalog, read = false)
             val after = repository.getUserReadingData(book.storageKey)
             assertEquals(before.copy(
                 currentChapterReadingProgressMap = before.currentChapterReadingProgressMap - selection,
@@ -64,13 +96,13 @@ class MarkChaptersUnreadTest {
     }
 
     @Test fun selectingTheCurrentChapterOrAllChaptersKeepsThatChapterAndRestartsItAtZero() = runBlocking {
-        repository.markChaptersUnread(book.storageKey, setOf(ids[2]), catalog)
+        repository.setChaptersRead(book.storageKey, setOf(ids[2]), catalog, read = false)
         val afterCurrent = repository.getUserReadingData(book.storageKey)
         assertEquals(ids[2], afterCurrent.lastReadChapterId)
         assertEquals("Current chapter", afterCurrent.lastReadChapterTitle)
         assertEquals(0f, afterCurrent.currentChapterReadingProgressMap[ids[2]] ?: 0f)
         assertEquals(.675f, afterCurrent.readingProgress, .00001f)
-        repository.markChaptersUnread(book.storageKey, catalog, catalog)
+        repository.setChaptersRead(book.storageKey, catalog, catalog, read = false)
         val afterAll = repository.getUserReadingData(book.storageKey)
         assertEquals(ids[2], afterAll.lastReadChapterId)
         assertEquals("Current chapter", afterAll.lastReadChapterTitle)
@@ -85,15 +117,17 @@ class MarkChaptersUnreadTest {
         repository.updateUserReadingData(book.storageKey) {
             it.copy(maxChapterReadingProgressMap = mapOf(ids[0] to 1f, ids[1] to 2f, ids[2] to -.2f, orphan to 1f))
         }
-        repository.markChaptersUnread(book.storageKey, setOf(ids[0]), catalog)
+        repository.setChaptersRead(book.storageKey, setOf(ids[0]), catalog, read = false)
         assertEquals(.25f, repository.getUserReadingData(book.storageKey).readingProgress)
     }
 
     @Test fun emptyOrUnknownSelectionDoesNotWriteOrInvalidateTheReader() = runBlocking {
         val before = repository.getUserReadingData(book.storageKey)
         val revision = repository.progressRevision()
-        repository.markChaptersUnread(book.storageKey, emptySet(), catalog)
-        repository.markChaptersUnread(book.storageKey, setOf("unknown"), catalog)
+        for (read in listOf(false, true)) {
+            repository.setChaptersRead(book.storageKey, emptySet(), catalog, read)
+            repository.setChaptersRead(book.storageKey, setOf("unknown"), catalog, read)
+        }
         assertEquals(before, repository.getUserReadingData(book.storageKey))
         assertEquals(revision, repository.progressRevision())
     }
@@ -107,7 +141,7 @@ class MarkChaptersUnreadTest {
                 it.copyWithUpdatedChapterReadingProgress(ids[0], 1f)
             }
         }
-        repository.markChaptersUnread(book.storageKey, setOf(ids[0]), catalog)
+        repository.setChaptersRead(book.storageKey, setOf(ids[0]), catalog, read = false)
         gate.complete(Unit)
         assertFalse(oldWrite.await())
         assertFalse(repository.getUserReadingData(book.storageKey).maxChapterReadingProgressMap.containsKey(ids[0]))
@@ -127,12 +161,12 @@ class MarkChaptersUnreadTest {
         repository.updateUserReadingData(other.storageKey) { it.copyWithUpdatedChapterReadingProgress(otherChapter, .9f) }
         val before = repository.getUserReadingData(book.storageKey)
         try {
-            repository.markChaptersUnread(book.storageKey, setOf(otherChapter), catalog)
+            repository.setChaptersRead(book.storageKey, setOf(otherChapter), catalog, read = false)
             fail("A chapter from another source must not be accepted")
         } catch (_: IllegalArgumentException) { }
         assertEquals(before, repository.getUserReadingData(book.storageKey))
         assertEquals(0L, repository.progressRevision())
-        repository.markChaptersUnread(book.storageKey, catalog, catalog)
+        repository.setChaptersRead(book.storageKey, catalog, catalog, read = false)
         assertTrue(repository.updateChapterProgress(other.storageKey, otherChapter, 0L) {
             it.copyWithUpdatedChapterReadingProgress(otherChapter, 1f)
         })
@@ -148,7 +182,7 @@ class MarkChaptersUnreadTest {
             committed.complete(Unit)
             release.await()
         }
-        val reset = launch { coordinated.markChaptersUnread(book.storageKey, setOf(ids[0]), catalog) }
+        val reset = launch { coordinated.setChaptersRead(book.storageKey, setOf(ids[0]), catalog, read = false) }
         committed.await()
         reset.cancel()
         release.complete(Unit)

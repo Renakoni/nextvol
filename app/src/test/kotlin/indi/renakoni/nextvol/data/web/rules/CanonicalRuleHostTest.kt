@@ -149,7 +149,7 @@ class CanonicalRuleHostTest {
             assertEquals("Series", local.getBookInformation(first.storageKey)!!.title)
             val beforeReset = reading.progressRevision()
             val catalog = local.getBookVolumes(series.storageKey)!!.volumes.single().chapters.map { it.id }.toSet()
-            reading.markChaptersUnread(series.storageKey, setOf(targetChapter), catalog)
+            reading.setChaptersRead(series.storageKey, setOf(targetChapter), catalog, read = false)
             assertFalse(reading.updateChapterProgress(first.storageKey, oldChapter.storageKey, beforeReset) { it })
             shelves.deleteBookFromBookshelf(1, first.storageKey)
             assertTrue(shelves.getBookshelf(1)!!.allBookIds.isEmpty())

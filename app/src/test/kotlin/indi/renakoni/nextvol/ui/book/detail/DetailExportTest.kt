@@ -38,7 +38,7 @@ class DetailExportTest {
             every { enqueueUniqueWork(any(), ExistingWorkPolicy.KEEP, capture(request)) } returns operation
             every { getWorkInfosForUniqueWorkFlow(any()) } returns infos
         }
-        val model = DetailViewModel(repository, mockk(), mockk(), work, mockk())
+        val model = DetailViewModel(repository, mockk(), mockk(), work, mockk(), mockk())
         val store = ViewModelStore().apply { put("detail", model) }
         try {
             (model.uiState as MutableDetailUiState).readingAvailable = true
