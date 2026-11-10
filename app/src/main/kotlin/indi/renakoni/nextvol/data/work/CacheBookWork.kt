@@ -266,7 +266,7 @@ class CacheBookWork @AssistedInject constructor(
                             val checkpoint = prepared.result.bind()
                             mark(DownloadStage.Storage, chapterId)
                             val missingImages = checkpoint.images.filterNot { downloads.hasCheckpointImage(active, checkpoint, it) }
-                            val replacesImages = downloads.replacesImageVersion(active, checkpoint)
+                            val replacesImages = missingImages.isNotEmpty() && downloads.replacesImageVersion(active, checkpoint)
                             for (uri in missingImages) {
                                 mark(DownloadStage.Image, chapterId)
                                 val force = replacesImages && uri !in refreshedImages
