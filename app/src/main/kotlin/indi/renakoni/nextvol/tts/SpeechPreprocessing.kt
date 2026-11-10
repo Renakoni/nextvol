@@ -9,6 +9,8 @@ private val unspokenText = Pattern.compile("^[\\s\\p{C}\\p{P}\\p{Z}\\p{S}]+$")
 private val latinText = Pattern.compile("[\\p{script=Latin}\\p{P}0-9\\s]+")
 private val latinLetter = Pattern.compile("\\p{script=Latin}")
 private val atomicMarks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]")
+private const val speechClosingPunctuation = ",.!?;:，。！？；：…”」»\"’')]}）】》"
+
 private val wordWhitespace = Pattern.compile("\\s+")
 private val chineseEnglishSentence = Pattern.compile(
     "([,.!?;:”」»\\n，。！？；：…|](?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")")
@@ -144,6 +146,8 @@ internal fun speechSentenceChunks(
         checkCancelled()
         while (markIndex < marks.size && marks[markIndex].last < matches.start()) markIndex++
         if (markIndex < marks.size && matches.start() in marks[markIndex]) continue
+        if (input.text[matches.start()] == '.' && matches.start() > 0 && matches.end() < input.text.length &&
+            Character.isDigit(input.text.codePointBefore(matches.start())) && Character.isDigit(input.text.codePointAt(matches.end()))) continue
         // The original start + 1 loses a low surrogate before an opening quote.
         append(matches.end())
     }
@@ -190,20 +194,19 @@ private fun speechLongSentence(
     while (words.isNotEmpty() && words.last().first == words.last().second) words.removeAt(words.lastIndex)
     if (words.size == 1) return speechBoundedChunks(input, limit, false, checkCancelled)
     val groups = mutableListOf<SpeechMappedText>()
-    var output = SpeechMappedText.Builder(limit)
-    var previousEnd = 0
+    var groupStart = -1
+    var groupEnd = 0
     for ((from, to) in words) {
         checkCancelled()
-        if (output.length > 0 && output.length + to - from > limit) {
-            groups += output.build(input)
-            output = SpeechMappedText.Builder(limit)
+        if (from == to) continue
+        if (groupStart >= 0 && to - groupStart > limit) {
+            groups += input.slice(groupStart, groupEnd)
+            groupStart = -1
         }
-        // MultiTTS normalizes whitespace and adds a leading space to each aggregate.
-        output.append(" ", input.range(previousEnd, from))
-        output.append(input, from, to)
-        previousEnd = to
+        if (groupStart < 0) groupStart = from
+        groupEnd = to
     }
-    groups += output.build(input)
+    if (groupStart >= 0) groups += input.slice(groupStart, groupEnd)
     return groups.flatMap { speechBoundedChunks(it, limit, false, checkCancelled) }
 }
 
@@ -233,6 +236,16 @@ private fun speechBoundedChunks(
         checkCancelled()
         var end = minOf(start + limit, input.text.length)
         if (end < input.text.length && input.text[end - 1].isHighSurrogate() && input.text[end].isLowSurrogate()) end--
+        if (end < input.text.length && input.text[end] in speechClosingPunctuation) {
+            var punctuationStart = end
+            var punctuationEnd = end
+            while (punctuationStart > start && input.text[punctuationStart - 1] in speechClosingPunctuation) punctuationStart--
+            while (punctuationEnd < input.text.length && input.text[punctuationEnd] in speechClosingPunctuation) punctuationEnd++
+            if (punctuationStart > start) {
+                val before = punctuationStart - Character.charCount(input.text.codePointBefore(punctuationStart))
+                if (before > start && punctuationEnd - before <= limit) end = before
+            }
+        }
         while (markIndex < marks.size && marks[markIndex].last < start) markIndex++
         var index = markIndex
         while (index < marks.size && marks[index].first < end) {
