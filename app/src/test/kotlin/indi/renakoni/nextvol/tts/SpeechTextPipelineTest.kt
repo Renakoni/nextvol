@@ -47,12 +47,14 @@ class SpeechTextPipelineTest {
     }
 
     @Test fun hardLimitKeepsFinalPunctuationWithTextAndOriginalRange() = runBlocking {
-        val chapter = SpeechChapter("book", "one", "", "", "甲".repeat(200) + " 。")
         val settings = SpeechSettings(text = SpeechTextSettings(maxSentenceLength = 256, separateEnglish = false))
-        val plan = prepareSpeechPlan(chapter, settings, maxInputLength = 200) {}
-        assertEquals(listOf("甲".repeat(199), "甲 。"), plan.segments.map { it.text })
-        assertEquals(199, plan.position(1).start)
-        assertEquals(202, plan.position(1).end)
+        for (ending in listOf(" 。", "。』", "——")) {
+            val chapter = SpeechChapter("book", "one", "", "", "甲".repeat(199) + ending)
+            val plan = prepareSpeechPlan(chapter, settings, maxInputLength = 200) {}
+            assertEquals(listOf("甲".repeat(198), "甲$ending"), plan.segments.map { it.text })
+            assertEquals(198, plan.position(1).start)
+            assertEquals(chapter.text.length, plan.position(1).end)
+        }
     }
 
     @Test fun controlSpansBypassOrdinaryReplacementAndEmojiWithDialogueDisabled() = runBlocking {

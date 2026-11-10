@@ -5,6 +5,13 @@ import java.util.regex.Pattern
 
 private const val onlineSpeechClosingPunctuation = ",.!?;:，。！？；：…”」»\"’')]}）】》"
 
+private fun onlineSpeechIsClosingPunctuation(value: Char): Boolean = value in onlineSpeechClosingPunctuation ||
+    when (Character.getType(value)) {
+        Character.END_PUNCTUATION.toInt(), Character.FINAL_QUOTE_PUNCTUATION.toInt(),
+        Character.DASH_PUNCTUATION.toInt() -> true
+        else -> false
+    }
+
 private val onlineChineseEnglishSentence = Pattern.compile(
     "([,.!?;:”」»\\n，。！？；：…|](?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")")
 private val onlineOtherSentence = Pattern.compile(
@@ -43,7 +50,7 @@ internal fun splitOnlineSpeechText(text: String, limit: Int): List<String> {
     }
     for (part in parts) {
         if (part.length + buffer.length > limit && part.length > 1 && buffer.isNotEmpty() &&
-            part.any { it !in onlineSpeechClosingPunctuation && !Character.isWhitespace(it) }) flush()
+            part.any { !onlineSpeechIsClosingPunctuation(it) && !Character.isWhitespace(it) }) flush()
         buffer.append(part)
     }
     flush()
@@ -64,7 +71,7 @@ private fun splitLongOnlineSpeechText(text: String, limit: Int): List<String> {
     fun appendWord(from: Int, to: Int) {
         if (from == to) return
         if (groupStart >= 0 && to - groupStart > limit &&
-            (from until to).any { text[it] !in onlineSpeechClosingPunctuation }) {
+            (from until to).any { !onlineSpeechIsClosingPunctuation(text[it]) }) {
             groups += text.substring(groupStart, groupEnd)
             groupStart = -1
         }
@@ -92,11 +99,11 @@ private fun splitLongOnlineSpeechText(text: String, limit: Int): List<String> {
                 val tailLimit = minOf(end + limit, sentence.length)
                 var punctuationEnd = end
                 while (punctuationEnd < tailLimit && Character.isWhitespace(sentence[punctuationEnd])) punctuationEnd++
-                if (punctuationEnd < tailLimit && sentence[punctuationEnd] in onlineSpeechClosingPunctuation) {
+                if (punctuationEnd < tailLimit && onlineSpeechIsClosingPunctuation(sentence[punctuationEnd])) {
                     var punctuationStart = end
-                    while (punctuationStart > from && (sentence[punctuationStart - 1] in onlineSpeechClosingPunctuation ||
+                    while (punctuationStart > from && (onlineSpeechIsClosingPunctuation(sentence[punctuationStart - 1]) ||
                         Character.isWhitespace(sentence[punctuationStart - 1]))) punctuationStart--
-                    while (punctuationEnd < tailLimit && (sentence[punctuationEnd] in onlineSpeechClosingPunctuation ||
+                    while (punctuationEnd < tailLimit && (onlineSpeechIsClosingPunctuation(sentence[punctuationEnd]) ||
                         Character.isWhitespace(sentence[punctuationEnd]))) punctuationEnd++
                     if (punctuationStart > from) {
                         val before = punctuationStart - Character.charCount(sentence.codePointBefore(punctuationStart))

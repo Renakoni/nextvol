@@ -11,6 +11,13 @@ private val latinLetter = Pattern.compile("\\p{script=Latin}")
 private val atomicMarks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]")
 private const val speechClosingPunctuation = ",.!?;:，。！？；：…”」»\"’')]}）】》"
 
+private fun speechIsClosingPunctuation(value: Char): Boolean = value in speechClosingPunctuation ||
+    when (Character.getType(value)) {
+        Character.END_PUNCTUATION.toInt(), Character.FINAL_QUOTE_PUNCTUATION.toInt(),
+        Character.DASH_PUNCTUATION.toInt() -> true
+        else -> false
+    }
+
 private val wordWhitespace = Pattern.compile("\\s+")
 private val chineseEnglishSentence = Pattern.compile(
     "([,.!?;:”」»\\n，。！？；：…|](?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")")
@@ -136,7 +143,7 @@ internal fun speechSentenceChunks(
     var partEnd = 0
     fun append(end: Int) {
         if (end - groupStart > limit && end - partStart > 1 && partStart != groupStart &&
-            (partStart until end).any { input.text[it] !in speechClosingPunctuation && !Character.isWhitespace(input.text[it]) }) {
+            (partStart until end).any { !speechIsClosingPunctuation(input.text[it]) && !Character.isWhitespace(input.text[it]) }) {
             flush(groupStart, partStart)
             groupStart = partStart
         }
@@ -190,7 +197,7 @@ private fun speechLongSentence(
     fun appendWord(from: Int, to: Int) {
         if (from == to) return
         if (groupStart >= 0 && to - groupStart > limit &&
-            (from until to).any { input.text[it] !in speechClosingPunctuation }) {
+            (from until to).any { !speechIsClosingPunctuation(input.text[it]) }) {
             flush()
             groupStart = -1
         }
@@ -240,11 +247,11 @@ private fun speechBoundedChunks(
         val tailLimit = minOf(end + limit, input.text.length)
         var punctuationEnd = end
         while (punctuationEnd < tailLimit && Character.isWhitespace(input.text[punctuationEnd])) punctuationEnd++
-        if (punctuationEnd < tailLimit && input.text[punctuationEnd] in speechClosingPunctuation) {
+        if (punctuationEnd < tailLimit && speechIsClosingPunctuation(input.text[punctuationEnd])) {
             var punctuationStart = end
-            while (punctuationStart > start && (input.text[punctuationStart - 1] in speechClosingPunctuation ||
+            while (punctuationStart > start && (speechIsClosingPunctuation(input.text[punctuationStart - 1]) ||
                 Character.isWhitespace(input.text[punctuationStart - 1]))) punctuationStart--
-            while (punctuationEnd < tailLimit && (input.text[punctuationEnd] in speechClosingPunctuation ||
+            while (punctuationEnd < tailLimit && (speechIsClosingPunctuation(input.text[punctuationEnd]) ||
                 Character.isWhitespace(input.text[punctuationEnd]))) punctuationEnd++
             if (punctuationStart > start) {
                 val before = punctuationStart - Character.charCount(input.text.codePointBefore(punctuationStart))
