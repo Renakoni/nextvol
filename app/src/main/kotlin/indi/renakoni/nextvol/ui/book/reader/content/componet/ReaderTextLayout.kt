@@ -79,7 +79,8 @@ internal fun measureReaderText(
             val end = if (newline < 0) source.text.length else newline
             val contentEnd = if (newline >= 0 && end > start && source.text[end - 1] == '\r') end - 1 else end
             val nextStart = if (newline < 0) source.text.length else newline + 1
-            val text = source.text.substring(start, contentEnd)
+            // Keep soft breaks inside the paragraph, using the same separator for measuring and drawing.
+            val text = source.text.substring(start, contentEnd).replace('\u2028', '\n')
             val measured = measure(text, width.coerceAtLeast(1))
             add(MeasuredReaderParagraph(source.componentIndex, start, nextStart, text,
                 IntArray(measured.lineCount) { measured.getLineStart(it) },
@@ -145,7 +146,7 @@ internal fun splitReaderText(
                 paragraph.start + start,
                 if (lastLine == lineCount - 1) paragraph.end else paragraph.start + end,
                 paragraph.text.substring(start, end).let {
-                    if (lastLine < lineCount - 1) it.removeSuffix("\u2028") else it
+                    if (lastLine < lineCount - 1) it.removeSuffix("\n") else it
                 }, spacing, fragmentHeight,
                 (firstLine..lastLine).map { paragraph.start + paragraph.lineStarts[it] },
                 (firstLine..lastLine).map { (paragraph.lineTops[it] - top).toInt() },

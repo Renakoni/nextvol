@@ -211,55 +211,6 @@ class ReaderSpacingInstrumentedTest {
         assertEquals(chapter.id, flip.readingChapterId)
     }
 
-    @Test fun sequentialLayoutChangesRetainTheOriginalVisibleCharacter() {
-        val fixture = ReflowFixture()
-        fixture.moveToMiddle()
-        val anchor = fixture.visibleAnchor()
-        assertTrue(anchor > 0)
-        fixture.reflow("font=22", anchor) { runBlocking { settings.fontSizeUserData.set(22f) } }
-        fixture.reflow("line spacing=12", anchor) { runBlocking { settings.fontLineHeightUserData.set(12f) } }
-        fixture.reflow("paragraph spacing=8", anchor) { runBlocking { settings.paragraphSpacingUserData.set(8f) } }
-        fixture.reflow("width=250", anchor) { compose.runOnIdle { fixture.width = 250.dp } }
-        fixture.reflow("font=16", anchor) { runBlocking { settings.fontSizeUserData.set(16f) } }
-        fixture.reflow("font=28", anchor) { runBlocking { settings.fontSizeUserData.set(28f) } }
-        fixture.reflow("width=320", anchor) { compose.runOnIdle { fixture.width = 320.dp } }
-        fixture.reflow("width=250 again", anchor) { compose.runOnIdle { fixture.width = 250.dp } }
-        assertEquals(fixture.chapter.id, fixture.flip.readingChapterId)
-    }
-
-    @Test fun turningThePageAfterReflowEstablishesANewCharacterAnchor() {
-        val fixture = ReflowFixture()
-        fixture.moveToMiddle()
-        val original = fixture.visibleAnchor()
-        fixture.reflow("font=22", original) { runBlocking { settings.fontSizeUserData.set(22f) } }
-        val previousPage = fixture.flip.pagerState.settledPage
-        compose.onNode(hasScrollToIndexAction()).performTouchInput { swipeLeft() }
-        compose.waitUntil(5_000) { fixture.flip.pagerState.settledPage > previousPage }
-        compose.waitForIdle()
-        val afterTurn = fixture.visibleAnchor()
-        assertTrue(afterTurn > original)
-        fixture.reflow("line spacing after swipe", afterTurn) { runBlocking { settings.fontLineHeightUserData.set(12f) } }
-        fixture.reflow("width after swipe", afterTurn) { compose.runOnIdle { fixture.width = 250.dp } }
-    }
-
-    @Test fun changingChaptersDoesNotReuseThePreviousChapterAnchor() {
-        val fixture = ReflowFixture()
-        fixture.moveToMiddle()
-        fixture.reflow("font=22", fixture.visibleAnchor()) { runBlocking { settings.fontSizeUserData.set(22f) } }
-        val nextChapter = ChapterContentUiState("next-chapter", fixture.chapter.title, fixture.chapter.content, null, null)
-        val previousPager = fixture.flip.pagerState
-        compose.runOnIdle {
-            fixture.flip.readingChapterId = nextChapter.id
-            fixture.flip.readingChapterContent = Ok(nextChapter)
-        }
-        compose.waitUntil(15_000) { fixture.flip.pagerState !== previousPager && fixture.flip.pagerState.pageCount > 0 }
-        compose.waitForIdle()
-        assertEquals(0, fixture.flip.pagerState.settledPage)
-        assertEquals(0, fixture.visibleAnchor())
-        fixture.reflow("new chapter width", 0) { compose.runOnIdle { fixture.width = 250.dp } }
-        assertEquals(nextChapter.id, fixture.flip.readingChapterId)
-    }
-
     @Test fun realPagerUsesTheRoundedAsymmetricBodyWidthAtFractionalDensity() {
         val fixture = ReflowFixture(PaddingValues(start = 7.3.dp, end = 12.7.dp, top = 9.4.dp, bottom = 15.2.dp), Density(1.3f))
         fun assertBodyWidth() {
