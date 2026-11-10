@@ -47,7 +47,6 @@ SOURCE_35 = [f'sourceexecution.{name}InstrumentedTest' for name in (
 READER_WIDE = ['reader.ReaderPositionInstrumentedTest', 'reader.ReaderSpreadInstrumentedTest']
 # Keep the existing full-suite class order while selecting individual scopes.
 EXTRA_24 = [
-    ('reader', 'sourceexecution.ReadingPanelInstrumentedTest'),
     ('export', 'EpubShareInstrumentedTest'),
     ('reader', 'reader.ReaderSpacingInstrumentedTest'),
     ('reader', 'reader.ReaderLayoutInstrumentedTest'),

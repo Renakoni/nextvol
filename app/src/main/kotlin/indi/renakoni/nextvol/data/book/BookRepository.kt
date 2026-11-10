@@ -158,11 +158,10 @@ class BookRepository @Inject constructor(
     }
 
     /** Remote-only refresh reports failure even when a local copy exists (background checks). */
-    suspend fun refreshBookInformation(book: SourceBookId, priority: WebDataSourcePriority = WebDataSourcePriority.Low, fresh: Boolean = false,
-        expectedRuntime: indi.renakoni.nextvol.data.web.SourceRuntime? = null): Result<BookInformation, WebRequestError> {
+    suspend fun refreshBookInformation(book: SourceBookId, priority: WebDataSourcePriority = WebDataSourcePriority.Low, fresh: Boolean = false): Result<BookInformation, WebRequestError> {
         if (LocalBookStore.isLocal(book)) return localBooks.readInformation(book)
         val requested = canonicalBook(book)
-        return sourceRegistry.request(requested, expectedRuntime) { runtime -> runtime.execute {
+        return sourceRegistry.request(requested) { runtime -> runtime.execute {
             runtime.getBookInformation(requested.remoteId, priority, refresh = fresh).andThen { remote ->
                 runtime.persistCanonicalBook(requested, localBookDataSource, downloads).map { canonical ->
                     val information = requested.bind(remote)

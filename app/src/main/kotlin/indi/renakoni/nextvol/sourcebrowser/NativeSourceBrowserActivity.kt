@@ -20,6 +20,7 @@ class NativeSourceBrowserActivity : Activity() {
         (view.parent as? ViewGroup)?.removeView(view)
         setContentView(sourceBrowserLayout(this, active.title, view,
             getText(android.R.string.cancel), { active.cancel(jobId) },
+            { if (active.interactiveJobId == jobId) view.reload() },
             getText(R.string.source_browser_done), { active.confirm(jobId) }))
         systemBack = SourceBrowserBack(this) { handleBack() }.also { it.register() }
     }

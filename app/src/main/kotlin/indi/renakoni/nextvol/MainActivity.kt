@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val readerStyle by remember {
                 combine(
-                    fontSizeUserData.getFlowWithDefault(15f),
+                    fontSizeUserData.getFlowWithDefault(22f),
                     fontLineHeightUserData.getFlowWithDefault(7f),
                     fontWeightUserData.getFlowWithDefault(500f),
                     textColorUserData.getFlowWithDefault(Color.Unspecified),
@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }.collectAsStateWithLifecycle(initialValue = ReaderStyle(
-                fontSize = 15f,
+                fontSize = 22f,
                 fontLineHeight = 7f,
                 fontWeight = 500f,
                 textColor = Color.Unspecified,

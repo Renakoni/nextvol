@@ -187,15 +187,17 @@ class SourceBrowserInstrumentedTest {
         }
     }
 
-    @Test fun imageVerificationUsesSourceHeadersAndReturnsTheEnteredCodeAcrossBinder(): Unit = runBlocking {
+    @Test fun imageVerificationReloadKeepsSourceHeadersAndReturnsTheNewCodeAcrossBinder(): Unit = runBlocking {
         ActivityScenario.launch(BrowserTestHostActivity::class.java).use {
             MockWebServer().use { server ->
                 val bytes = java.io.ByteArrayOutputStream().also { output ->
                     android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
                         .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output)
                 }.toByteArray()
-                server.enqueue(MockResponse().setHeader("Content-Type", "image/png")
-                    .addHeader("Set-Cookie", "challenge=fixture; Path=/").setBody(okio.Buffer().write(bytes)))
+                repeat(2) {
+                    server.enqueue(MockResponse().setHeader("Content-Type", "image/png")
+                        .addHeader("Set-Cookie", "challenge=fixture; Path=/").setBody(okio.Buffer().write(bytes)))
+                }
                 server.start()
                 val base = server.url("/").toString()
                 val root = File(context.cacheDir, "image-verification-${System.nanoTime()}")
@@ -211,7 +213,7 @@ class SourceBrowserInstrumentedTest {
                         val limits = ExecutionLimits(timeoutMillis = 60000)
                         SourceExecutionBroker(identity, authority, a, limits, base, allowInteraction = true).use { bridge ->
                             val task = ExecutionTask.Rule("@js:java.getVerificationCode('/captcha.png')", RuleValue.Empty, OutputKind.Text,
-                                baseUrl = base, sourceHeaderRule = "@js:JSON.stringify({Authorization:'Bearer fixture','User-Agent':'captcha-agent'})")
+                                baseUrl = base, sourceHeaderRule = "@js:JSON.stringify({Authorization:'Bearer fixture','User-Agent':'captcha-agent',Cookie:'account=source-alice'})")
                             val pending = async { executor.execute(identity, task, limits, bridge) }
                             val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
                             fun input(node: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
@@ -220,13 +222,24 @@ class SourceBrowserInstrumentedTest {
                                 for (index in 0 until node.childCount) input(node.getChild(index))?.let { return it }
                                 return null
                             }
-                            withTimeout(20000) {
+                            suspend fun enterCode(code: String) {
                                 val arguments = android.os.Bundle().apply {
-                                    putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, " A7c ")
+                                    putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, code)
                                 }
-                                while (input(automation.rootInActiveWindow)?.performAction(
+                                withTimeout(20000) { while (input(automation.rootInActiveWindow)?.performAction(
                                         android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT, arguments) != true) delay(100)
+                                }
                             }
+                            enterCode("old-code")
+                            val reload = context.getString(indi.renakoni.nextvol.R.string.source_browser_reload)
+                            withTimeout(10000) {
+                                while (automation.rootInActiveWindow?.findAccessibilityNodeInfosByText(reload)?.firstOrNull()
+                                        ?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) != true) delay(100)
+                            }
+                            withTimeout(10000) {
+                                while (input(automation.rootInActiveWindow)?.let { it.text.isNullOrEmpty() } != true) delay(100)
+                            }
+                            enterCode(" A7c ")
                             val label = context.getString(android.R.string.ok)
                             withTimeout(10000) {
                                 while (automation.rootInActiveWindow?.findAccessibilityNodeInfosByText(label)?.firstOrNull()
@@ -239,12 +252,14 @@ class SourceBrowserInstrumentedTest {
                         }
                         assertTrue(a.cookie(base).contains("challenge=fixture"))
                         assertEquals("account=bob", b.cookie(base))
-                        val request = server.takeRequest(1, java.util.concurrent.TimeUnit.SECONDS)!!
-                        assertEquals("/captcha.png", request.path)
-                        assertEquals("account=alice", request.getHeader("Cookie"))
-                        assertEquals("Bearer fixture", request.getHeader("Authorization"))
-                        assertEquals("captcha-agent", request.getHeader("User-Agent"))
-                        assertEquals(1, server.requestCount)
+                        repeat(2) {
+                            val request = server.takeRequest(1, java.util.concurrent.TimeUnit.SECONDS)!!
+                            assertEquals("/captcha.png", request.path)
+                            assertTrue(request.getHeader("Cookie").orEmpty().split("; ").contains("account=source-alice"))
+                            assertEquals("Bearer fixture", request.getHeader("Authorization"))
+                            assertEquals("captcha-agent", request.getHeader("User-Agent"))
+                        }
+                        assertEquals(2, server.requestCount)
                     }
                 } finally { executor.close(); root.deleteRecursively() }
             }

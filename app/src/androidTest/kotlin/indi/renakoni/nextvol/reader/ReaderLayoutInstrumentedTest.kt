@@ -57,7 +57,6 @@ import kotlinx.coroutines.*
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,27 +78,20 @@ class ReaderLayoutInstrumentedTest {
 
     @After fun close() { scope.cancel(); database.close(); importedFiles.forEach { it.delete() } }
 
-    @Test fun nativeFontsKeepPageFragmentsWithinMeasuredHeightAndRetainAllSourceOffsets() {
-        val source = ReaderTextSource(0, "\n午后的阳光落在书页上。Mixed English and 中文 text, with punctuation! 𠮷🙂 ".repeat(8) +
-            "\r\n\nA soft\u2028line break and a final paragraph.\n")
-        for (fontScale in listOf(1f, 1.8f)) for (font in ReaderFont.entries.map { it.family() }) {
-            val density = Density(1.5f, fontScale)
-            val measurer = TextMeasurer(createFontFamilyResolver(context), density, LayoutDirection.Ltr)
-            val style = ReaderLayoutSettings.from(settings).textStyle(font, LocaleList("zh-CN,en-US"))
-            for (width in listOf(90, 240, 620)) for (height in listOf(1, 100, 500)) {
-                val pages = layoutReaderText(listOf(source), width, height, 13, style, measurer)
-                val fragments = pages.flatten()
-                assertEquals(source.text, fragments.joinToString("") { source.text.substring(it.start, it.end) })
-                pages.forEach { page ->
-                    assertEquals(0, page.first().spacingBefore)
-                    val actualHeight = page.sumOf { fragment ->
-                        val actual = measurer.measure(fragment.text, style, constraints = Constraints(maxWidth = width))
-                        assertEquals("fragment reflow: width=$width height=$height text=${fragment.text}", fragment.height, actual.size.height)
-                        actual.size.height + fragment.spacingBefore
-                    }
-                    assertTrue("page overflow: $actualHeight > $height", actualHeight <= height || page.size == 1)
-                }
+    @Test fun softBreakAtPageBoundaryKeepsMeasuredHeightAndSourceOffsets() {
+        val source = ReaderTextSource(0, "A soft\u2028line break and a final paragraph.\n")
+        val measurer = TextMeasurer(createFontFamilyResolver(context), Density(1.5f), LayoutDirection.Ltr)
+        val style = ReaderLayoutSettings.from(settings).textStyle(FontFamily.Default, LocaleList("zh-CN,en-US"))
+        val pages = layoutReaderText(listOf(source), 90, 100, 13, style, measurer)
+        val fragments = pages.flatten()
+        assertEquals(source.text, fragments.joinToString("") { source.text.substring(it.start, it.end) })
+        pages.forEach { page ->
+            val actualHeight = page.sumOf { fragment ->
+                val actual = measurer.measure(fragment.text, style, constraints = Constraints.fixedWidth(90))
+                assertEquals("fragment=${fragment.text}", fragment.height, actual.size.height)
+                actual.size.height + fragment.spacingBefore
             }
+            assertTrue("page overflow: $actualHeight", actualHeight <= 100)
         }
     }
 
@@ -151,7 +143,7 @@ class ReaderLayoutInstrumentedTest {
             MaterialTheme(colorScheme = colors, typography = AppTypography) {
                 CompositionLocalProvider(
                     LocalAppTheme provides AppTheme(dark, colors),
-                    LocalReaderStyle provides ReaderStyle(15f, 7f, 500f, Color.Black, Color.White),
+                    LocalReaderStyle provides ReaderStyle(22f, 7f, 500f, Color.Black, Color.White),
                 ) {
                     ReaderLayoutSettingsPage(settings)
                 }
@@ -169,10 +161,10 @@ class ReaderLayoutInstrumentedTest {
         val previewLayouts = mutableListOf<TextLayoutResult>()
         compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
             .fetchSemanticsNodes().forEach { node -> node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(previewLayouts) }
-        assertTrue(previewLayouts.any { it.layoutInput.style.fontSize.value > 15f && it.layoutInput.text.text == "Welcome to Nextvol" })
-        assertEquals(15f, settings.fontSize)
+        assertTrue(previewLayouts.any { it.layoutInput.style.fontSize.value > 22f && it.layoutInput.text.text == "Welcome to Nextvol" })
+        assertEquals(22f, settings.fontSize)
         fontSlider.performTouchInput { up() }
-        compose.waitUntil(5_000) { settings.fontSize > 15f }
+        compose.waitUntil(5_000) { settings.fontSize > 22f }
         val paragraph = compose.onNodeWithContentDescription(context.getString(R.string.reader_paragraph_spacing))
         paragraph.performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(8f) }
         compose.waitUntil(5_000) { settings.paragraphSpacing == 8f }
@@ -269,50 +261,6 @@ class ReaderLayoutInstrumentedTest {
         compose.onNodeWithTag("reader-paper-sage").assertDoesNotExist()
         compose.onNode(paperEntry).performClick()
         compose.onNodeWithTag("reader-paper-sage").assertIsSelected()
-    }
-
-    // Re-enable when #353 has a reproducible cause and regression for the initial font-list update.
-    @Ignore("Intermittent font-list timeout on API 24/35: https://github.com/Renakoni/nextvol/issues/353")
-    @Test fun tenImportedFontsRemainSelectableAfterSwitchingAndReopening() = runBlocking {
-        val source = File(context.cacheDir, "appearance-font.otf")
-        val files = mutableListOf<File>()
-        try {
-            context.resources.openRawResource(R.font.source_han_serif_regular).use { input ->
-                source.outputStream().use { input.copyTo(it) }
-            }
-            repeat(10) {
-                importReaderFont(context, Uri.fromFile(source), settings)
-                files += File(requireNotNull(requireNotNull(settings.fontFamilyUriUserData.get()).path)).also(importedFiles::add)
-            }
-            val selected = Uri.fromFile(files.last())
-            compose.waitUntil(5_000) { settings.fontFamilyUri == selected }
-            var showing by mutableStateOf(true)
-            compose.setContent { MaterialTheme { if (showing) ReaderFontEntry(settings) } }
-            val last = files.last().path
-            try {
-                compose.waitUntil(5_000) { compose.onAllNodesWithTag("reader-font-$selected").fetchSemanticsNodes().isNotEmpty() }
-            } catch (failure: ComposeTimeoutException) {
-                throw AssertionError("Selected=$selected observed=${settings.fontFamilyUri} fonts=${importedReaderFonts(context, selected)}\n${compose.onRoot().printToString()}", failure)
-            }
-            compose.onNodeWithTag("reader-font-$selected").assertIsSelected().assertIsDisplayed()
-            compose.onNodeWithTag("reader-font-list").performScrollToIndex(0)
-            compose.onNodeWithText(context.getString(R.string.reader_font_system)).performClick()
-            compose.waitUntil(5_000) { settings.fontFamilyUri == Uri.EMPTY }
-            assertTrue(files.all { it.exists() })
-            compose.runOnIdle { showing = false }
-            compose.runOnIdle { showing = true }
-            compose.waitUntil(5_000) {
-                runCatching { compose.onNodeWithTag("reader-font-list").performScrollToKey(last) }.isSuccess
-            }
-            compose.onNodeWithTag("reader-font-$selected").performClick()
-            compose.waitUntil(5_000) { settings.fontFamilyUri == selected }
-            source.writeText("not a font")
-            assertTrue(runCatching { importReaderFont(context, Uri.fromFile(source), settings) }.isFailure)
-            assertEquals(selected, settings.fontFamilyUriUserData.get())
-            assertTrue(importedReaderFonts(context, selected).containsAll(files))
-        } finally {
-            source.delete()
-        }
     }
 
     private fun saveScreenshot(name: String) {

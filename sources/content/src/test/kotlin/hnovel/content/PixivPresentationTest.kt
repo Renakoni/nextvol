@@ -47,32 +47,6 @@ class PixivPresentationTest {
         })
     }
 
-    @Test fun readerPanelHasOnlyReadingActionsAndNeverFetchesPollDetails() = runBlocking {
-        RuleSourceFixture(browser).use { fixture ->
-            fixture.source(profile = EXTENSION_PROFILE) { raw ->
-                // Supply a stored reading context without depending on a live Pixiv book.
-                JsonObject(definition(fixture, """
-                    settings.SHOW_SETTINGS=true;settings.SHOW_DISCOVER=true;
-                    settings.SHOW_SETTINGS2=true;settings.SHOW_DISCOVER2=true;
-                    settings.SHOW_QUESTION=true;settings.SHOW_FURRY=true;
-                """.trimIndent()) + raw.filterKeys { it in setOf(
-                    "searchUrl", "ruleSearch", "ruleBookInfo", "ruleToc", "ruleContent", "header") } + mapOf(
-                    "loginCheckJs" to JsonPrimitive(""), "eventListener" to JsonPrimitive(false)))
-            }.use { source ->
-                val book = source.search("fixture").single()
-                val chapter = source.directory(book.id).first { !it.isVolume }
-                val before = fixture.server.requestCount
-                source.openLoginSession(LoginReadingContext(book.id, chapter.id)).use { panel ->
-                    val form = panel.loginForm()
-                    assertEquals(listOf("收藏本章", "追更系列", "收藏系列", "取消收藏", "关注作者", "刷新本章"),
-                        form.fields.map { it.name.substringAfterLast(' ') })
-                    assertTrue(form.fields.all { it.type == "button" || it.type == "toggle" })
-                    assertEquals(before, fixture.server.requestCount)
-                }
-            }
-        }
-    }
-
     @Test fun configurationAndLocalListsAreOnlyInSourceSettings() = runBlocking {
         RuleSourceFixture(browser).use { fixture ->
             fixture.source(profile = EXTENSION_PROFILE) { definition(fixture,

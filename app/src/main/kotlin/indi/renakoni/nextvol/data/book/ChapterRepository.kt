@@ -64,9 +64,9 @@ class ChapterRepository @Inject constructor(
     }
 
     internal suspend fun refreshBookVolumes(book: SourceBookId, priority: WebDataSourcePriority, fresh: Boolean = false,
-        expectedRuntime: indi.renakoni.nextvol.data.web.SourceRuntime? = null, reuseRecent: Boolean = false): Result<BookVolumes, WebRequestError> {
+        reuseRecent: Boolean = false): Result<BookVolumes, WebRequestError> {
         val requested = localBookDataSource.aliases.resolve(book)
-        return sourceRegistry.request(requested, expectedRuntime) { runtime -> runtime.execute {
+        return sourceRegistry.request(requested) { runtime -> runtime.execute {
             runtime.getBookVolumes(requested.remoteId, priority, refresh = fresh, reuseRecent = reuseRecent).mapError { error ->
                 error.mapAvailableVolumes { requested.bind(it).rebind(requested, book) }
             }.andThen { remote ->
@@ -129,10 +129,9 @@ class ChapterRepository @Inject constructor(
         return localBookDataSource.getReusableChapterContent(chapter.storageKey, revision)
     }
 
-    internal suspend fun refreshChapter(chapter: SourceChapterId, priority: WebDataSourcePriority, fresh: Boolean = false,
-        expectedRuntime: indi.renakoni.nextvol.data.web.SourceRuntime? = null): Result<ChapterContent, WebRequestError> {
+    internal suspend fun refreshChapter(chapter: SourceChapterId, priority: WebDataSourcePriority, fresh: Boolean = false): Result<ChapterContent, WebRequestError> {
         val requested = localBookDataSource.aliases.resolve(chapter.book)
-        return sourceRegistry.request(requested, expectedRuntime) { runtime -> runtime.execute {
+        return sourceRegistry.request(requested) { runtime -> runtime.execute {
             runtime.getChapterContent(chapter.remoteId, requested.remoteId, priority, refresh = fresh).andThen { remote ->
                 runtime.persistCanonicalBook(requested, localBookDataSource, downloads).map {
                     chapter.bind(remote).also {

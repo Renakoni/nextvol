@@ -23,7 +23,7 @@ val LocalNavController = compositionLocalOf<NavController> {
  */
 val LocalReaderStyle = compositionLocalOf {
     ReaderStyle(
-        fontSize = 15f,
+        fontSize = 22f,
         fontLineHeight = 7f,
         fontWeight = 500f,
         textColor = Color.Unspecified,

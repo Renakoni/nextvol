@@ -17,7 +17,7 @@ class SourceBrowserActivity : Activity() {
         val view = active.webView ?: run { finish(); return }
         (view.parent as? ViewGroup)?.removeView(view)
         setContentView(sourceBrowserLayout(this, active.pageTitle, view,
-            getText(android.R.string.cancel), { active.cancel() },
+            getText(android.R.string.cancel), { active.cancel() }, view::reload,
             getText(if (active.verificationCode) android.R.string.ok else R.string.source_browser_done), { active.evaluate() }))
         systemBack = SourceBrowserBack(this) { handleBack() }.also { it.register() }
     }

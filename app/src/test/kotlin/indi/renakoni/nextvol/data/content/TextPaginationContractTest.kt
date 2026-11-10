@@ -82,7 +82,7 @@ class TextPaginationContractTest {
     fun splitPreservesSettingReadOrderDefaultsMeasurementInputsAndComponentConstruction() = runTest {
         val reads = mutableListOf<String>()
         val component = component("A\nBB\nC")
-        coEvery { component.fontSizeUserData.getOrDefault(15f) } answers { reads += "size"; 18f }
+        coEvery { component.fontSizeUserData.getOrDefault(22f) } answers { reads += "size"; 18f }
         coEvery { component.fontLineHeightUserData.getOrDefault(7f) } answers { reads += "line"; 4f }
         coEvery { component.fontWeightUserData.getOrDefault(500f) } answers { reads += "weight"; 600f }
         coEvery { component.fontFamilyUriUserData.getOrDefault(Uri.EMPTY) } answers { reads += "font"; Uri.EMPTY }

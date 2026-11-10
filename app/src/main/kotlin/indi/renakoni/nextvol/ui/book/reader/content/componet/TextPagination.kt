@@ -42,7 +42,7 @@ internal class TextPagination(userDataRepositoryApi: UserDataRepositoryApi, cont
     suspend fun split(text: String, height: Int, width: Int): List<String> {
         val safeHeight = height.coerceAtLeast(1)
         val safeWidth = width.coerceAtLeast(1)
-        val fontSize = fontSizeUserData.getOrDefault(15f)
+        val fontSize = fontSizeUserData.getOrDefault(22f)
         val fontLineHeight = fontLineHeightUserData.getOrDefault(7f)
         val fontWeigh = fontWeightUserData.getOrDefault(500f)
         return textMeasurer.measure(

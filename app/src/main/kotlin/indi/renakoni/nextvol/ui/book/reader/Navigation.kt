@@ -63,53 +63,20 @@ fun NavGraphBuilder.bookReaderDestination(onReaderActiveChanged: (Boolean) -> Un
         // restored reader entry owns a separate session during navigation transitions.
         val viewModel = hiltViewModel<ReaderViewModel>(parentEntry, key = navBackStackEntry.id)
         val bookmarkModel = hiltViewModel<indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarksViewModel>(navBackStackEntry)
-        val panelModel = hiltViewModel<ReaderSourcePanelViewModel>(navBackStackEntry)
         val speechState by viewModel.readAloud.state.collectAsStateWithLifecycle()
         androidx.lifecycle.compose.LifecycleStartEffect(viewModel) {
             viewModel.setActive(true)
-            panelModel.setActive(true)
             onStopOrDispose {
                 val retainBrowser = navController.currentBackStackEntry?.id == navBackStackEntry.id
                 viewModel.setActive(false, retainBrowser)
-                panelModel.setActive(false, retainBrowser)
             }
         }
         DisposableEffect(viewModel, navBackStackEntry) {
             onDispose {
-                panelModel.dismiss(null)
                 if (navController.currentBackStackEntry?.id != navBackStackEntry.id) viewModel.setActive(false)
             }
         }
         val route = navBackStackEntry.toRoute<Route.Book.Reader>()
-        LaunchedEffect(route.bookId, viewModel, panelModel) {
-            // Binding follows chapter changes without invalidating the navigation content.
-            androidx.compose.runtime.snapshotFlow { viewModel.uiState.contentUiState?.readingChapterId }
-                .collect { panelModel.bind(route.bookId, it) }
-        }
-        val notice = panelModel.notice?.let { stringResource(it) }
-        LaunchedEffect(notice) {
-            if (notice != null) {
-                textToast(navController.context, notice, Toast.LENGTH_LONG).show()
-                panelModel.clearNotice()
-            }
-        }
-        if (panelModel.visible) {
-            val form = panelModel.form
-            if (form != null) indi.renakoni.nextvol.ui.home.settings.sources.SourceLoginDialog(
-                form, panelModel.busy,
-                onSubmit = { values, action, formId, longClick -> panelModel.submit(values, action, formId, longClick, viewModel::applySourcePanelRefresh) },
-                onCancel = { panelModel.dismiss() }, title = stringResource(R.string.reader_source_panel),
-                message = stringResource(R.string.reader_source_panel_boundary),
-                showLoginAction = false,
-            ) else androidx.compose.material3.AlertDialog(
-                onDismissRequest = { panelModel.dismiss() },
-                title = { androidx.compose.material3.Text(stringResource(R.string.reader_source_panel)) },
-                text = { androidx.compose.material3.CircularProgressIndicator() },
-                confirmButton = { androidx.compose.material3.TextButton(onClick = { panelModel.dismiss() }) {
-                    androidx.compose.material3.Text(stringResource(android.R.string.cancel))
-                } },
-            )
-        }
         LaunchedEffect(navBackStackEntry) {
             bookmarkModel.open(route.bookId)
             viewModel.openBook(route.bookId, route.chapterId)
@@ -119,11 +86,6 @@ fun NavGraphBuilder.bookReaderDestination(onReaderActiveChanged: (Boolean) -> Un
                 LocalReaderPositionSession provides viewModel.positions) {
                 ReaderScreen(
                     readingScreenUiState = viewModel.uiState,
-                    onSourcePanel = if (panelModel.available) ({
-                        panelModel.bind(route.bookId, viewModel.uiState.contentUiState?.readingChapterId)
-                        panelModel.open(viewModel.uiState.contentUiState?.readingProgress ?: 0f)
-                    }) else null,
-                    sourcePanelVisible = panelModel.visible,
                     settingState = viewModel.readerSettings,
                     fontFamilySettings = viewModel.fontFamilySettings,
                     onClickBackButton = navController::popBackStackIfResumed,

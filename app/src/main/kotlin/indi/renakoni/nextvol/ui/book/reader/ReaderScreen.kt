@@ -145,8 +145,6 @@ fun ReaderScreen(
     onBookmarkNoticeShown: () -> Unit = {},
     onAddBookmark: (ReadingBookmark) -> Unit = {},
     onDeleteBookmark: (ReadingBookmark) -> Unit = {},
-    onSourcePanel: (() -> Unit)? = null,
-    sourcePanelVisible: Boolean = false,
 ) = ReaderMotionTheme(settingState.reduceMotion) {
     ReaderPaperTheme(settingState, manageSystemBars = true) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -303,7 +301,7 @@ fun ReaderScreen(
             batteryIndicatorDisplayMode = settingState.batteryIndicatorDisplayMode,
             keepScreenOn = settingState.keepScreenOn,
         )
-        if (!sourcePanelVisible) ReaderReadingTimeEffects(
+        ReaderReadingTimeEffects(
             currentBookId = { readingScreenUiState.bookId },
             updateTotalReadingTime = updateTotalReadingTime,
             accumulateReadTime = accumulateReadTime,
@@ -313,7 +311,7 @@ fun ReaderScreen(
             LocalReaderLayoutResult provides layoutResult) {
             Content(
                 isImmersive = isImmersive,
-                volumeKeysEnabled = !sourcePanelVisible && !showSettingsBottomSheet && !showChapterSelectionBottomSheet && !showReadAloud && !showBookmarks,
+                volumeKeysEnabled = !showSettingsBottomSheet && !showChapterSelectionBottomSheet && !showReadAloud && !showBookmarks,
                 readingScreenUiState = readingScreenUiState,
                 settingState = settingState,
                 fontFamilySettings = fontFamilySettings,
@@ -330,7 +328,6 @@ fun ReaderScreen(
                     title = readingScreenUiState.chapterTitle(readingScreenUiState.contentUiState?.readingChapterId)
                         ?: stringResource(R.string.reader_chapter),
                     scrollBehavior = scrollBehavior,
-                    onSourcePanel = onSourcePanel,
                     onReadAloud = {
                         onStartReadAloud()
                         showReadAloud = true
@@ -567,7 +564,6 @@ internal fun ReaderTopBar(
     title: String,
     scrollBehavior: TopAppBarScrollBehavior,
     onReadAloud: () -> Unit,
-    onSourcePanel: (() -> Unit)? = null,
 ) {
     TopAppBar(
         navigationIcon = {
@@ -592,9 +588,6 @@ internal fun ReaderTopBar(
             }
         },
         actions = {
-            if (onSourcePanel != null) TextButton(onClick = onSourcePanel, modifier = Modifier.testTag("reader-source-panel")) {
-                Text(stringResource(R.string.reader_source_panel))
-            }
             IconButton(onClick = onReadAloud, modifier = Modifier.size(48.dp).testTag("reader-read-aloud")) {
                 Icon(painterResource(R.drawable.headphones_24px), stringResource(R.string.tts_start))
             }

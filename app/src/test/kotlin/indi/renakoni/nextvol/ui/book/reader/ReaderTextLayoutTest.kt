@@ -74,7 +74,7 @@ class ReaderTextLayoutTest {
 
     @Test fun numericInputsRejectNonFiniteValuesAndClampToExistingControlRanges() {
         for (value in listOf(Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)) {
-            assertEquals(15f, ReaderLayoutValues.fontSize(value))
+            assertEquals(22f, ReaderLayoutValues.fontSize(value))
             assertEquals(500f, ReaderLayoutValues.fontWeight(value))
             assertEquals(7f, ReaderLayoutValues.lineSpacing(value))
             assertEquals(0f, ReaderLayoutValues.paragraphSpacing(value))

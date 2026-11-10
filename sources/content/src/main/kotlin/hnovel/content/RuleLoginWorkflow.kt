@@ -8,7 +8,7 @@ import kotlinx.serialization.json.*
 
 /** Login state belongs to one source ticket; the facade supplies the existing operation boundary. */
 internal class RuleLoginWorkflow(binding: RuleSourceBinding,
-    private val evaluation: (RuleBook?, RuleChapter?, Boolean) -> RuleEvaluation,
+    private val evaluation: (Boolean) -> RuleEvaluation,
     private val request: suspend (RuleEvaluation, String, String, BrowserOptions) -> BrokerResponse,
     private val checkStatus: (Int, String, Boolean) -> Unit,
     private val verification: (BrokerResult.Failure) -> SourceVerification?,
@@ -20,23 +20,6 @@ internal class RuleLoginWorkflow(binding: RuleSourceBinding,
     private val storage = binding.storage
     private val network = binding.network
     private var cachedLoginForm: LoginForm? = null
-    data class LoginReadingSnapshot(val book: RuleBook, val chapter: RuleChapter?)
-    var loginReading: LoginReadingSnapshot? = null
-
-    fun readingSnapshot(reading: LoginReadingContext?, store: RuleBookStore): LoginReadingSnapshot? = reading?.let { position ->
-        val record = store.read(position.bookId)?.takeIf { it.revision == identity.revision }
-            ?: throw SourceContentException(ContentError.Unavailable, "login.book")
-        val chapters = record.chapters.filterNot { it.isVolume }
-        val index = chapters.indexOfFirst { it.id == position.chapterId }
-        if (position.chapterId != null && index < 0)
-            throw SourceContentException(ContentError.Unavailable, "login.chapter")
-        // Reader progress is normalized, not Legado's character offset (durChapterPos).
-        val metadata = record.book.state.metadata + mapOf(
-            "readingProgress" to JsonPrimitive(position.readingProgress)) + if (index < 0) emptyMap() else mapOf(
-            "durChapterIndex" to JsonPrimitive(index), "durChapterTitle" to JsonPrimitive(chapters[index].title))
-        LoginReadingSnapshot(record.book.copy(state = record.book.state.copy(metadata = JsonObject(metadata))),
-            chapters.getOrNull(index))
-    }
 
     suspend fun loginForm(): LoginForm = (cachedLoginForm ?: loadLoginForm()).withValues(loginValues())
 
@@ -58,13 +41,12 @@ internal class RuleLoginWorkflow(binding: RuleSourceBinding,
     }
 
     private fun loginContext(values: Map<String, String>, interactive: Boolean, longClick: Boolean = false): RuleEvaluation =
-        evaluation(loginReading?.book, loginReading?.chapter, interactive).also {
+        evaluation(interactive).also {
         // Reuse the existing bounded interaction envelope; the login form owns this draft.
         // No exploration catalogue is evaluated and no Android objects cross the worker boundary.
         it.discovery = buildJsonObject {
             put("sessionId", "login"); put("values", JsonObject(values.mapValues { JsonPrimitive(it.value) }))
-            put("interactive", interactive); put("longClick", longClick); put("noBook", loginReading == null)
-            put("noChapter", loginReading?.chapter == null); put("readingPanel", loginReading != null)
+            put("interactive", interactive); put("longClick", longClick); put("noBook", true)
         }
     }
 
@@ -156,20 +138,10 @@ internal class RuleLoginWorkflow(binding: RuleSourceBinding,
         val state = context.discovery!!
         if (state["saveSeconds"]?.let { it != JsonNull } == true) throw SourceContentException(ContentError.InvalidRule, "loginUi.infoMap.save")
         val actions = (state["actions"] as? JsonArray).orEmpty()
-        val refreshTargets = mutableSetOf<LoginRefreshTarget>()
         for (item in actions) {
             val command = item.jsonObject
             when (command.string("kind")) {
                 "refresh" -> Unit
-                "refreshBookInfo", "refreshBookToc", "refreshContent" -> {
-                    if (loginReading == null || command.getValue("args").jsonArray.isNotEmpty())
-                        throw SourceContentException(ContentError.InvalidRule, "loginUi.action.refresh")
-                    refreshTargets += when (command.string("kind")) {
-                        "refreshBookInfo" -> LoginRefreshTarget.BookInformation
-                        "refreshBookToc" -> LoginRefreshTarget.Directory
-                        else -> LoginRefreshTarget.Content
-                    }
-                }
                 "showBrowser" -> {
                     val args = command.getValue("args").jsonArray
                     if (args.size !in 1..4) throw SourceContentException(ContentError.InvalidRule, "loginUi.action.browser")
@@ -189,6 +161,6 @@ internal class RuleLoginWorkflow(binding: RuleSourceBinding,
         val refreshDiscovery = actions.any { it.jsonObject.string("kind") == "refresh" }
         if (refreshDiscovery) cachedLoginForm = null
         if (action == null) authority.authorized(identity) { check(storage.write(StorageRequest(StorageArea.Account, "login/status", "authenticated")) is StorageResult.Value) }
-        return LoginActionResult(refreshTargets.toSet(), messages.toList(), refreshDiscovery)
+        return LoginActionResult(messages.toList(), refreshDiscovery)
     }
 }

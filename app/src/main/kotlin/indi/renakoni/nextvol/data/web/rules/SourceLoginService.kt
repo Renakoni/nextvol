@@ -2,7 +2,6 @@ package indi.renakoni.nextvol.data.web.rules
 
 import hnovel.content.LoginForm
 import hnovel.content.LoginActionResult
-import hnovel.content.LoginReadingContext
 import hnovel.content.RuleSource
 import hnovel.content.SourceContentException
 import hnovel.content.ContentError
@@ -15,7 +14,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 data class LoginAttempt internal constructor(val source: Identifier, val generation: Long, val revision: String,
-    internal val rules: RuleSource, val reading: LoginReadingContext? = null) {
+    internal val rules: RuleSource) {
     internal val lifetime = Job()
     internal val submission = kotlinx.coroutines.sync.Mutex()
 }
@@ -33,9 +32,9 @@ class SourceLoginService @Inject constructor(private val sources: ImportedRuleSo
     suspend fun status(source: Identifier): LoginStatus = withContext(Dispatchers.IO) {
         savedStatus(sources.storedSettings(source).loginStatus)
     }
-    suspend fun begin(source: Identifier, intent: LoginIntent = LoginIntent.Panel, reading: LoginReadingContext? = null): LoginAttempt {
+    suspend fun begin(source: Identifier, intent: LoginIntent = LoginIntent.Panel): LoginAttempt {
         val target = if (intent == LoginIntent.Relogin) sources.rotateAccount(source) else sources.loginTarget(source)
-        return LoginAttempt(source, target.generation, target.revision, target.rules.openLoginSession(reading), reading)
+        return LoginAttempt(source, target.generation, target.revision, target.rules.openLoginSession())
     }
     suspend fun submit(attempt: LoginAttempt, values: Map<String, String>, action: String? = null, formId: String? = null,
         longClick: Boolean = false): LoginActionResult {

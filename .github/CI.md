@@ -194,7 +194,7 @@ both the benchmark App and instrumentation APK. Other benchmark paths remain
 full until their execution contract is reviewed.
 
 Shared inputs have explicit consumers: content testFixtures select content/App
-JVM and the existing Debug devices (including the reading panel); Rhino test
+JVM and the existing Debug devices; Rhino test
 resources select Rhino/compatibility JVM and Debug devices; compatibility browser
 fixtures select content/compatibility JVM and Debug devices; native-routing site
 fixtures select Debug devices. Live browser tests remain opt-in. Compatibility

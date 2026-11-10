@@ -66,7 +66,7 @@ class SettingState(
     override val darkThemeNameUserData = userDataRepository.stringUserData(UserDataPath.Settings.Display.DarkThemeName.path)
     override val backBlockModeUserData = userDataRepository.stringUserData(UserDataPath.Reader.BackBlockMode.path)
 
-    private val storedFontSize by fontSizeUserData.safeAsState(15f)
+    private val storedFontSize by fontSizeUserData.safeAsState(22f)
     override val fontSize get() = ReaderLayoutValues.fontSize(storedFontSize)
     private val storedFontLineHeight by fontLineHeightUserData.safeAsState(7f)
     override val fontLineHeight get() = ReaderLayoutValues.lineSpacing(storedFontLineHeight)
