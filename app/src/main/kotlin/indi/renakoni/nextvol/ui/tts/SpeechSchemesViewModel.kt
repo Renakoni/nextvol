@@ -39,8 +39,8 @@ class SpeechSchemesViewModel @Inject constructor(saved: SavedStateHandle, privat
         }
     }
 
-    fun create(name: String, copyFrom: String?, forBook: Boolean, onSaved: () -> Unit) = save(onSaved) {
-        repository.create(name, copyFrom, bookId.takeIf { forBook })
+    fun create(name: String, copyFrom: String?, onSaved: () -> Unit) = save(onSaved) {
+        repository.create(name, copyFrom)
     }
     fun rename(id: String, name: String, onSaved: () -> Unit) = save(onSaved) { repository.rename(id, name) }
     fun default(id: String) = save { repository.setDefault(id) }

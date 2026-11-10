@@ -10,7 +10,7 @@
     <string name="tts_scheme_follow_default">跟隨預設</string>
     <string name="tts_scheme_follow_name">跟隨預設：%1$s</string>
     <string name="tts_scheme_book">本書方案</string>
-    <string name="tts_scheme_copy_for_book">複製為本書方案</string>
+    <string name="tts_scheme_use">使用本方案</string>
     <string name="tts_scheme_copy">複製方案</string>
     <string name="tts_scheme_rename">重新命名方案</string>
     <string name="tts_scheme_delete">刪除方案</string>
