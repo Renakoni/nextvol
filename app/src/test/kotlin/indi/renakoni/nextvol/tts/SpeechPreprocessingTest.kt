@@ -50,6 +50,41 @@ class SpeechPreprocessingTest {
             SpeechMappedText.original("甲乙。丙丁。戊己。"), 6, Locale.CHINESE).map { it.text })
     }
 
+    @Test fun completeSentencesPrecedeInnerPausesWithoutChangingLanguageDetectionUnits() {
+        val sentence = "甲".repeat(39) + "，" + "乙".repeat(39) + "。"
+        val input = SpeechMappedText.original(sentence)
+        val chunks = speechSentenceChunks(input, 60, Locale.CHINESE)
+        assertEquals(listOf(sentence), chunks.map { it.text })
+        assertEquals(listOf(40, 40), speechLanguageSentences(input, Locale.CHINESE, {}).map { it.text.length })
+        assertEquals(listOf(sentence.take(40), sentence.drop(40)),
+            chunks.flatMap { speechHardChunks(it, 50) }.map { it.text })
+        val shortSentence = "甲".repeat(29) + "。"
+        assertEquals(listOf(shortSentence.repeat(2), shortSentence), speechSentenceChunks(
+            SpeechMappedText.original(shortSentence.repeat(3)), 60, Locale.CHINESE).map { it.text })
+    }
+
+    @Test fun overlongSentencesUsePausesBeforeWhitespaceAndFixedLengthFallback() {
+        val clauses = listOf("甲".repeat(49) + "，", "乙".repeat(49) + "；", "丙".repeat(49) + "。")
+        val input = SpeechMappedText.original(clauses.joinToString(""))
+        val chunks = speechSentenceChunks(input, 60, Locale.CHINESE)
+        assertEquals(clauses, chunks.map { it.text })
+        assertEquals(listOf(0 to 50, 50 to 100, 100 to 150), chunks.map { it.range() })
+        assertEquals(listOf("alpha beta", "gamma delta"), speechHardChunks(
+            SpeechMappedText.original("alpha beta gamma delta"), 11).map { it.text })
+    }
+
+    @Test fun consecutiveSentenceEndingsStayWithTextAcrossSoftAndHardCuts() {
+        val first = "甲".repeat(59) + "……！？”"
+        val second = "乙".repeat(29) + "。"
+        val input = SpeechMappedText.original(first + second)
+        val soft = speechSentenceChunks(input, 60, Locale.CHINESE)
+        assertEquals(listOf(first, second), soft.map { it.text })
+        val hard = soft.flatMap { speechHardChunks(it, 60) }
+        assertTrue(hard.all { it.text.length <= 60 && !speechIsUnspoken(it.text) })
+        assertEquals(input.text, hard.joinToString("") { it.text })
+        assertTrue(hard.all { it.text == input.text.substring(it.range().first, it.range().second) })
+    }
+
     @Test fun longWhitespaceGroupingUsesOriginalRangesWithoutAddingSpaces() {
         val input = SpeechMappedText.original("alpha  beta gamma")
         val chunks = speechSentenceChunks(input, 6, Locale.ENGLISH)

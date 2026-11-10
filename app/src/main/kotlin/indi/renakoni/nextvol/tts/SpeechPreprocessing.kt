@@ -11,6 +11,8 @@ private val latinLetter = Pattern.compile("\\p{script=Latin}")
 private val atomicMarks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]")
 private const val speechClosingPunctuation = ",.!?;:，。！？；：…”」»\"’')]}）】》"
 
+// Synthesis boundaries are separate from punctuation units used by language detection.
+private val speechSentenceEnd = Pattern.compile("[.!?。！？…]")
 private val wordWhitespace = Pattern.compile("\\s+")
 private val chineseEnglishSentence = Pattern.compile(
     "([,.!?;:”」»\\n，。！？；：…|](?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")")
@@ -112,7 +114,7 @@ internal fun speechReplaceEmoji(
     return output.build(input)
 }
 
-/** MultiTTS groups at the target, but only hard-splits a group at twice that length. */
+/** Aggregate complete sentences at the target; use pauses only once a sentence reaches twice the target. */
 internal fun speechSentenceChunks(
     input: SpeechMappedText, limit: Int,
     locale: Locale = Locale.getDefault(), checkCancelled: () -> Unit = {},
@@ -120,14 +122,25 @@ internal fun speechSentenceChunks(
     require(limit >= 2)
     checkCancelled()
     if (input.text.length <= limit) return listOf(input)
+    val pauses = if (locale.language == "en" || locale.language == "zh") chineseEnglishSentence else otherSentence
+    return speechPunctuationChunks(input, limit, speechSentenceEnd, false, checkCancelled) { sentence ->
+        speechPunctuationChunks(sentence, limit, pauses, false, checkCancelled) {
+            speechLongSentence(it, limit, false, checkCancelled)
+        }
+    }
+}
+
+private fun speechPunctuationChunks(
+    input: SpeechMappedText, limit: Int, pattern: Pattern, hard: Boolean, checkCancelled: () -> Unit,
+    splitLong: (SpeechMappedText) -> List<SpeechMappedText>,
+): List<SpeechMappedText> {
     val result = mutableListOf<SpeechMappedText>()
     fun flush(start: Int, end: Int) {
         val group = input.slice(start, end)
-        val chunks = if (group.text.length < limit * 2) listOf(group)
-            else speechLongSentence(group, limit, checkCancelled)
+        val fits = if (hard) group.text.length <= limit else group.text.length < limit * 2
+        val chunks = if (fits) listOf(group) else splitLong(group)
         result += chunks
     }
-    val pattern = if (locale.language == "en" || locale.language == "zh") chineseEnglishSentence else otherSentence
     val marks = speechMarkRanges(input.text)
     val matches = pattern.matcher(input.text)
     var markIndex = 0
@@ -144,12 +157,15 @@ internal fun speechSentenceChunks(
     }
     while (matches.find()) {
         checkCancelled()
+        if (matches.end() <= partEnd) continue
         while (markIndex < marks.size && marks[markIndex].last < matches.start()) markIndex++
         if (markIndex < marks.size && matches.start() in marks[markIndex]) continue
         if (input.text[matches.start()] == '.' && matches.start() > 0 && matches.end() < input.text.length &&
             Character.isDigit(input.text.codePointBefore(matches.start())) && Character.isDigit(input.text.codePointAt(matches.end()))) continue
-        // The original start + 1 loses a low surrogate before an opening quote.
-        append(matches.end())
+        // Keep contiguous punctuation and closing quotes with the preceding text at either priority.
+        var end = matches.end()
+        while (end < input.text.length && input.text[end] in speechClosingPunctuation) end++
+        append(end)
     }
     if (partEnd < input.text.length) append(input.text.length)
     flush(groupStart, input.text.length)
@@ -176,7 +192,7 @@ internal fun speechLanguageSentences(input: SpeechMappedText, locale: Locale, ch
 }
 
 private fun speechLongSentence(
-    input: SpeechMappedText, limit: Int, checkCancelled: () -> Unit,
+    input: SpeechMappedText, limit: Int, hard: Boolean, checkCancelled: () -> Unit,
 ): List<SpeechMappedText> {
     val marks = speechMarkRanges(input.text)
     val whitespace = wordWhitespace.matcher(input.text)
@@ -192,7 +208,7 @@ private fun speechLongSentence(
     }
     words += start to input.text.length
     while (words.isNotEmpty() && words.last().first == words.last().second) words.removeAt(words.lastIndex)
-    if (words.size == 1) return speechBoundedChunks(input, limit, false, checkCancelled)
+    if (words.size == 1) return speechBoundedChunks(input, limit, hard, checkCancelled)
     val groups = mutableListOf<SpeechMappedText>()
     var groupStart = -1
     var groupEnd = 0
@@ -207,13 +223,23 @@ private fun speechLongSentence(
         groupEnd = to
     }
     if (groupStart >= 0) groups += input.slice(groupStart, groupEnd)
-    return groups.flatMap { speechBoundedChunks(it, limit, false, checkCancelled) }
+    return groups.flatMap { speechBoundedChunks(it, limit, hard, checkCancelled) }
 }
 
 /** Backend limits are independent of the user's softer sentence target. */
 internal fun speechHardChunks(
     input: SpeechMappedText, limit: Int, checkCancelled: () -> Unit = {},
-): List<SpeechMappedText> = speechBoundedChunks(input, limit, true, checkCancelled)
+): List<SpeechMappedText> {
+    require(limit >= 2)
+    checkCancelled()
+    if (input.text.length <= limit) return listOf(input)
+    val pauses = if (Locale.getDefault().language in setOf("en", "zh")) chineseEnglishSentence else otherSentence
+    return speechPunctuationChunks(input, limit, speechSentenceEnd, true, checkCancelled) { sentence ->
+        speechPunctuationChunks(sentence, limit, pauses, true, checkCancelled) {
+            speechLongSentence(it, limit, true, checkCancelled)
+        }
+    }
+}
 
 private fun speechMarkRanges(text: String): List<IntRange> {
     val result = mutableListOf<IntRange>()
@@ -225,7 +251,6 @@ private fun speechMarkRanges(text: String): List<IntRange> {
 private fun speechBoundedChunks(
     input: SpeechMappedText, limit: Int, hard: Boolean, checkCancelled: () -> Unit,
 ): List<SpeechMappedText> {
-    require(limit >= 2)
     checkCancelled()
     if (input.text.length <= limit) return listOf(input)
     val result = mutableListOf<SpeechMappedText>()
