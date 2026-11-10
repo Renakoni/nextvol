@@ -45,7 +45,7 @@ class ReaderSettingsBoundaryTest {
     fun settingAdapterPreservesDefaultsAndStoragePaths() {
         val state = SettingState(UserDataRepository(InMemoryUserDataDao()), scope)
 
-        assertEquals(15f, state.fontSize)
+        assertEquals(22f, state.fontSize)
         assertEquals(7f, state.fontLineHeight)
         assertEquals(true, state.enableHideStatusBar)
         assertEquals("classic", state.batteryIndicatorDisplayMode)
@@ -243,7 +243,7 @@ class ReaderSettingsBoundaryTest {
         withTimeout(5_000) {
             while (restored.fontLineHeight != 7f || restored.fontWeigh != 900f || restored.leftPadding != 0f) delay(1)
         }
-        assertEquals(15f, restored.fontSize)
+        assertEquals(22f, restored.fontSize)
     }
 
     @Test

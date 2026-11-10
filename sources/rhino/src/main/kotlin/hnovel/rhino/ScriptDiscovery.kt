@@ -74,12 +74,6 @@ class ScriptDiscovery(initial: JsonObject) {
             scope.put("book", scope, null)
             scope.put("chapter", scope, null)
         }
-        if (snapshot["noChapter"]?.jsonPrimitive?.boolean == true) scope.put("chapter", scope, null)
-        if (snapshot["readingPanel"]?.jsonPrimitive?.boolean == true) {
-            for (name in listOf("refreshBookInfo", "refreshBookToc", "refreshContent")) method(java, name) { args ->
-                require(args.isEmpty()); emit(name, args); null
-            }
-        }
         for (target in listOf(java, source)) method(target, "refreshExplore") { args ->
             require(args.isEmpty()); emit("refresh", args); null
         }

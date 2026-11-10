@@ -30,7 +30,7 @@ internal object ReaderLayoutValues {
     fun normalize(value: Float, range: ClosedFloatingPointRange<Float>, default: Float): Float =
         if (value.isFinite()) value.coerceIn(range) else default
 
-    fun fontSize(value: Float) = normalize(value, fontSizeRange, 15f)
+    fun fontSize(value: Float) = normalize(value, fontSizeRange, 22f)
     fun fontWeight(value: Float) = normalize(value, fontWeightRange, 500f)
     fun lineSpacing(value: Float) = normalize(value, lineSpacingRange, 7f)
     fun paragraphSpacing(value: Float) = normalize(value, paragraphSpacingRange, 0f)

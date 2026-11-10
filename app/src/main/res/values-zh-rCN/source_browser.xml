@@ -1,5 +1,6 @@
 <resources>
     <string name="source_browser_done">返回阅读器</string>
     <string name="source_browser_title">网站</string>
+    <string name="source_browser_reload">重新加载</string>
     <string name="source_verification_code">图片验证码</string>
 </resources>

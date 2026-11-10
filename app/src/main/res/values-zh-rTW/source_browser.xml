@@ -1,4 +1,5 @@
 <resources>
     <string name="source_browser_done">返回閱讀器</string>
     <string name="source_browser_title">網站</string>
+    <string name="source_browser_reload">重新載入</string>
 </resources>

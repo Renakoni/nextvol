@@ -5,10 +5,12 @@ import android.app.Application
 import android.content.Intent
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.view.View
 import android.webkit.ServiceWorkerController
 import android.webkit.WebView
 import android.window.OnBackInvokedCallback
 import hnovel.network.*
+import indi.renakoni.nextvol.R
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -108,6 +110,9 @@ class SourceBrowserBackTest {
         val view = service.webView!!
         shadowOf(view).setCanGoBack(true)
         val controller = Robolectric.buildActivity(SourceBrowserActivity::class.java).setup()
+        reload(controller.get())
+        assertEquals(1, shadowOf(view).reloadInvocations)
+        assertTrue(results.isEmpty())
         back(controller.get())
         controller.pause().stop().destroy()
         service.fail()
@@ -158,6 +163,13 @@ class SourceBrowserBackTest {
     @Test fun nativeRecreationDoesNotCancelAndFinishingReleasesItsSession() {
         val service = nativeService()
         val controller = nativeActivity().setup()
+        reload(controller.get())
+        assertEquals(1, shadowOf(service.webView!!).reloadInvocations)
+        verify(exactly = 0) { service.cancel("native-job"); service.confirm("native-job") }
+        every { service.interactiveJobId } returns "next-job"
+        reload(controller.get())
+        assertEquals(1, shadowOf(service.webView!!).reloadInvocations)
+        every { service.interactiveJobId } returns "native-job"
         controller.recreate()
         assertSame(controller.get(), service.activity)
         verify(exactly = 0) { service.cancel("native-job") }
@@ -197,6 +209,13 @@ class SourceBrowserBackTest {
         assertEquals(2, calls)
         back.unregister()
         controller.pause().stop().destroy()
+    }
+
+    private fun reload(activity: Activity) {
+        val buttons = arrayListOf<View>()
+        activity.window.decorView.findViewsWithText(buttons, activity.getText(R.string.source_browser_reload),
+            View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION)
+        buttons.single().performClick()
     }
 
     private fun systemCallback(activity: Activity): OnBackInvokedCallback? =

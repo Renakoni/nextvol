@@ -24,10 +24,9 @@ import indi.renakoni.nextvol.R
 @Composable
 internal fun SourceLoginDialog(form: LoginForm, busy: Boolean,
     onSubmit: (Map<String, String>, String?, String, Boolean) -> Unit, onCancel: () -> Unit,
-    title: String = stringResource(R.string.sources_login), message: String? = null,
-    showLoginAction: Boolean = true) {
+    message: String? = null) {
     val values = remember(form) { mutableStateMapOf<String, String>().apply { putAll(form.values) } }
-    AlertDialog(onDismissRequest = onCancel, title = { Text(title) },
+    AlertDialog(onDismissRequest = onCancel, title = { Text(stringResource(R.string.sources_login)) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             message?.let { Text(it) }
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -69,8 +68,8 @@ internal fun SourceLoginDialog(form: LoginForm, busy: Boolean,
             } }
             }
         } }, confirmButton = {
-            if (showLoginAction) TextButton(onClick = { onSubmit(values.toMap(), null, form.id, false) }, enabled = !busy) { Text(stringResource(R.string.sources_login)) }
-        }, dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(if (showLoginAction) android.R.string.cancel else android.R.string.ok)) } })
+            TextButton(onClick = { onSubmit(values.toMap(), null, form.id, false) }, enabled = !busy) { Text(stringResource(R.string.sources_login)) }
+        }, dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(android.R.string.cancel)) } })
 }
 
 /** One gesture handler owns both actions, so releasing a long press cannot also submit a click. */

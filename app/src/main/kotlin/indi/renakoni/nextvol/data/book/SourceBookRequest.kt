@@ -56,13 +56,10 @@ internal suspend fun SourceRuntime.persistCanonicalBook(
 /** Missing sources retain their local namespace; requests never fall back to another source. */
 internal suspend fun <T> WebSourceRegistry.request(
     book: SourceBookId,
-    expectedRuntime: SourceRuntime? = null,
     block: suspend (SourceRuntime) -> Result<T, WebRequestError>,
 ): Result<T, WebRequestError> = when (val resolution = resolve(book.sourceId)) {
     is SourceResolution.Ready -> try {
-        if (expectedRuntime != null && resolution.runtime !== expectedRuntime)
-            Err(WebRequestError("Data source unavailable", "Source was replaced", kind = WebRequestErrorKind.SourceUnavailable))
-        else block(resolution.runtime)
+        block(resolution.runtime)
     } catch (failure: Exception) {
         // Caller lifecycle cancellation always wins, even if this registration retired too.
         currentCoroutineContext().ensureActive()

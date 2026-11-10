@@ -119,25 +119,6 @@ class ReaderViewModel @Inject constructor(
 
     fun nextChapter() = modeHost.loadNextChapter()
 
-    internal suspend fun applySourcePanelRefresh(book: String, chapter: String?, update: indi.renakoni.nextvol.data.book.ReadingPanelUpdate) {
-        if (indi.renakoni.nextvol.data.book.BookIdentity.bookKey(bookId) != book ||
-            chapter != uiState.contentUiState?.readingChapterId) return
-        if (update.contentChanged && chapter != null) {
-            modeHost.flushProgress()
-            readingRecords.awaitProgress()
-            if (indi.renakoni.nextvol.data.book.BookIdentity.bookKey(bookId) != book ||
-                chapter != uiState.contentUiState?.readingChapterId) return
-        }
-        update.volumes?.let { volumes ->
-            ++bookVolumesRequest
-            bookVolumesJob?.cancel()
-            _uiState.bookVolumes = com.github.michaelbull.result.Ok(volumes)
-            catalogChapterIdsByBook[bookId] = volumes.volumes
-                .flatMap { it.chapters }.map { it.id }.toSet()
-        }
-        if (update.contentChanged && chapter != null) modeHost.changeChapter(chapter)
-    }
-
     fun startReadAloud() {
         val chapter = currentChapterIdForModeSwitch()
         if (bookId.isNotBlank() && chapter.isNotBlank()) readAloud.start(bookId, chapter)

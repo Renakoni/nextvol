@@ -29,7 +29,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
     internal fun clearDiscoveryPreviews() = previewDocuments.clear()
     private val serial = SourceWorkQueue()
     private val loginWorkflow = RuleLoginWorkflow(binding,
-        evaluation = { book, chapter, interactive -> evaluation(book, chapter, interactive = interactive) },
+        evaluation = { interactive -> evaluation(interactive = interactive) },
         request = { context, url, field, browser -> request(context, url, field, browser = browser) },
         checkStatus = { status, field, browserDocument -> checkStatus(status, field, browserDocument) },
         verification = ::verification)
@@ -236,11 +236,10 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         }
 
     /** A panel owns its form and execution ticket, while sharing the current account storage. */
-    fun openLoginSession(reading: LoginReadingContext? = null): RuleSource {
+    fun openLoginSession(): RuleSource {
         if (!authority.accepts(identity)) throw SourceContentException(ContentError.Unavailable, "login")
-        val snapshot = loginWorkflow.readingSnapshot(reading, store)
         val ticket = authority.issue(identity.sourceId, identity.profile, identity.revision, identity.namespace, identity.accountGeneration)
-        return loginSource(ticket).also { it.loginWorkflow.loginReading = snapshot }
+        return loginSource(ticket)
     }
 
     suspend fun loginForm(): LoginForm = operation("loginUi") { loginWorkflow.loginForm() }

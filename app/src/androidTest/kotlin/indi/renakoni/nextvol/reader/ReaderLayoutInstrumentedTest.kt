@@ -151,7 +151,7 @@ class ReaderLayoutInstrumentedTest {
             MaterialTheme(colorScheme = colors, typography = AppTypography) {
                 CompositionLocalProvider(
                     LocalAppTheme provides AppTheme(dark, colors),
-                    LocalReaderStyle provides ReaderStyle(15f, 7f, 500f, Color.Black, Color.White),
+                    LocalReaderStyle provides ReaderStyle(22f, 7f, 500f, Color.Black, Color.White),
                 ) {
                     ReaderLayoutSettingsPage(settings)
                 }
@@ -169,10 +169,10 @@ class ReaderLayoutInstrumentedTest {
         val previewLayouts = mutableListOf<TextLayoutResult>()
         compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
             .fetchSemanticsNodes().forEach { node -> node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(previewLayouts) }
-        assertTrue(previewLayouts.any { it.layoutInput.style.fontSize.value > 15f && it.layoutInput.text.text == "Welcome to Nextvol" })
-        assertEquals(15f, settings.fontSize)
+        assertTrue(previewLayouts.any { it.layoutInput.style.fontSize.value > 22f && it.layoutInput.text.text == "Welcome to Nextvol" })
+        assertEquals(22f, settings.fontSize)
         fontSlider.performTouchInput { up() }
-        compose.waitUntil(5_000) { settings.fontSize > 15f }
+        compose.waitUntil(5_000) { settings.fontSize > 22f }
         val paragraph = compose.onNodeWithContentDescription(context.getString(R.string.reader_paragraph_spacing))
         paragraph.performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(8f) }
         compose.waitUntil(5_000) { settings.paragraphSpacing == 8f }
