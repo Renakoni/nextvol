@@ -164,6 +164,12 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
 
     suspend fun <T> execute(owner: VerificationOwner, name: String, block: suspend () -> T): T {
         val foreground = currentCoroutineContext()[ForegroundSourceRequest]?.takeIf { it.allowsInteraction }
+        return if (foreground == null) executeRequest(owner, name, null, block)
+        else foreground.ownVerification { executeRequest(owner, name, foreground, block) }
+    }
+
+    private suspend fun <T> executeRequest(owner: VerificationOwner, name: String,
+        foreground: ForegroundSourceRequest?, block: suspend () -> T): T {
         val background = currentCoroutineContext()[BackgroundSourceRequest]?.takeIf { foreground == null }
         val manualAttempted = AtomicBoolean()
         suspend fun run(allowScriptInteraction: Boolean = true): T = withContext(SourceScriptInteraction { verification ->
@@ -195,22 +201,19 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
 
     private suspend fun <T> verifyForeground(entry: Pending, foreground: ForegroundSourceRequest,
         failure: SourceContentException, block: suspend () -> T): T {
-        var verifying = false
+        foreground.beginVerification()
         try {
-            return foreground.ownVerification {
-                foreground.beginVerification(); verifying = true
-                val completed = withTimeoutOrNull(300000) {
-                    foreground.awaitActive()
-                    open(entry)
-                    foreground.awaitActive()
-                    true
-                } ?: false
-                if (!completed) throw failure
-                // Resume a waiting script directly, or retry the failed request only once.
-                block()
-            }
+            val completed = withTimeoutOrNull(300000) {
+                foreground.awaitActive()
+                open(entry)
+                foreground.awaitActive()
+                true
+            } ?: false
+            if (!completed) throw failure
+            // Resume a waiting script directly, or retry the failed request only once.
+            return block()
         } finally {
-            if (verifying) foreground.endVerification()
+            foreground.endVerification()
             remove(entry.prompt.id)
         }
     }

@@ -405,15 +405,25 @@ class SourceVerificationCoordinatorTest {
         coVerify(exactly = 1) { verification.complete() }
     }
 
-    @Test fun browserCoverRetainsTheRequestButNavigationAwayCancelsIt() = runTest {
+    @Test fun browserCoverRetainsTheScriptButNavigationAfterClosingCancelsItsRefetch() = runTest {
         val ui = ForegroundSourceRequest()
-        coEvery { verification.complete() } coAnswers { awaitCancellation() }
-        val request = async(ui) { coordinator.execute(owner, "Fixture") { throw failure } }
+        val window = CompletableDeferred<Unit>()
+        val fetching = CompletableDeferred<Unit>()
+        coEvery { verification.complete() } coAnswers { window.await() }
+        val request = async(ui) { coordinator.execute<String>(owner, "Fixture") {
+            currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
+            fetching.complete(Unit)
+            awaitCancellation()
+        } }
         runCurrent()
         assertTrue(ui.verifying)
         ui.setActive(false, retainBrowser = true)
         runCurrent()
         assertFalse(request.isCompleted)
+        ui.setActive(true)
+        window.complete(Unit)
+        fetching.await()
+        assertFalse(ui.verifying)
         ui.setActive(false)
         request.join()
         assertTrue(request.isCancelled)
