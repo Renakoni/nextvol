@@ -38,6 +38,13 @@ class ReadAloudController @Inject constructor(@ApplicationContext private val co
 
     fun preview(text: String, settings: SpeechSettings? = null) = start(SpeechRequest("", "", text, settings))
 
+    fun previewVoice(text: String, settings: SpeechSettings, label: String) {
+        val current = state.value
+        if (current.previews(settings.voiceReference()) && (current.isActive || current.phase == SpeechPhase.Paused)) {
+            command(if (current.isActive) SpeechAction.Pause else SpeechAction.Resume)
+        } else start(SpeechRequest("", "", text, settings, label))
+    }
+
     private fun start(request: SpeechRequest) {
         closingPlayer = false
         mutableState.value = ReadAloudState(request, SpeechPhase.Preparing)

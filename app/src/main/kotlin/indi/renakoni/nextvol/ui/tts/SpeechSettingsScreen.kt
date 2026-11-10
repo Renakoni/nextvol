@@ -243,6 +243,7 @@ internal fun SystemSpeechSettings(
     onEngine: (String) -> Unit, onVoice: (String) -> Unit, onSystemSettings: () -> Unit,
     onPreviewVoice: ((String) -> Unit)? = null,
     onDialogue: ((String) -> Unit)? = null,
+    playback: ReadAloudState = ReadAloudState(),
 ) {
     var choice by rememberSaveable { mutableStateOf<String?>(null) }
     val locale = LocalConfiguration.current.locales[0]
@@ -283,6 +284,7 @@ internal fun SystemSpeechSettings(
             onChoose = { if (engine) { onEngine(it); choice = null } else onVoice(it) },
             onDismiss = { choice = null },
             onPreview = if (engine) null else onPreviewVoice,
+            previewPlaying = { id -> playback.isActive && playback.previews(SpeechVoiceRef(engine = state.settings.engine, voice = id)) },
             selection = if (engine) null else { id -> state.settings.voiceSelection(SpeechVoiceRef(engine = state.settings.engine, voice = id)) },
             onDialogue = if (engine) null else onDialogue,
         )
@@ -302,9 +304,7 @@ internal fun SpeechPlaybackBar(state: ReadAloudState, onCommand: (SpeechAction) 
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    state.bookTitle.ifEmpty {
-                        stringResource(if (state.request?.isPreview == true) R.string.tts_preview else R.string.tts_title)
-                    },
+                    state.playbackTitle(),
                     style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
@@ -327,6 +327,7 @@ private fun SpeechChoiceDialog(
     onPreview: ((String) -> Unit)? = null,
     selection: ((String) -> SpeechVoiceSelection?)? = null,
     onDialogue: ((String) -> Unit)? = null,
+    previewPlaying: (String) -> Boolean = { false },
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -340,7 +341,8 @@ private fun SpeechChoiceDialog(
                             onClick = { onChoose(option.id) }, onLongClick = onDialogue?.let { { it(option.id) } }, selection = selected,
                             avatar = { Icon(painterResource(R.drawable.headphones_24px), null, Modifier.size(40.dp)) },
                             onPreview = null, description = option.description, actions = {
-                                if (onPreview != null) SpeechPreviewButton(option.id.ifEmpty { option.title }, option.enabled) { onPreview(option.id) }
+                                if (onPreview != null) SpeechPreviewButton(option.id.ifEmpty { option.title }, option.enabled,
+                                    previewPlaying(option.id)) { onPreview(option.id) }
                             })
                     } else {
                     Row(
@@ -359,7 +361,8 @@ private fun SpeechChoiceDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        if (onPreview != null) SpeechPreviewButton(option.id.ifEmpty { option.title }, option.enabled) { onPreview(option.id) }
+                        if (onPreview != null) SpeechPreviewButton(option.id.ifEmpty { option.title }, option.enabled,
+                            previewPlaying(option.id)) { onPreview(option.id) }
                     }
                     }
                 }
@@ -370,9 +373,10 @@ private fun SpeechChoiceDialog(
 }
 
 @Composable
-internal fun SpeechPreviewButton(name: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun SpeechPreviewButton(name: String, enabled: Boolean, playing: Boolean = false, onClick: () -> Unit) {
     IconButton(onClick = onClick, enabled = enabled) {
-        Icon(painterResource(R.drawable.play_arrow_24px), stringResource(R.string.tts_preview_voice, name))
+        Icon(painterResource(if (playing) R.drawable.pause_24px else R.drawable.play_arrow_24px),
+            stringResource(if (playing) R.string.tts_pause_preview_voice else R.string.tts_preview_voice, name))
     }
 }
 

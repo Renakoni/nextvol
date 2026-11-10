@@ -376,6 +376,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
                 onAddToPool = { addingToPool = it },
                 onBackgroundMusic = { backgroundMusic = true },
                 offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
+                    playback = playback,
                     onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                     onDialogue = { toggleVoice(true, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                     onPreview = { offlineViewModel.preview(it, preview) }, onDelete = { deleting = it }, onEnable = offlineViewModel::enable,
@@ -386,7 +387,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
                         onEngine = settingsViewModel::selectEngine,
                         onVoice = { toggleVoice(false, SpeechVoiceRef(engine = settings.settings.engine, voice = it, label = it)) },
                         onDialogue = { toggleVoice(true, SpeechVoiceRef(engine = settings.settings.engine, voice = it, label = it)) },
-                        onPreviewVoice = { viewModel.controller.preview(preview, settings.settings.copy(httpSource = null, voice = it, offlineVoice = null)) },
+                        playback = playback,
+                        onPreviewVoice = { viewModel.controller.previewVoice(preview,
+                            settings.settings.copy(httpSource = null, voice = it, offlineVoice = null),
+                            it.ifBlank { settings.engines.find { engine -> engine.packageName == settings.settings.engine }?.name ?: systemSpeechLabel }) },
                         onSystemSettings = {
                             try { systemSettingsPicker.launch(Intent("com.android.settings.TTS_SETTINGS")) }
                             catch (_: ActivityNotFoundException) { systemSettingsPicker.launch(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }

@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.ReadAloudController
+import indi.renakoni.nextvol.tts.ReadAloudState
 import indi.renakoni.nextvol.tts.SpeechSettings
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.SpeechVoiceOperations
@@ -101,7 +102,7 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
     }
     fun preview(voice: InstalledOfflineVoice, text: String) = work {
         if (state.value.availability[voice.reference]?.canRun != true) return@work
-        controller.preview(text, settings.get().copy(offlineVoice = voice.reference, httpSource = null))
+        controller.previewVoice(text, settings.get().copy(offlineVoice = voice.reference, httpSource = null), voice.name)
     }
     fun delete(voice: InstalledOfflineVoice) = delete(listOf(voice))
     fun delete(voices: List<InstalledOfflineVoice>) = work {
@@ -127,6 +128,7 @@ internal fun OfflineSpeechSourceRow(
     selection: SpeechSettings,
     onDialogue: (InstalledOfflineVoice) -> Unit,
     management: VoiceRowManagement? = null,
+    playback: ReadAloudState = ReadAloudState(),
 ) {
     val status = state.availability[voice.reference]
     var actions by remember { mutableStateOf(false) }
@@ -134,6 +136,7 @@ internal fun OfflineSpeechSourceRow(
     SpeechSourceRow(voice.name, selected != null, status?.canRun == true || selected != null,
         selection = selected, onLongClick = { onDialogue(voice) }, previewEnabled = status?.canRun == true,
         management = management,
+        previewPlaying = playback.isActive && playback.previews(SpeechVoiceRef(offlineVoice = voice.reference)),
         onClick = { onSelect(voice) }, avatar = {
             SpeechAvatar(voice.metadata.avatar, voice.configuration?.gender ?: 0,
                 Modifier.size(40.dp), state.avatars[voice.reference.id])

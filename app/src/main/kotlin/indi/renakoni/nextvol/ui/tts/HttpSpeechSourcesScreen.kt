@@ -104,6 +104,7 @@ internal fun HttpSpeechSourcesScreen(
                     Modifier.size(40.dp), state.avatars[source.definition.id])
             }, onPreview = onPreview?.let { { it(source.definition.id) } },
             previewEnabled = !state.busy && source.available && source.isConfigured,
+            previewPlaying = playback.isActive && playback.previews(SpeechVoiceRef(httpSource = source.definition.id)),
             description = (metadata["desc"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank {
                 (metadata["code"] as? JsonPrimitive)?.contentOrNull.orEmpty()
             },
@@ -276,7 +277,8 @@ internal fun HttpSpeechSourcesScreen(
                                     Surface(Modifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                                         Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.headphones_24px), null) }
                                     }
-                                }, onPreview = onPreview?.let { { it(null) } })
+                                }, onPreview = onPreview?.let { { it(null) } },
+                                previewPlaying = playback.isActive && playback.previews(SpeechVoiceRef(engine = selection.engine, voice = selection.voice)))
                             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                 systemSettings?.invoke(searchQuery)
                             }

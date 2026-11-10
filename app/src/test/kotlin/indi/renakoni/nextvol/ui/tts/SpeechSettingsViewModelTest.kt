@@ -134,7 +134,7 @@ class SpeechSettingsViewModelTest {
         try {
             library.state.first { it.loaded }
             library.previewVoice("candidate", "Sample.")
-            verify { controller.preview("Sample.", settings.value.copy(httpSource = "candidate")) }
+            verify { controller.previewVoice("Sample.", settings.value.copy(httpSource = "candidate"), "Candidate") }
             coVerify(exactly = 0) { repository.update(any()) }
             assertNull(library.state.value.selected)
             playback.value = ReadAloudState(SpeechRequest("", "", "Sample.", settings.value.copy(httpSource = "candidate")), SpeechPhase.Playing)
@@ -174,7 +174,7 @@ class SpeechSettingsViewModelTest {
             assertNull(library.state.value.pending)
             assertEquals(definition.id, library.state.value.sources.single().definition.id)
             coVerify(exactly = 0) { repository.update(any()) }
-            verify(exactly = 0) { controller.preview(any(), any()) }
+            verify(exactly = 0) { controller.previewVoice(any(), any(), any()) }
         } finally { library.viewModelScope.cancel() }
     }
 
