@@ -53,12 +53,14 @@ class BookDirectoryChecks internal constructor(
         return registry.request(requested) { runtime ->
             check(informationRequests, "information", requested, runtime,
                 cached = { local.getBookInformation(requested.storageKey) },
-                requirePreparation = prepare && !runtime.hasPreparedInformation(requested.remoteId)) {
+                requirePreparation = { prepare && !runtime.hasPreparedInformation(requested.remoteId) }) {
                 runtime.getBookInformation(requested.remoteId, priority).andThen { remote ->
                     runtime.persistCanonicalBook(requested, local, downloads).map { canonical ->
                         val information = requested.bind(remote)
-                        if (canonical == requested) local.updateBookInformation(information)
-                        local.getBookInformation(requested.storageKey) ?: information
+                        if (canonical == requested) {
+                            local.updateBookInformation(information)
+                            information
+                        } else local.getBookInformation(requested.storageKey) ?: information
                     }
                 }
             }.map { it.copy(id = book.storageKey) }
@@ -88,25 +90,26 @@ class BookDirectoryChecks internal constructor(
 
     private suspend fun <T> check(requests: MutableMap<Key, Request<T>>, operation: String,
         book: SourceBookId, runtime: SourceRuntime, cached: suspend () -> T?,
-        requirePreparation: Boolean = false, fetch: suspend () -> Result<T, WebRequestError>): Result<T, WebRequestError> {
+        requirePreparation: () -> Boolean = { false }, fetch: suspend () -> Result<T, WebRequestError>): Result<T, WebRequestError> {
         val local = cached()
         val context = currentCoroutineContext()
         val owner = context[ForegroundSourceRequest]?.takeIf { local == null }
         val key = Key(runtime, book, owner)
         val entry = synchronized(requests) {
             requests.getOrPut(key) {
+                val storageKey = "$operation:${book.storageKey}"
+                val version = BookIdentity.encode("check", listOf(runtime.metadata.revision, runtime.metadata.accountGeneration.toString()))
+                val previous = checked.getString(storageKey, null)
+                val elapsed = previous?.substringAfterLast(':')?.toLongOrNull()?.let { now() - it }
+                // Cache-only results never occupy a shared task that a preparation caller could join.
+                if (!requirePreparation() && local != null && previous?.substringBeforeLast(':') == version &&
+                    elapsed != null && elapsed in 0 until 600_000L) return Ok(local)
                 var ownership = context.minusKey(Job)
                 if (local != null) ownership = ownership.minusKey(BackgroundSourceRequest) + ForegroundSourceRequest(false)
                 Request(scope.async(ownership, start = CoroutineStart.LAZY) {
                     runtime.execute {
-                        val storageKey = "$operation:${book.storageKey}"
-                        val version = BookIdentity.encode("check", listOf(runtime.metadata.revision, runtime.metadata.accountGeneration.toString()))
-                        val previous = checked.getString(storageKey, null)
-                        val elapsed = previous?.substringAfterLast(':')?.toLongOrNull()?.let { now() - it }
-                        if (!requirePreparation && local != null && previous?.substringBeforeLast(':') == version &&
-                            elapsed != null && elapsed in 0 until 600_000L) return@execute Ok(cached() ?: local)
                         // Failed attempts are throttled as well, including across process recreation.
-                        checked.edit().putString(storageKey, "$version:${now()}").commit()
+                        checked.edit().putString(storageKey, "$version:${now()}").apply()
                         fetch()
                     }
                 })
