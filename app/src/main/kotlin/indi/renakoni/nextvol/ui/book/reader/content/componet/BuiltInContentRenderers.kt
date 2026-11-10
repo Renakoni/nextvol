@@ -171,7 +171,7 @@ internal fun WindowedReaderImage(
         val size = if (scale == ContentScale.FillWidth) Size(Dimension(constraints.maxWidth), Dimension.Undefined)
             else Size(constraints.maxWidth, constraints.maxHeight)
         val height = if (scale == ContentScale.FillWidth)
-            resource.size?.let { maxWidth * (it.height.toFloat() / it.width) } ?: 200.dp else maxHeight
+            resource.size?.let { maxOf(200.dp, maxWidth * (it.height.toFloat() / it.width)) } ?: 200.dp else maxHeight
         Box(Modifier.fillMaxWidth().height(height)) {
             if (admitted) content(size) { finished.complete(Unit) }
             else if (enabled) Loading()

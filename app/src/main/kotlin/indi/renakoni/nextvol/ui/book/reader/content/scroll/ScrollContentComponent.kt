@@ -256,7 +256,8 @@ fun ScrollContentTextComponent(
         try {
             val block = prepared.blocks.firstOrNull { prepared.content.images[it.componentIndex] === resource }
             if (block != null && block.top + block.height <= -item.offset) {
-                val height = (block.width * (size.height.toFloat() / size.width)).roundToInt()
+                val height = maxOf(with(density) { 200.dp.roundToPx() },
+                    (block.width * (size.height.toFloat() / size.width)).roundToInt())
                 // Apply the known height delta in the same remeasure that expands the image.
                 listState.requestScrollToItem(item.index, -item.offset + height - block.height)
             }

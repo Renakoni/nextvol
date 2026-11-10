@@ -22,4 +22,3 @@ class SourceImageSizes @Inject constructor(@ApplicationContext context: Context)
         preferences.edit().putLong(sourceImageCacheKey(image, ""), (size.width.toLong() shl 32) or size.height.toLong()).apply()
     }
 }
-
