@@ -21,6 +21,7 @@ import io.nightfish.lightnovelreader.api.web.WebDataSourcePriority
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.currentCoroutineContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -131,7 +132,9 @@ class ChapterRepository @Inject constructor(
 
     internal suspend fun refreshChapter(chapter: SourceChapterId, priority: WebDataSourcePriority, fresh: Boolean = false): Result<ChapterContent, WebRequestError> {
         val requested = localBookDataSource.aliases.resolve(chapter.book)
-        return sourceRegistry.request(requested) { runtime -> runtime.execute {
+        val readerRequests = currentCoroutineContext()[ReaderChapterRequests]
+        return sourceRegistry.request(requested) { runtime ->
+            val fetch: suspend () -> Result<ChapterContent, WebRequestError> = { runtime.execute {
             runtime.getChapterContent(chapter.remoteId, requested.remoteId, priority, refresh = fresh).andThen { remote ->
                 runtime.persistCanonicalBook(requested, localBookDataSource, downloads).map {
                     chapter.bind(remote).also {
@@ -140,6 +143,8 @@ class ChapterRepository @Inject constructor(
                     }
                 }
             }
-        } }
+            } }
+            readerRequests?.get(runtime, chapter, fresh, fetch) ?: fetch()
+        }
     }
 }

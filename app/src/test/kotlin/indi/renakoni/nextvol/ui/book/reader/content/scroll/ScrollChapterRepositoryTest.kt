@@ -105,17 +105,16 @@ class ScrollChapterRepositoryTest {
         coEvery { fixture.remote.getChapterContent("3", "book", any()) } returns Ok(remote("3"))
         coEvery { fixture.remote.getChapterContent("4", "book", any()) } coAnswers {
             fourthRequests++
-            // First request: adjacent collector; second: explicit open.
-            if (fourthRequests == 1) adjacentGate.await()
+            adjacentGate.await()
             Err(WebRequestError("offline", "network failed"))
         }
         val mode = controller()
         mode.changeChapter(key("3")); env.runCurrent()
         assertEquals(1, fourthRequests)
         mode.changeChapter(key("4")); env.runCurrent()
-        assertEquals(listOf("4"), occupied(mode))
+        assertEquals(emptyList<String>(), occupied(mode))
         adjacentGate.complete(Unit); env.runCurrent()
-        assertEquals(2, fourthRequests)
+        assertEquals(1, fourthRequests)
         assertEquals(listOf("4"), occupied(mode))
     }
 
