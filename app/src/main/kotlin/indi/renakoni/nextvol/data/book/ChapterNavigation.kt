@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.data.book
 
 import io.nightfish.lightnovelreader.api.book.BookVolumes
-import io.nightfish.lightnovelreader.api.book.ChapterContent
 
 /** The last successful directory owns order; cached bodies do not. */
 class ChapterNavigation(volumes: BookVolumes) {
@@ -12,9 +11,4 @@ class ChapterNavigation(volumes: BookVolumes) {
         }
 
     fun adjacent(chapterId: String): Pair<String?, String?> = adjacent[chapterId] ?: (null to null)
-
-    fun applyTo(content: ChapterContent): ChapterContent {
-        val (previous, next) = adjacent(content.id)
-        return content.copy(prevChapter = previous, nextChapter = next)
-    }
 }

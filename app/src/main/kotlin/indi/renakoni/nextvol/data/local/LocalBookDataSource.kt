@@ -5,8 +5,8 @@ import indi.renakoni.nextvol.data.local.room.dao.BookVolumesDao
 import indi.renakoni.nextvol.data.local.room.dao.ChapterContentDao
 import indi.renakoni.nextvol.data.local.room.dao.UserReadingDataDao
 import indi.renakoni.nextvol.data.local.room.entity.UserReadingDataEntity
+import indi.renakoni.nextvol.data.local.room.converter.ListConverter
 import indi.renakoni.nextvol.data.book.BookIdentity
-import indi.renakoni.nextvol.data.book.ChapterNavigation
 import indi.renakoni.nextvol.data.book.BookAliasStore
 import indi.renakoni.nextvol.data.book.rebind
 import indi.renakoni.nextvol.data.book.bindReadingData
@@ -57,9 +57,7 @@ class LocalBookDataSource @Inject constructor(
         return aliases.withResolved(chapter.book) { canonical ->
             chapterContentDao.get(SourceChapterId(canonical, chapter.remoteId).storageKey)?.let {
                 ChapterContent(it.id, it.title, it.content, it.prevChapter.ifEmpty { null }, it.nextChapter.ifEmpty { null })
-                    .let { content -> bookVolumesDao.getBookVolumes(canonical.storageKey)?.let { volumes ->
-                        ChapterNavigation(volumes).applyTo(content)
-                    } ?: content }
+                    .withDirectoryNavigation(canonical.storageKey)
                     .rebind(canonical, chapter.book)
             }
         }
@@ -69,12 +67,19 @@ class LocalBookDataSource @Inject constructor(
         return aliases.withResolved(chapter.book) { canonical ->
             chapterContentDao.reusable(SourceChapterId(canonical, chapter.remoteId).storageKey, revision)?.let {
                 ChapterContent(it.id, it.title, it.content, it.prevChapter.ifEmpty { null }, it.nextChapter.ifEmpty { null })
-                    .let { content -> bookVolumesDao.getBookVolumes(canonical.storageKey)?.let { volumes ->
-                        ChapterNavigation(volumes).applyTo(content)
-                    } ?: content }
+                    .withDirectoryNavigation(canonical.storageKey)
                     .rebind(canonical, chapter.book)
             }
         }
+    }
+
+    private suspend fun ChapterContent.withDirectoryNavigation(bookId: String): ChapterContent {
+        val ids = bookVolumesDao.getChapterIdLists(bookId)
+            .flatMap(ListConverter::stringToStringList).filter { it.isNotEmpty() }.distinct()
+        if (ids.isEmpty()) return this
+        val index = ids.indexOf(id)
+        return copy(prevChapter = ids.getOrNull(index - 1),
+            nextChapter = if (index >= 0) ids.getOrNull(index + 1) else null)
     }
 
     override suspend fun updateChapterContent(chapterContent: ChapterContent) = updateChapterContent(chapterContent, "")

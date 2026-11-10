@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.data.book
 
 import android.app.Application
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.LocalBookDataSource
 import indi.renakoni.nextvol.data.local.room.entity.BookshelfBookMetadataEntity
@@ -29,6 +30,7 @@ import java.time.LocalDateTime
 class BookAliasStoreTest {
     private lateinit var database: NextVolDatabase
     private lateinit var aliases: BookAliasStore
+    private val queries = java.util.Collections.synchronizedList(mutableListOf<String>())
     private val source = Identifier("rules", "fixture")
     private val first = SourceBookId(source, "https://example.test/novel/1")
     private val second = SourceBookId(source, "https://example.test/novel/2")
@@ -37,13 +39,15 @@ class BookAliasStoreTest {
 
     @Before fun setUp() {
         database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), NextVolDatabase::class.java)
-            .allowMainThreadQueries().build()
+            .allowMainThreadQueries()
+            .setQueryCallback(RoomDatabase.QueryCallback { sql, _ -> queries += sql }, java.util.concurrent.Executor { it.run() })
+            .build()
         aliases = BookAliasStore(database)
     }
 
     @After fun tearDown() { database.close() }
 
-    @Test fun cachedBodyUsesTheLatestDirectoryWithoutRewritingItsSnapshot() = runBlocking {
+    @Test fun cachedBodyUsesLatestNavigationWithoutReadingChapterMetadataOrRewritingItsSnapshot() = runBlocking {
         val local = LocalBookDataSource(database.bookInformationDao(), database.bookVolumesDao(),
             database.chapterContentDao(), database.userReadingDataDao(), aliases)
         val old = SourceChapterId(first, "old")
@@ -55,8 +59,11 @@ class BookAliasStoreTest {
             Volume("one", "One", listOf(ChapterInformation("old", "Old"))),
             Volume("two", "Two", listOf(ChapterInformation("new", "New"))),
         ))))
+        queries.clear()
         assertEquals(next.storageKey, local.getChapterContent(old.storageKey)!!.nextChapter)
         assertEquals(next.storageKey, local.getReusableChapterContent(old.storageKey, "revision")!!.nextChapter)
+        assertEquals(2, queries.count { it.startsWith("select chapter_id_list from volume", ignoreCase = true) })
+        assertTrue(queries.none { it.contains("chapter_information", ignoreCase = true) })
         assertEquals("", database.chapterContentDao().get(old.storageKey)!!.nextChapter)
         assertEquals(body.content, local.getChapterContent(old.storageKey)!!.content)
     }
