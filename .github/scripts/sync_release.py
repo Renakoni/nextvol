@@ -29,7 +29,7 @@ def validate_release(release, tag):
     apk_name = f"NextVol-{tag[1:]}-release.apk"
     apks = [asset["name"] for asset in release["assets"] if asset["name"].lower().endswith(".apk")]
     if apks != [apk_name] or not any(asset["name"] == "SHA256SUMS" for asset in release["assets"]):
-        raise ValueError("Expected one universal NextVol APK and SHA256SUMS")
+        raise ValueError("Expected one NextVol release APK and SHA256SUMS")
     return apk_name
 
 

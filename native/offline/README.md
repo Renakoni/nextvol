@@ -32,7 +32,11 @@ download the pinned asset on a miss. JVM/Lint skip SDK preparation. Updating the
 runtime URL or digest triggers main cache warming, and retention keeps the latest
 shared archive. The SDK cache is independent of the source-built ONNX Runtime cache.
 
-The pinned bundle contains arm64 vendor libraries. APK download size and installed native-library
+The pinned bundle contains arm64 vendor libraries. Release and Snapshot APKs
+package ARM64 only; development APKs retain emulator architectures. The NDK strips
+debug information during APK packaging without removing engines. The runtime
+manifest records the original SDK bundle, before this packaging step.
+APK download size and installed native-library
 size are different measurements; legacy companion-library loading requires
 Android to extract the native libraries during installation.
 

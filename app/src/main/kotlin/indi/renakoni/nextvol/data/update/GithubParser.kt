@@ -59,7 +59,7 @@ object GithubParser : UpdateParser {
         val assets = json.getJSONArray("assets")
         val apks = (0 until assets.length()).map { assets.getJSONObject(it) }
             .filter { it.getString("name").endsWith(".apk", ignoreCase = true) }
-        // The release contract is one universal APK, avoiding arbitrary ABI/build selection.
+        // The release contract is one ARM64 APK, avoiding arbitrary asset/build selection.
         if (apks.size != 1) throw IOException("Expected one NextVol release APK, found ${apks.size}")
         val asset = apks.single()
         val fileName = "NextVol-${tag.drop(1)}-release.apk"

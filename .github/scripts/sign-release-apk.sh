@@ -22,9 +22,9 @@ directory = Path('app/build/outputs/apk/release')
 metadata = json.loads((directory / 'output-metadata.json').read_text())
 assert metadata['applicationId'] == 'indi.renakoni.nextvol', 'Wrong application ID'
 assert metadata['variantName'] == 'release', 'Wrong build variant'
-assert len(metadata['elements']) == 1, 'Expected one universal APK'
+assert len(metadata['elements']) == 1, 'Expected one release APK'
 element = metadata['elements'][0]
-assert not element['filters'], 'APK must not be ABI-specific'
+assert not element['filters'], 'Release must not use split APKs'
 assert element['versionName'] == os.environ['APP_VERSION'], 'Version name mismatch'
 assert element['versionCode'] == int(os.environ['APP_VERSION_CODE']), 'Version code mismatch'
 apk = directory / element['outputFile']
@@ -50,6 +50,7 @@ grep -Fx 'Signer #1 certificate SHA-256 digest: 87b61dcf3eecca2b93acb8aae035ce01
 "$tools/aapt2" dump badging "$apk" > "$temporary/badging.txt"
 grep -F "package: name='indi.renakoni.nextvol' versionCode='$APP_VERSION_CODE' versionName='$APP_VERSION'" "$temporary/badging.txt"
 grep -Fx "minSdkVersion:'24'" "$temporary/badging.txt"
+grep -Fx "native-code: 'arm64-v8a'" "$temporary/badging.txt"
 if grep -q '^application-debuggable' "$temporary/badging.txt"; then
   echo '::error::Release APK is debuggable'
   exit 1
