@@ -15,6 +15,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,14 +27,29 @@ data class VerificationPrompt(val id: String, val owner: VerificationOwner, val 
 /** Foreground operations open verification directly; background work only leaves a notice. */
 @Singleton
 class SourceVerificationCoordinator @Inject constructor(private val registry: WebSourceRegistry) {
+    private data class Session(val owner: VerificationOwner, val kind: hnovel.network.BrowserChallengeKind, val origin: String)
+    private data class Outcome(val sequence: Long, val failure: Throwable? = null)
     private data class Pending(val prompt: VerificationPrompt, val verification: SourceVerification?,
         val approval: CompletableDeferred<Boolean> = CompletableDeferred(),
-        val retryAfterVerification: AtomicBoolean = AtomicBoolean(),
         val background: BackgroundSourceRequest? = null,
-        val recheck: (suspend () -> Unit)? = null,
-        val claimed: AtomicBoolean = AtomicBoolean())
+        val scriptRetry: (suspend () -> Unit)? = null,
+        val started: Long = Long.MAX_VALUE,
+        val claimed: AtomicBoolean = AtomicBoolean(),
+        val scriptClaimed: AtomicBoolean = AtomicBoolean(),
+        val scriptForeground: ForegroundSourceRequest = ForegroundSourceRequest(),
+        val scriptJob: AtomicReference<Job?> = AtomicReference(),
+        val scriptFinished: CompletableDeferred<Unit> = CompletableDeferred()) {
+        val session get() = verification?.let { action ->
+            val kind = action.kind
+            val origin = action.origin
+            if (action.certificate == null && kind != null && origin != null)
+                Session(prompt.owner, kind, origin) else null
+        }
+    }
     private val lock = Any()
     private val pending = linkedMapOf<String, Pending>()
+    private val outcomes = mutableMapOf<Session, Outcome>()
+    private var sequence = 0L
     private val mutable = MutableStateFlow<List<VerificationPrompt>>(emptyList())
     val prompts = mutable.asStateFlow()
     private val browser = Mutex()
@@ -43,17 +59,31 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
             it.metadata.accountGeneration == owner.generation && it.status == SourceStatus.Ready
     }
     private fun publish() { mutable.value = pending.values.map { it.prompt } }
-    private fun remove(id: String) = synchronized(lock) { pending.remove(id)?.approval?.complete(false); publish() }
+    private fun remove(id: String) = synchronized(lock) {
+        pending.remove(id)?.let {
+            it.approval.complete(false)
+            val finished = it.scriptFinished.isCompleted
+            it.scriptFinished.cancel()
+            if (!finished) it.scriptJob.get()?.cancel()
+            it.scriptForeground.setActive(false)
+        }
+        publish()
+    }
 
-    private fun enqueue(entry: Pending) = synchronized(lock) {
-        // Background notices replace an older idle notice for this account; foreground
-        // continuations keep their own request and cancellation.
+    private fun newerOutcome(entry: Pending) = outcomes[entry.session]?.takeIf { it.sequence > entry.started }
+
+    private fun enqueue(entry: Pending): Outcome? = synchronized(lock) {
+        val outcome = newerOutcome(entry)
+        if (!entry.prompt.foreground && outcome != null && outcome.failure == null) return@synchronized outcome
+        // Keep each download's own continuation, including waiters arriving while a window is open.
         if (!entry.prompt.foreground) pending.entries.removeAll {
             (!it.value.prompt.foreground && !it.value.prompt.opening && !it.value.prompt.confirmingCertificate &&
-                it.value.prompt.owner == entry.prompt.owner).also { removed -> if (removed) it.value.approval.complete(false) }
+                it.value.prompt.owner == entry.prompt.owner && it.value.session == entry.session &&
+                it.value.background === entry.background).also { removed -> if (removed) it.value.approval.complete(false) }
         }
         pending[entry.prompt.id] = entry
         publish()
+        outcome
     }
 
     fun dismiss(id: String) = remove(id)
@@ -76,19 +106,44 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
     suspend fun observeRetirement(): Unit = registry.sources.collect {
         synchronized(lock) {
             val retired = pending.values.filter { !current(it.prompt.owner) }
-            retired.forEach { entry -> pending.remove(entry.prompt.id); entry.approval.complete(false) }
+            retired.forEach { entry -> remove(entry.prompt.id) }
+            outcomes.keys.removeAll { !current(it.owner) }
             publish()
         }
     }
 
-    private suspend fun open(entry: Pending) = browser.withLock {
-        if (entry.retryAfterVerification.get()) {
+    private suspend fun open(entry: Pending) {
+        val waiters = browser.withLock {
             if (!current(entry.prompt.owner)) throw SourceContentException(hnovel.content.ContentError.Unavailable, "browser.verification")
-            synchronized(lock) {
+            val outcome = synchronized(lock) {
                 if (pending[entry.prompt.id]?.approval !== entry.approval) throw CancellationException("Verification dismissed")
+                newerOutcome(entry)
             }
-            return@withLock
+            if (outcome != null) {
+                outcome.failure?.let { throw it }
+                return@withLock emptyList<Pending>()
+            }
+            try { openWithCertificate(entry) }
+            catch (failure: Throwable) {
+                synchronized(lock) { entry.session?.let { outcomes[it] = Outcome(++sequence, failure) } }
+                throw failure
+            }
+            synchronized(lock) {
+                val session = entry.session ?: return@synchronized emptyList<Pending>()
+                outcomes[session] = Outcome(++sequence)
+                pending.values.filter { !it.prompt.foreground && it.session == session && !it.claimed.get() }
+            }
         }
+        for (waiter in waiters) {
+            val claimed = synchronized(lock) { pending[waiter.prompt.id]?.approval === waiter.approval &&
+                waiter.claimed.compareAndSet(false, true) }
+            if (claimed) try {
+                waiter.background?.prepareResume()?.invoke(null)
+            } finally { remove(waiter.prompt.id) }
+        }
+    }
+
+    private suspend fun openWithCertificate(entry: Pending) {
         try { completeVerification(entry) }
         catch (failure: SourceContentException) {
             val verification = failure.verification
@@ -107,15 +162,6 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
             completeVerification(certificate)
             replace(certificate, entry)
             completeVerification(entry)
-        }
-        if (entry.prompt.foreground && entry.prompt.kind != null && entry.prompt.certificate == null &&
-            entry.verification?.origin != null) synchronized(lock) {
-            // Only requests already waiting for this account and origin retry the updated session.
-            // Their ordinary retry still proves success; a fresh challenge remains an error.
-            pending.values.filter { it.prompt.foreground && it.prompt.owner == entry.prompt.owner &&
-                it.prompt.kind == entry.prompt.kind && it.prompt.certificate == null &&
-                it.verification?.origin == entry.verification.origin }
-                .forEach { it.retryAfterVerification.set(true) }
         }
     }
 
@@ -138,13 +184,19 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
         }
         checkNotNull(entry.verification).complete()
         if (!current(entry.prompt.owner)) throw SourceContentException(hnovel.content.ContentError.Unavailable, "browser.verification")
+        synchronized(lock) {
+            if (pending[entry.prompt.id]?.approval !== entry.approval) throw CancellationException("Verification dismissed")
+        }
         indi.renakoni.nextvol.data.image.SourceImageRetryEvents.request(entry.prompt.owner.source)
     }
 
     /** A background failure exposes an action, but never waits or opens an Activity itself. */
     suspend fun verifyBackground(id: String) {
         val entry = synchronized(lock) { pending[id]?.takeIf { !it.prompt.foreground && !it.prompt.opening &&
-            !it.prompt.confirmingCertificate && it.claimed.compareAndSet(false, true) } } ?: return
+            !it.prompt.confirmingCertificate && it.claimed.compareAndSet(false, true) }?.let {
+            // A new user action can retry a failed round; a completed round still skips its old window.
+            if (newerOutcome(it)?.failure != null) it.copy(started = sequence).also { retry -> pending[id] = retry } else it
+        } } ?: return
         try { withTimeout(300000) {
             val resume = entry.background?.let { it.prepareResume() ?: return@withTimeout }
             if (entry.verification != null) open(entry)
@@ -154,43 +206,76 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
                 pending[id] = entry.copy(prompt = entry.prompt.copy(opening = true))
                 publish()
             }
-            // Closing the browser is not proof of authentication. Retry this request once.
-            entry.recheck?.invoke()
             if (!current(entry.prompt.owner)) throw SourceContentException(hnovel.content.ContentError.Unavailable, "browser.verification")
-            resume?.invoke()
+            // The real worker consumes and saves the response. Never fetch a body only to discard it.
+            resume?.invoke(if (entry.verification == null) id else null)
+            if (entry.verification == null && resume != null) entry.scriptFinished.await()
+            entry.scriptRetry?.invoke()
         } }
         finally { remove(id) }
     }
 
     suspend fun <T> execute(owner: VerificationOwner, name: String, block: suspend () -> T): T {
-        val foreground = currentCoroutineContext()[ForegroundSourceRequest]?.takeIf { it.allowsInteraction }
+        var foreground = currentCoroutineContext()[ForegroundSourceRequest]?.takeIf { it.allowsInteraction }
         val background = currentCoroutineContext()[BackgroundSourceRequest]?.takeIf { foreground == null }
+        val started = synchronized(lock) { sequence }
+        lateinit var invocation: Job
+        var scriptResume: Pending? = null
         val manualAttempted = AtomicBoolean()
         suspend fun run(allowScriptInteraction: Boolean = true): T = withContext(SourceScriptInteraction { verification ->
             if (!allowScriptInteraction) throw SourceContentException(hnovel.content.ContentError.BrowserRequired, "loginCheckJs")
-            if (foreground == null) throw SourceScriptInteractionRequired()
+            if (foreground == null) {
+                val resume = synchronized(lock) { pending[background?.verificationId]?.takeIf {
+                    it.prompt.owner == owner && current(owner) && it.verification == null &&
+                        it.claimed.get() && it.scriptClaimed.compareAndSet(false, true)
+                }?.also { it.scriptJob.set(invocation) } } ?: throw SourceScriptInteractionRequired()
+                scriptResume = resume
+                foreground = resume.scriptForeground
+            }
             manualAttempted.set(true)
             val interaction = Pending(VerificationPrompt(UUID.randomUUID().toString(), owner, name,
                 verification.kind, true, certificate = verification.certificate), verification)
             enqueue(interaction)
-            verifyForeground(interaction, foreground, SourceContentException(hnovel.content.ContentError.BrowserRequired,
+            verifyForeground(interaction, checkNotNull(foreground), SourceContentException(hnovel.content.ContentError.BrowserRequired,
                 "loginCheckJs")) { Unit }
         }) { block() }
-        val failure = try { return run() } catch (error: SourceContentException) { error }
-        if (manualAttempted.get() && failure.code == hnovel.content.ContentError.BrowserRequired) throw failure
-        val scriptInteraction = failure is SourceScriptInteractionRequired
-        val verification = failure.verification
-        if (verification == null && !scriptInteraction || !current(owner)) throw failure
-        val entry = Pending(VerificationPrompt(UUID.randomUUID().toString(), owner, name,
-            verification?.kind, foreground != null, certificate = verification?.certificate), verification,
-            background = background, recheck = if (scriptInteraction) {
-                // The old worker has retired. User action starts a fresh invocation, whose
-                // script receives its own browser/captcha result without a preliminary window.
-                { withContext(ForegroundSourceRequest()) { execute(owner, name, block) }; Unit }
-            } else background?.let { { run(allowScriptInteraction = verification?.certificate != null); Unit } })
-        enqueue(entry)
-        if (foreground == null) throw failure
-        return verifyForeground(entry, foreground, failure) { run(allowScriptInteraction = verification?.certificate != null) }
+        suspend fun request(): T {
+            val failure = try { return run() } catch (error: SourceContentException) { error }
+            if (manualAttempted.get() && failure.code == hnovel.content.ContentError.BrowserRequired) throw failure
+            val scriptInteraction = failure is SourceScriptInteractionRequired
+            val verification = failure.verification
+            if (verification == null && !scriptInteraction || !current(owner)) throw failure
+            val entry = Pending(VerificationPrompt(UUID.randomUUID().toString(), owner, name,
+                verification?.kind, foreground != null, certificate = verification?.certificate), verification,
+                background = background, started = started,
+                scriptRetry = if (scriptInteraction && background == null) {
+                    { withContext(ForegroundSourceRequest()) { execute(owner, name, block) }; Unit }
+                } else null)
+            val outcome = enqueue(entry)
+            if (foreground == null) {
+                if (outcome == null || outcome.failure != null) throw failure
+                // The response was challenged before another request updated this session.
+                return run(allowScriptInteraction = false)
+            }
+            return verifyForeground(entry, checkNotNull(foreground), failure) {
+                run(allowScriptInteraction = verification?.certificate != null)
+            }
+        }
+        return try { coroutineScope {
+            invocation = currentCoroutineContext().job
+            request()
+        }.also { scriptResume?.scriptFinished?.complete(Unit) } }
+        catch (failure: Throwable) {
+            if (failure is CancellationException && scriptResume?.scriptFinished?.isCancelled == true) {
+                currentCoroutineContext().ensureActive()
+                throw SourceContentException(hnovel.content.ContentError.BrowserRequired, "loginCheckJs")
+            }
+            val waiting = scriptResume ?: synchronized(lock) { pending[background?.verificationId]?.takeIf {
+                it.prompt.owner == owner && it.verification == null
+            } }
+            waiting?.scriptFinished?.completeExceptionally(failure)
+            throw failure
+        }
     }
 
     private suspend fun <T> verifyForeground(entry: Pending, foreground: ForegroundSourceRequest,

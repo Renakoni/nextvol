@@ -305,12 +305,13 @@ class BookDownloadTest {
     private suspend fun state(book: SourceBookId = a) = books.downloadState(book.storageKey)
     private suspend fun chapter(book: SourceBookId, id: String) = local.getChapterContent(SourceChapterId(book, id).storageKey)
 
-    private fun captureQueuedDownloads(): List<androidx.work.OneTimeWorkRequest> {
+    private fun captureQueuedDownloads(onQueued: (androidx.work.OneTimeWorkRequest) -> Unit = {}): List<androidx.work.OneTimeWorkRequest> {
         val requests = mutableListOf<androidx.work.OneTimeWorkRequest>()
         val completion = androidx.concurrent.futures.ResolvableFuture.create<androidx.work.Operation.State.SUCCESS>()
             .apply { set(androidx.work.Operation.SUCCESS) }
         every { workManager.enqueueUniqueWork(any(), any(), any<androidx.work.OneTimeWorkRequest>()) } answers {
             requests += thirdArg<androidx.work.OneTimeWorkRequest>()
+            onQueued(requests.last())
             mockk<androidx.work.Operation> { every { result } returns completion }
         }
         return requests
@@ -383,8 +384,54 @@ class BookDownloadTest {
         assertEquals(2, queued.size)
         assertEquals(DownloadTaskStatus.Queued.name, downloads.entry(a)!!.taskStatus)
         assertEquals(ListenableWorker.Result.success(), runQueued())
-        assertEquals(1, source.chapterCalls["1"])
+        assertEquals(mapOf("1" to 1, "2" to 1, "3" to 1), source.chapterCalls)
         assertEquals(DownloadTaskStatus.Complete.name, downloads.entry(a)!!.taskStatus)
+    }
+
+    @Test fun scriptVerificationResultIsSavedByTheResumedWorkerWithinItsSelectedChapters() = runBlocking {
+        val source = Remote(a)
+        val coordinator = indi.renakoni.nextvol.data.web.rules.SourceVerificationCoordinator(registry)
+        val owner = indi.renakoni.nextvol.data.web.rules.VerificationOwner(a.sourceId, "1", 0)
+        var calls = 0
+        var windows = 0
+        registry.register(object : WebBookDataSource by source {
+            override suspend fun getChapterContent(chapterId: String, bookId: String): com.github.michaelbull.result.Result<ChapterContent, WebRequestError> = try {
+                coordinator.execute(owner, "Fixture") {
+                    calls++
+                    val action = mockk<hnovel.content.SourceVerification> {
+                        every { kind } returns null
+                        every { certificate } returns null
+                        every { origin } returns null
+                        coEvery { complete() } coAnswers { windows++ }
+                    }
+                    currentCoroutineContext()[hnovel.content.SourceScriptInteraction]!!.request(action)
+                    source.getChapterContent(chapterId, bookId)
+                }
+            } catch (error: hnovel.content.SourceContentException) {
+                Err(WebRequestError("Verification", "Required", error,
+                    kind = io.nightfish.lightnovelreader.api.error.WebRequestErrorKind.VerificationRequired))
+            }
+        }, SourceMetadata(WebDataSourceItem(a.sourceId, "Fixture", "fixture"),
+            setOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent), revision = "1"))
+        val resumed = CompletableDeferred<androidx.work.OneTimeWorkRequest>()
+        val queued = captureQueuedDownloads { if (it.workSpec.input.getString("sourceVerification") != null) resumed.complete(it) }
+        books.submitDownload(a.storageKey, listOf(SourceChapterId(a, "2").storageKey))
+        suspend fun runWorker(request: androidx.work.OneTimeWorkRequest) = CacheBookWork(context,
+            workerParameters(request.workSpec.input, request.id), progress, books, downloads).doWork()
+        assertTrue(runWorker(queued.single()) is ListenableWorker.Result.Failure)
+        assertEquals(0, windows)
+        val opening = async { coordinator.verifyBackground(coordinator.prompts.value.single().id) }
+        assertEquals(ListenableWorker.Result.success(), runWorker(withTimeout(5_000) { resumed.await() }))
+        opening.await()
+        assertEquals(2, calls)
+        assertEquals(1, windows)
+        assertEquals(mapOf("2" to 1), source.chapterCalls)
+        assertNotNull(chapter(a, "2"))
+        assertNull(chapter(a, "1"))
+        assertNull(chapter(a, "3"))
+        assertEquals(setOf("2"), downloads.entry(a)!!.selectedChapterIds())
+        assertEquals(DownloadTaskStatus.Complete.name, downloads.entry(a)!!.taskStatus)
+        assertTrue(coordinator.prompts.value.isEmpty())
     }
 
     @Test fun imageVerificationResumesTheWaitingDownload() = runBlocking {
@@ -442,7 +489,7 @@ class BookDownloadTest {
         downloads.dismissTask(a)
         val newer = waiting(other)
         val queued = captureQueuedDownloads()
-        resume()
+        resume(null)
         assertTrue(queued.isEmpty())
         assertEquals(DownloadTaskStatus.Cancelled.name, downloads.entry(a)!!.taskStatus)
         assertEquals(newer, downloads.entry(other)!!.taskWorkId)
@@ -452,7 +499,7 @@ class BookDownloadTest {
         registry.register(Remote(a), SourceMetadata(WebDataSourceItem(a.sourceId, "Fixture", "fixture"),
             setOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent),
             revision = "1", accountGeneration = 1))
-        afterAccountChange()
+        afterAccountChange(null)
         assertTrue(queued.isEmpty())
         assertNotNull(chapter(a, "1"))
         downloads.clearDownloads()

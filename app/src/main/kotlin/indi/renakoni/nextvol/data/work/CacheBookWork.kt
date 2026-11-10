@@ -131,7 +131,7 @@ class CacheBookWork @AssistedInject constructor(
             }
             val retry = if (replaySafe) RequestRetryContext() else null
             val version = source?.let(::SourceRequestVersion)
-            val verification = source?.let { metadata -> BackgroundSourceRequest {
+            val verification = source?.let { metadata -> BackgroundSourceRequest(inputData.getString("sourceVerification")) {
                 bookRepository.prepareDownloadVerification(initial, id.toString(), metadata.revision, metadata.accountGeneration)
             } }
             version?.check(bookRepository.downloadSource(initial))

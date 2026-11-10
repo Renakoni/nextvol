@@ -108,12 +108,15 @@ class BookDownloadScheduler @Inject constructor(
         } }
     }
 
-    internal suspend fun resumeVerified(expected: List<BookDownloadEntity>, sourceIsCurrent: () -> Boolean): Unit = lock.withLock {
-        if (sourceIsCurrent()) for (owner in expected) {
+    internal suspend fun resumeVerified(expected: List<BookDownloadEntity>, verificationId: String? = null,
+        sourceIsCurrent: () -> Boolean): Unit = lock.withLock {
+        for (owner in expected) {
+            if (!sourceIsCurrent()) return@withLock
             val request = OneTimeWorkRequestBuilder<CacheBookWork>()
                 .addTag(CacheBookWork.generationTag(owner.generation))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .setInputData(workDataOf("bookId" to owner.bookId, "downloadGeneration" to owner.generation, "persistedTask" to true))
+                .setInputData(workDataOf("bookId" to owner.bookId, "downloadGeneration" to owner.generation,
+                    "persistedTask" to true, "sourceVerification" to verificationId))
                 .build()
             if (downloads.queueVerifiedTask(owner, request.id.toString())) {
                 workManager.enqueueUniqueWork(CacheBookWork.ofId(owner.bookId), ExistingWorkPolicy.REPLACE, request).await()

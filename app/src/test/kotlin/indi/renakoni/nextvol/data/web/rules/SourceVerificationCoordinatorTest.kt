@@ -115,8 +115,8 @@ class SourceVerificationCoordinatorTest {
         var body = ""
         var consumed = ""
         val actions = mutableListOf<SourceVerification>()
-        withContext(BackgroundSourceRequest { { resumed++ } }) { runCatching {
-            coordinator.execute(owner, "Download") {
+        suspend fun download() {
+            consumed = coordinator.execute(owner, "Download") {
                 val invocation = ++calls
                 val action = mockk<SourceVerification> {
                     every { kind } returns null
@@ -125,9 +125,13 @@ class SourceVerificationCoordinatorTest {
                     coEvery { complete() } coAnswers { body = "chapter-$invocation" }
                 }.also(actions::add)
                 currentCoroutineContext()[SourceScriptInteraction]!!.request(action)
-                consumed = body
+                body
             }
-        }.onFailure { assertTrue(it is SourceScriptInteractionRequired) } }
+        }
+        withContext(BackgroundSourceRequest { { id ->
+            resumed++
+            withContext(BackgroundSourceRequest(id) { null }) { download() }
+        } }) { runCatching { download() }.onFailure { assertTrue(it is SourceScriptInteractionRequired) } }
         val prompt = coordinator.prompts.value.single()
         assertFalse(prompt.foreground)
         assertEquals(1, calls)
@@ -161,6 +165,31 @@ class SourceVerificationCoordinatorTest {
         release.complete(Unit)
         assertEquals((0..3).map { "section-$it" }, sections.awaitAll())
         assertEquals(listOf(2, 2, 2, 2), attempts.toList())
+        coVerify(exactly = 1) { verification.complete() }
+        assertTrue(coordinator.prompts.value.isEmpty())
+    }
+
+    @Test fun cancellingUserActionAlsoCancelsTheResumedScriptAfterItsWindowCloses() = runTest {
+        val resumed = CompletableDeferred<String>()
+        val fetching = CompletableDeferred<Unit>()
+        var saved = false
+        suspend fun download(): String = coordinator.execute(owner, "Download") {
+            currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
+            fetching.complete(Unit)
+            awaitCancellation()
+        }
+        withContext(BackgroundSourceRequest { { id -> resumed.complete(checkNotNull(id)) } }) {
+            runCatching { download() }
+        }
+        val opening = async { coordinator.verifyBackground(coordinator.prompts.value.single().id) }
+        val id = resumed.await()
+        val worker = async(BackgroundSourceRequest(id) { null }) {
+            runCatching { download(); saved = true }.exceptionOrNull()
+        }
+        fetching.await()
+        opening.cancelAndJoin()
+        assertEquals(ContentError.BrowserRequired, (worker.await() as SourceContentException).code)
+        assertFalse(saved)
         coVerify(exactly = 1) { verification.complete() }
         assertTrue(coordinator.prompts.value.isEmpty())
     }
@@ -307,16 +336,22 @@ class SourceVerificationCoordinatorTest {
         assertTrue(coordinator.prompts.value.isEmpty())
     }
 
-    @Test fun downloadVerificationRechecksTheRequestAndResumesOnlyOnce() = runTest {
+    @Test fun downloadVerificationLetsTheResumedTaskConsumeTheOnlySuccessfulResponse() = runTest {
         var ready = false
         var calls = 0
         var resumed = 0
+        var saved = ""
         coEvery { verification.complete() } coAnswers { ready = true }
-        val download = BackgroundSourceRequest { { resumed++ } }
-        withContext(download) { runCatching { coordinator.execute(owner, "Download") {
+        suspend fun download(): String = coordinator.execute(owner, "Download") {
             calls++
             if (!ready) throw failure
-        } } }
+            "chapter"
+        }
+        val background = BackgroundSourceRequest { {
+            resumed++
+            withContext(BackgroundSourceRequest { null }) { saved = download() }
+        } }
+        withContext(background) { runCatching { saved = download() } }
         val id = coordinator.prompts.value.single().id
         coordinator.expireBackgroundNotice(id)
         assertEquals(id, coordinator.prompts.value.single().id)
@@ -326,20 +361,79 @@ class SourceVerificationCoordinatorTest {
         coordinator.verifyBackground(id)
         assertEquals(2, calls)
         assertEquals(1, resumed)
+        assertEquals("chapter", saved)
         coVerify(exactly = 1) { verification.complete() }
     }
 
-    @Test fun closingTheDownloadBrowserWhileStillChallengedDoesNotResumeOrLoop() = runTest {
+    @Test fun closingTheDownloadBrowserOnlySignalsResumeAndARepeatedChallengeStopsTheTask() = runTest {
         var calls = 0
         var resumed = 0
-        withContext(BackgroundSourceRequest { { resumed++ } }) {
-            runCatching { coordinator.execute<Unit>(owner, "Download") { calls++; throw failure } }
+        var result: Throwable? = null
+        suspend fun download() = coordinator.execute<Unit>(owner, "Download") { calls++; throw failure }
+        withContext(BackgroundSourceRequest { {
+            resumed++
+            withContext(BackgroundSourceRequest { null }) { result = runCatching { download() }.exceptionOrNull() }
+        } }) {
+            runCatching { download() }
         }
-        val error = runCatching { coordinator.verifyBackground(coordinator.prompts.value.single().id) }.exceptionOrNull()
-        assertSame(failure, error)
+        coordinator.verifyBackground(coordinator.prompts.value.single().id)
+        assertSame(failure, result)
         assertEquals(2, calls)
-        assertEquals(0, resumed)
+        assertEquals(1, resumed)
         coVerify(exactly = 1) { verification.complete() }
+        assertFalse(coordinator.prompts.value.single().opening)
+    }
+
+    @Test fun oneWindowResumesExistingAndLateDownloadsAndStaleResponsesOnlyForItsSite() = runTest {
+        val release = CompletableDeferred<Unit>()
+        val staleResponse = CompletableDeferred<Unit>()
+        var ready = false
+        val calls = IntArray(4)
+        val saved = mutableMapOf<Int, String>()
+        coEvery { verification.complete() } coAnswers { release.await(); ready = true }
+        suspend fun download(index: Int): String = coordinator.execute(owner, "Chapter $index") {
+            val attempt = ++calls[index]
+            if (index == 3 && attempt == 1) { staleResponse.await(); throw failure }
+            if (!ready) throw failure
+            "chapter-$index"
+        }
+        suspend fun waitForVerification(index: Int) {
+            withContext(BackgroundSourceRequest { {
+                withContext(BackgroundSourceRequest { null }) { saved[index] = download(index) }
+            } }) { runCatching { download(index) } }
+        }
+        waitForVerification(0)
+        val oldId = coordinator.prompts.value.single().id
+        val opening = async { coordinator.verifyBackground(oldId) }
+        runCurrent()
+        waitForVerification(1)
+        var otherResumed = false
+        val otherVerification = mockk<SourceVerification> {
+            every { kind } returns BrowserChallengeKind.Cloudflare
+            every { certificate } returns null
+            every { origin } returns "https://other.test/"
+        }
+        withContext(BackgroundSourceRequest { { otherResumed = true } }) {
+            runCatching { coordinator.execute<Unit>(owner, "Other site") {
+                throw SourceContentException(ContentError.BrowserRequired, "chapter", verification = otherVerification)
+            } }
+        }
+        val foreground = async(ForegroundSourceRequest()) { download(2) }
+        val stale = async(BackgroundSourceRequest { error("The running task should consume its retry directly") }) { download(3) }
+        runCurrent()
+        release.complete(Unit)
+        opening.await()
+        staleResponse.complete(Unit)
+        assertEquals("chapter-2", foreground.await())
+        assertEquals("chapter-3", stale.await())
+        assertEquals(mapOf(0 to "chapter-0", 1 to "chapter-1"), saved)
+        assertEquals(listOf(2, 2, 2, 2), calls.toList())
+        coordinator.verifyBackground(oldId)
+        coVerify(exactly = 1) { verification.complete() }
+        coVerify(exactly = 0) { otherVerification.complete() }
+        assertFalse(otherResumed)
+        assertEquals("Other site", coordinator.prompts.value.single().name)
+        coordinator.dismiss(coordinator.prompts.value.single().id)
         assertTrue(coordinator.prompts.value.isEmpty())
     }
 
@@ -349,6 +443,29 @@ class SourceVerificationCoordinatorTest {
         }
         coordinator.verifyBackground(coordinator.prompts.value.single().id)
         coVerify(exactly = 0) { verification.complete() }
+        assertTrue(coordinator.prompts.value.isEmpty())
+    }
+
+    @Test fun aCancelledSharedWindowStopsQueuedRequestsUntilAnotherUserAction() = runTest {
+        val release = CompletableDeferred<Unit>()
+        coEvery { verification.complete() } coAnswers { release.await(); throw CancellationException("Browser cancelled") }
+        var resumed = 0
+        withContext(BackgroundSourceRequest { { resumed++ } }) {
+            runCatching { coordinator.execute<Unit>(owner, "Download") { throw failure } }
+        }
+        val notice = coordinator.prompts.value.single().id
+        val requests = (0..1).map { async(ForegroundSourceRequest()) {
+            runCatching { coordinator.execute<Unit>(owner, "Foreground") { throw failure } }
+        } }
+        runCurrent()
+        release.complete(Unit)
+        requests.awaitAll().forEach { assertTrue(it.exceptionOrNull() is CancellationException) }
+        assertEquals(0, resumed)
+        coVerify(exactly = 1) { verification.complete() }
+        coEvery { verification.complete() } returns Unit
+        coordinator.verifyBackground(notice)
+        assertEquals(1, resumed)
+        coVerify(exactly = 2) { verification.complete() }
         assertTrue(coordinator.prompts.value.isEmpty())
     }
 
