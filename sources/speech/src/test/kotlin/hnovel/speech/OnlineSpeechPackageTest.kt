@@ -17,11 +17,12 @@ class OnlineSpeechPackageTest {
     @Test fun plannedTextReachesStreamingAndCompleteBackendsUnchanged() = runBlocking {
         val text = "甲".repeat(119) + "。" + "乙".repeat(119) + "。"
         val synthesized = mutableListOf<String>()
-        val received = mutableListOf<String>()
+        val packet = ByteArray(MAX_AUDIO_BYTES / 2 + 3)
+        val received = mutableListOf<Pair<Int, Int>>()
         val backend = object : StreamingOnlineSpeechBackend {
             override suspend fun stream(text: String, rate: Float, volume: Float, receive: (ByteArray, Int, Int) -> Unit) {
                 synthesized += text
-                repeat(2) { receive(byteArrayOf(0, 1, 2, 0), 1, 2) }
+                repeat(2) { receive(packet, 1, packet.size - 2) }
             }
             override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray {
                 synthesized += text
@@ -36,28 +37,14 @@ class OnlineSpeechPackageTest {
             HttpSpeechClient(definition, broker, emptyList(), ExecutionAuthority(),
                 createSdkBackend = { _, _, _ -> backend }, run = { _, _, _, _ -> error("Unexpected script") }).use { client ->
                 assertTrue(client.synthesize(text, 1.5f, 2f) { bytes, offset, count ->
-                    received += bytes.copyOfRange(offset, offset + count).joinToString()
+                    assertSame(packet, bytes)
+                    received += offset to count
                 }.isEmpty())
-                assertEquals(listOf("1, 2", "1, 2"), received)
+                assertEquals(List(2) { 1 to packet.size - 2 }, received)
                 assertArrayEquals(text.toByteArray(), client.synthesize(text, 1.5f, 2f))
                 assertEquals(listOf(text, text), synthesized)
             }
         }
-    }
-
-    @Test fun streamingDeliversAudioPacketsBeyondFormerAggregateLimit() = runBlocking {
-        val chunk = ByteArray(MAX_AUDIO_BYTES / 2 + 1)
-        val backend = object : StreamingOnlineSpeechBackend {
-            override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray = error("Unexpected file synthesis")
-            override suspend fun stream(text: String, rate: Float, volume: Float, receive: (ByteArray, Int, Int) -> Unit) {
-                repeat(2) { receive(chunk, 0, chunk.size) }
-            }
-        }
-        val client = OnlineSpeechClient(buildJsonObject { putJsonObject("engine") { put("code", "vivo") } },
-            { error("Unexpected HTTP request") }, createSdkBackend = { _, _, _ -> backend })
-        var deliveries = 0
-        assertTrue(client.synthesize("abcdefgh", 1f, 1f) { _, _, _ -> deliveries++ }.isEmpty())
-        assertEquals(2, deliveries)
     }
 
     @Test fun nativeFailureIsMappedAndVendorCancellationCannotSkipSessionCleanup(): Unit = runBlocking {
