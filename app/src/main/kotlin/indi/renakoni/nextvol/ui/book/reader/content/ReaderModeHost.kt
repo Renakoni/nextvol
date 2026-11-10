@@ -12,6 +12,7 @@ internal class ReaderModeHost(
 ) {
     private var selectedMode: ReaderMode? = null
     private var controller: ReaderModeController? = null
+    private var navigation: indi.renakoni.nextvol.data.book.ChapterNavigation? = null
     private var transitionRequestedChapterId: String? = null
     val uiState: ContentUiState? get() = controller?.uiState
 
@@ -31,6 +32,7 @@ internal class ReaderModeHost(
             previousController?.close()
             val book = currentBookId()
             controller?.changeBookId(book)
+            navigation?.takeIf { it.bookId == book }?.let { controller?.updateNavigation(it) }
             val chapter = currentChapterId()
             controller?.changeChapter(chapter)
             controller?.let { positions?.activate(it.uiState, book, chapter, checkpoint) }
@@ -48,7 +50,15 @@ internal class ReaderModeHost(
         selectedMode = null
     }
 
-    fun changeBookId(id: String) = controller?.changeBookId(id)
+    fun changeBookId(id: String) {
+        if (navigation?.bookId != id) navigation = null
+        controller?.changeBookId(id)
+    }
+    fun updateNavigation(volumes: io.nightfish.lightnovelreader.api.book.BookVolumes) {
+        val updated = indi.renakoni.nextvol.data.book.ChapterNavigation(volumes)
+        navigation = updated
+        controller?.updateNavigation(updated)
+    }
     fun changeChapter(id: String) = controller?.changeChapter(id)
 
     val requestedChapterId: String?

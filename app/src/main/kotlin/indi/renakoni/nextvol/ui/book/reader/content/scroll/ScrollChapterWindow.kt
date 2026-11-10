@@ -6,6 +6,7 @@ import androidx.compose.runtime.snapshotFlow
 import com.github.michaelbull.result.get
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.data.book.BookReadingDataAccess
+import indi.renakoni.nextvol.data.book.ChapterNavigation
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderChapterLoader
 import kotlinx.coroutines.CoroutineDispatcher
@@ -39,6 +40,8 @@ internal class ScrollChapterWindow(
     private val metadataMutex = Mutex()
     private var observationGeneration = 0L
     private var continuous = false
+    private var navigation: ChapterNavigation? = null
+    private var preloadJob: Job? = null
 
     private fun isCurrent(expected: Request) = request === expected && coroutineScope.isActive
 
@@ -52,18 +55,32 @@ internal class ScrollChapterWindow(
         request = null
         settingsJob?.cancel()
         settingsJob = null
+        preloadJob?.cancel()
         repeat(3, ::cancelSlot)
     }
 
     fun changeBookId(id: String) {
         if (uiState.bookId == id) return
         invalidateRequest()
+        navigation = null
         uiState.bookId = id
         uiState.readingChapterId = null
         uiState.readingProgress = 0f
         uiState.isRestoringProgress = false
         uiState.contentList.fill(null)
         uiState.lazyListState = LazyListState()
+    }
+
+    fun updateNavigation(navigation: ChapterNavigation) {
+        if (navigation.bookId != uiState.bookId) return
+        this.navigation = navigation
+        val content = uiState.readingChapterContent?.get()
+        val changed = content?.updateNavigation(navigation) == true
+        uiState.contentList.forEach { it?.second?.get()?.updateNavigation(navigation) }
+        val expected = request ?: return
+        if (changed && content != null) {
+            if (continuous) replaceAdjacent(expected, content) else preload(expected, content)
+        }
     }
 
     fun changeChapter(id: String, restoreProgress: Boolean = true) {
@@ -173,9 +190,14 @@ internal class ScrollChapterWindow(
                 // Adjacent collectors already preload without interaction and can publish fallback
                 // content before revalidation. A separate preload would block that local read.
                 replaceAdjacent(expected, content)
-            } else if (preload) content.nextChapter?.let {
-                withContext(ioDispatcher) { chapters.preload(it, expected.bookId) }
-            }
+            } else if (preload) preload(expected, content)
+        }
+    }
+
+    private fun preload(expected: Request, content: ChapterContentUiState) {
+        preloadJob?.cancel()
+        preloadJob = content.nextChapter?.let { next ->
+            coroutineScope.launch(ioDispatcher) { chapters.preload(next, expected.bookId) }
         }
     }
 
@@ -206,6 +228,7 @@ internal class ScrollChapterWindow(
             chapters.load(chapterId, expected.bookId, interactive = interactive, retainedContent = retained)
                 .flowOn(ioDispatcher).collect { result ->
                     if (!isCurrent(expected) || generation != slotGenerations[index]) return@collect
+                    result.onOk { it.updateNavigation(navigation) }
                     result.onOk { beforePublish(it) }
                     if (!isCurrent(expected) || generation != slotGenerations[index]) return@collect
                     uiState.contentList[index] = chapterId to result

@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import indi.renakoni.nextvol.ui.book.reader.bookmark.computeBookmarkFingerprint
 import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.tts.SpeechTextIndex
+import indi.renakoni.nextvol.data.book.ChapterNavigation
 import io.nightfish.lightnovelreader.api.book.ChapterContent
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
 import kotlinx.coroutines.Dispatchers
@@ -21,11 +22,24 @@ class ChapterContentUiState(
     val id: String,
     val title: String,
     val content: List<AbstractContentComponent<*>>,
-    val prevChapter: String?,
-    val nextChapter: String?,
+    prevChapter: String?,
+    nextChapter: String?,
     // Exact processed source, scoped to its book, for reuse by the active scroll window.
     internal val source: Pair<String, ChapterContent>? = null,
 ) {
+    var prevChapter by mutableStateOf(prevChapter)
+        private set
+    var nextChapter by mutableStateOf(nextChapter)
+        private set
+
+    internal fun updateNavigation(navigation: ChapterNavigation?): Boolean {
+        val (previous, next) = navigation?.adjacent(id) ?: return false
+        if (previous == prevChapter && next == nextChapter) return false
+        prevChapter = previous
+        nextChapter = next
+        return true
+    }
+
     internal val bookmarkFingerprint by lazy { computeBookmarkFingerprint() }
 
     private val speechIndexMutex = Mutex()

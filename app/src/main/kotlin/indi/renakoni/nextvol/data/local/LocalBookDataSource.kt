@@ -6,6 +6,7 @@ import indi.renakoni.nextvol.data.local.room.dao.ChapterContentDao
 import indi.renakoni.nextvol.data.local.room.dao.UserReadingDataDao
 import indi.renakoni.nextvol.data.local.room.entity.UserReadingDataEntity
 import indi.renakoni.nextvol.data.book.BookIdentity
+import indi.renakoni.nextvol.data.book.ChapterNavigation
 import indi.renakoni.nextvol.data.book.BookAliasStore
 import indi.renakoni.nextvol.data.book.rebind
 import indi.renakoni.nextvol.data.book.bindReadingData
@@ -56,6 +57,9 @@ class LocalBookDataSource @Inject constructor(
         return aliases.withResolved(chapter.book) { canonical ->
             chapterContentDao.get(SourceChapterId(canonical, chapter.remoteId).storageKey)?.let {
                 ChapterContent(it.id, it.title, it.content, it.prevChapter.ifEmpty { null }, it.nextChapter.ifEmpty { null })
+                    .let { content -> bookVolumesDao.getBookVolumes(canonical.storageKey)?.let { volumes ->
+                        ChapterNavigation(volumes).applyTo(content)
+                    } ?: content }
                     .rebind(canonical, chapter.book)
             }
         }
@@ -65,6 +69,9 @@ class LocalBookDataSource @Inject constructor(
         return aliases.withResolved(chapter.book) { canonical ->
             chapterContentDao.reusable(SourceChapterId(canonical, chapter.remoteId).storageKey, revision)?.let {
                 ChapterContent(it.id, it.title, it.content, it.prevChapter.ifEmpty { null }, it.nextChapter.ifEmpty { null })
+                    .let { content -> bookVolumesDao.getBookVolumes(canonical.storageKey)?.let { volumes ->
+                        ChapterNavigation(volumes).applyTo(content)
+                    } ?: content }
                     .rebind(canonical, chapter.book)
             }
         }

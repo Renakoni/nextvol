@@ -43,6 +43,24 @@ class BookAliasStoreTest {
 
     @After fun tearDown() { database.close() }
 
+    @Test fun cachedBodyUsesTheLatestDirectoryWithoutRewritingItsSnapshot() = runBlocking {
+        val local = LocalBookDataSource(database.bookInformationDao(), database.bookVolumesDao(),
+            database.chapterContentDao(), database.userReadingDataDao(), aliases)
+        val old = SourceChapterId(first, "old")
+        val next = SourceChapterId(first, "new")
+        val body = old.bind(ChapterContent("old", "Saved", JsonObject(emptyMap())))
+        local.updateChapterContent(body, "revision")
+        assertEquals(body, local.getReusableChapterContent(old.storageKey, "revision"))
+        local.updateBookVolumes(first.bind(BookVolumes(first.remoteId, listOf(
+            Volume("one", "One", listOf(ChapterInformation("old", "Old"))),
+            Volume("two", "Two", listOf(ChapterInformation("new", "New"))),
+        ))))
+        assertEquals(next.storageKey, local.getChapterContent(old.storageKey)!!.nextChapter)
+        assertEquals(next.storageKey, local.getReusableChapterContent(old.storageKey, "revision")!!.nextChapter)
+        assertEquals("", database.chapterContentDao().get(old.storageKey)!!.nextChapter)
+        assertEquals(body.content, local.getChapterContent(old.storageKey)!!.content)
+    }
+
     private fun info(book: SourceBookId) = book.bind(BookInformation(book.remoteId, "Fixture",
         author = "Author", description = "", publishingHouse = "", wordCount = WordCount(1),
         lastUpdated = now, isComplete = false))

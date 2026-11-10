@@ -83,6 +83,7 @@ class ReaderViewModel @Inject constructor(
                             // Errors may expose a partial directory to the UI. Keep only the
                             // last successful catalog for completion, including a confirmed empty one.
                             it.map { volumes ->
+                                modeHost.updateNavigation(volumes)
                                 catalogChapterIdsByBook[value] = volumes.volumes
                                     .flatMap { volume -> volume.chapters }.map { chapter -> chapter.id }.toSet()
                             }
