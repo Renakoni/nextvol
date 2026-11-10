@@ -143,7 +143,8 @@ class SourceBrowserService : Service() {
         check(!finished.get() && incoming.url.scheme?.lowercase() in setOf("http", "https"))
         // The host verification document embeds its image and needs no favicon or other subresources.
         if (job.options.verificationCode && !incoming.isForMainFrame) return denied()
-        val initial = incoming.isForMainFrame && firstRequest
+        // Captcha reloads must retain the source's original headers and explicit Cookie.
+        val initial = incoming.isForMainFrame && (firstRequest || job.options.verificationCode)
         if (initial) firstRequest = false
         val response = if (initial && job.options.html != null) BrokerResponse(200, job.request.url,
             mapOf("Content-Type" to listOf("text/html; charset=UTF-8")), job.options.html!!.toByteArray(), "UTF-8", 0)

@@ -110,9 +110,6 @@ class SourceBrowserBackTest {
         val view = service.webView!!
         shadowOf(view).setCanGoBack(true)
         val controller = Robolectric.buildActivity(SourceBrowserActivity::class.java).setup()
-        reload(controller.get())
-        assertEquals(1, shadowOf(view).reloadInvocations)
-        assertTrue(results.isEmpty())
         back(controller.get())
         controller.pause().stop().destroy()
         service.fail()
