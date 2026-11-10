@@ -10,11 +10,13 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.nightfish.lightnovelreader.api.book.*
 import io.nightfish.lightnovelreader.api.error.WebRequestError
+import io.nightfish.lightnovelreader.api.error.WebRequestErrorKind
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
@@ -29,6 +31,58 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class BookDirectoryChecksTest {
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun missingDirectoryPreparesCachedInformationWithItsForegroundVerificationOwner() = runTest {
+        val book = SourceBookId(Identifier("fixture", "directory"), "book")
+        val fixture = BookRepositoryFixture()
+        val registry = WebSourceRegistry(StandardTestDispatcher(testScheduler), hnovel.execution.ExecutionAuthority())
+        val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("directory-verification-test", Context.MODE_PRIVATE)
+        prefs.edit().clear().apply()
+        val info = book.bind(BookInformation("book", "Book", author = "", description = "",
+            publishingHouse = "", wordCount = WordCount(1), lastUpdated = java.time.LocalDateTime.MIN, isComplete = false))
+        var volumes: BookVolumes? = null
+        coEvery { fixture.local.getBookInformation(any()) } returns info
+        coEvery { fixture.local.updateBookInformation(any()) } returns Unit
+        coEvery { fixture.local.getBookVolumes(any()) } answers { volumes }
+        coEvery { fixture.local.updateBookVolumes(any()) } answers { volumes = firstArg() }
+        val foreground = ForegroundSourceRequest()
+        val accepted = CompletableDeferred<Unit>()
+        var verificationRequests = 0
+        var directoryRequests = 0
+        val source = object : WebBookDataSource by EmptyWebDataSource {
+            override val id = book.sourceId
+            override suspend fun getBookInformation(id: String): com.github.michaelbull.result.Result<BookInformation, WebRequestError> {
+                val owner = currentCoroutineContext()[ForegroundSourceRequest]
+                if (owner?.allowsInteraction != true) return Err(WebRequestError("verification", "required",
+                    kind = WebRequestErrorKind.VerificationRequired))
+                assertSame(foreground, owner)
+                return owner.ownVerification {
+                    verificationRequests++
+                    accepted.await()
+                    Ok(info.copy(id = "book"))
+                }
+            }
+            override suspend fun getBookVolumes(id: String): com.github.michaelbull.result.Result<BookVolumes, WebRequestError> {
+                directoryRequests++
+                return Ok(BookVolumes("book", listOf(Volume("volume", "Volume", listOf(ChapterInformation("one", "One"))))))
+            }
+        }
+        registry.register(source, SourceMetadata(WebDataSourceItem(book.sourceId, "Fixture", ""), emptySet()))
+        val checks = BookDirectoryChecks(registry, fixture.local, fixture.downloads, prefs) { 1_000L }
+        try {
+            // Cached metadata refresh is non-interactive; its failed timestamp must not block the missing directory.
+            assertTrue(withContext(foreground) { checks.information(book, WebDataSourcePriority.High) }.isErr)
+            val directory = async(foreground) { checks.volumes(book, WebDataSourcePriority.High) }
+            runCurrent()
+            assertEquals(1, verificationRequests)
+            assertEquals(0, directoryRequests)
+            accepted.complete(Unit); runCurrent()
+            assertTrue(directory.await().isOk)
+            assertEquals(1, directoryRequests)
+            assertNotNull(volumes)
+        } finally { accepted.complete(Unit); registry.unregister(book.sourceId); runCurrent() }
+    }
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     @Test fun cachedChecksSharePreparationAndThrottleFailuresAcrossRecreationWithoutATimer() = runTest {
         val book = SourceBookId(Identifier("fixture", "directory"), "book")

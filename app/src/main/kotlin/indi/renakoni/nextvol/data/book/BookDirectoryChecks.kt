@@ -53,6 +53,7 @@ class BookDirectoryChecks internal constructor(
         return registry.request(requested) { runtime ->
             check(informationRequests, "information", requested, runtime,
                 cached = { local.getBookInformation(requested.storageKey) },
+                preserveOwner = prepare,
                 requirePreparation = { prepare && !runtime.hasPreparedInformation(requested.remoteId) }) {
                 runtime.getBookInformation(requested.remoteId, priority).andThen { remote ->
                     runtime.persistCanonicalBook(requested, local, downloads).map { canonical ->
@@ -90,10 +91,12 @@ class BookDirectoryChecks internal constructor(
 
     private suspend fun <T> check(requests: MutableMap<Key, Request<T>>, operation: String,
         book: SourceBookId, runtime: SourceRuntime, cached: suspend () -> T?,
-        requirePreparation: () -> Boolean = { false }, fetch: suspend () -> Result<T, WebRequestError>): Result<T, WebRequestError> {
+        preserveOwner: Boolean = false, requirePreparation: () -> Boolean = { false },
+        fetch: suspend () -> Result<T, WebRequestError>): Result<T, WebRequestError> {
         val local = cached()
         val context = currentCoroutineContext()
-        val owner = context[ForegroundSourceRequest]?.takeIf { local == null }
+        val automatic = local != null && !preserveOwner
+        val owner = context[ForegroundSourceRequest]?.takeIf { !automatic && it.allowsInteraction }
         val key = Key(runtime, book, owner)
         val entry = synchronized(requests) {
             requests.getOrPut(key) {
@@ -105,7 +108,7 @@ class BookDirectoryChecks internal constructor(
                 if (!requirePreparation() && local != null && previous?.substringBeforeLast(':') == version &&
                     elapsed != null && elapsed in 0 until 600_000L) return Ok(local)
                 var ownership = context.minusKey(Job)
-                if (local != null) ownership = ownership.minusKey(BackgroundSourceRequest) + ForegroundSourceRequest(false)
+                if (automatic) ownership = ownership.minusKey(BackgroundSourceRequest) + ForegroundSourceRequest(false)
                 Request(scope.async(ownership, start = CoroutineStart.LAZY) {
                     runtime.execute {
                         // Failed attempts are throttled as well, including across process recreation.
