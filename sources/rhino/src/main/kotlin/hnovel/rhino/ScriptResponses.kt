@@ -124,7 +124,8 @@ internal object ScriptResponses {
             .code(status).message(message).headers(responseHeaders).apply { if (rawBody != null) body(rawBody) }
             .sentRequestAtMillis(data["sentAt"]?.jsonPrimitive?.long ?: 0)
             .receivedResponseAtMillis(data["receivedAt"]?.jsonPrimitive?.long ?: 0).build()
-        val view = ScriptDom.wrap(context, scope, raw)
+        val view = ScriptDom.wrap(context, scope, raw) as ScriptableObject
+        if (inline) method(view, "body") { require(it.isEmpty()); null }
         constant("raw", view)
         constant("getRaw", view)
         constant("toString", raw.toString())
