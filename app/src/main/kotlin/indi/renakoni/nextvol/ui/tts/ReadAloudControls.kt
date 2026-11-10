@@ -45,6 +45,11 @@ import indi.renakoni.nextvol.tts.SpeechPhase
 import indi.renakoni.nextvol.tts.labelResource
 import indi.renakoni.nextvol.tts.messageResource
 
+@Composable
+internal fun ReadAloudState.playbackTitle(): String = if (request?.isPreview == true) {
+    request.previewLabel.ifBlank { voiceLabel }.ifBlank { stringResource(R.string.tts_preview) }
+} else bookTitle.ifEmpty { stringResource(R.string.tts_title) }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReadAloudSheet(
@@ -107,9 +112,7 @@ fun ReadAloudControls(
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        state.bookTitle.ifEmpty {
-                            stringResource(if (state.request?.isPreview == true) R.string.tts_preview else R.string.tts_title)
-                        },
+                        state.playbackTitle(),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Medium,
                         maxLines = 2,

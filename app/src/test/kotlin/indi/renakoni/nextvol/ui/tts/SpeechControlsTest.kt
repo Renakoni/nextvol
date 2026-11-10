@@ -143,11 +143,42 @@ class SpeechControlsTest {
     }
 
     @Test fun previewDoesNotOfferASleepTimerAndFinishedPlaybackCannotSetOne() {
-        val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(SpeechRequest("", "", "Preview"), SpeechPhase.Playing))
+        val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(
+            SpeechRequest("", "", "Preview", previewLabel = "Sample voice"), SpeechPhase.Playing))
         activity.get().setContent { MaterialTheme { ReadAloudControls(state.value, {}, onSleepTimer = {}) } }
+        compose.onNodeWithText("Sample voice").assertIsDisplayed()
         compose.onNodeWithContentDescription("Sleep timer").assertDoesNotExist()
         compose.runOnIdle { state.value = ReadAloudState(SpeechRequest("book", "one"), SpeechPhase.Completed) }
         compose.onNodeWithContentDescription("Sleep timer").assertIsNotEnabled()
+    }
+
+    @Test @Config(qualifiers = "en-rUS-w360dp-h900dp")
+    fun voicePreviewTitleAndRowButtonFollowTheSamePlaybackStateAsTheBottomBar() {
+        val sources = listOf("Doubao · General female", "Other voice").mapIndexed { index, name ->
+            SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
+                """{"id":"preview-$index","name":"$name","url":"https://example.org"}""").sources.single(),
+                listOf("https://example.org:443"))
+        }
+        val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(
+            SpeechRequest("", "", "Sample.", SpeechSettings(httpSource = "preview-0"), sources[0].definition.name), SpeechPhase.Preparing))
+        activity.get().setContent { MaterialTheme {
+            HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = sources, loaded = true), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                playback = state.value, onPreview = {}, focusVoiceKey = "http:preview-0")
+        } }
+        compose.onAllNodesWithText(sources[0].definition.name).assertCountEquals(2)
+        compose.onNodeWithContentDescription("Pause preview of ${sources[0].definition.name}").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Preview Other voice").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
+        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Paused) }
+        compose.onNodeWithContentDescription("Pause preview of ${sources[0].definition.name}").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Resume").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Preview ${sources[0].definition.name}").assertIsDisplayed()
+        compose.runOnIdle { state.value = ReadAloudState(
+            SpeechRequest("", "", "Sample.", SpeechSettings(httpSource = "preview-1"), sources[1].definition.name), SpeechPhase.Playing) }
+        compose.onAllNodesWithText(sources[0].definition.name).assertCountEquals(1)
+        compose.onAllNodesWithText(sources[1].definition.name).assertCountEquals(2)
+        compose.onNodeWithContentDescription("Preview ${sources[0].definition.name}").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Pause preview of Other voice").assertIsDisplayed()
     }
 
     @Test

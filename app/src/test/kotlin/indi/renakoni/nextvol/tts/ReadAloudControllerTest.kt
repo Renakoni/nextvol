@@ -8,6 +8,7 @@ import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,5 +61,35 @@ class ReadAloudControllerTest {
         verify(exactly = 1) { logger.recordSpeech(match {
             it.stage == SpeechLogStage.Initialization && it.error == SpeechError.ServiceUnavailable
         }) }
+    }
+
+    @Test fun voiceAuditionCarriesItsNameAndTogglesTheMatchingPreviewWithoutRestarting() {
+        val settings = SpeechSettings(httpSource = "first")
+        val label = "Doubao · General female"
+        controller.previewVoice("Sample.", settings, label)
+        val preview = requireNotNull(controller.state.value.request)
+        assertEquals(label, preview.previewLabel)
+        verify { context.startForegroundService(match {
+            Json.decodeFromString<SpeechRequest>(it.getStringExtra(ReadAloudController.REQUEST)!!) == preview
+        }) }
+
+        controller.publish(ReadAloudState(preview, SpeechPhase.Playing))
+        controller.previewVoice("Sample.", settings, label)
+        verify { context.startService(match { it.getStringExtra(ReadAloudController.ACTION) == SpeechAction.Pause.name }) }
+        controller.publish(ReadAloudState(preview, SpeechPhase.Paused))
+        controller.previewVoice("Sample.", settings, label)
+        verify { context.startForegroundService(match { it.getStringExtra(ReadAloudController.ACTION) == SpeechAction.Resume.name }) }
+        verify(exactly = 1) {
+            context.startForegroundService(match { it.getStringExtra(ReadAloudController.ACTION) == SpeechAction.Start.name })
+        }
+
+        controller.publish(ReadAloudState(preview, SpeechPhase.Completed))
+        controller.previewVoice("Sample.", settings, label)
+        assertEquals(SpeechPhase.Preparing, controller.state.value.phase)
+        controller.previewVoice("Sample.", settings.copy(httpSource = "second"), label)
+        assertEquals("second", controller.state.value.request?.previewSettings?.httpSource)
+        verify(exactly = 3) {
+            context.startForegroundService(match { it.getStringExtra(ReadAloudController.ACTION) == SpeechAction.Start.name })
+        }
     }
 }

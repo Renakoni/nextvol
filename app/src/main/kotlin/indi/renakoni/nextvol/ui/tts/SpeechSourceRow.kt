@@ -28,7 +28,8 @@ import indi.renakoni.nextvol.tts.SpeechVoiceSelection
 internal fun SpeechSourceRow(name: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit,
     avatar: @Composable () -> Unit, onPreview: (() -> Unit)?, previewEnabled: Boolean = enabled,
     description: String = "", problem: String? = null, actions: @Composable () -> Unit = {},
-    onLongClick: (() -> Unit)? = null, selection: SpeechVoiceSelection? = null, management: VoiceRowManagement? = null) {
+    onLongClick: (() -> Unit)? = null, selection: SpeechVoiceSelection? = null, management: VoiceRowManagement? = null,
+    previewPlaying: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val selectionLabel = selection?.let { stringResource(if (it == SpeechVoiceSelection.Narration)
         R.string.tts_voice_narrator else R.string.tts_voice_dialogue) }
@@ -67,7 +68,7 @@ internal fun SpeechSourceRow(name: String, selected: Boolean, enabled: Boolean, 
             if (selectionLabel != null) Text(selectionLabel, style = MaterialTheme.typography.labelMedium, color = colors.primary)
             if (problem != null) Text(problem, style = MaterialTheme.typography.bodySmall, color = colors.error)
         }
-        if (management == null && onPreview != null) SpeechPreviewButton(name, previewEnabled, onPreview)
+        if (management == null && onPreview != null) SpeechPreviewButton(name, previewEnabled, previewPlaying, onPreview)
         if (management == null) actions()
         else IconButton(onClick = {}, modifier = management.dragHandle) {
             Icon(painterResource(R.drawable.drag_indicator_24px), stringResource(R.string.tts_voice_reorder, name),

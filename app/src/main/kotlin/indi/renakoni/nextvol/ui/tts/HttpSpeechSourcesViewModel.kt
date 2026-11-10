@@ -94,8 +94,10 @@ class HttpSpeechSourcesViewModel @Inject constructor(
 
     fun previewVoice(id: String?, text: String) {
         val selected = selectedSettings ?: return
-        if (state.value.busy || id != null && state.value.sources.none { it.definition.id == id && it.isConfigured && it.available }) return
-        controller.preview(text, selected.copy(httpSource = id, offlineVoice = null))
+        if (state.value.busy) return
+        val label = if (id == null) selected.voice.ifBlank { context.getString(R.string.tts_system_speech) }
+            else state.value.sources.find { it.definition.id == id && it.isConfigured && it.available }?.definition?.name ?: return
+        controller.previewVoice(text, selected.copy(httpSource = id, offlineVoice = null), label)
     }
 
     fun configure(source: SavedHttpSpeechSource, credentials: Map<String, String>) = work {

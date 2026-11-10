@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class SpeechRequest(val bookId: String, val chapterId: String, val previewText: String? = null,
-    val previewSettings: SpeechSettings? = null) {
+    val previewSettings: SpeechSettings? = null, val previewLabel: String = "") {
     val isPreview get() = previewText != null
 }
 
@@ -70,6 +70,9 @@ data class ReadAloudState(
     val failedRole: SpeechRoleMatch? = null,
 ) {
     val isActive get() = phase in setOf(SpeechPhase.Preparing, SpeechPhase.Playing, SpeechPhase.Buffering)
+
+    internal fun previews(voice: SpeechVoiceRef) = request?.isPreview == true &&
+        request.previewSettings?.voiceReference()?.canonicalKey == voice.canonicalKey
 }
 
 data class SpeechEngine(val packageName: String, val name: String)

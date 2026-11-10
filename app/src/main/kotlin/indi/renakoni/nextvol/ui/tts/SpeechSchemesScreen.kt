@@ -39,7 +39,7 @@ internal fun SpeechSchemesState.usage(id: String): String {
 @Composable
 internal fun SpeechSchemesScreen(state: SpeechSchemesState, bookId: String?, onBack: () -> Unit,
     onOpen: (String) -> Unit, onBind: (String?) -> Unit, onDefault: (String) -> Unit,
-    onCreate: (String, String?, Boolean, () -> Unit) -> Unit, onRename: (String, String, () -> Unit) -> Unit,
+    onCreate: (String, String?, () -> Unit) -> Unit, onRename: (String, String, () -> Unit) -> Unit,
     onDelete: (String, String, () -> Unit) -> Unit) {
     var action by rememberSaveable { mutableStateOf<String?>(null) }
     var target by rememberSaveable { mutableStateOf<String?>(null) }
@@ -80,10 +80,6 @@ internal fun SpeechSchemesScreen(state: SpeechSchemesState, bookId: String?, onB
                             }) }
                         }
                     }
-                    TextButton(onClick = { target = current.id; name = bookTitle; action = "book" }, enabled = enabled,
-                        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)) {
-                        Text(stringResource(R.string.tts_scheme_copy_for_book))
-                    }
                 }
             }
             if (state.error && action == null) item {
@@ -102,7 +98,6 @@ internal fun SpeechSchemesScreen(state: SpeechSchemesState, bookId: String?, onB
                             if (scheme.id == state.schemes.defaultId) Text(stringResource(R.string.tts_scheme_default),
                                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                         } },
-                        supportingContent = { Text(state.usage(scheme.id)) },
                         trailingContent = { Box {
                             IconButton(onClick = { menu = true }, enabled = enabled) {
                                 Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_scheme_actions, label))
@@ -111,6 +106,9 @@ internal fun SpeechSchemesScreen(state: SpeechSchemesState, bookId: String?, onB
                                 if (scheme.id != state.schemes.defaultId) DropdownMenuItem(
                                     text = { Text(stringResource(R.string.tts_scheme_set_default)) },
                                     onClick = { menu = false; onDefault(scheme.id) })
+                                if (bookId != null && scheme.id != current.id) DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.tts_scheme_use)) },
+                                    onClick = { menu = false; onBind(scheme.id) })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.tts_scheme_copy)) }, onClick = {
                                     menu = false; target = scheme.id; name = String.format(copySuffix, label); action = "copy"
                                 })
@@ -131,7 +129,6 @@ internal fun SpeechSchemesScreen(state: SpeechSchemesState, bookId: String?, onB
     if (action != null && action != "delete") AlertDialog(onDismissRequest = { if (!state.saving) dismiss() },
         title = { Text(stringResource(when (action) {
             "rename" -> R.string.tts_scheme_rename
-            "book" -> R.string.tts_scheme_copy_for_book
             "copy" -> R.string.tts_scheme_copy
             else -> R.string.tts_scheme_new
         })) }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -140,7 +137,7 @@ internal fun SpeechSchemesScreen(state: SpeechSchemesState, bookId: String?, onB
             if (state.error) Text(stringResource(R.string.tts_error_storage), color = MaterialTheme.colorScheme.error)
         } }, confirmButton = { TextButton(enabled = !state.saving && name.isNotBlank(), onClick = {
             if (action == "rename") onRename(requireNotNull(target), name, dismiss)
-            else onCreate(name, target, action == "book", dismiss)
+            else onCreate(name, target, dismiss)
         }) { Text(stringResource(R.string.confirm)) } },
         dismissButton = { TextButton(onClick = dismiss, enabled = !state.saving) { Text(stringResource(R.string.cancel)) } })
     if (action == "delete") AlertDialog(onDismissRequest = { if (!state.saving) dismiss() },

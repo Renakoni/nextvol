@@ -10,7 +10,7 @@
     <string name="tts_scheme_follow_default">Follow default</string>
     <string name="tts_scheme_follow_name">Follow default: %1$s</string>
     <string name="tts_scheme_book">Scheme for this book</string>
-    <string name="tts_scheme_copy_for_book">Copy as this book’s scheme</string>
+    <string name="tts_scheme_use">Use this scheme</string>
     <string name="tts_scheme_copy">Copy scheme</string>
     <string name="tts_scheme_rename">Rename scheme</string>
     <string name="tts_scheme_delete">Delete scheme</string>
