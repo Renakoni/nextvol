@@ -28,6 +28,120 @@ class SourceVerificationCoordinatorTest {
     }
     private val failure = SourceContentException(ContentError.BrowserRequired, "searchUrl", verification = verification)
 
+    @Test fun scriptVerificationReturnsToTheWaitingInvocation() = runTest {
+        val ready = CompletableDeferred<Unit>()
+        var body = ""
+        var calls = 0
+        coEvery { verification.complete() } coAnswers { ready.await(); body = "chapter" }
+        val ui = ForegroundSourceRequest()
+        val request = async(ui) { coordinator.execute(owner, "Chapter") {
+            calls++
+            currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
+            body
+        } }
+        runCurrent()
+        assertTrue(ui.verifying)
+        assertEquals(1, calls)
+        ready.complete(Unit)
+        assertEquals("chapter", request.await())
+        assertEquals(1, calls)
+        assertFalse(ui.verifying)
+        assertTrue(coordinator.prompts.value.isEmpty())
+        coVerify(exactly = 1) { verification.complete() }
+    }
+
+    @Test fun challengeAfterScriptInteractionDoesNotOpenTheGenericFallback() = runTest {
+        var calls = 0
+        val result = withContext(ForegroundSourceRequest()) { runCatching {
+            coordinator.execute(owner, "Chapter") {
+                calls++
+                currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
+                throw failure
+            }
+        } }
+        assertSame(failure, result.exceptionOrNull())
+        assertEquals(1, calls)
+        coVerify(exactly = 1) { verification.complete() }
+        assertTrue(coordinator.prompts.value.isEmpty())
+    }
+
+    @Test fun genericFallbackRetryCannotStartAnotherScriptInteraction() = runTest {
+        var calls = 0
+        val result = withContext(ForegroundSourceRequest()) { runCatching {
+            coordinator.execute(owner, "Chapter") {
+                if (++calls == 1) throw failure
+                currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
+            }
+        } }
+        assertEquals(ContentError.BrowserRequired, (result.exceptionOrNull() as SourceContentException).code)
+        assertEquals(2, calls)
+        coVerify(exactly = 1) { verification.complete() }
+        assertTrue(coordinator.prompts.value.isEmpty())
+    }
+
+    @Test fun certificateRetryCanResumeTheScriptBrowser() = runTest {
+        var approved = false
+        var openings = 0
+        val certificateVerification = mockk<SourceVerification> {
+            every { kind } returns null
+            every { origin } returns null
+            every { certificate } returns mockk<hnovel.network.CertificateProblem>()
+            coEvery { complete() } coAnswers { approved = true }
+        }
+        val denied = SourceContentException(ContentError.Certificate, "loginCheckJs", verification = certificateVerification)
+        coEvery { verification.complete() } coAnswers {
+            if (++openings == 1) throw IllegalStateException("Broker request failed")
+            assertTrue(approved)
+        }
+        val request = async(ForegroundSourceRequest()) { coordinator.execute(owner, "Chapter") {
+            try { currentCoroutineContext()[SourceScriptInteraction]!!.request(verification) }
+            // The worker result maps the broker's certificate failure back to the content layer.
+            catch (_: IllegalStateException) { throw denied }
+            "chapter"
+        } }
+        runCurrent()
+        assertFalse(request.isCompleted)
+        assertEquals(1, openings)
+        coordinator.approveCertificate(coordinator.prompts.value.single().id)
+        assertEquals("chapter", request.await())
+        assertEquals(2, openings)
+        coVerify(exactly = 1) { certificateVerification.complete() }
+        assertTrue(coordinator.prompts.value.isEmpty())
+    }
+
+    @Test fun backgroundScriptInteractionRestartsOnlyAfterUserActionAndReturnsItsResult() = runTest {
+        var calls = 0
+        var resumed = 0
+        var body = ""
+        var consumed = ""
+        val actions = mutableListOf<SourceVerification>()
+        withContext(BackgroundSourceRequest { { resumed++ } }) { runCatching {
+            coordinator.execute(owner, "Download") {
+                val invocation = ++calls
+                val action = mockk<SourceVerification> {
+                    every { kind } returns null
+                    every { certificate } returns null
+                    every { origin } returns null
+                    coEvery { complete() } coAnswers { body = "chapter-$invocation" }
+                }.also(actions::add)
+                currentCoroutineContext()[SourceScriptInteraction]!!.request(action)
+                consumed = body
+            }
+        }.onFailure { assertTrue(it is SourceScriptInteractionRequired) } }
+        val prompt = coordinator.prompts.value.single()
+        assertFalse(prompt.foreground)
+        assertEquals(1, calls)
+        coVerify(exactly = 0) { actions.first().complete() }
+        coordinator.verifyBackground(prompt.id)
+        coordinator.verifyBackground(prompt.id)
+        assertEquals(2, calls)
+        assertEquals("chapter-2", consumed)
+        assertEquals(1, resumed)
+        coVerify(exactly = 0) { actions.first().complete() }
+        coVerify(exactly = 1) { actions.last().complete() }
+        assertTrue(coordinator.prompts.value.isEmpty())
+    }
+
     @Test fun parallelSectionsRetryAfterOneSharedVerificationWithoutOpeningFourWindows() = runTest {
         val release = CompletableDeferred<Unit>()
         var verified = false
@@ -291,15 +405,25 @@ class SourceVerificationCoordinatorTest {
         coVerify(exactly = 1) { verification.complete() }
     }
 
-    @Test fun browserCoverRetainsTheRequestButNavigationAwayCancelsIt() = runTest {
+    @Test fun browserCoverRetainsTheScriptButNavigationAfterClosingCancelsItsRefetch() = runTest {
         val ui = ForegroundSourceRequest()
-        coEvery { verification.complete() } coAnswers { awaitCancellation() }
-        val request = async(ui) { coordinator.execute(owner, "Fixture") { throw failure } }
+        val window = CompletableDeferred<Unit>()
+        val fetching = CompletableDeferred<Unit>()
+        coEvery { verification.complete() } coAnswers { window.await() }
+        val request = async(ui) { coordinator.execute<String>(owner, "Fixture") {
+            currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
+            fetching.complete(Unit)
+            awaitCancellation()
+        } }
         runCurrent()
         assertTrue(ui.verifying)
         ui.setActive(false, retainBrowser = true)
         runCurrent()
         assertFalse(request.isCompleted)
+        ui.setActive(true)
+        window.complete(Unit)
+        fetching.await()
+        assertFalse(ui.verifying)
         ui.setActive(false)
         request.join()
         assertTrue(request.isCancelled)

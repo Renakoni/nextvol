@@ -413,10 +413,13 @@ class NativeSourceBrowserService : Service() {
                         resources:r.length,scriptMaxMs:Math.round(scripts),imageMaxMs:Math.round(images)};
                 }catch(e){return null;}})()
             """.trimIndent() else "null"
+            val deferChallenge = job.request.deferChallenge && !job.options.interactive
             view.evaluateJavascript("""
                 (function(){try {
                     var challenge=$websiteChallengeScript;
-                    return JSON.stringify({url:location.href,challenge:challenge,timing:$timing,value:challenge ? null : eval(${JsonPrimitive(script)})});
+                    if (!challenge && ${httpChallenge != null}) challenge='Cloudflare';
+                    return JSON.stringify({url:location.href,challenge:challenge,timing:$timing,
+                        value:challenge ? ($deferChallenge ? document.documentElement.outerHTML : null) : eval(${JsonPrimitive(script)})});
                 }catch(e){return null;}})()
             """.trimIndent()) { encoded ->
                 if (evaluatingNavigation == version) evaluatingNavigation = null
@@ -436,7 +439,10 @@ class NativeSourceBrowserService : Service() {
                     }
                     val challenge = result?.get("challenge")?.takeUnless { it == JsonNull }?.jsonPrimitive?.content ?: httpChallenge?.name
                     if (challenge != null) {
-                        if (job.options.interactive) handler.postDelayed({ evaluate() }, 1000)
+                        if (deferChallenge) completeText(result!!.getValue("value").jsonPrimitive.content,
+                            result.getValue("url").jsonPrimitive.content,
+                            if (httpChallenge == BrowserChallengeKind.Cloudflare) mapOf("cf-mitigated" to listOf("challenge")) else emptyMap())
+                        else if (job.options.interactive) handler.postDelayed({ evaluate() }, 1000)
                         else finish(BrokerResult.Failure(RequestStage.Response, FailureCode.BrowserRequired,
                             challenge = BrowserChallengeKind.valueOf(challenge)))
                         return@evaluateJavascript
@@ -454,14 +460,14 @@ class NativeSourceBrowserService : Service() {
             }
         }
 
-        private fun completeText(text: String, url: String) {
+        private fun completeText(text: String, url: String, headers: Map<String, List<String>> = emptyMap()) {
             if (sourceOrigin(url) == null) { fail(FailureCode.InvalidRequest); return }
             val bytes = text.toByteArray()
             if (bytes.size > minOf(job.request.maxResponseBytes ?: BrokerLimits.DEFAULT_MAX_RESPONSE_BYTES,
                     BrokerLimits.DEFAULT_MAX_RESPONSE_BYTES)) {
                 fail(FailureCode.ResponseTooLarge); return
             }
-            finish(BrokerResult.Success(BrokerResponse(0, url, emptyMap(), bytes, "UTF-8", 0,
+            finish(BrokerResult.Success(BrokerResponse(0, url, headers, bytes, "UTF-8", 0,
                 protocol = "", kind = ResponseKind.BrowserDocument)))
         }
         private fun fail(code: FailureCode) = finish(BrokerResult.Failure(RequestStage.Response, code))

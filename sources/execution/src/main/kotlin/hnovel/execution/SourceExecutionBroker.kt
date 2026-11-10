@@ -14,7 +14,8 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
     private val speakSpeed: Int = 10, private val sourceName: String = "", private val sourceLastUpdateTime: Long = 0,
     private val requestUserAgent: String? = null, currentRequest: BrokerRequest? = null,
     private val memory: ScriptMemory = ScriptMemory(), private val onMessage: ((String) -> Unit)? = null,
-    private val retryContext: RequestRetryContext? = null, private val directoryFields: Int = 0) : AutoCloseable {
+    private val retryContext: RequestRetryContext? = null, private val directoryFields: Int = 0,
+    private val interaction: (suspend (suspend () -> BrokerResponse) -> BrokerResponse)? = null) : AutoCloseable {
     private val currentRequest = currentRequest?.let { it.copy(headers = it.headers.toMap()) }
     // Waiting for a person must not increase a single HTTP request's network budget.
     private val requestTimeoutMillis = limits.timeoutMillis.coerceAtMost(if (directoryFields > 0) 30000 else 60000)
@@ -164,7 +165,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
                     JsonPrimitive(session.webViewUserAgent())
                 }
                 "java.getVerificationCode" -> {
-                    if (!allowInteraction) {
+                    if (!allowInteraction && interaction == null) {
                         interactionRequired = true
                         error("Foreground source login required")
                     }
@@ -177,7 +178,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
                     JsonPrimitive(value)
                 }
                 "java.startBrowser", "java.startBrowserAwait", "browser.refetch" -> {
-                    if (!allowInteraction) {
+                    if (!allowInteraction && interaction == null) {
                         interactionRequired = true
                         error("Foreground source login required")
                     }
@@ -187,10 +188,11 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
                         .copy(id = "browser-$requestNumber", kind = ResourceKind.Document)
                     val options = if (name == "browser.refetch") null else BrowserOptions(interactive = true,
                         title = args[1].jsonPrimitive.content.also { require(it.length <= 1024) })
-                    val response = fetch(request.copy(browser = options))
+                    val response = fetch(request.copy(browser = options, deferChallenge = name == "browser.refetch"),
+                        httpOnly = name == "browser.refetch")
                     // When the worker will refetch, only signal completion; the rendered body is unused.
                     val refetch = name == "java.startBrowserAwait" && (args.getOrNull(2)?.jsonPrimitive?.boolean ?: true)
-                    if (name == "java.startBrowser" || refetch) JsonNull else response.scriptSnapshot(true)
+                    if (name == "java.startBrowser" || refetch) JsonNull else response.scriptSnapshot(false)
                 }
                 "java.webView", "java.webViewGetSource", "java.webViewGetOverrideUrl" -> {
                     require(args.size == if (name == "java.webView") 3 else 4)
@@ -285,7 +287,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
                     // or re-run loginCheckJs from this data-only host call.
                     require(args.size <= 2 && args.all { it == JsonNull })
                     val request = checkNotNull(currentRequest) { "No current request" }
-                    if (request.browser?.interactive == true && !allowInteraction) {
+                    if (request.browser?.interactive == true && !allowInteraction && interaction == null) {
                         interactionRequired = true
                         error("Foreground source login required")
                     }
@@ -369,11 +371,22 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
     }
 
     private suspend fun fetch(request: BrokerRequest, maxResponseBytes: Int = limits.maxDataBytes ?: BridgeWire.MAX_BYTES,
-        timeoutMillis: Long = requestTimeoutMillis): BrokerResponse {
-        val result = session.execute(request.copy(timeoutMillis = minOf(timeoutMillis, requestTimeoutMillis), maxResponseBytes = minOf(maxResponseBytes, BrokerLimits.DEFAULT_MAX_RESPONSE_BYTES)), RequestCommitGuard { action -> authorized(action) })
-        if (result is BrokerResult.Failure) requestFailure = result
-        check(result is BrokerResult.Success) { "Broker request failed" }
-        return result.response
+        timeoutMillis: Long = requestTimeoutMillis, httpOnly: Boolean = false): BrokerResponse {
+        suspend fun execute(): BrokerResponse {
+            val bounded = request.copy(timeoutMillis = minOf(timeoutMillis, requestTimeoutMillis),
+                maxResponseBytes = minOf(maxResponseBytes, BrokerLimits.DEFAULT_MAX_RESPONSE_BYTES))
+            val guard = RequestCommitGuard { action -> authorized(action) }
+            val result = if (httpOnly) session.executeHttp(bounded, guard) else session.execute(bounded, guard)
+            if (result is BrokerResult.Failure) requestFailure = result
+            if (interaction != null && request.browser?.interactive == true && result is BrokerResult.Failure &&
+                result.stage == RequestStage.Response && result.code == hnovel.network.FailureCode.BrowserRequired && result.challenge == null)
+                throw CancellationException("Source verification cancelled")
+            check(result is BrokerResult.Success) { "Broker request failed" }
+            return result.response
+        }
+        return if (request.browser?.interactive == true && interaction != null) {
+            interaction.invoke(::execute)
+        } else execute()
     }
 
     private fun checkPermission(url: String, kind: ResourceKind = ResourceKind.Document) {

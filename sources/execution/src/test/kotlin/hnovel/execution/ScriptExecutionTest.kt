@@ -212,12 +212,17 @@ class ScriptExecutionTest {
                 val id = authority.issue("a", "legado", "1", "fixture")
                 val session = sessions.open(SourceScope("fixture", "a", "legado"), listOf(NetworkGrant(server.url("/").toString(), true)))
                 val rule = JsonPrimitive("""../verify, {"headers":{"User-Agent":"inline-agent","X-Explicit":"kept"}}""")
+                session.configureSource(server.url("/").toString(), cookiesEnabled = true, browserRead = true)
                 SourceExecutionBroker(id, authority, session, ExecutionLimits(), server.url("/root/").toString(), allowInteraction = true).use { bridge ->
                     assertEquals(ExecutionResult.Success("\"opened\""), runScript(id, bridge, "java.startBrowser($rule,'open');'opened'"))
                     assertEquals(ExecutionResult.Success("\"rendered\""), runScript(id, bridge, "java.startBrowserAwait($rule,'rendered',false).body()"))
                     assertEquals(0, server.requestCount)
                     server.enqueue(MockResponse().setBody("refetched"))
-                    assertEquals(ExecutionResult.Success("\"refetched\""), runScript(id, bridge, "java.startBrowserAwait($rule,'refetch').body()"))
+                    assertEquals(ExecutionResult.Success("\"refetched\""), runScript(id, bridge, """
+                        var response=java.startBrowserAwait($rule,'refetch');
+                        if(response.code()!==200 || response.getUrl()!==${JsonPrimitive(server.url("/verify").toString())}) throw 'StrResponse';
+                        response.getBody();
+                    """.trimIndent()))
                     val refetched = server.takeRequest(1, TimeUnit.SECONDS)!!
                     assertEquals("/verify", refetched.path)
                     assertEquals("inline-agent", refetched.getHeader("User-Agent"))

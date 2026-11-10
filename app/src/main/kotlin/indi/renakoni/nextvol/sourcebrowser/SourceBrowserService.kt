@@ -207,7 +207,8 @@ class SourceBrowserService : Service() {
         val original = mainResponse
         val script = if (job.options.verificationCode) "document.getElementById('verification-image').naturalWidth > 0 ? document.getElementById('verification-code').value : null"
             else job.options.script.ifBlank { "document.documentElement.outerHTML" }
-        webView?.evaluateJavascript("(function(){try {var challenge=$websiteChallengeScript;if(challenge)return JSON.stringify({challenge:challenge});var value=eval(${JsonPrimitive(script)});var state={};for(var i=0;i<localStorage.length;i++){var key=localStorage.key(i);state[key]=localStorage.getItem(key);}SourceBrowser.call('storage',JSON.stringify({url:location.href,value:state}));return JSON.stringify({value:value});}catch(e){return '{}';}})()") { result ->
+        val deferChallenge = job.request.deferChallenge && !job.options.interactive
+        webView?.evaluateJavascript("(function(){try {var challenge=$websiteChallengeScript;if(challenge)return JSON.stringify({challenge:challenge,value:$deferChallenge ? document.documentElement.outerHTML : null});var value=eval(${JsonPrimitive(script)});var state={};for(var i=0;i<localStorage.length;i++){var key=localStorage.key(i);state[key]=localStorage.getItem(key);}SourceBrowser.call('storage',JSON.stringify({url:location.href,value:state}));return JSON.stringify({value:value});}catch(e){return '{}';}})()") { result ->
             evaluating = false
             if (finished.get()) return@evaluateJavascript
             if (original !== mainResponse) { handler.postDelayed({ evaluate() }, 100); return@evaluateJavascript }
@@ -216,7 +217,8 @@ class SourceBrowserService : Service() {
                 val document = Json.parseToJsonElement(encoded).jsonObject
                 val challenge = document["challenge"]?.jsonPrimitive?.content
                 if (challenge != null) {
-                    if (job.options.interactive) handler.postDelayed({ evaluate() }, 500)
+                    if (deferChallenge) completeText(document.getValue("value").jsonPrimitive.content)
+                    else if (job.options.interactive) handler.postDelayed({ evaluate() }, 500)
                     else complete(BrokerResult.Failure(RequestStage.Response, FailureCode.BrowserRequired,
                         challenge = BrowserChallengeKind.valueOf(challenge), verificationRequest = job.request))
                     return@evaluateJavascript

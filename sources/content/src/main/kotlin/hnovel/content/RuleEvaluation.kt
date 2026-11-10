@@ -3,7 +3,9 @@ package hnovel.content
 import hnovel.execution.*
 import hnovel.rules.*
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.serialization.json.*
 
 /** One book/row evaluation. State is copied between rows and committed only after its stage succeeds. */
@@ -20,6 +22,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
     var discovery: JsonObject? = null
     var requestUserAgent: String? = null
     var currentRequest: hnovel.network.BrokerRequest? = null
+    var manualVerification = false
     var nextChapterUrl: String? = null
     var missingCacheRead = false
         private set
@@ -148,13 +151,16 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         currentCoroutineContext().ensureActive()
         if (!authority.accepts(identity)) throw SourceContentException(ContentError.Unavailable, field)
         if (calls.incrementAndGet() > maxRuleCalls) throw SourceContentException(ContentError.Limit, field)
+        val interaction = currentCoroutineContext()[SourceScriptInteraction]
         // Lists carry complete API objects; chapter text also needs room for UTF-8 and the
         // paragraph envelope. Keep metadata fields small and the whole-chapter bound in RuleSource.
         val limits = when (field) {
             "coverDecodeJs", "ruleContent.imageDecode" -> this.limits.copy(
                 maxOutputBytes = 16 * 1024 * 1024, maxDataBytes = BridgeWire.MAX_REPLY_BYTES)
             // These hooks return a whole response, before the actual field selectors run.
-            "loginCheckJs", "ruleBookInfo.init" -> this.limits.copy(maxOutputBytes = 16 * 1024 * 1024)
+            "loginCheckJs" -> this.limits.copy(timeoutMillis = if (interaction != null) 300000 else this.limits.timeoutMillis,
+                maxOutputBytes = 16 * 1024 * 1024)
+            "ruleBookInfo.init" -> this.limits.copy(maxOutputBytes = 16 * 1024 * 1024)
             // A single JSON response can contain thousands of complete chapter objects.
             // Retain their fields until per-chapter rules run, within the existing wire bound.
             "ruleToc.chapterList" -> this.limits.copy(maxOutputBytes = 16 * 1024 * 1024, maxDataBytes = BridgeWire.MAX_REPLY_BYTES)
@@ -171,26 +177,53 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
         var networkFailure: hnovel.network.BrokerResult.Failure? = null
         var requestLimitExceeded = false
         var responseLimitExceeded = false
-        val result = invocations.create(limits, baseUrl, keyword, page,
-            allowInteraction = interactive, sourceName = sourceName, sourceLastUpdateTime = sourceLastUpdateTime,
-            requestUserAgent = requestUserAgent.takeUnless { field == "header" }, currentRequest = currentRequest, memory = memory,
-            onMessage = onMessage, retryContext = currentCoroutineContext()[hnovel.network.RequestRetryContext],
-            directoryFields = if (task is ExecutionTask.DirectoryRows) task.inputs.size * task.rules.values.count { it.isNotBlank() } else 0).use {
-            val executed = try { runner.execute(identity, task, limits, it) }
-            catch (cancelled: java.util.concurrent.CancellationException) { throw cancelled }
-            catch (failure: Exception) {
-                // Host-side library loading can fail before the worker receives the task.
-                if (it.requestFailure != null || it.requestLimitExceeded || it.responseLimitExceeded) ExecutionResult.Failure(FailureCode.BridgeDenied) else throw failure
+        var interactionFailure: Exception? = null
+        val result = try { coroutineScope {
+            val invocation = currentCoroutineContext().job
+            invocations.create(limits, baseUrl, keyword, page,
+                allowInteraction = interactive, sourceName = sourceName, sourceLastUpdateTime = sourceLastUpdateTime,
+                requestUserAgent = requestUserAgent.takeUnless { field == "header" }, currentRequest = currentRequest, memory = memory,
+                onMessage = onMessage, retryContext = currentCoroutineContext()[hnovel.network.RequestRetryContext],
+                directoryFields = if (task is ExecutionTask.DirectoryRows) task.inputs.size * task.rules.values.count { it.isNotBlank() } else 0,
+                interaction = if (field != "loginCheckJs" || interactive) null else { action ->
+                    try {
+                        val host = interaction ?: throw SourceScriptInteractionRequired()
+                        var response: hnovel.network.BrokerResponse? = null
+                        host.request(SourceVerification(null) {
+                            manualVerification = true
+                            response = action()
+                        })
+                        checkNotNull(response)
+                    } catch (failure: SourceContentException) {
+                        interactionFailure = failure
+                        // Cancel the owned worker as well as the reverse IPC call. Binder errors
+                        // alone are catchable by source code and cannot stop further host calls.
+                        val cancelled = java.util.concurrent.CancellationException("Source interaction stopped").apply { initCause(failure) }
+                        invocation.cancel(cancelled)
+                        throw cancelled
+                    } catch (cancelled: java.util.concurrent.CancellationException) {
+                        interactionFailure = cancelled
+                        invocation.cancel(cancelled)
+                        throw cancelled
+                    }
+            }).use {
+                val executed = try { runner.execute(identity, task, limits, it) }
+                catch (cancelled: java.util.concurrent.CancellationException) { throw interactionFailure ?: cancelled }
+                catch (failure: Exception) {
+                    // Host-side library loading can fail before the worker receives the task.
+                    if (it.requestFailure != null || it.requestLimitExceeded || it.responseLimitExceeded) ExecutionResult.Failure(FailureCode.BridgeDenied) else throw failure
+                }
+                executed.also { _ ->
+                    interactionFailure?.let { failure -> throw failure }
+                    if (it.interactionRequired) throw SourceContentException(ContentError.LoginRequired, field,
+                        diagnostic = executed as? ExecutionResult.Failure)
+                    networkFailure = it.requestFailure
+                    requestLimitExceeded = it.requestLimitExceeded
+                    responseLimitExceeded = it.responseLimitExceeded
+                    missingCacheRead = missingCacheRead || it.missingCacheRead
+                }
             }
-            executed.also { _ ->
-                if (it.interactionRequired) throw SourceContentException(ContentError.LoginRequired, field,
-                    diagnostic = executed as? ExecutionResult.Failure)
-                networkFailure = it.requestFailure
-                requestLimitExceeded = it.requestLimitExceeded
-                responseLimitExceeded = it.responseLimitExceeded
-                missingCacheRead = missingCacheRead || it.missingCacheRead
-            }
-        }
+        } } catch (cancelled: java.util.concurrent.CancellationException) { throw interactionFailure ?: cancelled }
         val failure = result as? ExecutionResult.Failure
         val dependency = failure?.takeIf { it.code == FailureCode.UnsupportedDependency }?.dependency
         val failureField = if (dependency != null && failure.ruleError?.location?.field == "jsLib") "jsLib"
@@ -213,7 +246,8 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
                 FailureCode.UnsupportedDependency -> ContentError.UnsupportedDependency
                 else -> ContentError.InvalidRule
             }, failureField, networkFailure?.denial.takeIf { result.code == FailureCode.BridgeDenied }, dependency,
-                networkFailure?.takeIf { result.code == FailureCode.BridgeDenied && !requestLimitExceeded && !responseLimitExceeded }?.let(verification), result, storageFailure = networkFailure?.code.takeIf {
+                networkFailure?.takeIf { result.code == FailureCode.BridgeDenied && !requestLimitExceeded && !responseLimitExceeded &&
+                    (!manualVerification || it.code != hnovel.network.FailureCode.BrowserRequired) }?.let(verification), result, storageFailure = networkFailure?.code.takeIf {
                     result.code == FailureCode.BridgeDenied && !requestLimitExceeded && !responseLimitExceeded
                 })
             is ExecutionResult.Success -> Json.decodeFromString(ExecutedRule.serializer(), result.output)
