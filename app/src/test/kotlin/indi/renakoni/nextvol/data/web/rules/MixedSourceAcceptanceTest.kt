@@ -136,7 +136,7 @@ class MixedSourceAcceptanceTest {
                 val scheduler = indi.renakoni.nextvol.data.download.BookDownloadScheduler(downloads, work, local.aliases)
                 shelves = BookshelfRepository(db.bookshelfDao(), scheduler, registry, local.aliases)
                 val text = TextProcessingRepository(mockk { every { enabled } returns false }, mockk { every { enabled } returns false }, ContentComponentRegistry())
-                chapters = ChapterRepository(registry, local, text, mockk(), downloads)
+                chapters = ChapterRepository(registry, local, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, local, downloads, org.robolectric.RuntimeEnvironment.getApplication()))
                 readingData = BookReadingDataRepository(local)
                 books = BookRepository(local, shelves, text, work, chapters, readingData, registry, downloads, mockk(), scheduler)
                 stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), books, StatisticsWriteCoordinator())

@@ -88,7 +88,7 @@ class Wenku8ChapterPersistenceTest {
         var db = database()
         try {
             var storage = local(db)
-            var repository = ChapterRepository(registry, storage, text, mockk(), downloads)
+            var repository = ChapterRepository(registry, storage, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, storage, downloads, org.robolectric.RuntimeEnvironment.getApplication()))
             val third = repository.getChapterContentFlow("3", "1234").last().get()!!
             assertTrue(third.content.toString().contains("BODY_3"))
             offline = true
@@ -97,7 +97,7 @@ class Wenku8ChapterPersistenceTest {
             db.close()
             db = database()
             storage = local(db)
-            repository = ChapterRepository(registry, storage, text, mockk(), downloads)
+            repository = ChapterRepository(registry, storage, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, storage, downloads, org.robolectric.RuntimeEnvironment.getApplication()))
             offline = false
             for (id in listOf("4", "5")) {
                 val chapter = repository.getChapterContentFlow(id, "1234").last().get()!!

@@ -31,6 +31,7 @@ class ChapterRepository @Inject constructor(
     private val textProcessingRepository: TextProcessingRepository,
     private val localBooks: LocalBookStore,
     private val downloads: BookDownloadStore,
+    internal val directoryChecks: BookDirectoryChecks,
 ) : ChapterSource {
     companion object {
         private const val TAG = "BookRepository"
@@ -51,7 +52,7 @@ class ChapterRepository @Inject constructor(
             emit(Ok(it))
             if (BuildConfig.BENCHMARK) return@flow
         }
-        refreshBookVolumes(book, priority).onErr {
+        directoryChecks.volumes(book, priority).onErr {
                 Log.e(TAG, "Source request failed for ${book.fileKey}: ${it.kind}")
             }
             .also {

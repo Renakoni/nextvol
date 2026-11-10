@@ -115,7 +115,7 @@ class HostMultiSourceIntegrationTest {
         // Disable optional display transformations; storage and content decoding use production adapters.
         val text = TextProcessingRepository(mockk { every { enabled } returns false },
             mockk { every { enabled } returns false }, ContentComponentRegistry())
-        books = BookRepository(local, shelves, text, workManager, ChapterRepository(manager.registry, local, text, mockk(), downloads),
+        books = BookRepository(local, shelves, text, workManager, ChapterRepository(manager.registry, local, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(manager.registry, local, downloads, org.robolectric.RuntimeEnvironment.getApplication())),
             BookReadingDataRepository(local), manager.registry, downloads, mockk(), scheduler)
         val coordinator = StatisticsWriteCoordinator()
         stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), books, coordinator)

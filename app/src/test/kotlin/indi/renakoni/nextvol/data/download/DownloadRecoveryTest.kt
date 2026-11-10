@@ -142,7 +142,7 @@ class DownloadRecoveryTest {
             val work = mockk<androidx.work.WorkManager>(relaxed = true)
             val scheduler = BookDownloadScheduler(downloads, work, aliases)
             val shelves = BookshelfRepository(db.bookshelfDao(), scheduler, registry, aliases)
-            books = BookRepository(local, shelves, text, work, ChapterRepository(registry, local, text, mockk(), downloads),
+            books = BookRepository(local, shelves, text, work, ChapterRepository(registry, local, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, local, downloads, org.robolectric.RuntimeEnvironment.getApplication())),
                 BookReadingDataRepository(local), registry, downloads, mockk(), scheduler)
             loader = ImageLoader.Builder(context).diskCache(cache).components {
                 add(SourceImageInterceptor(registry, context, downloads)); add(SourceImageFetcher.Factory())

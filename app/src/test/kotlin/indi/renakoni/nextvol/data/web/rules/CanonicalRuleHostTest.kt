@@ -65,7 +65,7 @@ class CanonicalRuleHostTest {
         val shelves = BookshelfRepository(db.bookshelfDao(), scheduler, registry, aliases)
         val reading = BookReadingDataRepository(local)
         private val text = TextProcessingRepository(mockk(relaxed = true), mockk(relaxed = true), ContentComponentRegistry())
-        val books = BookRepository(local, shelves, text, work, ChapterRepository(registry, local, text, mockk(), downloads),
+        val books = BookRepository(local, shelves, text, work, ChapterRepository(registry, local, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, local, downloads, org.robolectric.RuntimeEnvironment.getApplication())),
             reading, registry, downloads, mockk(), scheduler)
 
         init {

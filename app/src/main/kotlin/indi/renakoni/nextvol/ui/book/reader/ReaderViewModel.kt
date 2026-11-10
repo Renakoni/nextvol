@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.ui.book.reader
 
 import androidx.annotation.MainThread
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -22,6 +23,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -106,6 +109,26 @@ class ReaderViewModel @Inject constructor(
     }
 
     init {
+        viewModelScope.launch {
+            snapshotFlow {
+                val content = _uiState.contentUiState
+                val directory = _uiState.bookVolumes?.get()
+                val chapter = content?.readingChapterId
+                val nearEnd = directory?.volumes?.flatMap { it.chapters }?.takeLast(2)?.any { it.id == chapter } == true
+                if (nearEnd && content != null && content.readingChapterContent?.isOk == true) content.bookId to chapter else null
+            }.collectLatest { target ->
+                val (book, _) = target ?: return@collectLatest
+                val request = bookVolumesRequest
+                chapterSource.getBookVolumesFlow(book).flowOn(Dispatchers.IO +
+                    indi.renakoni.nextvol.data.web.ForegroundSourceRequest(false)).collect { result ->
+                    if (request == bookVolumesRequest) result.map { volumes ->
+                        modeHost.updateNavigation(volumes)
+                        catalogChapterIdsByBook[book] = volumes.volumes.flatMap { it.chapters }.map { it.id }.toSet()
+                        _uiState.bookVolumes = result
+                    }
+                }
+            }
+        }
         viewModelScope.launch {
             settingState.isUsingFlipPageUserData.getFlowWithDefault(false).collect { flip ->
                 val mode = if (flip) ReaderMode.Flip else ReaderMode.Scroll

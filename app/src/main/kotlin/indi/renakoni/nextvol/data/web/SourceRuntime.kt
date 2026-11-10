@@ -120,6 +120,10 @@ class SourceRuntime internal constructor(
 
     val hasImageProvider get() = source is SourceImageProvider
 
+    internal fun hasPreparedInformation(bookId: String): Boolean = synchronized(directoryLock) {
+        recentInformation?.id == bookId
+    }
+
     suspend fun imageBytes(bookId: String, url: String, cover: Boolean) = execute {
         (source as SourceImageProvider).getImage(bookId, url, cover)
     }

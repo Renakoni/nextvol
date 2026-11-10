@@ -151,7 +151,7 @@ class BookDownloadTest {
         }
         val scheduler = BookDownloadScheduler(downloads, workManager, local.aliases)
         val shelves = BookshelfRepository(db.bookshelfDao(), scheduler, registry, local.aliases)
-        books = BookRepository(local, shelves, text, workManager, ChapterRepository(registry, local, text, mockk(), downloads),
+        books = BookRepository(local, shelves, text, workManager, ChapterRepository(registry, local, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, local, downloads, org.robolectric.RuntimeEnvironment.getApplication())),
             BookReadingDataRepository(local), registry, downloads, mockk(), scheduler)
     }
 
