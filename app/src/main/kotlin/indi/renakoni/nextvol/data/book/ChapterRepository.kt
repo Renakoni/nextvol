@@ -120,7 +120,8 @@ class ChapterRepository @Inject constructor(
         val chapter = BookIdentity.chapter(chapterId, BookIdentity.book(bookId))
         if (LocalBookStore.isLocal(chapter.book)) return
         if (reusableChapter(chapter) != null) return
-        refreshChapter(chapter, priority).onErr {
+        val cached = localBookDataSource.getChapterContent(chapter.storageKey)
+        refreshChapter(chapter, priority, fresh = cached != null).onErr {
                 Log.e(TAG, "Source request failed for ${chapter.book.fileKey}: ${it.kind}")
             }
     }

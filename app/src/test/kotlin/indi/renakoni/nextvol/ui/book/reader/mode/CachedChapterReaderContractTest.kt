@@ -48,7 +48,8 @@ abstract class CachedChapterReaderContractTest {
         val current = BookIdentity.chapter("current", book).storageKey
         val next = BookIdentity.chapter("next", book).storageKey
         coEvery { fixture.local.getReusableChapterContent(current, any()) } returns env.chapter(current, next = next)
-        coEvery { fixture.local.getChapterContent(next) } returns null
+        val cached = if (verification) null else env.chapter(next, title = "Old body")
+        coEvery { fixture.local.getChapterContent(next) } returns cached
         coEvery { fixture.local.updateChapterContent(any()) } returns Unit
         val gate = CompletableDeferred<Unit>()
         val interactions = mutableListOf<Boolean?>()
@@ -63,7 +64,7 @@ abstract class CachedChapterReaderContractTest {
         val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer))
         env.runCurrent(); mode.changeBookId("book"); mode.changeChapter(current); env.runCurrent()
         mode.changeChapter(next); env.runCurrent()
-        assertEquals(current, env.records.data.lastReadChapterId)
+        assertEquals(if (cached == null) current else next, env.records.data.lastReadChapterId)
         coVerify(exactly = 1) { fixture.remote.getChapterContent("next", "book", any()) }
         gate.complete(Unit); env.runCurrent()
         assertEquals(next, mode.uiState.readingChapterContent!!.get()!!.id)
