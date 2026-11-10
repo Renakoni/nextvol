@@ -71,7 +71,7 @@ class SpeechPreprocessingTest {
     }
 
     @Test fun consecutiveSentenceEndingsStayWithTextAcrossSoftAndHardCuts() {
-        val first = "甲".repeat(59) + "……！？”"
+        val first = "甲".repeat(59) + "……！？”』"
         val second = "乙".repeat(29) + "。"
         val input = SpeechMappedText.original(first + second)
         val soft = speechSentenceChunks(input, 60, Locale.CHINESE)
