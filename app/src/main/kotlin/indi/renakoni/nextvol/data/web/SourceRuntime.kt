@@ -55,6 +55,7 @@ class SourceRuntime internal constructor(
     // A source's Cache is configuration, not shared runtime storage. Even adapters
     // accidentally returning one Cache instance cannot share host response entries.
     private val cached = ProxyCachedWebBookDataSource(coalescing, responseCache)
+    internal val imageRequests = indi.renakoni.nextvol.data.image.SourceImageRequests(lifetime)
     // A bounded handoff from details/selection to one download, never an offline fallback.
     private data class RecentInformation(val id: String, val information: BookInformation, val completedAt: Long)
     private data class RecentDirectory(val id: String, val volumes: BookVolumes, val completedAt: Long,
