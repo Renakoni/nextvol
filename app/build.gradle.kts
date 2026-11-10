@@ -15,7 +15,7 @@ plugins {
     id("com.mikepenz.aboutlibraries.plugin.android")
 }
 
-// The ordinary APK includes the source-built backend; other ABIs retain system/HTTP speech.
+// APKs include the source-built backend; development APKs retain other ABIs with system/HTTP speech.
 val matchaNative = providers.gradleProperty("matchaNative").map(String::toBoolean).getOrElse(true)
 val matchaOutput = providers.gradleProperty("matchaBuildDir").map { file(it) }
     .getOrElse(layout.buildDirectory.dir("matcha").get().asFile)
@@ -111,6 +111,9 @@ android {
     sourceSets.getByName("androidTest").assets.srcDir("../tests/source-compatibility/fixtures/native-routing/site")
     namespace = "indi.renakoni.nextvol"
     compileSdk = 37
+    // AGP must use the same NDK as the source builds, including CI's external toolchain.
+    ndkVersion = "28.2.13676358"
+    ndkPath = providers.gradleProperty("matchaNdk").orNull
 
     lint {
         baseline = file("lint-baseline.xml")
@@ -138,6 +141,10 @@ android {
     @Suppress("UnstableApiUsage")
     buildTypes {
         release {
+            ndk {
+                abiFilters += "arm64-v8a"
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             isShrinkResources = true
             isMinifyEnabled = true
             vcsInfo.include = false
@@ -172,6 +179,9 @@ android {
 
         register("benchmark") {
             initWith(getByName("release"))
+            // Minified device tests run on x86_64 emulators.
+            ndk.abiFilters.clear()
+            ndk.debugSymbolLevel = "NONE"
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
             isDebuggable = false
@@ -229,10 +239,6 @@ android {
     packaging {
         // Embedded engines such as Sogou open companion libraries by their filesystem paths.
         jniLibs.useLegacyPackaging = true
-        if (matchaNative) {
-            // Preserve the source-build manifest's hashes in every APK.
-            jniLibs.keepDebugSymbols += setOf("**/libnextvol-matcha.so", "**/libonnxruntime.so")
-        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             // JAR lookup indexes are not used by Android; both pinned Hutool artifacts contain one.

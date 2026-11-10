@@ -81,6 +81,12 @@ jobs:
           name: NextVol-${{ env.APP_VERSION }}-mapping
           path: app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
+      - name: Retain native symbol tables outside the APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NextVol-${{ env.APP_VERSION }}-native-symbols
+          path: app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip
+          if-no-files-found: error
       - name: Create draft release from this commit
         env:
           GH_TOKEN: ${{ github.token }}

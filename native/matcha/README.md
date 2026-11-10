@@ -40,8 +40,14 @@ The build currently targets CPU, NDK 28.2.13676358, Android API 26 and arm64-v8a
 with static libc++ and 16 KiB ELF segment alignment. Threads, speaker ID and
 model parameters come from the selected voice. All APK variants retain minSdk
 24; native availability depends on loading the library in an API 26+ arm64
-process. Other devices retain system and HTTP speech. Small, never-loaded ABI
-marker libraries keep the APK installable on other supported Android ABIs.
+process. Release and Snapshot APKs package ARM64 only. Debug and benchmark APKs
+retain other ABIs with system and HTTP speech; small, never-loaded ABI markers
+keep those development APKs installable on the supported emulator architectures.
+
+AGP uses the same NDK to strip native debug information when packaging. The
+build manifest identifies the source-build outputs before packaging, rather
+than the stripped APK entries. Release symbol tables are retained separately
+from the APK for crash diagnostics.
 
 ## Build
 
