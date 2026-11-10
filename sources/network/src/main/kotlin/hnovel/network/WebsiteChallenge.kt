@@ -4,7 +4,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.Jsoup
 
 /** Recognize verification documents before a successful HTTP status can become an empty book list. */
-internal fun websiteChallenge(response: BrokerResponse): BrowserChallengeKind? {
+fun websiteChallenge(response: BrokerResponse): BrowserChallengeKind? {
     if (response.headers.any { (name, values) -> name.equals("cf-mitigated", true) && values.any { it == "challenge" } })
         return BrowserChallengeKind.Cloudflare
     val prefix = response.body.copyOfRange(0, minOf(response.body.size, 131072))

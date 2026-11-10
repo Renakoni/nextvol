@@ -52,7 +52,7 @@ class ScriptResponseTest {
         val response = JsonObject(data + ("status" to JsonPrimitive(401)))
         val engine = RhinoScriptEngine(HostBridge { _, _ -> response })
         assertEquals(ScriptResult.Success("401"),
-            engine.evaluate("java.startBrowserAwait('url','Login',false).statusCode()", frame))
+            engine.evaluate("java.startBrowserAwait('url','Login',false).code()", frame))
     }
 
     @Test fun retainedResponseAndDerivedViewsChargeTheWholeOwnerAndDiscardOnOverflow() {

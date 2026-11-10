@@ -728,7 +728,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
                     var response = redirects(request, initialUrl, guard, policy, paceSource, route, attempt, onRequest, receive, onResponse)
                     // Cookie bootstrap has one separate credit for the whole logical read,
                     // never one credit per retry. Login/submission bodies are not replayed.
-                    if (detectChallenges && request.kind == ResourceKind.Document && request.method == "GET" &&
+                    if (detectChallenges && !request.deferChallenge && request.kind == ResourceKind.Document && request.method == "GET" &&
                         !cookieRefreshed && isCookieRefreshChallenge(response)) {
                         cookieRefreshed = true
                         observation?.record(RequestEvidence.Selected, RequestPath.Http, RequestReason.CookieBootstrap, attempt = attempt)
@@ -759,6 +759,7 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
             // Raw APIs/browser subrequests keep the original response for source scripts.
             if (detectChallenges && request.kind == ResourceKind.Document) {
                 websiteChallenge(response)?.let { challenge ->
+                    if (request.deferChallenge) return BrokerResult.Success(response)
                     return BrokerResult.Failure(RequestStage.Response, FailureCode.BrowserRequired, attempt,
                         challenge = challenge, verificationRequest = request)
                 }

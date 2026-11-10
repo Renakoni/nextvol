@@ -45,6 +45,8 @@ data class SourceScope(val namespace: String, val sourceId: String, val profile:
     val maxResponseBytes: Int? = null,
     val browser: BrowserOptions? = null,
     val responseAsHex: Boolean = false,
+    /** The host will inspect the response after loginCheckJs, without fetching it again. */
+    val deferChallenge: Boolean = false,
 ) {
     override fun toString() = "BrokerRequest(method=$method, kind=$kind)"
 }

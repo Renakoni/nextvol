@@ -41,6 +41,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
     private var prefetchedDirectoryId: String? = null
     private var completedInformation: Pair<String, Long>? = null
     private var completedDirectory: Pair<String, Long>? = null
+    private val verificationInvalidated = java.util.concurrent.atomic.AtomicBoolean()
     // Search memory belongs to a caller's query. This instance is replaced for another account or revision.
     private val searchMemory = object : LinkedHashMap<String, ScriptMemory>(8, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ScriptMemory>) = size > MAX_SEARCH_MEMORIES
@@ -678,7 +679,8 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
             is CompiledRequest.Rejected -> throw SourceContentException(if (compiled.code == hnovel.network.FailureCode.BrowserRequired)
                 ContentError.BrowserRequired else ContentError.InvalidRule, field)
         }
-        return request.copy(browser = browser ?: request.browser)
+        return request.copy(browser = browser ?: request.browser,
+            deferChallenge = kind == ResourceKind.Document && spec.loginCheck.isNotBlank())
     }
 
     private suspend fun executeRequest(request: BrokerRequest, field: String, publicImage: Boolean = false,
@@ -729,20 +731,40 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         val snapshot = response.scriptSnapshot(binary = false)
         // Only this hook may explicitly re-execute the request it checks; the refetch does not run the hook again.
         context.currentRequest = request
+        context.manualVerification = false
         val checked = try { responseRule(httpErrorStatus(response.status)) {
             context.script("""
                 result=host.call('response.view',JSON.parse(result));
                 result=eval(${JsonPrimitive(scriptBody(spec.loginCheck))});
                 JSON.stringify({body:result.getBody(),url:result.getUrl(),status:result.code(),
-                    browserDocument:typeof result.isBrowserDocument==='function' && result.isBrowserDocument()});
+                    browserDocument:typeof result.isBrowserDocument==='function' && result.isBrowserDocument(),
+                    headers:(function(){
+                        var values=Object.create(null);
+                        if(typeof result.headers==='function') {
+                            var headers=result.headers();
+                            for(var i=0;i<headers.size();i++) {
+                                var name=headers.name(i);
+                                (values[name] || (values[name]=[])).push(headers.value(i));
+                            }
+                        }
+                        return values;
+                    })()});
             """.trimIndent(), RuleValue.Text(snapshot.toString()), "loginCheckJs").text()
         } } finally { context.currentRequest = null }
         val value = Json.parseToJsonElement(checked).jsonObject
         val status = value.getValue("status").jsonPrimitive.int
-        if (!acceptErrorResponse) checkStatus(status, "loginCheckJs", value["browserDocument"]?.jsonPrimitive?.boolean == true)
         val finalUrl = sourceLink(response.finalUrl, value.getValue("url").jsonPrimitive.content)
+        val body = value.getValue("body").jsonPrimitive.content
+        val headers = value.getValue("headers").jsonObject.mapValues { (_, values) -> values.jsonArray.map { it.jsonPrimitive.content } }
+        websiteChallenge(BrokerResponse(status, finalUrl, headers, body.toByteArray(), "UTF-8", 0))?.let { challenge ->
+            val failure = BrokerResult.Failure(RequestStage.Response, hnovel.network.FailureCode.BrowserRequired,
+                challenge = challenge, verificationRequest = request.copy(deferChallenge = false))
+            throw SourceContentException(ContentError.BrowserRequired, "loginCheckJs",
+                verification = if (context.manualVerification) null else verification(failure))
+        }
+        if (!acceptErrorResponse) checkStatus(status, "loginCheckJs", value["browserDocument"]?.jsonPrimitive?.boolean == true)
         context.baseUrl = if (inline) url else finalUrl
-        return PageDocument(value.getValue("body").jsonPrimitive.content, finalUrl, inline, context.baseUrl,
+        return PageDocument(body, finalUrl, inline, context.baseUrl,
             httpErrorStatus = httpErrorStatus(status))
     }
 
@@ -750,7 +772,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         val certificate = failure.certificate
         if (failure.code == hnovel.network.FailureCode.Certificate && certificate != null) {
             return SourceVerification(null, certificate) {
-                operation("certificate.verification") {
+                verificationOperation("certificate.verification") {
                     authority.authorized(identity) { network.approveCertificate(certificate) }
                 }
             }
@@ -764,7 +786,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
                 if (address.port == address.defaultPort) -1 else address.port, "/").toString()
         }.getOrNull()
         return SourceVerification(kind, origin = origin) {
-            operation("browser.verification", timeoutMillis = 300000) {
+            verificationOperation("browser.verification", timeoutMillis = 300000) {
                 // Recovery opens immediately and finishes when the original extraction is ready.
                 // Ordinary account/login windows keep their explicit completion behavior.
                 val options = request.browser ?: BrowserOptions()
@@ -786,6 +808,15 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
                 }
             }
         }
+    }
+
+    // A waiting hook owns the source queue while the host owns the browser queue. Network-only
+    // verification must not take the source queue in the opposite order.
+    private suspend fun verificationOperation(field: String, timeoutMillis: Long = 60000,
+        block: suspend () -> Unit) = withContext(Dispatchers.IO) {
+        verificationInvalidated.set(true)
+        try { checkedOperation(field, timeoutMillis, block) }
+        finally { verificationInvalidated.set(true) }
     }
 
     private fun retryHint(request: BrokerRequest, response: BrokerResponse): RequestRetryHint? =
@@ -822,7 +853,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         val queuedAt = System.nanoTime()
         serial.withLock {
             trace.record(ContentTraceEvent("queue", field, (System.nanoTime() - queuedAt) / 1_000_000, result = "Serial"))
-            if (field != "ruleBookInfo" && field != "ruleToc" && field != "bookAlias") {
+            if (verificationInvalidated.getAndSet(false) || field != "ruleBookInfo" && field != "ruleToc" && field != "bookAlias") {
                 completedInformation = null; completedDirectory = null
             }
             try { checkedOperation(field, timeoutMillis, block) }
@@ -833,7 +864,9 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         if (!authority.accepts(identity)) throw SourceContentException(ContentError.Unavailable, field)
         if (field.startsWith("login") || field.startsWith("browser.") || field in setOf("discovery.action", "discovery.browser"))
             previewDocuments.clear()
-        return try { withTimeoutOrNull(timeoutMillis) { block().also { currentCoroutineContext().ensureActive()
+        val budget = if (spec.loginCheck.isNotBlank() && currentCoroutineContext()[SourceScriptInteraction] != null)
+            maxOf(timeoutMillis, 300000) else timeoutMillis
+        return try { withTimeoutOrNull(budget) { block().also { currentCoroutineContext().ensureActive()
             if (!authority.accepts(identity)) throw SourceContentException(ContentError.Unavailable, field) } }
             ?: throw SourceContentException(ContentError.Limit, field) }
         catch (cancelled: CancellationException) { throw cancelled }

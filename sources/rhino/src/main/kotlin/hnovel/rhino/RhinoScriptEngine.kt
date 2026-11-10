@@ -73,7 +73,7 @@ private class ScriptBridge(private val bridge: HostBridge, private val rules: Sc
                         ScriptData.map(cx, scope, result.jsonObject.mapValues { it.value.jsonPrimitive.content }.toMutableMap())
                     name == "java.getElement" || name == "java.getElements" -> rules.elementView(cx, scope, result)
                     name == "java.ajaxAll" -> realm.arrayIn(scope, result.jsonArray.map { ScriptResponses.create(cx, scope, it.jsonObject, false) }.toTypedArray())
-                    name == "java.startBrowserAwait" -> ScriptResponses.create(cx, scope, result.jsonObject, true, browserCompleted = true)
+                    name == "java.startBrowserAwait" -> ScriptResponses.create(cx, scope, result.jsonObject, false, browserCompleted = true)
                     name in setOf("java.connect", "java.getStrResponse") -> ScriptResponses.create(cx, scope, result.jsonObject, false)
                     name in setOf("java.get", "java.head", "java.post") && args.size >= 2 -> ScriptResponses.create(cx, scope, result.jsonObject, true)
                     else -> converted

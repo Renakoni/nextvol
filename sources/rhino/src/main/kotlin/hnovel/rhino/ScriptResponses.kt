@@ -54,6 +54,9 @@ internal object ScriptResponses {
             }, ScriptableObject.DONTENUM)
         }
         fun constant(name: String, value: Any?) = method(response, name) { require(it.isEmpty()); value }
+        fun headerSnapshot() = okhttp3.Headers.Builder().apply {
+            headers.forEach { (name, values) -> values.jsonArray.forEach { add(name, it.jsonPrimitive.content) } }
+        }.build()
         if (data["kind"]?.jsonPrimitive?.content == "BrowserDocument") {
             // startBrowserAwait's completed interaction uses Legado's success code, not an
             // observed HTTP status. Ordinary DOM extraction remains unknown; neither has raw HTTP.
@@ -62,6 +65,7 @@ internal object ScriptResponses {
             constant("url", url); constant("getUrl", url)
             constant("code", if (browserCompleted) 200 else 0); constant("statusCode", if (browserCompleted) 200 else 0)
             constant("isBrowserDocument", true)
+            constant("headers", ScriptDom.wrap(context, scope, headerSnapshot()))
             constant("raw", null); constant("getRaw", null)
             constant("message", ""); constant("isSuccessful", browserCompleted)
             return response
@@ -90,9 +94,7 @@ internal object ScriptResponses {
         constant("isSuccessful", status in 200..299)
         constant("errorBody", null)
         constant("getErrorBody", null)
-        val responseHeaders = okhttp3.Headers.Builder().apply {
-            headers.forEach { (name, values) -> values.jsonArray.forEach { add(name, it.jsonPrimitive.content) } }
-        }.build()
+        val responseHeaders = headerSnapshot()
         val inline = data["protocol"]?.jsonPrimitive?.content == "data"
         val rawBody = object : okhttp3.ResponseBody() {
             private val content = object : java.io.FilterInputStream(ByteArray(0).inputStream()) {
