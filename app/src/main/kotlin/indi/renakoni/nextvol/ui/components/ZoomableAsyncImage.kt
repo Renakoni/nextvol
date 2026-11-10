@@ -1,15 +1,13 @@
 package indi.renakoni.nextvol.ui.components
 
 import android.net.Uri
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
@@ -31,7 +29,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.SubcomposeAsyncImage
@@ -40,6 +37,9 @@ import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.image.SourceImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import coil3.request.ImageResult
+import coil3.size.Size
+import coil3.size.Scale
 import coil3.request.crossfade
 import coil3.request.transformations
 import indi.renakoni.nextvol.R
@@ -53,22 +53,25 @@ fun ZoomableImage(
     imageUri: Uri,
     modifier: Modifier = Modifier,
     onViewImage: () -> Unit,
-    placeholderHeight: Dp = 200.dp,
     bookId: String,
     contentScale: ContentScale = ContentScale.FillWidth,
-    chapterId: String? = null
+    chapterId: String? = null,
+    requestSize: Size,
+    onResult: (ImageResult) -> Unit = {},
 ) {
     val context = LocalContext.current
     var retryKey by remember { mutableIntStateOf(0) }
     val imageTransPostProcessingViewModel = hiltViewModel<ImageTransPostProcessingViewModel>()
-    val request = remember(imageUri, bookId, chapterId) {
+    val request = remember(imageUri, bookId, chapterId, requestSize, contentScale) {
         val transformations = imageTransPostProcessingViewModel
             .imageTransPostProcessingManager
             .getCoil3Transformations(ImagePostProcessingPipeline.imageComponent, imageUri)
         ImageRequest.Builder(context)
             .data(SourceImage(BookIdentity.book(bookId), imageUri.toString(), chapterId = chapterId))
             .transformations(transformations)
-            .crossfade(true)
+            .size(requestSize)
+            .scale(if (contentScale == ContentScale.FillWidth) Scale.FILL else Scale.FIT)
+            .crossfade(false)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .networkCachePolicy(CachePolicy.ENABLED)
             .interceptorCoroutineContext(Dispatchers.Default)
@@ -77,22 +80,21 @@ fun ZoomableImage(
     }
     Box(
         modifier = modifier
-            .animateContentSize()
     ) {
         key(retryKey) {
             SubcomposeAsyncImage(
                 model = request,
                 contentDescription = "",
                 contentScale = contentScale,
+                onSuccess = { onResult(it.result) },
+                onError = { onResult(it.result) },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = placeholderHeight)
+                    .fillMaxSize()
                     .align(Alignment.Center),
                 loading = {
                     Box(
                         modifier = Modifier
-                            .height(placeholderHeight)
-                            .fillMaxWidth(),
+                            .fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         Loading()
@@ -101,8 +103,7 @@ fun ZoomableImage(
                 error = { state ->
                     Column(
                         modifier = Modifier
-                            .height(placeholderHeight)
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center

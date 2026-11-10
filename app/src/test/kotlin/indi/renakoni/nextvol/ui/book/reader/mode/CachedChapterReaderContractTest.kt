@@ -61,7 +61,7 @@ abstract class CachedChapterReaderContractTest {
             else Ok(env.chapter("next"))
         }
         every { fixture.text.processChapterContent(any(), any()) } answers { secondArg<() -> ChapterContent>()() }
-        val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer))
+        val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer, io.mockk.mockk(relaxed = true)))
         env.runCurrent(); mode.changeBookId("book"); mode.changeChapter(current); env.runCurrent()
         mode.changeChapter(next); env.runCurrent()
         assertEquals(if (cached == null) current else next, env.records.data.lastReadChapterId)
@@ -87,7 +87,7 @@ abstract class CachedChapterReaderContractTest {
         coEvery { fixture.local.getReusableChapterContent(key("before"), any()) } returns
             env.chapter(key("before"), title = "before")
         every { fixture.text.processChapterContent(any(), any()) } answers { secondArg<() -> ChapterContent>()() }
-        val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer))
+        val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer, io.mockk.mockk(relaxed = true)))
         env.runCurrent()
         mode.changeBookId("book")
         mode.updateNavigation(directory("cached"))
@@ -169,7 +169,7 @@ abstract class CachedChapterReaderContractTest {
             val chapter = secondArg<() -> ChapterContent>()()
             chapter.copy(title = "processed:${chapter.title}")
         }
-        val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer))
+        val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer, io.mockk.mockk(relaxed = true)))
         env.runCurrent()
         mode.changeBookId("book")
         mode.changeChapter("cached")

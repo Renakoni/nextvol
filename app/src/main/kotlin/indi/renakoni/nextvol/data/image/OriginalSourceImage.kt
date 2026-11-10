@@ -19,10 +19,11 @@ import kotlin.coroutines.EmptyCoroutineContext
 internal object ValidatedSourceImage : ImageSource.Metadata()
 
 /** Ask the platform codec for dimensions without allocating the display pixels. */
-internal fun validateOriginalImage(bytes: ByteArray) {
+internal fun validateOriginalImage(bytes: ByteArray): SourceImageSize {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     check(bounds.outWidth > 0 && bounds.outHeight > 0) { "Unrecognized image data" }
+    return SourceImageSize(bounds.outWidth, bounds.outHeight)
 }
 
 /** Keep Coil's source binding, transport and cache policies, but skip display decoding. */

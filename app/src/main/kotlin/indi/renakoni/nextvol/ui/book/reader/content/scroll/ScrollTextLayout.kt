@@ -90,6 +90,8 @@ internal class ScrollTextLayout(val fragments: List<ReaderTextFragment>, val sty
 internal class ScrollContentBlock(val componentIndex: Int, val text: ScrollTextLayout?) {
     // Chapter-local geometry must not become a per-frame, whole-chapter SnapshotStateMap write.
     var top by mutableIntStateOf(-1)
+    var height by mutableIntStateOf(0)
+    var width = 0
 }
 
 internal class PreparedScrollChapter(

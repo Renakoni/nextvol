@@ -473,7 +473,7 @@ class ReaderPositionInstrumentedTest {
         }
         private val loader = ReaderChapterLoader(source, ContentRenderer(
             ContentJsonDecoder(ContentComponentRegistry()), ContentComponentFactory(context, repository),
-        ))
+        ), indi.renakoni.nextvol.data.image.SourceImageSizes(context))
         val progressWrites = java.util.Collections.synchronizedList(mutableListOf<Float>())
         private val statistics = StatsRepository(database.bookRecordDao(), database.dailyCountDao(),
             mockk(relaxed = true), StatisticsWriteCoordinator())

@@ -33,6 +33,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +66,7 @@ import com.github.michaelbull.result.map
 import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.image.SourceImageSize
 import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
 import indi.renakoni.nextvol.ui.book.reader.resolveReaderBodyLayout
@@ -78,6 +80,15 @@ import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderPositionSession
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderRendererActive
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderPosition
+import indi.renakoni.nextvol.ui.book.reader.content.ReaderImageWindow
+import indi.renakoni.nextvol.ui.book.reader.content.ReaderImageResource
+import indi.renakoni.nextvol.ui.book.reader.content.readerImageWindow
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageWindow
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderChapterImages
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageResource
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageEnabled
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageVisible
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageResize
 import indi.renakoni.nextvol.ui.book.reader.content.RegisterReaderPositionCapture
 import indi.renakoni.nextvol.ui.book.reader.content.componet.readerTextColor as readerContentTextColor
 import indi.renakoni.nextvol.ui.book.reader.content.readerTapGestures
@@ -106,7 +117,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
+import kotlin.math.roundToInt
 
 @Composable
 fun ScrollContentComponent(
@@ -193,10 +207,25 @@ fun ScrollContentTextComponent(
     val speech by rememberUpdatedState(LocalReaderSpeechFollow.current)
     var followedSpeechPosition by remember(uiState) { mutableStateOf(speech.position) }
     val latestPrepared by rememberUpdatedState(preparedChapters)
+    val imageWindow = remember(listState) { ReaderImageWindow() }
+    val imageResize = remember(listState) { Mutex() }
+    val enabledImages by remember(listState) { derivedStateOf {
+        if (!active || !bookmarkReady) emptyMap() else {
+            val images = listState.layoutInfo.visibleItemsInfo.flatMap { item ->
+                val prepared = latestPrepared.getOrNull(item.index)
+                prepared?.blocks?.mapNotNull { block ->
+                    prepared.content.images[block.componentIndex]?.takeIf { block.top >= 0 && block.height > 0 }?.let {
+                        Triple(it, item.offset + block.top, item.offset + block.top + block.height)
+                    }
+                }.orEmpty()
+            }
+            readerImageWindow(images, 0, listState.layoutInfo.viewportSize.height)
+        }
+    } }
     val reduceMotion by rememberUpdatedState(settingState.reduceMotion)
     fun viewport() = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
     fun capturePosition(): ReaderPosition? {
-        if (!active || !bookmarkReady || uiState.lazyListState !== listState || listState.isScrollInProgress ||
+        if (!active || !bookmarkReady || uiState.isRestoringProgress || uiState.lazyListState !== listState || listState.isScrollInProgress ||
             positions?.pending != null || bookmarks?.pending != null ||
             restoredGeometry != (textLayout to lazyColumnSize)) return null
         val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.offset + it.size > 0 } ?: return null
@@ -213,6 +242,38 @@ fun ScrollContentTextComponent(
     // Local function references compare equal even when their captured list/geometry changes.
     val renderer = RegisterReaderPositionCapture(uiState) { capturePosition() }
     fun ownsRenderer() = active && (positions == null || positions.ownsRenderer(uiState, renderer))
+    suspend fun resizeImage(resource: ReaderImageResource, size: SourceImageSize) = scope.launch { imageResize.withLock {
+        snapshotFlow { !listState.isScrollInProgress && !uiState.isRestoringProgress }.first { it }
+        if (!ownsRenderer() || uiState.lazyListState !== listState) return@withLock
+        if (latestPrepared.none { resource in it?.content?.images?.values.orEmpty() }) return@withLock
+        val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.offset + it.size > 0 }
+        val prepared = item?.let { latestPrepared.getOrNull(it.index) }
+        val anchor = prepared?.anchorAt((-item.offset).coerceAtLeast(0))
+        val screenY = anchor?.let { prepared.offsetFor(it)?.plus(item.offset) }
+        if (!bookmarkReady || anchor == null || screenY == null) { resource.size = size; return@withLock }
+        val attempt = Any().also { restorationOwner = it }
+        uiState.onProgressRestoring(listState)
+        try {
+            val block = prepared.blocks.firstOrNull { prepared.content.images[it.componentIndex] === resource }
+            if (block != null && block.top + block.height <= -item.offset) {
+                val height = (block.width * (size.height.toFloat() / size.width)).roundToInt()
+                // Apply the known height delta in the same remeasure that expands the image.
+                listState.requestScrollToItem(item.index, -item.offset + height - block.height)
+            }
+            resource.size = size
+            // Bounds are chapter-local and are republished by placement after the size change.
+            withFrameNanos { }
+            withFrameNanos { }
+            val index = latestPrepared.indexOf(prepared)
+            if (!ownsRenderer() || uiState.lazyListState !== listState || index < 0 ||
+                restorationOwner !== attempt || positions?.pending != null || bookmarks?.pending != null) return@withLock
+            prepared.offsetFor(anchor)?.let { listState.scrollToItem(index, it - screenY) }
+            readingPosition = ReaderPosition.capture(uiState.bookId, prepared.content, anchor)
+            anchoredViewport = viewport()
+        } finally {
+            if (ownsRenderer() && restorationOwner === attempt) uiState.onProgressRestored(listState)
+        }
+    } }.join()
     SideEffect {
         capturePosition()?.let { readingPosition = it; anchoredViewport = viewport() }
     }
@@ -556,6 +617,9 @@ fun ScrollContentTextComponent(
                             settingState = settingState,
                             fontFamilySettings = fontFamilySettings,
                             prepared = prepared,
+                            imageWindow = imageWindow,
+                            enabledImages = enabledImages,
+                            resizeImage = ::resizeImage,
                         )
                     }?.onErr {
                         ChapterContentError(it, pair?.first?.let(chapterTitle)) {
@@ -582,6 +646,9 @@ private fun TextContent(
     settingState: ReaderSettings,
     fontFamilySettings: ReaderFontFamilySettings,
     prepared: PreparedScrollChapter,
+    imageWindow: ReaderImageWindow,
+    enabledImages: Map<ReaderImageResource, Boolean>,
+    resizeImage: suspend (ReaderImageResource, SourceImageSize) -> Unit,
 ) {
     val content = prepared.content
     val speechRanges = LocalReaderSpeechFollow.current.ranges(content)
@@ -660,8 +727,16 @@ private fun TextContent(
             val text = block.text
             Box(Modifier.onPlaced {
                 block.top = it.positionInParent().y.toInt()
+                block.height = it.size.height
+                block.width = it.size.width
             }) {
                 CompositionLocalProvider(LocalReaderSpeechRanges provides speechRanges,
+                    LocalReaderImageWindow provides imageWindow,
+                    LocalReaderChapterImages provides content.images,
+                    LocalReaderImageResource provides content.images[block.componentIndex],
+                    LocalReaderImageEnabled provides (content.images[block.componentIndex] in enabledImages),
+                    LocalReaderImageVisible provides (enabledImages[content.images[block.componentIndex]] == true),
+                    LocalReaderImageResize provides resizeImage,
                     indi.renakoni.nextvol.ui.LocalReaderChapterId provides content.id) {
                     if (text != null) ScrollTextContent(text, readerContentTextColor(colors.textColor, colors.textDarkColor), modifier)
                     else component.Content(modifier)

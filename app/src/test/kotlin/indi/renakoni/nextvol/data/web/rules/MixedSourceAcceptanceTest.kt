@@ -270,7 +270,7 @@ class MixedSourceAcceptanceTest {
                 registry.unregister(native.id)
                 val requests = fixture.documents.get(); val nativeRequests = nativeReads.get()
                 val rendering = ContentTestHost()
-                val chapterLoader = ReaderChapterLoader(chapters, rendering.renderer)
+                val chapterLoader = ReaderChapterLoader(chapters, rendering.renderer, io.mockk.mockk(relaxed = true))
                 for ((index, book) in identities.withIndex()) {
                     val reading = books.getUserReadingData(book.storageKey)
                     assertEquals((index + 1) / 4f, reading.currentChapterReadingProgressMap[reading.lastReadChapterId])
