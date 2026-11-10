@@ -22,6 +22,8 @@ class OnlineSpeechTextTest {
         val longMark = "[[甲。 " + "𠀀".repeat(50) + "]]"
         assertEquals(listOf("前", longMark, "后"), splitOnlineSpeechText("前${longMark}后", 50))
         val longText = "a".repeat(94) + " ……！？”』"
-        assertEquals(listOf("a".repeat(50), "a".repeat(43), "a ……！？”』"), splitOnlineSpeechText(longText, 50))
+        val nextSentence = "乙".repeat(29) + "。"
+        assertEquals(listOf("a".repeat(50), "a".repeat(43), "a ……！？”』", nextSentence),
+            splitOnlineSpeechText(longText + nextSentence, 50))
     }
 }
