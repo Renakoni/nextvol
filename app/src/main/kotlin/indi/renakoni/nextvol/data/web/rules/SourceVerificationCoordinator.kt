@@ -37,11 +37,8 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
         val scriptClaimed: AtomicBoolean = AtomicBoolean(),
         val scriptForeground: ForegroundSourceRequest = ForegroundSourceRequest(),
         val scriptFinished: CompletableDeferred<Unit> = CompletableDeferred()) {
-        val session get() = verification?.let { action ->
-            val kind = action.kind
-            val origin = action.origin
-            if (action.certificate == null && kind != null && origin != null)
-                Session(prompt.owner, kind, origin) else null
+        val session = if (prompt.certificate != null) null else prompt.kind?.let { kind ->
+            verification?.origin?.let { Session(prompt.owner, kind, it) }
         }
     }
     private val lock = Any()
