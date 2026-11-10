@@ -72,7 +72,8 @@ internal class ScrollChapterWindow(
     }
 
     fun updateNavigation(navigation: ChapterNavigation) {
-        if (navigation.bookId != uiState.bookId) return
+        if (indi.renakoni.nextvol.data.book.BookIdentity.bookKey(navigation.bookId) !=
+            indi.renakoni.nextvol.data.book.BookIdentity.bookKey(uiState.bookId)) return
         this.navigation = navigation
         val content = uiState.readingChapterContent?.get()
         val changed = content?.updateNavigation(navigation) == true
