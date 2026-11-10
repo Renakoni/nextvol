@@ -87,7 +87,6 @@ class ScrollReaderController(
 
     override fun loadNextChapter() {
         uiState.readingChapterContent?.onOk { readingChapterContent ->
-            if (!readingChapterContent.hasNextChapter()) return
             val next = readingChapterContent.nextChapter ?: return
             positionNavigation(uiState.bookId, next, false)
             chaptersWindow.changeChapter(next, restoreProgress = false)
@@ -96,7 +95,6 @@ class ScrollReaderController(
 
     override fun loadPrevChapter() {
         uiState.readingChapterContent?.onOk { readingChapterContent ->
-            if (!readingChapterContent.hasPrevChapter()) return
             val previous = readingChapterContent.prevChapter ?: return
             positionNavigation(uiState.bookId, previous, false)
             chaptersWindow.changeChapter(previous, restoreProgress = false)

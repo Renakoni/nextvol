@@ -77,7 +77,9 @@ internal class ScrollChapterWindow(
         this.navigation = navigation
         val content = uiState.readingChapterContent?.get()
         val changed = content?.updateNavigation(navigation) == true
-        uiState.contentList.forEach { it?.second?.get()?.updateNavigation(navigation) }
+        uiState.contentList.forEachIndexed { index, entry ->
+            if (index != 1) entry?.second?.get()?.updateNavigation(navigation)
+        }
         val expected = request ?: return
         if (changed && content != null) {
             if (continuous) replaceAdjacent(expected, content) else preload(expected, content)
