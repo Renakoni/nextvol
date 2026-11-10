@@ -38,14 +38,12 @@ internal class SourceImageFetcher(private val request: BoundSourceImage, private
                 ValidatedSourceImage), null, DataSource.DISK)
         }
         val runtime = request.runtime ?: throw IOException("Source image is not cached")
-        val bytes = runtime.execute {
-            runtime.imageRequests.get(request.key, force = !options.diskCachePolicy.readEnabled) {
-                // A previous fetch may have committed between the first lookup and joining.
-                if (options.diskCachePolicy.readEnabled) cache?.openSnapshot(request.key)?.use { snapshot ->
-                    return@get SourceImageRequests.Bytes(cache.fileSystem.read(snapshot.data) { readByteArray() }, DataSource.DISK)
-                }
-                SourceImageRequests.Bytes(fetchAndStore(runtime), DataSource.NETWORK)
+        val bytes = runtime.imageRequests.get(request.key, force = !options.diskCachePolicy.readEnabled) {
+            // A previous fetch may have committed between the first lookup and joining.
+            if (options.diskCachePolicy.readEnabled) cache?.openSnapshot(request.key)?.use { snapshot ->
+                return@get SourceImageRequests.Bytes(cache.fileSystem.read(snapshot.data) { readByteArray() }, DataSource.DISK)
             }
+            SourceImageRequests.Bytes(fetchAndStore(runtime), DataSource.NETWORK)
         }
         return SourceFetchResult(ImageSource(Buffer().write(bytes.value), options.fileSystem, ValidatedSourceImage), null, bytes.dataSource)
     }
@@ -60,7 +58,6 @@ internal class SourceImageFetcher(private val request: BoundSourceImage, private
                     cache.fileSystem.write(editor.metadata) { }
                     cache.fileSystem.write(editor.data) { write(bytes) }
                     currentCoroutineContext().ensureActive()
-                    runtime.checkAvailable()
                     editor.commit()
                 } catch (failure: Throwable) {
                     editor.abort()
