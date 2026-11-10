@@ -163,25 +163,21 @@ class UpdateDownloadRepositoryTest {
     @Test fun cancellationAfterBlockingDownloadDoesNotExposeAnInstaller() = runBlocking {
         checked()
         val downloading = CompletableDeferred<Job>()
-        val blocked = CompletableDeferred<Unit>()
         val finishDownload = CountDownLatch(1)
         coEvery { downloader.download(any(), any(), any()) } coAnswers {
             downloading.complete(currentCoroutineContext().job)
-            blocked.complete(Unit)
             check(finishDownload.await(5, TimeUnit.SECONDS))
             File(directory.root, "cancelled.apk").apply { writeText("apk") }
         }
         repository.downloadUpdate()
         val job = withTimeout(5000) { downloading.await() }
         try {
-            blocked.await()
             job.cancel()
             assertTrue(repository.isDownloading.value)
             repository.downloadUpdate()
             verify(exactly = 1) { downloader.prepare() }
         } finally { finishDownload.countDown() }
-        withTimeout(5000) { job.join() }
-        assertFalse(repository.isDownloading.value)
+        finished()
         verify(exactly = 0) {
             system.showDownloadFailedNotification(any())
             system.showDownloadCompleteNotification(any())
