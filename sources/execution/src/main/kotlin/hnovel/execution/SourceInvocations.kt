@@ -12,7 +12,7 @@ class SourceInvocations(private val identity: ExecutionIdentity, private val aut
         requestUserAgent: String? = null, currentRequest: BrokerRequest? = null,
         memory: ScriptMemory = ScriptMemory(), onMessage: ((String) -> Unit)? = null,
         retryContext: RequestRetryContext? = null, directoryFields: Int = 0,
-        interaction: (suspend (suspend () -> hnovel.network.BrokerResponse) -> hnovel.network.BrokerResponse)? = null): SourceExecutionBroker =
+        interaction: (suspend (BrokerRequest, suspend () -> hnovel.network.BrokerResponse) -> hnovel.network.BrokerResponse)? = null): SourceExecutionBroker =
         SourceExecutionBroker(identity, authority, session, limits, baseUrl, keyword, page,
             allowInteraction = allowInteraction, sourceName = sourceName, sourceLastUpdateTime = sourceLastUpdateTime,
             requestUserAgent = requestUserAgent, currentRequest = currentRequest, memory = memory,

@@ -28,26 +28,31 @@ class SourceVerificationCoordinatorTest {
     }
     private val failure = SourceContentException(ContentError.BrowserRequired, "searchUrl", verification = verification)
 
-    @Test fun scriptVerificationReturnsToTheWaitingInvocation() = runTest {
+    @Test fun scriptsSharingASiteStillReceiveTheirOwnInvocationResults() = runTest {
         val ready = CompletableDeferred<Unit>()
-        var body = ""
+        val bodies = arrayOf("", "")
         var calls = 0
-        coEvery { verification.complete() } coAnswers { ready.await(); body = "chapter" }
-        val ui = ForegroundSourceRequest()
-        val request = async(ui) { coordinator.execute(owner, "Chapter") {
-            calls++
-            currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
-            body
+        val actions = bodies.indices.map { index -> mockk<SourceVerification> {
+            every { kind } returns BrowserChallengeKind.Cloudflare
+            every { certificate } returns null
+            every { origin } returns "https://first.test/"
+            coEvery { complete() } coAnswers { ready.await(); bodies[index] = "chapter-$index" }
         } }
+        val ui = ForegroundSourceRequest()
+        val requests = bodies.indices.map { index -> async(ui) { coordinator.execute(owner, "Chapter $index") {
+            calls++
+            currentCoroutineContext()[SourceScriptInteraction]!!.request(actions[index])
+            bodies[index]
+        } } }
         runCurrent()
         assertTrue(ui.verifying)
-        assertEquals(1, calls)
+        assertEquals(2, calls)
         ready.complete(Unit)
-        assertEquals("chapter", request.await())
-        assertEquals(1, calls)
+        assertEquals(listOf("chapter-0", "chapter-1"), requests.awaitAll())
+        assertEquals(2, calls)
         assertFalse(ui.verifying)
         assertTrue(coordinator.prompts.value.isEmpty())
-        coVerify(exactly = 1) { verification.complete() }
+        actions.forEach { action -> coVerify(exactly = 1) { action.complete() } }
     }
 
     @Test fun challengeAfterScriptInteractionDoesNotOpenTheGenericFallback() = runTest {
@@ -270,7 +275,7 @@ class SourceVerificationCoordinatorTest {
         assertFalse(coordinator.prompts.value.single().opening)
     }
 
-    @Test fun oneWindowResumesExistingAndLateDownloadsAndStaleResponsesOnlyForItsSite() = runTest {
+    @Test fun oneWindowResumesScriptAndGenericWaitersAndStaleResponsesOnlyForItsSite() = runTest {
         val release = CompletableDeferred<Unit>()
         val staleResponse = CompletableDeferred<Unit>()
         var ready = false
@@ -280,6 +285,7 @@ class SourceVerificationCoordinatorTest {
         suspend fun download(index: Int): String = coordinator.execute(owner, "Chapter $index") {
             val attempt = ++calls[index]
             if (index == 3 && attempt == 1) { staleResponse.await(); throw failure }
+            if (index == 1 && !ready) currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
             if (!ready) throw failure
             "chapter-$index"
         }
@@ -295,6 +301,11 @@ class SourceVerificationCoordinatorTest {
         val opening = async { coordinator.verifyBackground(oldId) }
         runCurrent()
         waitForVerification(1)
+        var standaloneCompleted = false
+        runCatching { coordinator.execute(owner, "Standalone script") {
+            currentCoroutineContext()[SourceScriptInteraction]!!.request(verification)
+            standaloneCompleted = true
+        } }
         var otherResumed = false
         val otherVerification = mockk<SourceVerification> {
             every { kind } returns BrowserChallengeKind.Cloudflare
@@ -303,7 +314,7 @@ class SourceVerificationCoordinatorTest {
         }
         withContext(BackgroundSourceRequest { { _, _ -> otherResumed = true } }) {
             runCatching { coordinator.execute<Unit>(owner, "Other site") {
-                throw SourceContentException(ContentError.BrowserRequired, "chapter", verification = otherVerification)
+                currentCoroutineContext()[SourceScriptInteraction]!!.request(otherVerification)
             } }
         }
         val foreground = async(ForegroundSourceRequest()) { download(2) }
@@ -320,6 +331,9 @@ class SourceVerificationCoordinatorTest {
         coVerify(exactly = 1) { verification.complete() }
         coVerify(exactly = 0) { otherVerification.complete() }
         assertFalse(otherResumed)
+        assertFalse(standaloneCompleted)
+        coordinator.verifyBackground(coordinator.prompts.value.single { it.name == "Standalone script" }.id)
+        assertTrue(standaloneCompleted)
         assertEquals("Other site", coordinator.prompts.value.single().name)
         coordinator.dismiss(coordinator.prompts.value.single().id)
         assertTrue(coordinator.prompts.value.isEmpty())

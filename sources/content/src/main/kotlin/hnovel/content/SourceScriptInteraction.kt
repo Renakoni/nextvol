@@ -9,4 +9,5 @@ class SourceScriptInteraction(val request: suspend (SourceVerification) -> Unit)
 }
 
 /** Background work must restart under user interaction, never retain a closed worker's callback. */
-class SourceScriptInteractionRequired : SourceContentException(ContentError.BrowserRequired, "loginCheckJs")
+class SourceScriptInteractionRequired(val kind: hnovel.network.BrowserChallengeKind?, val origin: String?) :
+    SourceContentException(ContentError.BrowserRequired, "loginCheckJs")

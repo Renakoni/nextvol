@@ -15,7 +15,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
     private val requestUserAgent: String? = null, currentRequest: BrokerRequest? = null,
     private val memory: ScriptMemory = ScriptMemory(), private val onMessage: ((String) -> Unit)? = null,
     private val retryContext: RequestRetryContext? = null, private val directoryFields: Int = 0,
-    private val interaction: (suspend (suspend () -> BrokerResponse) -> BrokerResponse)? = null) : AutoCloseable {
+    private val interaction: (suspend (BrokerRequest, suspend () -> BrokerResponse) -> BrokerResponse)? = null) : AutoCloseable {
     private val currentRequest = currentRequest?.let { it.copy(headers = it.headers.toMap()) }
     // Waiting for a person must not increase a single HTTP request's network budget.
     private val requestTimeoutMillis = limits.timeoutMillis.coerceAtMost(if (directoryFields > 0) 30000 else 60000)
@@ -376,7 +376,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
             val bounded = request.copy(timeoutMillis = minOf(timeoutMillis, requestTimeoutMillis),
                 maxResponseBytes = minOf(maxResponseBytes, BrokerLimits.DEFAULT_MAX_RESPONSE_BYTES))
             val guard = RequestCommitGuard { action -> authorized(action) }
-            val result = if (httpOnly) session.executeHttp(bounded, guard) else session.execute(bounded, guard)
+            val result = if (httpOnly) session.refetchHttp(bounded, guard) else session.execute(bounded, guard)
             if (result is BrokerResult.Failure) requestFailure = result
             if (interaction != null && request.browser?.interactive == true && result is BrokerResult.Failure &&
                 result.stage == RequestStage.Response && result.code == hnovel.network.FailureCode.BrowserRequired && result.challenge == null)
@@ -385,7 +385,7 @@ class SourceExecutionBroker(val identity: ExecutionIdentity, private val authori
             return result.response
         }
         return if (request.browser?.interactive == true && interaction != null) {
-            interaction.invoke(::execute)
+            interaction.invoke(request, ::execute)
         } else execute()
     }
 
