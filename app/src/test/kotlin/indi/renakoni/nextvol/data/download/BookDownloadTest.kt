@@ -433,55 +433,84 @@ class BookDownloadTest {
     }
 
     @Test fun scriptVerificationResultIsSavedByTheResumedWorkerWithinItsSelectedChapters() = runBlocking {
-        val source = Remote(a)
-        val coordinator = indi.renakoni.nextvol.data.web.rules.SourceVerificationCoordinator(registry)
-        val owner = indi.renakoni.nextvol.data.web.rules.VerificationOwner(a.sourceId, "1", 0)
-        var calls = 0
-        var windows = 0
-        registry.register(object : WebBookDataSource by source {
-            override suspend fun getChapterContent(chapterId: String, bookId: String): com.github.michaelbull.result.Result<ChapterContent, WebRequestError> = try {
-                coordinator.execute(owner, "Fixture") {
-                    calls++
-                    val action = mockk<hnovel.content.SourceVerification> {
-                        every { kind } returns null
-                        every { certificate } returns null
-                        every { origin } returns null
-                        coEvery { complete() } coAnswers { windows++ }
-                    }
-                    currentCoroutineContext()[hnovel.content.SourceScriptInteraction]!!.request(action)
-                    source.getChapterContent(chapterId, bookId)
-                }
-            } catch (error: hnovel.content.SourceContentException) {
-                Err(WebRequestError("Verification", "Required", error,
-                    kind = io.nightfish.lightnovelreader.api.error.WebRequestErrorKind.VerificationRequired))
-            }
-        }, SourceMetadata(WebDataSourceItem(a.sourceId, "Fixture", "fixture"),
-            setOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent), revision = "1"))
-        val resumed = CompletableDeferred<androidx.work.OneTimeWorkRequest>()
-        val queued = captureQueuedDownloads { request ->
-            if (request.workSpec.input.getString("sourceVerification") != null) {
-                every { workManager.getWorkInfoByIdFlow(request.id) } returns kotlinx.coroutines.flow.MutableStateFlow(
-                    mockk { every { state } returns androidx.work.WorkInfo.State.RUNNING })
-                resumed.complete(request)
-            }
+        val verified = java.util.concurrent.atomic.AtomicBoolean()
+        val windows = java.util.concurrent.atomic.AtomicInteger()
+        val browser = hnovel.network.BrowserExecutor { _, request, _, guard, _ ->
+            guard.commit { windows.incrementAndGet(); verified.set(true) }
+            hnovel.network.BrokerResult.Success(hnovel.network.BrokerResponse(200, request.url,
+                emptyMap(), byteArrayOf(), "UTF-8", 0))
         }
-        books.submitDownload(a.storageKey, listOf(SourceChapterId(a, "2").storageKey))
-        suspend fun runWorker(request: androidx.work.OneTimeWorkRequest) = CacheBookWork(context,
-            workerParameters(request.workSpec.input, request.id), progress, books, downloads).doWork()
-        assertTrue(runWorker(queued.single()) is ListenableWorker.Result.Failure)
-        assertEquals(0, windows)
-        val opening = async { coordinator.verifyBackground(coordinator.prompts.value.single().id) }
-        assertEquals(ListenableWorker.Result.success(), runWorker(withTimeout(5_000) { resumed.await() }))
-        opening.await()
-        assertEquals(2, calls)
-        assertEquals(1, windows)
-        assertEquals(mapOf("2" to 1), source.chapterCalls)
-        assertNotNull(chapter(a, "2"))
-        assertNull(chapter(a, "1"))
-        assertNull(chapter(a, "3"))
-        assertEquals(setOf("2"), downloads.entry(a)!!.selectedChapterIds())
-        assertEquals(DownloadTaskStatus.Complete.name, downloads.entry(a)!!.taskStatus)
-        assertTrue(coordinator.prompts.value.isEmpty())
+        hnovel.content.RuleSourceFixture(browser).use { fixture ->
+            val reads = java.util.concurrent.ConcurrentHashMap<String, Int>()
+            fixture.server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+                override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): okhttp3.mockwebserver.MockResponse {
+                    val path = request.path!!
+                    val response = okhttp3.mockwebserver.MockResponse()
+                    return when {
+                        path.startsWith("/book/") -> response.setBody("<h1>${path.substringAfterLast('/')}</h1><a class='toc' href='/toc/${path.substringAfterLast('/')}'>toc</a>")
+                        path.startsWith("/toc/") -> response.setBody((1..3).joinToString("") {
+                            "<li><a href='/c/${path.substringAfterLast('/')}/$it'>Chapter $it</a></li>"
+                        })
+                        path.startsWith("/c/") && !verified.get() -> response.setResponseCode(403)
+                            .setHeader("cf-mitigated", "challenge").setBody("<title>Just a moment...</title>")
+                        path.startsWith("/c/") -> {
+                            reads.merge(path, 1, Int::plus)
+                            response.setBody("<article><p>Body $path</p></article>")
+                        }
+                        else -> response.setResponseCode(404)
+                    }
+                }
+            }
+            val rule = fixture.source { raw -> kotlinx.serialization.json.JsonObject(raw + mapOf(
+                "loginCheckJs" to kotlinx.serialization.json.JsonPrimitive(
+                    "result.code()===403 ? java.startBrowserAwait(result.getUrl(),'verify') : result"),
+                "ruleContent" to kotlinx.serialization.json.buildJsonObject {
+                    put("content", kotlinx.serialization.json.JsonPrimitive("article@html"))
+                })) }
+            val coordinator = indi.renakoni.nextvol.data.web.rules.SourceVerificationCoordinator(registry)
+            val owner = indi.renakoni.nextvol.data.web.rules.VerificationOwner(a.sourceId, "1", 0)
+            registry.register(indi.renakoni.nextvol.data.web.rules.RuleWebBookDataSource(a.sourceId, rule,
+                indi.renakoni.nextvol.data.web.rules.RuleRequestRecovery(coordinator, owner, "Fixture")),
+                SourceMetadata(WebDataSourceItem(a.sourceId, "Fixture", "fixture"),
+                    setOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent), revision = "1"))
+            val selections = listOf("one" to 2, "two" to 3).map { (name, number) ->
+                SourceBookId(a.sourceId, fixture.server.url("/book/$name").toString()) to "/c/$name/$number"
+            }
+            val resumed = CompletableDeferred<androidx.work.OneTimeWorkRequest>()
+            val queued = captureQueuedDownloads { request ->
+                if (request.workSpec.input.getString("sourceVerification") != null) {
+                    every { workManager.getWorkInfoByIdFlow(request.id) } returns kotlinx.coroutines.flow.MutableStateFlow(
+                        mockk { every { state } returns androidx.work.WorkInfo.State.RUNNING })
+                    resumed.complete(request)
+                }
+            }
+            suspend fun runWorker(request: androidx.work.OneTimeWorkRequest) = CacheBookWork(context,
+                workerParameters(request.workSpec.input, request.id), progress, books, downloads).doWork()
+            for ((book, path) in selections) {
+                books.submitDownload(book.storageKey, listOf(SourceChapterId(book, fixture.server.url(path).toString()).storageKey))
+                assertTrue(runWorker(queued.last()) is ListenableWorker.Result.Failure)
+                assertEquals(DownloadTaskStatus.WaitingVerification.name, downloads.entry(book)!!.taskStatus)
+            }
+            assertEquals(2, coordinator.prompts.value.size)
+            assertEquals(0, windows.get())
+            val opening = async { coordinator.verifyBackground(coordinator.prompts.value.first().id) }
+            assertEquals(ListenableWorker.Result.success(), runWorker(withTimeout(5_000) { resumed.await() }))
+            opening.await()
+            assertEquals(4, queued.size)
+            assertEquals(selections.last().first.storageKey, queued.last().workSpec.input.getString("bookId"))
+            assertNull(queued.last().workSpec.input.getString("sourceVerification"))
+            assertEquals(ListenableWorker.Result.success(), runWorker(queued.last()))
+            assertEquals(1, windows.get())
+            assertEquals(selections.associate { it.second to 1 }, reads)
+            for ((book, path) in selections) {
+                val selected = fixture.server.url(path).toString()
+                assertTrue(chapter(book, selected)!!.content.toString().contains("Body $path"))
+                assertNull(chapter(book, fixture.server.url(path.substringBeforeLast('/') + "/1").toString()))
+                assertEquals(setOf(selected), downloads.entry(book)!!.selectedChapterIds())
+                assertEquals(DownloadTaskStatus.Complete.name, downloads.entry(book)!!.taskStatus)
+            }
+            assertTrue(coordinator.prompts.value.isEmpty())
+        }
     }
 
     @Test fun imageVerificationResumesTheWaitingDownload() = runBlocking {

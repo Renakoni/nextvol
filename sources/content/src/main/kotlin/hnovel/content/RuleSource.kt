@@ -731,6 +731,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         val snapshot = response.scriptSnapshot(binary = false)
         // Only this hook may explicitly re-execute the request it checks; the refetch does not run the hook again.
         context.currentRequest = request
+        context.currentResponse = response
         context.manualVerification = false
         val checked = try { responseRule(httpErrorStatus(response.status)) {
             context.script("""
@@ -747,7 +748,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
                         return values;
                     })()});
             """.trimIndent(), RuleValue.Text(snapshot.toString()), "loginCheckJs").text()
-        } } finally { context.currentRequest = null }
+        } } finally { context.currentRequest = null; context.currentResponse = null }
         val value = Json.parseToJsonElement(checked).jsonObject
         val status = value.getValue("status").jsonPrimitive.int
         val finalUrl = sourceLink(response.finalUrl, value.getValue("url").jsonPrimitive.content)

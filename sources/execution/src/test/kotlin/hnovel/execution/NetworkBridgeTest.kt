@@ -20,6 +20,28 @@ class NetworkBridgeTest {
     private val authority = ExecutionAuthority()
     private val id = authority.issue("a", "legado", "1", "fixture")
 
+    @Test fun browserRefetchStaysHttpAndUsesTheSourceAdmissionGate() = runBlocking {
+        val browser = BrowserExecutor { _, _, _, _, _ -> error("HTTP refetch must not reopen the browser") }
+        MockWebServer().use { server ->
+            server.start()
+            val base = server.url("/").toString()
+            server.enqueue(MockResponse().setBody("chapter"))
+            server.enqueue(MockResponse().setBody("unpaced"))
+            SourceBroker(folder.root.toPath(), browser = browser).use { sessions ->
+                val session = sessions.open(SourceScope("fixture", "a", "legado"), listOf(NetworkGrant(base, true)))
+                session.configureSource(base, true, browserRead = true, concurrentRate = "60000")
+                SourceExecutionBroker(id, authority, session, ExecutionLimits(), base, allowInteraction = true).use { bridge ->
+                    assertEquals("chapter", bridge.call("browser.refetch", listOf(JsonPrimitive(base))).jsonObject["body"]?.jsonPrimitive?.content)
+                }
+                SourceExecutionBroker(id, authority, session, ExecutionLimits(timeoutMillis = 100), base, allowInteraction = true).use { bridge ->
+                    assertTrue(runCatching { bridge.call("browser.refetch", listOf(JsonPrimitive(base))) }.isFailure)
+                    assertEquals(hnovel.network.FailureCode.Timeout, bridge.requestFailure?.code)
+                }
+                assertEquals(1, server.requestCount)
+            }
+        }
+    }
+
     @Test fun scriptValueAndFileCachesCannotCarryAnAccountIntoItsReplacement() = runBlocking {
         val scope = SourceScope("fixture", "a", "legado")
         SourceBroker(folder.root.toPath()).use { sessions ->
