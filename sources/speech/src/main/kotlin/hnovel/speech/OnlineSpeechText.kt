@@ -5,17 +5,23 @@ import java.util.regex.Pattern
 
 private const val onlineSpeechClosingPunctuation = ",.!?;:，。！？；：…”」»\"’')]}）】》"
 
+private val onlineChineseEnglishSentence = Pattern.compile(
+    "([,.!?;:”」»\\n，。！？；：…|](?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")")
+private val onlineOtherSentence = Pattern.compile(
+    "(([|\\n\\p{P}&&[^-_/+“「«\"’']])(?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")")
+private val onlineSpeechMarks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]")
+private val onlineSpeechWhitespace = Pattern.compile("\\s+")
+
 /** S6.f.e/c: aggregate punctuation units, then split groups reaching twice the sentence target. */
 internal fun splitOnlineSpeechText(text: String, limit: Int): List<String> {
     require(limit >= 2)
     if (text.length <= limit) return listOf(text)
-    val pattern = if (Locale.getDefault().language in setOf("en", "zh"))
-        "([,.!?;:”」»\\n，。！？；：…|](?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")"
-    else "(([|\\n\\p{P}&&[^-_/+“「«\"’']])(?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")"
+    val language = Locale.getDefault().language
+    val pattern = if (language == "en" || language == "zh") onlineChineseEnglishSentence else onlineOtherSentence
     val marks = onlineSpeechMarkRanges(text)
     var markIndex = 0
     val parts = mutableListOf<String>()
-    val matcher = Pattern.compile(pattern).matcher(text)
+    val matcher = pattern.matcher(text)
     var start = 0
     while (matcher.find()) {
         while (markIndex < marks.size && marks[markIndex].last < matcher.start()) markIndex++
@@ -36,7 +42,8 @@ internal fun splitOnlineSpeechText(text: String, limit: Int): List<String> {
         else result += splitLongOnlineSpeechText(group, limit)
     }
     for (part in parts) {
-        if (part.length + buffer.length > limit && part.length > 1 && buffer.isNotEmpty()) flush()
+        if (part.length + buffer.length > limit && part.length > 1 && buffer.isNotEmpty() &&
+            part.any { it !in onlineSpeechClosingPunctuation && !Character.isWhitespace(it) }) flush()
         buffer.append(part)
     }
     flush()
@@ -44,35 +51,35 @@ internal fun splitOnlineSpeechText(text: String, limit: Int): List<String> {
 }
 
 private fun onlineSpeechMarkRanges(text: String): List<IntRange> {
-    val marks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]").matcher(text)
+    val marks = onlineSpeechMarks.matcher(text)
     return buildList { while (marks.find()) add(marks.start() until marks.end()) }
 }
 
 private fun splitLongOnlineSpeechText(text: String, limit: Int): List<String> {
     val marks = onlineSpeechMarkRanges(text)
-    val whitespace = Pattern.compile("\\s+").matcher(text)
-    val words = mutableListOf<Pair<Int, Int>>()
-    var markIndex = 0
-    var start = 0
-    while (whitespace.find()) {
-        while (markIndex < marks.size && marks[markIndex].last < whitespace.start()) markIndex++
-        if (markIndex < marks.size && whitespace.start() in marks[markIndex]) continue
-        words += start to whitespace.start()
-        start = whitespace.end()
-    }
-    words += start to text.length
+    val whitespace = onlineSpeechWhitespace.matcher(text)
     val groups = mutableListOf<String>()
     var groupStart = -1
     var groupEnd = 0
-    for ((from, to) in words) {
-        if (from == to) continue
-        if (groupStart >= 0 && to - groupStart > limit) {
+    fun appendWord(from: Int, to: Int) {
+        if (from == to) return
+        if (groupStart >= 0 && to - groupStart > limit &&
+            (from until to).any { text[it] !in onlineSpeechClosingPunctuation }) {
             groups += text.substring(groupStart, groupEnd)
             groupStart = -1
         }
         if (groupStart < 0) groupStart = from
         groupEnd = to
     }
+    var markIndex = 0
+    var start = 0
+    while (whitespace.find()) {
+        while (markIndex < marks.size && marks[markIndex].last < whitespace.start()) markIndex++
+        if (markIndex < marks.size && whitespace.start() in marks[markIndex]) continue
+        appendWord(start, whitespace.start())
+        start = whitespace.end()
+    }
+    appendWord(start, text.length)
     if (groupStart >= 0) groups += text.substring(groupStart, groupEnd)
     return groups.flatMap { sentence ->
         val sentenceMarks = onlineSpeechMarkRanges(sentence)
@@ -82,11 +89,15 @@ private fun splitLongOnlineSpeechText(text: String, limit: Int): List<String> {
             while (from < sentence.length) {
                 var end = minOf(from + limit, sentence.length)
                 if (end < sentence.length && sentence[end - 1].isHighSurrogate() && sentence[end].isLowSurrogate()) end--
-                if (end < sentence.length && sentence[end] in onlineSpeechClosingPunctuation) {
+                val tailLimit = minOf(end + limit, sentence.length)
+                var punctuationEnd = end
+                while (punctuationEnd < tailLimit && Character.isWhitespace(sentence[punctuationEnd])) punctuationEnd++
+                if (punctuationEnd < tailLimit && sentence[punctuationEnd] in onlineSpeechClosingPunctuation) {
                     var punctuationStart = end
-                    var punctuationEnd = end
-                    while (punctuationStart > from && sentence[punctuationStart - 1] in onlineSpeechClosingPunctuation) punctuationStart--
-                    while (punctuationEnd < sentence.length && sentence[punctuationEnd] in onlineSpeechClosingPunctuation) punctuationEnd++
+                    while (punctuationStart > from && (sentence[punctuationStart - 1] in onlineSpeechClosingPunctuation ||
+                        Character.isWhitespace(sentence[punctuationStart - 1]))) punctuationStart--
+                    while (punctuationEnd < tailLimit && (sentence[punctuationEnd] in onlineSpeechClosingPunctuation ||
+                        Character.isWhitespace(sentence[punctuationEnd]))) punctuationEnd++
                     if (punctuationStart > from) {
                         val before = punctuationStart - Character.charCount(sentence.codePointBefore(punctuationStart))
                         if (before > from && punctuationEnd - before <= limit) end = before

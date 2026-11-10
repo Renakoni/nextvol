@@ -148,7 +148,8 @@ private fun speechPunctuationChunks(
     var partStart = 0
     var partEnd = 0
     fun append(end: Int) {
-        if (end - groupStart > limit && end - partStart > 1 && partStart != groupStart) {
+        if (end - groupStart > limit && end - partStart > 1 && partStart != groupStart &&
+            (partStart until end).any { input.text[it] !in speechClosingPunctuation && !Character.isWhitespace(input.text[it]) }) {
             flush(groupStart, partStart)
             groupStart = partStart
         }
@@ -196,34 +197,34 @@ private fun speechLongSentence(
 ): List<SpeechMappedText> {
     val marks = speechMarkRanges(input.text)
     val whitespace = wordWhitespace.matcher(input.text)
-    val words = mutableListOf<Pair<Int, Int>>()
+    val result = mutableListOf<SpeechMappedText>()
+    var groupStart = -1
+    var groupEnd = 0
+    fun flush() {
+        result += speechBoundedChunks(input.slice(groupStart, groupEnd), limit, hard, checkCancelled)
+    }
+    fun appendWord(from: Int, to: Int) {
+        if (from == to) return
+        if (groupStart >= 0 && to - groupStart > limit &&
+            (from until to).any { input.text[it] !in speechClosingPunctuation }) {
+            flush()
+            groupStart = -1
+        }
+        if (groupStart < 0) groupStart = from
+        groupEnd = to
+    }
     var markIndex = 0
     var start = 0
     while (whitespace.find()) {
         checkCancelled()
         while (markIndex < marks.size && marks[markIndex].last < whitespace.start()) markIndex++
         if (markIndex < marks.size && whitespace.start() in marks[markIndex]) continue
-        words += start to whitespace.start()
+        appendWord(start, whitespace.start())
         start = whitespace.end()
     }
-    words += start to input.text.length
-    while (words.isNotEmpty() && words.last().first == words.last().second) words.removeAt(words.lastIndex)
-    if (words.size == 1) return speechBoundedChunks(input, limit, hard, checkCancelled)
-    val groups = mutableListOf<SpeechMappedText>()
-    var groupStart = -1
-    var groupEnd = 0
-    for ((from, to) in words) {
-        checkCancelled()
-        if (from == to) continue
-        if (groupStart >= 0 && to - groupStart > limit) {
-            groups += input.slice(groupStart, groupEnd)
-            groupStart = -1
-        }
-        if (groupStart < 0) groupStart = from
-        groupEnd = to
-    }
-    if (groupStart >= 0) groups += input.slice(groupStart, groupEnd)
-    return groups.flatMap { speechBoundedChunks(it, limit, hard, checkCancelled) }
+    appendWord(start, input.text.length)
+    if (groupStart >= 0) flush()
+    return result
 }
 
 /** Backend limits are independent of the user's softer sentence target. */
@@ -261,11 +262,15 @@ private fun speechBoundedChunks(
         checkCancelled()
         var end = minOf(start + limit, input.text.length)
         if (end < input.text.length && input.text[end - 1].isHighSurrogate() && input.text[end].isLowSurrogate()) end--
-        if (end < input.text.length && input.text[end] in speechClosingPunctuation) {
+        val tailLimit = minOf(end + limit, input.text.length)
+        var punctuationEnd = end
+        while (punctuationEnd < tailLimit && Character.isWhitespace(input.text[punctuationEnd])) punctuationEnd++
+        if (punctuationEnd < tailLimit && input.text[punctuationEnd] in speechClosingPunctuation) {
             var punctuationStart = end
-            var punctuationEnd = end
-            while (punctuationStart > start && input.text[punctuationStart - 1] in speechClosingPunctuation) punctuationStart--
-            while (punctuationEnd < input.text.length && input.text[punctuationEnd] in speechClosingPunctuation) punctuationEnd++
+            while (punctuationStart > start && (input.text[punctuationStart - 1] in speechClosingPunctuation ||
+                Character.isWhitespace(input.text[punctuationStart - 1]))) punctuationStart--
+            while (punctuationEnd < tailLimit && (input.text[punctuationEnd] in speechClosingPunctuation ||
+                Character.isWhitespace(input.text[punctuationEnd]))) punctuationEnd++
             if (punctuationStart > start) {
                 val before = punctuationStart - Character.charCount(input.text.codePointBefore(punctuationStart))
                 if (before > start && punctuationEnd - before <= limit) end = before
