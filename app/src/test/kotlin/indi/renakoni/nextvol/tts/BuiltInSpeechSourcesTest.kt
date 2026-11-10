@@ -168,7 +168,7 @@ class BuiltInSpeechSourcesTest {
         assertEquals(savedEngine, repository().engines().single())
     }
 
-    @Test fun freshInstallAndNoOpResetKeepTheCompleteCatalogWithoutWriting() = runBlocking {
+    @Test fun freshInstallLoadsTheCompleteCatalogWithoutWriting() = runBlocking {
         val initial = repository().sources()
         assertEquals(96, initial.size)
         assertTrue(initial.all { it.isConfigured })
@@ -176,11 +176,46 @@ class BuiltInSpeechSourcesTest {
         assertTrue(initial.all { it.isBuiltIn && it.origins.isNotEmpty() && it.origins.all { origin -> sourceOrigin(origin) == origin } })
         assertEquals(initial.size, initial.map { it.definition.id }.toSet().size)
         assertFalse(File(directory.root, "http-speech.enc").exists())
+    }
+
+    @Test fun deletedBuiltInsStayDeletedAfterReopenAndCatalogRefreshWithoutRemovingCopiesOrEngines() = runBlocking {
         val repository = repository()
-        val voice = initial.first()
-        repository.delete(voice.definition.id)
-        assertEquals(initial.map { it.definition.raw to it.origins }, repository().sources().map { it.definition.raw to it.origins })
-        assertFalse(File(directory.root, "http-speech.enc").exists())
+        val initial = repository.sources()
+        val original = initial.first()
+        val copy = editHttpVoice(original, buildJsonObject { put("name", original.definition.name) }, true, true)
+        repository.saveVoice(copy)
+        repository.enable(setOf(original.definition.id), false)
+        val ticket = repository.withSource(original.definition.id) { source, _ ->
+            authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
+        }!!
+        repository.delete(original.definition.id)
+        assertFalse(authority.accepts(ticket))
+        assertNull(repository.withSource(original.definition.id) { _, _ -> fail("Deleted voice issued a ticket") })
+        assertEquals(initial.drop(1).map { it.definition.id } + copy.definition.id,
+            repository().sources().map { it.definition.id })
+
+        val groupIds = initial.filter { it.group == original.group }.map { it.definition.id }.toSet()
+        repository.delete(groupIds)
+        val engine = SpeechEngineConfig("http_refresh", original.group!!, "http", url = "https://example.org/audio")
+        repository.saveEngine(engine, creating = true)
+        val imported = newHttpVoice(engine)
+        repository.saveCatalog(engine, listOf(imported.definition), emptyList(), null)
+        val restored = repository().sources()
+        assertEquals(initial.filterNot { it.definition.id in groupIds }.map { it.definition.id } +
+            listOf(copy.definition.id, imported.definition.id), restored.map { it.definition.id })
+        assertEquals(copy.definition.raw, restored.single { it.definition.id == copy.definition.id }.definition.raw)
+        assertEquals(listOf(engine), repository().engines())
+    }
+
+    @Test fun failedBuiltInDeletionLeavesTheSavedCatalogAndChangeSignalUntouched() = runBlocking {
+        val repository = HttpSpeechRepository(context, object : StorageCipher by StorageCipher.Plain {
+            override fun seal(bytes: ByteArray, identity: String): ByteArray = throw java.io.IOException("Write failed")
+        }, authority, offline, SpeechEngineRepository(context, StorageCipher.Plain))
+        val initial = repository.sources()
+        try { repository.delete(initial.first().definition.id); fail("Deletion must report the write failure") }
+        catch (_: java.io.IOException) { }
+        assertEquals(0L, repository.changes.value)
+        assertEquals(initial.map { it.definition.raw }, repository().sources().map { it.definition.raw })
     }
 
     @Test fun legacyImportsRemainSeparateAndCannotReplaceBuiltIns() = runBlocking {
@@ -188,6 +223,8 @@ class BuiltInSpeechSourcesTest {
         val source = previewHttpSpeech("""{"id":24,"name":"My voice","url":"https://example.org"}""").sources.single()
         val imported = SavedHttpSpeechSource(source, listOf("https://example.org:443"))
         repository.save(listOf(imported))
+        val file = File(directory.root, "http-speech.enc")
+        file.writeText(JsonObject(Json.parseToJsonElement(file.readText()).jsonObject - "deletedBuiltInIds").toString())
         val restored = repository().sources().single { !it.isBuiltIn }
         assertEquals(imported.definition.raw, restored.definition.raw)
         assertEquals(imported.origins, restored.origins)

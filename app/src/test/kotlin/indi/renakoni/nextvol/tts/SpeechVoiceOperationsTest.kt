@@ -21,6 +21,34 @@ class SpeechVoiceOperationsTest {
     private val controller = mockk<ReadAloudController>()
     private val operations = SpeechVoiceOperations(http, offline, settings, controller)
 
+    @Test fun builtInDeletionStopsPlaybackAndRemovesSelectionsFromEveryScheme() = runTest {
+        val source = SavedHttpSpeechSource(previewHttpSpeech(
+            """{"id":"nextvol:builtin:voice","name":"Voice","url":"https://example.org"}""").sources.single(),
+            emptyList(), group = "Built-in")
+        val deleted = SpeechVoiceRef(httpSource = source.definition.id)
+        val remaining = SpeechVoiceRef(httpSource = "copy")
+        val original = SpeechSettings(httpSource = source.definition.id, voiceRoutingConfigured = true,
+            narrationVoices = listOf(deleted, remaining), dialogueVoices = listOf(deleted))
+        var schemes = listOf(original, original.copy(httpSource = "copy"))
+        every { controller.state } returns MutableStateFlow(ReadAloudState(SpeechRequest("book", "chapter")))
+        every { controller.command(SpeechAction.Stop) } returns Unit
+        coEvery { settings.forBook("book") } returns original
+        coEvery { http.delete(setOf(source.definition.id)) } returns Unit
+        coEvery { settings.updateAll(any()) } coAnswers {
+            schemes = schemes.map(firstArg<(SpeechSettings) -> SpeechSettings>())
+        }
+
+        operations.deleteHttp(listOf(source))
+
+        assertEquals(listOf(original.copy(httpSource = null, narrationVoices = listOf(remaining), dialogueVoices = emptyList()),
+            original.copy(httpSource = "copy", narrationVoices = listOf(remaining), dialogueVoices = emptyList())), schemes)
+        coVerifyOrder {
+            controller.command(SpeechAction.Stop)
+            http.delete(setOf(source.definition.id))
+            settings.updateAll(any())
+        }
+    }
+
     @Test fun httpDisablingStopsAnAffectedBookBeforeWritingButEnablingDoesNotStop() = runTest {
         val source = SavedHttpSpeechSource(previewHttpSpeech(
             """{"id":"voice","name":"Voice","url":"https://example.org"}""").sources.single(), emptyList())

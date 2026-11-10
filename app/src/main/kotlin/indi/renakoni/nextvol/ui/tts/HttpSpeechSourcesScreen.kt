@@ -156,7 +156,15 @@ internal fun HttpSpeechSourcesScreen(
     val pagerGroups by rememberUpdatedState(groups)
     val pager = rememberPagerState { pagerGroups.size }
     val scope = rememberCoroutineScope()
-    val currentGroup = groups[pager.currentPage.coerceIn(groups.indices)].first
+    val currentGroup by remember {
+        derivedStateOf {
+            // Use the measured page key while Pager relocates it after a catalog change.
+            val key = pager.layoutInfo.visiblePagesInfo.firstOrNull { it.index == pager.currentPage }?.key
+            pagerGroups.firstOrNull { it.first == key }?.first
+                ?: pagerGroups[pager.currentPage.coerceIn(pagerGroups.indices)].first
+        }
+    }
+    val currentPage = groups.indexOfFirst { it.first == currentGroup }
     var managing by rememberSaveable(currentGroup) { mutableStateOf(false) }
     var checked by remember(currentGroup) { mutableStateOf(emptySet<String>()) }
     val exitManagement = { managing = false; checked = emptySet<String>() }
@@ -202,7 +210,7 @@ internal fun HttpSpeechSourcesScreen(
     }
     val currentHttp = filteredSources.filter { "http:${groupId(it)}" == currentGroup }
     val currentOffline = filteredOffline.filter { "offline:${it.configuration?.engine ?: "sherpa"}" == currentGroup }
-    val selectableKeys = (currentHttp.filterNot { it.isBuiltIn }.map { "http:${it.definition.id}" } +
+    val selectableKeys = (currentHttp.map { "http:${it.definition.id}" } +
         currentOffline.map { "offline:${it.reference.id}" }).toSet()
     val visibleChecked = checked.intersect(selectableKeys)
     LaunchedEffect(state.sources, offlineVoices) {
@@ -232,10 +240,10 @@ internal fun HttpSpeechSourcesScreen(
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (!catalogReady) return@Column
-            PrimaryScrollableTabRow(selectedTabIndex = pager.currentPage.coerceIn(groups.indices), edgePadding = 16.dp, divider = {},
+            PrimaryScrollableTabRow(selectedTabIndex = currentPage, edgePadding = 16.dp, divider = {},
                 modifier = Modifier.testTag("speech-source-tabs").semantics { testTagsAsResourceId = true }) {
                 groups.forEachIndexed { index, (_, title) ->
-                    Tab(selected = pager.currentPage == index,
+                    Tab(selected = currentPage == index,
                         onClick = { scope.launch { pager.animateScrollToPage(index) } },
                         text = { Text(title, Modifier.widthIn(max = 160.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) })
                 }
@@ -290,7 +298,7 @@ internal fun HttpSpeechSourcesScreen(
                             items(ordered, key = { it }) { key ->
                                 ReorderableItem(reorder, key) {
                                     val management = if (managing && group == currentGroup) VoiceRowManagement(
-                                        checked = key in checked, selectable = !state.busy && sources[key]?.isBuiltIn != true,
+                                        checked = key in checked, selectable = !state.busy,
                                         onToggle = { checked = if (key in checked) checked - key else checked + key },
                                         dragHandle = Modifier.longPressDraggableHandle(enabled = !state.busy, onDragStopped = saveOrder),
                                     ) else null
