@@ -289,7 +289,7 @@ class RuleSourceTest {
             val source = fixture.source(customize = { JsonObject(it + ("browserRead" to JsonPrimitive(true))) })
             val first = runCatching { source.search("first") }.exceptionOrNull() as SourceContentException
             val second = runCatching { source.search("second") }.exceptionOrNull() as SourceContentException
-            assertEquals(fixture.server.url("/").toString(), first.verification!!.origin)
+            assertEquals(sourceOrigin(fixture.server.url("/").toString()), first.verification!!.origin)
             assertEquals(first.verification.origin, second.verification!!.origin)
             first.verification!!.complete()
             assertTrue(opened.single(), opened.single().contains("q=first"))

@@ -778,12 +778,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         val kind = failure.challenge ?: return null
         val request = failure.verificationRequest ?: return null
         if (failure.code != hnovel.network.FailureCode.BrowserRequired) return null
-        val origin = runCatching {
-            val address = java.net.URL(request.url)
-            java.net.URL(address.protocol.lowercase(), address.host.lowercase(),
-                if (address.port == address.defaultPort) -1 else address.port, "/").toString()
-        }.getOrNull()
-        return SourceVerification(kind, origin = origin) {
+        return SourceVerification(kind, origin = sourceOrigin(request.url)) {
             verificationOperation("browser.verification", timeoutMillis = 300000) {
                 // Recovery opens immediately and finishes when the original extraction is ready.
                 // Ordinary account/login windows keep their explicit completion behavior.

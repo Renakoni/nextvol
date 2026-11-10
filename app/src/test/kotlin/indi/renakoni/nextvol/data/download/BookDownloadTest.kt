@@ -432,7 +432,7 @@ class BookDownloadTest {
         assertEquals(DownloadTaskStatus.Complete.name, downloads.entry(a)!!.taskStatus)
     }
 
-    @Test fun scriptVerificationResultIsSavedByTheResumedWorkerWithinItsSelectedChapters() = runBlocking {
+    @Test fun scriptVerificationResumesScriptAndGenericDownloadsWithinTheirSelectedChapters() = runBlocking {
         val verified = java.util.concurrent.atomic.AtomicBoolean()
         val windows = java.util.concurrent.atomic.AtomicInteger()
         val browser = hnovel.network.BrowserExecutor { _, request, _, guard, _ ->
@@ -463,7 +463,7 @@ class BookDownloadTest {
             }
             val rule = fixture.source { raw -> kotlinx.serialization.json.JsonObject(raw + mapOf(
                 "loginCheckJs" to kotlinx.serialization.json.JsonPrimitive(
-                    "result.code()===403 ? java.startBrowserAwait(result.getUrl(),'verify') : result"),
+                    "result.code()===403 && result.getUrl().indexOf('/c/three/')<0 ? java.startBrowserAwait(result.getUrl(),'verify') : result"),
                 "ruleContent" to kotlinx.serialization.json.buildJsonObject {
                     put("content", kotlinx.serialization.json.JsonPrimitive("article@html"))
                 })) }
@@ -473,7 +473,7 @@ class BookDownloadTest {
                 indi.renakoni.nextvol.data.web.rules.RuleRequestRecovery(coordinator, owner, "Fixture")),
                 SourceMetadata(WebDataSourceItem(a.sourceId, "Fixture", "fixture"),
                     setOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent), revision = "1"))
-            val selections = listOf("one" to 2, "two" to 3).map { (name, number) ->
+            val selections = listOf("one" to 2, "two" to 3, "three" to 2).map { (name, number) ->
                 SourceBookId(a.sourceId, fixture.server.url("/book/$name").toString()) to "/c/$name/$number"
             }
             val resumed = CompletableDeferred<androidx.work.OneTimeWorkRequest>()
@@ -491,15 +491,16 @@ class BookDownloadTest {
                 assertTrue(runWorker(queued.last()) is ListenableWorker.Result.Failure)
                 assertEquals(DownloadTaskStatus.WaitingVerification.name, downloads.entry(book)!!.taskStatus)
             }
-            assertEquals(2, coordinator.prompts.value.size)
+            assertEquals(selections.size, coordinator.prompts.value.size)
             assertEquals(0, windows.get())
             val opening = async { coordinator.verifyBackground(coordinator.prompts.value.first().id) }
             assertEquals(ListenableWorker.Result.success(), runWorker(withTimeout(5_000) { resumed.await() }))
             opening.await()
-            assertEquals(4, queued.size)
-            assertEquals(selections.last().first.storageKey, queued.last().workSpec.input.getString("bookId"))
-            assertNull(queued.last().workSpec.input.getString("sourceVerification"))
-            assertEquals(ListenableWorker.Result.success(), runWorker(queued.last()))
+            assertEquals(selections.size * 2, queued.size)
+            for (request in queued.drop(selections.size + 1)) {
+                assertNull(request.workSpec.input.getString("sourceVerification"))
+                assertEquals(ListenableWorker.Result.success(), runWorker(request))
+            }
             assertEquals(1, windows.get())
             assertEquals(selections.associate { it.second to 1 }, reads)
             for ((book, path) in selections) {
