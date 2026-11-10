@@ -15,7 +15,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,7 +36,6 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
         val claimed: AtomicBoolean = AtomicBoolean(),
         val scriptClaimed: AtomicBoolean = AtomicBoolean(),
         val scriptForeground: ForegroundSourceRequest = ForegroundSourceRequest(),
-        val scriptJob: AtomicReference<Job?> = AtomicReference(),
         val scriptFinished: CompletableDeferred<Unit> = CompletableDeferred()) {
         val session get() = verification?.let { action ->
             val kind = action.kind
@@ -62,9 +60,7 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
     private fun remove(id: String) = synchronized(lock) {
         pending.remove(id)?.let {
             it.approval.complete(false)
-            val finished = it.scriptFinished.isCompleted
             it.scriptFinished.cancel()
-            if (!finished) it.scriptJob.get()?.cancel()
             it.scriptForeground.setActive(false)
         }
         publish()
@@ -114,12 +110,12 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
 
     private suspend fun open(entry: Pending) {
         val waiters = browser.withLock {
-            if (!current(entry.prompt.owner)) throw SourceContentException(hnovel.content.ContentError.Unavailable, "browser.verification")
             val outcome = synchronized(lock) {
                 if (pending[entry.prompt.id]?.approval !== entry.approval) throw CancellationException("Verification dismissed")
                 newerOutcome(entry)
             }
             if (outcome != null) {
+                if (!current(entry.prompt.owner)) throw SourceContentException(hnovel.content.ContentError.Unavailable, "browser.verification")
                 outcome.failure?.let { throw it }
                 return@withLock emptyList<Pending>()
             }
@@ -138,7 +134,7 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
             val claimed = synchronized(lock) { pending[waiter.prompt.id]?.approval === waiter.approval &&
                 waiter.claimed.compareAndSet(false, true) }
             if (claimed) try {
-                waiter.background?.prepareResume()?.invoke(null)
+                waiter.background?.prepareResume()?.invoke(null, null)
             } finally { remove(waiter.prompt.id) }
         }
     }
@@ -208,8 +204,8 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
             }
             if (!current(entry.prompt.owner)) throw SourceContentException(hnovel.content.ContentError.Unavailable, "browser.verification")
             // The real worker consumes and saves the response. Never fetch a body only to discard it.
-            resume?.invoke(if (entry.verification == null) id else null)
-            if (entry.verification == null && resume != null) entry.scriptFinished.await()
+            resume?.invoke(if (entry.verification == null) id else null,
+                entry.scriptFinished.takeIf { entry.verification == null })
             entry.scriptRetry?.invoke()
         } }
         finally { remove(id) }
@@ -219,7 +215,6 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
         var foreground = currentCoroutineContext()[ForegroundSourceRequest]?.takeIf { it.allowsInteraction }
         val background = currentCoroutineContext()[BackgroundSourceRequest]?.takeIf { foreground == null }
         val started = synchronized(lock) { sequence }
-        lateinit var invocation: Job
         var scriptResume: Pending? = null
         val manualAttempted = AtomicBoolean()
         suspend fun run(allowScriptInteraction: Boolean = true): T = withContext(SourceScriptInteraction { verification ->
@@ -228,7 +223,7 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
                 val resume = synchronized(lock) { pending[background?.verificationId]?.takeIf {
                     it.prompt.owner == owner && current(owner) && it.verification == null &&
                         it.claimed.get() && it.scriptClaimed.compareAndSet(false, true)
-                }?.also { it.scriptJob.set(invocation) } } ?: throw SourceScriptInteractionRequired()
+                } } ?: throw SourceScriptInteractionRequired()
                 scriptResume = resume
                 foreground = resume.scriptForeground
             }
@@ -261,15 +256,8 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
                 run(allowScriptInteraction = verification?.certificate != null)
             }
         }
-        return try { coroutineScope {
-            invocation = currentCoroutineContext().job
-            request()
-        }.also { scriptResume?.scriptFinished?.complete(Unit) } }
+        return try { request().also { scriptResume?.scriptFinished?.complete(Unit) } }
         catch (failure: Throwable) {
-            if (failure is CancellationException && scriptResume?.scriptFinished?.isCancelled == true) {
-                currentCoroutineContext().ensureActive()
-                throw SourceContentException(hnovel.content.ContentError.BrowserRequired, "loginCheckJs")
-            }
             val waiting = scriptResume ?: synchronized(lock) { pending[background?.verificationId]?.takeIf {
                 it.prompt.owner == owner && it.verification == null
             } }

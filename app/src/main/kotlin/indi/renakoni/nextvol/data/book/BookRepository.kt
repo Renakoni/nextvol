@@ -239,16 +239,15 @@ class BookRepository @Inject constructor(
     }
 
     internal suspend fun prepareDownloadVerification(book: SourceBookId, workId: String, revision: String,
-        accountGeneration: Long): (suspend (String?) -> Unit)? {
+        accountGeneration: Long): (suspend (String?, kotlinx.coroutines.Deferred<Unit>?) -> Unit)? {
         fun currentSource() = sourceRegistry.sources.value.any { it.metadata.id == book.sourceId &&
             it.status == indi.renakoni.nextvol.data.web.SourceStatus.Ready &&
             it.metadata.revision == revision && it.metadata.accountGeneration == accountGeneration }
         if (!currentSource()) return null
-        val waiting = downloads.entries().firstOrNull { !it.taskHidden && it.taskWorkId == workId &&
-            BookIdentity.book(it.bookId).sourceId == book.sourceId &&
+        val waiting = downloads.entry(canonicalBook(book))?.takeIf { !it.taskHidden && it.taskWorkId == workId &&
             it.taskSourceRevision == revision && it.taskAccountGeneration == accountGeneration &&
             it.taskStatus in setOf(DownloadTaskStatus.WaitingVerification.name, DownloadTaskStatus.Running.name) } ?: return null
-        return { verificationId -> downloadScheduler.resumeVerified(listOf(waiting), verificationId, ::currentSource) }
+        return { verificationId, interaction -> downloadScheduler.resumeVerified(waiting, verificationId, interaction, ::currentSource) }
     }
 
     /** Download cards must remain renderable without making a successful source request. */

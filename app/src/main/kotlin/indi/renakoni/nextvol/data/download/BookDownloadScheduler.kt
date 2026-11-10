@@ -16,16 +16,23 @@ import indi.renakoni.nextvol.data.work.CacheBookWork
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -108,19 +115,50 @@ class BookDownloadScheduler @Inject constructor(
         } }
     }
 
-    internal suspend fun resumeVerified(expected: List<BookDownloadEntity>, verificationId: String? = null,
-        sourceIsCurrent: () -> Boolean): Unit = lock.withLock {
-        for (owner in expected) {
-            if (!sourceIsCurrent()) return@withLock
-            val request = OneTimeWorkRequestBuilder<CacheBookWork>()
-                .addTag(CacheBookWork.generationTag(owner.generation))
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .setInputData(workDataOf("bookId" to owner.bookId, "downloadGeneration" to owner.generation,
-                    "persistedTask" to true, "sourceVerification" to verificationId))
-                .build()
-            if (downloads.queueVerifiedTask(owner, request.id.toString())) {
-                workManager.enqueueUniqueWork(CacheBookWork.ofId(owner.bookId), ExistingWorkPolicy.REPLACE, request).await()
+    internal suspend fun resumeVerified(expected: BookDownloadEntity, verificationId: String? = null,
+        interaction: Deferred<Unit>? = null, sourceIsCurrent: () -> Boolean) {
+        val request = OneTimeWorkRequestBuilder<CacheBookWork>()
+            .addTag(CacheBookWork.generationTag(expected.generation))
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setInputData(workDataOf("bookId" to expected.bookId, "downloadGeneration" to expected.generation,
+                "persistedTask" to true, "sourceVerification" to verificationId))
+            .build()
+        val task = BookDownloadStore.Task(SourceBookId.fromStorageKey(expected.bookId), expected.generation, request.id.toString())
+        var reserved = false
+        try {
+            val enqueued = lock.withLock {
+                if (!sourceIsCurrent()) return@withLock false
+                // Cancellation can arrive after Room writes ownership but before returning it.
+                reserved = true
+                if (!downloads.queueVerifiedTask(expected, request.id.toString())) {
+                    reserved = false
+                    return@withLock false
+                }
+                try {
+                    workManager.enqueueUniqueWork(CacheBookWork.ofId(expected.bookId), ExistingWorkPolicy.REPLACE, request).await()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    try { downloads.finishTask(task, submissionFailure(failure)) }
+                    catch (_: CancellationException) { currentCoroutineContext().ensureActive() }
+                    return@withLock false
+                }
+                true
             }
+            if (!enqueued || interaction == null) return
+            coroutineScope {
+                val finished = async { observeTask(request.id).first { it == null || it.state.isFinished } }
+                try { select<Unit> {
+                    interaction.onAwait { }
+                    finished.onAwait { }
+                } } finally { finished.cancel() }
+            }
+        } catch (cancelled: CancellationException) {
+            if (interaction != null && reserved) withContext(NonCancellable) {
+                downloads.pauseVerificationTask(task.copy(book = aliases.resolve(task.book)))
+                workManager.cancelWorkById(request.id).await()
+            }
+            throw cancelled
         }
     }
 
