@@ -84,6 +84,7 @@ class HostMultiSourceIntegrationTest {
     private lateinit var progress: DownloadProgressRepository
     private lateinit var downloads: BookDownloadStore
     private lateinit var workManager: WorkManager
+    private var checkTime = 1_000L
     private val decoder = ContentJsonDecoder(ContentComponentRegistry())
     private val a = SourceBookId(Identifier("fixture", "a"), "123")
     private val b = SourceBookId(Identifier("fixture", "b"), "123")
@@ -115,7 +116,9 @@ class HostMultiSourceIntegrationTest {
         // Disable optional display transformations; storage and content decoding use production adapters.
         val text = TextProcessingRepository(mockk { every { enabled } returns false },
             mockk { every { enabled } returns false }, ContentComponentRegistry())
-        books = BookRepository(local, shelves, text, workManager, ChapterRepository(manager.registry, local, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(manager.registry, local, downloads, org.robolectric.RuntimeEnvironment.getApplication())),
+        val directoryChecks = BookDirectoryChecks(manager.registry, local, downloads,
+            context.getSharedPreferences("book_directory_checks", Context.MODE_PRIVATE)) { checkTime }
+        books = BookRepository(local, shelves, text, workManager, ChapterRepository(manager.registry, local, text, mockk(), downloads, directoryChecks),
             BookReadingDataRepository(local), manager.registry, downloads, mockk(), scheduler)
         val coordinator = StatisticsWriteCoordinator()
         stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), books, coordinator)
@@ -240,6 +243,7 @@ class HostMultiSourceIntegrationTest {
         val missing = books.getChapterContentFlow(SourceChapterId(a, "missing").storageKey, a.storageKey).last().getError()!!
         assertEquals(WebRequestErrorKind.SourceUnavailable, missing.kind)
         assertEquals(0, remaining.chapters.get())
+        checkTime += 600_001
         val update = awaitWork(OneTimeWorkRequestBuilder<CheckUpdateWork>().build())
         assertEquals(WorkInfo.State.SUCCEEDED, update.state)
         assertEquals(1, update.outputData.getInt("failedCount", -1))
@@ -266,6 +270,7 @@ class HostMultiSourceIntegrationTest {
     @Test fun cachedInformationSurvivesRemovalDuringRefresh() = runBlocking {
         val source = register(a)
         val cached = books.getBookInformationFlow(a).last().get()!!
+        checkTime += 600_001
         val started = CompletableDeferred<Unit>()
         source.beforeInformation = { started.complete(Unit); awaitCancellation() }
         val request = async { books.getBookInformationFlow(a).toList() }
