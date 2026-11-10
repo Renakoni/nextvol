@@ -85,10 +85,6 @@ internal object ScriptResponses {
             return ScriptDom.wrap(context, scope, snapshot) as ScriptableObject
         }
         requireNotNull(body)
-        val bodySize = data["bodySize"]?.jsonPrimitive?.int ?: data["bytes"]?.let {
-            java.util.Base64.getDecoder().decode(it.jsonPrimitive.content).size
-        } ?: body.toByteArray(Charsets.UTF_8).size
-        require(bodySize >= 0)
         fun values(name: String) = headers.entries.firstOrNull { it.key.equals(name, true) }?.value?.jsonArray
         constant("body", body)
         constant("url", url)
@@ -102,6 +98,10 @@ internal object ScriptResponses {
         val responseHeaders = headerSnapshot()
         val inline = data["protocol"]?.jsonPrimitive?.content == "data"
         val rawBody = if (inline) null else object : okhttp3.ResponseBody() {
+            private val bodySize = data["bodySize"]?.jsonPrimitive?.int ?: data["bytes"]?.let {
+                java.util.Base64.getDecoder().decode(it.jsonPrimitive.content).size
+            } ?: body.toByteArray(Charsets.UTF_8).size
+            init { require(bodySize >= 0) }
             private val content = object : java.io.FilterInputStream(ByteArray(0).inputStream()) {
                 private var closed = false
                 override fun close() { closed = true; super.close() }
