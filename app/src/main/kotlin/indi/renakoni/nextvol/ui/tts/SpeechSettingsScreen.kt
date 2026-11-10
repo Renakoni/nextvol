@@ -226,7 +226,6 @@ fun SpeechPreferencesScreen(
                             modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer).testTag("speech-schemes-entry"),
                             painter = painterResource(R.drawable.headphones_24px),
                             title = stringResource(R.string.tts_schemes),
-                            description = stringResource(R.string.tts_schemes_description),
                             option = schemeSummary,
                             onClick = open,
                         )

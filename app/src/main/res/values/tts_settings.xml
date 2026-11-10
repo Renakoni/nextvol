@@ -7,5 +7,4 @@
     <string name="tts_pool_description">Voices available for character assignment</string>
     <string name="tts_engines_description">Speech synthesis engines</string>
     <string name="tts_diagnostics_description">Listening logs</string>
-    <string name="tts_schemes_description">Manage and switch listening schemes</string>
 </resources>

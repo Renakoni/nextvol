@@ -7,5 +7,4 @@
     <string name="tts_pool_description">角色可分配的声音</string>
     <string name="tts_engines_description">语音合成引擎</string>
     <string name="tts_diagnostics_description">听书日志</string>
-    <string name="tts_schemes_description">管理与切换听书方案</string>
 </resources>
