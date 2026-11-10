@@ -136,10 +136,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
         LaunchedEffect(Unit) { viewModel.refresh() }
-        val scheme = schemes.schemes.items.find { it.id == (route.schemeId ?: schemes.schemes.effectiveId(bookId)) }
+        val scheme = route.schemeId?.let { id -> schemes.schemes.items.find { it.id == id } }
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
-            schemeTitle = scheme?.label().takeIf { route.schemeId != null },
-            schemeUsage = scheme?.let { schemes.usage(it.id) }.takeIf { route.schemeId != null },
+            schemeTitle = scheme?.label(),
+            schemeUsage = scheme?.let { schemes.usage(it.id) },
             onSources = { nav.navigate(HttpSpeechSourcesRoute(schemeId = state.settings.schemeId)) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute(bookId, state.settings.schemeId)) { launchSingleTop = true } },

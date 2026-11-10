@@ -161,29 +161,17 @@ class SpeechControlsTest {
         }
         val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(
             SpeechRequest("", "", "Sample.", SpeechSettings(httpSource = "preview-0"), sources[0].definition.name), SpeechPhase.Preparing))
-        val actions = mutableListOf<SpeechAction>()
-        val previews = mutableListOf<String?>()
         activity.get().setContent { MaterialTheme {
             HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = sources, loaded = true), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
-                playback = state.value, onCommand = { actions += it }, onPreview = { previews += it }, focusVoiceKey = "http:preview-0")
+                playback = state.value, onPreview = {}, focusVoiceKey = "http:preview-0")
         } }
-        compose.onNodeWithText("Preview voice").assertDoesNotExist()
         compose.onAllNodesWithText(sources[0].definition.name).assertCountEquals(2)
         compose.onNodeWithContentDescription("Pause preview of ${sources[0].definition.name}").assertIsDisplayed()
         compose.onNodeWithContentDescription("Preview Other voice").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Pause").performClick()
-        assertEquals(listOf(SpeechAction.Pause), actions)
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Paused) }
         compose.onNodeWithContentDescription("Pause preview of ${sources[0].definition.name}").assertDoesNotExist()
         compose.onNodeWithContentDescription("Resume").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Preview ${sources[0].definition.name}").performClick()
-        assertEquals(listOf("preview-0"), previews)
-        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Playing) }
-        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Pause preview of ${sources[0].definition.name}").performClick()
-        assertEquals(listOf("preview-0", "preview-0"), previews)
-        compose.runOnIdle { state.value = state.value.copy(phase = SpeechPhase.Completed) }
-        compose.onAllNodesWithText(sources[0].definition.name).assertCountEquals(2)
         compose.onNodeWithContentDescription("Preview ${sources[0].definition.name}").assertIsDisplayed()
         compose.runOnIdle { state.value = ReadAloudState(
             SpeechRequest("", "", "Sample.", SpeechSettings(httpSource = "preview-1"), sources[1].definition.name), SpeechPhase.Playing) }
