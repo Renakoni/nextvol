@@ -331,7 +331,7 @@ fun DetailScreen(
                 },
                 onClickMarkAsRead = { enterSelection(ChapterReadAction.Read) },
                 onClickMarkAsUnread = { enterSelection(ChapterReadAction.Unread) },
-                canMarkChapters = catalogIds.isNotEmpty() && uiState.userReadingData != null,
+                canMarkChapters = uiState.userReadingData != null,
                 blockingMenu = blockingMenu,
                 scrollBehavior = scrollBehavior,
                 isCollapsed = isCollapsed
