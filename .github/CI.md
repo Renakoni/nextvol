@@ -172,7 +172,7 @@ retain SettingsHierarchy, with LoggerRepository for logs. The manual `ui` filter
 is the union of these feature sets. Shared components, navigation and theme inputs
 remain full, and new test packages without a matching group keep the App suite.
 
-Reader includes detail/directory consumers, MarkAllChaptersAsReadDialog,
+Reader includes detail/directory consumers, chapter read-state persistence,
 SettingsHierarchy (the font-license entry) and SpeechControls (ReaderTopBar), as
 well as reader/content/mixed-source tests. Speech unions the reader set with
 `tts.*` and `ui.tts.*`; its API 24 services and minified read-aloud smoke remain.

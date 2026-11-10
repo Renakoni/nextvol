@@ -16,14 +16,6 @@
     <string name="data_export_success">匯出成功</string>
     <string name="share_file">分享檔案</string>
     <string name="reader_content_error">無法顯示內容</string>
-    <string name="mark_read_all_description">將本書所有章節標記為已讀。</string>
-    <string name="mark_read_range_description">選擇起點和終點章節，將範圍內章節標記為已讀。</string>
-    <string name="mark_read_all">全部標記為已讀</string>
-    <string name="mark_read_all_chapters">全部章節</string>
-    <string name="mark_read_choose_range">選擇範圍</string>
-    <plurals name="mark_read_selected">
-        <item quantity="other">將已選 %1$d 章標記為已讀</item>
-    </plurals>
     <plurals name="formatting_rules_count">
         <item quantity="other">%1$d 個規則</item>
     </plurals>

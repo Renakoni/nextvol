@@ -37,11 +37,13 @@
     <string name="hide_read">Hide Read</string>
     <string name="mark_as_read">Mark as read…</string>
     <string name="mark_as_unread">Mark as unread…</string>
+    <string name="mark_read_action">Mark as read</string>
+    <string name="mark_read_confirmation">Mark the selected chapters (%1$d) as read?</string>
     <string name="mark_unread_action">Mark as unread</string>
     <string name="chapters_selected">Selected: %1$d</string>
     <string name="deselect_all">Deselect all</string>
     <string name="mark_unread_confirmation">Clear reading progress for the selected chapters (%1$d)?</string>
-    <string name="mark_unread_failed">Could not update reading progress. Try again.</string>
+    <string name="mark_read_state_failed">Could not update reading progress. Try again.</string>
     <string name="export_epub">Export as Epub</string>
     <string name="export_include_images">Include images</string>
     <string name="export_split_volumes">Export by volumes</string>

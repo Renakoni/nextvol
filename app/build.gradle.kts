@@ -281,7 +281,7 @@ tasks.withType<Test>().configureEach {
     // outside the reader package. Add scopes by union, without exclusions.
     val readerTests = listOf(
         "ui.book.reader.*", "data.content.*", "data.web.rules.MixedSourceAcceptanceTest",
-        "ui.book.detail.*", "ui.dialog.MarkAllChaptersAsReadDialogViewModelTest",
+        "ui.book.detail.*", "data.book.ChapterReadStateTest",
         "ui.home.settings.SettingsHierarchyTest", "ui.tts.SpeechControlsTest",
     )
     val scopeTests = uiTests + mapOf(

@@ -251,15 +251,6 @@ object Route {
         val bookId: String
     )
     /**
-     * 将所有章节标记为已读对话框路由
-     *
-     * @param bookId 目标书本id
-     */
-    @Serializable
-    data class MarkAllChaptersAsReadDialog(
-        val bookId: String
-    )
-    /**
      * 滑块数值设置对话框路由
      *
      * @param value 当前滑块数值

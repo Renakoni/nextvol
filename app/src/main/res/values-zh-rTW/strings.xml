@@ -36,11 +36,13 @@
     <string name="hide_read">僅顯示未讀</string>
     <string name="mark_as_read">標記為已讀…</string>
     <string name="mark_as_unread">標記為未讀…</string>
+    <string name="mark_read_action">標為已讀</string>
+    <string name="mark_read_confirmation">將所選 %1$d 章標為已讀？</string>
     <string name="mark_unread_action">標為未讀</string>
     <string name="chapters_selected">已選 %1$d 章</string>
     <string name="deselect_all">取消全選</string>
     <string name="mark_unread_confirmation">清除所選 %1$d 章的閱讀進度？</string>
-    <string name="mark_unread_failed">未能更新閱讀進度，請重試。</string>
+    <string name="mark_read_state_failed">未能更新閱讀進度，請重試。</string>
     <string name="export_epub">導出為 Epub</string>
     <string name="export_include_images">包含圖片</string>
     <string name="export_split_volumes">分卷導出</string>
