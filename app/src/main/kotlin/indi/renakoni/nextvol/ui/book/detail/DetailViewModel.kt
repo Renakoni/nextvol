@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.ui.book.detail
 
-import indi.renakoni.nextvol.data.book.availableVolumes
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +18,7 @@ import com.github.michaelbull.result.get
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.book.BookReadingDataRepository
+import indi.renakoni.nextvol.data.statistics.StatsRepository
 import indi.renakoni.nextvol.data.bookshelf.BookshelfRepository
 import indi.renakoni.nextvol.data.download.DownloadProgressRepository
 import indi.renakoni.nextvol.data.download.DownloadType
@@ -45,6 +45,7 @@ class DetailViewModel @Inject constructor(
     private val downloadProgressRepository: DownloadProgressRepository,
     private val workManager: WorkManager,
     private val readingDataRepository: BookReadingDataRepository,
+    private val statsRepository: StatsRepository,
 ) : ViewModel() {
     private val _uiState = MutableDetailUiState()
     var exportSettings = ExportSettings()
@@ -105,13 +106,13 @@ class DetailViewModel @Inject constructor(
 
     fun retryVolumes() { if (_uiState.readingAvailable) directoryRetry.value++ }
 
-    suspend fun markChaptersUnread(chapterIds: Set<String>) {
+    suspend fun setChaptersRead(chapterIds: Set<String>, read: Boolean) {
         val bookId = checkNotNull(book).storageKey
-        val volumes = checkNotNull(_uiState.bookVolumes?.availableVolumes())
+        val volumes = checkNotNull(_uiState.bookVolumes?.get())
         val catalogIds = volumes.volumes.flatMap { it.chapters }.mapTo(mutableSetOf()) { it.id }
         withContext(Dispatchers.IO) {
-            readingDataRepository.markChaptersUnread(bookId, chapterIds, catalogIds)
-            _uiState.userReadingData = readingDataRepository.getUserReadingData(bookId)
+            val updated = readingDataRepository.setChaptersRead(bookId, chapterIds, catalogIds, read) ?: return@withContext
+            if (read && updated.readingProgress >= 1f) statsRepository.markBookFinished(bookId)
         }
     }
 

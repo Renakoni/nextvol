@@ -67,7 +67,7 @@ class ChapterProgressReviewTest {
                 LocalSnackbarHost provides SnackbarHostState(), LocalClaimSnackbarHost provides {},
                 LocalDensity provides Density(LocalDensity.current.density, fontScale),
             ) {
-                MaterialTheme { DetailScreen(state, {}, {}, onChapter, {}, {}, {}, {}, {}, {}) }
+                MaterialTheme { DetailScreen(state, {}, {}, onChapter, {}, {}, {}, {}, {}) }
             }
         }
         compose.mainClock.advanceTimeBy(1000)

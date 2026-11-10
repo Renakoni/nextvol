@@ -160,7 +160,7 @@ class BookAliasStoreTest {
         val reading = BookReadingDataRepository(local)
         val revision = reading.progressRevision()
         val chapter = SourceChapterId(first, first.remoteId).storageKey
-        reading.markChaptersUnread(first.storageKey, setOf(chapter), setOf(chapter))
+        reading.setChaptersRead(first.storageKey, setOf(chapter), setOf(chapter), read = false)
         aliases.merge(first, series, info(series), volumes(series, listOf(first, second)))
         assertFalse(reading.updateChapterProgress(series.storageKey, SourceChapterId(series, first.remoteId).storageKey, revision) { it })
         assertTrue(local.getUserReadingData(series.storageKey).maxChapterReadingProgressMap.isEmpty())

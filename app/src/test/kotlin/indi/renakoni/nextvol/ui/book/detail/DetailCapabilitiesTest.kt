@@ -59,7 +59,7 @@ class DetailCapabilitiesTest {
         coEvery { shelves.getBookshelfBookMetadata(key) } returns mockk { every { bookShelfIds } returns listOf(1) }
         every { shelves.getBookshelfBookMetadataFlow(key) } returns flowOf(null)
         every { downloads.downloadItemIdList } returns mutableStateListOf()
-        val model = DetailViewModel(repository, shelves, downloads, work, mockk())
+        val model = DetailViewModel(repository, shelves, downloads, work, mockk(), mockk())
         val store = ViewModelStore().apply { put("detail", model) }
         suspend fun until(condition: () -> Boolean) = withTimeout(5000) { while (!condition()) delay(10) }
         try {
@@ -100,7 +100,7 @@ class DetailCapabilitiesTest {
         coEvery { shelves.getBookshelfBookMetadata(key) } returns null
         every { shelves.getBookshelfBookMetadataFlow(key) } returns flowOf(null)
         every { downloads.downloadItemIdList } returns mutableStateListOf()
-        val model = DetailViewModel(repository, shelves, downloads, work, mockk())
+        val model = DetailViewModel(repository, shelves, downloads, work, mockk(), mockk())
         val store = ViewModelStore().apply { put("detail", model) }
         suspend fun until(condition: () -> Boolean) = withTimeout(5000) { while (!condition()) delay(10) }
         try {
