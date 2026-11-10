@@ -356,6 +356,10 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
     suspend fun hasCheckpointImage(attempt: Attempt, checkpoint: ChapterCheckpoint, uri: String): Boolean =
         checkpointImage(attempt, checkpoint, uri) != null
 
+    suspend fun replacesImageVersion(attempt: Attempt, checkpoint: ChapterCheckpoint): Boolean = current(attempt) {
+        dao.chapter(checkpoint.content.id)?.let { saved -> saved.signature != checkpoint.signature } == true
+    }
+
     suspend fun publish(attempt: Attempt, checkpoint: ChapterCheckpoint) = saveChapter(attempt, checkpoint.content,
         checkpoint.signature, checkpoint.images, resourceVersion = checkpoint.resourceVersion)
 

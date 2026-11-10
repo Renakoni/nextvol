@@ -226,7 +226,7 @@ class CacheBookWork @AssistedInject constructor(
                 // Downloaded chapters are final; only chapters still missing are fetched.
                 val downloaded = downloads.downloadedChapterIds(active)
                 val pending = selected.filterNot { it.value.id in downloaded }
-                val fetchedImages = mutableSetOf<String>()
+                val refreshedImages = mutableSetOf<String>()
                 // The static-rule replay gate excludes scripts and shared book variables.
                 // Use the transport's option parser, including single-quoted request options.
                 val independent = bookRepository.canReplayDownload(book) && chapters.all {
@@ -266,15 +266,17 @@ class CacheBookWork @AssistedInject constructor(
                             val checkpoint = prepared.result.bind()
                             mark(DownloadStage.Storage, chapterId)
                             val missingImages = checkpoint.images.filterNot { downloads.hasCheckpointImage(active, checkpoint, it) }
+                            val replacesImages = downloads.replacesImageVersion(active, checkpoint)
                             for (uri in missingImages) {
                                 mark(DownloadStage.Image, chapterId)
+                                val force = replacesImages && uri !in refreshedImages
                                 NativeDownloadBudget.image(concurrent) {
-                                    cacheImage(active, SourceImage(book, uri), force = uri !in fetchedImages,
+                                    cacheImage(active, SourceImage(book, uri), force = force,
                                         resourceVersion = checkpoint.resourceVersion) {
                                         mark(DownloadStage.Storage, chapterId)
                                     }
                                 }
-                                fetchedImages += uri
+                                if (force) refreshedImages += uri
                             }
                             mark(DownloadStage.Storage, chapterId)
                             downloads.publish(active, checkpoint)
@@ -299,7 +301,8 @@ class CacheBookWork @AssistedInject constructor(
                 if (cover.isNotEmpty() && (!unchanged || !downloads.hasImage(active, cover, true))) {
                     mark(DownloadStage.Cover)
                     NativeDownloadBudget.image(concurrent) {
-                        cacheImage(active, SourceImage(book, cover, cover = true), force = !unchanged || downloads.isImageStale(active, cover, true)) {
+                        val replacesCover = !unchanged && owner.directoryHash.isNotEmpty() && owner.coverUri == cover
+                        cacheImage(active, SourceImage(book, cover, cover = true), force = replacesCover || downloads.isImageStale(active, cover, true)) {
                             mark(DownloadStage.Storage)
                         }
                     }
