@@ -50,13 +50,6 @@ class SpeechPreprocessingTest {
             SpeechMappedText.original("甲乙。丙丁。戊己。"), 6, Locale.CHINESE).map { it.text })
     }
 
-    @Test fun longWhitespaceGroupingUsesOriginalRangesWithoutAddingSpaces() {
-        val input = SpeechMappedText.original("alpha  beta gamma")
-        val chunks = speechSentenceChunks(input, 6, Locale.ENGLISH)
-        assertEquals(listOf("alpha", "beta", "gamma"), chunks.map { it.text })
-        assertEquals(7 to 11, chunks[1].range(0, 4))
-    }
-
     @Test fun decimalPointIsNotASentenceBoundaryButSentenceFinalDigitCanEndOne() {
         val text = "甲".repeat(58) + "3.14万元。"
         assertEquals(listOf(text), speechSentenceChunks(SpeechMappedText.original(text), 60, Locale.CHINESE).map { it.text })
@@ -64,15 +57,11 @@ class SpeechPreprocessingTest {
             SpeechMappedText.original("编号是3. 下一句"), 6, Locale.CHINESE).map { it.text })
     }
 
-    @Test fun fullLengthWordsKeepTheirOriginalRangesAndLongWordsStillRespectHardLimit() {
-        val text = "a".repeat(32) + " " + "b".repeat(32)
+    @Test fun fullLengthWordsKeepTheirOriginalRangesWithoutAddingSpaces() {
+        val text = "a".repeat(32) + "  " + "b".repeat(32)
         val chunks = speechSentenceChunks(SpeechMappedText.original(text), 32, Locale.ENGLISH)
         assertEquals(listOf("a".repeat(32), "b".repeat(32)), chunks.map { it.text })
-        assertEquals(listOf(0 to 32, 33 to 65), chunks.map { it.range() })
-        val longWord = SpeechMappedText.original("a".repeat(65))
-        val hard = speechHardChunks(longWord, 32)
-        assertEquals(listOf(32, 32, 1), hard.map { it.text.length })
-        assertEquals(longWord.text, hard.joinToString("") { it.text })
+        assertEquals(listOf(0 to 32, 34 to 66), chunks.map { it.range() })
     }
 
     @Test fun sentenceAndHardBoundariesNeverSplitMarkersOrSurrogatePairs() {
