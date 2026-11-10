@@ -31,6 +31,12 @@ internal object ScriptResponses {
     }
 
     fun create(context: Context, scope: Scriptable, data: JsonObject, jsoup: Boolean, browserCompleted: Boolean = false): ScriptableObject {
+        // Legado wraps both completed browser paths with StrResponse(url, body), a synthetic 200 response.
+        if (browserCompleted) return create(context, scope, buildJsonObject {
+            put("url", data.getValue("url")); put("body", data.getValue("body"))
+            put("status", 200); put("message", "OK"); put("headers", JsonObject(emptyMap()))
+            put("protocol", "data")
+        }, false)
         val realm = ScriptRealm.current(context)
         val response = realm.objectIn(scope)
         val body = data["body"]?.let { require(it.jsonPrimitive.isString); it.jsonPrimitive.content }
@@ -58,16 +64,15 @@ internal object ScriptResponses {
             headers.forEach { (name, values) -> values.jsonArray.forEach { add(name, it.jsonPrimitive.content) } }
         }.build()
         if (data["kind"]?.jsonPrimitive?.content == "BrowserDocument") {
-            // startBrowserAwait's completed interaction uses Legado's success code, not an
-            // observed HTTP status. Ordinary DOM extraction remains unknown; neither has raw HTTP.
+            // Ordinary DOM extraction has no observed HTTP status or raw response.
             val text = body ?: String(java.util.Base64.getDecoder().decode(data.getValue("bytes").jsonPrimitive.content), Charsets.UTF_8)
             constant("body", text); constant("getBody", text)
             constant("url", url); constant("getUrl", url)
-            constant("code", if (browserCompleted) 200 else 0); constant("statusCode", if (browserCompleted) 200 else 0)
+            constant("code", 0); constant("statusCode", 0)
             constant("isBrowserDocument", true)
             constant("headers", ScriptDom.wrap(context, scope, headerSnapshot()))
             constant("raw", null); constant("getRaw", null)
-            constant("message", ""); constant("isSuccessful", browserCompleted)
+            constant("message", ""); constant("isSuccessful", false)
             return response
         }
         if (jsoup) {
@@ -96,7 +101,7 @@ internal object ScriptResponses {
         constant("getErrorBody", null)
         val responseHeaders = headerSnapshot()
         val inline = data["protocol"]?.jsonPrimitive?.content == "data"
-        val rawBody = object : okhttp3.ResponseBody() {
+        val rawBody = if (inline) null else object : okhttp3.ResponseBody() {
             private val content = object : java.io.FilterInputStream(ByteArray(0).inputStream()) {
                 private var closed = false
                 override fun close() { closed = true; super.close() }
@@ -110,13 +115,13 @@ internal object ScriptResponses {
             override fun contentLength() = bodySize.toLong()
             override fun source() = content
         }
-        rawBody.source().close() // newCallStrResponse consumes/closes raw.body while producing its text.
+        rawBody?.source()?.close() // newCallStrResponse consumes/closes raw.body while producing its text.
         val verb = data["method"]?.jsonPrimitive?.content ?: "GET"
         val request = okhttp3.Request.Builder().url(url).method(verb,
             if (verb in listOf("POST", "PUT", "PATCH", "PROPPATCH", "REPORT")) ByteArray(0).toRequestBody() else null).build()
         val raw = okhttp3.Response.Builder().request(request)
             .protocol(if (inline) okhttp3.Protocol.HTTP_1_1 else okhttp3.Protocol.get(data["protocol"]?.jsonPrimitive?.content ?: "http/1.1"))
-            .code(status).message(message).headers(responseHeaders).apply { if (!inline) body(rawBody) }
+            .code(status).message(message).headers(responseHeaders).apply { if (rawBody != null) body(rawBody) }
             .sentRequestAtMillis(data["sentAt"]?.jsonPrimitive?.long ?: 0)
             .receivedResponseAtMillis(data["receivedAt"]?.jsonPrimitive?.long ?: 0).build()
         val view = ScriptDom.wrap(context, scope, raw)

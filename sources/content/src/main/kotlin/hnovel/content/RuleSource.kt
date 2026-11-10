@@ -739,13 +739,10 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
                 JSON.stringify({body:result.getBody(),url:result.getUrl(),status:result.code(),
                     browserDocument:typeof result.isBrowserDocument==='function' && result.isBrowserDocument(),
                     headers:(function(){
-                        var values=Object.create(null);
-                        if(typeof result.headers==='function') {
-                            var headers=result.headers();
-                            for(var i=0;i<headers.size();i++) {
-                                var name=headers.name(i);
-                                (values[name] || (values[name]=[])).push(headers.value(i));
-                            }
+                        var values=Object.create(null), headers=result.headers();
+                        for(var i=0;i<headers.size();i++) {
+                            var name=headers.name(i);
+                            (values[name] || (values[name]=[])).push(headers.value(i));
                         }
                         return values;
                     })()});

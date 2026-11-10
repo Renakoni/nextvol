@@ -49,7 +49,7 @@ class NativeBrowserInstrumentedTest {
                     val pending = async { executor.execute(identity, ExecutionTask.Script("""
                         var response = java.startBrowserAwait('/login', 'Login completion fixture', false);
                         if (response.code() === 200) cache.put('login-ready', 'saved', 0);
-                        response.isBrowserDocument() && response.raw() === null &&
+                        response.raw().code() === 200 && response.raw().body() === null &&
                             cache.get('login-ready') === 'saved' &&
                             cookie.getCookie(baseUrl).indexOf('auth=completion-fixture') >= 0
                     """.trimIndent(), baseUrl = baseUrl), limits, bridge) }
