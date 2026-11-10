@@ -31,13 +31,15 @@ internal fun splitOnlineSpeechText(text: String, limit: Int): List<String> {
     val matcher = pattern.matcher(text)
     var start = 0
     while (matcher.find()) {
+        if (matcher.end() <= start) continue
         while (markIndex < marks.size && marks[markIndex].last < matcher.start()) markIndex++
         if (markIndex < marks.size && matcher.start() in marks[markIndex]) continue
         if (text[matcher.start()] == '.' && matcher.start() > 0 && matcher.end() < text.length &&
             Character.isDigit(text.codePointBefore(matcher.start())) && Character.isDigit(text.codePointAt(matcher.end()))) continue
-        // Use the complete match to retain supplementary characters before opening quotes.
-        parts += text.substring(start, matcher.end())
-        start = matcher.end()
+        var end = matcher.end()
+        while (end < text.length && onlineSpeechIsClosingPunctuation(text[end])) end++
+        parts += text.substring(start, end)
+        start = end
     }
     if (start < text.length) parts += text.substring(start)
     val result = mutableListOf<String>()

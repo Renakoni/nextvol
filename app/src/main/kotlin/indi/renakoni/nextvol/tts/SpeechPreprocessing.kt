@@ -140,7 +140,6 @@ internal fun speechSentenceChunks(
     var markIndex = 0
     var groupStart = 0
     var partStart = 0
-    var partEnd = 0
     fun append(end: Int) {
         if (end - groupStart > limit && end - partStart > 1 && partStart != groupStart &&
             (partStart until end).any { !speechIsClosingPunctuation(input.text[it]) && !Character.isWhitespace(input.text[it]) }) {
@@ -148,18 +147,20 @@ internal fun speechSentenceChunks(
             groupStart = partStart
         }
         partStart = end
-        partEnd = end
     }
     while (matches.find()) {
         checkCancelled()
+        if (matches.end() <= partStart) continue
         while (markIndex < marks.size && marks[markIndex].last < matches.start()) markIndex++
         if (markIndex < marks.size && matches.start() in marks[markIndex]) continue
         if (input.text[matches.start()] == '.' && matches.start() > 0 && matches.end() < input.text.length &&
             Character.isDigit(input.text.codePointBefore(matches.start())) && Character.isDigit(input.text.codePointAt(matches.end()))) continue
-        // The original start + 1 loses a low surrogate before an opening quote.
-        append(matches.end())
+        // Keep contiguous punctuation and closing quotes with the preceding text at either priority.
+        var end = matches.end()
+        while (end < input.text.length && speechIsClosingPunctuation(input.text[end])) end++
+        append(end)
     }
-    if (partEnd < input.text.length) append(input.text.length)
+    if (partStart < input.text.length) append(input.text.length)
     flush(groupStart, input.text.length)
     return result
 }
