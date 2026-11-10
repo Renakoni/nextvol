@@ -278,7 +278,7 @@ class BookDownloadTest {
         assertEquals(mapOf("1" to 3), source.chapterCalls)
     }
 
-    @Test fun readingImagesAndCoverBecomeOfflineOriginalsAndOnlyMissingOrBrokenImagesAreFetched() = runBlocking {
+    @Test fun readingImagesAndCoverBecomeOfflineOriginalsAndOnlyMissingImagesAreFetched() = runBlocking {
         val source = register(a).apply {
             chapters = chapters.take(1)
             withImages = true
@@ -296,16 +296,6 @@ class BookDownloadTest {
         assertArrayEquals(png, downloads.image(SourceImage(a, IMAGE))!!.readBytes())
         assertArrayEquals(png, downloads.image(SourceImage(a, IMAGE, cover = true))!!.readBytes())
 
-        // Repair a missing offline original even if the matching reading cache was corrupted.
-        assertTrue(downloads.image(SourceImage(a, IMAGE))!!.delete())
-        val key = sourceImageCacheKey(SourceImage(a, IMAGE), "1")
-        cache.openEditor(key)!!.let { editor ->
-            cache.fileSystem.write(editor.data) { writeUtf8("not an image") }
-            editor.commit()
-        }
-        assertTrue(download() is ListenableWorker.Result.Success)
-        assertEquals(4, source.imageCalls)
-        assertArrayEquals(png, downloads.image(SourceImage(a, IMAGE))!!.readBytes())
         assertEquals(BookDownloadPhase.Complete, state().phase)
     }
 

@@ -29,7 +29,6 @@ internal fun validateOriginalImage(bytes: ByteArray) {
 @OptIn(ExperimentalCoilApi::class)
 internal suspend fun originalSourceImage(context: Context, image: SourceImage, force: Boolean): ByteArray {
     var bytes: ByteArray? = null
-    var invalidCachedImage = false
     val request = ImageRequest.Builder(context)
         .data(image.copy(preferDownloaded = false))
         .coroutineContext((currentCoroutineContext()[RequestRetryContext] ?: EmptyCoroutineContext) +
@@ -38,21 +37,12 @@ internal suspend fun originalSourceImage(context: Context, image: SourceImage, f
         .diskCachePolicy(if (force) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
         .decoderFactory { result, _, _ -> Decoder {
             bytes = result.source.source().readByteArray().also {
-                if (result.dataSource == coil3.decode.DataSource.DISK || result.source.metadata !== ValidatedSourceImage) {
-                    try { validateOriginalImage(it) }
-                    catch (failure: IllegalStateException) {
-                        invalidCachedImage = result.dataSource == coil3.decode.DataSource.DISK
-                        throw failure
-                    }
-                }
+                if (result.source.metadata !== ValidatedSourceImage) validateOriginalImage(it)
             }
             DecodeResult(BlackholeDecoder.Factory.EMPTY_IMAGE, isSampled = false)
         } }
         .build()
     val result = SingletonImageLoader.get(context).execute(request)
-    if (result is ErrorResult) {
-        if (invalidCachedImage && !force) return originalSourceImage(context, image, force = true)
-        throw result.throwable
-    }
+    if (result is ErrorResult) throw result.throwable
     return checkNotNull(bytes) { "Original image bytes are unavailable" }
 }
