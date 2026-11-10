@@ -14,36 +14,49 @@ import org.junit.rules.TemporaryFolder
 class OnlineSpeechPackageTest {
     @get:Rule val directory = TemporaryFolder()
 
-    @Test fun streamingCapabilityUsesRequestedSegmentsAndFallsBackToCompleteAudioWithoutReceiver() = runBlocking {
+    @Test fun plannedTextReachesStreamingAndCompleteBackendsUnchanged() = runBlocking {
+        val text = "甲".repeat(119) + "。" + "乙".repeat(119) + "。"
+        val synthesized = mutableListOf<String>()
         val received = mutableListOf<String>()
         val backend = object : StreamingOnlineSpeechBackend {
             override suspend fun stream(text: String, rate: Float, volume: Float, receive: (ByteArray, Int, Int) -> Unit) {
-                receive("[$text]".toByteArray(), 1, text.length)
-                assertEquals(text, received.last())
+                synthesized += text
+                repeat(2) { receive(byteArrayOf(0, 1, 2, 0), 1, 2) }
             }
-            override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray = text.toByteArray()
+            override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray {
+                synthesized += text
+                return text.toByteArray()
+            }
         }
-        val client = OnlineSpeechClient(buildJsonObject { putJsonObject("engine") { put("code", "vivo") } },
-            { error("Unexpected HTTP request") }, createSdkBackend = { _, _, _ -> backend })
-        assertTrue(client.synthesize("abcdefgh", 1.5f, 2f, 4) { bytes, offset, count ->
-            received += String(bytes, offset, count)
-        }.isEmpty())
-        assertEquals(listOf("abcd", "efgh"), received)
-        assertArrayEquals("abcdefgh".toByteArray(), client.synthesize("abcdefgh", 1.5f, 2f, 4, null))
+        val definition = HttpSpeechDefinition.parse(buildJsonObject {
+            put("name", "Native voice"); put("url", "https://tts-v2.vivo.com.cn/tts")
+            putJsonObject("multiTts") { putJsonObject("engine") { put("code", "vivo") } }
+        })
+        SourceBroker(directory.root.toPath()).use { broker ->
+            HttpSpeechClient(definition, broker, emptyList(), ExecutionAuthority(),
+                createSdkBackend = { _, _, _ -> backend }, run = { _, _, _, _ -> error("Unexpected script") }).use { client ->
+                assertTrue(client.synthesize(text, 1.5f, 2f) { bytes, offset, count ->
+                    received += bytes.copyOfRange(offset, offset + count).joinToString()
+                }.isEmpty())
+                assertEquals(listOf("1, 2", "1, 2"), received)
+                assertArrayEquals(text.toByteArray(), client.synthesize(text, 1.5f, 2f))
+                assertEquals(listOf(text, text), synthesized)
+            }
+        }
     }
 
-    @Test fun streamingDeliversSuccessfulSegmentsBeyondFormerAggregateLimit() = runBlocking {
+    @Test fun streamingDeliversAudioPacketsBeyondFormerAggregateLimit() = runBlocking {
         val chunk = ByteArray(MAX_AUDIO_BYTES / 2 + 1)
         val backend = object : StreamingOnlineSpeechBackend {
             override suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray = error("Unexpected file synthesis")
             override suspend fun stream(text: String, rate: Float, volume: Float, receive: (ByteArray, Int, Int) -> Unit) {
-                receive(chunk, 0, chunk.size)
+                repeat(2) { receive(chunk, 0, chunk.size) }
             }
         }
         val client = OnlineSpeechClient(buildJsonObject { putJsonObject("engine") { put("code", "vivo") } },
             { error("Unexpected HTTP request") }, createSdkBackend = { _, _, _ -> backend })
         var deliveries = 0
-        assertTrue(client.synthesize("abcdefgh", 1f, 1f, 4) { _, _, _ -> deliveries++ }.isEmpty())
+        assertTrue(client.synthesize("abcdefgh", 1f, 1f) { _, _, _ -> deliveries++ }.isEmpty())
         assertEquals(2, deliveries)
     }
 

@@ -35,7 +35,7 @@ internal class OnlineSpeechClient(
         else -> throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
     }
 
-    suspend fun synthesize(text: String, rate: Float, volume: Float, sentenceLength: Int,
+    suspend fun synthesize(text: String, rate: Float, volume: Float,
         receive: ((ByteArray, Int, Int) -> Unit)?): ByteArray {
         val parts = mutableListOf<ByteArray>()
         var hasAudio = false
@@ -45,7 +45,9 @@ internal class OnlineSpeechClient(
                 output(buffer, offset, count)
             }
         }
-        for (part in splitOnlineSpeechText(text, backend.sentenceLength(sentenceLength))) {
+        // Guagua retains its legacy target after playback planning; ordinary backends receive the planned clip.
+        val texts = if (backend is GuaguaSpeechClient) splitOnlineSpeechText(text, 50) else listOf(text)
+        for (part in texts) {
             currentCoroutineContext().ensureActive()
             // Malformed service payloads are response failures, not invalid saved source settings.
             val audio = try {

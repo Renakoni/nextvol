@@ -19,8 +19,9 @@ class OnlineSpeechAudioTest {
             { error("Unexpected HTTP request") }, createSdkBackend = { _, _, _ -> object : OnlineSpeechBackend {
                 override suspend fun synthesize(text: String, rate: Float, volume: Float) = wave
             } })
-        assertSame(wave, client.synthesize("abcd", 1f, 1f, 4, null))
-        val merged = client.synthesize("abcdefgh", 1f, 1f, 4, null)
+        assertSame(wave, client.synthesize("abcd", 1f, 1f, null))
+        assertSame(wave, client.synthesize("abcdefgh", 1f, 1f, null))
+        val merged = onlineSpeechBytes(listOf(wave, wave))
         val buffer = ByteBuffer.wrap(merged).order(ByteOrder.LITTLE_ENDIAN)
         assertEquals(44 + pcm.size * 2, merged.size)
         assertEquals(merged.size - 8, buffer.getInt(4))

@@ -7,9 +7,8 @@ import kotlin.math.roundToInt
 /** Restore the integer slider control before applying an engine's own mapping. */
 fun multiTtsControl(value: Float): Int = (value * 50).roundToInt()
 
-/** One protocol exchange. The owning client handles segmentation, authorization and cancellation. */
+/** One protocol exchange. The owning client handles authorization and cancellation. */
 interface OnlineSpeechBackend : AutoCloseable {
-    fun sentenceLength(requested: Int): Int = requested
     suspend fun synthesize(text: String, rate: Float, volume: Float): ByteArray
     suspend fun voices(): List<JsonObject> = throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
     val updatedEngineParameters: String? get() = null

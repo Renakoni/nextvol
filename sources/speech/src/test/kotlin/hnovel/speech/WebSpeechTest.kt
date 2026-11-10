@@ -45,7 +45,7 @@ class WebSpeechTest {
         val execute: suspend (BrokerRequest) -> BrokerResponse = { requests += it; response(body) }
         for (parameter in listOf("", "web")) {
             assertArrayEquals(audio, OnlineSpeechClient(metadata("huoshan", "tts.other.BV050_streaming", parameter), execute)
-                .synthesize("你好 & 世界", 1.5f, 2f, 100, null))
+                .synthesize("你好 & 世界", 1.5f, 2f, null))
         }
         assertEquals(listOf(HuoshanSpeechClient.CRX_URL, HuoshanSpeechClient.WEB_URL), requests.map { it.url })
         assertEquals(Json.parseToJsonElement("{\"speaker\":\"tts.other.BV050_streaming\",\"language\":\"zh\",\"text\":\"你好 & 世界\"}"),
@@ -53,7 +53,7 @@ class WebSpeechTest {
         body = "[]"
         try {
             OnlineSpeechClient(metadata("huoshan", "voice"), execute)
-                .synthesize("正文", 1f, 1f, 100, null)
+                .synthesize("正文", 1f, 1f, null)
             fail("Malformed service response")
         }
         catch (error: HttpSpeechException) { assertEquals(HttpSpeechError.InvalidAudio, error.error) }

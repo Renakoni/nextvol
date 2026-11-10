@@ -139,7 +139,6 @@ class SpeechSynthesizers @Inject constructor(
         override val supportsStreaming get() = client?.supportsStreaming == true
         private var rate = 1f
         private var volume = 1f
-        private var sentenceLength = 100
         private var sourceId: String? = null
         private var selectedSource: SavedHttpSpeechSource? = null
         override var audioParameters = SpeechAudioParameters()
@@ -150,7 +149,6 @@ class SpeechSynthesizers @Inject constructor(
             currentCoroutineContext().ensureActive()
             rate = settings.rate
             volume = settings.volume
-            sentenceLength = settings.text.maxSentenceLength
             return repository.withSource(requireNotNull(settings.httpSource)) { source, runtime ->
                 if (!source.available) throw SpeechException(SpeechError.HttpSourceUnavailable)
                 val definition = source.playbackDefinition()
@@ -198,7 +196,7 @@ class SpeechSynthesizers @Inject constructor(
             try {
                 networkCheck.check()
                 // Token refresh may replace a regional HTTP session and close its TLS pool.
-                val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate, volume, sentenceLength, receive) }
+                val audio = withContext(Dispatchers.IO) { active.synthesize(text, rate, volume, receive) }
                 consume(audio)
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: HttpSpeechException) {
