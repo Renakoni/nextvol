@@ -66,8 +66,6 @@ import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentLoading
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderPositionSession
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderPosition
-import indi.renakoni.nextvol.ui.book.reader.content.ReaderImageWindow
-import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageWindow
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderChapterImages
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageVisible
 import indi.renakoni.nextvol.ui.book.reader.content.RegisterReaderPositionCapture
@@ -150,7 +148,6 @@ private fun SimpleFlipPageTextComponent(
     onClickNextChapter: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val imageWindow = remember(uiState) { ReaderImageWindow() }
     val active by rememberUpdatedState(LocalReaderRendererActive.current)
     val speech by rememberUpdatedState(LocalReaderSpeechFollow.current)
     PrepareReaderSpeechIndex(chapterContent)
@@ -604,7 +601,6 @@ private fun SimpleFlipPageTextComponent(
                         )
                     }
                     CompositionLocalProvider(LocalReaderSpeechRanges provides speechRanges,
-                        LocalReaderImageWindow provides imageWindow,
                         LocalReaderChapterImages provides chapterContent.images,
                         LocalReaderImageVisible provides (it == uiState.pagerState.currentPage),
                         indi.renakoni.nextvol.ui.LocalReaderChapterId provides chapterContent.id) {

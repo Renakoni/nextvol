@@ -14,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
@@ -55,7 +54,6 @@ import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentDa
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
 import io.nightfish.lightnovelreader.api.content.component.ImageComponentData
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import indi.renakoni.nextvol.ui.book.reader.bookmark.LocalReaderBookmarks
@@ -329,23 +327,21 @@ class ScrollTextWindowTest {
             (restore() - before).toFloat(), 1f)
     }
 
-    @Test fun composedImageChapterOnlyStartsTheViewportAndNeighboursWithTwoLoadsAtATime() {
+    @Test fun composedImageChapterOnlyStartsTheViewportAndNeighbours() {
         following = false
         val started = mutableSetOf<Int>()
         val disposed = mutableSetOf<Int>()
-        val gates = (0 until 30).associateWith { CompletableDeferred<Unit>() }
         val components = (0 until 30).flatMap { index ->
             listOf(textComponent("PARAGRAPH_%03d".format(index)),
                 object : AbstractContentComponent<ImageComponentData>(ImageComponentData(Uri.parse("file:///image-$index.png"))) {
                     override val id = ImageComponentData.id
                     @Composable override fun Content(modifier: Modifier) {
                         val resource = LocalReaderChapterImages.current.values.first { it.uri == data.uri }
-                        WindowedReaderImage(resource, modifier) { _, finished ->
+                        WindowedReaderImage(resource, modifier) { _ ->
                             DisposableEffect(resource) {
                                 started += index
                                 onDispose { disposed += index }
                             }
-                            LaunchedEffect(resource) { gates.getValue(index).await(); finished() }
                             Box(Modifier.height(200.dp))
                         }
                     }
@@ -353,9 +349,7 @@ class ScrollTextWindowTest {
         }
         mount(0f, sourceComponents = components)
         awaitBody()
-        compose.waitUntil { started.size == 2 }
-        assertTrue(started.all { it < 4 })
-        compose.runOnIdle { gates.values.forEach { it.complete(Unit) } }
+        compose.waitUntil { started.isNotEmpty() }
         compose.waitForIdle()
         assertTrue("Far images must remain placeholders: $started", started.size <= 4)
         compose.runOnIdle { scope.launch { state.lazyListState.scrollToItem(1, 4000) } }

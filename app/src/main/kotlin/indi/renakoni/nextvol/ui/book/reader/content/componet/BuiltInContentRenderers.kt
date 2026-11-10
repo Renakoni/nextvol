@@ -27,7 +27,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
-import coil3.request.SuccessResult
 import coil3.size.Size
 import coil3.size.Dimension
 import indi.renakoni.nextvol.data.book.BookIdentity
@@ -35,18 +34,12 @@ import indi.renakoni.nextvol.data.image.SourceImage
 import indi.renakoni.nextvol.data.image.SourceImageSize
 import indi.renakoni.nextvol.data.image.SourceImageSizes
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderImageResource
-import indi.renakoni.nextvol.ui.book.reader.content.ReaderImageWindow
-import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageWindow
-import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderChapterImages
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageResource
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageEnabled
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageVisible
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageResize
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderRendererActive
-import indi.renakoni.nextvol.ui.components.Loading
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.withPermit
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout
 import indi.renakoni.nextvol.ui.LocalAppTheme
@@ -112,13 +105,12 @@ internal fun ReaderImageContent(uri: Uri, modifier: Modifier) {
     val chapterId = indi.renakoni.nextvol.ui.LocalReaderChapterId.current
     val navController = LocalNavController.current
     val resource = LocalReaderImageResource.current
-        ?: LocalReaderChapterImages.current.values.firstOrNull { it.uri == uri }
         ?: remember(uri) { ReaderImageResource(uri) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val resize by rememberUpdatedState(LocalReaderImageResize.current)
     val scale = LocalReaderImageScale.current
-    WindowedReaderImage(resource, modifier, scale) { size, finished -> ZoomableImage(
+    WindowedReaderImage(resource, modifier, scale) { size -> ZoomableImage(
         imageUri = uri,
         modifier = Modifier.fillMaxSize(),
         onViewImage = {
@@ -128,18 +120,12 @@ internal fun ReaderImageContent(uri: Uri, modifier: Modifier) {
         contentScale = scale,
         chapterId = chapterId,
         requestSize = size,
-        onResult = { result ->
-            finished()
-            if (result is SuccessResult) {
-                val dimensions = SourceImageSize(result.image.width, result.image.height)
-                if (dimensions.width > 0 && dimensions.height > 0) {
-                    // Local/downloaded files also acquire a reusable layout hint on first display.
-                    val image = SourceImage(BookIdentity.book(bookId), uri.toString(), chapterId = chapterId)
-                    val sizes = SourceImageSizes(context)
-                    if (sizes.get(image) == null) sizes.put(image, dimensions)
-                    if (resource.size?.let { it.width.toLong() * dimensions.height == it.height.toLong() * dimensions.width } != true)
-                        scope.launch { resize(resource, dimensions) }
-                }
+        onSuccess = { result ->
+            val dimensions = SourceImageSize(result.image.width, result.image.height)
+            if (resource.size?.let { it.width.toLong() * dimensions.height == it.height.toLong() * dimensions.width } != true) {
+                val image = SourceImage(BookIdentity.book(bookId), uri.toString(), chapterId = chapterId)
+                SourceImageSizes(context).put(image, dimensions)
+                scope.launch { resize(resource, dimensions) }
             }
         },
     ) }
@@ -151,20 +137,16 @@ internal fun WindowedReaderImage(
     resource: ReaderImageResource,
     modifier: Modifier,
     scale: ContentScale = ContentScale.FillWidth,
-    content: @Composable (Size, () -> Unit) -> Unit,
+    content: @Composable (Size) -> Unit,
 ) {
-    val window = LocalReaderImageWindow.current ?: remember { ReaderImageWindow() }
     val enabled = LocalReaderImageEnabled.current && LocalReaderRendererActive.current
-    val visible by rememberUpdatedState(LocalReaderImageVisible.current)
-    val finished = remember(window, resource, enabled) { CompletableDeferred<Unit>() }
-    var admitted by remember(window, resource, enabled) { mutableStateOf(false) }
-    LaunchedEffect(window, resource, enabled) {
-        if (!enabled) return@LaunchedEffect
-        // Current images enter the two load slots before newly composed neighbours.
-        if (!visible) withFrameNanos { }
-        window.permits.withPermit {
-            admitted = true
-            finished.await()
+    val visible = LocalReaderImageVisible.current
+    var prepared by remember(resource, enabled) { mutableStateOf(false) }
+    LaunchedEffect(resource, enabled, visible) {
+        if (enabled && !prepared) {
+            // Let current images start first; Coil already bounds bitmap decoding.
+            if (!visible) withFrameNanos { }
+            prepared = true
         }
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
@@ -173,8 +155,7 @@ internal fun WindowedReaderImage(
         val height = if (scale == ContentScale.FillWidth)
             resource.size?.let { maxOf(200.dp, maxWidth * (it.height.toFloat() / it.width)) } ?: 200.dp else maxHeight
         Box(Modifier.fillMaxWidth().height(height)) {
-            if (admitted) content(size) { finished.complete(Unit) }
-            else if (enabled) Loading()
+            if (enabled && (visible || prepared)) content(size)
         }
     }
 }

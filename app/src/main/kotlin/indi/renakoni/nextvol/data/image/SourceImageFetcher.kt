@@ -65,8 +65,6 @@ internal class SourceImageFetcher(private val request: BoundSourceImage, private
                 }
             }
         }
-        currentCoroutineContext().ensureActive()
-        runtime.checkAvailable()
         SourceImageSizes(options.context).put(request.image, size)
         return bytes
     }

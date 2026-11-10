@@ -80,10 +80,8 @@ import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderPositionSession
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderRendererActive
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderPosition
-import indi.renakoni.nextvol.ui.book.reader.content.ReaderImageWindow
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderImageResource
 import indi.renakoni.nextvol.ui.book.reader.content.readerImageWindow
-import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageWindow
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderChapterImages
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageResource
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageEnabled
@@ -207,7 +205,6 @@ fun ScrollContentTextComponent(
     val speech by rememberUpdatedState(LocalReaderSpeechFollow.current)
     var followedSpeechPosition by remember(uiState) { mutableStateOf(speech.position) }
     val latestPrepared by rememberUpdatedState(preparedChapters)
-    val imageWindow = remember(listState) { ReaderImageWindow() }
     val imageResize = remember(listState) { Mutex() }
     val enabledImages by remember(listState) { derivedStateOf {
         if (!active || !bookmarkReady) emptyMap() else {
@@ -618,7 +615,6 @@ fun ScrollContentTextComponent(
                             settingState = settingState,
                             fontFamilySettings = fontFamilySettings,
                             prepared = prepared,
-                            imageWindow = imageWindow,
                             enabledImages = enabledImages,
                             resizeImage = ::resizeImage,
                         )
@@ -647,7 +643,6 @@ private fun TextContent(
     settingState: ReaderSettings,
     fontFamilySettings: ReaderFontFamilySettings,
     prepared: PreparedScrollChapter,
-    imageWindow: ReaderImageWindow,
     enabledImages: Map<ReaderImageResource, Boolean>,
     resizeImage: suspend (ReaderImageResource, SourceImageSize) -> Unit,
 ) {
@@ -732,7 +727,6 @@ private fun TextContent(
                 block.width = it.size.width
             }) {
                 CompositionLocalProvider(LocalReaderSpeechRanges provides speechRanges,
-                    LocalReaderImageWindow provides imageWindow,
                     LocalReaderChapterImages provides content.images,
                     LocalReaderImageResource provides content.images[block.componentIndex],
                     LocalReaderImageEnabled provides (content.images[block.componentIndex] in enabledImages),

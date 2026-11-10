@@ -37,7 +37,7 @@ import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.image.SourceImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
-import coil3.request.ImageResult
+import coil3.request.SuccessResult
 import coil3.size.Size
 import coil3.size.Scale
 import coil3.request.crossfade
@@ -57,7 +57,7 @@ fun ZoomableImage(
     contentScale: ContentScale = ContentScale.FillWidth,
     chapterId: String? = null,
     requestSize: Size,
-    onResult: (ImageResult) -> Unit = {},
+    onSuccess: (SuccessResult) -> Unit = {},
 ) {
     val context = LocalContext.current
     var retryKey by remember { mutableIntStateOf(0) }
@@ -86,8 +86,7 @@ fun ZoomableImage(
                 model = request,
                 contentDescription = "",
                 contentScale = contentScale,
-                onSuccess = { onResult(it.result) },
-                onError = { onResult(it.result) },
+                onSuccess = { onSuccess(it.result) },
                 modifier = Modifier
                     .fillMaxSize()
                     .align(Alignment.Center),
