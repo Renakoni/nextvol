@@ -155,7 +155,7 @@ class BookDownloadScheduler @Inject constructor(
             }
         } catch (cancelled: CancellationException) {
             if (interaction != null && reserved) withContext(NonCancellable) {
-                downloads.pauseVerificationTask(task.copy(book = aliases.resolve(task.book)))
+                downloads.pauseVerificationTask(task)
                 workManager.cancelWorkById(request.id).await()
             }
             throw cancelled

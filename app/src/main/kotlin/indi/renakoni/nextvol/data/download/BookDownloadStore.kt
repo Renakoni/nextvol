@@ -163,7 +163,8 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** Stop this verification's resumed worker without hiding the task or revoking a replacement. */
     suspend fun pauseVerificationTask(task: Task) = withContext(Dispatchers.IO) { lock.withLock {
-        val owner = dao.get(task.book.storageKey) ?: return@withLock
+        val bookId = database.bookAliasDao().get(task.book.storageKey) ?: task.book.storageKey
+        val owner = dao.get(bookId) ?: return@withLock
         if (task.generation != generation() || owner.taskWorkId != task.workId ||
             owner.taskStatus !in setOf(DownloadTaskStatus.Queued.name, DownloadTaskStatus.Running.name)) return@withLock
         dao.put(owner.copy(taskStatus = DownloadTaskStatus.WaitingVerification.name,
