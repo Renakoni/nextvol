@@ -146,7 +146,6 @@ private fun speechPunctuationChunks(
     var markIndex = 0
     var groupStart = 0
     var partStart = 0
-    var partEnd = 0
     fun append(end: Int) {
         if (end - groupStart > limit && end - partStart > 1 && partStart != groupStart &&
             (partStart until end).any { input.text[it] !in speechClosingPunctuation && !Character.isWhitespace(input.text[it]) }) {
@@ -154,11 +153,10 @@ private fun speechPunctuationChunks(
             groupStart = partStart
         }
         partStart = end
-        partEnd = end
     }
     while (matches.find()) {
         checkCancelled()
-        if (matches.end() <= partEnd) continue
+        if (matches.end() <= partStart) continue
         while (markIndex < marks.size && marks[markIndex].last < matches.start()) markIndex++
         if (markIndex < marks.size && matches.start() in marks[markIndex]) continue
         if (input.text[matches.start()] == '.' && matches.start() > 0 && matches.end() < input.text.length &&
@@ -168,7 +166,7 @@ private fun speechPunctuationChunks(
         while (end < input.text.length && input.text[end] in speechClosingPunctuation) end++
         append(end)
     }
-    if (partEnd < input.text.length) append(input.text.length)
+    if (partStart < input.text.length) append(input.text.length)
     flush(groupStart, input.text.length)
     return result
 }
@@ -234,7 +232,8 @@ internal fun speechHardChunks(
     require(limit >= 2)
     checkCancelled()
     if (input.text.length <= limit) return listOf(input)
-    val pauses = if (Locale.getDefault().language in setOf("en", "zh")) chineseEnglishSentence else otherSentence
+    val language = Locale.getDefault().language
+    val pauses = if (language == "en" || language == "zh") chineseEnglishSentence else otherSentence
     return speechPunctuationChunks(input, limit, speechSentenceEnd, true, checkCancelled) { sentence ->
         speechPunctuationChunks(sentence, limit, pauses, true, checkCancelled) {
             speechLongSentence(it, limit, true, checkCancelled)
@@ -252,7 +251,6 @@ private fun speechMarkRanges(text: String): List<IntRange> {
 private fun speechBoundedChunks(
     input: SpeechMappedText, limit: Int, hard: Boolean, checkCancelled: () -> Unit,
 ): List<SpeechMappedText> {
-    checkCancelled()
     if (input.text.length <= limit) return listOf(input)
     val result = mutableListOf<SpeechMappedText>()
     val marks = speechMarkRanges(input.text)

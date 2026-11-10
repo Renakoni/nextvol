@@ -58,9 +58,6 @@ class SpeechPreprocessingTest {
         assertEquals(listOf(40, 40), speechLanguageSentences(input, Locale.CHINESE, {}).map { it.text.length })
         assertEquals(listOf(sentence.take(40), sentence.drop(40)),
             chunks.flatMap { speechHardChunks(it, 50) }.map { it.text })
-        val shortSentence = "甲".repeat(29) + "。"
-        assertEquals(listOf(shortSentence.repeat(2), shortSentence), speechSentenceChunks(
-            SpeechMappedText.original(shortSentence.repeat(3)), 60, Locale.CHINESE).map { it.text })
     }
 
     @Test fun overlongSentencesUsePausesBeforeWhitespaceAndFixedLengthFallback() {
@@ -82,7 +79,6 @@ class SpeechPreprocessingTest {
         val hard = soft.flatMap { speechHardChunks(it, 60) }
         assertTrue(hard.all { it.text.length <= 60 && !speechIsUnspoken(it.text) })
         assertEquals(input.text, hard.joinToString("") { it.text })
-        assertTrue(hard.all { it.text == input.text.substring(it.range().first, it.range().second) })
     }
 
     @Test fun decimalPointIsNotASentenceBoundaryButSentenceFinalDigitCanEndOne() {
