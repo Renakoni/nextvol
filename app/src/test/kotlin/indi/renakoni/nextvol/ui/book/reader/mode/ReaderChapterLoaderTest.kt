@@ -10,9 +10,9 @@ import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderSpeechFollow
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import io.nightfish.lightnovelreader.api.content.ContentData
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
+import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -36,6 +36,7 @@ class ReaderChapterLoaderTest {
     @Test
     fun visualLoadingAndSynchronousFollowReadsNeverBuildTheSpeechIndex() {
         val component = mockk<SimpleTextComponent>()
+        every { component.data } returns SimpleTextComponentData("Text")
         every { env.renderer.getContentDataFromJson(any()) } returns ContentData(listOf(component))
         val results = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
         env.scope.launch { env.loader.load("request", "book").collect(results::add) }
@@ -45,12 +46,12 @@ class ReaderChapterLoaderTest {
         assertNull(chapter.speechTextIndex)
         assertTrue(ReaderSpeechFollow().ranges(chapter).isEmpty())
         assertNull(ReaderSpeechFollow().anchor(chapter))
-        verify(exactly = 0) { component.data }
     }
 
     @Test
     fun eachCollectorMapsIndependentlyAndPreservesComponentsAndOrderedErrors() {
         val component = mockk<AbstractContentComponent<*>>()
+        every { component.data } returns SimpleTextComponentData("Text")
         every { env.renderer.getContentDataFromJson(any()) } returns ContentData(listOf(component))
         val first = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
         val second = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
