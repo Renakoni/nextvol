@@ -33,12 +33,13 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
         val background: BackgroundSourceRequest? = null,
         val scriptRetry: (suspend () -> Unit)? = null,
         val started: Long = Long.MAX_VALUE,
+        val origin: String? = null,
         val claimed: AtomicBoolean = AtomicBoolean(),
         val scriptClaimed: AtomicBoolean = AtomicBoolean(),
         val scriptForeground: ForegroundSourceRequest = ForegroundSourceRequest(),
         val scriptFinished: CompletableDeferred<Unit> = CompletableDeferred()) {
         val session = if (prompt.certificate != null) null else prompt.kind?.let { kind ->
-            verification?.origin?.let { Session(prompt.owner, kind, it) }
+            (origin ?: verification?.origin)?.let { Session(prompt.owner, kind, it) }
         }
     }
     private val lock = Any()
@@ -124,7 +125,8 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
             synchronized(lock) {
                 val session = entry.session ?: return@synchronized emptyList<Pending>()
                 outcomes[session] = Outcome(++sequence)
-                pending.values.filter { !it.prompt.foreground && it.session == session && !it.claimed.get() }
+                pending.values.filter { !it.prompt.foreground && it.session == session &&
+                    it.scriptRetry == null && !it.claimed.get() }
             }
         }
         for (waiter in waiters) {
@@ -227,11 +229,12 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
                 val resume = synchronized(lock) { pending[background?.verificationId]?.takeIf {
                     it.prompt.owner == owner && current(owner) && it.verification == null &&
                         it.claimed.get() && it.scriptClaimed.compareAndSet(false, true)
-                } } ?: throw SourceScriptInteractionRequired()
+                } } ?: throw SourceScriptInteractionRequired(verification.kind, verification.origin)
                 scriptResume = resume
                 foreground = resume.scriptForeground
             }
             manualAttempted.set(true)
+            // An active script still needs its own result; only background restarts share this session.
             val interaction = Pending(VerificationPrompt(UUID.randomUUID().toString(), owner, name,
                 verification.kind, true, certificate = verification.certificate), verification)
             enqueue(interaction)
@@ -241,13 +244,13 @@ class SourceVerificationCoordinator @Inject constructor(private val registry: We
         suspend fun request(): T {
             val failure = try { return run() } catch (error: SourceContentException) { error }
             if (manualAttempted.get() && failure.code == hnovel.content.ContentError.BrowserRequired) throw failure
-            val scriptInteraction = failure is SourceScriptInteractionRequired
+            val scriptInteraction = failure as? SourceScriptInteractionRequired
             val verification = failure.verification
-            if (verification == null && !scriptInteraction || !current(owner)) throw failure
+            if (verification == null && scriptInteraction == null || !current(owner)) throw failure
             val entry = Pending(VerificationPrompt(UUID.randomUUID().toString(), owner, name,
-                verification?.kind, foreground != null, certificate = verification?.certificate), verification,
-                background = background, started = started,
-                scriptRetry = if (scriptInteraction && background == null) {
+                verification?.kind ?: scriptInteraction?.kind, foreground != null, certificate = verification?.certificate), verification,
+                background = background, started = started, origin = scriptInteraction?.origin,
+                scriptRetry = if (scriptInteraction != null && background == null) {
                     { withContext(ForegroundSourceRequest()) { execute(owner, name, block) }; Unit }
                 } else null)
             val outcome = enqueue(entry)

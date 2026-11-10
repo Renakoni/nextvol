@@ -77,7 +77,12 @@ class LoginCheckVerificationTest {
                 """.trimIndent()) }.use { source ->
                     val book = source.search("fixture").single()
                     source.information(book.id)
-                    val content = withContext(SourceScriptInteraction { verification -> hostCalls++; verification.complete() }) {
+                    val content = withContext(SourceScriptInteraction { verification ->
+                        assertEquals(if (dom && hostCalls == 0) null else BrowserChallengeKind.Cloudflare, verification.kind)
+                        assertEquals(sourceOrigin(fixture.server.url("/").toString()), verification.origin)
+                        hostCalls++
+                        verification.complete()
+                    }) {
                         source.content(book.id, fixture.server.url("/c/1").toString())
                     }
                     assertEquals(listOf("Recovered chapter"), content.parts.mapNotNull { it.text })
@@ -133,6 +138,8 @@ class LoginCheckVerificationTest {
             """.trimIndent()) + ("browserRead" to JsonPrimitive(true))) }.use { source ->
                 val failure = runCatching { source.search("fixture") }.exceptionOrNull()
                 assertTrue(failure.toString(), failure is SourceScriptInteractionRequired)
+                assertEquals(BrowserChallengeKind.Cloudflare, (failure as SourceScriptInteractionRequired).kind)
+                assertEquals(sourceOrigin(fixture.server.url("/").toString()), failure.origin)
                 assertEquals(1, opened)
                 assertEquals(0, fixture.server.requestCount)
             }
@@ -151,7 +158,10 @@ class LoginCheckVerificationTest {
                 result;
             """.trimIndent()) }.use { source ->
                 val failure = runCatching {
-                    withContext(SourceScriptInteraction { it.complete() }) { source.search("fixture") }
+                    withContext(SourceScriptInteraction {
+                        assertEquals(BrowserChallengeKind.SiteVerification, it.kind)
+                        it.complete()
+                    }) { source.search("fixture") }
                 }.exceptionOrNull()
                 assertTrue(failure.toString(), failure is CancellationException)
                 assertEquals(1, opened)

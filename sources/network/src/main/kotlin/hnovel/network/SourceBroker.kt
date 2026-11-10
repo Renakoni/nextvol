@@ -563,6 +563,12 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
     suspend fun executeOnRoute(request: BrokerRequest, guard: RequestCommitGuard, route: SourceRouteReference): BrokerResult =
         execute(request, guard, policy, route = route.route)
 
+    /** A browser's completed action may refetch over HTTP as a new, paced source request. */
+    suspend fun refetchHttp(request: BrokerRequest, guard: RequestCommitGuard): BrokerResult {
+        require(request.browser == null)
+        return execute(request, guard, policy, browserDefault = false)
+    }
+
     /** Host-only HTTP transport for synthetic/image verification documents; avoids browser re-entry. */
     suspend fun executeHttp(request: BrokerRequest, guard: RequestCommitGuard, route: SourceNetworkRoute? = null): BrokerResult {
         require(request.browser == null)

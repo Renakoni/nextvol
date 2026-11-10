@@ -22,6 +22,7 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
     var discovery: JsonObject? = null
     var requestUserAgent: String? = null
     var currentRequest: hnovel.network.BrokerRequest? = null
+    var currentResponse: hnovel.network.BrokerResponse? = null
     var manualVerification = false
     var nextChapterUrl: String? = null
     var missingCacheRead = false
@@ -185,11 +186,15 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
                 requestUserAgent = requestUserAgent.takeUnless { field == "header" }, currentRequest = currentRequest, memory = memory,
                 onMessage = onMessage, retryContext = currentCoroutineContext()[hnovel.network.RequestRetryContext],
                 directoryFields = if (task is ExecutionTask.DirectoryRows) task.inputs.size * task.rules.values.count { it.isNotBlank() } else 0,
-                interaction = if (field != "loginCheckJs" || interactive) null else { action ->
+                interaction = if (field != "loginCheckJs" || interactive) null else { request, action ->
                     try {
-                        val host = interaction ?: throw SourceScriptInteractionRequired()
+                        val origin = hnovel.network.sourceOrigin(request.url)
+                        val kind = if (request.browser?.verificationCode == true) null else
+                            currentResponse?.takeIf { hnovel.network.sourceOrigin(it.finalUrl) == origin }
+                                ?.let { hnovel.network.websiteChallenge(it) } ?: hnovel.network.BrowserChallengeKind.SiteVerification
+                        val host = interaction ?: throw SourceScriptInteractionRequired(kind, origin)
                         var response: hnovel.network.BrokerResponse? = null
-                        host.request(SourceVerification(null) {
+                        host.request(SourceVerification(kind, origin = origin) {
                             manualVerification = true
                             response = action()
                         })
