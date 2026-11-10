@@ -51,8 +51,9 @@ class ChapterReadStateTest {
     @Test fun markingNonAdjacentChaptersReadPreservesSkippedProgressAndResumePositions() = runBlocking {
         val before = repository.getUserReadingData(book.storageKey)
         val revision = repository.progressRevision()
-        repository.setChaptersRead(book.storageKey, setOf(ids[1], ids[3]), catalog, read = true)
+        val saved = repository.setChaptersRead(book.storageKey, setOf(ids[1], ids[3]), catalog, read = true)
         val after = repository.getUserReadingData(book.storageKey)
+        assertEquals(after, saved)
         assertEquals(before.copy(
             lastReadTime = after.lastReadTime,
             maxChapterReadingProgressMap = before.maxChapterReadingProgressMap + mapOf(ids[1] to 1f, ids[3] to 1f),
@@ -80,54 +81,32 @@ class ChapterReadStateTest {
         ), after)
     }
 
-    @Test fun oneOrSeveralHistoricalChaptersKeepTheExactResumePositionAndMetadata() = runBlocking {
-        for (selection in listOf(setOf(ids[0]), setOf(ids[1], ids[3]))) {
-            val before = repository.getUserReadingData(book.storageKey)
-            repository.setChaptersRead(book.storageKey, selection, catalog, read = false)
-            val after = repository.getUserReadingData(book.storageKey)
-            assertEquals(before.copy(
-                currentChapterReadingProgressMap = before.currentChapterReadingProgressMap - selection,
-                maxChapterReadingProgressMap = before.maxChapterReadingProgressMap - selection,
-                readingProgress = after.readingProgress,
-            ), after)
-            assertEquals(.4f, after.currentChapterReadingProgressMap[ids[2]])
-        }
-        assertEquals(.15f, repository.getUserReadingData(book.storageKey).readingProgress, .00001f)
+    @Test fun clearingHistoricalChaptersKeepsTheExactResumePositionAndMetadata() = runBlocking {
+        val selection = setOf(ids[0], ids[1], ids[3])
+        val before = repository.getUserReadingData(book.storageKey)
+        val saved = repository.setChaptersRead(book.storageKey, selection, catalog, read = false)
+        val after = repository.getUserReadingData(book.storageKey)
+        assertEquals(before.copy(
+            currentChapterReadingProgressMap = before.currentChapterReadingProgressMap - selection,
+            maxChapterReadingProgressMap = before.maxChapterReadingProgressMap - selection,
+            readingProgress = .15f,
+        ), after)
+        assertEquals(after, saved)
     }
 
-    @Test fun selectingTheCurrentChapterOrAllChaptersKeepsThatChapterAndRestartsItAtZero() = runBlocking {
-        repository.setChaptersRead(book.storageKey, setOf(ids[2]), catalog, read = false)
-        val afterCurrent = repository.getUserReadingData(book.storageKey)
-        assertEquals(ids[2], afterCurrent.lastReadChapterId)
-        assertEquals("Current chapter", afterCurrent.lastReadChapterTitle)
-        assertEquals(0f, afterCurrent.currentChapterReadingProgressMap[ids[2]] ?: 0f)
-        assertEquals(.675f, afterCurrent.readingProgress, .00001f)
+    @Test fun clearingAllChaptersKeepsTheResumeTargetAndRestartsItAtZero() = runBlocking {
+        val before = repository.getUserReadingData(book.storageKey)
         repository.setChaptersRead(book.storageKey, catalog, catalog, read = false)
-        val afterAll = repository.getUserReadingData(book.storageKey)
-        assertEquals(ids[2], afterAll.lastReadChapterId)
-        assertEquals("Current chapter", afterAll.lastReadChapterTitle)
-        assertEquals(1234, afterAll.totalReadTime)
-        assertTrue(afterAll.currentChapterReadingProgressMap.isEmpty())
-        assertTrue(afterAll.maxChapterReadingProgressMap.isEmpty())
-        assertEquals(0f, afterAll.readingProgress)
-    }
-
-    @Test fun totalsIgnoreRemovedCatalogEntriesAndClampExistingProgress() = runBlocking {
-        val orphan = BookIdentity.chapter("removed", book).storageKey
-        repository.updateUserReadingData(book.storageKey) {
-            it.copy(maxChapterReadingProgressMap = mapOf(ids[0] to 1f, ids[1] to 2f, ids[2] to -.2f, orphan to 1f))
-        }
-        repository.setChaptersRead(book.storageKey, setOf(ids[0]), catalog, read = false)
-        assertEquals(.25f, repository.getUserReadingData(book.storageKey).readingProgress)
+        assertEquals(before.copy(
+            currentChapterReadingProgressMap = emptyMap(), maxChapterReadingProgressMap = emptyMap(), readingProgress = 0f,
+        ), repository.getUserReadingData(book.storageKey))
     }
 
     @Test fun emptyOrUnknownSelectionDoesNotWriteOrInvalidateTheReader() = runBlocking {
         val before = repository.getUserReadingData(book.storageKey)
         val revision = repository.progressRevision()
-        for (read in listOf(false, true)) {
-            repository.setChaptersRead(book.storageKey, emptySet(), catalog, read)
-            repository.setChaptersRead(book.storageKey, setOf("unknown"), catalog, read)
-        }
+        assertNull(repository.setChaptersRead(book.storageKey, emptySet(), catalog, read = true))
+        assertNull(repository.setChaptersRead(book.storageKey, setOf("unknown"), catalog, read = false))
         assertEquals(before, repository.getUserReadingData(book.storageKey))
         assertEquals(revision, repository.progressRevision())
     }

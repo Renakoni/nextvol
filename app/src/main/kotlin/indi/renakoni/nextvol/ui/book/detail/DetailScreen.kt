@@ -181,9 +181,11 @@ fun DetailScreen(
     var confirmReadState by remember { mutableStateOf(false) }
     var savingReadState by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    val catalogIds = uiState.bookVolumes?.availableVolumes()?.volumes.orEmpty()
-        .flatMap { it.chapters }.mapTo(mutableSetOf()) { it.id }
-    val selectedIds = selectedChapterIds.toSet().intersect(catalogIds)
+    val catalogIds = remember(uiState.bookVolumes) {
+        uiState.bookVolumes?.availableVolumes()?.volumes.orEmpty()
+            .flatMap { it.chapters }.mapTo(mutableSetOf()) { it.id }
+    }
+    val selectedIds = selectedChapterIds.intersect(catalogIds)
     val exitSelection = {
         readAction = null
         selectedChapterIds = emptyList()
