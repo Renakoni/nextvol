@@ -107,11 +107,11 @@ class SourceWorkerTest {
         val repository = mockk<BookRepository>()
         coEvery { repository.canReplayDownload(any()) } returns false
         coEvery { repository.canDownloadConcurrently(any()) } returns false
-        every { repository.downloadSource(any()) } returns null
+        coEvery { repository.downloadSource(any()) } returns null
         coEvery { repository.canonicalBook(any()) } coAnswers { firstArg() }
         coEvery { repository.refreshBookInformation(a, any(), any()) } returns Ok(info(a.storageKey))
         every { repository.downloadInformationFlow(any()) } returns kotlinx.coroutines.flow.emptyFlow()
-        every { repository.sourceRevision(any()) } returns "1"
+        coEvery { repository.sourceRevision(any()) } returns "1"
         val items = mutableListOf<DownloadItem>()
         val progress = mockk<DownloadProgressRepository> { every { addExportItem(capture(items)) } just Runs }
         for ((kind, reason) in listOf(WebRequestErrorKind.SourceUnavailable to "source_unavailable",

@@ -33,7 +33,7 @@ class ExploreSearchViewModel internal constructor(
     bookshelfRepository: BookshelfRepository,
     private val bookRepository: BookRepository,
     userDataRepository: UserDataRepository,
-    registry: WebSourceRegistry,
+    private val registry: WebSourceRegistry,
     accounts: SourceSessionManager,
     private val saved: SavedStateHandle,
     route: Route.Main.Explore.Search,
@@ -55,6 +55,7 @@ class ExploreSearchViewModel internal constructor(
     val uiState: ExploreSearchUiState = mutableState
     private val history = userDataRepository.stringListUserData(UserDataPath.Search.History.path)
     private var version: DiscoveryVersion? = null
+    private var loadingSource = true
     private var session: SourceSearch? = null
     private var active = false
     private val foreground = ForegroundSourceRequest()
@@ -79,9 +80,10 @@ class ExploreSearchViewModel internal constructor(
             bookshelfRepository.getAllBookshelfBookIdsFlow().collect { mutableState.allBookshelfBookIds = it }
         }
         viewModelScope.launch {
-            combine(registry.sources, accounts.changes) { sources, generations ->
+            combine(registry.sources.onStart { registry.awaitSourceRegistration(sourceId) }, accounts.changes) { sources, generations ->
                 sources.firstOrNull { it.metadata.id == sourceId }?.version(generations)
             }.distinctUntilChanged().collect { next ->
+                loadingSource = false
                 cancelWork()
                 version = next
                 session = null
@@ -93,7 +95,7 @@ class ExploreSearchViewModel internal constructor(
                 mutableState.suggestions = emptyList()
                 mutableState.suggestionFailure = null
                 mutableState.isLoadingComplete = false
-                mutableState.failure = if (next == null) SourceSearchFailure(DiscoveryError.Unavailable) else null
+                mutableState.failure = unavailableFailure()
                 load()
             }
         }
@@ -139,7 +141,7 @@ class ExploreSearchViewModel internal constructor(
         mutableState.setSearchBarExpandedState(false)
         mutableState.searchResult.clear()
         resetPages()
-        mutableState.failure = if (version == null) SourceSearchFailure(DiscoveryError.Unavailable) else null
+        mutableState.failure = unavailableFailure()
         mutableState.isLoadingComplete = false
         load()
         viewModelScope.launch(io) { history.update { it.filterNot { item -> item == keyword } + keyword } }
@@ -151,7 +153,7 @@ class ExploreSearchViewModel internal constructor(
             return
         }
         cancelWork()
-        mutableState.failure = if (version == null) SourceSearchFailure(DiscoveryError.Unavailable) else null
+        mutableState.failure = unavailableFailure()
         mutableState.suggestionFailure = null
         mutableState.isLoadingComplete = false
         mutableState.searchResult.clear()
@@ -285,8 +287,11 @@ class ExploreSearchViewModel internal constructor(
         work = null
         suggestions?.cancel()
         suggestions = null
-        mutableState.isLoading = false
+        mutableState.isLoading = loadingSource
     }
+
+    private fun unavailableFailure(): SourceSearchFailure? = if (version != null || loadingSource) null else SourceSearchFailure(
+            if (registry.restoration.value == SourceRestoration.Failed) DiscoveryError.InvalidRules else DiscoveryError.Unavailable)
 
     fun loadMore() {
         val next = uiState.nextPage ?: return

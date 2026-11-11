@@ -149,7 +149,8 @@ private fun SourcePageButtons(state: DiscoveryPageState, onPage: (Int) -> Unit, 
 internal fun SourceScopeEmpty(state: DiscoveryPageState, explore: Boolean,
     onScope: (SourceCategory?) -> Unit, onManageSources: () -> Unit) {
     val scope = state.scope
-    if (scope == null) DiscoveryEmpty(stringResource(if (explore) R.string.explore_no_sources else R.string.categories_no_sources), onManageSources)
+    if (state.restorationFailed) DiscoveryEmpty(stringResource(R.string.sources_restoration_failed), onManageSources)
+    else if (scope == null) DiscoveryEmpty(stringResource(if (explore) R.string.explore_no_sources else R.string.categories_no_sources), onManageSources)
     else Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(if (explore) R.string.source_range_empty_explore else R.string.source_range_empty_categories, stringResource(scope.title)))
         TextButton(onClick = { onScope(null) }) { Text(stringResource(R.string.source_range_all), color = MaterialTheme.colorScheme.onSurface) }

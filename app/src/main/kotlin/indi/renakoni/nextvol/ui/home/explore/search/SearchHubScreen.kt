@@ -101,7 +101,11 @@ fun SearchHubScreen(
         }
     }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding(), contentAlignment = Alignment.TopCenter) {
-            if (state.submittedKeyword.isBlank()) {
+            if (state.loadingSources) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center))
+            } else if (state.restorationFailed && state.scopedSources.isEmpty()) {
+                indi.renakoni.nextvol.ui.home.discovery.DiscoveryEmpty(stringResource(R.string.sources_restoration_failed), onManageSources)
+            } else if (state.submittedKeyword.isBlank()) {
                 val history = remember(state.history, state.query) {
                     state.history.filter { it.contains(state.query.trim(), ignoreCase = true) }
                 }

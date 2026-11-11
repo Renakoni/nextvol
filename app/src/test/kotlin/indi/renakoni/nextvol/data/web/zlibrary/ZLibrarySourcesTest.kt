@@ -35,6 +35,8 @@ class ZLibrarySourcesTest {
         try {
             sources.restore()
             val id = ZLibrarySources.ID
+            assertEquals(SourceStatus.Registered, registry.sources.value.single().status)
+            assertFalse(File(context.filesDir, "native-sources/zlibrary/runtime").exists())
             val old = (registry.resolve(id) as SourceResolution.Ready).runtime
             assertEquals(setOf(SourceCapability.Search, SourceCapability.BookInformation, SourceCapability.Images), old.metadata.capabilities)
             assertNull(old.discovery)

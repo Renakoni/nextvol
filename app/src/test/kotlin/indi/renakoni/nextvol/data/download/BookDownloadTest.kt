@@ -107,7 +107,7 @@ class BookDownloadTest {
         downloads.deferTaskRetry(task, 0, 0, DownloadFailure.Network)
         val repository = mockk<BookRepository>()
         io.mockk.coEvery { repository.canonicalBook(a) } returns a
-        every { repository.downloadSource(a) } returns null
+        io.mockk.coEvery { repository.downloadSource(a) } returns null
         io.mockk.coEvery { repository.canReplayDownload(a) } returns false
         io.mockk.coEvery { repository.canDownloadConcurrently(a) } returns false
         val params = indi.renakoni.nextvol.data.work.workerParameters(

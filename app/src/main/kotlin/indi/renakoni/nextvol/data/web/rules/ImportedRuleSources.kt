@@ -4,11 +4,14 @@ import android.content.Context
 import android.util.AtomicFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.content.RuleSource
+import hnovel.content.RuleSourceCapabilities
+import hnovel.content.ruleSourceCapabilities
 import hnovel.content.createRuleSource
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
 import hnovel.imports.*
 import hnovel.network.NetworkGrant
+import hnovel.network.validatedOrigin
 import hnovel.network.SourceBroker
 import hnovel.network.SourceScope
 import hnovel.network.StorageArea
@@ -61,14 +64,14 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
             accounts.changes.collect { generations -> lock.withLock {
                 for ((id, generation) in generations) {
                     val current = active[id] ?: continue
-                    if (current.session != null && current.session.scope.accountGeneration != generation) {
+                    if (current.registration != null && current.registration.metadata.accountGeneration != generation) {
                         downloads?.revokeSourceTasks(id)
-                        runCatching { current.session.clearAccount() }.onFailure {
+                        runCatching { current.session?.clearAccount() }.onFailure {
                             android.util.Log.w("ImportedRuleSources", "Retired account cleanup failed")
                         }
                         current.broker?.close()
                         active[id] = restoreBinding(current.installed, current).also { next ->
-                            next.session?.inheritCaches(current.session)
+                            current.session?.let { next.session?.inheritCaches(it) }
                         }
                     }
                 }
@@ -110,7 +113,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         }
         if (!restorationFailed && (classified != installed || removedRevisions)) save(classified)
         registry.registerBatch { register ->
-            classified.forEach { entry -> active[id(entry.definition)] = restoreBinding(entry, register = register) }
+            classified.forEach { entry -> active[id(entry.definition)] = restoreLazyBinding(entry, register) }
         }
         restored = true
     } }
@@ -316,16 +319,46 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         old.broker?.close()
     }
 
-    private fun restoreBinding(installed: InstalledSource, previous: Binding? = null,
-        register: (io.nightfish.lightnovelreader.api.web.WebBookDataSource, SourceMetadata) -> SourceRegistration = registry::register): Binding =
-        try { bind(installed, previous, register) }
+    private fun restoreBinding(installed: InstalledSource, previous: Binding? = null): Binding = try { bind(installed, previous) }
     catch (_: Exception) {
         previous?.registration?.unregister()
         Binding(installed, null, null)
     }
 
+    private fun restoreLazyBinding(installed: InstalledSource,
+        register: (SourceMetadata, suspend () -> io.nightfish.lightnovelreader.api.web.WebBookDataSource) -> SourceRegistration): Binding = try {
+        val definition = installed.definition
+        val preferences = installed.preferences()
+        require(definition.profile in setOf(LEGADO_PROFILE, EXTENSION_PROFILE))
+        if (!preferences.enabled || installed.origins.isEmpty()) Binding(installed, null, null)
+        else {
+            // Grant syntax remains checked during restoration, without opening storage or clients.
+            installed.origins.forEach { it.validatedOrigin() }
+            val metadata = metadata(installed, accounts.current(id(definition)).generation,
+                ruleSourceCapabilities(definition, preferences.discoveryVisible))
+            lateinit var registration: SourceRegistration
+            registration = register(metadata) {
+                val prepared = prepare(installed, metadata.accountGeneration)
+                try {
+                    currentCoroutineContext().ensureActive()
+                    lock.withLock {
+                        accounts.withCurrent(metadata.id) { account ->
+                            val current = active[metadata.id]
+                            check(current != null && current.registration === registration && account.generation == metadata.accountGeneration) {
+                                "Source registration changed during preparation"
+                            }
+                            if (pixivBlocking.accepts(definition)) PixivPreferenceStore.read(checkNotNull(prepared.binding.session))
+                            active[metadata.id] = prepared.binding.copy(installed = current.installed, registration = registration)
+                            prepared.source
+                        }
+                    }
+                } catch (failure: Throwable) { prepared.binding.rule?.close(); prepared.binding.broker?.close(); throw failure }
+            }
+            Binding(installed, registration, null)
+        }
+    } catch (_: Exception) { Binding(installed, null, null) }
+
     private fun bind(installed: InstalledSource, previous: Binding? = null,
-        register: (io.nightfish.lightnovelreader.api.web.WebBookDataSource, SourceMetadata) -> SourceRegistration = registry::register,
         beforePublish: () -> Unit = {}): Binding = accounts.withCurrent(id(installed.definition)) { account ->
         val definition = installed.definition
         val preferences = installed.preferences()
@@ -338,11 +371,44 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
             // Keep same-account in-memory cookies/caches for re-enable, but close all work below.
             return@withCurrent Binding(installed, null, null, previous?.session?.takeIf { it.scope.accountGeneration == generation })
         }
+        val prepared = prepare(installed, generation)
+        val broker = prepared.binding.broker!!
+        val session = prepared.binding.session!!
+        val source = prepared.binding.rule!!
+        val metadata = prepared.metadata
+        val ticket = prepared.ticket
+        val publish = {
+            previous?.session?.takeIf { it.scope == session.scope }?.let { session.inheritCookies(it); session.inheritCaches(it) }
+            beforePublish()
+        }
+        val registration = try {
+            if (pixivBlocking.accepts(definition)) PixivPreferenceStore.read(session)
+            val oldRegistration = previous?.registration
+            if (oldRegistration == null) { publish(); registry.register(prepared.source, metadata) }
+            else registry.replace(oldRegistration, prepared.source, metadata, ticket, publish)
+        }
+            catch (failure: Exception) { source.close(); broker.close(); throw failure }
+        Binding(installed, registration, broker, session, source)
+    }
+
+    private fun metadata(installed: InstalledSource, generation: Long, capabilities: RuleSourceCapabilities): SourceMetadata {
+        val definition = installed.definition
+        return SourceMetadata(WebDataSourceItem(id(definition), catalog.entry(definition)?.name ?: definition.displayName, "Imported source"), buildSet {
+            addAll(listOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent, SourceCapability.Images))
+            if (capabilities.search) add(SourceCapability.Search)
+            if (capabilities.login) add(SourceCapability.Login)
+            if (capabilities.feed) add(SourceCapability.Explore)
+            if (capabilities.categories) add(SourceCapability.Categories)
+        }, revision = definition.contentDigest, accountGeneration = generation, category = installed.preferences().category)
+    }
+
+    private fun prepare(installed: InstalledSource, generation: Long): PreparedBinding {
+        val definition = installed.definition
+        val preferences = installed.preferences()
+        val id = id(definition)
         val broker = SourceBroker(File(directory, "runtime").toPath(), cipher = storageCipher, browser = browser,
             route = networkSettings?.forSource(id))
-        val session = try { broker.open(SourceScope(id.namespace, id.id, definition.profile, generation), installed.origins).also {
-            if (pixivBlocking.accepts(definition)) PixivPreferenceStore.read(it)
-        } }
+        val session = try { broker.open(SourceScope(id.namespace, id.id, definition.profile, generation), installed.origins) }
             catch (failure: Exception) { broker.close(); throw failure }
         val ticket = authority.issue(id.id, definition.profile, definition.contentDigest, id.namespace, generation)
         val trace = if (!indi.renakoni.nextvol.BuildConfig.DEBUG) hnovel.content.ContentTrace.None else hnovel.content.ContentTrace { event ->
@@ -353,33 +419,20 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         }
         val source = try { createRuleSource(definition, ticket, authority, session, runner, trace, discoveryEnabled = preferences.discoveryVisible) }
             catch (failure: Exception) { authority.revoke(ticket); broker.close(); throw failure }
-        val metadata = SourceMetadata(WebDataSourceItem(id, catalog.entry(definition)?.name ?: definition.displayName, "Imported source"), buildSet {
-            addAll(listOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent, SourceCapability.Images))
-            if (source.canSearch) add(SourceCapability.Search)
-            if (source.canLogin) add(SourceCapability.Login)
-            if (source.canFeed) add(SourceCapability.Explore)
-            if (source.canCategorize) add(SourceCapability.Categories)
-        }, revision = definition.contentDigest, accountGeneration = generation, category = preferences.category)
-        val publish = {
-            previous?.session?.takeIf { it.scope == session.scope }?.let { session.inheritCookies(it); session.inheritCaches(it) }
-            beforePublish()
-        }
+        val metadata = metadata(installed, generation,
+            RuleSourceCapabilities(source.canSearch, source.canLogin, source.canFeed, source.canCategorize))
         val recovery = verification?.let { RuleRequestRecovery(it,
             VerificationOwner(id, definition.contentDigest, generation), definition.displayName) }
         val pixivFilter = if (pixivBlocking.accepts(definition)) PixivBookFilter(session) else null
-        val registration = try {
-            val oldRegistration = previous?.registration
-            if (oldRegistration == null) { publish(); register(RuleWebBookDataSource(id, source, recovery, pixivFilter), metadata) }
-            else registry.replace(oldRegistration, RuleWebBookDataSource(id, source, recovery, pixivFilter), metadata, ticket, publish)
-        }
-            catch (failure: Exception) { source.close(); broker.close(); throw failure }
-        Binding(installed, registration, broker, session, source)
+        return PreparedBinding(Binding(installed, null, broker, session, source),
+            RuleWebBookDataSource(id, source, recovery, pixivFilter), metadata, ticket)
     }
 
     internal fun refreshDiscovery(id: Identifier) = registry.refreshDiscovery(id)
 
     internal suspend fun loginTarget(id: Identifier): RuleLoginTarget = withContext(Dispatchers.IO) {
         restore()
+        check(registry.resolve(id) is SourceResolution.Ready) { "Source is disabled or unavailable" }
         lock.withLock {
             val current = checkNotNull(active[id]) { "Source is not installed" }
             RuleLoginTarget(id, checkNotNull(current.registration).metadata.revision, current.registration.metadata.accountGeneration,
@@ -458,6 +511,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
 
     internal suspend fun rotateAccount(id: Identifier, expectedGeneration: Long? = null): RuleLoginTarget = withContext(Dispatchers.IO) {
         restore()
+        check(registry.resolve(id) is SourceResolution.Ready) { "Source is disabled or unavailable" }
         lock.withLock {
             val current = checkNotNull(active[id]) { "Source is not installed" }
             check(current.rule != null) { "Source is disabled or unavailable" }
@@ -498,6 +552,9 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         val preferences: SourcePreferences? = null) {
         fun preferences() = preferences ?: SourcePreferences(definition.enabled, definition.enabledExplore)
     }
+    private data class PreparedBinding(val binding: Binding,
+        val source: io.nightfish.lightnovelreader.api.web.WebBookDataSource, val metadata: SourceMetadata,
+        val ticket: hnovel.execution.ExecutionIdentity)
     private data class Binding(val installed: InstalledSource, val registration: SourceRegistration?, val broker: SourceBroker?,
         val session: hnovel.network.SourceSession? = null, val rule: RuleSource? = null)
     companion object {

@@ -92,7 +92,8 @@ class ChapterRepository @Inject constructor(
             emit(localBooks.readChapter(chapter))
             return@flow
         }
-        reusableChapter(chapter)?.let {
+        val revision = sourceRevision(chapter)
+        localBookDataSource.getReusableChapterContent(chapter.storageKey, revision.orEmpty())?.let {
             emit(Ok(it))
             return@flow
         }
@@ -101,6 +102,7 @@ class ChapterRepository @Inject constructor(
             emit(Ok(it))
             if (BuildConfig.BENCHMARK) return@flow
         }
+        if (revision == null && local != null && reusableRestoredChapter(chapter)) return@flow
         refreshChapter(chapter, priority, fresh = local != null).onErr {
                 Log.e(TAG, "Source request failed for ${chapter.book.fileKey}: ${it.kind}")
             }
@@ -120,16 +122,22 @@ class ChapterRepository @Inject constructor(
     ) {
         val chapter = BookIdentity.chapter(chapterId, BookIdentity.book(bookId))
         if (LocalBookStore.isLocal(chapter.book)) return
-        if (reusableChapter(chapter) != null) return
+        val revision = sourceRevision(chapter)
+        if (localBookDataSource.getReusableChapterContent(chapter.storageKey, revision.orEmpty()) != null) return
         val cached = localBookDataSource.getChapterContent(chapter.storageKey)
+        if (revision == null && cached != null && reusableRestoredChapter(chapter)) return
         refreshChapter(chapter, priority, fresh = cached != null).onErr {
                 Log.e(TAG, "Source request failed for ${chapter.book.fileKey}: ${it.kind}")
             }
     }
 
-    private suspend fun reusableChapter(chapter: SourceChapterId): ChapterContent? {
-        val revision = sourceRegistry.sources.value.firstOrNull { it.metadata.id == chapter.book.sourceId }?.metadata?.revision.orEmpty()
-        return localBookDataSource.getReusableChapterContent(chapter.storageKey, revision)
+    private fun sourceRevision(chapter: SourceChapterId): String? = sourceRegistry.sources.value
+        .firstOrNull { it.metadata.id == chapter.book.sourceId }?.metadata?.revision
+
+    private suspend fun reusableRestoredChapter(chapter: SourceChapterId): Boolean {
+        sourceRegistry.awaitSourceRegistration(chapter.book.sourceId)
+        val revision = sourceRevision(chapter) ?: return false
+        return localBookDataSource.getReusableChapterContent(chapter.storageKey, revision) != null
     }
 
     internal suspend fun refreshChapter(chapter: SourceChapterId, priority: WebDataSourcePriority, fresh: Boolean = false): Result<ChapterContent, WebRequestError> {

@@ -106,13 +106,13 @@ class StartupNetworkReadinessTest {
             val snapshot = Regex("""snapshot timeNs=(\d+) count=3 importedFailed=false zlibraryFailed=false""")
                 .find(phases)
             assertNotNull(phases, snapshot)
-            val readyNs = requireNotNull(snapshot).groupValues[1].toLong()
-            assertTrue(readyNs >= startNs)
+            val snapshotNs = requireNotNull(snapshot).groupValues[1].toLong()
+            assertTrue(snapshotNs >= startNs)
             assertEquals("Restoring a source must not fetch its chapter", 0, server.requestCount)
             val port = server.port
             if (scenario == "unavailable") server.shutdown()
             val actionNs = now()
-            assertTrue(readyNs < actionNs)
+            assertTrue(snapshotNs < actionNs)
             click(By.text("Resume Last Reading"))
             var releaseNs: Long? = null
             var errorNs: Long? = null
@@ -144,10 +144,13 @@ class StartupNetworkReadinessTest {
                 }
             }
             val readableNs = now()
-            report("StartupNetworkSample scenario=$scenario sample=$sample startNs=$startNs sourceReadyNs=$readyNs " +
+            val completedPhases = shell("logcat -d -s NextVolStartup:I '*:S'")
+            val runtime = Regex("""end phase=source-runtime source=.* status=Ready timeNs=(\d+) durationNs=(\d+)""").find(completedPhases)
+            report("StartupNetworkSample scenario=$scenario sample=$sample startNs=$startNs snapshotNs=$snapshotNs " +
+                "runtimeReadyNs=${runtime?.groupValues?.get(1)} runtimeDurationNs=${runtime?.groupValues?.get(2)} " +
                 "actionNs=$actionNs requestNs=${requestNs.get().takeIf { it > 0 }} releaseNs=$releaseNs " +
                 "errorNs=$errorNs retryNs=$retryNs readableNs=$readableNs serverRequests=${server.requestCount}")
-            report("StartupNetworkPhases scenario=$scenario sample=$sample\n$phases")
+            report("StartupNetworkPhases scenario=$scenario sample=$sample\n$completedPhases")
             report("StartupNetworkRequests scenario=$scenario sample=$sample paths=$requests")
         } catch (error: Throwable) {
             report("StartupNetworkFailure scenario=$scenario sample=$sample paths=$requests")

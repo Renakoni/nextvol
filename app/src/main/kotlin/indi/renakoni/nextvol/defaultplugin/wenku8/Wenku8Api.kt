@@ -13,6 +13,9 @@ import com.github.michaelbull.result.runCatching
 import hnovel.network.BrokerLimits
 import hnovel.network.SourceNetworkRoute
 import indi.renakoni.nextvol.data.web.SourceRequestOwner
+import indi.renakoni.nextvol.data.web.SourceMetadata
+import indi.renakoni.nextvol.data.web.SourceCapability
+import indi.renakoni.nextvol.data.web.SourceCategory
 import indi.renakoni.nextvol.defaultplugin.wenku8.book.BookRequestDispatcher
 import indi.renakoni.nextvol.defaultplugin.wenku8.explore.Wenku8ExplorePageProvider
 import io.nightfish.lightnovelreader.api.Route
@@ -43,6 +46,7 @@ import io.nightfish.lightnovelreader.api.image.SourceImageProvider
 import io.nightfish.lightnovelreader.api.util.Cache
 import io.nightfish.lightnovelreader.api.web.WebBookDataSource
 import io.nightfish.lightnovelreader.api.web.WebDataSource
+import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
 import io.nightfish.lightnovelreader.api.web.explore.ExplorePageProvider
 import io.nightfish.lightnovelreader.api.web.search.SearchProvider
 import kotlinx.coroutines.CoroutineScope
@@ -87,6 +91,13 @@ internal const val WENKU8_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64
 )
 class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search.Wenku8SearchSupport? = null,
     routes: (Identifier) -> SourceNetworkRoute) : WebBookDataSource, SourceImageProvider, AutoCloseable {
+    companion object {
+        val METADATA = SourceMetadata(WebDataSourceItem("Wenku8".ofId(), "Wenku8", "NextVol from wenku8.net"),
+            setOf(SourceCapability.Search, SourceCapability.BookInformation, SourceCapability.Directory,
+                SourceCapability.ChapterContent, SourceCapability.Images, SourceCapability.Explore, SourceCapability.Categories),
+            builtIn = true, category = SourceCategory.Anime)
+    }
+
     private val tagList = listOf(
         "校园", "青春", "恋爱", "治愈", "群像",
         "竞技", "音乐", "美食", "旅行", "欢乐向",
@@ -239,7 +250,7 @@ class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search
         ))
     }
 
-    override val id = "Wenku8".ofId()
+    override val id = METADATA.id
     // Native image requests bypass Ktor's UserAgent plugin. Do not copy document cookies.
     override val imageHeader = mapOf(HttpHeaders.UserAgent to WENKU8_USER_AGENT)
 

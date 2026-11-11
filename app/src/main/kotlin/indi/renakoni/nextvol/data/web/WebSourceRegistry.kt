@@ -15,6 +15,10 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import java.util.Collections
 import javax.inject.Inject
@@ -33,11 +37,38 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
     private val cleanupScope = CoroutineScope(SupervisorJob() + dispatcher)
     private val mutableSources = MutableStateFlow<List<SourceListing>>(emptyList())
     val sources = mutableSources.asStateFlow()
+    private val mutableRestoration = MutableStateFlow(SourceRestoration.Ready)
+    val restoration = mutableRestoration.asStateFlow()
+    val restoredSources = flow { awaitRestoration(); emitAll(sources) }
+    private var restorationJob: kotlinx.coroutines.Deferred<Unit>? = null
 
-    fun register(metadata: SourceMetadata, create: () -> WebBookDataSource): SourceRegistration =
+    internal fun restoreIn(scope: CoroutineScope, restore: suspend () -> Boolean) {
+        val job = scope.async<Unit>(start = CoroutineStart.LAZY) {
+            var failed = true
+            try { failed = !restore() }
+            catch (failure: Exception) {
+                currentCoroutineContext().ensureActive()
+                Log.e("WebSourceRegistry", "Could not restore source metadata", failure)
+            } finally { mutableRestoration.value = if (failed) SourceRestoration.Failed else SourceRestoration.Ready }
+        }
+        restorationJob = job
+        mutableRestoration.value = SourceRestoration.Restoring
+        job.start()
+    }
+
+    suspend fun awaitRestoration() { restorationJob?.await() }
+
+    internal suspend fun awaitSourceRegistration(id: Identifier) {
+        if (restoration.value != SourceRestoration.Restoring || sources.value.any { it.metadata.id == id }) return
+        combine(sources, restoration) { listings, state ->
+            state != SourceRestoration.Restoring || listings.any { it.metadata.id == id }
+        }.first { it }
+    }
+
+    fun register(metadata: SourceMetadata, create: suspend () -> WebBookDataSource): SourceRegistration =
         add(metadata, create, preconstructed = null)
 
-    private fun add(metadata: SourceMetadata, create: () -> WebBookDataSource, preconstructed: WebBookDataSource?,
+    private fun add(metadata: SourceMetadata, create: suspend () -> WebBookDataSource, preconstructed: WebBookDataSource?,
         publishImmediately: Boolean = true): SourceRegistration {
         val snapshot = metadata.copy(capabilities = Collections.unmodifiableSet(metadata.capabilities.toSet()))
         val entry = synchronized(lock) {
@@ -81,19 +112,17 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
         }
     }
 
-    fun register(source: WebBookDataSource, metadata: SourceMetadata): SourceRegistration = register(source, metadata, true)
-
-    private fun register(source: WebBookDataSource, metadata: SourceMetadata, publishImmediately: Boolean): SourceRegistration {
+    fun register(source: WebBookDataSource, metadata: SourceMetadata): SourceRegistration {
         require(source.id == metadata.id) { "Source and metadata identities must match" }
-        return add(metadata, { source }, preconstructed = source, publishImmediately = publishImmediately)
+        return add(metadata, { source }, preconstructed = source)
     }
 
     /** Startup registrations share one listing build; other mutations still publish immediately. */
-    internal fun registerBatch(block: ((WebBookDataSource, SourceMetadata) -> SourceRegistration) -> Unit) {
+    internal fun registerBatch(block: ((SourceMetadata, suspend () -> WebBookDataSource) -> SourceRegistration) -> Unit) {
         var changed = false
         try {
-            block { source, metadata ->
-                register(source, metadata, false).also { changed = true }
+            block { metadata, create ->
+                add(metadata, create, null, false).also { changed = true }
             }
         } finally {
             if (changed) synchronized(lock) { publish() }
@@ -120,7 +149,10 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
     }
 
     suspend fun resolve(id: Identifier): SourceResolution {
-        val entry = synchronized(lock) { entries[id] } ?: return SourceResolution.Missing(id)
+        awaitSourceRegistration(id)
+        val entry = synchronized(lock) { entries[id] } ?: return if (restoration.value == SourceRestoration.Failed)
+            SourceResolution.Unavailable(id, IllegalStateException("Source metadata restoration failed"))
+            else SourceResolution.Missing(id)
         return try {
             val runtime = entry.initialization.await()
             synchronized(lock) {
@@ -165,7 +197,7 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
         }
     }
 
-    private inner class Entry(val metadata: SourceMetadata, create: () -> WebBookDataSource,
+    private inner class Entry(val metadata: SourceMetadata, create: suspend () -> WebBookDataSource,
         private val preconstructed: WebBookDataSource?) {
         val generation = registrationSequence.incrementAndGet()
         private val lifetime = CoroutineScope(SupervisorJob() + dispatcher)
@@ -181,6 +213,7 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
             requireNotNull(lifetime.coroutineContext[kotlinx.coroutines.Job]).invokeOnCompletion { request.cancel() }
 
         val initialization = lifetime.async(start = CoroutineStart.LAZY) {
+            val start = if (indi.renakoni.nextvol.BuildConfig.BENCHMARK) android.os.SystemClock.elapsedRealtimeNanos() else 0L
             update(this@Entry, SourceStatus.Initializing)
             var source: WebBookDataSource? = null
             try {
@@ -209,6 +242,11 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
                     .exceptionOrNull()?.let(failure::addSuppressed)
                 if (failure !is CancellationException) update(this@Entry, SourceStatus.Failed)
                 throw failure
+            } finally {
+                if (indi.renakoni.nextvol.BuildConfig.BENCHMARK) {
+                    val end = android.os.SystemClock.elapsedRealtimeNanos()
+                    Log.i("NextVolStartup", "end phase=source-runtime source=${metadata.id} status=$status timeNs=$end durationNs=${end - start}")
+                }
             }
         }
 

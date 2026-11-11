@@ -12,12 +12,17 @@ data class NetworkGrant(val origin: String, val allowPrivateAddresses: Boolean =
     override fun toString() = "NetworkGrant(origin=$origin, allowPrivateAddresses=$allowPrivateAddresses)"
 }
 
+/** Shared syntax check for stored listings and the execution policy. */
+fun NetworkGrant.validatedOrigin(): String {
+    val url = origin.toHttpUrl()
+    require(url.encodedPath == "/" && url.query == null && url.fragment == null && url.username.isEmpty() && url.password.isEmpty())
+    return NetworkPolicy.origin(url)
+}
+
 internal class NetworkPolicy(grants: List<NetworkGrant>, private val resolver: Dns,
     private val publicImages: Boolean = false) {
     private val grants = grants.associate { grant ->
-        val url = grant.origin.toHttpUrl()
-        require(url.encodedPath == "/" && url.query == null && url.fragment == null && url.username.isEmpty() && url.password.isEmpty())
-        origin(url) to grant.copy(headers = grant.headers.toMap())
+        grant.validatedOrigin() to grant.copy(headers = grant.headers.toMap())
     }
 
     fun check(url: HttpUrl): NetworkGrant {

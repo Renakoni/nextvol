@@ -9,6 +9,8 @@ import indi.renakoni.nextvol.data.web.*
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -57,7 +59,25 @@ class ZLibrarySources @Inject constructor(@ApplicationContext private val contex
             restored = true
             return@withLock
         }
-        bind(settings) {}
+        if (settings.available) {
+            lateinit var restoredRegistration: SourceRegistration
+            restoredRegistration = registry.register(METADATA) {
+                val nextBroker = SourceBroker(File(directory, "runtime").toPath(), cipher = cipher,
+                    limits = BrokerLimits(concurrency = 3, minIntervalMillis = 350), route = networkSettings?.forSource(ID))
+                try {
+                    val nextSession = nextBroker.open(SourceScope(ID.namespace, ID.id, "zlibrary-eapi"), settings.origins.map { NetworkGrant(it) })
+                    val source = ZLibrarySource(context, nextSession, ZLibraryClient(nextSession, settings.origin))
+                    currentCoroutineContext().ensureActive()
+                    lock.withLock {
+                        check(registration === restoredRegistration) { "Source registration changed during preparation" }
+                        broker = nextBroker; session = nextSession
+                        source
+                    }
+                } catch (failure: Throwable) { nextBroker.close(); throw failure }
+            }
+            registration = restoredRegistration
+        }
+        mutable.value = ZLibraryState(settings)
         restored = true
     } }
 
