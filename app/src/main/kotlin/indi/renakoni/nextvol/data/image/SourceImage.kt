@@ -1,16 +1,17 @@
 package indi.renakoni.nextvol.data.image
 
 import coil3.intercept.Interceptor
-import coil3.network.NetworkHeaders
-import coil3.network.httpHeaders
 import coil3.request.ImageResult
-import coil3.request.CachePolicy
 import coil3.request.SuccessResult
 import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.download.BookDownloadStore
 import indi.renakoni.nextvol.data.web.SourceResolution
 import indi.renakoni.nextvol.data.web.WebSourceRegistry
+import indi.renakoni.nextvol.data.web.SourceStatus
+import indi.renakoni.nextvol.data.web.SourceUnavailableException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.security.MessageDigest
 import javax.inject.Inject
 
@@ -39,33 +40,28 @@ class SourceImageInterceptor @Inject constructor(
             return chain.withRequest(chain.request.newBuilder().data(image.uri).build()).proceed()
         }
         val indexKey = sourceImageCacheKey(image, "")
-        val runtime = when (val result = registry.resolve(image.book.sourceId)) {
-            is SourceResolution.Ready -> result.runtime
-            is SourceResolution.Missing -> {
-                val cachedKey = cacheKeys.getString(indexKey, null) ?: error("Image source is not registered")
-                // A dedicated fetcher reads the recorded disk entry and fails on cache miss.
-                val cached = chain.withRequest(chain.request.newBuilder().data(BoundSourceImage(image, cachedKey, null))
-                    .memoryCacheKey(cachedKey).diskCacheKey(cachedKey)
-                    .networkCachePolicy(CachePolicy.DISABLED).build()).proceed()
-                return cached
-            }
-            is SourceResolution.Unavailable -> throw result.cause
+        val listing = registry.sources.value.firstOrNull { it.metadata.id == image.book.sourceId }
+        if (listing?.status == SourceStatus.Failed) {
+            val failure = registry.resolve(image.book.sourceId)
+            if (failure is SourceResolution.Unavailable) throw failure.cause
         }
-        val result = runtime.execute {
-            val headers = runtime.imageHeaders()
-            val key = sourceImageCacheKey(image, runtime.metadata.revision)
-            val result = chain.withRequest(chain.request.newBuilder()
-                .data(if (runtime.hasImageProvider) BoundSourceImage(image, key, runtime) else image.uri)
-                .memoryCacheKey(key)
-                .diskCacheKey(key)
-                .httpHeaders(NetworkHeaders.Builder().apply {
-                    headers.forEach { (name, value) -> add(name, value) }
-                }.build())
-                .build()).proceed()
-            result to key
-        }
-        if (result.first is SuccessResult) cacheKeys.edit().putString(indexKey, result.second).apply()
-        return result.first
+        val key = listing?.let { sourceImageCacheKey(image, it.metadata.revision) }
+            ?: cacheKeys.getString(indexKey, null) ?: error("Image source is not registered")
+        val data = if (listing == null) BoundSourceImage(image, key, null) else PendingSourceImage(
+            image, key, listing.generation, registry, cacheKeys.getBoolean("$key#provider", false),
+        ) { provider -> cacheKeys.edit().putBoolean("$key#provider", provider).apply() }
+        val retirement = listing?.let { registry.cancelOnRetirement(it.metadata.id, it.generation,
+            requireNotNull(currentCoroutineContext()[kotlinx.coroutines.Job])) }
+        try {
+            val result = chain.withRequest(chain.request.newBuilder().data(data)
+                .memoryCacheKey(key).diskCacheKey(key).build()).proceed()
+            currentCoroutineContext().ensureActive()
+            if (listing != null && registry.sources.value.none {
+                it.metadata.id == listing.metadata.id && it.generation == listing.generation && it.status != SourceStatus.Failed
+            }) throw SourceUnavailableException(image.book.sourceId)
+            if (result is SuccessResult) cacheKeys.edit().putString(indexKey, key).apply()
+            return result
+        } finally { retirement?.dispose() }
     }
 }
 

@@ -138,6 +138,13 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
         }
     }
 
+    /** Cache reads belong to the registration even when no runtime needs initializing. */
+    internal fun cancelOnRetirement(id: Identifier, generation: Long, request: kotlinx.coroutines.Job): kotlinx.coroutines.DisposableHandle =
+        synchronized(lock) {
+            val entry = entries[id]?.takeIf { it.generation == generation } ?: throw SourceUnavailableException(id)
+            entry.cancelOnRetirement(request)
+        }
+
     internal fun refreshDiscovery(id: Identifier) = synchronized(lock) {
         val entry = entries[id] ?: return@synchronized
         entry.discoveryGeneration++
@@ -169,6 +176,9 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
         var status = SourceStatus.Registered
         var resolvedFeed: Boolean? = null
         var discoveryGeneration: Long = 0
+
+        fun cancelOnRetirement(request: kotlinx.coroutines.Job) =
+            requireNotNull(lifetime.coroutineContext[kotlinx.coroutines.Job]).invokeOnCompletion { request.cancel() }
 
         val initialization = lifetime.async(start = CoroutineStart.LAZY) {
             update(this@Entry, SourceStatus.Initializing)

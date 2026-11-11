@@ -17,6 +17,8 @@ import indi.renakoni.nextvol.data.web.*
 import io.mockk.every
 import io.mockk.coEvery
 import io.mockk.mockk
+import io.mockk.spyk
+import io.mockk.coVerify
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.WebBookDataSource
 import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
@@ -122,7 +124,7 @@ class SourceImageTest {
 
     @Test fun coilMemoryCacheAndHeadersFollowTheBookAcrossSources() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
-        val registry = WebSourceRegistry()
+        val registry = spyk(WebSourceRegistry())
         var aHeaders = mapOf("Authorization" to "account-a")
         for (book in listOf(a, b)) {
             val source = mockk<WebBookDataSource>(relaxed = true) {
@@ -162,6 +164,7 @@ class SourceImageTest {
             loader.memoryCache?.clear()
             assertFalse(load(a) is SuccessResult)
             assertEquals(2, fetched.size)
+            coVerify(exactly = 2) { registry.resolve(any()) }
         } finally {
             loader.shutdown()
             registry.unregister(a.sourceId)
@@ -182,7 +185,7 @@ class SourceImageTest {
 
     @Test fun cachedImagesRemainReadableAfterSourceRemovalUntilEvicted() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
-        val registry = WebSourceRegistry()
+        val registry = spyk(WebSourceRegistry())
         val calls = mutableListOf<Pair<String, Boolean>>()
         val png = java.io.ByteArrayOutputStream().also {
             Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -214,11 +217,14 @@ class SourceImageTest {
             assertEquals(SourceImageSize(2, 2), SourceImageSizes(context).get(SourceImage(a, url)))
             assertEquals(DataSource.MEMORY_CACHE, (load(false) as SuccessResult).dataSource)
             assertEquals(2, decodes)
+            loader.memoryCache?.clear()
+            assertEquals(DataSource.DISK, (load(true) as SuccessResult).dataSource)
+            coVerify(exactly = 2) { registry.resolve(any()) }
             registry.unregister(a.sourceId)
             loader.memoryCache?.clear()
             assertEquals(DataSource.DISK, (load(true) as SuccessResult).dataSource)
             assertEquals(DataSource.DISK, (load(false) as SuccessResult).dataSource)
-            assertEquals(4, decodes)
+            assertEquals(5, decodes)
             assertEquals(2, calls.size)
             loader.memoryCache?.clear(); cache.clear()
             assertFalse(load(true) is SuccessResult)
