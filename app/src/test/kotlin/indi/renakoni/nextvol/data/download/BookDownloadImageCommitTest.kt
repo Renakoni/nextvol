@@ -28,6 +28,46 @@ import java.util.concurrent.TimeUnit
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class BookDownloadImageCommitTest {
+    @Test fun repeatedCoverLocationsSkipQueriesAndExpireOnWritesDeletionAndGenerationChanges() = runBlocking {
+        val root = java.nio.file.Files.createTempDirectory("cover-location").toFile()
+        val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) { override fun getFilesDir() = root }
+        val queries = java.util.concurrent.atomic.AtomicInteger()
+        val db = Room.inMemoryDatabaseBuilder(context, NextVolDatabase::class.java).allowMainThreadQueries()
+            .setQueryCallback({ sql, _ ->
+                if (sql.startsWith("SELECT", ignoreCase = true) &&
+                    listOf("book_alias", "book_download", "user_data").any { sql.contains(it, ignoreCase = true) })
+                    queries.incrementAndGet()
+            },
+                java.util.concurrent.Executor { it.run() }).build()
+        val store = BookDownloadStore(context, db, ContentJsonDecoder(ContentComponentRegistry()))
+        val image = SourceImage(SourceBookId(Identifier("fixture", root.name), "book"), "https://fixture.invalid/cover", cover = true)
+        try {
+            assertNull(store.image(image))
+            val absent = queries.get()
+            assertNull(store.image(image))
+            assertEquals(absent, queries.get())
+            store.queueTask(image.book, store.generation(), "download")
+            val task = store.startTask(image.book, store.generation(), "download", 0)
+            val attempt = store.begin(image.book, store.generation(), "download")
+            store.saveImage(attempt, image.uri, true, byteArrayOf(1))
+            val file = store.image(image)!!
+            store.taskStage(task, DownloadStage.Body, "chapter")
+            val located = queries.get()
+            assertEquals(file, store.image(image))
+            assertEquals(located, queries.get())
+            store.saveImage(attempt, image.uri, true, byteArrayOf(2))
+            assertArrayEquals(byteArrayOf(2), store.image(image)!!.readBytes())
+            assertTrue(file.delete())
+            assertNull(store.image(image))
+            store.clearDownloads()
+            val next = store.begin(image.book, store.generation(), "new-generation")
+            store.saveImage(next, image.uri, true, byteArrayOf(3))
+            val replacement = store.image(image)!!
+            assertNotEquals(file, replacement)
+            assertArrayEquals(byteArrayOf(3), replacement.readBytes())
+        } finally { db.close(); root.deleteRecursively() }
+    }
+
     @Test fun preparingImagesDoesNotBlockOtherBooksAndClearedOrReplacedVersionsCannotPublish() = runBlocking {
         for (clear in listOf(true, false)) {
             val root = java.nio.file.Files.createTempDirectory("image-commit").toFile()
