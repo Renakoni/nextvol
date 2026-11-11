@@ -164,7 +164,8 @@ class SourceImageTest {
             loader.memoryCache?.clear()
             assertFalse(load(a) is SuccessResult)
             assertEquals(2, fetched.size)
-            coVerify(exactly = 2) { registry.resolve(any()) }
+            coVerify(exactly = 1) { registry.resolve(a.sourceId) }
+            coVerify(exactly = 1) { registry.resolve(b.sourceId) }
         } finally {
             loader.shutdown()
             registry.unregister(a.sourceId)
@@ -219,7 +220,7 @@ class SourceImageTest {
             assertEquals(2, decodes)
             loader.memoryCache?.clear()
             assertEquals(DataSource.DISK, (load(true) as SuccessResult).dataSource)
-            coVerify(exactly = 2) { registry.resolve(any()) }
+            coVerify(exactly = 2) { registry.resolve(a.sourceId) }
             registry.unregister(a.sourceId)
             loader.memoryCache?.clear()
             assertEquals(DataSource.DISK, (load(true) as SuccessResult).dataSource)

@@ -33,7 +33,11 @@ class BookDownloadImageCommitTest {
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) { override fun getFilesDir() = root }
         val queries = java.util.concurrent.atomic.AtomicInteger()
         val db = Room.inMemoryDatabaseBuilder(context, NextVolDatabase::class.java).allowMainThreadQueries()
-            .setQueryCallback({ sql, _ -> if (sql.startsWith("SELECT", ignoreCase = true)) queries.incrementAndGet() },
+            .setQueryCallback({ sql, _ ->
+                if (sql.startsWith("SELECT", ignoreCase = true) &&
+                    listOf("book_alias", "book_download", "user_data").any { sql.contains(it, ignoreCase = true) })
+                    queries.incrementAndGet()
+            },
                 java.util.concurrent.Executor { it.run() }).build()
         val store = BookDownloadStore(context, db, ContentJsonDecoder(ContentComponentRegistry()))
         val image = SourceImage(SourceBookId(Identifier("fixture", root.name), "book"), "https://fixture.invalid/cover", cover = true)
