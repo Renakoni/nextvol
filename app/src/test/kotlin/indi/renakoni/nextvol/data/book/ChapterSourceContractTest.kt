@@ -8,6 +8,8 @@ import com.github.michaelbull.result.get
 import com.github.michaelbull.result.getError
 import hnovel.content.ContentError
 import hnovel.content.SourceContentException
+import indi.renakoni.nextvol.data.web.SourceMetadata
+import indi.renakoni.nextvol.data.web.WebSourceRegistry
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -19,10 +21,15 @@ import io.nightfish.lightnovelreader.api.book.ChapterInformation
 import io.nightfish.lightnovelreader.api.book.Volume
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import io.nightfish.lightnovelreader.api.web.WebDataSourcePriority
+import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -36,7 +43,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
-abstract class ChapterSourceContractTest {
+class ChapterSourceContractTest {
     internal val fixture = BookRepositoryFixture()
     private val book = BookIdentity.book("book")
     private val chapter = SourceChapterId(book, "chapter")
@@ -48,7 +55,7 @@ abstract class ChapterSourceContractTest {
     private val remoteVolumes = BookVolumes("book", listOf(Volume("volume", "remote", listOf(ChapterInformation("chapter", "One")))))
     private val error = WebRequestError("offline", "request failed")
 
-    protected abstract fun source(): ChapterSource
+    private fun source(): ChapterSource = fixture.chapterRepository()
 
     @Before
     fun setUp() {
@@ -242,24 +249,43 @@ abstract class ChapterSourceContractTest {
         assertSame(failure, actual)
         coVerify(exactly = 0) { fixture.remote.getChapterContent(any(), any(), any()) }
     }
-}
 
-class BookRepositoryChapterSourceTest : ChapterSourceContractTest() {
-    override fun source(): ChapterSource {
-        val repository = fixture.repository()
-        return object : ChapterSource {
-            override fun getBookVolumesFlow(id: String, priority: WebDataSourcePriority) =
-                repository.getBookVolumesFlow(id, priority)
-
-            override fun getChapterContentFlow(chapterId: String, bookId: String, priority: WebDataSourcePriority) =
-                repository.getChapterContentFlow(chapterId, bookId, priority)
-
-            override suspend fun preloadChapterContent(chapterId: String, bookId: String, priority: WebDataSourcePriority) =
-                repository.preloadChapterContent(chapterId, bookId, priority)
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test
+    fun restoredRevisionReusesDisplayedAndPreloadedChaptersWithoutInitializingTheSource() = runTest {
+        val book = BookIdentity.book("book")
+        val chapter = SourceChapterId(book, "chapter")
+        val cached = ChapterContent(chapter.storageKey, "cached", JsonObject(emptyMap()))
+        val registry = WebSourceRegistry(StandardTestDispatcher(testScheduler), hnovel.execution.ExecutionAuthority())
+        val release = CompletableDeferred<Unit>()
+        var initializations = 0
+        registry.restoreIn(this) {
+            release.await()
+            registry.register(SourceMetadata(WebDataSourceItem(book.sourceId, "Fixture", ""), emptySet(), revision = "1")) {
+                initializations++
+                error("Cached content must not initialize the source")
+            }
+            true
+        }
+        coEvery { fixture.local.getChapterContent(chapter.storageKey) } returns cached
+        coEvery { fixture.local.getReusableChapterContent(chapter.storageKey, "1") } returns cached
+        val repository = ChapterRepository(registry, fixture.local, fixture.text, fixture.localBooks, fixture.downloads, fixture.directoryChecks)
+        val displayed = mutableListOf<Result<ChapterContent, WebRequestError>>()
+        try {
+            val reading = async { repository.getChapterContentFlow(chapter.storageKey, book.storageKey).collect { displayed += it } }
+            val preload = async { repository.preloadChapterContent(chapter.storageKey, book.storageKey) }
+            runCurrent()
+            assertEquals(listOf(Ok(cached.copy(title = "processed:cached"))), displayed)
+            assertTrue(!reading.isCompleted && !preload.isCompleted)
+            release.complete(Unit)
+            reading.await()
+            preload.await()
+            assertEquals(1, displayed.size)
+            assertEquals(0, initializations)
+        } finally {
+            release.complete(Unit)
+            registry.unregister(book.sourceId)
+            runCurrent()
         }
     }
-}
-
-class ChapterRepositoryTest : ChapterSourceContractTest() {
-    override fun source(): ChapterSource = fixture.chapterRepository()
 }

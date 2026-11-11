@@ -71,6 +71,7 @@ class Wenku8ChapterPersistenceTest {
         }
         val registry = mockk<WebSourceRegistry> {
             every { sources } returns MutableStateFlow(emptyList())
+            coEvery { awaitSourceRegistration(any()) } returns Unit
             coEvery { resolve(any()) } returns SourceResolution.Ready(runtime)
         }
         val downloads = mockk<BookDownloadStore> {
