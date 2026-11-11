@@ -65,12 +65,13 @@ class SpeechControlsTest {
     @Test fun voiceManagementFiltersBulkActionsWithoutChangingNarrationDialogueOrPlayback() {
         val voices = listOf("Alpha one", "Alpha two", "Beta").mapIndexed { index, name ->
             SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
-                """{"id":"manage-$index","name":"$name","url":"https://example.org"}""").sources.single(),
-                listOf("https://example.org:443"))
+                """{"id":"manage-$index","name":"$name","url":"https://example.org","nextvolEngineName":"Managed"}""").sources.single(),
+                listOf("https://example.org:443"), group = if (index < 2) "Managed" else null)
         }
         var selectedCalls = 0
         val playbackActions = mutableListOf<SpeechAction>()
         var deleted = emptyList<SavedHttpSpeechSource>()
+        var added = emptyList<SpeechVoiceRef>()
         val settings = SpeechSettings(voiceRoutingConfigured = true,
             narrationVoices = listOf(SpeechVoiceRef(httpSource = voices.first().definition.id)))
         activity.get().setContent {
@@ -80,6 +81,7 @@ class SpeechControlsTest {
                     selection = settings, onDialogue = { selectedCalls++ }, onPreview = {},
                     playback = ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Paused),
                     onCommand = { playbackActions += it }, onDeleteHttp = { deleted = it },
+                    onAddToPool = { added = it },
                     focusVoiceKey = "http:${voices.first().definition.id}")
             }
         }
@@ -97,6 +99,8 @@ class SpeechControlsTest {
         compose.onNodeWithTag("voice-delete-selected").performClick()
         compose.runOnIdle { assertEquals(listOf(voices[1]), deleted) }
         compose.onNodeWithTag("voice-select-all").performClick()
+        compose.onNodeWithTag("voice-add-to-pool").performClick()
+        compose.runOnIdle { assertEquals(voices.take(2).map { it.definition.id }, added.map { it.httpSource }) }
         compose.onNodeWithTag("voice-delete-selected").performClick()
         compose.runOnIdle { assertEquals(voices.take(2), deleted) }
         compose.onNodeWithTag("voice-select-none").performClick()
@@ -111,6 +115,61 @@ class SpeechControlsTest {
         }
         compose.onNodeWithText("Alpha two").performClick()
         compose.runOnIdle { assertEquals(1, selectedCalls) }
+    }
+
+    @Test fun catalogRemovalKeepsGroupIdentityAndClearsEmptyTabsAndTheirSelection() {
+        val first = SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
+            """{"id":"first","name":"First voice","url":"https://example.org"}""").sources.single(),
+            emptyList(), group = "Built-in")
+        val second = newHttpVoice(hnovel.speech.SpeechEngineConfig("http_second", "Shared", "http", url = "https://example.org"))
+        val third = newHttpVoice(hnovel.speech.SpeechEngineConfig("http_third", "Shared", "http", url = "https://example.org"))
+        val voices = listOf(first, editHttpVoice(second, kotlinx.serialization.json.buildJsonObject {
+            put("name", kotlinx.serialization.json.JsonPrimitive("Second voice"))
+        }, false, false), editHttpVoice(third, kotlinx.serialization.json.buildJsonObject {
+            put("name", kotlinx.serialization.json.JsonPrimitive("Third voice"))
+        }, true, false))
+        val state = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState(sources = voices, loaded = true))
+        var imports = 0
+        activity.get().setContent { MaterialTheme {
+            HttpSpeechSourcesScreen(state.value, {}, { imports++ }, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                focusVoiceKey = "http:${second.definition.id}", onDeleteHttp = { deleted ->
+                    state.value = state.value.copy(sources = state.value.sources - deleted.toSet())
+                })
+        } }
+        fun label(id: Int) = activity.get().getString(id)
+        fun manage() {
+            compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_library_actions)).performClick()
+            compose.onNodeWithText(label(indi.renakoni.nextvol.R.string.tts_manage_voices)).performClick()
+        }
+        compose.onAllNodesWithText("Shared").assertCountEquals(2)
+        manage()
+        compose.onNodeWithText("Second voice").performClick().assertIsOn()
+        compose.runOnIdle { state.value = state.value.copy(sources = voices.drop(1), busy = true) }
+        compose.onNodeWithText("Built-in").assertDoesNotExist()
+        compose.onNodeWithText("Second voice").assertIsDisplayed().assertIsOn()
+        compose.runOnIdle { state.value = state.value.copy(busy = false) }
+        compose.onNodeWithText(activity.get().getString(indi.renakoni.nextvol.R.string.tts_manage_selected, 1)).assertIsDisplayed()
+
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_voice_search)).performClick()
+        compose.onNodeWithTag("voice-search-input").performTextInput("No matching voice")
+        compose.onNodeWithText(label(indi.renakoni.nextvol.R.string.search_no_results)).assertIsDisplayed()
+        compose.onAllNodesWithText("Shared").assertCountEquals(2)
+        compose.onNodeWithTag("voice-search-input").performTextClearance()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.close)).performClick()
+        compose.onNodeWithTag("voice-delete-selected").performClick()
+        compose.onAllNodesWithText("Shared").assertCountEquals(1)
+        compose.onNodeWithText("Third voice").assertIsDisplayed()
+        compose.onNodeWithTag("voice-select-all").assertDoesNotExist()
+
+        manage()
+        compose.onNodeWithTag("voice-select-all").performClick()
+        compose.onNodeWithTag("voice-delete-selected").performClick()
+        compose.onNodeWithText("Shared").assertDoesNotExist()
+        compose.onNode(hasText("System speech") and hasAnyAncestor(hasTestTag("speech-source-tabs"))).assertIsSelected()
+        compose.onNodeWithTag("voice-delete-selected").assertDoesNotExist()
+        compose.onNodeWithContentDescription(label(indi.renakoni.nextvol.R.string.tts_library_actions)).performClick()
+        compose.onNodeWithText(label(indi.renakoni.nextvol.R.string.tts_import_sources)).performClick()
+        compose.runOnIdle { assertEquals(1, imports) }
     }
 
     @Test

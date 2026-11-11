@@ -74,7 +74,7 @@ data class SavedHttpSpeechSource(
 internal data class HttpSynthesisResult(val source: SavedHttpSpeechSource, val message: Int)
 
 private data class HttpSpeechStore(val sources: List<SavedHttpSpeechSource> = emptyList(), val engines: List<SpeechEngineConfig> = emptyList(),
-    val voiceOrder: List<String> = emptyList())
+    val voiceOrder: List<String> = emptyList(), val deletedBuiltInIds: Set<String> = emptySet())
 
 /** User-imported definitions can contain credentials. Persist them with the existing Keystore cipher. */
 @Singleton
@@ -135,7 +135,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     suspend fun sources(): List<SavedHttpSpeechSource> = withContext(Dispatchers.IO) { mutex.withLock { read() } }
 
     suspend fun orderVoices(ids: List<String>) = changeStore { store ->
-        val voices = combined(store.sources, store.engines).orderSpeechVoices(store.voiceOrder) { it.definition.id }
+        val voices = combined(store).orderSpeechVoices(store.voiceOrder) { it.definition.id }
         store.copy(voiceOrder = voices.orderSpeechVoices(ids) { it.definition.id }.map { it.definition.id })
     }
 
@@ -149,7 +149,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         withContext(Dispatchers.IO) { mutex.withLock {
             val store = readStored()
             if (!expected.enabled || expected.deleted || store.engines.find { it.code == expected.code } != expected) return@withLock null
-            val saved = combined(store.sources, store.engines).firstOrNull { it.importedEngineCode == expected.code }
+            val saved = combined(store).firstOrNull { it.importedEngineCode == expected.code }
             if (saved != null) open(saved, runtimeDirectory(saved.definition.id))
             else {
                 val draft = newHttpVoice(expected)
@@ -223,9 +223,13 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         current.filterNot { it.definition.id in ids } + changed
     }
 
-    suspend fun delete(id: String) = change { it.filterNot { source -> source.definition.id == id } }
+    suspend fun delete(id: String) = delete(setOf(id))
 
-    suspend fun delete(ids: Set<String>) = change { current -> current.filterNot { it.definition.id in ids && !it.definition.id.startsWith(BUILT_IN_PREFIX) } }
+    suspend fun delete(ids: Set<String>) = changeStore { store ->
+        // Built-in overrides also hold engine credentials used by independent copies.
+        store.copy(sources = store.sources.filterNot { it.definition.id in ids && !it.definition.id.startsWith(BUILT_IN_PREFIX) },
+            deletedBuiltInIds = store.deletedBuiltInIds + builtIns.map { it.definition.id }.filter { it in ids })
+    }
 
     suspend fun configure(id: String, credentials: Map<String, String>) = change { current ->
         val requested = combined(current).first { it.definition.id == id }
@@ -255,9 +259,9 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val stored = readStored()
             val updatedStore = update(stored)
             if (updatedStore == stored) return@withLock
-            val previous = combined(stored.sources, stored.engines)
+            val previous = combined(stored)
             val updated = updatedStore.sources
-            val sources = combined(updated, updatedStore.engines)
+            val sources = combined(updatedStore)
             require(updated.map { it.definition.id }.distinct().size == updated.size)
             val entries = JsonArray(updated.map { source ->
                 require(source.origins.size <= 32 && source.origins.all { sourceOrigin(it) == it })
@@ -276,6 +280,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
                 put("engines", Json.encodeToJsonElement(engineRepository.httpRecords(updatedStore.engines)))
                 val ids = sources.map { it.definition.id }.toSet()
                 put("voiceOrder", Json.encodeToJsonElement(updatedStore.voiceOrder.filter { it in ids }))
+                put("deletedBuiltInIds", Json.encodeToJsonElement(updatedStore.deletedBuiltInIds))
             }.toString().toByteArray(Charsets.UTF_8)
             val encrypted = cipher.seal(raw, IDENTITY)
             val resources = updated.mapNotNull { it.offlineResources?.reference }.toSet()
@@ -283,6 +288,8 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val output = file.startWrite()
             try { output.write(encrypted); file.finishWrite(output) }
             catch (failure: Throwable) { file.failWrite(output); throw failure }
+            // The catalog is committed even if subsequent resource cleanup fails.
+            mutableChanges.update { it + 1 }
             engineRepository.updateSharedHttpEngines(stored.engines, updatedStore.engines)
             stored.engines.filter { it !in updatedStore.engines }.forEach {
                 authority.revokeSource(catalogSourceId(it.code), "speech")
@@ -301,7 +308,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             mutableDeniedOrigins.update { denied -> denied.mapNotNull { (id, origins) ->
                 sources.find { it.definition.id == id }?.let { source -> id to (origins - source.origins.toSet()) }
             }.toMap() }
-            mutableChanges.update { it + 1 }
         }
     }
 
@@ -309,8 +315,11 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
 
     private suspend fun read() = readStored().let {
         if (!recoveredAvatars) { cleanAvatars(it.sources); recoveredAvatars = true }
-        combined(it.sources, it.engines).orderSpeechVoices(it.voiceOrder) { source -> source.definition.id }
+        combined(it).orderSpeechVoices(it.voiceOrder) { source -> source.definition.id }
     }
+
+    private fun combined(store: HttpSpeechStore) = combined(store.sources, store.engines)
+        .filterNot { it.definition.id in store.deletedBuiltInIds }
 
     private fun combined(stored: List<SavedHttpSpeechSource>, engines: List<SpeechEngineConfig> = emptyList()): List<SavedHttpSpeechSource> {
         val overrides = stored.associateBy { it.definition.id }
@@ -350,10 +359,11 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         require(sources.map { it.definition.id }.distinct().size == sources.size)
         val engines = engineRepository.httpRecords(Json.decodeFromJsonElement(document.getValue("engines"))) + sharedEngines
         val order = document["voiceOrder"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+        val deletedBuiltInIds = document["deletedBuiltInIds"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty()
         offline.retainOnlineResources(sources.mapNotNull { it.offlineResources?.reference }.toSet())
         return HttpSpeechStore(sources.map { source ->
             sharedEngines.find { it.code == source.importedEngineCode }?.let(source::withHttpEngine) ?: source
-        }, engines, order)
+        }, engines, order, deletedBuiltInIds)
     }
 
     private fun cleanAvatars(sources: List<SavedHttpSpeechSource>) {

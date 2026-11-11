@@ -23,7 +23,7 @@ class SpeechVoiceOperations @Inject constructor(
 
     suspend fun deleteHttp(sources: List<SavedHttpSpeechSource>) {
         if (sources.isEmpty()) return
-        val ids = sources.filterNot { it.isBuiltIn }.map { it.definition.id }.toSet()
+        val ids = sources.map { it.definition.id }.toSet()
         if (httpInUse(ids)) controller.command(SpeechAction.Stop)
         withContext(NonCancellable) {
             http.delete(ids)
