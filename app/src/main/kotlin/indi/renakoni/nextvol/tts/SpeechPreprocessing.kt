@@ -9,6 +9,15 @@ private val unspokenText = Pattern.compile("^[\\s\\p{C}\\p{P}\\p{Z}\\p{S}]+$")
 private val latinText = Pattern.compile("[\\p{script=Latin}\\p{P}0-9\\s]+")
 private val latinLetter = Pattern.compile("\\p{script=Latin}")
 private val atomicMarks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]")
+private const val speechClosingPunctuation = ",.!?;:，。！？；：…”」»\"’')]}）】》"
+
+private fun speechIsClosingPunctuation(value: Char): Boolean = value in speechClosingPunctuation ||
+    when (Character.getType(value)) {
+        Character.END_PUNCTUATION.toInt(), Character.FINAL_QUOTE_PUNCTUATION.toInt(),
+        Character.DASH_PUNCTUATION.toInt() -> true
+        else -> false
+    }
+
 private val wordWhitespace = Pattern.compile("\\s+")
 private val chineseEnglishSentence = Pattern.compile(
     "([,.!?;:”」»\\n，。！？；：…|](?![”」»\"]))|.(?=[“「«])|\"(?=[\"\\s])|\\s(?=\")")
@@ -131,23 +140,27 @@ internal fun speechSentenceChunks(
     var markIndex = 0
     var groupStart = 0
     var partStart = 0
-    var partEnd = 0
     fun append(end: Int) {
-        if (end - groupStart > limit && end - partStart > 1 && partStart != groupStart) {
+        if (end - groupStart > limit && end - partStart > 1 && partStart != groupStart &&
+            (partStart until end).any { !speechIsClosingPunctuation(input.text[it]) && !Character.isWhitespace(input.text[it]) }) {
             flush(groupStart, partStart)
             groupStart = partStart
         }
         partStart = end
-        partEnd = end
     }
     while (matches.find()) {
         checkCancelled()
+        if (matches.end() <= partStart) continue
         while (markIndex < marks.size && marks[markIndex].last < matches.start()) markIndex++
         if (markIndex < marks.size && matches.start() in marks[markIndex]) continue
-        // The original start + 1 loses a low surrogate before an opening quote.
-        append(matches.end())
+        if (input.text[matches.start()] == '.' && matches.start() > 0 && matches.end() < input.text.length &&
+            Character.isDigit(input.text.codePointBefore(matches.start())) && Character.isDigit(input.text.codePointAt(matches.end()))) continue
+        // Keep contiguous punctuation and closing quotes with the preceding text at either priority.
+        var end = matches.end()
+        while (end < input.text.length && speechIsClosingPunctuation(input.text[end])) end++
+        append(end)
     }
-    if (partEnd < input.text.length) append(input.text.length)
+    if (partStart < input.text.length) append(input.text.length)
     flush(groupStart, input.text.length)
     return result
 }
@@ -176,35 +189,34 @@ private fun speechLongSentence(
 ): List<SpeechMappedText> {
     val marks = speechMarkRanges(input.text)
     val whitespace = wordWhitespace.matcher(input.text)
-    val words = mutableListOf<Pair<Int, Int>>()
+    val result = mutableListOf<SpeechMappedText>()
+    var groupStart = -1
+    var groupEnd = 0
+    fun flush() {
+        result += speechBoundedChunks(input.slice(groupStart, groupEnd), limit, false, checkCancelled)
+    }
+    fun appendWord(from: Int, to: Int) {
+        if (from == to) return
+        if (groupStart >= 0 && to - groupStart > limit &&
+            (from until to).any { !speechIsClosingPunctuation(input.text[it]) }) {
+            flush()
+            groupStart = -1
+        }
+        if (groupStart < 0) groupStart = from
+        groupEnd = to
+    }
     var markIndex = 0
     var start = 0
     while (whitespace.find()) {
         checkCancelled()
         while (markIndex < marks.size && marks[markIndex].last < whitespace.start()) markIndex++
         if (markIndex < marks.size && whitespace.start() in marks[markIndex]) continue
-        words += start to whitespace.start()
+        appendWord(start, whitespace.start())
         start = whitespace.end()
     }
-    words += start to input.text.length
-    while (words.isNotEmpty() && words.last().first == words.last().second) words.removeAt(words.lastIndex)
-    if (words.size == 1) return speechBoundedChunks(input, limit, false, checkCancelled)
-    val groups = mutableListOf<SpeechMappedText>()
-    var output = SpeechMappedText.Builder(limit)
-    var previousEnd = 0
-    for ((from, to) in words) {
-        checkCancelled()
-        if (output.length > 0 && output.length + to - from > limit) {
-            groups += output.build(input)
-            output = SpeechMappedText.Builder(limit)
-        }
-        // MultiTTS normalizes whitespace and adds a leading space to each aggregate.
-        output.append(" ", input.range(previousEnd, from))
-        output.append(input, from, to)
-        previousEnd = to
-    }
-    groups += output.build(input)
-    return groups.flatMap { speechBoundedChunks(it, limit, false, checkCancelled) }
+    appendWord(start, input.text.length)
+    if (groupStart >= 0) flush()
+    return result
 }
 
 /** Backend limits are independent of the user's softer sentence target. */
@@ -233,6 +245,20 @@ private fun speechBoundedChunks(
         checkCancelled()
         var end = minOf(start + limit, input.text.length)
         if (end < input.text.length && input.text[end - 1].isHighSurrogate() && input.text[end].isLowSurrogate()) end--
+        val tailLimit = minOf(end + limit, input.text.length)
+        var punctuationEnd = end
+        while (punctuationEnd < tailLimit && Character.isWhitespace(input.text[punctuationEnd])) punctuationEnd++
+        if (punctuationEnd < tailLimit && speechIsClosingPunctuation(input.text[punctuationEnd])) {
+            var punctuationStart = end
+            while (punctuationStart > start && (speechIsClosingPunctuation(input.text[punctuationStart - 1]) ||
+                Character.isWhitespace(input.text[punctuationStart - 1]))) punctuationStart--
+            while (punctuationEnd < tailLimit && (speechIsClosingPunctuation(input.text[punctuationEnd]) ||
+                Character.isWhitespace(input.text[punctuationEnd]))) punctuationEnd++
+            if (punctuationStart > start) {
+                val before = punctuationStart - Character.charCount(input.text.codePointBefore(punctuationStart))
+                if (before > start && punctuationEnd - before <= limit) end = before
+            }
+        }
         while (markIndex < marks.size && marks[markIndex].last < start) markIndex++
         var index = markIndex
         while (index < marks.size && marks[index].first < end) {
