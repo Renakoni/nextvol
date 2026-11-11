@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
@@ -39,7 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class ReadingHomeViewModelTest {
     private val store = ViewModelStore()
     private val books = mockk<BookRepository>()
-    private val history = MutableStateFlow(listOf("book"))
+    private val history = MutableStateFlow<List<String>?>(null)
     private val progress = MutableStateFlow(UserReadingData("book"))
     private val replies = Channel<Result<BookInformation, WebRequestError>>(Channel.UNLIMITED)
     private val starts = AtomicInteger()
@@ -52,7 +53,7 @@ class ReadingHomeViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val users = mockk<UserDataRepository> {
             every { stringListUserData(UserDataPath.ReadingBooks.path) } returns mockk {
-                every { getFlowWithDefault(any()) } returns history
+                every { getFlowWithDefault(any()) } returns history.filterNotNull()
             }
         }
         every { books.getBookInformationFlow(any<String>(), any()) } answers {
@@ -71,6 +72,7 @@ class ReadingHomeViewModelTest {
     }
 
     @Test fun headerAndHistoryShareResultsAndReturningRefreshesWithoutClearingContent() = runBlocking {
+        history.value = listOf("book")
         val state = model.recentReadingBooks.single().second
         val header = launch { state.collect() }
         val row = launch { state.collect() }
@@ -101,6 +103,11 @@ class ReadingHomeViewModelTest {
     }
 
     @Test fun historyChangesRetainSurvivorsAndRemoveTheirObserversOnDeletion() = runBlocking {
+        assertTrue(model.readingListLoading)
+        history.value = emptyList()
+        assertFalse(model.readingListLoading)
+        assertTrue(model.recentReadingBooks.isEmpty())
+        history.value = listOf("book")
         val original = model.recentReadingBooks.single().second
         val collector = launch { original.collect() }
         replies.send(Ok(information))

@@ -47,6 +47,9 @@ class ReadingHomeViewModel @Inject constructor(
     var recentReadingBooks: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>> by mutableStateOf(emptyList())
         private set
 
+    var readingListLoading by mutableStateOf(true)
+        private set
+
     var chapterSheetUiState by mutableStateOf<ChapterSheetUiState?>(null)
         private set
 
@@ -61,6 +64,7 @@ class ReadingHomeViewModel @Inject constructor(
                 recentReadingBooks = ordered.map { id ->
                     id to observations.getOrPut(id) { observeBook(id) }.state
                 }
+                readingListLoading = false
             }
         }
     }
