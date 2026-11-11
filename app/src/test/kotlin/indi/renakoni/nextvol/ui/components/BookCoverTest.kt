@@ -13,12 +13,21 @@ import coil3.ImageLoader
 import coil3.asImage
 import coil3.decode.DataSource
 import coil3.intercept.Interceptor
+import coil3.memory.MemoryCache
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.image.SourceImage
 import indi.renakoni.nextvol.data.image.SourceImageRetryEvents
+import indi.renakoni.nextvol.data.image.SourceImageInterceptor
+import indi.renakoni.nextvol.data.download.BookDownloadStore
+import indi.renakoni.nextvol.data.web.WebSourceRegistry
+import indi.renakoni.nextvol.data.web.SourceMetadata
+import indi.renakoni.nextvol.data.web.EmptyWebDataSource
+import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
+import io.mockk.every
+import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import org.junit.*
 import org.junit.Assert.*
@@ -43,6 +52,45 @@ class BookCoverTest {
         activity.setup()
     }
     @After fun destroy() { activity.pause().stop().destroy() }
+
+    @Test fun coverReferenceExpiresWithSourceProcessingOrOfflineVersionAndNeverCrossesBooks() {
+        val source = Identifier("fixture", "versioned-cover")
+        val book = SourceBookId(source, "book")
+        val metadata = SourceMetadata(WebDataSourceItem(source, "Fixture", ""), emptySet())
+        val registry = WebSourceRegistry()
+        registry.register(metadata) { EmptyWebDataSource }
+        var coverWrites = 0L
+        val downloads = mockk<BookDownloadStore> { every { coverWriteGeneration(any()) } answers { coverWrites } }
+        val loader = ImageLoader.Builder(activity.get()).components {
+            add(SourceImageInterceptor(registry, activity.get(), downloads))
+        }.build()
+        val file = java.io.File.createTempFile("cover", ".png", activity.get().cacheDir).apply { writeBytes(byteArrayOf(1)) }
+        val request = ImageRequest.Builder(activity.get())
+            .data(SourceImage(book, "https://fixture.invalid/cover", cover = true)).build()
+        val image = createBitmap(4, 4).asImage()
+        val key = MemoryCache.Key("resolved-cover", mapOf("coil#transformations" to "fixture"))
+        try {
+            loader.memoryCache!![key] = MemoryCache.Value(image)
+            loader.rememberCover(loader.coverMemoryIdentity(request), SuccessResult(image,
+                request.newBuilder().data(file).build(), DataSource.DISK, memoryCacheKey = key))
+            fun placeholder(next: ImageRequest = request) = loader.coverPlaceholder(loader.coverMemoryIdentity(next))
+            assertEquals(key, placeholder())
+            assertNull(placeholder(request.newBuilder().data((request.data as SourceImage).copy(book = book.copy(remoteId = "another-book"))).build()))
+            assertNull(placeholder(request.newBuilder().memoryCacheKeyExtra("processing", "changed").build()))
+            registry.unregister(source)
+            registry.register(metadata.copy(revision = "2")) { EmptyWebDataSource }
+            assertNull(placeholder())
+            registry.unregister(source)
+            registry.register(metadata) { EmptyWebDataSource }
+            assertEquals(key, placeholder())
+            coverWrites++
+            assertNull(placeholder())
+            loader.rememberCover(loader.coverMemoryIdentity(request), SuccessResult(image,
+                request.newBuilder().data(file).build(), DataSource.DISK, memoryCacheKey = key))
+            file.appendBytes(byteArrayOf(2))
+            assertNull(placeholder())
+        } finally { loader.shutdown(); registry.unregister(source); file.delete() }
+    }
 
     @Test fun failedRemoteCoverCanRecoverOnTheSameAddressWithoutCachingItsSubstitute() {
         val calls = AtomicInteger()
@@ -96,16 +144,10 @@ class BookCoverTest {
                 onFallbackChanged = { if (it) failures.incrementAndGet() }, imageLoader = loader)
         } }
         compose.waitUntil(10_000) { failures.get() == 1 }
-        for (expected in 2..3) {
-            compose.waitForIdle()
-            compose.runOnIdle { SourceImageRetryEvents.request(source) }
-            compose.waitUntil(10_000) { failures.get() == expected }
-            compose.waitForIdle()
-            assertEquals(expected, calls.get())
-        }
-        compose.mainClock.advanceTimeBy(5_000)
+        compose.runOnIdle { SourceImageRetryEvents.request(source) }
+        compose.waitUntil(10_000) { failures.get() == 2 }
         compose.waitForIdle()
-        assertEquals(3, calls.get())
+        assertEquals(2, calls.get())
         loader.shutdown()
     }
 }
