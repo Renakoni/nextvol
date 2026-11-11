@@ -118,7 +118,6 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     private suspend fun updateTask(task: Task, update: (BookDownloadEntity) -> BookDownloadEntity) =
         withContext(Dispatchers.IO) { lock.withLock {
-            coverLocations.evictAll()
             currentCoroutineContext().ensureActive()
             val owner = dao.get(task.book.storageKey)
             if (task.generation != generation() || owner == null || owner.taskWorkId != task.workId ||

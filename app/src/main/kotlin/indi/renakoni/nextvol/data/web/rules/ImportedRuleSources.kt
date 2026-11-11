@@ -347,6 +347,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
                             check(current != null && current.registration === registration && account.generation == metadata.accountGeneration) {
                                 "Source registration changed during preparation"
                             }
+                            if (pixivBlocking.accepts(definition)) PixivPreferenceStore.read(checkNotNull(prepared.binding.session))
                             active[metadata.id] = prepared.binding.copy(installed = current.installed, registration = registration)
                             prepared.source
                         }
@@ -381,6 +382,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
             beforePublish()
         }
         val registration = try {
+            if (pixivBlocking.accepts(definition)) PixivPreferenceStore.read(session)
             val oldRegistration = previous?.registration
             if (oldRegistration == null) { publish(); registry.register(prepared.source, metadata) }
             else registry.replace(oldRegistration, prepared.source, metadata, ticket, publish)
@@ -406,9 +408,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         val id = id(definition)
         val broker = SourceBroker(File(directory, "runtime").toPath(), cipher = storageCipher, browser = browser,
             route = networkSettings?.forSource(id))
-        val session = try { broker.open(SourceScope(id.namespace, id.id, definition.profile, generation), installed.origins).also {
-            if (pixivBlocking.accepts(definition)) PixivPreferenceStore.read(it)
-        } }
+        val session = try { broker.open(SourceScope(id.namespace, id.id, definition.profile, generation), installed.origins) }
             catch (failure: Exception) { broker.close(); throw failure }
         val ticket = authority.issue(id.id, definition.profile, definition.contentDigest, id.namespace, generation)
         val trace = if (!indi.renakoni.nextvol.BuildConfig.DEBUG) hnovel.content.ContentTrace.None else hnovel.content.ContentTrace { event ->

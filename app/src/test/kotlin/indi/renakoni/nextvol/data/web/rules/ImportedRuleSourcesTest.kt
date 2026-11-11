@@ -300,6 +300,49 @@ class ImportedRuleSourcesTest {
     }
 
     @Test(timeout = 15000)
+    fun lazyPixivPreferenceMigrationDoesNotOverwriteConcurrentHostSettings() = runBlocking {
+        val host = context()
+        RuleSourceFixture().use { fixture ->
+            val accounts = SourceSessionManager(fixture.authority)
+            var registry = WebSourceRegistry(fixture.authority)
+            var sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
+            val release = java.util.concurrent.CountDownLatch(1)
+            try {
+                val preview = sources.importer.preview(SourceCatalog(host).definitions(setOf(PixivUpdateAdapter.KEY)), EXTENSION_PROFILE)
+                sources.importer.commit(preview, listOf(ImportSelection(0, ImportDecision.Add)))
+                val id = sources.activate(sources.definitions.list().single().reference(), listOf(NetworkGrant("https://www.pixiv.net/")))
+                sources.withPixivPreferences(id) { it.write(StorageRequest(StorageArea.Config, "value:nextvol.pixiv.preferences", null)) }
+                sources.stop()
+                val entered = CompletableDeferred<Unit>()
+                val cipher = object : hnovel.network.StorageCipher by hnovel.network.StorageCipher.Plain {
+                    override fun seal(bytes: ByteArray, identity: String): ByteArray {
+                        if (bytes.toString(Charsets.UTF_8) == Json.encodeToString(PixivLocalPreferences.serializer(), PixivLocalPreferences())) {
+                            entered.complete(Unit)
+                            check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                        }
+                        return bytes
+                    }
+                }
+                registry = WebSourceRegistry(fixture.authority)
+                sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner, storageCipher = cipher)
+                sources.restore()
+                val preparing = async { registry.resolve(id) }
+                entered.await()
+                val preferences = PixivLocalPreferences(blocks = listOf(PixivBlockRule(PixivBlockKind.Tag, "blocked", "blocked")))
+                withContext(Dispatchers.IO) {
+                    val save = async(start = CoroutineStart.UNDISPATCHED) {
+                        sources.withPixivPreferences(id) { PixivPreferenceStore.write(it, preferences) }
+                    }
+                    release.countDown()
+                    save.await()
+                }
+                assertTrue(preparing.await() is SourceResolution.Ready)
+                assertEquals(preferences, sources.withPixivPreferences(id, PixivPreferenceStore::read))
+            } finally { release.countDown(); sources.stop(); host.filesDir.deleteRecursively() }
+        }
+    }
+
+    @Test(timeout = 15000)
     fun lazyRestoreSharesPreparationWithoutBlockingOtherSourcesOrRevivingDisabledSources() = runBlocking {
         val host = context()
         RuleSourceFixture().use { fixture ->
