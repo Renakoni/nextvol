@@ -33,6 +33,8 @@ class UpdateCheckRepository @Inject constructor(
 ) {
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private var checkJob: Job? = null
+    private var automaticJob: Job? = null
+    private var checkRequested = false
     private val _release = MutableStateFlow<Release?>(null)
     val releaseFlow: StateFlow<Release?> = _release.asStateFlow()
     var release: Release?
@@ -50,12 +52,11 @@ class UpdateCheckRepository @Inject constructor(
     private fun formattedNow(): String =
         LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
 
-    init {
-        coroutineScope.launch {
-            if (userDataRepository.booleanUserData(UserDataPath.Settings.App.AutoCheckUpdate.path).getOrDefault(true))
-                check()
-        }
-    }
+    @Synchronized
+    fun startAutomaticCheck(): Job = automaticJob ?: coroutineScope.launch {
+        if (userDataRepository.booleanUserData(UserDataPath.Settings.App.AutoCheckUpdate.path).getOrDefault(true))
+            synchronized(this@UpdateCheckRepository) { if (!checkRequested) check() }
+    }.also { automaticJob = it }
 
     fun resetAvailable() {
         mutableAvailable.value = false
@@ -63,6 +64,7 @@ class UpdateCheckRepository @Inject constructor(
 
     @Synchronized
     fun check() {
+        checkRequested = true
         if (_isDownloading.value || checkJob?.isActive == true) return
         // Clear synchronously under the same lock as download admission.
         release = null

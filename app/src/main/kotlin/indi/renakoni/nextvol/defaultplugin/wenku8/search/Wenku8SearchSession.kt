@@ -14,8 +14,12 @@ import javax.inject.Singleton
 @Singleton
 class Wenku8SearchSupport @Inject constructor(
     internal val catalog: Wenku8SearchCatalog,
-    internal val bangumi: BangumiSearchExpansion,
-)
+    private val bangumiProvider: javax.inject.Provider<BangumiSearchExpansion>,
+) {
+    constructor(catalog: Wenku8SearchCatalog, bangumi: BangumiSearchExpansion) :
+        this(catalog, javax.inject.Provider { bangumi })
+    internal val bangumi by lazy { bangumiProvider.get() }
+}
 
 /** One submitted query owns a fixed catalogue, cursors and emitted IDs, including after a retry. */
 internal class Wenku8SearchSession(

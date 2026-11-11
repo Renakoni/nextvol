@@ -19,18 +19,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnPreDraw
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import dagger.hilt.android.AndroidEntryPoint
 import indi.renakoni.nextvol.data.bookshelf.BookshelfRepository
 import indi.renakoni.nextvol.data.logging.CrashLogHandler
 import indi.renakoni.nextvol.data.logging.LoggerRepository
-import indi.renakoni.nextvol.data.update.UpdateCheckRepository
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
-import indi.renakoni.nextvol.data.work.CheckUpdateWork
 import indi.renakoni.nextvol.theme.NextVolTheme
 import indi.renakoni.nextvol.ui.NextVolApp
 import indi.renakoni.nextvol.ui.ExternalFileViewModel
@@ -44,7 +40,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -55,8 +50,6 @@ class MainActivity : ComponentActivity() {
     private val externalFiles: ExternalFileViewModel by viewModels()
 
     @Inject lateinit var userDataRepository: UserDataRepository
-    @Inject lateinit var updateCheckRepository: UpdateCheckRepository
-    @Inject lateinit var workManager: WorkManager
     @Inject lateinit var sourceVerification: indi.renakoni.nextvol.data.web.rules.SourceVerificationCoordinator
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
@@ -67,6 +60,7 @@ class MainActivity : ComponentActivity() {
     private var dynamicColor by mutableStateOf(false)
     private var lightThemeName by mutableStateOf("light_default")
     private var darkThemeName by mutableStateOf("dark_default")
+    private var observeUpdates by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -74,12 +68,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Thread.setDefaultUncaughtExceptionHandler(CrashLogHandler(applicationContext, loggerRepository))
 
-        workManager.enqueueUniquePeriodicWork(
-            "checkUpdate",
-            ExistingPeriodicWorkPolicy.KEEP,
-            PeriodicWorkRequestBuilder<CheckUpdateWork>(12, TimeUnit.HOURS)
-                .build()
-        )
         initDefaultBookshelf()
         observeDisplaySettings()
         observeFormattingSettings()
@@ -130,11 +118,18 @@ class MainActivity : ComponentActivity() {
                 darkThemeName = darkThemeName
             ) {
                 NextVolApp(
+                    observeUpdates = observeUpdates,
                     readerStyle = readerStyle,
                     intentFlow = externalFiles.intentFlow,
                     onReaderActiveChanged = ::setReaderActive
                 )
                 indi.renakoni.nextvol.ui.SourceVerificationHost(sourceVerification)
+            }
+        }
+        window.decorView.doOnPreDraw {
+            window.decorView.post {
+                (application as NextVolApplication).startDeferredWork()
+                observeUpdates = true
             }
         }
     }

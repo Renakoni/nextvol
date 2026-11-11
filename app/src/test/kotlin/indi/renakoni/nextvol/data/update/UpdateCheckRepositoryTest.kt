@@ -54,8 +54,10 @@ class UpdateCheckRepositoryTest {
     }
 
     @Test fun manualCheckUsesTheSelectedGitHubPlatform() = runBlocking {
+        coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "true"
         preferences[UserDataPath.Settings.App.DistributionPlatform.path] = "GitHub"
         val (repository, phase) = check()
+        repository.startAutomaticCheck().join()
         assertSame(release, repository.release)
         assertEquals(listOf("fixture"), phase.arguments.drop(1))
         assertTrue(withTimeout(10_000) { repository.availableFlow.first { it } })
@@ -66,6 +68,10 @@ class UpdateCheckRepositoryTest {
     @Test fun enabledAutomaticCheckUsesTheDefaultNextvolApi() = runBlocking {
         coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "true"
         val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao), downloader, mockk())
+        verify(exactly = 0) { NextvolApiParser.parser(any()) }
+        val automatic = repository.startAutomaticCheck()
+        assertSame(automatic, repository.startAutomaticCheck())
+        automatic.join()
         withTimeout(10_000) { repository.availableFlow.first { it } }
         verify(exactly = 1) { NextvolApiParser.parser(any()) }
     }

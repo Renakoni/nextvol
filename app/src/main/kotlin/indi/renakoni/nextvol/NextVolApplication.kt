@@ -43,7 +43,10 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
         }
         .build()
 
-    private val coroutineScope = CoroutineScope(Dispatchers.IO)
+    private val coroutineScope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private var deferredStarted = false
+    @Inject lateinit var updateChecks: javax.inject.Provider<indi.renakoni.nextvol.data.update.UpdateCheckRepository>
+    @Inject lateinit var workManager: javax.inject.Provider<androidx.work.WorkManager>
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var loggerRepository: LoggerRepository
     @Inject lateinit var userDataRepository: UserDataRepository
@@ -111,10 +114,23 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
             runCatching { startupPhase("local-metadata") { localBooks.restoreMetadata() } }
                 .onFailure { android.util.Log.e("LocalBookStore", "Cannot restore local library metadata", it) }
         }
-        bangumiSync.get().start(coroutineScope)
         coroutineScope.launch(Dispatchers.IO) {
             loggerRepository.logLevel = LogLevel.from(userDataRepository.stringUserData(UserDataPath.Settings.Data.LogLevel.path).getOrDefault("none"))
             loggerRepository.startLogging()
+        }
+    }
+
+    /** Called after the host's first draw; process-owned work survives Activity recreation. */
+    @Synchronized
+    internal fun startDeferredWork() {
+        if (deferredStarted) return
+        deferredStarted = true
+        coroutineScope.launch { bangumiSync.get().start(coroutineScope) }
+        coroutineScope.launch {
+            updateChecks.get().startAutomaticCheck()
+            workManager.get().enqueueUniquePeriodicWork("checkUpdate", androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                androidx.work.PeriodicWorkRequestBuilder<indi.renakoni.nextvol.data.work.CheckUpdateWork>(12,
+                    java.util.concurrent.TimeUnit.HOURS).build())
         }
     }
 }
