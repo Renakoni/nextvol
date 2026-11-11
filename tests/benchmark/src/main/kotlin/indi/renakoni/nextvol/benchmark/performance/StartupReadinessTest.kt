@@ -28,6 +28,7 @@ class StartupReadinessTest {
     private val arguments = InstrumentationRegistry.getArguments()
     private val fixture = arguments.getString("fixture") ?: "cached"
     private val samples = arguments.getString("samples")?.toInt() ?: 5
+    private val readingHomeOnly = arguments.getString("endpoint") == "reading-home"
     private val pkg = "indi.renakoni.nextvol"
     private val local = fixture == "txt" || fixture == "epub"
     private val title = if (local) "Startup ${fixture.uppercase()} Fixture" else "Benchmark Sample Novel"
@@ -56,7 +57,7 @@ class StartupReadinessTest {
                 observe("cold", index, reenter = true)
                 val phases = shell("logcat -d -s NextVolStartup:I '*:S'")
                 val expected = if (fixture == "empty" || fixture == "cached") 2 else 12
-                assertTrue(phases, phases.contains("count=$expected importedFailed=false zlibraryFailed=false"))
+                if (!readingHomeOnly) assertTrue(phases, phases.contains("count=$expected importedFailed=false zlibraryFailed=false"))
                 report("StartupPhases fixture=$fixture sample=$index\n$phases")
                 val pid = shell("pidof $pkg").trim()
                 assertTrue(pid.isNotEmpty())
@@ -70,6 +71,13 @@ class StartupReadinessTest {
     private fun observe(mode: String, sample: Int, reenter: Boolean) {
         val start = SystemClock.elapsedRealtimeNanos()
         val launch = shell("am start -W -n $pkg/.MainActivity")
+        if (readingHomeOnly) {
+            await(if (fixture == "empty") By.text("Nothing Here") else By.text("Resume Last Reading"))
+            val ready = SystemClock.elapsedRealtimeNanos()
+            report("StartupSample fixture=$fixture mode=$mode sample=$sample launchStartNs=$start " +
+                "readingHomeMs=${ms(ready - start)}")
+            return
+        }
         val shelf = await(By.text("Bookshelf"))
         val controls = SystemClock.elapsedRealtimeNanos()
         click(shelf, By.text("Bookshelf"))

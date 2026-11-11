@@ -329,7 +329,7 @@ class EpubExportUseCaseTest {
     @Test fun sourceVersionChangeRejectsCommitWithoutReclaimingReplacedOwnership() = runTest {
         val request = request()
         var revision = "1"
-        every { repository.sourceRevision(book) } answers { revision }
+        coEvery { repository.sourceRevision(book) } answers { revision }
         coEvery { downloads.saveChapter(any(), any(), any(), any(), any()) } coAnswers { revision = "2" }
         coEvery { downloads.finish(any(), false) } throws CancellationException("replaced attempt")
         val result = useCase.execute(request) as EpubExportResult.Failure

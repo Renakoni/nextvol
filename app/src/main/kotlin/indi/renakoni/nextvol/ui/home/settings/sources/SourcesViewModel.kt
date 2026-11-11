@@ -85,7 +85,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     }
 
     init {
-        viewModelScope.launch { registry.sources.collect { list -> mutable.update { it.copy(registry = list) } } }
+        viewModelScope.launch { registry.restoredSources.collect { list -> mutable.update { it.copy(registry = list) } } }
         viewModelScope.launch { verification.prompts.collect { prompts ->
             val previous = state.value.verifications
             mutable.update { it.copy(verifications = prompts) }
@@ -121,9 +121,11 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     }
 
     private suspend fun reload() {
+        registry.awaitRestoration()
         val installed = sources.installedSources()
         val groups = sources.sourceGroups()
-        mutable.update { it.copy(installed = installed, groups = groups, catalog = catalog.entries) }
+        mutable.update { it.copy(installed = installed, groups = groups, catalog = catalog.entries,
+            message = if (registry.restoration.value == SourceRestoration.Failed) R.string.sources_restoration_failed else it.message) }
     }
     fun refresh() = launch { reload() }
     fun createGroup(name: String, members: Set<Identifier> = emptySet(),

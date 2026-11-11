@@ -26,7 +26,7 @@ internal fun exportDownloads(): BookDownloadStore = mockk<BookDownloadStore>(rel
 
 internal fun stubExportRepository(repository: BookRepository) {
     coEvery { repository.canonicalBook(any()) } answers { firstArg() }
-    every { repository.sourceRevision(any()) } returns "1"
+    coEvery { repository.sourceRevision(any()) } returns "1"
     coEvery { repository.exportInformation(any()) } coAnswers {
         repository.getBookInformationFlow(firstArg<indi.renakoni.nextvol.data.book.SourceBookId>().storageKey).first()
     }

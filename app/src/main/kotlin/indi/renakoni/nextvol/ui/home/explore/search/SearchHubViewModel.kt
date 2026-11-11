@@ -47,6 +47,7 @@ data class SearchHubState(
     val books: List<SearchHubBook> = emptyList(), val searching: Boolean = false,
     val stopped: Boolean = false, val limited: Boolean = false,
     val completed: Int = 0, val total: Int = 0, val revision: Long = 0,
+    val loadingSources: Boolean = false, val restorationFailed: Boolean = false,
 ) {
     val scopedSources get() = sources.filter {
         if (selectedSource != null) it.id == selectedSource else scope == null || it.category == scope
@@ -79,6 +80,7 @@ class SearchHubViewModel internal constructor(
         scope = if (saved.contains("search.scope")) SourceCategory.entries.find { it.name == saved.get<String>("search.scope") }
             else browsing.scope.value.takeIf { initialSource == null },
         selectedSource = initialSource, selectedSourceName = saved["sourceName"] ?: "",
+        loadingSources = true,
     ))
     val state = mutable.asStateFlow()
     private var versions = emptyMap<Identifier, DiscoveryVersion>()
@@ -102,7 +104,7 @@ class SearchHubViewModel internal constructor(
             }
         }
         viewModelScope.launch {
-            combine(registry.sources, accounts.changes) { sources, generations ->
+            combine(registry.restoredSources, accounts.changes) { sources, generations ->
                 sources.filter { SourceCapability.Search in it.metadata.capabilities }
                     .associate { it.metadata.id to it.version(generations) }
             }.distinctUntilChanged().collect { next ->
@@ -116,7 +118,8 @@ class SearchHubViewModel internal constructor(
                 }
                 versions = next
                 next.keys.forEach { if (it !in sourceOrder) sourceOrder[it] = sourceOrder.size }
-                mutable.value = state.value.copy(sources = sources, books = rankedResults())
+                mutable.value = state.value.copy(sources = sources, books = rankedResults(), loadingSources = false,
+                    restorationFailed = registry.restoration.value == SourceRestoration.Failed)
                 loadPending()
             }
         }

@@ -44,6 +44,7 @@ data class DiscoveryPageState(
     val loadingSources: Boolean = false,
     val scope: SourceCategory? = null,
     val availableSources: List<SourceListing> = sources,
+    val restorationFailed: Boolean = false,
 ) {
     val pageIndex: Int get() = sources.indexOfFirst { it.metadata.id == selected }.coerceAtLeast(0) / SOURCE_PAGE_SIZE
     val pageCount: Int get() = (sources.size + SOURCE_PAGE_SIZE - 1) / SOURCE_PAGE_SIZE
@@ -94,7 +95,7 @@ abstract class DiscoveryPageViewModel(
 
     init {
         viewModelScope.launch {
-            combine(registry.sources, accounts.changes, browsing.scope) { sources, generations, scope ->
+            combine(registry.restoredSources, accounts.changes, browsing.scope) { sources, generations, scope ->
                 Triple(discoverySources(sources, capability), generations, scope)
             }.collect { (available, generations, scope) ->
                 val explicit = available.find { it.metadata.id == explicitRequest }
@@ -128,7 +129,8 @@ abstract class DiscoveryPageViewModel(
                 resumablePreviews.retainAll(content.keys)
                 refreshCatalog.retainAll(next.keys)
                 versions = next
-                mutableState.value = DiscoveryPageState(sources, selected, content, scope = scope, availableSources = available)
+                mutableState.value = DiscoveryPageState(sources, selected, content, scope = scope, availableSources = available,
+                    restorationFailed = registry.restoration.value == SourceRestoration.Failed)
                 if (selected != null) remember(selected)
                 if (explicit != null && explicit.metadata.id == selected) explicitRequest = null
                 if (active) load()

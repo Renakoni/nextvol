@@ -299,6 +299,52 @@ class ImportedRuleSourcesTest {
         }
     }
 
+    @Test(timeout = 15000)
+    fun lazyRestoreSharesPreparationWithoutBlockingOtherSourcesOrRevivingDisabledSources() = runBlocking {
+        val host = context()
+        RuleSourceFixture().use { fixture ->
+            val accounts = SourceSessionManager(fixture.authority)
+            var registry = WebSourceRegistry(fixture.authority)
+            var sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
+            val release = java.util.concurrent.CountDownLatch(1)
+            try {
+                val origin = fixture.server.url("/").toString()
+                val slow = install(sources, fixture.raw("Slow"), origin)
+                val other = install(sources, fixture.raw("Other"), origin)
+                sources.loginTarget(slow).session.setCookie(origin, "session=restored")
+                sources.stop()
+                val entered = CompletableDeferred<Unit>()
+                val reads = java.util.concurrent.atomic.AtomicInteger()
+                val cipher = object : hnovel.network.StorageCipher by hnovel.network.StorageCipher.Plain {
+                    override fun open(bytes: ByteArray, identity: String): ByteArray {
+                        reads.incrementAndGet()
+                        entered.complete(Unit)
+                        check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                        return bytes
+                    }
+                }
+                registry = WebSourceRegistry(fixture.authority)
+                sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner, storageCipher = cipher)
+                sources.restore()
+                assertEquals(0, reads.get())
+                assertTrue(registry.sources.value.all { it.status == SourceStatus.Registered })
+                val first = async { registry.resolve(slow) }
+                entered.await()
+                val shared = async(start = CoroutineStart.UNDISPATCHED) { registry.resolve(slow) }
+                assertTrue(withTimeout(3000) { registry.resolve(other) } is SourceResolution.Ready)
+                withTimeout(3000) { sources.setPreferences(slow, enabled = false) }
+                release.countDown()
+                assertTrue(first.await() is SourceResolution.Missing)
+                assertTrue(shared.await() is SourceResolution.Missing)
+                assertEquals(1, reads.get())
+                sources.setPreferences(slow, enabled = true)
+                assertTrue(registry.resolve(slow) is SourceResolution.Ready)
+                assertTrue(sources.loginTarget(slow).session.hasMatchingCookie(origin, "session", Regex("restored")))
+                assertEquals(0, fixture.documents.get())
+            } finally { release.countDown(); sources.stop(); host.filesDir.deleteRecursively() }
+        }
+    }
+
     @Test fun persistedAccountEpochsSurviveManagerRecreationWithoutColonKeyCollisions() {
         val context = context()
         val a = Identifier("fixture:epoch", "x")

@@ -47,6 +47,11 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
     private val bookOperations = ConcurrentHashMap<String, Mutex>()
     private var activeBookOperations = 0 // Guarded by lock, together with ordinary cache cleanup.
     private val files = BookDownloadFiles(context)
+    private val coverWrites = ConcurrentHashMap<SourceBookId, Long>()
+    internal fun coverWriteGeneration(book: SourceBookId): Long = coverWrites[book] ?: 0
+    private data class CoverLocation(val file: File?)
+    // Locations only; Coil continues to own decoded images and eviction.
+    private val coverLocations = android.util.LruCache<SourceImage, CoverLocation>(128)
 
     companion object {
         private const val GROUP = "hnovel/downloads"
@@ -72,6 +77,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     suspend fun queueTask(book: SourceBookId, generation: Long, workId: String,
         chapterIds: List<String>? = null, resumePrevious: Boolean = true) = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         migrateLegacy()
         if (generation != this@BookDownloadStore.generation()) throw CancellationException("Download was cleared")
         val owner = dao.get(book.storageKey) ?: BookDownloadEntity(book.storageKey, generation = generation)
@@ -87,6 +93,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     suspend fun startTask(book: SourceBookId, generation: Long, workId: String, runAttempt: Int,
         legacy: Boolean = false, nowMillis: Long = System.currentTimeMillis()): Task = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         currentCoroutineContext().ensureActive()
         if (generation != this@BookDownloadStore.generation()) throw CancellationException("Download was cleared")
         val owner = dao.get(book.storageKey) ?: if (legacy) BookDownloadEntity(book.storageKey, generation = generation)
@@ -111,6 +118,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     private suspend fun updateTask(task: Task, update: (BookDownloadEntity) -> BookDownloadEntity) =
         withContext(Dispatchers.IO) { lock.withLock {
+            coverLocations.evictAll()
             currentCoroutineContext().ensureActive()
             val owner = dao.get(task.book.storageKey)
             if (task.generation != generation() || owner == null || owner.taskWorkId != task.workId ||
@@ -151,6 +159,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** A verification result can replace only the captured task, never a cancelled or newer one. */
     suspend fun queueVerifiedTask(expected: BookDownloadEntity, workId: String): Boolean = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         val owner = dao.get(expected.bookId) ?: return@withLock false
         if (owner.taskHidden || owner.generation != generation() || owner.generation != expected.generation ||
             owner.taskWorkId != expected.taskWorkId || owner.taskSourceRevision != expected.taskSourceRevision ||
@@ -163,6 +172,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** Stop this verification's resumed worker without hiding the task or revoking a replacement. */
     suspend fun pauseVerificationTask(task: Task) = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         val bookId = database.bookAliasDao().get(task.book.storageKey) ?: task.book.storageKey
         val owner = dao.get(bookId) ?: return@withLock
         if (task.generation != generation() || owner.taskWorkId != task.workId ||
@@ -181,6 +191,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
     /** Removing/disabling/replacing a source must also retire queued recovery before it can be re-added. */
     suspend fun revokeSourceTasks(source: io.nightfish.lightnovelreader.api.identifier.Identifier) =
         withContext(Dispatchers.IO) { lock.withLock {
+            coverLocations.evictAll()
             for (owner in dao.getAll()) {
                 if (BookIdentity.book(owner.bookId).sourceId == source && owner.taskStatus in
                     setOf(DownloadTaskStatus.Queued.name, DownloadTaskStatus.Running.name, DownloadTaskStatus.WaitingRetry.name,
@@ -193,6 +204,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** Hiding/cancelling a task does not delete its downloaded chapters or images. */
     suspend fun dismissTask(book: SourceBookId, cancel: Boolean = true) = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         val owner = dao.get(book.storageKey) ?: return@withLock
         if (!cancel && owner.taskStatus in listOf(DownloadTaskStatus.Queued.name, DownloadTaskStatus.Running.name, DownloadTaskStatus.WaitingRetry.name, DownloadTaskStatus.WaitingVerification.name)) return@withLock
         dao.put(owner.copy(taskHidden = true,
@@ -207,6 +219,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
     /** Keep files until the identity transaction commits; old download attempts lose ownership. */
     internal suspend fun mergeIdentity(from: SourceBookId, to: SourceBookId, volumes: BookVolumes,
         commit: suspend () -> Unit) = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         require(from.sourceId == to.sourceId && volumes.bookId == to.storageKey)
         migrateLegacy()
         val previous = dao.get(from.storageKey)
@@ -260,19 +273,29 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
     } catch (failure: CancellationException) { throw failure }
     catch (_: Exception) { false }
 
-    suspend fun image(image: SourceImage): File? = withContext(Dispatchers.IO) { lock.withLock {
+    suspend fun image(image: SourceImage): File? = lock.withLock {
+        if (image.cover) coverLocations.get(image)?.let { location ->
+            if (location.file == null || location.file.isFile) return@withLock location.file
+        }
+        val file = withContext(Dispatchers.IO) { locateImage(image) }
+        if (image.cover) coverLocations.put(image, CoverLocation(file))
+        file
+    }
+
+    private suspend fun locateImage(image: SourceImage): File? {
         migrateLegacy()
         val canonical = database.bookAliasDao().get(image.book.storageKey)?.let(SourceBookId::fromStorageKey) ?: image.book
-        val owner = dao.get(canonical.storageKey) ?: return@withLock null
+        val owner = dao.get(canonical.storageKey) ?: return null
         val chapter = if (image.cover) null else if (image.chapterId != null) dao.chapter(
             SourceChapterId(canonical, BookIdentity.chapter(image.chapterId, image.book).remoteId).storageKey)
             ?.takeIf { it.bookId == canonical.storageKey } else dao.chapters(canonical.storageKey).firstOrNull {
                 image.uri in Json.decodeFromString<List<String>>(it.images)
             }
-        files.imageFile(canonical, owner.generation, image.uri, image.cover, chapter?.resourceVersion.orEmpty()).takeIf { it.isFile }
-    } }
+        return files.imageFile(canonical, owner.generation, image.uri, image.cover, chapter?.resourceVersion.orEmpty()).takeIf { it.isFile }
+    }
 
     suspend fun begin(book: SourceBookId, generation: Long, id: String, requireTask: Boolean = false): Attempt = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         migrateLegacy()
         currentCoroutineContext().ensureActive()
         if (database.bookAliasDao().get(book.storageKey) != null) throw CancellationException("Book identity changed")
@@ -416,7 +439,9 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
                     throw CancellationException("Download target changed")
                 if (resourceVersion.isNotEmpty() && !dao.hasResourceVersion(attempt.book.storageKey, resourceVersion))
                     throw CancellationException("Download image version was replaced")
+                if (cover) coverLocations.evictAll()
                 files.publishImage(temporary, target)
+                if (cover) coverWrites.merge(attempt.book, 1L, Long::plus)
             }
         } finally { temporary.delete() }
     }
@@ -525,6 +550,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** Return the retired generation so WorkManager cancels only requests submitted before this clear. */
     suspend fun clearDownloads(): Long = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         migrateLegacy()
         val retired = generation()
         val owners = dao.getAll()
@@ -541,6 +567,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** Explicit per-book removal; the caller cancels that book's unique WorkManager request first. */
     suspend fun removeBooks(books: List<SourceBookId>) = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         migrateLegacy()
         val keys = books.map { it.storageKey }
         val owners = keys.mapNotNull { dao.get(it) }
@@ -581,6 +608,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
         books: List<BookDownloadEntity>, chapters: List<DownloadedChapterEntity>, legacy: Boolean,
         overwrite: Boolean = false, beforeCommit: () -> Unit = {}, writeLibrary: suspend () -> Unit = {},
     ) = withContext(Dispatchers.IO) { lock.withLock {
+        coverLocations.evictAll()
         val images = if (overwrite) imagesFor(dao.getAll()) else emptyList()
         removeRetiredGenerations()
         database.withTransaction {
