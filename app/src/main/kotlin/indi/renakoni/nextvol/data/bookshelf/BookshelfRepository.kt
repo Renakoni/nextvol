@@ -138,7 +138,7 @@ class BookshelfRepository @Inject constructor(
             BookIdentity.book(bookId).takeIf { bookshelf.autoCache }
         } ?: return
         if (indi.renakoni.nextvol.data.localbook.LocalBookStore.isLocal(automaticDownload)) return
-        sourceRegistry.awaitRestoration()
+        sourceRegistry.awaitSourceRegistration(automaticDownload.sourceId)
         if (sourceRegistry.sources.value.none { it.metadata.id == automaticDownload.sourceId && it.metadata.supportsReading }) return
         // Work submission must not run inside the bookshelf transaction or undo a saved bookmark.
         val submission = withContext(Dispatchers.IO) {

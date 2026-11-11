@@ -37,9 +37,8 @@ internal class BookRepositoryFixture {
     }
     val registry = mockk<WebSourceRegistry> {
         every { sources } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
-        every { restoredSources } answers { sources }
         every { restoration } returns kotlinx.coroutines.flow.MutableStateFlow(indi.renakoni.nextvol.data.web.SourceRestoration.Ready)
-        coEvery { awaitRestoration() } returns Unit
+        coEvery { awaitSourceRegistration(any()) } returns Unit
         coEvery { resolve(BookIdentity.book("book").sourceId) } returns SourceResolution.Ready(runtime)
     }
     val text = mockk<TextProcessingRepository>()

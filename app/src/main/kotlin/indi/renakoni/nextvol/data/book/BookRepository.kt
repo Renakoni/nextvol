@@ -89,7 +89,7 @@ class BookRepository @Inject constructor(
         val book = BookIdentity.book(bookId)
         if (LocalBookStore.isLocal(book)) return localBooks.observeAvailability(book)
             .map { BookReadingAvailability(false, it, false, null) }.distinctUntilChanged()
-        return sourceRegistry.restoredSources.map { sources ->
+        return sourceRegistry.sources.onStart { sourceRegistry.awaitSourceRegistration(book.sourceId) }.map { sources ->
             val entry = sources.find { it.metadata.id == book.sourceId }
             val capabilities = entry?.metadata?.capabilities.orEmpty()
             val online = entry?.metadata?.supportsReading == true &&
@@ -227,7 +227,7 @@ class BookRepository @Inject constructor(
     suspend fun submitDownload(bookId: String, chapterIds: List<String>? = null): DownloadSubmission {
         val book = BookIdentity.book(bookId)
         if (LocalBookStore.isLocal(book)) return DownloadSubmission.Rejected(DownloadFailure.SourceUnavailable)
-        sourceRegistry.awaitRestoration()
+        sourceRegistry.awaitSourceRegistration(book.sourceId)
         if (sourceRegistry.sources.value.none {
                 it.metadata.id == book.sourceId && it.metadata.supportsReading &&
                     it.status != indi.renakoni.nextvol.data.web.SourceStatus.Failed
@@ -305,7 +305,7 @@ class BookRepository @Inject constructor(
 
     internal suspend fun downloadSource(book: SourceBookId): indi.renakoni.nextvol.data.web.SourceMetadata? {
         if (LocalBookStore.isLocal(book)) return null
-        sourceRegistry.awaitRestoration()
+        sourceRegistry.awaitSourceRegistration(book.sourceId)
         return sourceRegistry.sources.value.firstOrNull { it.metadata.id == book.sourceId }?.metadata
     }
 

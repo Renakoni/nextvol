@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -57,6 +58,7 @@ class DiscoveryResultsViewModel internal constructor(
             .getOrDefault(emptyMap())))
     val state = mutableState.asStateFlow()
     private var version: DiscoveryVersion? = null
+    private var loadingSource = true
     private var active = false
     private var session: DiscoverySession? = null
     private var pending: Job? = null
@@ -67,9 +69,10 @@ class DiscoveryResultsViewModel internal constructor(
 
     init {
         viewModelScope.launch {
-            combine(registry.restoredSources, accounts.changes) { sources, generations ->
+            combine(registry.sources.onStart { registry.awaitSourceRegistration(sourceId) }, accounts.changes) { sources, generations ->
                 sources.firstOrNull { it.metadata.id == sourceId }?.version(generations)
             }.distinctUntilChanged().collect { next ->
+                loadingSource = false
                 if (version != null) draftValues = emptyMap()
                 version = next
                 cancelLoad()
@@ -129,7 +132,7 @@ class DiscoveryResultsViewModel internal constructor(
         serial++
         pending?.cancel()
         pending = null
-        mutableState.value = state.value.copy(loading = registry.restoration.value == SourceRestoration.Restoring)
+        mutableState.value = state.value.copy(loading = loadingSource)
     }
 
     fun loadMore() {

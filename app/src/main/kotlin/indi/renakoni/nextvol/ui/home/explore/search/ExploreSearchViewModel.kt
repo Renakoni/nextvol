@@ -55,6 +55,7 @@ class ExploreSearchViewModel internal constructor(
     val uiState: ExploreSearchUiState = mutableState
     private val history = userDataRepository.stringListUserData(UserDataPath.Search.History.path)
     private var version: DiscoveryVersion? = null
+    private var loadingSource = true
     private var session: SourceSearch? = null
     private var active = false
     private val foreground = ForegroundSourceRequest()
@@ -79,9 +80,10 @@ class ExploreSearchViewModel internal constructor(
             bookshelfRepository.getAllBookshelfBookIdsFlow().collect { mutableState.allBookshelfBookIds = it }
         }
         viewModelScope.launch {
-            combine(registry.restoredSources, accounts.changes) { sources, generations ->
+            combine(registry.sources.onStart { registry.awaitSourceRegistration(sourceId) }, accounts.changes) { sources, generations ->
                 sources.firstOrNull { it.metadata.id == sourceId }?.version(generations)
             }.distinctUntilChanged().collect { next ->
+                loadingSource = false
                 cancelWork()
                 version = next
                 session = null
@@ -285,11 +287,10 @@ class ExploreSearchViewModel internal constructor(
         work = null
         suggestions?.cancel()
         suggestions = null
-        mutableState.isLoading = registry.restoration.value == SourceRestoration.Restoring
+        mutableState.isLoading = loadingSource
     }
 
-    private fun unavailableFailure(): SourceSearchFailure? = if (version != null ||
-        registry.restoration.value == SourceRestoration.Restoring) null else SourceSearchFailure(
+    private fun unavailableFailure(): SourceSearchFailure? = if (version != null || loadingSource) null else SourceSearchFailure(
             if (registry.restoration.value == SourceRestoration.Failed) DiscoveryError.InvalidRules else DiscoveryError.Unavailable)
 
     fun loadMore() {
