@@ -42,9 +42,12 @@ class BookDownloadImageCommitTest {
             val absent = queries.get()
             assertNull(store.image(image))
             assertEquals(absent, queries.get())
+            store.queueTask(image.book, store.generation(), "download")
+            val task = store.startTask(image.book, store.generation(), "download", 0)
             val attempt = store.begin(image.book, store.generation(), "download")
             store.saveImage(attempt, image.uri, true, byteArrayOf(1))
             val file = store.image(image)!!
+            store.taskStage(task, DownloadStage.Body, "chapter")
             val located = queries.get()
             assertEquals(file, store.image(image))
             assertEquals(located, queries.get())
