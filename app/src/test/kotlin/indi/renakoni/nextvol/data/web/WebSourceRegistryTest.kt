@@ -6,6 +6,8 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.get
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
+import io.mockk.verify
 import io.nightfish.lightnovelreader.api.book.BookVolumes
 import io.nightfish.lightnovelreader.api.book.ChapterContent
 import io.nightfish.lightnovelreader.api.identifier.Identifier
@@ -41,6 +43,38 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class WebSourceRegistryTest {
+    @Test fun failedBatchPublishesSuccessfulRegistrationsAndLeavesRuntimeChangesImmediate() = runBlocking {
+        val registry = spyk(WebSourceRegistry(), recordPrivateCalls = true)
+        val imported = metadata("a").copy(revision = "revision", accountGeneration = 3)
+        val builtIn = metadata("z", builtIn = true)
+        val source = CountingSource(imported.id)
+        try {
+            assertThrows(IllegalStateException::class.java) {
+                registry.registerBatch { register ->
+                    register(source, imported)
+                    assertThrows(IllegalArgumentException::class.java) { register(source, imported) }
+                    register(CountingSource(builtIn.id), builtIn)
+                    assertTrue(registry.sources.value.isEmpty())
+                    error("Interrupted restore")
+                }
+            }
+            assertEquals(listOf(SourceListing(builtIn, SourceStatus.Registered, 2),
+                SourceListing(imported, SourceStatus.Registered, 1)), registry.sources.value)
+            assertEquals(0, source.loads.get())
+            verify(exactly = 1) { registry["publish"]() }
+            val extra = metadata("extra")
+            registry.register(extra) { CountingSource(extra.id) }
+            assertEquals(3, registry.sources.value.size)
+            verify(exactly = 2) { registry["publish"]() }
+            registry.unregister(extra.id)
+            assertEquals(2, registry.sources.value.size)
+            assertEquals(imported, registry.ready(imported.id).metadata)
+            assertEquals(SourceStatus.Ready, registry.sources.value.last().status)
+        } finally {
+            registry.sources.value.forEach { registry.unregister(it.metadata.id) }
+        }
+    }
+
     @Test(timeout = 10000)
     fun overlappingDetailRequestsHandOffTheirMatchingInformationAndDirectory() = runBlocking {
         for (informationFirst in listOf(true, false)) {

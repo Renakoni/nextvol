@@ -109,7 +109,9 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
             if (category == preferences.category) entry else entry.copy(preferences = preferences.copy(category = category))
         }
         if (!restorationFailed && (classified != installed || removedRevisions)) save(classified)
-        classified.forEach { entry -> active[id(entry.definition)] = restoreBinding(entry) }
+        registry.registerBatch { register ->
+            classified.forEach { entry -> active[id(entry.definition)] = restoreBinding(entry, register = register) }
+        }
         restored = true
     } }
 
@@ -314,13 +316,17 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         old.broker?.close()
     }
 
-    private fun restoreBinding(installed: InstalledSource, previous: Binding? = null): Binding = try { bind(installed, previous) }
+    private fun restoreBinding(installed: InstalledSource, previous: Binding? = null,
+        register: (io.nightfish.lightnovelreader.api.web.WebBookDataSource, SourceMetadata) -> SourceRegistration = registry::register): Binding =
+        try { bind(installed, previous, register) }
     catch (_: Exception) {
         previous?.registration?.unregister()
         Binding(installed, null, null)
     }
 
-    private fun bind(installed: InstalledSource, previous: Binding? = null, beforePublish: () -> Unit = {}): Binding = accounts.withCurrent(id(installed.definition)) { account ->
+    private fun bind(installed: InstalledSource, previous: Binding? = null,
+        register: (io.nightfish.lightnovelreader.api.web.WebBookDataSource, SourceMetadata) -> SourceRegistration = registry::register,
+        beforePublish: () -> Unit = {}): Binding = accounts.withCurrent(id(installed.definition)) { account ->
         val definition = installed.definition
         val preferences = installed.preferences()
         require(definition.profile in setOf(LEGADO_PROFILE, EXTENSION_PROFILE))
@@ -363,7 +369,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         val pixivFilter = if (pixivBlocking.accepts(definition)) PixivBookFilter(session) else null
         val registration = try {
             val oldRegistration = previous?.registration
-            if (oldRegistration == null) { publish(); registry.register(RuleWebBookDataSource(id, source, recovery, pixivFilter), metadata) }
+            if (oldRegistration == null) { publish(); register(RuleWebBookDataSource(id, source, recovery, pixivFilter), metadata) }
             else registry.replace(oldRegistration, RuleWebBookDataSource(id, source, recovery, pixivFilter), metadata, ticket, publish)
         }
             catch (failure: Exception) { source.close(); broker.close(); throw failure }

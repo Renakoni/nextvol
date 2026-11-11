@@ -37,13 +37,14 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
     fun register(metadata: SourceMetadata, create: () -> WebBookDataSource): SourceRegistration =
         add(metadata, create, preconstructed = null)
 
-    private fun add(metadata: SourceMetadata, create: () -> WebBookDataSource, preconstructed: WebBookDataSource?): SourceRegistration {
+    private fun add(metadata: SourceMetadata, create: () -> WebBookDataSource, preconstructed: WebBookDataSource?,
+        publishImmediately: Boolean = true): SourceRegistration {
         val snapshot = metadata.copy(capabilities = Collections.unmodifiableSet(metadata.capabilities.toSet()))
         val entry = synchronized(lock) {
             require(snapshot.id !in entries) { "Duplicate source identity: ${snapshot.id}" }
             Entry(snapshot, create, preconstructed).also {
                 entries[snapshot.id] = it
-                publish()
+                if (publishImmediately) publish()
             }
         }
         return SourceRegistration(snapshot) { remove(entry) }.also { it.owner = entry }
@@ -80,9 +81,23 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
         }
     }
 
-    fun register(source: WebBookDataSource, metadata: SourceMetadata): SourceRegistration {
+    fun register(source: WebBookDataSource, metadata: SourceMetadata): SourceRegistration = register(source, metadata, true)
+
+    private fun register(source: WebBookDataSource, metadata: SourceMetadata, publishImmediately: Boolean): SourceRegistration {
         require(source.id == metadata.id) { "Source and metadata identities must match" }
-        return add(metadata, { source }, preconstructed = source)
+        return add(metadata, { source }, preconstructed = source, publishImmediately = publishImmediately)
+    }
+
+    /** Startup registrations share one listing build; other mutations still publish immediately. */
+    internal fun <T> registerBatch(block: ((WebBookDataSource, SourceMetadata) -> SourceRegistration) -> T): T {
+        var changed = false
+        try {
+            return block { source, metadata ->
+                register(source, metadata, false).also { changed = true }
+            }
+        } finally {
+            if (changed) synchronized(lock) { publish() }
+        }
     }
 
     fun unregister(id: Identifier) {
