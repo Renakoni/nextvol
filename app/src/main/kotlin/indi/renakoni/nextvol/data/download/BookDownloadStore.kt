@@ -158,7 +158,6 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** A verification result can replace only the captured task, never a cancelled or newer one. */
     suspend fun queueVerifiedTask(expected: BookDownloadEntity, workId: String): Boolean = withContext(Dispatchers.IO) { lock.withLock {
-        coverLocations.evictAll()
         val owner = dao.get(expected.bookId) ?: return@withLock false
         if (owner.taskHidden || owner.generation != generation() || owner.generation != expected.generation ||
             owner.taskWorkId != expected.taskWorkId || owner.taskSourceRevision != expected.taskSourceRevision ||
@@ -171,7 +170,6 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** Stop this verification's resumed worker without hiding the task or revoking a replacement. */
     suspend fun pauseVerificationTask(task: Task) = withContext(Dispatchers.IO) { lock.withLock {
-        coverLocations.evictAll()
         val bookId = database.bookAliasDao().get(task.book.storageKey) ?: task.book.storageKey
         val owner = dao.get(bookId) ?: return@withLock
         if (task.generation != generation() || owner.taskWorkId != task.workId ||
@@ -190,7 +188,6 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
     /** Removing/disabling/replacing a source must also retire queued recovery before it can be re-added. */
     suspend fun revokeSourceTasks(source: io.nightfish.lightnovelreader.api.identifier.Identifier) =
         withContext(Dispatchers.IO) { lock.withLock {
-            coverLocations.evictAll()
             for (owner in dao.getAll()) {
                 if (BookIdentity.book(owner.bookId).sourceId == source && owner.taskStatus in
                     setOf(DownloadTaskStatus.Queued.name, DownloadTaskStatus.Running.name, DownloadTaskStatus.WaitingRetry.name,
@@ -203,7 +200,6 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
 
     /** Hiding/cancelling a task does not delete its downloaded chapters or images. */
     suspend fun dismissTask(book: SourceBookId, cancel: Boolean = true) = withContext(Dispatchers.IO) { lock.withLock {
-        coverLocations.evictAll()
         val owner = dao.get(book.storageKey) ?: return@withLock
         if (!cancel && owner.taskStatus in listOf(DownloadTaskStatus.Queued.name, DownloadTaskStatus.Running.name, DownloadTaskStatus.WaitingRetry.name, DownloadTaskStatus.WaitingVerification.name)) return@withLock
         dao.put(owner.copy(taskHidden = true,
