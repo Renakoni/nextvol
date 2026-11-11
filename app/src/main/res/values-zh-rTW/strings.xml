@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="language">繁體中文 (台灣)</string>
+    <string name="sources_restoration_failed">來源未能完整還原，請檢查來源設定。</string>
     <string name="language_translators">Mango, yukonisen</string>
     <!-- Navigation Items -->
     <string name="nav_reading">閱讀中</string>

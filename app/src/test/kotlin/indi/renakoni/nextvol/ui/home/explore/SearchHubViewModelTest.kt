@@ -217,6 +217,8 @@ class SearchHubViewModelTest {
         assertTrue(restored.state.value.loadingSources)
         assertEquals(1, a.requests.size)
         release.complete(Unit)
+        // advanceUntilIdle skips pending work owned by backgroundScope.
+        runCurrent()
         advanceUntilIdle()
         assertFalse(restored.state.value.loadingSources)
         assertEquals(aId, restored.state.value.selectedSource)
