@@ -34,6 +34,7 @@ fun NextVolApp(
     onReaderActiveChanged: (Boolean) -> Unit,
     readerStyle: ReaderStyle,
     intentFlow: Flow<Intent>,
+    observeUpdates: Boolean,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -42,12 +43,14 @@ fun NextVolApp(
     val speech = hiltViewModel<ReadAloudOverlayViewModel>()
     val playback by speech.controller.state.collectAsStateWithLifecycle()
     val playingBook by speech.book.collectAsStateWithLifecycle()
-    val updatesAvailableDialogViewModel = hiltViewModel<UpdatesAvailableDialogViewModel>()
-    val available by updatesAvailableDialogViewModel.availableFlow.collectAsStateWithLifecycle(false)
-    LaunchedEffect(available) {
-        if (available) {
-            updatesAvailableDialogViewModel.resetAvailable()
-            navController.navigateUpdatesAvailableDialog()
+    if (observeUpdates) {
+        val updatesAvailableDialogViewModel = hiltViewModel<UpdatesAvailableDialogViewModel>()
+        val available by updatesAvailableDialogViewModel.availableFlow.collectAsStateWithLifecycle(false)
+        LaunchedEffect(available) {
+            if (available) {
+                updatesAvailableDialogViewModel.resetAvailable()
+                navController.navigateUpdatesAvailableDialog()
+            }
         }
     }
     LaunchedEffect(Unit) {
