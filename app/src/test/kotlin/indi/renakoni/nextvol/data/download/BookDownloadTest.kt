@@ -278,6 +278,27 @@ class BookDownloadTest {
         assertEquals(mapOf("1" to 3), source.chapterCalls)
     }
 
+    @Test fun readingImagesAndCoverBecomeOfflineOriginalsAndOnlyMissingImagesAreFetched() = runBlocking {
+        val source = register(a).apply {
+            chapters = chapters.take(1)
+            withImages = true
+            extraImage = true
+            coverUri = Uri.parse(IMAGE)
+        }
+        books.preloadChapterContent(SourceChapterId(a, "1").storageKey, a.storageKey)
+        for (cover in listOf(false, true)) {
+            assertTrue(loader.execute(ImageRequest.Builder(context).data(SourceImage(a, IMAGE, cover)).build()) is SuccessResult)
+        }
+        assertEquals(2, source.imageCalls)
+        assertTrue(download() is ListenableWorker.Result.Success)
+        assertEquals(mapOf("1" to 1), source.chapterCalls)
+        assertEquals(3, source.imageCalls) // Only the uncached second illustration.
+        assertArrayEquals(png, downloads.image(SourceImage(a, IMAGE))!!.readBytes())
+        assertArrayEquals(png, downloads.image(SourceImage(a, IMAGE, cover = true))!!.readBytes())
+
+        assertEquals(BookDownloadPhase.Complete, state().phase)
+    }
+
     @Test fun room27UpgradeKeepsDownloadsAndDoesNotInventTrustedReadingCache() = runBlocking {
         val source = register(a)
         assertEquals(ListenableWorker.Result.success(), download())
@@ -1580,6 +1601,7 @@ class BookDownloadTest {
         var volumeId = "volume"
         var exportVolumes: List<Volume>? = null
         var withImages = false
+        var coverUri: Uri = Uri.EMPTY
         var imageFailed = false
         var extraImage = false
         var failedImage: String? = null
@@ -1593,7 +1615,7 @@ class BookDownloadTest {
         var imageCalls = 0
         val chapterCalls = mutableMapOf<String, Int>()
         fun directory() = BookVolumes(book.remoteId, exportVolumes ?: listOf(Volume(volumeId, "Volume", chapters)))
-        fun information() = BookInformation(book.remoteId, "Book", author = "Author", description = "",
+        fun information() = BookInformation(book.remoteId, "Book", author = "Author", description = "", coverUri = coverUri,
             publishingHouse = "", wordCount = WordCount(1), lastUpdated = LocalDateTime.of(2026, 9, 15, 0, 0), isComplete = false)
         fun body(id: String) = ChapterContent(id, chapters.single { it.id == id }.title,
             ContentBuilder().simpleText("${book.sourceId.id}:$id").apply {
