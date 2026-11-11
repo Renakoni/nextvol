@@ -3,12 +3,6 @@ package hnovel.speech
 import java.util.Locale
 import java.util.regex.Pattern
 
-internal fun onlineSpeechSentenceLength(): Int = when (Locale.getDefault().language) {
-    "zh" -> 60
-    "tr" -> 200
-    else -> 100
-}
-
 /** S6.f.e/c: aggregate punctuation units, then split groups reaching twice the sentence target. */
 internal fun splitOnlineSpeechText(text: String, limit: Int): List<String> {
     require(limit >= 2)

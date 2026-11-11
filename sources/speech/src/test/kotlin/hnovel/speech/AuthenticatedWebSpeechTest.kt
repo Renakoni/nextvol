@@ -26,18 +26,19 @@ class AuthenticatedWebSpeechTest {
             val status = if (request.url == GuaguaSpeechClient.ENDPOINT && failAudio) 401 else 200
             BrokerResponse(status, request.url, emptyMap(), body, "UTF-8", 0)
         })
-        try { client.synthesize("你好", 1f, 2f, 20, null); fail("Expired access token") }
+        try { client.synthesize("你好", 1f, 2f, null); fail("Expired access token") }
         catch (failure: HttpSpeechException) { assertEquals(HttpSpeechError.Authentication, failure.error) }
         failAudio = false
-        val text = "下一句".repeat(40)
+        val sentence = "甲".repeat(29) + "。"
+        val text = sentence.repeat(2)
         var deliveries = 0
-        assertTrue(client.synthesize(text, 1f, 2f, 20) { bytes, offset, count ->
+        assertTrue(client.synthesize(text, 1f, 2f) { bytes, offset, count ->
             deliveries++
-            assertEquals(4, requests.count { it.url == GuaguaSpeechClient.ENDPOINT })
-            assertArrayEquals(audio + audio + audio, bytes.copyOfRange(offset, offset + count))
+            assertEquals(3, requests.count { it.url == GuaguaSpeechClient.ENDPOINT })
+            assertArrayEquals(audio + audio, bytes.copyOfRange(offset, offset + count))
         }.isEmpty())
         assertEquals(1, deliveries)
-        assertEquals(listOf(text.take(50), text.substring(50, 100), text.drop(100)),
+        assertEquals(listOf(sentence, sentence),
             requests.filter { it.url == GuaguaSpeechClient.ENDPOINT }.drop(1)
                 .map { Json.parseToJsonElement(it.body!!).jsonObject.string("ssml") })
         assertEquals(1, requests.count { it.url.startsWith(GuaguaSpeechClient.PORTAL_URL) })

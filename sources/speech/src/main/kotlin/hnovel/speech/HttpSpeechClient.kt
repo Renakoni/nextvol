@@ -84,8 +84,8 @@ class HttpSpeechClient(
         }
     }
 
+    /** Synthesize one playback-plan segment; only Guagua applies additional compatibility splitting. */
     suspend fun synthesize(text: String, rate: Float? = null, volume: Float = 1f,
-        sentenceLength: Int = onlineSpeechSentenceLength(),
         receive: ((ByteArray, Int, Int) -> Unit)? = null): ByteArray = mutex.withLock {
         if (text.isBlank() || text.length > 65536) throw HttpSpeechException(HttpSpeechError.InvalidSource)
         if (source.text("loginCheckJs").isNotBlank()) throw HttpSpeechException(HttpSpeechError.UnsupportedDependency)
@@ -106,7 +106,7 @@ class HttpSpeechClient(
                 }
                 val speed = source.scriptSpeed(rate)
                 val synthesisRate = rate ?: speed / 10f
-                val audio = online?.synthesize(text, synthesisRate, volume, sentenceLength, audioSink)
+                val audio = online?.synthesize(text, synthesisRate, volume, audioSink)
                     ?: edge?.synthesize(text, synthesisRate, volume, audioSink)
                     ?: microsoft?.synthesize(text, synthesisRate, volume) ?: request(text, speed, synthesisRate, volume)
                 currentCoroutineContext().ensureActive()
