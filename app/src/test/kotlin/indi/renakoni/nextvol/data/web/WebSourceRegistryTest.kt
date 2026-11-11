@@ -53,15 +53,17 @@ class WebSourceRegistryTest {
         }
         val snapshot = async(start = CoroutineStart.UNDISPATCHED) { registry.restoredSources.first() }
         val resolution = async(start = CoroutineStart.UNDISPATCHED) { registry.resolve(meta.id) }
-        assertEquals(SourceRestoration.Restoring, registry.restoration.value)
-        assertFalse(snapshot.isCompleted)
-        assertFalse(resolution.isCompleted)
-        release.complete(Unit)
+        val missing = async(start = CoroutineStart.UNDISPATCHED) { registry.resolve(metadata("missing").id) }
         try {
+            assertTrue(withTimeout(2000) { resolution.await() } is SourceResolution.Ready)
+            assertEquals(SourceRestoration.Restoring, registry.restoration.value)
+            assertFalse(snapshot.isCompleted)
+            assertFalse(missing.isCompleted)
+            release.complete(Unit)
             assertEquals(meta, snapshot.await().single().metadata)
-            assertTrue(resolution.await() is SourceResolution.Ready)
+            assertTrue(missing.await() is SourceResolution.Missing)
             assertEquals(SourceRestoration.Ready, registry.restoration.value)
-        } finally { registry.unregister(meta.id) }
+        } finally { release.complete(Unit); registry.unregister(meta.id) }
 
         val empty = WebSourceRegistry()
         empty.restoreIn(this) { true }

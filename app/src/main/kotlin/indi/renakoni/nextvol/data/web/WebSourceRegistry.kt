@@ -15,7 +15,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import java.util.Collections
@@ -55,6 +57,13 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
     }
 
     suspend fun awaitRestoration() { restorationJob?.await() }
+
+    internal suspend fun awaitSourceRegistration(id: Identifier) {
+        if (restoration.value != SourceRestoration.Restoring || sources.value.any { it.metadata.id == id }) return
+        combine(sources, restoration) { listings, state ->
+            state != SourceRestoration.Restoring || listings.any { it.metadata.id == id }
+        }.first { it }
+    }
 
     fun register(metadata: SourceMetadata, create: suspend () -> WebBookDataSource): SourceRegistration =
         add(metadata, create, preconstructed = null)
@@ -140,7 +149,7 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
     }
 
     suspend fun resolve(id: Identifier): SourceResolution {
-        awaitRestoration()
+        awaitSourceRegistration(id)
         val entry = synchronized(lock) { entries[id] } ?: return if (restoration.value == SourceRestoration.Failed)
             SourceResolution.Unavailable(id, IllegalStateException("Source metadata restoration failed"))
             else SourceResolution.Missing(id)
