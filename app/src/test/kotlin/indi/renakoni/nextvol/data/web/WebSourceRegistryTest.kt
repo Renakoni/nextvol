@@ -41,6 +41,28 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class WebSourceRegistryTest {
+    @Test fun failedBatchPublishesSuccessfulRegistrationsAndLeavesRuntimeChangesImmediate() {
+        val registry = WebSourceRegistry()
+        val imported = metadata("a").copy(revision = "revision", accountGeneration = 3)
+        val source = CountingSource(imported.id)
+        try {
+            assertThrows(IllegalStateException::class.java) {
+                registry.registerBatch { register ->
+                    register(source, imported)
+                    assertThrows(IllegalArgumentException::class.java) { register(source, imported) }
+                    assertTrue(registry.sources.value.isEmpty())
+                    error("Interrupted restore")
+                }
+            }
+            assertEquals(listOf(SourceListing(imported, SourceStatus.Registered, 1)), registry.sources.value)
+            val extra = metadata("extra")
+            registry.register(extra) { CountingSource(extra.id) }
+            assertEquals(2, registry.sources.value.size)
+        } finally {
+            registry.sources.value.forEach { registry.unregister(it.metadata.id) }
+        }
+    }
+
     @Test(timeout = 10000)
     fun overlappingDetailRequestsHandOffTheirMatchingInformationAndDirectory() = runBlocking {
         for (informationFirst in listOf(true, false)) {
