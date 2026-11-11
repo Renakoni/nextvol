@@ -32,6 +32,7 @@ fun NavGraphBuilder.readingHomeDestination() {
 
         ReadingScreen(
             recentReadingBooks = viewModel.recentReadingBooks,
+            readingListLoading = viewModel.readingListLoading,
             onClickDownloadManager = navController::navigateToDownloadManager,
             onClickBook = navController::navigateToBookDetailDestination,
             onClickContinueReading = { bookId, chapterId ->

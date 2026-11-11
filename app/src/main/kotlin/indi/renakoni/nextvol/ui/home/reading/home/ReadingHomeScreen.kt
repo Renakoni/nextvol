@@ -80,6 +80,7 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.components.ElasticPressContainer
 import indi.renakoni.nextvol.ui.components.EmptyPage
+import indi.renakoni.nextvol.ui.components.Loading
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.components.rememberSkeletonShimmer
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
@@ -109,6 +110,7 @@ import kotlin.time.Duration.Companion.seconds
 @Composable
 fun ReadingScreen(
     recentReadingBooks: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>>,
+    readingListLoading: Boolean,
     onClickBook: (String) -> Unit,
     onClickContinueReading: (String, String) -> Unit,
     onClickDownloadManager: () -> Unit,
@@ -126,7 +128,9 @@ fun ReadingScreen(
             onSettings = onSettings
         )
 
-        if (recentReadingBooks.isEmpty()) {
+        if (readingListLoading) {
+            Loading()
+        } else if (recentReadingBooks.isEmpty()) {
             EmptyPage(
                 modifier = Modifier
                     .fillMaxSize()
