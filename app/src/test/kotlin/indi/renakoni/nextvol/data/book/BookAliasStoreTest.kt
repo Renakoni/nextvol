@@ -30,7 +30,8 @@ import java.time.LocalDateTime
 class BookAliasStoreTest {
     private lateinit var database: NextVolDatabase
     private lateinit var aliases: BookAliasStore
-    private val queries = java.util.Collections.synchronizedList(mutableListOf<String>())
+    private val directoryQueries = java.util.concurrent.atomic.AtomicInteger()
+    private val chapterQueries = java.util.concurrent.atomic.AtomicInteger()
     private val source = Identifier("rules", "fixture")
     private val first = SourceBookId(source, "https://example.test/novel/1")
     private val second = SourceBookId(source, "https://example.test/novel/2")
@@ -40,7 +41,10 @@ class BookAliasStoreTest {
     @Before fun setUp() {
         database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), NextVolDatabase::class.java)
             .allowMainThreadQueries()
-            .setQueryCallback(RoomDatabase.QueryCallback { sql, _ -> queries += sql }, java.util.concurrent.Executor { it.run() })
+            .setQueryCallback(RoomDatabase.QueryCallback { sql, _ ->
+                if (sql.startsWith("select chapter_id_list from volume", ignoreCase = true)) directoryQueries.incrementAndGet()
+                if (sql.startsWith("select", ignoreCase = true) && sql.contains("chapter_information", ignoreCase = true)) chapterQueries.incrementAndGet()
+            }, java.util.concurrent.Executor { it.run() })
             .build()
         aliases = BookAliasStore(database)
     }
@@ -59,11 +63,12 @@ class BookAliasStoreTest {
             Volume("one", "One", listOf(ChapterInformation("old", "Old"))),
             Volume("two", "Two", listOf(ChapterInformation("new", "New"))),
         ))))
-        queries.clear()
+        directoryQueries.set(0)
+        chapterQueries.set(0)
         assertEquals(next.storageKey, local.getChapterContent(old.storageKey)!!.nextChapter)
         assertEquals(next.storageKey, local.getReusableChapterContent(old.storageKey, "revision")!!.nextChapter)
-        assertEquals(2, queries.count { it.startsWith("select chapter_id_list from volume", ignoreCase = true) })
-        assertTrue(queries.none { it.contains("chapter_information", ignoreCase = true) })
+        assertEquals(2, directoryQueries.get())
+        assertEquals(0, chapterQueries.get())
         assertEquals("", database.chapterContentDao().get(old.storageKey)!!.nextChapter)
         assertEquals(body.content, local.getChapterContent(old.storageKey)!!.content)
     }
