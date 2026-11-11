@@ -116,6 +116,9 @@ class MixedSourceAcceptanceTest {
             lateinit var stats: StatsRepository
             lateinit var progress: DownloadProgressRepository
             lateinit var downloads: indi.renakoni.nextvol.data.download.BookDownloadStore
+            var now = 1_000L
+            val checked = context.getSharedPreferences("mixed-directory-checks", android.content.Context.MODE_PRIVATE)
+            checked.edit().clear().apply()
             val decoder = ContentJsonDecoder(ContentComponentRegistry())
             val factory = object : WorkerFactory() {
                 override fun createWorker(appContext: Context, name: String, params: WorkerParameters): ListenableWorker? = when (name) {
@@ -136,7 +139,8 @@ class MixedSourceAcceptanceTest {
                 val scheduler = indi.renakoni.nextvol.data.download.BookDownloadScheduler(downloads, work, local.aliases)
                 shelves = BookshelfRepository(db.bookshelfDao(), scheduler, registry, local.aliases)
                 val text = TextProcessingRepository(mockk { every { enabled } returns false }, mockk { every { enabled } returns false }, ContentComponentRegistry())
-                chapters = ChapterRepository(registry, local, text, mockk(), downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, local, downloads, org.robolectric.RuntimeEnvironment.getApplication()))
+                chapters = ChapterRepository(registry, local, text, mockk(), downloads,
+                    indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, local, downloads, checked) { now })
                 readingData = BookReadingDataRepository(local)
                 books = BookRepository(local, shelves, text, work, chapters, readingData, registry, downloads, mockk(), scheduler)
                 stats = StatsRepository(db.bookRecordDao(), db.dailyCountDao(), books, StatisticsWriteCoordinator())
@@ -235,12 +239,14 @@ class MixedSourceAcceptanceTest {
                 assertFalse(oldRuntime.isAvailable)
 
                 fixture.extraChapter = true
+                now += 600_001
                 val update = awaitWork(OneTimeWorkRequestBuilder<CheckUpdateWork>().build())
                 assertEquals(WorkInfo.State.SUCCEEDED, update.state)
                 assertEquals(2, update.outputData.getInt("updatedCount", -1))
                 assertEquals(0, update.outputData.getInt("failedCount", -1))
                 val entered = CompletableDeferred<Unit>()
                 fixture.afterRun = { entered.complete(Unit); awaitCancellation() }
+                now += 600_001
                 val pending = async { books.refreshBookInformation(identities[1]) }
                 withTimeout(10000) { entered.await() }
                 login.logout(a)

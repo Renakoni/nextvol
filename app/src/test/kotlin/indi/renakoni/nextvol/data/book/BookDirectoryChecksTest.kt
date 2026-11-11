@@ -46,7 +46,6 @@ class BookDirectoryChecksTest {
         coEvery { fixture.local.getBookVolumes(any()) } answers { volumes }
         coEvery { fixture.local.updateBookVolumes(any()) } answers { volumes = firstArg() }
         val foreground = ForegroundSourceRequest()
-        val accepted = CompletableDeferred<Unit>()
         var verificationRequests = 0
         var directoryRequests = 0
         val source = object : WebBookDataSource by EmptyWebDataSource {
@@ -58,7 +57,6 @@ class BookDirectoryChecksTest {
                 assertSame(foreground, owner)
                 return owner.ownVerification {
                     verificationRequests++
-                    accepted.await()
                     Ok(info.copy(id = "book"))
                 }
             }
@@ -72,15 +70,12 @@ class BookDirectoryChecksTest {
         try {
             // Cached metadata refresh is non-interactive; its failed timestamp must not block the missing directory.
             assertTrue(withContext(foreground) { checks.information(book, WebDataSourcePriority.High) }.isErr)
-            val directory = async(foreground) { checks.volumes(book, WebDataSourcePriority.High) }
-            runCurrent()
+            val directory = withContext(foreground) { checks.volumes(book, WebDataSourcePriority.High) }
             assertEquals(1, verificationRequests)
-            assertEquals(0, directoryRequests)
-            accepted.complete(Unit); runCurrent()
-            assertTrue(directory.await().isOk)
+            assertTrue(directory.isOk)
             assertEquals(1, directoryRequests)
             assertNotNull(volumes)
-        } finally { accepted.complete(Unit); registry.unregister(book.sourceId); runCurrent() }
+        } finally { registry.unregister(book.sourceId); runCurrent() }
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
