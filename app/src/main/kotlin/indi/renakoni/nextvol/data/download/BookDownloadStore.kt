@@ -47,6 +47,8 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
     private val bookOperations = ConcurrentHashMap<String, Mutex>()
     private var activeBookOperations = 0 // Guarded by lock, together with ordinary cache cleanup.
     private val files = BookDownloadFiles(context)
+    private val coverWrites = ConcurrentHashMap<SourceBookId, Long>()
+    internal fun coverWriteGeneration(book: SourceBookId): Long = coverWrites[book] ?: 0
 
     companion object {
         private const val GROUP = "hnovel/downloads"
@@ -417,6 +419,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
                 if (resourceVersion.isNotEmpty() && !dao.hasResourceVersion(attempt.book.storageKey, resourceVersion))
                     throw CancellationException("Download image version was replaced")
                 files.publishImage(temporary, target)
+                if (cover) coverWrites.merge(attempt.book, 1L, Long::plus)
             }
         } finally { temporary.delete() }
     }

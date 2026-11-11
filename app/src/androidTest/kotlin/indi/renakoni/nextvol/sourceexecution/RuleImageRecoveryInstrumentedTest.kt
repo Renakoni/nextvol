@@ -12,8 +12,13 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import coil3.ImageLoader
+import coil3.decode.DataSource
 import coil3.disk.DiskCache
+import coil3.intercept.Interceptor
+import coil3.memory.MemoryCache
 import coil3.request.*
+import coil3.size.Size
+import coil3.transform.Transformation
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
 import hnovel.imports.ImportDecision
@@ -33,6 +38,7 @@ import indi.renakoni.nextvol.data.web.rules.SourceLoginService
 import indi.renakoni.nextvol.reader.ReaderLayoutTestActivity
 import indi.renakoni.nextvol.ui.components.BookCoverImage
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.serialization.json.*
 import okhttp3.mockwebserver.*
 import okio.Buffer
@@ -44,6 +50,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.TimeUnit
 
 /** Real rule preparation/HTTP, Coil decoding, login event and rendered pixels on one page. */
@@ -62,12 +69,23 @@ class RuleImageRecoveryInstrumentedTest {
         val sources = ImportedRuleSources(context, registry, authority, accounts, runner)
         val database = Room.inMemoryDatabaseBuilder(context, NextVolDatabase::class.java).build()
         val cache = DiskCache.Builder().directory(File(root, "images").path.toPath()).maxSizeBytes(1024 * 1024).build()
+        val loadingGate = AtomicReference<CompletableDeferred<Unit>?>(null)
+        val loadingStarts = AtomicInteger()
+        val placeholderKey = AtomicReference<MemoryCache.Key?>(null)
         val loader = ImageLoader.Builder(context).diskCache(cache).components {
+            add(Interceptor { chain ->
+                loadingGate.get()?.let { gate ->
+                    placeholderKey.set(chain.request.placeholderMemoryCacheKey)
+                    loadingStarts.incrementAndGet()
+                    gate.await()
+                }
+                chain.proceed()
+            })
             add(SourceImageInterceptor(registry, context,
                 BookDownloadStore(context, database, ContentJsonDecoder(ContentComponentRegistry()))))
             add(SourceImageFetcher.Factory())
         }.build()
-        val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.BLUE) }
+        val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.BLUE) }
         val png = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it); it.toByteArray() }
         bitmap.recycle()
         val fallback = AtomicReference<Boolean?>(null)
@@ -139,6 +157,43 @@ class RuleImageRecoveryInstrumentedTest {
                 compose.waitForIdle()
                 assertEquals("disposed image must not retry", index * 2 + 2, server.requestCount)
             }
+            val completed = AtomicReference<SuccessResult?>(null)
+            val cover = ImageRequest.Builder(context)
+                .data(SourceImage(SourceBookId(id, base + "book"), server.url("/cover").toString(), cover = true))
+                .transformations(object : Transformation() {
+                    override val cacheKey = "cover-fixture"
+                    override suspend fun transform(input: Bitmap, size: Size) = input
+                })
+                .size(4, 4).listener(onSuccess = { _, result -> completed.set(result) }).build()
+            compose.runOnIdle { fallback.set(null); shown = cover }
+            compose.waitUntil(20_000) { fallback.get() == false }
+            val cachedKey = checkNotNull(completed.get()?.memoryCacheKey)
+            assertTrue("retain transformation extras", cachedKey.extras.isNotEmpty())
+            val requestsWithCover = server.requestCount
+            for ((index, next) in listOf(cover, cover.newBuilder().size(8, 8).build(), cover).withIndex()) {
+                compose.runOnIdle { shown = null }
+                compose.waitForIdle()
+                if (index == 2) loader.memoryCache?.clear()
+                val gate = CompletableDeferred<Unit>()
+                loadingGate.set(gate)
+                compose.runOnIdle { fallback.set(null); completed.set(null); shown = next }
+                compose.waitUntil(10_000) { loadingStarts.get() == index + 1 }
+                compose.waitForIdle()
+                if (index < 2) assertEquals(cachedKey, placeholderKey.get())
+                val loading = compose.onNodeWithContentDescription(compose.activity.getString(R.string.cover_description, "Rule fixture"))
+                    .captureToImage().asAndroidBitmap()
+                if (index < 2) assertEquals(Color.BLUE, loading.getPixel(loading.width / 2, loading.height / 2))
+                else assertNotEquals(Color.BLUE, loading.getPixel(loading.width / 2, loading.height / 2))
+                assertNull(fallback.get())
+                loadingGate.set(null)
+                gate.complete(Unit)
+                compose.waitUntil(20_000) { fallback.get() == false }
+                assertEquals(if (index == 0) DataSource.MEMORY_CACHE else DataSource.DISK, completed.get()?.dataSource)
+                if (index == 1) assertTrue("larger target must decode enough pixels", completed.get()!!.image.width >= 8)
+                assertEquals("reuse the original bytes", requestsWithCover, server.requestCount)
+            }
+            compose.runOnIdle { shown = null }
+            compose.waitForIdle()
             val cancelled = AtomicBoolean(false)
             runBlocking { sources.loginTarget(id).session.traceRequests(hnovel.network.RequestTrace {
                 if (it.evidence == hnovel.network.RequestEvidence.Cancelled) cancelled.set(true)
@@ -147,12 +202,12 @@ class RuleImageRecoveryInstrumentedTest {
                 .data(SourceImage(SourceBookId(id, base + "book"), server.url("/slow").toString(), cover = true, preferDownloaded = false))
                 .size(4, 4).build()
             compose.runOnIdle { shown = slow }
-            compose.waitUntil(10_000) { server.requestCount == 9 }
+            compose.waitUntil(10_000) { server.requestCount == requestsWithCover + 1 }
             compose.runOnIdle { shown = null }
             compose.waitUntil(10_000) { cancelled.get() }
             compose.runOnIdle { SourceImageRetryEvents.request(id) }
             compose.waitForIdle()
-            assertEquals("leaving the page cancels the pending body and does not replay it", 9, server.requestCount)
+            assertEquals("leaving the page cancels the pending body and does not replay it", requestsWithCover + 1, server.requestCount)
         } } finally {
             compose.runOnIdle { shown = null }
             compose.waitForIdle()
