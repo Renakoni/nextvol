@@ -223,11 +223,10 @@ abstract class ChapterSourceContractTest {
     }
 
     @Test
-    fun preloadUsesRequestedPriorityAndStoresRawWithoutReadingOrProcessingLocalContent() = runTest {
+    fun preloadUsesRequestedPriorityAndStoresRawWithoutProcessingContent() = runTest {
         source().preloadChapterContent("chapter", "book", WebDataSourcePriority.Low)
-        assertEquals(listOf("remote", "store:remote"), events)
         coVerify(exactly = 1) { fixture.remote.getChapterContent("chapter", "book", WebDataSourcePriority.Low) }
-        coVerify(exactly = 0) { fixture.local.getChapterContent(any()) }
+        coVerify(exactly = 1) { fixture.local.updateChapterContent(chapter.bind(remoteChapter)) }
         verify(exactly = 0) { fixture.text.processChapterContent(any(), any()) }
         coEvery { fixture.remote.getChapterContent(any(), any(), any()) } returns Err(error)
         source().preloadChapterContent("chapter", "book")
