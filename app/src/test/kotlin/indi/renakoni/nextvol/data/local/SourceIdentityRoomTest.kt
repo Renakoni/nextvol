@@ -230,7 +230,7 @@ class SourceIdentityRoomTest {
             val chapter = SourceChapterId(book, "9")
             assertEquals(title, local.getBookInformation(book.storageKey)!!.title)
             assertEquals(chapter.storageKey, local.getBookVolumes(book.storageKey)!!.volumes.single().chapters.single().id)
-            assertEquals(SourceChapterId(book, "10").storageKey, local.getChapterContent(chapter.storageKey)!!.nextChapter)
+            assertEquals(title, local.getChapterContent(chapter.storageKey)!!.title)
             assertEquals(chapter.storageKey, local.getUserReadingDataFlow(book.storageKey).first().lastReadChapterId)
         }
         db.chapterContentDao().deleteByIds(listOf(SourceChapterId(a, "9").storageKey))

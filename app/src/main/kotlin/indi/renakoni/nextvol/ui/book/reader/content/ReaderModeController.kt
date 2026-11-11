@@ -14,6 +14,7 @@ interface ReaderModeController {
     fun loadNextChapter()
     fun loadPrevChapter()
     fun changeChapter(id: String)
+    fun updateNavigation(navigation: indi.renakoni.nextvol.data.book.ChapterNavigation) = Unit
 
     /** Flush only a position authorized by this mode, never its display-only progress. */
     fun flushProgress() = Unit

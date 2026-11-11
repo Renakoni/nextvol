@@ -47,6 +47,9 @@ interface BookVolumesDao {
     @Query("select * from volume where book_id = :bookId")
     suspend fun getVolumeEntitiesByBookId(bookId: String): List<VolumeEntity>
 
+    @Query("select chapter_id_list from volume where book_id = :bookId order by volume_index")
+    suspend fun getChapterIdLists(bookId: String): List<String>
+
     @Query("select * from volume where book_id in (:bookIds)")
     suspend fun getVolumeEntitiesByBookIds(bookIds: List<String>): List<VolumeEntity>
 

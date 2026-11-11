@@ -5,6 +5,7 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.get
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.data.book.BookReadingDataAccess
+import indi.renakoni.nextvol.data.book.ChapterNavigation
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderChapterLoader
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderModeController
@@ -53,6 +54,8 @@ class FlipReaderController(
     private class Request(val bookId: String, val chapterId: String, var committed: Boolean)
     @Volatile private var request: Request? = null
     private var chapterLoadJob: Job? = null
+    private var preloadJob: Job? = null
+    private var navigation: ChapterNavigation? = null
     private val readingMetadataMutex = Mutex()
 
     init { progress.start() }
@@ -66,6 +69,8 @@ class FlipReaderController(
         if (uiState.bookId == id) return
         request = null
         chapterLoadJob?.cancel()
+        preloadJob?.cancel()
+        navigation = null
         latestRequestedChapterId = null
         uiState.pendingChapter = null
         progress.resetForChapter()
@@ -77,6 +82,15 @@ class FlipReaderController(
 
     override fun loadNextChapter() = loadAdjacent(previous = false, entry = ChapterEntry.Start)
     override fun loadPrevChapter() = loadAdjacent(previous = true, entry = ChapterEntry.Start)
+
+    override fun updateNavigation(navigation: ChapterNavigation) {
+        if (indi.renakoni.nextvol.data.book.BookIdentity.bookKey(navigation.bookId) !=
+            indi.renakoni.nextvol.data.book.BookIdentity.bookKey(uiState.bookId)) return
+        this.navigation = navigation
+        uiState.pendingChapter?.result?.get()?.updateNavigation(navigation)
+        val content = uiState.readingChapterContent?.get() ?: return
+        if (content.updateNavigation(navigation)) preload(content, uiState.bookId)
+    }
 
     private fun loadAdjacent(previous: Boolean, entry: ChapterEntry) {
         val content = uiState.readingChapterContent?.get() ?: return
@@ -104,11 +118,13 @@ class FlipReaderController(
 
     private fun loadChapter(id: String, entry: ChapterEntry) {
         chapterLoadJob?.cancel()
+        preloadJob?.cancel()
         val expected = Request(uiState.bookId, id, committed = entry == ChapterEntry.Restore).also { request = it }
         if (!expected.committed) uiState.pendingChapter = FlipChapterTransition(id, entry)
         chapterLoadJob = coroutineScope.launch {
             chapters.load(id, expected.bookId, WebDataSourcePriority.High).flowOn(ioDispatcher).collect { result ->
                 if (!isCurrent(expected)) return@collect
+                result.onOk { it.updateNavigation(navigation) }
                 if (!expected.committed) {
                     // Keep the displayed chapter and its progress until the UI has real pages.
                     uiState.pendingChapter = FlipChapterTransition(id, entry, result)
@@ -165,6 +181,13 @@ class FlipReaderController(
             }
         }
         if (!isCurrent(expected)) return
-        content.nextChapter?.let { withContext(ioDispatcher) { chapters.preload(it, expected.bookId) } }
+        preload(content, expected.bookId)
+    }
+
+    private fun preload(content: ChapterContentUiState, bookId: String) {
+        preloadJob?.cancel()
+        preloadJob = content.nextChapter?.let { next ->
+            coroutineScope.launch(ioDispatcher) { chapters.preload(next, bookId) }
+        }
     }
 }

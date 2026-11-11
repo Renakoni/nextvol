@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.data.book
 
 import android.app.Application
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.LocalBookDataSource
 import indi.renakoni.nextvol.data.local.room.entity.BookshelfBookMetadataEntity
@@ -29,6 +30,8 @@ import java.time.LocalDateTime
 class BookAliasStoreTest {
     private lateinit var database: NextVolDatabase
     private lateinit var aliases: BookAliasStore
+    private val directoryQueries = java.util.concurrent.atomic.AtomicInteger()
+    private val chapterQueries = java.util.concurrent.atomic.AtomicInteger()
     private val source = Identifier("rules", "fixture")
     private val first = SourceBookId(source, "https://example.test/novel/1")
     private val second = SourceBookId(source, "https://example.test/novel/2")
@@ -37,11 +40,38 @@ class BookAliasStoreTest {
 
     @Before fun setUp() {
         database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), NextVolDatabase::class.java)
-            .allowMainThreadQueries().build()
+            .allowMainThreadQueries()
+            .setQueryCallback(RoomDatabase.QueryCallback { sql, _ ->
+                if (sql.startsWith("select chapter_id_list from volume", ignoreCase = true)) directoryQueries.incrementAndGet()
+                if (sql.startsWith("select", ignoreCase = true) && sql.contains("chapter_information", ignoreCase = true)) chapterQueries.incrementAndGet()
+            }, java.util.concurrent.Executor { it.run() })
+            .build()
         aliases = BookAliasStore(database)
     }
 
     @After fun tearDown() { database.close() }
+
+    @Test fun cachedBodyUsesLatestNavigationWithoutReadingChapterMetadataOrRewritingItsSnapshot() = runBlocking {
+        val local = LocalBookDataSource(database.bookInformationDao(), database.bookVolumesDao(),
+            database.chapterContentDao(), database.userReadingDataDao(), aliases)
+        val old = SourceChapterId(first, "old")
+        val next = SourceChapterId(first, "new")
+        val body = old.bind(ChapterContent("old", "Saved", JsonObject(emptyMap())))
+        local.updateChapterContent(body, "revision")
+        assertEquals(body, local.getReusableChapterContent(old.storageKey, "revision"))
+        local.updateBookVolumes(first.bind(BookVolumes(first.remoteId, listOf(
+            Volume("one", "One", listOf(ChapterInformation("old", "Old"))),
+            Volume("two", "Two", listOf(ChapterInformation("new", "New"))),
+        ))))
+        directoryQueries.set(0)
+        chapterQueries.set(0)
+        assertEquals(next.storageKey, local.getChapterContent(old.storageKey)!!.nextChapter)
+        assertEquals(next.storageKey, local.getReusableChapterContent(old.storageKey, "revision")!!.nextChapter)
+        assertEquals(2, directoryQueries.get())
+        assertEquals(0, chapterQueries.get())
+        assertEquals("", database.chapterContentDao().get(old.storageKey)!!.nextChapter)
+        assertEquals(body.content, local.getChapterContent(old.storageKey)!!.content)
+    }
 
     private fun info(book: SourceBookId) = book.bind(BookInformation(book.remoteId, "Fixture",
         author = "Author", description = "", publishingHouse = "", wordCount = WordCount(1),

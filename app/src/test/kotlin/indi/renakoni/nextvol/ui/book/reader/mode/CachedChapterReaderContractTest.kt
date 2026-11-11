@@ -5,6 +5,7 @@ import android.app.Application
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.get
 import indi.renakoni.nextvol.data.book.BookRepositoryFixture
+import indi.renakoni.nextvol.data.book.ChapterNavigation
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderChapterLoader
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderModeController
 import io.mockk.coEvery
@@ -12,6 +13,9 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.verify
 import io.nightfish.lightnovelreader.api.book.ChapterContent
+import io.nightfish.lightnovelreader.api.book.BookVolumes
+import io.nightfish.lightnovelreader.api.book.ChapterInformation
+import io.nightfish.lightnovelreader.api.book.Volume
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
@@ -33,6 +37,55 @@ abstract class CachedChapterReaderContractTest {
     protected abstract fun controller(loader: ReaderChapterLoader): ReaderModeController
 
     @After fun tearDown() = env.close()
+
+    @Test
+    fun appendedAndReorderedDirectoryUpdatesNavigationWithoutReplacingTheCachedBody() {
+        val book = BookIdentity.book("book")
+        fun key(id: String) = BookIdentity.chapter(id, book).storageKey
+        fun directory(vararg ids: String) = ChapterNavigation(BookVolumes("book", ids.mapIndexed { index, id ->
+            Volume("volume-$index", "Volume", listOf(ChapterInformation(key(id), id)))
+        }))
+        coEvery { fixture.local.getReusableChapterContent(key("cached"), any()) } returns
+            env.chapter(key("cached"), title = "cached")
+        coEvery { fixture.local.getReusableChapterContent(key("new"), any()) } returns
+            env.chapter(key("new"), title = "new")
+        coEvery { fixture.local.getReusableChapterContent(key("before"), any()) } returns
+            env.chapter(key("before"), title = "before")
+        every { fixture.text.processChapterContent(any(), any()) } answers { secondArg<() -> ChapterContent>()() }
+        val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer))
+        env.runCurrent()
+        mode.changeBookId("book")
+        mode.updateNavigation(directory("cached"))
+        mode.changeChapter(key("cached")); env.runCurrent()
+        val content = mode.uiState.readingChapterContent!!.get()!!
+        val progress = mode.uiState.readingProgress
+        val writes = env.records.writes.size
+
+        mode.updateNavigation(directory("cached", "new")); env.runCurrent()
+        assertEquals(key("new"), content.nextChapter)
+        mode.updateNavigation(directory("before", "cached", "new", "cached")); env.runCurrent()
+        assertEquals(key("before"), content.prevChapter)
+        assertEquals(key("new"), content.nextChapter)
+        assertSame(content, mode.uiState.readingChapterContent!!.get())
+        assertEquals(progress, mode.uiState.readingProgress)
+        assertEquals(writes, env.records.writes.size)
+        verify(exactly = 1) { env.renderer.getContentDataFromJson(any()) }
+        coVerify(atLeast = 1) { fixture.local.getReusableChapterContent(key("new"), any()) }
+        coVerify(exactly = 0) { fixture.remote.getChapterContent(any(), any(), any()) }
+
+        mode.updateNavigation(directory("new")); env.runCurrent()
+        assertEquals(null, content.prevChapter)
+        assertEquals(null, content.nextChapter)
+        assertSame(content, mode.uiState.readingChapterContent!!.get())
+
+        mode.updateNavigation(directory("cached", "new"))
+        mode.changeChapter(key("cached")); env.runCurrent()
+        assertEquals(key("new"), mode.uiState.readingChapterContent!!.get()!!.nextChapter)
+        mode.loadNextChapter(); env.runCurrent()
+        // Flip mode stages the new chapter until its pages commit; scroll opens it directly.
+        coVerify(atLeast = 2) { fixture.local.getReusableChapterContent(key("new"), any()) }
+        coVerify(exactly = 0) { fixture.remote.getChapterContent(any(), any(), any()) }
+    }
 
     @Test
     fun delayedRefreshFailurePreservesDisplayedCacheWithoutRenderingOrWritingAgain() {

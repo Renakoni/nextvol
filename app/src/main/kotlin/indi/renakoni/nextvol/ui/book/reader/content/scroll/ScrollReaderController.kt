@@ -82,19 +82,22 @@ class ScrollReaderController(
         chaptersWindow.changeBookId(id)
     }
 
+    override fun updateNavigation(navigation: indi.renakoni.nextvol.data.book.ChapterNavigation) =
+        chaptersWindow.updateNavigation(navigation)
+
     override fun loadNextChapter() {
         uiState.readingChapterContent?.onOk { readingChapterContent ->
-            if (!readingChapterContent.hasNextChapter()) return
-            positionNavigation(uiState.bookId, readingChapterContent.nextChapter ?: return, false)
-            chaptersWindow.changeChapter(readingChapterContent.nextChapter, restoreProgress = false)
+            val next = readingChapterContent.nextChapter ?: return
+            positionNavigation(uiState.bookId, next, false)
+            chaptersWindow.changeChapter(next, restoreProgress = false)
         }
     }
 
     override fun loadPrevChapter() {
         uiState.readingChapterContent?.onOk { readingChapterContent ->
-            if (!readingChapterContent.hasPrevChapter()) return
-            positionNavigation(uiState.bookId, readingChapterContent.prevChapter ?: return, false)
-            chaptersWindow.changeChapter(readingChapterContent.prevChapter, restoreProgress = false)
+            val previous = readingChapterContent.prevChapter ?: return
+            positionNavigation(uiState.bookId, previous, false)
+            chaptersWindow.changeChapter(previous, restoreProgress = false)
         }
     }
 
