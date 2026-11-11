@@ -198,19 +198,28 @@ class SourceImageTest {
         val cache = coil3.disk.DiskCache.Builder().directory(okio.Path.Companion.run {
             java.nio.file.Files.createTempDirectory("source-image-cache").toString().toPath()
         }).maxSizeBytes(1024 * 1024).build()
-        val loader = ImageLoader.Builder(context).diskCache(cache).components {
+        var decodes = 0
+        val loader = ImageLoader.Builder(context).diskCache(cache).eventListener(object : coil3.EventListener() {
+            override fun decodeStart(request: ImageRequest, decoder: coil3.decode.Decoder, options: Options) { decodes++ }
+        }).components {
             add(SourceImageInterceptor(registry, context, mockk { coEvery { image(any()) } returns null })); add(SourceImageFetcher.Factory())
         }.build()
         suspend fun load(cover: Boolean) = loader.execute(ImageRequest.Builder(context)
             .data(SourceImage(a, url, cover)).size(2, 2).build())
         try {
-            assertTrue(load(true) is SuccessResult)
-            assertTrue(load(false) is SuccessResult)
+            assertEquals(DataSource.NETWORK, (load(true) as SuccessResult).dataSource)
+            assertEquals(DataSource.NETWORK, (load(false) as SuccessResult).dataSource)
             assertEquals(listOf("same" to true, "same" to false), calls)
+            assertEquals(2, decodes)
+            assertEquals(SourceImageSize(2, 2), SourceImageSizes(context).get(SourceImage(a, url)))
+            assertEquals(DataSource.MEMORY_CACHE, (load(false) as SuccessResult).dataSource)
+            assertEquals(2, decodes)
             registry.unregister(a.sourceId)
             loader.memoryCache?.clear()
             assertEquals(DataSource.DISK, (load(true) as SuccessResult).dataSource)
             assertEquals(DataSource.DISK, (load(false) as SuccessResult).dataSource)
+            assertEquals(4, decodes)
+            assertEquals(2, calls.size)
             loader.memoryCache?.clear(); cache.clear()
             assertFalse(load(true) is SuccessResult)
             assertEquals(2, calls.size)

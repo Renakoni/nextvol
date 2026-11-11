@@ -43,7 +43,7 @@ class ScrollChapterRepositoryTest {
         }
         every { fixture.text.processChapterContent(any(), any()) } answers { secondArg<() -> ChapterContent>()() }
         return ScrollReaderController(
-            ReaderChapterLoader(fixture.chapterRepository(), env.renderer), env.records, env.scope,
+            ReaderChapterLoader(fixture.chapterRepository(), env.renderer, io.mockk.mockk(relaxed = true)), env.records, env.scope,
             object : ContinuousScrollSettings {
                 override fun getFlow() = flowOf(true)
                 override suspend fun isEnabled(): Boolean { settingsGates.removeFirstOrNull()?.await(); return true }

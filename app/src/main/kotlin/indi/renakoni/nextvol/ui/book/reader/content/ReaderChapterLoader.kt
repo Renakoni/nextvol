@@ -18,6 +18,7 @@ import javax.inject.Singleton
 class ReaderChapterLoader @Inject constructor(
     private val chapterSource: ChapterSource,
     private val contentRenderer: ContentRenderer,
+    private val imageSizes: indi.renakoni.nextvol.data.image.SourceImageSizes,
 ) {
     fun load(
         chapterId: String,
@@ -42,7 +43,12 @@ class ReaderChapterLoader @Inject constructor(
                         prevChapter = it.prevChapter,
                         nextChapter = it.nextChapter,
                         source = bookId to it,
-                    )
+                    ).also { chapter ->
+                        chapter.images.values.forEach { image ->
+                            image.size = imageSizes.get(indi.renakoni.nextvol.data.image.SourceImage(
+                                indi.renakoni.nextvol.data.book.BookIdentity.book(bookId), image.uri.toString(), chapterId = it.id))
+                        }
+                    }
                 }
             }
         }.flowOn(if (interactive) kotlin.coroutines.EmptyCoroutineContext

@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -36,6 +38,12 @@ import indi.renakoni.nextvol.ui.book.reader.LocalReaderTextLayout
 import indi.renakoni.nextvol.ui.book.reader.ReaderSettings
 import indi.renakoni.nextvol.ui.book.reader.rememberReaderTextLayout
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderChapterImages
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageResize
+import indi.renakoni.nextvol.ui.book.reader.content.ReaderImageResource
+import indi.renakoni.nextvol.data.image.SourceImageSize
+import androidx.compose.ui.platform.LocalDensity
+import indi.renakoni.nextvol.ui.book.reader.content.componet.WindowedReaderImage
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderSpeechFollow
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSpeechFollow
 import indi.renakoni.nextvol.tts.SpeechPosition
@@ -277,14 +285,19 @@ class ScrollTextWindowTest {
         assertBoundedText()
     }
 
-    @Test fun bookmarkAfterAResizedOpaqueComponentUsesItsNewPlacedOrigin() {
+    @Test fun imageResizePreservesTheVisibleAnchorAndSubsequentBookmarkPlacement() {
         following = false
-        var componentHeight by mutableStateOf(80.dp)
+        lateinit var resize: suspend (ReaderImageResource, SourceImageSize) -> Unit
+        lateinit var resource: ReaderImageResource
         val resizable = object : AbstractContentComponent<ImageComponentData>(
             ImageComponentData(Uri.parse("file:///fixture.png"))) {
             override val id = ImageComponentData.id
             @Composable override fun Content(modifier: Modifier) {
-                Spacer(modifier.height(componentHeight))
+                val currentResize = LocalReaderImageResize.current
+                val currentResource = LocalReaderChapterImages.current.values.first { it.uri == data.uri }
+                SideEffect { resize = currentResize; resource = currentResource }
+                val height = with(LocalDensity.current) { currentResource.size?.height?.toDp() ?: 80.dp }
+                Spacer(modifier.height(height).width(260.dp))
             }
         }
         val components = chapterText.split('\n').map(::textComponent).toMutableList<AbstractContentComponent<*>>()
@@ -303,10 +316,47 @@ class ScrollTextWindowTest {
             return state.lazyListState.firstVisibleItemScrollOffset
         }
         val before = restore()
-        compose.runOnIdle { componentHeight = 280.dp }
+        compose.runOnIdle { scope.launch {
+            val density = activity.get().resources.displayMetrics.density
+            resize(resource, SourceImageSize((260 * density).toInt(), (280 * density).toInt()))
+        } }
         compose.waitForIdle()
         assertEquals(200 * activity.get().resources.displayMetrics.density,
+            (state.lazyListState.firstVisibleItemScrollOffset - before).toFloat(), 1f)
+        assertEquals(200 * activity.get().resources.displayMetrics.density,
             (restore() - before).toFloat(), 1f)
+    }
+
+    @Test fun composedImageChapterOnlyStartsTheViewportAndNeighbours() {
+        following = false
+        val started = mutableSetOf<Int>()
+        val disposed = mutableSetOf<Int>()
+        val components = (0 until 30).flatMap { index ->
+            listOf(textComponent("PARAGRAPH_%03d".format(index)),
+                object : AbstractContentComponent<ImageComponentData>(ImageComponentData(Uri.parse("file:///image-$index.png"))) {
+                    override val id = ImageComponentData.id
+                    @Composable override fun Content(modifier: Modifier) {
+                        val resource = LocalReaderChapterImages.current.values.first { it.uri == data.uri }
+                        WindowedReaderImage(resource, modifier) { _ ->
+                            DisposableEffect(resource) {
+                                started += index
+                                onDispose { disposed += index }
+                            }
+                            Box(Modifier.height(200.dp))
+                        }
+                    }
+                })
+        }
+        mount(0f, sourceComponents = components)
+        awaitBody()
+        compose.waitUntil { started.isNotEmpty() }
+        compose.waitForIdle()
+        assertTrue("Far images must remain placeholders: $started", started.size <= 4)
+        compose.runOnIdle { scope.launch { state.lazyListState.scrollToItem(1, 4000) } }
+        compose.waitForIdle()
+        assertTrue("Moving the window releases its old painters", disposed.isNotEmpty())
+        assertTrue("The new viewport must be prepared", started.any { it > 4 })
+        assertTrue("Scrolling must not decode all composed images", started.size < 12)
     }
 
     private fun assertBoundedText() {

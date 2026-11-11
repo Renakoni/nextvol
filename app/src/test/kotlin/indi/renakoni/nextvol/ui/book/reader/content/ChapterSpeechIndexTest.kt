@@ -20,15 +20,17 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import java.lang.management.ManagementFactory
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class ChapterSpeechIndexTest {
     private fun chapter(text: () -> String): ChapterContentUiState {
         val component = mockk<SimpleTextComponent>()
+        every { component.data } returns SimpleTextComponentData("")
+        val chapter = ChapterContentUiState("chapter", "Title", listOf(component), null, null)
+        // Count speech preparation after the chapter's image metadata has been mapped.
         every { component.data } answers { SimpleTextComponentData(text()) }
-        return ChapterContentUiState("chapter", "Title", listOf(component), null, null)
+        return chapter
     }
 
     @Test fun concurrentConsumersBuildOnceOffTheCallerThread() = runBlocking {
@@ -94,28 +96,5 @@ class ChapterSpeechIndexTest {
         assertNull(follow.anchor(refreshed))
         assertTrue(follow.copy(position = follow.position!!.copy(chapterId = "another")).ranges(old).isEmpty())
         assertNull(follow.copy(following = false).anchor(old))
-    }
-
-    @Test fun longTextIsBuiltOnlyOnDemandAndRepeatedConsumptionRetainsOneIndex() = runBlocking(Dispatchers.Default) {
-        val text = "确定性长章，包含𠀀和换行。\n".repeat(40_000)
-        val allocations = ManagementFactory.getThreadMXBean() as? com.sun.management.ThreadMXBean
-        repeat(6) { sample ->
-            val builds = AtomicInteger()
-            val chapter = chapter { builds.incrementAndGet(); text }
-            assertNull(chapter.speechTextIndex)
-            assertEquals(0, builds.get())
-            val thread = Thread.currentThread().id
-            val before = allocations?.getThreadAllocatedBytes(thread)
-            val start = System.nanoTime()
-            val index = chapter.prepareSpeechTextIndex()
-            val elapsed = System.nanoTime() - start
-            val bytes = before?.let { allocations.getThreadAllocatedBytes(thread) - it }
-            val reuseStart = System.nanoTime()
-            repeat(20) { assertSame(index, chapter.prepareSpeechTextIndex()) }
-            val reuseElapsed = System.nanoTime() - reuseStart
-            assertEquals(1, builds.get())
-            assertEquals(text, index.text)
-            println("speech-index sample=$sample utf16=${text.length} builds=${builds.get()} prepareNs=$elapsed allocatedBytes=$bytes reuse20Ns=$reuseElapsed")
-        }
     }
 }

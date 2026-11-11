@@ -51,7 +51,7 @@ internal class SourceImageFetcher(private val request: BoundSourceImage, private
     private suspend fun fetchAndStore(runtime: SourceRuntime): ByteArray {
         val result = runtime.imageBytes(request.image.book.remoteId, request.image.uri, request.image.cover)
         val bytes = result.getOrElse { throw SourceImageRequestException(it) }
-        validateOriginalImage(bytes)
+        val size = validateOriginalImage(bytes)
         if (options.diskCachePolicy.writeEnabled && cache != null) {
             cache.openEditor(request.key)?.let { editor ->
                 try {
@@ -65,6 +65,7 @@ internal class SourceImageFetcher(private val request: BoundSourceImage, private
                 }
             }
         }
+        SourceImageSizes(options.context).put(request.image, size)
         return bytes
     }
 

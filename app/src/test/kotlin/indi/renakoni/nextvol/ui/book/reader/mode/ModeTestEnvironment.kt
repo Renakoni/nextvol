@@ -50,7 +50,7 @@ internal class ModeTestEnvironment(context: CoroutineContext = EmptyCoroutineCon
             ContentData.empty()
         }
     }
-    val loader = ReaderChapterLoader(chapters, renderer)
+    val loader = ReaderChapterLoader(chapters, renderer, io.mockk.mockk(relaxed = true))
 
     fun runCurrent() {
         Snapshot.sendApplyNotifications()

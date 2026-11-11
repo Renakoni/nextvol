@@ -27,6 +27,12 @@ class ChapterContentUiState(
     // Exact processed source, scoped to its book, for reuse by the active scroll window.
     internal val source: Pair<String, ChapterContent>? = null,
 ) {
+    internal val images = content.mapIndexedNotNull { index, component ->
+        (component.data as? io.nightfish.lightnovelreader.api.content.component.ImageComponentData)?.let {
+            index to ReaderImageResource(it.uri)
+        }
+    }.toMap()
+
     var prevChapter by mutableStateOf(prevChapter)
         private set
     var nextChapter by mutableStateOf(nextChapter)

@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.Constraints
 import indi.renakoni.nextvol.ui.book.reader.ReaderBodyGeometry
 import indi.renakoni.nextvol.ui.book.reader.readerBodyGeometry
 import indi.renakoni.nextvol.ui.book.reader.content.componet.LocalReaderImageScale
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderChapterImages
+import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderImageResource
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
 import kotlin.math.roundToInt
 
@@ -58,7 +60,9 @@ internal fun ReaderSpreadContent(
             mapping.leavesOnScreen(screen).forEachIndexed { order, leaf ->
                 key(leaf) {
                     Box(Modifier.testTag("reader-leaf-$leaf").semantics { isTraversalGroup = true; traversalIndex = order.toFloat() }) {
-                        CompositionLocalProvider(LocalReaderImageScale provides ContentScale.Fit) {
+                        val component = (pages.getOrNull(leaf) as? ReaderPage)?.anchor?.componentIndex
+                        CompositionLocalProvider(LocalReaderImageScale provides ContentScale.Fit,
+                            LocalReaderImageResource provides LocalReaderChapterImages.current[component]) {
                             pages.getOrNull(leaf)?.Content(Modifier.fillMaxSize())
                         }
                     }

@@ -49,7 +49,7 @@ class ReaderChapterRefreshTest {
             else chapter
         }
         return ScrollReaderController(
-            ReaderChapterLoader(fixture.chapterRepository(), env.renderer), env.records, env.scope,
+            ReaderChapterLoader(fixture.chapterRepository(), env.renderer, io.mockk.mockk(relaxed = true)), env.records, env.scope,
             object : ContinuousScrollSettings {
                 override fun getFlow() = flowOf(false)
                 override suspend fun isEnabled() = false
