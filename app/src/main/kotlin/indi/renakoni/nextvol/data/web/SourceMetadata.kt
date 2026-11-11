@@ -20,6 +20,7 @@ data class SourceMetadata(
 }
 
 enum class SourceStatus { Registered, Initializing, Ready, Failed }
+enum class SourceRestoration { Restoring, Ready, Failed }
 
 data class SourceListing(val metadata: SourceMetadata, val status: SourceStatus, val generation: Long = 0,
     val resolvedFeed: Boolean? = null, val discoveryGeneration: Long = 0)

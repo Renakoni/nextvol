@@ -12,7 +12,6 @@ import dagger.hilt.android.HiltAndroidApp
 import indi.renakoni.nextvol.data.logging.LogLevel
 import indi.renakoni.nextvol.data.logging.LoggerRepository
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
-import indi.renakoni.nextvol.data.web.SourceCategory
 import indi.renakoni.nextvol.data.web.SourceNetworkSettings
 import indi.renakoni.nextvol.data.web.WebBookDataSourceManager
 import indi.renakoni.nextvol.defaultplugin.wenku8.Wenku8Api
@@ -21,7 +20,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import javax.inject.Inject
 
@@ -43,7 +41,7 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
         }
         .build()
 
-    private val coroutineScope = CoroutineScope(Dispatchers.IO)
+    private val coroutineScope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var loggerRepository: LoggerRepository
     @Inject lateinit var userDataRepository: UserDataRepository
@@ -90,22 +88,23 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
         if (BuildConfig.DEBUG) {
             System.setProperty("kotlinx.coroutines.debug", "on")
         }
-        // Discovery treats the first registry snapshot as authoritative, including imported sources.
-        // Async startup must add explicit registration readiness before exposing missing/empty states.
-        startupPhase("sources") { runBlocking {
-            startupPhase("builtin-source") {
-                webBookDataSourceManager.loadBuiltInSource(
-                    Wenku8Api(wenku8SearchSupport) { id -> sourceNetworkSettings.forSource(id).snapshot() },
-                    SourceCategory.Anime,
-                )
+        // Only the metadata snapshot gates online lookups. Each source prepares its runtime on use.
+        webBookDataSourceManager.registry.restoreIn(coroutineScope) {
+            startupPhase("sources") {
+                startupPhase("builtin-source") {
+                    webBookDataSourceManager.registry.register(Wenku8Api.METADATA) {
+                        Wenku8Api(wenku8SearchSupport) { id -> sourceNetworkSettings.forSource(id).snapshot() }
+                    }
+                }
+                startupPhase("imported-sources") { importedRuleSources.restore() }
+                startupPhase("zlibrary-source") { zLibrarySources.restore() }
             }
-            startupPhase("imported-sources") { importedRuleSources.restore() }
-            startupPhase("zlibrary-source") { zLibrarySources.restore() }
-        } }
-        if (BuildConfig.BENCHMARK) {
-            android.util.Log.i("NextVolStartup", "snapshot timeNs=${android.os.SystemClock.elapsedRealtimeNanos()} " +
-                "count=${webBookDataSourceManager.registry.sources.value.size} " +
-                "importedFailed=${importedRuleSources.restorationFailed} zlibraryFailed=${zLibrarySources.state.value.restorationFailed}")
+            if (BuildConfig.BENCHMARK) {
+                android.util.Log.i("NextVolStartup", "snapshot timeNs=${android.os.SystemClock.elapsedRealtimeNanos()} " +
+                    "count=${webBookDataSourceManager.registry.sources.value.size} " +
+                    "importedFailed=${importedRuleSources.restorationFailed} zlibraryFailed=${zLibrarySources.state.value.restorationFailed}")
+            }
+            !importedRuleSources.restorationFailed && !zLibrarySources.state.value.restorationFailed
         }
         coroutineScope.launch(Dispatchers.IO) {
             runCatching { startupPhase("local-metadata") { localBooks.restoreMetadata() } }

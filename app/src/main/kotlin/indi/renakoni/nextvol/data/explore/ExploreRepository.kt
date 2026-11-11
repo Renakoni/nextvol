@@ -20,8 +20,10 @@ import javax.inject.Singleton
 @Singleton
 class ExploreRepository @Inject constructor(private val registry: WebSourceRegistry) {
     suspend fun open(id: Identifier): Result<SourceSearch, SourceSearchFailure> {
+        registry.awaitRestoration()
         val metadata = registry.sources.value.firstOrNull { it.metadata.id == id }?.metadata
-            ?: return Err(SourceSearchFailure(DiscoveryError.Unavailable))
+            ?: return Err(SourceSearchFailure(if (registry.restoration.value == SourceRestoration.Failed)
+                DiscoveryError.InvalidRules else DiscoveryError.Unavailable))
         if (SourceCapability.Search !in metadata.capabilities) return Err(SourceSearchFailure(DiscoveryError.Unsupported))
         return try {
             when (val resolution = registry.resolve(id)) {

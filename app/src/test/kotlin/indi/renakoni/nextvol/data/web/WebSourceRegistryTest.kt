@@ -41,6 +41,39 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class WebSourceRegistryTest {
+    @Test(timeout = 10000)
+    fun restorationGatesAuthoritativeSnapshotsAndDistinguishesEmptyFromFailed() = runBlocking {
+        val registry = WebSourceRegistry()
+        val release = CompletableDeferred<Unit>()
+        val meta = metadata("restoring")
+        registry.restoreIn(this) {
+            registry.register(meta) { CountingSource(meta.id) }
+            release.await()
+            true
+        }
+        val snapshot = async(start = CoroutineStart.UNDISPATCHED) { registry.restoredSources.first() }
+        val resolution = async(start = CoroutineStart.UNDISPATCHED) { registry.resolve(meta.id) }
+        assertEquals(SourceRestoration.Restoring, registry.restoration.value)
+        assertFalse(snapshot.isCompleted)
+        assertFalse(resolution.isCompleted)
+        release.complete(Unit)
+        try {
+            assertEquals(meta, snapshot.await().single().metadata)
+            assertTrue(resolution.await() is SourceResolution.Ready)
+            assertEquals(SourceRestoration.Ready, registry.restoration.value)
+        } finally { registry.unregister(meta.id) }
+
+        val empty = WebSourceRegistry()
+        empty.restoreIn(this) { true }
+        assertTrue(empty.restoredSources.first().isEmpty())
+        assertTrue(empty.resolve(meta.id) is SourceResolution.Missing)
+        val failed = WebSourceRegistry()
+        failed.restoreIn(this) { error("Unreadable snapshot") }
+        assertTrue(failed.restoredSources.first().isEmpty())
+        assertEquals(SourceRestoration.Failed, failed.restoration.value)
+        assertTrue(failed.resolve(meta.id) is SourceResolution.Unavailable)
+    }
+
     @Test fun failedBatchPublishesSuccessfulRegistrationsAndLeavesRuntimeChangesImmediate() {
         val registry = WebSourceRegistry()
         val imported = metadata("a").copy(revision = "revision", accountGeneration = 3)
@@ -48,8 +81,8 @@ class WebSourceRegistryTest {
         try {
             assertThrows(IllegalStateException::class.java) {
                 registry.registerBatch { register ->
-                    register(source, imported)
-                    assertThrows(IllegalArgumentException::class.java) { register(source, imported) }
+                    register(imported) { source }
+                    assertThrows(IllegalArgumentException::class.java) { register(imported) { source } }
                     assertTrue(registry.sources.value.isEmpty())
                     error("Interrupted restore")
                 }

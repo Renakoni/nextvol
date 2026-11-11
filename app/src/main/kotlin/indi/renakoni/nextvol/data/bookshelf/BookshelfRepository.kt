@@ -135,12 +135,11 @@ class BookshelfRepository @Inject constructor(
                 bookshelf.copy(allBookIds = bookshelf.allBookIds + bookId)
             )
             // Metadata-only sources remain bookmarkable without an impossible download.
-            BookIdentity.book(bookId).takeIf { book ->
-                bookshelf.autoCache && sourceRegistry.sources.value.any {
-                    it.metadata.id == book.sourceId && it.metadata.supportsReading
-                }
-            }
+            BookIdentity.book(bookId).takeIf { bookshelf.autoCache }
         } ?: return
+        if (indi.renakoni.nextvol.data.localbook.LocalBookStore.isLocal(automaticDownload)) return
+        sourceRegistry.awaitRestoration()
+        if (sourceRegistry.sources.value.none { it.metadata.id == automaticDownload.sourceId && it.metadata.supportsReading }) return
         // Work submission must not run inside the bookshelf transaction or undo a saved bookmark.
         val submission = withContext(Dispatchers.IO) {
             downloadScheduler.submit(automaticDownload, resumePrevious = false)

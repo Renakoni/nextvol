@@ -40,6 +40,7 @@ class SourceImageInterceptor @Inject constructor(
             return chain.withRequest(chain.request.newBuilder().data(image.uri).build()).proceed()
         }
         val indexKey = sourceImageCacheKey(image, "")
+        registry.awaitRestoration()
         val listing = registry.sources.value.firstOrNull { it.metadata.id == image.book.sourceId }
         if (listing?.status == SourceStatus.Failed) {
             val failure = registry.resolve(image.book.sourceId)

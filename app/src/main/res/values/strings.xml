@@ -1,6 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="app_name" translatable="false">NextVol</string>
     <string name="language">English</string>
+    <string name="sources_restoration_failed">Sources could not be fully restored. Check source settings.</string>
     <string name="language_translators">yukonisen, NightFish</string>
     <!-- Navigation Items -->
     <string name="nav_reading">Reading</string>

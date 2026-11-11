@@ -52,7 +52,7 @@ class DiscoveryResultsViewModel internal constructor(
         this(registry, accounts, saved, saved.toRoute<Route.Main.DiscoveryResults>())
 
     val sourceId = Identifier(route.namespace, route.sourceId)
-    private val mutableState = MutableStateFlow(DiscoveryResultsState(route.title, filters =
+    private val mutableState = MutableStateFlow(DiscoveryResultsState(route.title, loading = true, filters =
         kotlin.runCatching { Json.decodeFromString<Map<String, String>>(saved["discovery.filters"] ?: route.filtersJson) }
             .getOrDefault(emptyMap())))
     val state = mutableState.asStateFlow()
@@ -67,8 +67,7 @@ class DiscoveryResultsViewModel internal constructor(
 
     init {
         viewModelScope.launch {
-            // Application startup restores sources before any Activity. Missing here is not "still restoring".
-            combine(registry.sources, accounts.changes) { sources, generations ->
+            combine(registry.restoredSources, accounts.changes) { sources, generations ->
                 sources.firstOrNull { it.metadata.id == sourceId }?.version(generations)
             }.distinctUntilChanged().collect { next ->
                 if (version != null) draftValues = emptyMap()
@@ -78,7 +77,8 @@ class DiscoveryResultsViewModel internal constructor(
                 mutableState.value = DiscoveryResultsState(route.title,
                     sourceName = next?.metadata?.item?.name.orEmpty(), filters = state.value.filters,
                     resetId = state.value.resetId + 1,
-                    error = if (next == null) DiscoveryError.Unavailable else null)
+                    error = if (next != null) null else if (registry.restoration.value == SourceRestoration.Failed)
+                        DiscoveryError.InvalidRules else DiscoveryError.Unavailable)
                 if (active && next != null) loadMore()
             }
         }
@@ -100,7 +100,7 @@ class DiscoveryResultsViewModel internal constructor(
         refreshCatalog = true
         // Keep visible cards alive so failed covers can consume the explicit recovery action.
         mutableState.value = state.value.copy(loaded = false, hasMore = false,
-            error = null, scroll = DiscoveryScroll(), resetId = state.value.resetId + 1)
+            error = state.value.error.takeIf { version == null }, scroll = DiscoveryScroll(), resetId = state.value.resetId + 1)
         if (active) loadMore()
     }
 
@@ -109,7 +109,7 @@ class DiscoveryResultsViewModel internal constructor(
         environment = value
         cancelLoad()
         session = null
-        mutableState.value = state.value.copy(loaded = false, error = null)
+        mutableState.value = state.value.copy(loaded = false, error = state.value.error.takeIf { version == null })
     }
 
     fun filter(values: Map<String, String>) {
@@ -129,11 +129,11 @@ class DiscoveryResultsViewModel internal constructor(
         serial++
         pending?.cancel()
         pending = null
-        mutableState.value = state.value.copy(loading = false)
+        mutableState.value = state.value.copy(loading = registry.restoration.value == SourceRestoration.Restoring)
     }
 
     fun loadMore() {
-        if (!active || state.value.loading || (state.value.loaded && !state.value.hasMore)) return
+        if (!active || version == null || state.value.loading || (state.value.loaded && !state.value.hasMore)) return
         val token = ++serial
         mutableState.value = state.value.copy(loading = true, error = null)
         pending = viewModelScope.launch(foreground) {

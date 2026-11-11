@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
 import java.util.UUID
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -88,7 +89,7 @@ class BookRepository @Inject constructor(
         val book = BookIdentity.book(bookId)
         if (LocalBookStore.isLocal(book)) return localBooks.observeAvailability(book)
             .map { BookReadingAvailability(false, it, false, null) }.distinctUntilChanged()
-        return sourceRegistry.sources.map { sources ->
+        return sourceRegistry.restoredSources.map { sources ->
             val entry = sources.find { it.metadata.id == book.sourceId }
             val capabilities = entry?.metadata?.capabilities.orEmpty()
             val online = entry?.metadata?.supportsReading == true &&
@@ -97,6 +98,10 @@ class BookRepository @Inject constructor(
                 !online && localBookDataSource.getBookVolumes(book.storageKey)?.volumes?.any { it.chapters.isNotEmpty() } == true,
                 entry != null && indi.renakoni.nextvol.data.web.SourceCapability.Directory !in capabilities,
                 entry?.generation)
+        }.onStart {
+            if (sourceRegistry.restoration.value == indi.renakoni.nextvol.data.web.SourceRestoration.Restoring &&
+                localBookDataSource.getBookVolumes(book.storageKey)?.volumes?.any { it.chapters.isNotEmpty() } == true)
+                emit(BookReadingAvailability(false, true, false, null))
         }.distinctUntilChanged()
     }
 
@@ -221,7 +226,9 @@ class BookRepository @Inject constructor(
 
     suspend fun submitDownload(bookId: String, chapterIds: List<String>? = null): DownloadSubmission {
         val book = BookIdentity.book(bookId)
-        if (LocalBookStore.isLocal(book) || sourceRegistry.sources.value.none {
+        if (LocalBookStore.isLocal(book)) return DownloadSubmission.Rejected(DownloadFailure.SourceUnavailable)
+        sourceRegistry.awaitRestoration()
+        if (sourceRegistry.sources.value.none {
                 it.metadata.id == book.sourceId && it.metadata.supportsReading &&
                     it.status != indi.renakoni.nextvol.data.web.SourceStatus.Failed
             }) return DownloadSubmission.Rejected(DownloadFailure.SourceUnavailable)
@@ -294,11 +301,13 @@ class BookRepository @Inject constructor(
         return true
     }
 
-    internal fun sourceRevision(book: SourceBookId): String = sourceRegistry.sources.value
-        .firstOrNull { it.metadata.id == book.sourceId }?.metadata?.revision.orEmpty()
+    internal suspend fun sourceRevision(book: SourceBookId): String = downloadSource(book)?.revision.orEmpty()
 
-    internal fun downloadSource(book: SourceBookId) = sourceRegistry.sources.value
-        .firstOrNull { it.metadata.id == book.sourceId }?.metadata
+    internal suspend fun downloadSource(book: SourceBookId): indi.renakoni.nextvol.data.web.SourceMetadata? {
+        if (LocalBookStore.isLocal(book)) return null
+        sourceRegistry.awaitRestoration()
+        return sourceRegistry.sources.value.firstOrNull { it.metadata.id == book.sourceId }?.metadata
+    }
 
     internal suspend fun canReplayDownload(book: SourceBookId): Boolean =
         (sourceRegistry.resolve(book.sourceId) as? indi.renakoni.nextvol.data.web.SourceResolution.Ready)?.runtime?.canReplayDownloads == true
