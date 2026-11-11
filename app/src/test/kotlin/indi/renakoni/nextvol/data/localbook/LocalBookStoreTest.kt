@@ -77,7 +77,7 @@ class LocalBookStoreTest {
         val shelves = BookshelfRepository(database.bookshelfDao(), scheduler, registry, local.aliases)
         val text = TextProcessingRepository(mockk { every { enabled } returns false },
             mockk { every { enabled } returns false }, ContentComponentRegistry())
-        books = BookRepository(local, shelves, text, work, ChapterRepository(registry, local, text, store, downloads),
+        books = BookRepository(local, shelves, text, work, ChapterRepository(registry, local, text, store, downloads, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, local, downloads, org.robolectric.RuntimeEnvironment.getApplication())),
             BookReadingDataRepository(local), registry, downloads, store, scheduler)
     }
 

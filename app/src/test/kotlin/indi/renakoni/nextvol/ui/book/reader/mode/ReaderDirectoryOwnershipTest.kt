@@ -100,7 +100,7 @@ class ReaderDirectoryOwnershipTest {
         coEvery { dao.get(UserDataPath.ReadingBooks.path) } returns null
         coEvery { dao.insert(UserDataPath.ReadingBooks.path, "", "StringList", any()) } just Runs
         val controller = object : ReaderModeController {
-            override val uiState: ContentUiState = mockk()
+            override val uiState: ContentUiState = mockk { every { readingChapterId } returns "" }
             override fun changeBookId(id: String) = Unit
             override fun changeChapter(id: String) = Unit
             override fun loadNextChapter() = Unit

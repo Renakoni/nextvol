@@ -13,6 +13,7 @@ import indi.renakoni.nextvol.data.web.SourceRuntime
 import indi.renakoni.nextvol.data.web.SourceResolution
 import indi.renakoni.nextvol.data.web.WebSourceRegistry
 import io.mockk.mockk
+import com.github.michaelbull.result.map
 
 internal class BookRepositoryFixture {
     private val aliases = mockk<BookAliasStore> {
@@ -46,7 +47,17 @@ internal class BookRepositoryFixture {
     val localBooks = mockk<indi.renakoni.nextvol.data.localbook.LocalBookStore>()
     val scheduler by lazy { BookDownloadScheduler(downloads, workManager, aliases) }
 
-    fun chapterRepository() = ChapterRepository(registry, local, text, localBooks, downloads)
+    val directoryChecks: BookDirectoryChecks = mockk<BookDirectoryChecks> {
+        coEvery { volumes(any(), any()) } coAnswers { chapterRepository().refreshBookVolumes(firstArg(), secondArg()) }
+        coEvery { information(any(), any(), any()) } coAnswers {
+            val book = firstArg<SourceBookId>()
+            activeRemote.getBookInformation(book.remoteId, secondArg()).map { remote ->
+                book.bind(remote).also { local.updateBookInformation(it) }
+            }
+        }
+    }
+
+    fun chapterRepository(): ChapterRepository = ChapterRepository(registry, local, text, localBooks, downloads, directoryChecks)
 
     fun repository() = BookRepository(
         local, bookshelves, text, workManager,

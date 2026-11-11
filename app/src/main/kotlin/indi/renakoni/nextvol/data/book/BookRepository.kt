@@ -161,7 +161,7 @@ class BookRepository @Inject constructor(
     suspend fun refreshBookInformation(book: SourceBookId, priority: WebDataSourcePriority = WebDataSourcePriority.Low, fresh: Boolean = false): Result<BookInformation, WebRequestError> {
         if (LocalBookStore.isLocal(book)) return localBooks.readInformation(book)
         val requested = canonicalBook(book)
-        return sourceRegistry.request(requested) { runtime -> runtime.execute {
+        return (if (!fresh) chapterRepository.directoryChecks.information(book, priority) else sourceRegistry.request(requested) { runtime -> runtime.execute {
             runtime.getBookInformation(requested.remoteId, priority, refresh = fresh).andThen { remote ->
                 runtime.persistCanonicalBook(requested, localBookDataSource, downloads).map { canonical ->
                     val information = requested.bind(remote)
@@ -170,7 +170,7 @@ class BookRepository @Inject constructor(
                     else information.copy(id = book.storageKey)
                 }
             }
-        } }
+        } })
             .onOk { remote ->
                 val bookshelfBookMetadata = bookshelfRepository.getBookshelfBookMetadata(book.storageKey) ?: return@onOk
                 if (bookshelfBookMetadata.lastUpdate.isBefore(remote.lastUpdated))

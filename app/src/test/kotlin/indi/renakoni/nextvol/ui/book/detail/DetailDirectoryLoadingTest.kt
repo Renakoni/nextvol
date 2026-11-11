@@ -27,14 +27,10 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class DetailDirectoryLoadingTest {
-    @Test fun coldDetailsPublishInformationBeforeStartingDirectoryAndCanCancelOrRetryIt() = checkLoading(false)
-    @Test fun informationFailureStillAllowsDirectoryLoading() = checkLoading(true)
-
-    private fun checkLoading(failInformation: Boolean) = runBlocking {
+    @Test fun directoryLoadsBeforeInformationAndRetryCancelsItsPreviousCollection() = runBlocking {
         Dispatchers.setMain(Dispatchers.Unconfined)
         val key = SourceBookId(Identifier("rules", "directory"), "book").storageKey
-        val information = BookInformation(key, "Book", author = "Author", description = "", publishingHouse = "",
-            wordCount = WordCount(0), lastUpdated = UNKNOWN_BOOK_UPDATE_TIME, isComplete = false)
+        val volumes = BookVolumes(key, emptyList())
         val release = CompletableDeferred<Unit>()
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
@@ -44,28 +40,28 @@ class DetailDirectoryLoadingTest {
         every { repository.readingAvailability(key) } returns flowOf(BookReadingAvailability(true, true, false, null))
         every { repository.getBookInformationFlow(key, any()) } returns flow {
             release.await()
-            emit(if (failInformation) Err(WebRequestError("Information", "Unavailable")) else Ok(information))
+            emit(Err(WebRequestError("Information", "Unavailable")))
         }
-        coEvery { repository.bookInformationForDisplay(any()) } returns information
         every { repository.getBookVolumesFlow(key, any()) } returns flow {
+            emit(Ok(volumes))
             started.complete(Unit)
             try { awaitCancellation() } finally { cancelled.complete(Unit) }
         }
         every { repository.getUserReadingDataFlow(key) } returns emptyFlow()
         every { repository.downloadStatusFlow(key) } returns emptyFlow()
-        coEvery { shelves.getBookshelfBookMetadata(key) } returns null
         every { shelves.getBookshelfBookMetadataFlow(key) } returns flowOf(null)
         every { downloads.downloadItemIdList } returns mutableStateListOf()
         val model = DetailViewModel(repository, shelves, downloads, mockk<WorkManager>(relaxed = true), mockk(), mockk())
         val store = ViewModelStore().apply { put("detail", model) }
         try {
             model.init(key)
-            withTimeout(5000) { while (!model.uiState.readingAvailable) delay(10) }
-            verify(exactly = 0) { repository.getBookVolumesFlow(key, any()) }
-            release.complete(Unit)
             withTimeout(5000) { started.await() }
-            assertEquals(failInformation, model.uiState.bookInformation!!.isErr)
-            assertNull(model.uiState.bookVolumes)
+            assertEquals(volumes, model.uiState.bookVolumes!!.get())
+            assertNull(model.uiState.bookInformation)
+            release.complete(Unit)
+            withTimeout(5000) { while (model.uiState.bookInformation == null) delay(10) }
+            assertTrue(model.uiState.bookInformation!!.isErr)
+            assertEquals(volumes, model.uiState.bookVolumes!!.get())
             model.retryVolumes()
             withTimeout(5000) { cancelled.await() }
             verify(timeout = 5000, exactly = 2) { repository.getBookVolumesFlow(key, any()) }

@@ -90,7 +90,7 @@ class NativeDownloadPipelineTest {
         val text = TextProcessingRepository(mockk { every { enabled } returns false },
             mockk { every { enabled } returns false }, ContentComponentRegistry())
         books = BookRepository(local, BookshelfRepository(db.bookshelfDao(), scheduler, registry, local.aliases), text, work,
-            ChapterRepository(registry, local, text, mockk(), store), BookReadingDataRepository(local), registry, store, mockk(), scheduler)
+            ChapterRepository(registry, local, text, mockk(), store, indi.renakoni.nextvol.data.book.BookDirectoryChecks(registry, local, store, org.robolectric.RuntimeEnvironment.getApplication())), BookReadingDataRepository(local), registry, store, mockk(), scheduler)
         cache = DiskCache.Builder().directory(directory.root.resolve("coil").path.toPath()).maxSizeBytes(1024 * 1024).build()
         loader = ImageLoader.Builder(context).diskCache(cache).components {
             add(SourceImageInterceptor(registry, context, store)); add(SourceImageFetcher.Factory())
