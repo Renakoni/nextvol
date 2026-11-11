@@ -69,9 +69,7 @@ class UpdateCheckRepositoryTest {
         coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "true"
         val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao), downloader, mockk())
         verify(exactly = 0) { NextvolApiParser.parser(any()) }
-        val automatic = repository.startAutomaticCheck()
-        assertSame(automatic, repository.startAutomaticCheck())
-        automatic.join()
+        repository.startAutomaticCheck().join()
         withTimeout(10_000) { repository.availableFlow.first { it } }
         verify(exactly = 1) { NextvolApiParser.parser(any()) }
     }

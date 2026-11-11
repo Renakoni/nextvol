@@ -36,7 +36,6 @@ class BangumiSyncScheduler @Inject constructor(
     private val database: NextVolDatabase,
     private val workManager: WorkManager,
 ) {
-    private var observation: Job? = null
     fun syncNow() {
         workManager.enqueueUniqueWork("bangumi-manual", ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<BangumiSyncWork>().setConstraints(networkConstraint)
@@ -44,10 +43,8 @@ class BangumiSyncScheduler @Inject constructor(
     }
 
     @OptIn(FlowPreview::class)
-    @Synchronized
     fun start(scope: CoroutineScope) {
-        if (observation?.isActive == true) return
-        observation = scope.launch {
+        scope.launch {
             repository.accounts.load()
             var connected: Boolean? = null
             var previous = emptySet<String>()

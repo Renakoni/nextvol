@@ -33,7 +33,6 @@ class UpdateCheckRepository @Inject constructor(
 ) {
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private var checkJob: Job? = null
-    private var automaticJob: Job? = null
     private var checkRequested = false
     private val _release = MutableStateFlow<Release?>(null)
     val releaseFlow: StateFlow<Release?> = _release.asStateFlow()
@@ -52,11 +51,10 @@ class UpdateCheckRepository @Inject constructor(
     private fun formattedNow(): String =
         LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
 
-    @Synchronized
-    fun startAutomaticCheck(): Job = automaticJob ?: coroutineScope.launch {
+    fun startAutomaticCheck(): Job = coroutineScope.launch {
         if (userDataRepository.booleanUserData(UserDataPath.Settings.App.AutoCheckUpdate.path).getOrDefault(true))
             synchronized(this@UpdateCheckRepository) { if (!checkRequested) check() }
-    }.also { automaticJob = it }
+    }
 
     fun resetAvailable() {
         mutableAvailable.value = false

@@ -30,7 +30,7 @@ class Wenku8SearchRecallTest {
         every { refreshInBackground() } just Runs
         every { generation } returns 0L
         coEvery { remember(any(), any()) } just Runs
-    }, BangumiSearchExpansion(BangumiSearchApi(api, api)))
+    }, javax.inject.Provider { BangumiSearchExpansion(BangumiSearchApi(api, api)) })
 
     @Test fun fastChannelIsNotBlockedBySlowRelations() = runBlocking {
         val relationStarted = CompletableDeferred<Unit>()
@@ -70,7 +70,7 @@ class Wenku8SearchRecallTest {
             coEvery { remember(any(), any()) } coAnswers { catalog.remember(firstArg(), secondArg()) }
         }
         val info = Wenku8SearchEntry("9999", "缓存竞争测试", "Author").preview().copy(lastUpdated = java.time.LocalDateTime.now())
-        val support = Wenku8SearchSupport(wrapped, BangumiSearchExpansion(BangumiSearchApi(api, api)))
+        val support = Wenku8SearchSupport(wrapped, javax.inject.Provider { BangumiSearchExpansion(BangumiSearchApi(api, api)) })
         try {
             val result = Wenku8SearchSession(support, "author", "Author") { _, _ ->
                 SearchPage(listOf(io.nightfish.lightnovelreader.api.web.search.SearchResult.MultipleBook("9999", info)), null)

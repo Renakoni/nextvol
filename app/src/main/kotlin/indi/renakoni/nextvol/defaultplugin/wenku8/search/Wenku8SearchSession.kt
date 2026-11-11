@@ -16,8 +16,6 @@ class Wenku8SearchSupport @Inject constructor(
     internal val catalog: Wenku8SearchCatalog,
     private val bangumiProvider: javax.inject.Provider<BangumiSearchExpansion>,
 ) {
-    constructor(catalog: Wenku8SearchCatalog, bangumi: BangumiSearchExpansion) :
-        this(catalog, javax.inject.Provider { bangumi })
     internal val bangumi by lazy { bangumiProvider.get() }
 }
 

@@ -645,9 +645,7 @@ class BangumiRepositoryTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
             bind()
-            val scheduler = BangumiSyncScheduler(repository, database, manager)
-            scheduler.start(scope)
-            scheduler.start(scope)
+            BangumiSyncScheduler(repository, database, manager).start(scope)
             val first = withTimeout(10_000) { manager.getWorkInfosForUniqueWorkFlow("bangumi-progress").first { it.isNotEmpty() }.single() }
             val beforeDelay = server.requestCount
             driver.setAllConstraintsMet(first.id)
