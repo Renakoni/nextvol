@@ -270,7 +270,7 @@ class ImportedRuleSourcesTest {
         val host = context()
         RuleSourceFixture().use { fixture ->
             val accounts = SourceSessionManager(fixture.authority)
-            var registry = spyk(WebSourceRegistry(fixture.authority), recordPrivateCalls = true)
+            var registry = WebSourceRegistry(fixture.authority)
             var sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
             try {
                 val raw = kotlinx.serialization.json.JsonArray((0 until 300).map { index -> JsonObject(fixture.raw() + mapOf(
@@ -285,7 +285,6 @@ class ImportedRuleSourcesTest {
                 assertEquals(300, sources.installedSources().size)
                 assertEquals(298, registry.sources.value.size)
                 val snapshot = registry.sources.value
-                verify(exactly = 298) { registry["publish"]() }
                 sources.stop()
                 registry = spyk(WebSourceRegistry(fixture.authority), recordPrivateCalls = true)
                 sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)

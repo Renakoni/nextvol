@@ -89,10 +89,10 @@ class WebSourceRegistry internal constructor(private val dispatcher: CoroutineDi
     }
 
     /** Startup registrations share one listing build; other mutations still publish immediately. */
-    internal fun <T> registerBatch(block: ((WebBookDataSource, SourceMetadata) -> SourceRegistration) -> T): T {
+    internal fun registerBatch(block: ((WebBookDataSource, SourceMetadata) -> SourceRegistration) -> Unit) {
         var changed = false
         try {
-            return block { source, metadata ->
+            block { source, metadata ->
                 register(source, metadata, false).also { changed = true }
             }
         } finally {
