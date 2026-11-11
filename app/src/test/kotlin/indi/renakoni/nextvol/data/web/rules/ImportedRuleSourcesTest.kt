@@ -23,6 +23,8 @@ import indi.renakoni.nextvol.data.web.*
 import indi.renakoni.nextvol.data.work.CacheBookWork
 import indi.renakoni.nextvol.data.work.workerParameters
 import io.mockk.mockk
+import io.mockk.spyk
+import io.mockk.verify
 import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
 import io.nightfish.lightnovelreader.api.content.component.ImageComponentData
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
@@ -282,13 +284,16 @@ class ImportedRuleSourcesTest {
                 assertEquals(299, sources.activateBatch(grants).size)
                 assertEquals(300, sources.installedSources().size)
                 assertEquals(298, registry.sources.value.size)
+                val snapshot = registry.sources.value
                 sources.stop()
-                registry = WebSourceRegistry(fixture.authority)
+                registry = spyk(WebSourceRegistry(fixture.authority), recordPrivateCalls = true)
                 sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
                 sources.restore()
                 assertFalse(sources.restorationFailed)
                 assertEquals(300, sources.installedSources().size)
                 assertEquals(298, registry.sources.value.size)
+                assertEquals(snapshot, registry.sources.value)
+                verify(exactly = 1) { registry["publish"]() }
                 assertEquals(0, fixture.documents.get())
             } finally { sources.stop(); host.filesDir.deleteRecursively() }
         }
