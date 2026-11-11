@@ -21,6 +21,11 @@ import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.WebBookDataSource
 import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +39,86 @@ class SourceImageTest {
     private val a = SourceBookId(Identifier("fixture", "a"), "same")
     private val b = SourceBookId(Identifier("fixture", "b"), "same")
     private val url = "https://fixture.invalid/shared.png"
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun coldRequestsShareBytesAcrossSizesAndSurviveOneConsumerLeaving() = runTest {
+        val context = RuntimeEnvironment.getApplication()
+        val registry = WebSourceRegistry(StandardTestDispatcher(testScheduler), hnovel.execution.ExecutionAuthority())
+        val gate = CompletableDeferred<Unit>()
+        var requests = 0
+        val png = java.io.ByteArrayOutputStream().also {
+            Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
+        }.toByteArray()
+        val source = object : WebBookDataSource by EmptyWebDataSource, io.nightfish.lightnovelreader.api.image.SourceImageProvider {
+            override val id = a.sourceId
+            override suspend fun getImage(bookId: String, url: String, cover: Boolean): com.github.michaelbull.result.Result<ByteArray, io.nightfish.lightnovelreader.api.error.WebRequestError> {
+                requests++
+                gate.await()
+                return com.github.michaelbull.result.Ok(png)
+            }
+        }
+        registry.register(source, SourceMetadata(WebDataSourceItem(a.sourceId, "Rule", "fixture"), emptySet()))
+        val runtime = (registry.resolve(a.sourceId) as SourceResolution.Ready).runtime
+        val cache = coil3.disk.DiskCache.Builder().directory(okio.Path.Companion.run {
+            java.nio.file.Files.createTempDirectory("shared-source-image").toString().toPath()
+        }).maxSizeBytes(1024 * 1024).build()
+        val image = SourceImage(a, url)
+        val bound = BoundSourceImage(image, sourceImageCacheKey(image, runtime.metadata.revision), runtime)
+        suspend fun fetch(size: Int) = SourceImageFetcher(bound,
+            Options(context, size = coil3.size.Size(size, size)), cache).fetch()
+        try {
+            val first = async { fetch(1) }
+            val second = async { fetch(2) }
+            runCurrent()
+            assertEquals(1, requests)
+            first.cancel(); runCurrent()
+            gate.complete(Unit); runCurrent()
+            second.await().source.use { assertArrayEquals(png, it.source().readByteArray()) }
+            val cached = fetch(2)
+            assertEquals(DataSource.DISK, cached.dataSource)
+            cached.source.close()
+            assertEquals(1, requests)
+        } finally { registry.unregister(a.sourceId); cache.shutdown(); runCurrent() }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun failedAndRetiredImageTasksCannotPoisonRetriesOrPublishOldBytes() = runTest {
+        val context = RuntimeEnvironment.getApplication()
+        val registry = WebSourceRegistry(StandardTestDispatcher(testScheduler), hnovel.execution.ExecutionAuthority())
+        val gate = CompletableDeferred<Unit>()
+        var requests = 0
+        val png = java.io.ByteArrayOutputStream().also {
+            Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
+        }.toByteArray()
+        val source = object : WebBookDataSource by EmptyWebDataSource, io.nightfish.lightnovelreader.api.image.SourceImageProvider {
+            override val id = a.sourceId
+            override suspend fun getImage(bookId: String, url: String, cover: Boolean): com.github.michaelbull.result.Result<ByteArray, io.nightfish.lightnovelreader.api.error.WebRequestError> {
+                requests++
+                if (requests == 1) return com.github.michaelbull.result.Err(
+                    io.nightfish.lightnovelreader.api.error.WebRequestError("offline", "failed"))
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { gate.await() }
+                return com.github.michaelbull.result.Ok(png)
+            }
+        }
+        registry.register(source, SourceMetadata(WebDataSourceItem(a.sourceId, "Rule", "fixture"), emptySet()))
+        val runtime = (registry.resolve(a.sourceId) as SourceResolution.Ready).runtime
+        val image = SourceImage(a, url)
+        val cache = coil3.disk.DiskCache.Builder().directory(okio.Path.Companion.run {
+            java.nio.file.Files.createTempDirectory("retired-source-image").toString().toPath()
+        }).maxSizeBytes(1024 * 1024).build()
+        suspend fun fetch() = SourceImageFetcher(BoundSourceImage(image,
+            sourceImageCacheKey(image, runtime.metadata.revision), runtime), Options(context), cache).fetch()
+        try {
+            assertTrue(runCatching { fetch() }.exceptionOrNull() is SourceImageRequestException)
+            val retry = async { runCatching { fetch() } }
+            runCurrent()
+            assertEquals(2, requests)
+            registry.unregister(a.sourceId); runCurrent()
+            gate.complete(Unit); runCurrent()
+            assertTrue(retry.await().isFailure)
+            assertNull(cache.openSnapshot(sourceImageCacheKey(image, runtime.metadata.revision)))
+        } finally { gate.complete(Unit); registry.unregister(a.sourceId); cache.shutdown(); runCurrent() }
+    }
 
     @Test fun coilMemoryCacheAndHeadersFollowTheBookAcrossSources() = runBlocking {
         val context = RuntimeEnvironment.getApplication()

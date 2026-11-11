@@ -12,6 +12,8 @@ import indi.renakoni.nextvol.data.web.SourceRuntime
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import okio.Buffer
 import java.io.IOException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** A missing runtime is an explicit cache-only request, never an HTTP URL fallback. */
 internal data class BoundSourceImage(val image: SourceImage, val key: String, val runtime: SourceRuntime?)
@@ -36,6 +38,17 @@ internal class SourceImageFetcher(private val request: BoundSourceImage, private
                 ValidatedSourceImage), null, DataSource.DISK)
         }
         val runtime = request.runtime ?: throw IOException("Source image is not cached")
+        val bytes = runtime.imageRequests.get(request.key, force = !options.diskCachePolicy.readEnabled) {
+            // A previous fetch may have committed between the first lookup and joining.
+            if (options.diskCachePolicy.readEnabled) cache?.openSnapshot(request.key)?.use { snapshot ->
+                return@get SourceImageRequests.Bytes(cache.fileSystem.read(snapshot.data) { readByteArray() }, DataSource.DISK)
+            }
+            SourceImageRequests.Bytes(fetchAndStore(runtime), DataSource.NETWORK)
+        }
+        return SourceFetchResult(ImageSource(Buffer().write(bytes.value), options.fileSystem, ValidatedSourceImage), null, bytes.dataSource)
+    }
+
+    private suspend fun fetchAndStore(runtime: SourceRuntime): ByteArray {
         val result = runtime.imageBytes(request.image.book.remoteId, request.image.uri, request.image.cover)
         val bytes = result.getOrElse { throw SourceImageRequestException(it) }
         validateOriginalImage(bytes)
@@ -44,11 +57,15 @@ internal class SourceImageFetcher(private val request: BoundSourceImage, private
                 try {
                     cache.fileSystem.write(editor.metadata) { }
                     cache.fileSystem.write(editor.data) { write(bytes) }
+                    currentCoroutineContext().ensureActive()
                     editor.commit()
-                } catch (failure: IOException) { editor.abort() }
+                } catch (failure: Throwable) {
+                    editor.abort()
+                    if (failure !is IOException) throw failure
+                }
             }
         }
-        return SourceFetchResult(ImageSource(Buffer().write(bytes), options.fileSystem, ValidatedSourceImage), null, DataSource.NETWORK)
+        return bytes
     }
 
     class Factory : Fetcher.Factory<BoundSourceImage> {
