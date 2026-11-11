@@ -227,7 +227,7 @@ class ReaderSpacingInstrumentedTest {
         assertBodyWidth()
         val previousPager = fixture.flip.pagerState
         compose.runOnIdle { fixture.width = 240.dp }
-        compose.waitUntil(15_000) { fixture.flip.pagerState !== previousPager }
+        compose.waitUntil(15_000) { fixture.flip.pagerState !== previousPager && fixture.flip.pagerState.pageCount > 0 }
         assertBodyWidth()
     }
 
