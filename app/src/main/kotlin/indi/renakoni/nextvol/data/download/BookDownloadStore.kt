@@ -47,6 +47,8 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
     private val bookOperations = ConcurrentHashMap<String, Mutex>()
     private var activeBookOperations = 0 // Guarded by lock, together with ordinary cache cleanup.
     private val files = BookDownloadFiles(context)
+    private val coverWrites = ConcurrentHashMap<SourceBookId, Long>()
+    internal fun coverWriteGeneration(book: SourceBookId): Long = coverWrites[book] ?: 0
     private data class CoverLocation(val file: File?)
     // Locations only; Coil continues to own decoded images and eviction.
     private val coverLocations = android.util.LruCache<SourceImage, CoverLocation>(128)
@@ -439,6 +441,7 @@ class BookDownloadStore @Inject constructor(@ApplicationContext context: Context
                     throw CancellationException("Download image version was replaced")
                 if (cover) coverLocations.evictAll()
                 files.publishImage(temporary, target)
+                if (cover) coverWrites.merge(attempt.book, 1L, Long::plus)
             }
         } finally { temporary.delete() }
     }

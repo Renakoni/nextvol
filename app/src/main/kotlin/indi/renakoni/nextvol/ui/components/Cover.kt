@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.request.CachePolicy
@@ -60,10 +61,11 @@ private fun RemoteBookCover(bookId: String, width: Dp, height: Dp, uri: Uri, tit
     onFallbackChanged: (Boolean) -> Unit) {
     val context = LocalContext.current
     val imageTransPostProcessingViewModel = hiltViewModel<ImageTransPostProcessingViewModel>()
-    val request = remember(uri, bookId) {
-        val transformations = imageTransPostProcessingViewModel
-            .imageTransPostProcessingManager
-            .getCoil3Transformations(ImagePostProcessingPipeline.bookCover, uri)
+    val transformations = imageTransPostProcessingViewModel
+        .imageTransPostProcessingManager
+        .getCoil3Transformations(ImagePostProcessingPipeline.bookCover, uri)
+    val transformationKeys = transformations.map { it.cacheKey }
+    val request = remember(uri, bookId, transformationKeys) {
         ImageRequest.Builder(context)
             .data(SourceImage(BookIdentity.book(bookId), uri.toString(), cover = true))
             .transformations(transformations)
@@ -82,9 +84,13 @@ internal fun BookCoverImage(request: ImageRequest, bookId: String, width: Dp, he
     author: String = "", onFallbackChanged: (Boolean) -> Unit = {},
     imageLoader: ImageLoader = SingletonImageLoader.get(LocalContext.current)) {
     var retry by remember(request) { mutableIntStateOf(0) }
-    val current = remember(request, retry) {
-        if (retry == 0) request else request.newBuilder()
-            .diskCachePolicy(CachePolicy.WRITE_ONLY).networkCachePolicy(CachePolicy.WRITE_ONLY).build()
+    val identity = imageLoader.coverMemoryIdentity(request)
+    val current = remember(request, retry, imageLoader, identity) {
+        request.newBuilder()
+            .placeholderMemoryCacheKey(if (request.memoryCachePolicy.readEnabled) imageLoader.coverPlaceholder(identity) else null)
+            .apply {
+                if (retry != 0) diskCachePolicy(CachePolicy.WRITE_ONLY).networkCachePolicy(CachePolicy.WRITE_ONLY)
+            }.build()
     }
     key(retry) {
         SubcomposeAsyncImage(
@@ -92,11 +98,16 @@ internal fun BookCoverImage(request: ImageRequest, bookId: String, width: Dp, he
             imageLoader = imageLoader,
             contentDescription = stringResource(R.string.cover_description, title.ifBlank { stringResource(R.string.cover_untitled) }),
             onError = { onFallbackChanged(true) },
-            onSuccess = { onFallbackChanged(false) },
+            onSuccess = {
+                imageLoader.rememberCover(identity, it.result)
+                onFallbackChanged(false)
+            },
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(width, height),
-            loading = {
-                DefaultBookCover(title, width, height, bookId, author)
+            loading = { state ->
+                val placeholder = state.painter
+                if (placeholder != null) SubcomposeAsyncImageContent(painter = placeholder)
+                else DefaultBookCover(title, width, height, bookId, author)
             },
             error = {
                 val source = (request.data as? SourceImage)?.book?.sourceId
