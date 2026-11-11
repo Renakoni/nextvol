@@ -727,22 +727,22 @@ class ReadAloudSessionTest {
         val env = Environment(this)
         val suffix = "字".repeat(28) + "。"
         val paragraph = "甲😀乙$suffix"
-        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "$paragraph\n$paragraph") }
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "$paragraph$paragraph") }
         val rule = SpeechReplacementRule(id = "expand", source = "甲", target = "一二三")
         env.configuration = SpeechSettings(httpSource = "online", replacements = listOf(rule),
             text = SpeechTextSettings(maxSentenceLength = 32))
         try {
             env.session.start(SpeechRequest("book", "one"))
             runCurrent()
-            assertEquals("一二三😀乙$suffix\n", env.player.started.single().segment.text)
+            assertEquals("一二三😀乙$suffix", env.player.started.single().segment.text)
             env.player.estimatedAnchorCallback!!.invoke(4)
             assertEquals(1, env.session.state.value.position!!.anchor)
             assertEquals(0, env.session.state.value.position!!.start)
-            assertEquals(paragraph.length + 1, env.session.state.value.position!!.end)
+            assertEquals(paragraph.length, env.session.state.value.position!!.end)
             env.session.skipSegment(1)
             runCurrent()
             assertEquals(1, env.player.started.last().index)
-            assertEquals(paragraph.length + 1, env.progress.saved.getValue("book").offset)
+            assertEquals(paragraph.length, env.progress.saved.getValue("book").offset)
             env.session.pause()
             val previous = env.player.started.last()
             env.configuration = env.configuration.copy(httpSource = null,
@@ -751,7 +751,7 @@ class ReadAloudSessionTest {
             runCurrent()
             val current = env.player.started.last()
             assertEquals("四😀乙$suffix", current.segment.text)
-            assertEquals(paragraph.length + 1, current.segment.start)
+            assertEquals(paragraph.length, current.segment.start)
             assertFalse(env.player.playing)
             assertFalse(previous.file.exists())
             assertNotSame(previous.plan, current.plan)

@@ -50,6 +50,37 @@ class SpeechPreprocessingTest {
             SpeechMappedText.original("甲乙。丙丁。戊己。"), 6, Locale.CHINESE).map { it.text })
     }
 
+    @Test fun completeSentencesPrecedeInnerPausesWithoutChangingLanguageDetectionUnits() {
+        val sentence = "甲".repeat(39) + "，" + "乙".repeat(39) + "。"
+        val input = SpeechMappedText.original(sentence)
+        val chunks = speechSentenceChunks(input, 60, Locale.CHINESE)
+        assertEquals(listOf(sentence), chunks.map { it.text })
+        assertEquals(listOf(40, 40), speechLanguageSentences(input, Locale.CHINESE, {}).map { it.text.length })
+        assertEquals(listOf(sentence.take(40), sentence.drop(40)),
+            chunks.flatMap { speechHardChunks(it, 50) }.map { it.text })
+    }
+
+    @Test fun overlongSentencesUsePausesBeforeWhitespaceAndFixedLengthFallback() {
+        val clauses = listOf("甲".repeat(49) + "，", "乙".repeat(49) + "；", "丙".repeat(49) + "。")
+        val input = SpeechMappedText.original(clauses.joinToString(""))
+        val chunks = speechSentenceChunks(input, 60, Locale.CHINESE)
+        assertEquals(clauses, chunks.map { it.text })
+        assertEquals(listOf(0 to 50, 50 to 100, 100 to 150), chunks.map { it.range() })
+        assertEquals(listOf("alpha beta", "gamma delta"), speechHardChunks(
+            SpeechMappedText.original("alpha beta gamma delta"), 11).map { it.text })
+    }
+
+    @Test fun consecutiveSentenceEndingsStayWithTextAcrossSoftAndHardCuts() {
+        val first = "甲".repeat(59) + "……！？”』"
+        val second = "乙".repeat(29) + "。"
+        val input = SpeechMappedText.original(first + second)
+        val soft = speechSentenceChunks(input, 60, Locale.CHINESE)
+        assertEquals(listOf(first, second), soft.map { it.text })
+        val hard = soft.flatMap { speechHardChunks(it, 60) }
+        assertTrue(hard.all { it.text.length <= 60 && !speechIsUnspoken(it.text) })
+        assertEquals(input.text, hard.joinToString("") { it.text })
+    }
+
     @Test fun decimalPointIsNotASentenceBoundaryButSentenceFinalDigitCanEndOne() {
         val text = "甲".repeat(58) + "3.14万元。"
         assertEquals(listOf(text), speechSentenceChunks(SpeechMappedText.original(text), 60, Locale.CHINESE).map { it.text })
