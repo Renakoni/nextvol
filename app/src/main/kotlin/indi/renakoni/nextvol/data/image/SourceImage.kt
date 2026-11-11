@@ -28,6 +28,10 @@ class SourceImageInterceptor @Inject constructor(
     // but cannot start a network request or borrow another source's credentials.
     private val cacheKeys = context.getSharedPreferences("source_image_cache_keys", android.content.Context.MODE_PRIVATE)
 
+    internal fun coverVersion(image: SourceImage): Pair<String?, Long> =
+        registry.sources.value.firstOrNull { it.metadata.id == image.book.sourceId }?.metadata?.revision to
+            downloads.coverWriteGeneration(image.book)
+
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
         val image = chain.request.data as? SourceImage ?: return chain.proceed()
         if (image.preferDownloaded) downloads.image(image)?.let { file ->
