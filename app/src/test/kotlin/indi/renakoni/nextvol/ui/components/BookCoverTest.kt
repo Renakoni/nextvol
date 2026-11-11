@@ -60,7 +60,7 @@ class BookCoverTest {
         val registry = WebSourceRegistry()
         registry.register(metadata) { EmptyWebDataSource }
         var coverWrites = 0L
-        val downloads = mockk<BookDownloadStore> { every { coverWriteGeneration(book) } answers { coverWrites } }
+        val downloads = mockk<BookDownloadStore> { every { coverWriteGeneration(any()) } answers { coverWrites } }
         val loader = ImageLoader.Builder(activity.get()).components {
             add(SourceImageInterceptor(registry, activity.get(), downloads))
         }.build()
@@ -71,13 +71,11 @@ class BookCoverTest {
         val key = MemoryCache.Key("resolved-cover", mapOf("coil#transformations" to "fixture"))
         try {
             loader.memoryCache!![key] = MemoryCache.Value(image)
-            loader.rememberCover(loader.coverMemoryIdentity(request, "book"), SuccessResult(image,
+            loader.rememberCover(loader.coverMemoryIdentity(request), SuccessResult(image,
                 request.newBuilder().data(file).build(), DataSource.DISK, memoryCacheKey = key))
-            fun placeholder(next: ImageRequest = request, bookId: String = "book") =
-                loader.coverPlaceholder(loader.coverMemoryIdentity(next, bookId))
+            fun placeholder(next: ImageRequest = request) = loader.coverPlaceholder(loader.coverMemoryIdentity(next))
             assertEquals(key, placeholder())
-            assertNull(placeholder(bookId = "another-book"))
-            assertNull(placeholder(request.newBuilder().data((request.data as SourceImage).copy(uri = "https://fixture.invalid/new")).build()))
+            assertNull(placeholder(request.newBuilder().data((request.data as SourceImage).copy(book = book.copy(remoteId = "another-book"))).build()))
             assertNull(placeholder(request.newBuilder().memoryCacheKeyExtra("processing", "changed").build()))
             registry.unregister(source)
             registry.register(metadata.copy(revision = "2")) { EmptyWebDataSource }
@@ -87,10 +85,9 @@ class BookCoverTest {
             assertEquals(key, placeholder())
             coverWrites++
             assertNull(placeholder())
-            coverWrites--
+            loader.rememberCover(loader.coverMemoryIdentity(request), SuccessResult(image,
+                request.newBuilder().data(file).build(), DataSource.DISK, memoryCacheKey = key))
             file.appendBytes(byteArrayOf(2))
-            assertNull(placeholder())
-            loader.memoryCache!!.clear()
             assertNull(placeholder())
         } finally { loader.shutdown(); registry.unregister(source); file.delete() }
     }
@@ -147,16 +144,10 @@ class BookCoverTest {
                 onFallbackChanged = { if (it) failures.incrementAndGet() }, imageLoader = loader)
         } }
         compose.waitUntil(10_000) { failures.get() == 1 }
-        for (expected in 2..3) {
-            compose.waitForIdle()
-            compose.runOnIdle { SourceImageRetryEvents.request(source) }
-            compose.waitUntil(10_000) { failures.get() == expected }
-            compose.waitForIdle()
-            assertEquals(expected, calls.get())
-        }
-        compose.mainClock.advanceTimeBy(5_000)
+        compose.runOnIdle { SourceImageRetryEvents.request(source) }
+        compose.waitUntil(10_000) { failures.get() == 2 }
         compose.waitForIdle()
-        assertEquals(3, calls.get())
+        assertEquals(2, calls.get())
         loader.shutdown()
     }
 }

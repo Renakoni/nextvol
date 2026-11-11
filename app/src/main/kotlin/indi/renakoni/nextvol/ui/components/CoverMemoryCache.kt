@@ -5,50 +5,47 @@ import coil3.ImageLoader
 import coil3.memory.MemoryCache
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
-import coil3.request.transformations
 import indi.renakoni.nextvol.data.image.SourceImage
 import indi.renakoni.nextvol.data.image.SourceImageInterceptor
 import java.io.File
+import java.util.WeakHashMap
 
-private const val COVER_REFERENCE = "nextvol#cover_reference"
+private val coverReferences = WeakHashMap<ImageLoader, MutableMap<CoverMemoryIdentity, CoverMemoryReference>>()
 
-/** Only identity metadata lives beside Coil's image; eviction also drops this reference. */
+/** The index retains keys only; images and their eviction remain owned by Coil. */
 internal data class CoverMemoryIdentity(
-    val bookId: String,
-    val data: Any,
-    val key: String?,
+    val image: SourceImage,
     val extras: Map<String, String>,
-    val transformations: List<String>,
     val sourceVersion: Pair<String?, Long>?,
-    val localVersion: Pair<Long, Long>?,
 )
 
-private data class CoverMemoryReference(val identity: CoverMemoryIdentity, val file: File?, val version: Pair<Long, Long>?)
+private data class CoverMemoryReference(val key: MemoryCache.Key, val file: File?, val version: Pair<Long, Long>?)
 
-internal fun ImageLoader.coverMemoryIdentity(request: ImageRequest, bookId: String): CoverMemoryIdentity {
-    val image = request.data as? SourceImage
-    val file = localCoverFile(image?.uri ?: request.data)
-    return CoverMemoryIdentity(bookId, request.data, request.memoryCacheKey, request.memoryCacheKeyExtras,
-        request.transformations.map { it.cacheKey },
-        image?.let { source -> components.interceptors.filterIsInstance<SourceImageInterceptor>()
-            .firstOrNull()?.coverVersion(source) }, file?.version())
+internal fun ImageLoader.coverMemoryIdentity(request: ImageRequest): CoverMemoryIdentity? {
+    val image = request.data as? SourceImage ?: return null
+    val interceptor = components.interceptors.firstOrNull { it is SourceImageInterceptor } as? SourceImageInterceptor
+    return CoverMemoryIdentity(image, request.memoryCacheKeyExtras, interceptor?.coverVersion(image))
 }
 
-internal fun ImageLoader.coverPlaceholder(identity: CoverMemoryIdentity): MemoryCache.Key? {
-    val cache = memoryCache ?: return null
-    return cache.keys.firstOrNull { key ->
-        val reference = cache[key]?.extras?.get(COVER_REFERENCE) as? CoverMemoryReference
-        reference != null && reference.identity == identity && reference.file?.version() == reference.version
-    }
+internal fun ImageLoader.coverPlaceholder(identity: CoverMemoryIdentity?): MemoryCache.Key? {
+    val reference = synchronized(coverReferences) { coverReferences[this]?.get(identity) } ?: return null
+    // Coil performs the cache lookup; an evicted key simply provides no placeholder.
+    return reference.key.takeIf { reference.file?.version() == reference.version }
 }
 
-internal fun ImageLoader.rememberCover(identity: CoverMemoryIdentity, result: SuccessResult) {
+internal fun ImageLoader.rememberCover(identity: CoverMemoryIdentity?, result: SuccessResult) {
+    if (identity == null) return
     val key = result.memoryCacheKey ?: return
     val cache = memoryCache ?: return
-    val value = cache[key] ?: return
     val file = localCoverFile(result.request.data)
-    cache[key] = MemoryCache.Value(value.image, value.extras +
-        (COVER_REFERENCE to CoverMemoryReference(identity, file, file?.version())))
+    synchronized(coverReferences) {
+        val references = coverReferences.getOrPut(this) { mutableMapOf() }
+        if (identity !in references) {
+            val keys = cache.keys
+            references.entries.removeAll { it.value.key == key || it.value.key !in keys }
+        }
+        references[identity] = CoverMemoryReference(key, file, file?.version())
+    }
 }
 
 private fun File.version() = lastModified() to length()

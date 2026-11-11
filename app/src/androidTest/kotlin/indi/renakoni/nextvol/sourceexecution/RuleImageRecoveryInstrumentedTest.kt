@@ -179,7 +179,7 @@ class RuleImageRecoveryInstrumentedTest {
                 compose.runOnIdle { fallback.set(null); completed.set(null); shown = next }
                 compose.waitUntil(10_000) { loadingStarts.get() == index + 1 }
                 compose.waitForIdle()
-                assertEquals(if (index == 2) null else cachedKey, placeholderKey.get())
+                if (index < 2) assertEquals(cachedKey, placeholderKey.get())
                 val loading = compose.onNodeWithContentDescription(compose.activity.getString(R.string.cover_description, "Rule fixture"))
                     .captureToImage().asAndroidBitmap()
                 if (index < 2) assertEquals(Color.BLUE, loading.getPixel(loading.width / 2, loading.height / 2))

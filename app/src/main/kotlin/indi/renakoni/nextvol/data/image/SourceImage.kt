@@ -30,7 +30,7 @@ class SourceImageInterceptor @Inject constructor(
 
     internal fun coverVersion(image: SourceImage): Pair<String?, Long> =
         registry.sources.value.firstOrNull { it.metadata.id == image.book.sourceId }?.metadata?.revision to
-            downloads.coverWriteGeneration(image.book)
+            (if (image.preferDownloaded) downloads.coverWriteGeneration(image.book) else 0L)
 
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
         val image = chain.request.data as? SourceImage ?: return chain.proceed()

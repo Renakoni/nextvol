@@ -84,7 +84,7 @@ internal fun BookCoverImage(request: ImageRequest, bookId: String, width: Dp, he
     author: String = "", onFallbackChanged: (Boolean) -> Unit = {},
     imageLoader: ImageLoader = SingletonImageLoader.get(LocalContext.current)) {
     var retry by remember(request) { mutableIntStateOf(0) }
-    val identity = imageLoader.coverMemoryIdentity(request, bookId)
+    val identity = imageLoader.coverMemoryIdentity(request)
     val current = remember(request, retry, imageLoader, identity) {
         request.newBuilder()
             .placeholderMemoryCacheKey(if (request.memoryCachePolicy.readEnabled) imageLoader.coverPlaceholder(identity) else null)
