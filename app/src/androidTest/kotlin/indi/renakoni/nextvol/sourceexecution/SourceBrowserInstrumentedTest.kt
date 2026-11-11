@@ -226,8 +226,11 @@ class SourceBrowserInstrumentedTest {
                                 val arguments = android.os.Bundle().apply {
                                     putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, code)
                                 }
-                                withTimeout(20000) { while (input(automation.rootInActiveWindow)?.performAction(
-                                        android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT, arguments) != true) delay(100)
+                                withTimeout(20000) {
+                                    while (input(automation.rootInActiveWindow)?.performAction(
+                                            android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT, arguments) != true) delay(100)
+                                    // Chromium applies accessibility edits asynchronously; wait before reload or submit.
+                                    while (input(automation.rootInActiveWindow)?.text?.toString() != code) delay(100)
                                 }
                             }
                             enterCode("old-code")

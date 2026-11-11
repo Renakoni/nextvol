@@ -55,6 +55,7 @@ class FlipReaderController(
     @Volatile private var request: Request? = null
     private var chapterLoadJob: Job? = null
     private var preloadJob: Job? = null
+    private val readerRequests = indi.renakoni.nextvol.data.book.ReaderChapterRequests(coroutineScope)
     private var navigation: ChapterNavigation? = null
     private val readingMetadataMutex = Mutex()
 
@@ -68,6 +69,7 @@ class FlipReaderController(
     override fun changeBookId(id: String) {
         if (uiState.bookId == id) return
         request = null
+        readerRequests.clear()
         chapterLoadJob?.cancel()
         preloadJob?.cancel()
         navigation = null
@@ -117,12 +119,13 @@ class FlipReaderController(
     }
 
     private fun loadChapter(id: String, entry: ChapterEntry) {
+        readerRequests.retain(uiState.bookId, listOf(id))
         chapterLoadJob?.cancel()
         preloadJob?.cancel()
         val expected = Request(uiState.bookId, id, committed = entry == ChapterEntry.Restore).also { request = it }
         if (!expected.committed) uiState.pendingChapter = FlipChapterTransition(id, entry)
         chapterLoadJob = coroutineScope.launch {
-            chapters.load(id, expected.bookId, WebDataSourcePriority.High).flowOn(ioDispatcher).collect { result ->
+            chapters.load(id, expected.bookId, WebDataSourcePriority.High).flowOn(ioDispatcher + readerRequests).collect { result ->
                 if (!isCurrent(expected)) return@collect
                 result.onOk { it.updateNavigation(navigation) }
                 if (!expected.committed) {
@@ -164,6 +167,7 @@ class FlipReaderController(
         request = null
         chapterLoadJob?.cancel()
         uiState.pendingChapter = null
+        readerRequests.retain(uiState.bookId, listOfNotNull(uiState.readingChapterId))
         uiState.readingChapterId?.let { positionNavigation(uiState.bookId, it, true) }
     }
 
@@ -185,9 +189,10 @@ class FlipReaderController(
     }
 
     private fun preload(content: ChapterContentUiState, bookId: String) {
+        readerRequests.retain(bookId, listOfNotNull(uiState.readingChapterId, uiState.pendingChapter?.chapterId, content.nextChapter))
         preloadJob?.cancel()
         preloadJob = content.nextChapter?.let { next ->
-            coroutineScope.launch(ioDispatcher) { chapters.preload(next, bookId) }
+            coroutineScope.launch(ioDispatcher + readerRequests) { chapters.preload(next, bookId) }
         }
     }
 }

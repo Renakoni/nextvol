@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.ui.book.reader.mode
 import indi.renakoni.nextvol.data.book.BookIdentity
 import android.app.Application
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.get
 import indi.renakoni.nextvol.data.book.BookRepositoryFixture
 import indi.renakoni.nextvol.data.book.ChapterNavigation
@@ -30,13 +31,47 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 abstract class CachedChapterReaderContractTest {
-    internal val env = ModeTestEnvironment()
+    internal val env = ModeTestEnvironment(indi.renakoni.nextvol.data.web.ForegroundSourceRequest())
     private val fixture = BookRepositoryFixture()
     private val error = WebRequestError("offline", "request failed")
 
     protected abstract fun controller(loader: ReaderChapterLoader): ReaderModeController
 
     @After fun tearDown() = env.close()
+
+    @Test fun enteringTheUnfinishedNextChapterKeepsItsOnlyRemoteRequest() = assertHandoff(verification = false)
+
+    @Test fun aBackgroundVerificationFailureResumesWithTheCurrentForegroundOwner() = assertHandoff(verification = true)
+
+    private fun assertHandoff(verification: Boolean) {
+        val book = BookIdentity.book("book")
+        val current = BookIdentity.chapter("current", book).storageKey
+        val next = BookIdentity.chapter("next", book).storageKey
+        coEvery { fixture.local.getReusableChapterContent(current, any()) } returns env.chapter(current, next = next)
+        val cached = if (verification) null else env.chapter(next, title = "Old body")
+        coEvery { fixture.local.getChapterContent(next) } returns cached
+        coEvery { fixture.local.updateChapterContent(any()) } returns Unit
+        val gate = CompletableDeferred<Unit>()
+        val interactions = mutableListOf<Boolean?>()
+        coEvery { fixture.remote.getChapterContent("next", "book", any()) } coAnswers {
+            interactions += kotlinx.coroutines.currentCoroutineContext()[indi.renakoni.nextvol.data.web.ForegroundSourceRequest]?.allowsInteraction
+            gate.await()
+            if (verification && interactions.size == 1) Err(WebRequestError("verification", "required",
+                kind = io.nightfish.lightnovelreader.api.error.WebRequestErrorKind.VerificationRequired))
+            else Ok(env.chapter("next"))
+        }
+        every { fixture.text.processChapterContent(any(), any()) } answers { secondArg<() -> ChapterContent>()() }
+        val mode = controller(ReaderChapterLoader(fixture.chapterRepository(), env.renderer))
+        env.runCurrent(); mode.changeBookId("book"); mode.changeChapter(current); env.runCurrent()
+        mode.changeChapter(next); env.runCurrent()
+        assertEquals(if (cached == null) current else next, env.records.data.lastReadChapterId)
+        coVerify(exactly = 1) { fixture.remote.getChapterContent("next", "book", any()) }
+        gate.complete(Unit); env.runCurrent()
+        assertEquals(next, mode.uiState.readingChapterContent!!.get()!!.id)
+        assertEquals(next, env.records.data.lastReadChapterId)
+        coVerify(exactly = if (verification) 2 else 1) { fixture.remote.getChapterContent("next", "book", any()) }
+        assertEquals(if (verification) listOf(false, true) else listOf(false), interactions)
+    }
 
     @Test
     fun appendedAndReorderedDirectoryUpdatesNavigationWithoutReplacingTheCachedBody() {

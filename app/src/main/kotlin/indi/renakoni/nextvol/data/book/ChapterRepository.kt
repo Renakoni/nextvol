@@ -21,6 +21,7 @@ import io.nightfish.lightnovelreader.api.web.WebDataSourcePriority
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.currentCoroutineContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -120,7 +121,8 @@ class ChapterRepository @Inject constructor(
         val chapter = BookIdentity.chapter(chapterId, BookIdentity.book(bookId))
         if (LocalBookStore.isLocal(chapter.book)) return
         if (reusableChapter(chapter) != null) return
-        refreshChapter(chapter, priority).onErr {
+        val cached = localBookDataSource.getChapterContent(chapter.storageKey)
+        refreshChapter(chapter, priority, fresh = cached != null).onErr {
                 Log.e(TAG, "Source request failed for ${chapter.book.fileKey}: ${it.kind}")
             }
     }
@@ -132,7 +134,9 @@ class ChapterRepository @Inject constructor(
 
     internal suspend fun refreshChapter(chapter: SourceChapterId, priority: WebDataSourcePriority, fresh: Boolean = false): Result<ChapterContent, WebRequestError> {
         val requested = localBookDataSource.aliases.resolve(chapter.book)
-        return sourceRegistry.request(requested) { runtime -> runtime.execute {
+        val readerRequests = currentCoroutineContext()[ReaderChapterRequests]
+        return sourceRegistry.request(requested) { runtime ->
+            val fetch: suspend () -> Result<ChapterContent, WebRequestError> = { runtime.execute {
             runtime.getChapterContent(chapter.remoteId, requested.remoteId, priority, refresh = fresh).andThen { remote ->
                 runtime.persistCanonicalBook(requested, localBookDataSource, downloads).map {
                     chapter.bind(remote).also {
@@ -141,6 +145,8 @@ class ChapterRepository @Inject constructor(
                     }
                 }
             }
-        } }
+            } }
+            readerRequests?.get(runtime, chapter, fresh, fetch) ?: fetch()
+        }
     }
 }

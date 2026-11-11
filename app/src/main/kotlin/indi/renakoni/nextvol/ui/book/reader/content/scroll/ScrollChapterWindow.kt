@@ -42,6 +42,7 @@ internal class ScrollChapterWindow(
     private var continuous = false
     private var navigation: ChapterNavigation? = null
     private var preloadJob: Job? = null
+    private val readerRequests = indi.renakoni.nextvol.data.book.ReaderChapterRequests(coroutineScope)
 
     private fun isCurrent(expected: Request) = request === expected && coroutineScope.isActive
 
@@ -62,6 +63,7 @@ internal class ScrollChapterWindow(
     fun changeBookId(id: String) {
         if (uiState.bookId == id) return
         invalidateRequest()
+        readerRequests.clear()
         navigation = null
         uiState.bookId = id
         uiState.readingChapterId = null
@@ -88,6 +90,7 @@ internal class ScrollChapterWindow(
 
     fun changeChapter(id: String, restoreProgress: Boolean = true) {
         if (id.isBlank()) return
+        readerRequests.retain(uiState.bookId, listOf(id))
         invalidateRequest()
         val expected = Request(uiState.bookId, id, restoreProgress).also { request = it }
         // Keep the fixed-size window addressable throughout reset.
@@ -162,6 +165,7 @@ internal class ScrollChapterWindow(
         // A successful retry can arrive before the old error block has been remeasured.
         if (item.contentType != true) return
         val previous = uiState.contentList[1] ?: return
+        readerRequests.retain(uiState.bookId, listOfNotNull(adjacent.first, previous.first, content.prevChapter, content.nextChapter))
         invalidateRequest()
         val expected = Request(uiState.bookId, adjacent.first).also { request = it }
         uiState.contentList.fill(null)
@@ -198,15 +202,17 @@ internal class ScrollChapterWindow(
     }
 
     private fun preload(expected: Request, content: ChapterContentUiState) {
+        readerRequests.retain(expected.bookId, listOfNotNull(expected.chapterId, content.nextChapter))
         preloadJob?.cancel()
         preloadJob = content.nextChapter?.let { next ->
-            coroutineScope.launch(ioDispatcher) { chapters.preload(next, expected.bookId) }
+            coroutineScope.launch(ioDispatcher + readerRequests) { chapters.preload(next, expected.bookId) }
         }
     }
 
     private fun replaceAdjacent(expected: Request, content: ChapterContentUiState) {
         val prev = content.prevChapter?.takeUnless { it == expected.chapterId || it == content.nextChapter }
         val next = content.nextChapter?.takeUnless { it == expected.chapterId || it == content.prevChapter }
+        readerRequests.retain(expected.bookId, listOfNotNull(expected.chapterId, prev, next))
         cancelSlot(0)
         cancelSlot(2)
         // Clear both old identities before publishing either replacement.
@@ -229,7 +235,7 @@ internal class ScrollChapterWindow(
         val retained = uiState.contentList[index]?.takeIf { it.first == chapterId }?.second?.get()
         slotJobs[index] = coroutineScope.launch {
             chapters.load(chapterId, expected.bookId, interactive = interactive, retainedContent = retained)
-                .flowOn(ioDispatcher).collect { result ->
+                .flowOn(ioDispatcher + readerRequests).collect { result ->
                     if (!isCurrent(expected) || generation != slotGenerations[index]) return@collect
                     result.onOk { it.updateNavigation(navigation) }
                     result.onOk { beforePublish(it) }
