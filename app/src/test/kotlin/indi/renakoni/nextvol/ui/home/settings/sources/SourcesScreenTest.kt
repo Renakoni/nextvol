@@ -837,24 +837,34 @@ class SourcesScreenTest {
             hnovel.imports.SourceOriginCandidates.discover(kotlinx.serialization.json.Json.parseToJsonElement(candidate.rawJson)
                 as kotlinx.serialization.json.JsonObject).joinToString("\n") { it.origin } })
 
-    @Test fun zlibraryHasAnAppSearchEntryAndMirrorChangesStayDraftUntilSaved() {
+    @Test fun zlibrarySearchAndSettingsSaveOnlyTheSelectedDraft() {
         val native = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources
         val settings = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySettings()
-        val state = SourceManagementState(selected = native.ID,
+        var state by mutableStateOf(SourceManagementState(selected = native.ID,
             nativeSources = listOf(indi.renakoni.nextvol.data.web.ManagedSource(native.ID, "Z-Library", "z-lib.gd",
                 indi.renakoni.nextvol.data.web.rules.SourcePreferences(true, false))),
             zLibrary = indi.renakoni.nextvol.data.web.zlibrary.ZLibraryState(settings),
             registry = listOf(SourceListing(SourceMetadata(WebDataSourceItem(native.ID, "Z-Library", "fixture"),
-                setOf(SourceCapability.Search), builtIn = true), SourceStatus.Ready)))
+                setOf(SourceCapability.Search), builtIn = true), SourceStatus.Ready))))
         var selected: Identifier? = null
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onSearch = { selected = it }) {} } }
         compose.onNodeWithText("Search this source").performClick()
         org.junit.Assert.assertEquals(native.ID, selected)
-        compose.onNodeWithText("API site").performClick()
+        val permissions = settings.origins.joinToString("\n") + "\nhttps://extra.example:443"
+        compose.onNodeWithText("Network permissions").performScrollTo().performClick()
+        compose.onNodeWithText("Allowed site origins, one per line").performScrollTo().performTextReplacement(permissions)
+        compose.onNodeWithText("API site").performScrollTo().performClick()
         compose.onNodeWithText("https://z-lib.fo:443").performScrollTo().performClick()
         verify(exactly = 0) { model.saveZLibrary(any(), any()) }
-        compose.onNodeWithText("Save site and permissions").performScrollTo().performClick()
+        compose.onNodeWithText("Save site").performScrollTo().performClick()
         verify(exactly = 1) { model.saveZLibrary("https://z-lib.fo:443", settings.origins.joinToString("\n")) }
+        compose.runOnIdle { state = state.copy(configurationError = SourceSaveError(indi.renakoni.nextvol.R.string.sources_action_failed)) }
+        compose.onAllNodesWithText(activity.get().getString(indi.renakoni.nextvol.R.string.sources_action_failed)).assertCountEquals(1)
+        compose.runOnIdle { state = state.copy(configurationError = null,
+            zLibrary = state.zLibrary.copy(settings = settings.copy(origin = "https://z-lib.fo:443"))) }
+        compose.onNodeWithText("Allowed site origins, one per line").performScrollTo().assertTextContains(permissions)
+        compose.onNodeWithText("Save permissions").performScrollTo().performClick()
+        verify(exactly = 1) { model.saveZLibrary("https://z-lib.fo:443", permissions) }
         compose.onNodeWithContentDescription("Enable source").performScrollTo().performClick()
         verify(exactly = 1) { model.setEnabled(native.ID, false) }
     }

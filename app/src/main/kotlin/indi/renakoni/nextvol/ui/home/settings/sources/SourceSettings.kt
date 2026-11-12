@@ -47,6 +47,7 @@ internal fun SourceSettings(source: ManagedSource, state: SourceManagementState,
     var showDetails by rememberSaveable(source.key) { mutableStateOf(false) }
     var editPermissions by rememberSaveable(source.key) { mutableStateOf(false) }
     var editMirror by rememberSaveable(source.key) { mutableStateOf(false) }
+    var savingMirror by rememberSaveable(source.key) { mutableStateOf(false) }
     var editVariable by rememberSaveable(source.key) { mutableStateOf(false) }
     var manualVariable by rememberSaveable(source.key) { mutableStateOf(false) }
     var deleting by rememberSaveable(source.key) { mutableStateOf(false) }
@@ -103,8 +104,9 @@ internal fun SourceSettings(source: ManagedSource, state: SourceManagementState,
                 SourcePermissionCandidate(request.origin, request.kind.name, permissions, state.busy) { permissions = it }
             }
             SourcePermissionsField(permissions, state.busy) { permissions = it; model.clearConfigurationError() }
-            SourceSaveActions(state.configurationError, state.busy, R.string.sources_save_permissions,
+            SourceSaveActions(state.configurationError.takeUnless { savingMirror }, state.busy, R.string.sources_save_permissions,
                 onSave = {
+                    savingMirror = false
                     if (zLibrary != null) model.saveZLibrary(zLibrary.settings.origin, permissions)
                     else model.savePermissions(id, permissions)
                 })
@@ -126,10 +128,10 @@ internal fun SourceSettings(source: ManagedSource, state: SourceManagementState,
                         OutlinedTextField(mirror, { mirror = it; model.clearConfigurationError() }, Modifier.fillMaxWidth(), enabled = !state.busy,
                             singleLine = true, label = { Text(stringResource(R.string.zlibrary_mirror)) })
                         ZLibrarySources.MIRRORS.forEach { candidate ->
-                            TextButton(onClick = { mirror = candidate }, enabled = !state.busy) { Text(candidate) }
+                            TextButton(onClick = { mirror = candidate; model.clearConfigurationError() }, enabled = !state.busy) { Text(candidate) }
                         }
-                        SourceSaveActions(state.configurationError, state.busy, R.string.zlibrary_save,
-                            onSave = { model.saveZLibrary(mirror, permissions) })
+                        SourceSaveActions(state.configurationError.takeIf { savingMirror }, state.busy, R.string.zlibrary_save,
+                            onSave = { savingMirror = true; model.saveZLibrary(mirror, savedPermissions) })
                     }
                 }
             }

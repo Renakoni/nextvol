@@ -1,7 +1,6 @@
 <resources>
     <string name="zlibrary_mirror">API 網站</string>
-    <string name="zlibrary_mirror_help">填寫不含路徑的網站位址。更換網站不會變更書籍關聯；所選網站也需要列在下方權限中。</string>
-    <string name="zlibrary_save">儲存網站與權限</string>
+    <string name="zlibrary_save">儲存網站</string>
     <string name="zlibrary_settings_failed">設定未能還原。請檢查網站與權限，儲存後恢復使用。</string>
     <string name="zlibrary_search_hint">書名或作者（最多 500 項）</string>
     <string name="zlibrary_filter_all">所有語言與格式</string>

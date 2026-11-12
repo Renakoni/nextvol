@@ -1,7 +1,6 @@
 <resources>
     <string name="zlibrary_mirror">API site</string>
-    <string name="zlibrary_mirror_help">Use a site origin without a path. Changing sites keeps your books linked. The selected site must also be in the permissions below.</string>
-    <string name="zlibrary_save">Save site and permissions</string>
+    <string name="zlibrary_save">Save site</string>
     <string name="zlibrary_settings_failed">Settings could not be restored. Review the site and permissions, then save to recover.</string>
     <string name="zlibrary_search_hint">Book title or author (up to 500 results)</string>
     <string name="zlibrary_filter_all">All languages and formats</string>

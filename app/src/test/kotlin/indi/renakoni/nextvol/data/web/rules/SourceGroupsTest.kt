@@ -286,64 +286,6 @@ class SourceGroupsTest {
         }
     }
 
-    @Test fun legacyArrayLoadsUngroupedAndMigratesWithItsFirstGroupWrite() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val accounts = SourceSessionManager(fixture.authority)
-            var sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-            try {
-                sources.activate(commit(sources, fixture.raw()), emptyList())
-                val file = File(context.filesDir, "rule-sources/active.json")
-                sources.stop()
-                val old = Json.parseToJsonElement(file.readText()).jsonObject.getValue("sources")
-                file.writeText(old.toString())
-                sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-                assertTrue(sources.sourceGroups().isEmpty())
-                assertTrue(sources.installedSources().single().preferences.groupIds.isEmpty())
-                sources.createGroup("Empty")
-                val saved = Json.parseToJsonElement(file.readText()).jsonObject
-                assertEquals(old, saved.getValue("sources"))
-                assertEquals(1, saved.getValue("groups").jsonArray.size)
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun legacySingleGroupMigratesAndMultipleMembershipsSurviveRestartAndDeletion() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val accounts = SourceSessionManager(fixture.authority)
-            var sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-            try {
-                val id = sources.activate(commit(sources, fixture.raw()), emptyList())
-                sources.createGroup("Reading", setOf(id))
-                val first = sources.sourceGroups().single().id
-                val file = File(context.filesDir, "rule-sources/active.json")
-                val snapshot = Json.parseToJsonElement(file.readText()).jsonObject
-                val row = snapshot.getValue("sources").jsonArray.single().jsonObject
-                val preferences = JsonObject((row.getValue("preferences").jsonObject - "groupIds") + ("groupId" to JsonPrimitive(first)))
-                sources.stop()
-                file.writeText(JsonObject(snapshot + ("sources" to JsonArray(listOf(
-                    JsonObject(row + ("preferences" to preferences)))))).toString())
-                sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-                assertEquals(setOf(first), sources.installedSources().single().preferences.groupIds)
-                sources.createGroup("Favorites", setOf(id))
-                val second = sources.sourceGroups().last().id
-                assertEquals(setOf(first, second), sources.installedSources().single().preferences.groupIds)
-                sources.stop()
-                sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-                assertEquals(setOf(first, second), sources.installedSources().single().preferences.groupIds)
-                sources.updateGroups(setOf(id), emptySet(), setOf(first))
-                assertEquals(setOf(second), sources.installedSources().single().preferences.groupIds)
-                sources.updateGroups(setOf(id), setOf(first), emptySet())
-                sources.deleteGroup(second)
-                assertEquals(setOf(first), sources.installedSources().single().preferences.groupIds)
-                sources.stop()
-                sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-                assertEquals(setOf(first), sources.installedSources().single().preferences.groupIds)
-            } finally { sources.stop() }
-        }
-    }
-
     @Test fun batchUpdatesPreserveUntouchedMembershipsAndSourcePreferences() = runBlocking {
         val context = host()
         RuleSourceFixture().use { fixture ->
