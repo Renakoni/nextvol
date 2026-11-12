@@ -225,7 +225,9 @@ fun BookCardContent(
 
 
                 if (latestChapterTitle.isNullOrBlank()) {
-                    val description = remember(bookInformation.description) { bookDescriptionForDisplay(bookInformation.description).trim() }
+                    val description = remember(bookInformation.id, bookInformation.description) {
+                        bookDescriptionForDisplay(bookInformation.id, bookInformation.description).trim()
+                    }
                     Text(
                         text = description,
                         maxLines = 2,

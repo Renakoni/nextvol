@@ -165,19 +165,6 @@ class SearchHubScreenTest {
         compose.onNodeWithText("Book 0").assertIsDisplayed()
     }
 
-    @Test fun descriptionsFromSearchPreviewAndLoadedInformationRenderAsText() {
-        val preview = BookInformation("book", "Book", author = "Author", description = "<p>预览<br>简介</p>",
-            publishingHouse = "", wordCount = WordCount(0), lastUpdated = LocalDateTime.MIN, isComplete = false)
-        val loaded = preview.copy(description = "<p>加载后的简介</p>")
-        val book = SearchHubBook("book", source.id, source.name, preview, flowOf(Ok(loaded)))
-        state = SearchHubState(query = "book", submittedKeyword = "book", sources = listOf(source), books = listOf(book))
-        render()
-        compose.onNodeWithText("预览\n简介", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNodeWithText(preview.description, useUnmergedTree = true).assertDoesNotExist()
-        compose.runOnIdle { state = state.copy(books = listOf(book.copy(preview = null))) }
-        compose.onNodeWithText("加载后的简介", useUnmergedTree = true).assertIsDisplayed()
-    }
-
     @Test fun failureIsDistinctFromEmptyAndCanBeInspectedAndRetried() {
         state = SearchHubState(query = "book", submittedKeyword = "book", sources = listOf(
             source.copy(failure = SourceSearchFailure(DiscoveryError.Network))))

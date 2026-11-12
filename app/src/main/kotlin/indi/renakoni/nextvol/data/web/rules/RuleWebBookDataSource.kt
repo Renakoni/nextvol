@@ -12,7 +12,6 @@ import hnovel.content.*
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.UNKNOWN_BOOK_UPDATE_TIME
 import indi.renakoni.nextvol.data.book.PartialBookVolumesException
-import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
 import indi.renakoni.nextvol.data.explore.PagedSearchProvider
 import indi.renakoni.nextvol.data.explore.SearchPage
 import indi.renakoni.nextvol.data.web.EmptyWebDataSource
@@ -89,7 +88,6 @@ internal class RuleWebBookDataSource(override val id: Identifier, private val so
     internal suspend fun informationForDisplay(id: String, information: BookInformation): BookInformation {
         val saved = source.cachedInformation(id)
         return information.copy(
-            description = bookDescriptionForDisplay(information.description),
             wordCount = saved?.let { WordCount(parseBookWordCount(it.wordCount) ?: parseBookWordCount(it.lastValidWordCount) ?: 0) }
                 ?: information.wordCount,
             lastUpdated = saved?.let { parseBookUpdateTime(it.updateTime) ?: parseBookUpdateTime(it.lastValidUpdateTime) }

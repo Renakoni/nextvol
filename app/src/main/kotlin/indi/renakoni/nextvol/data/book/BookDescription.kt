@@ -3,6 +3,10 @@ package indi.renakoni.nextvol.data.book
 import org.jsoup.Jsoup
 import org.jsoup.nodes.TextNode
 
+// Built-in sources and EPUB metadata already supply plain text.
+internal fun bookDescriptionForDisplay(bookId: String, raw: String): String =
+    if (BookIdentity.book(bookId).sourceId.namespace == "rules") bookDescriptionForDisplay(raw) else raw
+
 internal fun bookDescriptionForDisplay(raw: String): String {
     if ('<' !in raw) return raw
     val body = Jsoup.parseBodyFragment(raw).body()

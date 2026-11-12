@@ -420,7 +420,9 @@ private fun ReadingBookCard(
     }
     val progress = remember(userReadingData.readingProgress) { "${(userReadingData.readingProgress * 100).toInt()}%" }
     val infoText = "$lastRead • $readingTime • $progress"
-    val description = remember(bookInformation.description) { bookDescriptionForDisplay(bookInformation.description).trim() }
+    val description = remember(bookInformation.id, bookInformation.description) {
+        bookDescriptionForDisplay(bookInformation.id, bookInformation.description).trim()
+    }
 
     Box(
         modifier = modifier.clip(RoundedCornerShape(12.dp))

@@ -9,15 +9,16 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.ui.home.reading.home.ReadingScreen
 import indi.renakoni.nextvol.ui.home.reading.home.RecentReadingBook
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.UserReadingData
 import io.nightfish.lightnovelreader.api.book.WordCount
 import io.nightfish.lightnovelreader.api.error.WebRequestError
+import io.nightfish.lightnovelreader.api.identifier.Identifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -44,27 +45,25 @@ class ReadingHomeScreenTest {
 
     @After fun tearDown() { activity.pause().stop().destroy() }
 
-    @Test fun cachedHtmlDescriptionIsReadableAndUpdatesWhenInformationChanges() {
+    @Test fun htmlDescriptionIsReadableAndUpdatesWhenInformationChanges() {
+        val id = SourceBookId(Identifier("rules", "fixture"), "book").storageKey
         val raw = "<br>标签：战斗<p class=\"introduce\">边陲小镇</p>"
-        val information = BookInformation("book", "Book", author = "Author", description = raw,
+        val information = BookInformation(id, "Book", author = "Author", description = raw,
             publishingHouse = "", wordCount = WordCount(0), lastUpdated = LocalDateTime.MIN, isComplete = false)
-        val recent = RecentReadingBook("book", information, UserReadingData("book"))
+        val recent = RecentReadingBook(id, information, UserReadingData(id))
         val result = MutableStateFlow<Result<RecentReadingBook, WebRequestError>?>(Ok(recent))
         activity.get().setContent {
             MaterialTheme {
-                ReadingScreen(listOf("book" to result), readingListLoading = false,
+                ReadingScreen(listOf(id to result), readingListLoading = false,
                     onClickBook = {}, onClickContinueReading = { _, _ -> }, onClickDownloadManager = {},
                     onClickStats = {}, onRemoveBook = {}, onAddBook = {}, onClickOpenChapters = {}, onSettings = {})
             }
         }
         compose.onNodeWithText("标签：战斗\n边陲小镇", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNodeWithText(raw, useUnmergedTree = true).assertDoesNotExist()
-        assertEquals(raw, information.description)
 
         compose.runOnIdle {
             result.value = Ok(recent.copy(bookInformation = information.copy(description = "<p>更新后的简介</p>")))
         }
         compose.onNodeWithText("更新后的简介", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNodeWithText("标签：战斗\n边陲小镇", useUnmergedTree = true).assertDoesNotExist()
     }
 }

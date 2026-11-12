@@ -211,7 +211,9 @@ fun SearchHubScreen(
 private fun SearchBookRow(book: SearchHubBook, onClick: () -> Unit) {
     val result by key(book.information) { book.information.collectAsStateWithLifecycle(initialValue = null) }
     val info = book.preview ?: result?.getOrElse { null }
-    val description = remember(info?.description) { bookDescriptionForDisplay(info?.description.orEmpty()) }
+    val description = remember(info?.id, info?.description) {
+        info?.let { bookDescriptionForDisplay(it.id, it.description) }.orEmpty()
+    }
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 24.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Cover(book.id, 80.dp, 112.dp, info?.coverUri ?: android.net.Uri.EMPTY,
@@ -219,7 +221,7 @@ private fun SearchBookRow(book: SearchHubBook, onClick: () -> Unit) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(info?.title ?: stringResource(if (result?.isErr == true) R.string.search_book_unavailable else R.string.search_book_loading),
                 style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (!info?.author.isNullOrBlank()) Text(info!!.author, style = MaterialTheme.typography.bodySmall,
+            if (!info?.author.isNullOrBlank()) Text(info.author, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (description.isNotBlank()) Text(description, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)

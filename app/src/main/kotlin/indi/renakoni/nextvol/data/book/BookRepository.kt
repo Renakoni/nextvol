@@ -113,11 +113,12 @@ class BookRepository @Inject constructor(
     internal suspend fun bookInformationForDisplay(information: BookInformation): BookInformation {
         val book = BookIdentity.book(information.id)
         if (book.sourceId.namespace != "rules") return information
-        val fallback = information.copy(lastUpdated = UNKNOWN_BOOK_UPDATE_TIME)
+        val display = information.copy(description = bookDescriptionForDisplay(information.description))
+        val fallback = display.copy(lastUpdated = UNKNOWN_BOOK_UPDATE_TIME)
         return try {
             val canonical = canonicalBook(book)
             sourceRegistry.request(canonical) { runtime ->
-                Ok(runtime.bookInformationForDisplay(canonical.remoteId, information))
+                Ok(runtime.bookInformationForDisplay(canonical.remoteId, display))
             }.getOrElse { fallback }
         } catch (failure: Exception) {
             currentCoroutineContext().ensureActive()
