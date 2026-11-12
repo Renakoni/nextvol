@@ -11,10 +11,22 @@ class FormattingRuleProcessorTest {
         assertEquals("\tA\"\\\r\b\u000c\$1", applyFormattingRules("\n", listOf(rule)))
     }
 
-    @Test fun repeatedRegexMatchesAlsoReplaceTextProducedByEarlierMatches() {
+    @Test fun regexReplacementsDoNotReprocessGeneratedText() {
         val rule = FormattingRule(name = "repeat", isRegex = true, match = "(a)", replacement = "\$1\$1", isEnabled = true)
 
-        assertEquals("aaaaaaaa", applyFormattingRules("aa", listOf(rule)))
+        assertEquals("aaaa", applyFormattingRules("aa", listOf(rule)))
+    }
+
+    @Test fun regexReplacementsOnlyChangeMatchedPositions() {
+        val rule = FormattingRule(name = "context", isRegex = true, match = "(?<=x)a", replacement = "b", isEnabled = true)
+
+        assertEquals("a xb", applyFormattingRules("a xa", listOf(rule)))
+    }
+
+    @Test fun zeroLengthMatchesArePreservedAlongsideNonEmptyMatches() {
+        val rule = FormattingRule(name = "boundaries", isRegex = true, match = "^|b|$", replacement = "_", isEnabled = true)
+
+        assertEquals("_a__", applyFormattingRules("ab", listOf(rule)))
     }
 
     @Test fun captureSubstitutionKeepsMissingGroupsAndReplacesNumberPrefixesInOrder() {

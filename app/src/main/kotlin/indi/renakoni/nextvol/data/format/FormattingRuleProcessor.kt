@@ -40,15 +40,20 @@ private fun String.unescapeControlChars(): String {
 }
 
 private fun String.replaceTextWithRegex(regex: Regex, replaced: String): String {
-    var result = this
-    for (matchResult in regex.findAll(this)) {
+    val matches = regex.findAll(this).iterator()
+    if (!matches.hasNext()) return this
+    val result = StringBuilder(length)
+    var end = 0
+    for (matchResult in matches) {
+        result.append(this, end, matchResult.range.first)
         var progressedReplacedText = replaced
         matchResult.groups.forEachIndexed { index, matchGroup ->
             matchGroup?.value?.let {
                 progressedReplacedText = progressedReplacedText.replace("$$index", it)
             }
         }
-        result = result.replace(matchResult.value, progressedReplacedText)
+        result.append(progressedReplacedText)
+        end = matchResult.range.last + 1
     }
-    return result
+    return result.append(this, end, length).toString()
 }
