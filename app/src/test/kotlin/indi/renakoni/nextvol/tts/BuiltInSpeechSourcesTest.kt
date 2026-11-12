@@ -360,13 +360,24 @@ class BuiltInSpeechSourcesTest {
         assertTrue(repository().sources().single { !it.isBuiltIn }.available)
     }
 
-    @Test fun filteredVoiceOrderSurvivesEditsReimportAndReopenWithoutRevokingPlayback() = runBlocking {
+    @Test fun voiceOrderSurvivesEditsCopiesReimportAndReopenWithoutRevokingPlayback() = runBlocking {
         val repository = repository()
         val engine = SpeechEngineConfig("http_order", "Order", "http", url = "https://example.org/audio?voice={{voiceCode}}")
         val original = newHttpVoice(engine).copy(isVoiceCopy = false)
         val second = editHttpVoice(original, buildJsonObject { put("name", "Second"); put("code", "second") }, true, true)
         val third = editHttpVoice(original, buildJsonObject { put("name", "Third"); put("code", "third") }, true, true)
-        repository.save(listOf(original, second, third))
+        repository.save(listOf(original, second))
+        repository.saveVoice(third)
+        val initialOrder = listOf(original.definition.id, second.definition.id, third.definition.id)
+        val edited = editHttpVoice(original, buildJsonObject { put("name", "Edited") }, true, false)
+        repository.saveVoice(edited)
+        val editedVoices = repository().sources().filterNot { it.isBuiltIn }
+        assertEquals(initialOrder, editedVoices.map { it.definition.id })
+        assertEquals("Edited", editedVoices.first().definition.name)
+        repository.enable(setOf(second.definition.id), false)
+        val disabledVoices = repository().sources().filterNot { it.isBuiltIn }
+        assertEquals(initialOrder, disabledVoices.map { it.definition.id })
+        assertFalse(disabledVoices[1].enabled)
         val ticket = repository.withSource(original.definition.id) { source, _ ->
             authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
         }!!
@@ -374,7 +385,8 @@ class BuiltInSpeechSourcesTest {
         val order = listOf(third.definition.id, second.definition.id, original.definition.id)
         assertEquals(order, repository().sources().filterNot { it.isBuiltIn }.map { it.definition.id })
         assertTrue(authority.accepts(ticket))
-        repository.enable(setOf(second.definition.id), false)
+        repository.enable(setOf(second.definition.id), true)
+        repository.saveVoice(edited)
         repository.save(listOf(original))
         assertEquals(order, repository().sources().filterNot { it.isBuiltIn }.map { it.definition.id })
         val sources = repository.sources()

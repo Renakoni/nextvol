@@ -186,7 +186,9 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     suspend fun saveVoice(source: SavedHttpSpeechSource) = change(listOfNotNull(source.httpEngine())) { current ->
         val previous = combined(current).find { it.definition.id == source.definition.id }
         require(previous != null || !source.definition.id.startsWith(BUILT_IN_PREFIX))
-        current.filterNot { it.definition.id == source.definition.id } + source.copy(credentials = previous?.credentials ?: source.credentials)
+        val saved = source.copy(credentials = previous?.credentials ?: source.credentials)
+        val index = current.indexOfFirst { it.definition.id == source.definition.id }
+        current.toMutableList().apply { if (index < 0) add(saved) else this[index] = saved }
     }
 
     /** Commit an explicit directory refresh only while its engine configuration is still current. */
@@ -216,11 +218,12 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     suspend fun enable(ids: Set<String>, enabled: Boolean) = change { current ->
-        val changed = combined(current).filter { it.definition.id in ids }.map { source ->
-            source.copy(definition = previewHttpSpeech(JsonObject(source.definition.raw +
+        val changed = current.associateByTo(linkedMapOf()) { it.definition.id }
+        combined(current).filter { it.definition.id in ids }.forEach { source ->
+            changed[source.definition.id] = source.copy(definition = previewHttpSpeech(JsonObject(source.definition.raw +
                 ("nextvolEnabled" to JsonPrimitive(enabled))).toString()).sources.single())
         }
-        current.filterNot { it.definition.id in ids } + changed
+        changed.values.toList()
     }
 
     suspend fun delete(id: String) = delete(setOf(id))
