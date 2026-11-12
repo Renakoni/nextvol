@@ -134,7 +134,7 @@ class ReadingBookmarkTest {
         db.readingBookmarkDao().insert(saved)
         val manager = backup()
         val invalid = saved.copy(chapterId = SourceChapterId(other, "1").storageKey)
-        assertThrows(IllegalArgumentException::class.java) { manager.validateBackup(AppLocalData(
+        assertThrows(indi.renakoni.nextvol.data.backup.BackupException::class.java) { manager.validateBackup(AppLocalData(
             localDataList = listOf(LocalData.empty().copy(readingBookmarks = listOf(invalid))), globalLocalData = LocalData.empty())) }
         db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_bookmark BEFORE INSERT ON reading_bookmark BEGIN SELECT RAISE(ABORT, 'injected bookmark failure'); END")
         val incoming = AppLocalData(localDataList = listOf(LocalData.empty().copy(readingBookmarks = listOf(bookmark(other)))), globalLocalData = LocalData.empty())

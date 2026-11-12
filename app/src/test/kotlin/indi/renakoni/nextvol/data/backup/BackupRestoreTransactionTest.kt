@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import android.net.Uri
 import androidx.room.Room
 import com.github.michaelbull.result.get
+import com.github.michaelbull.result.getError
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.book.SourceChapterId
 import indi.renakoni.nextvol.data.book.bind
@@ -136,7 +137,6 @@ class BackupRestoreTransactionTest {
     }
 
     private suspend fun expectWriteFailure(data: AppLocalData, overwrite: Boolean) {
-        backup.validateBackup(data)
         val failure = runCatching { backup.importAppLocalData(data, overwrite) }.exceptionOrNull()
         assertNotNull("Fixture must reach the database write failure", failure)
         assertTrue(generateSequence(failure) { it.cause }.any {
@@ -216,13 +216,15 @@ class BackupRestoreTransactionTest {
     }
 
     @Test fun invalidVersionAndIdentityAreRejectedBeforeAnyChange() = runBlocking {
-        assertTrue(backup.importAppLocalData(payload(incoming).copy(version = 99), overwrite = true).isErr)
+        val versionFailure = backup.importAppLocalData(payload(incoming).copy(version = 99), overwrite = true).getError()
+        assertEquals(BackupFailure.UNSUPPORTED_VERSION, (versionFailure as BackupException).reason)
         assertOldLibrary()
         val invalid = payload(incoming).let {
             it.copy(localDataList = listOf(LocalData.empty().copy(bookInformationEntities =
                 listOf(information(incoming).copy(id = "invalid-unscoped-id")))))
         }
-        assertTrue(runCatching { backup.importAppLocalData(invalid, overwrite = true) }.exceptionOrNull() is IllegalArgumentException)
+        val identityFailure = backup.importAppLocalData(invalid, overwrite = true).getError()
+        assertEquals(BackupFailure.INVALID, (identityFailure as BackupException).reason)
         assertOldLibrary()
     }
 

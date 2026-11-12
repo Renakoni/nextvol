@@ -4,7 +4,6 @@ import androidx.room.withTransaction
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.backup.model.validateIdentities
 import indi.renakoni.nextvol.data.download.BookDownloadStore
-import android.util.Log
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -51,10 +50,6 @@ class BackupDataManager @Inject constructor(
     private val statsRepository: StatsRepository,
     private val downloads: BookDownloadStore,
 ) {
-    companion object {
-        const val TAG = "BackupDataManager"
-    }
-
     val currentAppDataVersion = 1
     // Library-wide lists travel with a backup; they are not a selected source's settings.
     private val libraryUserDataPaths = setOf(UserDataPath.ReadingBooks.path,
@@ -174,11 +169,11 @@ class BackupDataManager @Inject constructor(
     }
 
     suspend fun importAppLocalData(appLocalData: AppLocalData, overwrite: Boolean = false): Result<Unit, Throwable> {
-        if (currentAppDataVersion != appLocalData.version) {
-            Log.e(TAG, "Unsupported data versions")
-            return Err(Error("Unsupported data versions"))
+        try {
+            validateBackup(appLocalData)
+        } catch (failure: BackupException) {
+            return Err(failure)
         }
-        validateBackup(appLocalData)
         val parts = listOf(appLocalData.globalLocalData) + appLocalData.localDataList
         val caller = currentCoroutineContext()
         val restore: suspend () -> Unit = {
@@ -212,9 +207,13 @@ class BackupDataManager @Inject constructor(
     }
 
     fun validateBackup(appLocalData: AppLocalData) {
-        require(appLocalData.version == currentAppDataVersion) { "Unsupported data version" }
-        appLocalData.globalLocalData.validateIdentities()
-        appLocalData.localDataList.forEach { it.validateIdentities() }
+        if (appLocalData.version != currentAppDataVersion) throw BackupException(BackupFailure.UNSUPPORTED_VERSION)
+        try {
+            appLocalData.globalLocalData.validateIdentities()
+            appLocalData.localDataList.forEach { it.validateIdentities() }
+        } catch (failure: IllegalArgumentException) {
+            throw BackupException(BackupFailure.INVALID, failure)
+        }
     }
 
     /** The caller holds the statistics/download locks and the entire restore transaction. */
