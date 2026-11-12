@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.michaelbull.result.getOrElse
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
 import indi.renakoni.nextvol.data.web.SourceCategory
 import indi.renakoni.nextvol.data.web.sourceFailureMessage
 import indi.renakoni.nextvol.ui.components.Cover
@@ -210,6 +211,9 @@ fun SearchHubScreen(
 private fun SearchBookRow(book: SearchHubBook, onClick: () -> Unit) {
     val result by key(book.information) { book.information.collectAsStateWithLifecycle(initialValue = null) }
     val info = book.preview ?: result?.getOrElse { null }
+    val description = remember(info?.id, info?.description) {
+        info?.let { bookDescriptionForDisplay(it.id, it.description) }.orEmpty()
+    }
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 24.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Cover(book.id, 80.dp, 112.dp, info?.coverUri ?: android.net.Uri.EMPTY,
@@ -217,9 +221,9 @@ private fun SearchBookRow(book: SearchHubBook, onClick: () -> Unit) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(info?.title ?: stringResource(if (result?.isErr == true) R.string.search_book_unavailable else R.string.search_book_loading),
                 style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (!info?.author.isNullOrBlank()) Text(info!!.author, style = MaterialTheme.typography.bodySmall,
+            if (!info?.author.isNullOrBlank()) Text(info.author, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!info?.description.isNullOrBlank()) Text(info!!.description, style = MaterialTheme.typography.bodySmall,
+            if (description.isNotBlank()) Text(description, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(book.sourceName, style = MaterialTheme.typography.labelSmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
