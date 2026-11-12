@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -62,6 +63,7 @@ fun SpeechPackagePreviewScreen(
     onCancelInstall: () -> Unit = {},
     onImportConfiguration: (Boolean) -> Unit = {},
     onImportOfflineConfiguration: (InstalledOfflineVoice) -> Unit = {},
+    onDismissEngineImportError: () -> Unit = {},
 ) {
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var importMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -257,6 +259,14 @@ fun SpeechPackagePreviewScreen(
             }
         }
     }
+    if (offline.engineImportFailed) AlertDialog(
+        onDismissRequest = onDismissEngineImportError,
+        title = { Text(stringResource(R.string.tts_package_import_failed), style = MaterialTheme.typography.displayMedium) },
+        text = { Text(stringResource(R.string.tts_package_engine_save_failed), style = MaterialTheme.typography.bodyMedium) },
+        confirmButton = {
+            TextButton(onClick = onDismissEngineImportError) { Text(stringResource(R.string.tts_package_error_dismiss)) }
+        },
+    )
 }
 
 @Composable

@@ -4,6 +4,9 @@
     <string name="tts_package_http_parameters_required">發音人參數或擴充控制項設定格式不正確。</string>
     <string name="tts_package_preview">語音包預覽</string>
     <string name="tts_package_import">匯入</string>
+    <string name="tts_package_import_failed">匯入失敗</string>
+    <string name="tts_package_engine_save_failed">未能儲存引擎設定，請重試。</string>
+    <string name="tts_package_error_dismiss">知道了</string>
     <string name="tts_package_voices">聲音 · %1$d</string>
     <string name="tts_package_show_all">查看全部</string>
     <string name="tts_package_reading">正在讀取語音包…</string>
