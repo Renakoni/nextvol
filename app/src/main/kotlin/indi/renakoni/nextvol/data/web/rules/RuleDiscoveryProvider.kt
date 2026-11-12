@@ -6,6 +6,7 @@ import hnovel.execution.SourceWorkRequest
 import hnovel.network.BrokerLimits
 import indi.renakoni.nextvol.data.web.DISCOVERY_SEARCH_PREFIX
 import indi.renakoni.nextvol.data.web.ForegroundSourceRequest
+import indi.renakoni.nextvol.data.web.discoveryError
 import io.nightfish.lightnovelreader.api.web.WebDataSourcePriority
 import io.nightfish.lightnovelreader.api.web.discovery.*
 import kotlinx.coroutines.CancellationException
@@ -219,22 +220,5 @@ internal class RuleDiscoveryProvider(private val source: RuleSource,
         httpStatus = failure.httpStatus
         permissionFailure = failure.denial?.let { DiscoveryPermission(it.origin, it.kind.name) }
         Err(failure.discoveryError())
-    }
-
-    private fun SourceContentException.discoveryError() = when (code) {
-        ContentError.MissingCapability -> DiscoveryError.Unsupported
-        ContentError.LoginRequired -> DiscoveryError.AuthenticationRequired
-        ContentError.BrowserRequired -> if (verification?.kind == hnovel.network.BrowserChallengeKind.Login)
-            DiscoveryError.AuthenticationRequired else DiscoveryError.VerificationRequired
-        ContentError.PermissionDenied -> DiscoveryError.PermissionDenied
-        ContentError.AddressDenied -> DiscoveryError.AddressDenied
-        ContentError.Dns -> DiscoveryError.Dns
-        ContentError.RouteUnavailable -> DiscoveryError.RouteUnavailable
-        ContentError.RouteUnsupported -> DiscoveryError.RouteUnsupported
-        ContentError.Certificate -> DiscoveryError.Certificate
-        ContentError.Network -> DiscoveryError.Network
-        ContentError.Unavailable -> DiscoveryError.Unavailable
-        ContentError.Limit -> DiscoveryError.Limit
-        else -> DiscoveryError.InvalidRules
     }
 }

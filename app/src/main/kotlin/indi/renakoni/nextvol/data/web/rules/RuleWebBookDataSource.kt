@@ -15,6 +15,7 @@ import indi.renakoni.nextvol.data.book.PartialBookVolumesException
 import indi.renakoni.nextvol.data.explore.PagedSearchProvider
 import indi.renakoni.nextvol.data.explore.SearchPage
 import indi.renakoni.nextvol.data.web.EmptyWebDataSource
+import indi.renakoni.nextvol.data.web.requestErrorKind
 import io.nightfish.lightnovelreader.api.book.*
 import io.nightfish.lightnovelreader.api.content.builder.ContentBuilder
 import io.nightfish.lightnovelreader.api.content.component.ImageComponentData
@@ -136,11 +137,5 @@ internal class RuleWebBookDataSource(override val id: Identifier, private val so
     }
     catch (cancelled: CancellationException) { throw cancelled }
     catch (error: SourceContentException) { Err(WebRequestError("Source request failed", error.message.orEmpty(), error,
-        when (error.code) {
-            ContentError.LoginRequired -> WebRequestErrorKind.AuthenticationRequired
-            ContentError.BrowserRequired -> if (error.verification?.kind == hnovel.network.BrowserChallengeKind.Login)
-                WebRequestErrorKind.AuthenticationRequired else WebRequestErrorKind.VerificationRequired
-            ContentError.Unavailable -> WebRequestErrorKind.SourceUnavailable
-            else -> WebRequestErrorKind.Other
-        })) }
+        error.requestErrorKind())) }
 }

@@ -51,6 +51,7 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
     @Inject lateinit var webBookDataSourceManager: WebBookDataSourceManager
     @Inject lateinit var sourceNetworkSettings: SourceNetworkSettings
     @Inject lateinit var wenku8SearchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search.Wenku8SearchSupport
+    @Inject lateinit var wenku8Verification: javax.inject.Provider<indi.renakoni.nextvol.defaultplugin.wenku8.Wenku8Verification>
 
     override val workManagerConfiguration: Configuration
         get()  =
@@ -96,7 +97,7 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
             startupPhase("sources") {
                 startupPhase("builtin-source") {
                     webBookDataSourceManager.registry.register(Wenku8Api.METADATA) {
-                        Wenku8Api(wenku8SearchSupport) { id -> sourceNetworkSettings.forSource(id).snapshot() }
+                        Wenku8Api(wenku8SearchSupport, wenku8Verification.get()) { id -> sourceNetworkSettings.forSource(id).snapshot() }
                     }
                 }
                 startupPhase("imported-sources") { importedRuleSources.restore() }

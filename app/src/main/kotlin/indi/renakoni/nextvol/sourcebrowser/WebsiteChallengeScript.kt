@@ -28,6 +28,6 @@ internal val websiteChallengeScript = """
             (/^\s*Verify Yourself\s*${'$'}/i.test(document.title) || document.querySelector('form#ui-form')) ? 'SiteVerification' :
             /^\/antibot(\/|${'$'})/.test(location.pathname) || /^\s*人机校验/.test(document.title) ||
             document.querySelector('form#J_ManMachineVerify') ? 'SiteVerification' :
-            /^\/login(\/|${'$'})/.test(location.pathname) && document.querySelector('input[type=password]') ? 'Login' : null;
+            /^\/login(\/|\.php${'$'}|${'$'})/.test(location.pathname) && document.querySelector('input[type=password]') ? 'Login' : null;
     })()
 """.trimIndent()

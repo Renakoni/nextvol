@@ -33,7 +33,8 @@ fun websiteChallenge(response: BrokerResponse): BrowserChallengeKind? {
             (title.equals("Verify Yourself", true) || document.selectFirst("form#ui-form") != null) -> BrowserChallengeKind.SiteVerification
         (path == "/antibot" || path.startsWith("/antibot/")) || title.startsWith("人机校验") ||
             document.selectFirst("form#J_ManMachineVerify") != null -> BrowserChallengeKind.SiteVerification
-        (path == "/login" || path.startsWith("/login/")) && document.selectFirst("input[type=password]") != null -> BrowserChallengeKind.Login
+        (path == "/login" || path == "/login.php" || path.startsWith("/login/")) &&
+            document.selectFirst("input[type=password]") != null -> BrowserChallengeKind.Login
         else -> null
     }
 }
