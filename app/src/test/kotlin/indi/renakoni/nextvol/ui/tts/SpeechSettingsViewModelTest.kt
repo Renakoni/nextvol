@@ -188,8 +188,7 @@ class SpeechSettingsViewModelTest {
         val playback = MutableStateFlow(ReadAloudState(SpeechRequest("book", "chapter")))
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns playback
-        val references = mockk<SpeechVoiceReferences>(relaxed = true)
-        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), references,
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk(relaxed = true),
             SpeechVoiceOperations(http, mockk(), schemesRepository, controller))
         try {
             library.state.first { it.loaded }
@@ -204,12 +203,9 @@ class SpeechSettingsViewModelTest {
             library.state.first { !it.busy }
             assertNull(library.state.value.error)
             coVerifyOrder {
-                schemesRepository.forBook("book")
                 http.saveVoice(any())
-                references.replaceReference(any(), any())
                 controller.command(SpeechAction.Stop)
                 http.saveVoice(any())
-                references.replaceReference(any(), any())
             }
             coVerify(exactly = 1) { schemesRepository.forBook("book") }
             verify(exactly = 1) { controller.command(SpeechAction.Stop) }

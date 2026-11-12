@@ -29,5 +29,4 @@ class SpeechSettingsEditor @Inject constructor(private val repository: SpeechSet
     suspend fun update(change: (SpeechSettings) -> SpeechSettings) = repository.update(
         savedState.get<String>("schemeId")?.takeUnless { followBook } ?: target(repository.snapshot()), change)
     suspend fun updateAll(change: (SpeechSettings) -> SpeechSettings) = repository.updateAll(change)
-    suspend fun forBook(bookId: String?) = repository.forBook(bookId)
 }
