@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
 import indi.renakoni.nextvol.data.book.get
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.utils.dateFormatter
@@ -223,8 +225,11 @@ fun BookCardContent(
 
 
                 if (latestChapterTitle.isNullOrBlank()) {
+                    val description = remember(bookInformation.id, bookInformation.description) {
+                        bookDescriptionForDisplay(bookInformation.id, bookInformation.description).trim()
+                    }
                     Text(
-                        text = bookInformation.description.trim(),
+                        text = description,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         style = typography.bodyMedium.copy(

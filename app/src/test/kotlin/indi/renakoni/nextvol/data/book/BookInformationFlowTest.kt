@@ -70,10 +70,11 @@ class BookInformationFlowTest {
     @Test
     fun ruleDisplayMetadataDoesNotOverwriteTheStoredObservationMarker() = runTest {
         val book = SourceBookId(Identifier("rules", "metadata"), "book")
-        val information = local.copy(id = book.storageKey)
-        val display = information.copy(lastUpdated = LocalDateTime.of(2020, 1, 1, 0, 0), wordCount = WordCount(12300))
+        val information = local.copy(id = book.storageKey, description = "<p>&lt;b&gt;literal&lt;/b&gt; &amp;amp;</p>")
+        val normalized = information.copy(description = "<b>literal</b> &amp;")
+        val display = normalized.copy(lastUpdated = LocalDateTime.of(2020, 1, 1, 0, 0), wordCount = WordCount(12300))
         val runtime = mockk<SourceRuntime> {
-            coEvery { bookInformationForDisplay(book.remoteId, information) } returns display
+            coEvery { bookInformationForDisplay(book.remoteId, normalized) } returns display
         }
         coEvery { fixture.registry.resolve(book.sourceId) } returns SourceResolution.Ready(runtime)
         assertEquals(display, fixture.repository().bookInformationForDisplay(information))
@@ -85,9 +86,9 @@ class BookInformationFlowTest {
     @Test
     fun missingRuleSourceHidesTheObservationDateButRetainsTheCachedBook() = runTest {
         val book = SourceBookId(Identifier("rules", "missing"), "book")
-        val information = local.copy(id = book.storageKey)
+        val information = local.copy(id = book.storageKey, description = "<br>简介")
         coEvery { fixture.registry.resolve(book.sourceId) } returns SourceResolution.Missing(book.sourceId)
-        assertEquals(information.copy(lastUpdated = UNKNOWN_BOOK_UPDATE_TIME),
+        assertEquals(information.copy(description = "简介", lastUpdated = UNKNOWN_BOOK_UPDATE_TIME),
             fixture.repository().bookInformationForDisplay(information))
         coVerify(exactly = 0) { fixture.local.updateBookInformation(any()) }
     }

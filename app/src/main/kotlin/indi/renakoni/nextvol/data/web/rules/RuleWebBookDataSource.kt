@@ -29,8 +29,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
-import org.jsoup.Jsoup
-import org.jsoup.nodes.TextNode
 import java.time.LocalDateTime
 
 /** Converts rule data once; repositories, readers and workers consume their existing source-bound contracts. */
@@ -90,26 +88,11 @@ internal class RuleWebBookDataSource(override val id: Identifier, private val so
     internal suspend fun informationForDisplay(id: String, information: BookInformation): BookInformation {
         val saved = source.cachedInformation(id)
         return information.copy(
-            description = descriptionForDisplay(information.description),
             wordCount = saved?.let { WordCount(parseBookWordCount(it.wordCount) ?: parseBookWordCount(it.lastValidWordCount) ?: 0) }
                 ?: information.wordCount,
             lastUpdated = saved?.let { parseBookUpdateTime(it.updateTime) ?: parseBookUpdateTime(it.lastValidUpdateTime) }
                 ?: UNKNOWN_BOOK_UPDATE_TIME
         )
-    }
-
-    private fun descriptionForDisplay(raw: String): String {
-        if ('<' !in raw) return raw
-        val body = Jsoup.parseBodyFragment(raw).body()
-        // Plain descriptions may contain angle brackets. Rule extraction already
-        // handles entities, so do not decode a plain description a second time.
-        if (body.getAllElements().none { it !== body && it.tag().isKnownTag }) return raw
-        body.select("script,style").remove()
-        body.select("br").forEach { it.before(TextNode("\n")); it.remove() }
-        body.getAllElements().filter { it !== body && it.isBlock }.forEach {
-            it.before(TextNode("\n")); it.after(TextNode("\n"))
-        }
-        return body.wholeText().replace(Regex("\n{3,}"), "\n\n").trim()
     }
 
     override suspend fun getBookInformation(id: String) = request {
