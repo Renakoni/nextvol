@@ -14,7 +14,7 @@ import androidx.compose.ui.res.stringResource
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.home.settings.formats.navigateToSettingsFormatsDestination
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
-import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 
 @Composable
 fun DisplaySettingsList() {

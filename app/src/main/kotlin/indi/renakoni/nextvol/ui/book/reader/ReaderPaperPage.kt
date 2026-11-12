@@ -19,7 +19,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import indi.renakoni.nextvol.R
-import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 
 @Composable
 internal fun ReaderPaperEntry(settings: ReaderSettingsEditor, onClick: () -> Unit, modifier: Modifier = Modifier) {
