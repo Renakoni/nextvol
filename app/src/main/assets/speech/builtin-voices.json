@@ -1264,19 +1264,5 @@
       "http://pysq.shipook.com:80",
       "https://pysq.shipook.com:443"
     ]
-  },
-  {
-    "group": "讯飞",
-    "definition": {
-      "concurrentRate": "0",
-      "contentType": "",
-      "header": "",
-      "id": "nextvol:builtin:156",
-      "name": "讯飞.小琳台普",
-      "url": "http://120.24.87.124/cgi-bin/ekho2.pl?cmd=SPEAK&voice=iflytekXiaolin&speedDelta=0&pitchDelta=0&volumeDelta=0&text={{java.encodeURI(java.encodeURI(speakText))}}"
-    },
-    "origins": [
-      "http://120.24.87.124:80"
-    ]
   }
 ]
