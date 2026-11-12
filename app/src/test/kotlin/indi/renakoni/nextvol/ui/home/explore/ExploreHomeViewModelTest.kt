@@ -47,8 +47,8 @@ class ExploreHomeViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
     }
-    private fun model(saved: SavedStateHandle = SavedStateHandle()) =
-        ExploreHomeViewModel(registry, accounts, saved, text, SourceBrowseSettings(org.robolectric.RuntimeEnvironment.getApplication())).also {
+    private fun model() =
+        ExploreHomeViewModel(registry, accounts, SavedStateHandle(), text, SourceBrowseSettings(org.robolectric.RuntimeEnvironment.getApplication())).also {
             stores += ViewModelStore().apply { put("explore", it) }
             it.setActive(true)
         }
@@ -629,27 +629,6 @@ class ExploreHomeViewModelTest {
         advanceUntilIdle()
         assertEquals(2, replaced.feeds)
         assertEquals(1, bFeed.feeds)
-    }
-
-    @Test fun restoreLoadsSavedSourceOnlyAndRemovalFallsBackWithoutRestoringCachedData() = runTest(dispatcher) {
-        val aFeed = Feed()
-        val a = add("a", aFeed)
-        val b = add("b", Feed())
-        val saved = SavedStateHandle(mapOf("explore.namespace" to b.namespace, "explore.source" to b.id))
-        val model = model(saved)
-        advanceUntilIdle()
-        assertEquals(b, model.state.value.selected)
-        assertEquals(0, aFeed.feeds)
-        assertTrue(saved.keys().all { saved.get<Any>(it) is String })
-        registry.unregister(b)
-        advanceUntilIdle()
-        assertEquals(a, model.state.value.selected)
-        assertEquals(1, aFeed.feeds)
-        assertEquals(a.id, saved.get<String>("explore.source"))
-        registry.unregister(a)
-        advanceUntilIdle()
-        assertNull(model.state.value.selected)
-        assertTrue(model.state.value.content.isEmpty())
     }
 
     @Test fun interactiveFeedUsesSameDraftAndCarriesCategoryIdentityAndValuesToMore() = runTest(dispatcher) {

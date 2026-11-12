@@ -94,9 +94,8 @@ fun HomeNavigateBar(
     }
 }
 
-// CategorySourceSelection consumes this one-shot shortcut through select() once sources load.
-// It is separate from namespace/sourceId route arguments (initial fallback) and the persisted
-// category.namespace/category.source selection owned by DiscoveryPageViewModel.
+// CategorySourceSelection consumes this one-shot shortcut through openSource() once sources load.
+// Restored entries receive new requests here without replaying their original route arguments.
 internal const val CATEGORY_SOURCE_REQUEST = "category.sourceRequest"
 
 /** Bottom roots restore their own stack. An explicit category shortcut changes only its source. */

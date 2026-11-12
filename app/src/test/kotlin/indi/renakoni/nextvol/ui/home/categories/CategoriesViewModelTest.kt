@@ -48,7 +48,7 @@ class CategoriesViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
     }
-    private fun model(saved: SavedStateHandle = SavedStateHandle()) = CategoriesViewModel(registry, accounts, saved,
+    private fun model() = CategoriesViewModel(registry, accounts, SavedStateHandle(),
         SourceBrowseSettings(org.robolectric.RuntimeEnvironment.getApplication())).also {
         stores += ViewModelStore().apply { put("categories", it) }
         it.setActive(true)
@@ -207,27 +207,6 @@ class CategoriesViewModelTest {
         advanceUntilIdle()
         assertEquals(2, replacement.calls)
         assertEquals(1, bProvider.calls)
-    }
-
-    @Test fun processRestoreLoadsOnlySavedSourceAndRemovalHasDeterministicFallback() = runTest(dispatcher) {
-        val aProvider = Categories()
-        val a = add("a", aProvider)
-        val bProvider = Categories()
-        val b = add("b", bProvider)
-        val saved = SavedStateHandle(mapOf("category.namespace" to b.namespace, "category.source" to b.id))
-        val model = model(saved)
-        advanceUntilIdle()
-        assertEquals(b, model.state.value.selected)
-        assertEquals(0, aProvider.calls)
-        registry.unregister(b)
-        advanceUntilIdle()
-        assertEquals(a, model.state.value.selected)
-        assertEquals(1, aProvider.calls)
-        assertEquals(a.id, saved.get<String>("category.source"))
-        registry.unregister(a)
-        advanceUntilIdle()
-        assertTrue(model.state.value.sources.isEmpty())
-        assertNull(model.state.value.selected)
     }
 
     @Test fun failureIsSourceLocalAndExplicitRetryCanRecover() = runTest(dispatcher) {

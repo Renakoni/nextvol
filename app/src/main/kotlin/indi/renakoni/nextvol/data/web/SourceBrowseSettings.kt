@@ -22,7 +22,7 @@ class SourceBrowseSettings @Inject constructor(@ApplicationContext context: Cont
 
     fun selectSource(category: SourceCategory?, id: Identifier) {
         if (selections.value[category] == id) return
-        remember("shared", category, id)
+        writeSelection("shared", category, id)
         mutableSelections.value = mutableSelections.value + (category to id)
     }
 
@@ -40,6 +40,10 @@ class SourceBrowseSettings @Inject constructor(@ApplicationContext context: Cont
 
     fun remember(page: String, category: SourceCategory?, id: Identifier) {
         if (selected(page, category) == id) return
+        writeSelection(page, category, id)
+    }
+
+    private fun writeSelection(page: String, category: SourceCategory?, id: Identifier) {
         val key = "$page.${category?.name.orEmpty()}"
         preferences.edit().putString("$key.namespace", id.namespace).putString("$key.source", id.id).apply()
     }
