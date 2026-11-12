@@ -55,7 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SectionHeader
-import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

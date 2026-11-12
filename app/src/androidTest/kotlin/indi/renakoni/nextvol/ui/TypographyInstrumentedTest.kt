@@ -30,7 +30,7 @@ import indi.renakoni.nextvol.theme.DefaultLightColorScheme
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.home.discovery.DiscoveryTopBar
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
-import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
 import org.junit.Assert.*
 import org.junit.Rule
