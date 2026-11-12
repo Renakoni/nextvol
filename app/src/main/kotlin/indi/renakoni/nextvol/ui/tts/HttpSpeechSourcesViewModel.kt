@@ -193,10 +193,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         }
     }
 
-    fun enable(sources: List<SavedHttpSpeechSource>, enabled: Boolean) = work {
-        operations.enableHttp(sources, enabled)
-    }
-
     fun delete(sources: List<SavedHttpSpeechSource>) = work {
         operations.deleteHttp(sources)
     }

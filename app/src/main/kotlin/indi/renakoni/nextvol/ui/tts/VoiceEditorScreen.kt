@@ -28,7 +28,7 @@ import indi.renakoni.nextvol.R
 @Composable
 internal fun VoiceEditorScreen(
     state: VoiceEditorState, copy: Boolean,
-    onEdit: (VoiceDraft) -> Unit, onSave: () -> Unit, onBack: () -> Unit,
+    onEdit: (VoiceDraft) -> Unit, onSave: () -> Unit, onBack: () -> Unit, onToggleEnabled: () -> Unit,
     parametersSupported: Boolean = true,
     showParameters: Boolean = false, showExtensions: Boolean = false, newVoice: Boolean = false,
 ) {
@@ -121,6 +121,14 @@ internal fun VoiceEditorScreen(
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                if (draft != null && !copy && !newVoice) {
+                    TextButton(onClick = onToggleEnabled, enabled = !state.busy,
+                        colors = ButtonDefaults.textButtonColors(contentColor =
+                            if (draft.enabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)) {
+                        Text(stringResource(if (draft.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable))
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
                 TextButton(onClick = back, enabled = !state.busy) { Text(stringResource(R.string.cancel)) }
                 TextButton(onClick = onSave, enabled = !state.busy && draft != null) { Text(stringResource(R.string.tts_engine_save)) }
             }

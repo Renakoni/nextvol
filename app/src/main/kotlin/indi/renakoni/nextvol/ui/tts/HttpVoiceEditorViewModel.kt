@@ -42,6 +42,7 @@ class HttpVoiceEditorViewModel @Inject constructor(
     private val saved: SavedStateHandle,
     private val msc: MscVoiceEditing,
     private val references: SpeechVoiceReferences,
+    private val operations: SpeechVoiceOperations,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(VoiceEditorState())
     val state = mutableState.asStateFlow()
@@ -82,6 +83,12 @@ class HttpVoiceEditorViewModel @Inject constructor(
             val controls = withContext(Dispatchers.Default) { runCatching { speechExtensionControls(draft.extensions) }.getOrNull() }
             mutableState.update { if (it.draft?.extensions == draft.extensions) it.copy(controls = controls, loadingControls = false) else it }
         }
+    }
+
+    fun toggleEnabled(onSaved: () -> Unit) = work {
+        val selected = requireNotNull(source)
+        operations.enableHttp(listOf(selected), !selected.enabled)
+        onSaved()
     }
 
     fun save(copy: Boolean, onSaved: () -> Unit) = work {
