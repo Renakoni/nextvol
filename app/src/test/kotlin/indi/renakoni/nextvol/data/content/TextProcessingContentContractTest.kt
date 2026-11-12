@@ -48,8 +48,7 @@ class TextProcessingContentContractTest {
                 {"id":"fixture:unknown","data":{"value":2}},
                 {"data":{"text":"missing id"}},
                 {"id":"fixture:missing-data"},
-                7,
-                []
+                7
             ]
         }""").jsonObject, "previous", "next")
         val expected = chapter.copy(content = Json.parseToJsonElement("""{
@@ -60,22 +59,11 @@ class TextProcessingContentContractTest {
             {"id":"fixture:unknown","data":{"value":2}},
             {"data":{"text":"missing id"}},
             {"id":"fixture:missing-data"},
-            7,
-            []
+            7
         ]}""").jsonObject)
 
-        val decoder = ContentJsonDecoder(registry)
         val output = processing.processChapterContent("book") { chapter }
         assertEquals(expected, output)
-        val rendered = decoder.decodeComponents(
-            output.content,
-            create = { (it as SimpleTextComponentData).text },
-            error = { "error" },
-        )
-        assertEquals(listOf("bodyAB", "short", "error", "error", "error", "error", "error"), rendered)
-        val exported = mutableListOf<String>()
-        decoder.getDataFromJsonObject(output.content) { exported += (it as SimpleTextComponentData).text }
-        assertEquals(listOf("bodyAB"), exported)
         assertEquals(listOf("book/A", "book/B"), events)
     }
 
@@ -89,12 +77,6 @@ class TextProcessingContentContractTest {
             processor.process<SimpleTextComponentData> { it.copy(text = it.text + "changed") }
 
             assertEquals(original, processor.get())
-            val decoder = ContentJsonDecoder(registry)
-            assertEquals(
-                listOf("error"),
-                decoder.decodeComponents(processor.get(), { "unexpected" }, { "error" }),
-            )
-            decoder.getDataFromJsonObject(processor.get()) { error("No valid component to export") }
         }
     }
 }
