@@ -2,9 +2,9 @@
 <resources>
     <string name="source_category_platforms">主流平台</string>
     <string name="source_category_female">女頻</string>
-    <string name="source_category_anime">二次元</string>
+    <string name="source_category_anime">輕小說</string>
     <string name="source_category_literature">經典文學</string>
-    <string name="source_category_general">綜合補充</string>
+    <string name="source_category_general">通用</string>
     <string name="source_category_adult">R18</string>
     <string name="source_catalog_tab">分類</string>
     <string name="source_import_tab">匯入</string>

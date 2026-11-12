@@ -37,6 +37,57 @@ class SourceGroupsTest {
             preview.candidates.single().existing?.let(ImportDecision::Replace) ?: ImportDecision.Add))).items.single().reference!!
     }
 
+    @Test fun nativeAndRuleSourcesShareGroupsAndDisabledPreferencesSurviveRestart() = runBlocking {
+        val context = host()
+        RuleSourceFixture().use { fixture ->
+            val accounts = SourceSessionManager(fixture.authority)
+            val native = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources
+            var registry = WebSourceRegistry(fixture.authority)
+            var sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
+            var zLibrary = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources(context, registry, StorageCipher.Plain)
+            var activations = 0
+            suspend fun registerNative() {
+                zLibrary.restore()
+                sources.registerNative(native.METADATA, { "z-lib.gd" }, zLibrary.state.value.settings.enabled) { enabled ->
+                    activations++
+                    zLibrary.update(zLibrary.state.value.settings.copy(enabled = enabled))
+                }
+            }
+            try {
+                registerNative()
+                val catalogGroup = sources.sourceGroups().single()
+                sources.renameGroup(catalogGroup.id, "My books")
+                val rule = sources.activate(commit(sources, fixture.raw()), emptyList())
+                sources.updateGroups(setOf(rule), setOf(catalogGroup.id), emptySet())
+                sources.createGroup("Favorites", setOf(rule, native.ID), removed = setOf(catalogGroup.id))
+                val group = sources.sourceGroups().last()
+                assertEquals(setOf(group.id), sources.nativeSources().single().preferences.groupIds)
+                assertEquals(setOf(group.id), sources.installedSources().single().preferences.groupIds)
+                assertEquals(mapOf(rule to setOf(group.id), native.ID to setOf(group.id)), sources.grouping.value.memberships)
+                assertEquals(1, activations) // Membership edits must not rebuild source runtimes.
+                sources.setPreferences(native.ID, enabled = false)
+                assertTrue(registry.resolve(native.ID) is SourceResolution.Missing)
+                sources.stop(); zLibrary.stop()
+                registry = WebSourceRegistry(fixture.authority)
+                sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
+                zLibrary = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources(context, registry, StorageCipher.Plain)
+                registerNative()
+                assertFalse(sources.nativeSources().single().preferences.enabled)
+                assertEquals(setOf(group.id), sources.nativeSources().single().preferences.groupIds)
+                assertEquals("My books", sources.sourceGroups().first().name)
+                assertEquals(sources.sourceGroups(), sources.grouping.value.groups)
+                assertEquals(setOf(group.id), sources.grouping.value.memberships[native.ID])
+                assertTrue(registry.resolve(native.ID) is SourceResolution.Missing)
+                sources.deleteGroup(group.id)
+                assertTrue(sources.nativeSources().single().preferences.groupIds.isEmpty())
+                assertTrue(sources.installedSources().single().preferences.groupIds.isEmpty())
+                sources.setPreferences(native.ID, enabled = true)
+                assertTrue(registry.sources.value.any { it.metadata.id == native.ID })
+                assertTrue(sources.nativeSources().single().preferences.enabled)
+            } finally { sources.stop(); zLibrary.stop() }
+        }
+    }
+
     @Test fun catalogGroupsAreCreatedOnDemandAndReusedAfterRenameAndRestart() = runBlocking {
         val context = host()
         val catalog = SourceCatalog(context)
@@ -235,64 +286,6 @@ class SourceGroupsTest {
         }
     }
 
-    @Test fun legacyArrayLoadsUngroupedAndMigratesWithItsFirstGroupWrite() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val accounts = SourceSessionManager(fixture.authority)
-            var sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-            try {
-                sources.activate(commit(sources, fixture.raw()), emptyList())
-                val file = File(context.filesDir, "rule-sources/active.json")
-                sources.stop()
-                val old = Json.parseToJsonElement(file.readText()).jsonObject.getValue("sources")
-                file.writeText(old.toString())
-                sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-                assertTrue(sources.sourceGroups().isEmpty())
-                assertTrue(sources.installedSources().single().preferences.groupIds.isEmpty())
-                sources.createGroup("Empty")
-                val saved = Json.parseToJsonElement(file.readText()).jsonObject
-                assertEquals(old, saved.getValue("sources"))
-                assertEquals(1, saved.getValue("groups").jsonArray.size)
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun legacySingleGroupMigratesAndMultipleMembershipsSurviveRestartAndDeletion() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val accounts = SourceSessionManager(fixture.authority)
-            var sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-            try {
-                val id = sources.activate(commit(sources, fixture.raw()), emptyList())
-                sources.createGroup("Reading", setOf(id))
-                val first = sources.sourceGroups().single().id
-                val file = File(context.filesDir, "rule-sources/active.json")
-                val snapshot = Json.parseToJsonElement(file.readText()).jsonObject
-                val row = snapshot.getValue("sources").jsonArray.single().jsonObject
-                val preferences = JsonObject((row.getValue("preferences").jsonObject - "groupIds") + ("groupId" to JsonPrimitive(first)))
-                sources.stop()
-                file.writeText(JsonObject(snapshot + ("sources" to JsonArray(listOf(
-                    JsonObject(row + ("preferences" to preferences)))))).toString())
-                sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-                assertEquals(setOf(first), sources.installedSources().single().preferences.groupIds)
-                sources.createGroup("Favorites", setOf(id))
-                val second = sources.sourceGroups().last().id
-                assertEquals(setOf(first, second), sources.installedSources().single().preferences.groupIds)
-                sources.stop()
-                sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-                assertEquals(setOf(first, second), sources.installedSources().single().preferences.groupIds)
-                sources.updateGroups(setOf(id), emptySet(), setOf(first))
-                assertEquals(setOf(second), sources.installedSources().single().preferences.groupIds)
-                sources.updateGroups(setOf(id), setOf(first), emptySet())
-                sources.deleteGroup(second)
-                assertEquals(setOf(first), sources.installedSources().single().preferences.groupIds)
-                sources.stop()
-                sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-                assertEquals(setOf(first), sources.installedSources().single().preferences.groupIds)
-            } finally { sources.stop() }
-        }
-    }
-
     @Test fun batchUpdatesPreserveUntouchedMembershipsAndSourcePreferences() = runBlocking {
         val context = host()
         RuleSourceFixture().use { fixture ->
@@ -358,6 +351,7 @@ class SourceGroupsTest {
                 sources.createGroup("Reading", setOf(id))
                 val before = sources.installedSources()
                 val groups = sources.sourceGroups()
+                val grouping = sources.grouping.value
                 val runtime = (registry.resolve(id) as SourceResolution.Ready).runtime
                 val base = File(context.filesDir, "rule-sources/active.json")
                 val saved = base.readBytes()
@@ -369,6 +363,7 @@ class SourceGroupsTest {
                 } finally { base.deleteRecursively(); base.writeBytes(saved); backup.delete() }
                 assertEquals(before, sources.installedSources())
                 assertEquals(groups, sources.sourceGroups())
+                assertEquals(grouping, sources.grouping.value)
                 assertSame(runtime, (registry.resolve(id) as SourceResolution.Ready).runtime)
                 assertEquals("Same title", runtime.getBookInformation(fixture.server.url("/book/one").toString()).get()!!.title)
             } finally { sources.stop() }

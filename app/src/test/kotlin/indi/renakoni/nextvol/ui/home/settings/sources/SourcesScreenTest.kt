@@ -462,6 +462,7 @@ class SourcesScreenTest {
         val id = ImportedRuleSources.id(definition)
         val sources = mockk<ImportedRuleSources>()
         coEvery { sources.sourceGroups() } returns emptyList()
+        coEvery { sources.nativeSources() } returns emptyList()
         coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, emptyList()))
         val readingSettings = CompletableDeferred<Unit>()
         val finishReading = CompletableDeferred<Unit>()
@@ -737,20 +738,6 @@ class SourcesScreenTest {
         compose.onNodeWithText("Search this source").assertIsEnabled()
     }
 
-    @Test fun builtInSearchStartsLazySourcesAndHidesFailedOnes() {
-        val id = Identifier("builtin", "fixture")
-        val entry = SourceListing(SourceMetadata(WebDataSourceItem(id, "Built-in fixture", "fixture"),
-            setOf(SourceCapability.Search), builtIn = true), SourceStatus.Registered)
-        var state by mutableStateOf(SourceManagementState(registry = listOf(entry)))
-        var searched: Identifier? = null
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onSearch = { searched = it }) {} } }
-        compose.onNodeWithText("Initialize source").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Search this source").performClick()
-        org.junit.Assert.assertEquals(id, searched)
-        compose.runOnIdle { state = state.copy(registry = listOf(entry.copy(status = SourceStatus.Failed))) }
-        compose.onNodeWithContentDescription("Search this source").assertDoesNotExist()
-    }
-
     @Test fun disabledDefinitionIsSelectableInPreviewWithoutBeingEnabled() {
         val directory = java.nio.file.Files.createTempDirectory("disabled-preview").toFile()
         try {
@@ -837,24 +824,36 @@ class SourcesScreenTest {
             hnovel.imports.SourceOriginCandidates.discover(kotlinx.serialization.json.Json.parseToJsonElement(candidate.rawJson)
                 as kotlinx.serialization.json.JsonObject).joinToString("\n") { it.origin } })
 
-    @Test fun zlibraryHasAnAppSearchEntryAndMirrorChangesStayDraftUntilSaved() {
+    @Test fun zlibrarySearchAndSettingsSaveOnlyTheSelectedDraft() {
         val native = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources
         val settings = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySettings()
-        val state = SourceManagementState(selected = native.ID,
+        var state by mutableStateOf(SourceManagementState(selected = native.ID,
+            nativeSources = listOf(indi.renakoni.nextvol.data.web.ManagedSource(native.ID, "Z-Library", "z-lib.gd",
+                indi.renakoni.nextvol.data.web.rules.SourcePreferences(true, false))),
             zLibrary = indi.renakoni.nextvol.data.web.zlibrary.ZLibraryState(settings),
             registry = listOf(SourceListing(SourceMetadata(WebDataSourceItem(native.ID, "Z-Library", "fixture"),
-                setOf(SourceCapability.Search), builtIn = true), SourceStatus.Ready)))
+                setOf(SourceCapability.Search), builtIn = true), SourceStatus.Ready))))
         var selected: Identifier? = null
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onSearch = { selected = it }) {} } }
         compose.onNodeWithText("Search this source").performClick()
         org.junit.Assert.assertEquals(native.ID, selected)
-        compose.onNodeWithText("Advanced options").performClick()
+        val permissions = settings.origins.joinToString("\n") + "\nhttps://extra.example:443"
+        compose.onNodeWithText("Network permissions").performScrollTo().performClick()
+        compose.onNodeWithText("Allowed site origins, one per line").performScrollTo().performTextReplacement(permissions)
+        compose.onNodeWithText("API site").performScrollTo().performClick()
         compose.onNodeWithText("https://z-lib.fo:443").performScrollTo().performClick()
         verify(exactly = 0) { model.saveZLibrary(any(), any()) }
-        compose.onNodeWithText("Save site and permissions").performScrollTo().performClick()
+        compose.onNodeWithText("Save site").performScrollTo().performClick()
         verify(exactly = 1) { model.saveZLibrary("https://z-lib.fo:443", settings.origins.joinToString("\n")) }
+        compose.runOnIdle { state = state.copy(configurationError = SourceSaveError(indi.renakoni.nextvol.R.string.sources_action_failed)) }
+        compose.onAllNodesWithText(activity.get().getString(indi.renakoni.nextvol.R.string.sources_action_failed)).assertCountEquals(1)
+        compose.runOnIdle { state = state.copy(configurationError = null,
+            zLibrary = state.zLibrary.copy(settings = settings.copy(origin = "https://z-lib.fo:443"))) }
+        compose.onNodeWithText("Allowed site origins, one per line").performScrollTo().assertTextContains(permissions)
+        compose.onNodeWithText("Save permissions").performScrollTo().performClick()
+        verify(exactly = 1) { model.saveZLibrary("https://z-lib.fo:443", permissions) }
         compose.onNodeWithContentDescription("Enable source").performScrollTo().performClick()
-        verify(exactly = 1) { model.setZLibraryEnabled(false) }
+        verify(exactly = 1) { model.setEnabled(native.ID, false) }
     }
 
     @Test fun loginControlsSubmitDefaultsAndTheCurrentSourceFormValues() {
@@ -907,14 +906,28 @@ class SourcesScreenTest {
         val builtinId = Identifier("lightnovelreader", "Wenku8")
         val builtin = SourceListing(SourceMetadata(WebDataSourceItem(builtinId, "Wenku8", "Built-in provider"),
             setOf(SourceCapability.Search), builtIn = true), SourceStatus.Registered)
-        var state by mutableStateOf(SourceManagementState(registry = listOf(builtin)))
+        var state by mutableStateOf(SourceManagementState(registry = listOf(builtin),
+            nativeSources = listOf(indi.renakoni.nextvol.data.web.ManagedSource(builtinId, "Wenku8", "www.wenku8.net",
+                indi.renakoni.nextvol.data.web.rules.SourcePreferences(true, false)))))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
+        compose.onNodeWithText("www.wenku8.net").assertExists()
         compose.onNodeWithText("Wenku8").performClick()
         verify(exactly = 1) { model.select(builtinId) }
         compose.runOnIdle { state = state.copy(selected = builtinId, network = SourceNetworkState()) }
         compose.onNodeWithText("Search this source").assertExists()
         compose.onNodeWithContentDescription("Bypass VPN").assertIsOff().assertIsEnabled().performClick()
         verify(exactly = 1) { model.setBypassVpn(true) }
+        compose.onNodeWithContentDescription("Enable source").assertIsOn().performClick()
+        verify(exactly = 1) { model.setEnabled(builtinId, false) }
+        compose.runOnIdle {
+            state = state.copy(registry = emptyList(), nativeSources = state.nativeSources.map {
+                it.copy(preferences = it.preferences.copy(enabled = false))
+            })
+        }
+        compose.onNodeWithText("Wenku8").assertExists()
+        compose.onNodeWithText("Search this source").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Enable source").assertIsOff().performClick()
+        verify(exactly = 1) { model.setEnabled(builtinId, true) }
     }
 
     @Test fun manualVariableNeedsNoAuthorCommentAndDraftsSurvivePreferenceChanges() {

@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.explore.SourceSearchFailure
-import indi.renakoni.nextvol.data.web.SourceCategory
+import indi.renakoni.nextvol.data.web.rules.SourceGroup
 import indi.renakoni.nextvol.ui.home.explore.search.*
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.WordCount
@@ -51,7 +51,7 @@ class SearchHubScreenTest {
     private var retried = false
     private var back = false
     private var visible by mutableStateOf(true)
-    private val source = SearchHubSource(Identifier("fixture", "a"), "Source A", SourceCategory.Adult)
+    private val source = SearchHubSource(Identifier("fixture", "a"), "Source A", setOf("reading", "favorites"))
 
     @Before fun create() {
         activity = Robolectric.buildActivity(ComponentActivity::class.java)
@@ -94,10 +94,26 @@ class SearchHubScreenTest {
         compose.onNodeWithText("Find your next book").assertIsDisplayed()
     }
 
-    @Test fun findingAnOffscreenSourceClearsTheCategoryWithoutChangingTheBookQuery() {
-        state = SearchHubState(query = "A book", scope = SourceCategory.Adult, sources = List(24) {
+    @Test fun searchScopesUseManagementGroupNamesAndOverlappingMemberships() {
+        state = SearchHubState(groups = listOf(SourceGroup("reading", "Reading"), SourceGroup("favorites", "Favorites")),
+            sources = listOf(source, source.copy(id = Identifier("fixture", "b"), name = "Source B", groupIds = setOf("favorites"))))
+        render()
+        compose.onNodeWithTag("search_scope").performClick()
+        compose.onNodeWithText("Reading").assertExists()
+        compose.onNodeWithText("Favorites").performScrollTo().performClick()
+        assertEquals("favorites", state.scope)
+        compose.onNodeWithTag("search_scope").assertTextEquals("Favorites")
+        compose.onNodeWithText("Searchable sources: 2").assertIsDisplayed()
+        compose.runOnIdle { state = state.copy(groups = state.groups.map {
+            if (it.id == "favorites") it.copy(name = "Weekend") else it
+        }) }
+        compose.onNodeWithTag("search_scope").assertTextEquals("Weekend")
+    }
+
+    @Test fun findingAnOffscreenSourceClearsTheGroupWithoutChangingTheBookQuery() {
+        state = SearchHubState(query = "A book", scope = "reading", groups = listOf(SourceGroup("reading", "Reading")), sources = List(24) {
             source.copy(id = Identifier("fixture", "$it"), name = "Source $it",
-                category = if (it == 23) null else source.category)
+                groupIds = if (it == 23) emptySet() else source.groupIds)
         })
         render()
         compose.onNodeWithTag("search_scope").performClick()

@@ -28,7 +28,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.michaelbull.result.getOrElse
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
-import indi.renakoni.nextvol.data.web.SourceCategory
 import indi.renakoni.nextvol.data.web.sourceFailureMessage
 import indi.renakoni.nextvol.ui.components.Cover
 import io.nightfish.lightnovelreader.api.identifier.Identifier
@@ -37,7 +36,7 @@ import io.nightfish.lightnovelreader.api.identifier.Identifier
 @Composable
 fun SearchHubScreen(
     state: SearchHubState, onQuery: (String) -> Unit, onSearch: (String) -> Unit,
-    onScope: (SourceCategory?) -> Unit, onDeleteHistory: (String) -> Unit, onClearHistory: () -> Unit,
+    onScope: (String?) -> Unit, onDeleteHistory: (String) -> Unit, onClearHistory: () -> Unit,
     onLoadMore: () -> Unit, onStop: () -> Unit, onResume: () -> Unit, onRetry: () -> Unit,
     onManageSources: () -> Unit, onSource: (Identifier) -> Unit, onBook: (String) -> Unit, onBack: () -> Unit,
     onSelectSource: (Identifier) -> Unit,
@@ -58,7 +57,11 @@ fun SearchHubScreen(
     val scopeLabel = if (state.selectedSource != null) {
         state.sources.firstOrNull { it.id == state.selectedSource }?.name
             ?: state.selectedSourceName.ifBlank { stringResource(R.string.search_selected_source) }
-    } else stringResource(state.scope?.title ?: R.string.source_range_all)
+    } else when (state.scope) {
+        null -> stringResource(R.string.source_range_all)
+        "" -> stringResource(R.string.source_group_ungrouped)
+        else -> state.groups.firstOrNull { it.id == state.scope }?.name.orEmpty()
+    }
     val scopeDescription = stringResource(R.string.search_change_scope, scopeLabel)
 
     Scaffold(topBar = {

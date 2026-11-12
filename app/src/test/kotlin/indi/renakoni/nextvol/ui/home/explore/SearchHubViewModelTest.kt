@@ -10,6 +10,8 @@ import indi.renakoni.nextvol.data.explore.*
 import indi.renakoni.nextvol.data.local.room.dao.UserDataDao
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.data.web.*
+import indi.renakoni.nextvol.data.web.rules.SourceGroup
+import indi.renakoni.nextvol.data.web.rules.SourceGrouping
 import indi.renakoni.nextvol.ui.home.explore.search.*
 import io.mockk.*
 import io.nightfish.lightnovelreader.api.book.BookInformation
@@ -51,7 +53,8 @@ class SearchHubViewModelTest {
     private val books = mockk<BookRepository> {
         every { getBookInformationFlow(any<String>(), any()) } returns emptyFlow()
     }
-    private val browsing = mockk<SourceBrowseSettings> { every { scope } returns MutableStateFlow(null) }
+    private val grouping = MutableStateFlow(SourceGrouping(groups = listOf(
+        SourceGroup("reading", "Reading"), SourceGroup("favorites", "Favorites"), SourceGroup("empty", "Empty"))))
 
     @Before fun setup() { Dispatchers.setMain(dispatcher) }
     @After fun cleanup() {
@@ -76,17 +79,18 @@ class SearchHubViewModelTest {
             return load(keyword, page)
         }
     }
-    private fun add(name: String, provider: SearchProvider = Paged(), category: SourceCategory? = null,
+    private fun add(name: String, provider: SearchProvider = Paged(), groupIds: Set<String> = emptySet(),
         capabilities: Set<SourceCapability> = setOf(SourceCapability.Search)): Identifier {
         val id = Identifier("search-fixture", name)
+        grouping.value = grouping.value.copy(memberships = grouping.value.memberships + (id to groupIds))
         registry.register(object : WebBookDataSource by EmptyWebDataSource {
             override val id = id
             override val searchProvider = provider
-        }, SourceMetadata(WebDataSourceItem(id, name, "fixture"), capabilities, category = category))
+        }, SourceMetadata(WebDataSourceItem(id, name, "fixture"), capabilities))
         return id
     }
     private fun model(saved: SavedStateHandle = SavedStateHandle()) = SearchHubViewModel(registry, coordinator, books,
-        UserDataRepository(dao), accounts, saved, browsing, dispatcher).also {
+        UserDataRepository(dao), accounts, saved, grouping, dispatcher).also {
         stores += ViewModelStore().apply { put("search", it) }
         it.setActive(true)
     }
@@ -117,35 +121,91 @@ class SearchHubViewModelTest {
         assertTrue(model.state.value.books.isEmpty())
     }
 
-    @Test fun groupsRestrictRequestsAndAnEmptyGroupNeverFallsBackToAllSources() = runTest(dispatcher) {
-        val adult = Paged()
-        val general = Paged()
+    @Test fun managedGroupsSupportMultipleMembershipsAndExcludeDisabledOrUnrelatedSources() = runTest(dispatcher) {
+        val a = Paged()
+        val b = Paged()
+        val ungrouped = Paged()
         val unsupported = Paged()
-        add("adult", adult, SourceCategory.Adult)
-        add("general", general, SourceCategory.General)
-        add("unsupported", unsupported, SourceCategory.Adult, emptySet())
+        val disabled = Paged()
+        add("a", a, setOf("reading", "favorites"))
+        add("b", b, setOf("favorites"))
+        add("ungrouped", ungrouped)
+        add("unsupported", unsupported, setOf("reading"), emptySet())
+        registry.unregister(add("disabled", disabled, setOf("reading")))
         val model = model()
         runCurrent()
-        model.selectScope(SourceCategory.Adult)
+        model.selectScope("reading")
         model.search("title")
         advanceUntilIdle()
-        assertEquals(1, adult.requests.size)
-        assertTrue(general.requests.isEmpty())
-        assertTrue(unsupported.requests.isEmpty())
-        model.selectScope(SourceCategory.Literature)
+        assertEquals(1, a.requests.size)
+        assertTrue(b.requests.isEmpty())
+        model.selectScope("favorites")
+        advanceUntilIdle()
+        assertEquals(2, a.requests.size)
+        assertEquals(1, b.requests.size)
+        model.selectScope("empty")
         advanceUntilIdle()
         assertTrue(model.state.value.scopedSources.isEmpty())
-        assertEquals(1, adult.requests.size)
-        assertTrue(general.requests.isEmpty())
+        assertEquals(2, a.requests.size)
+        assertEquals(1, b.requests.size)
+        assertTrue(ungrouped.requests.isEmpty())
+        model.selectScope("")
+        advanceUntilIdle()
+        assertEquals(1, ungrouped.requests.size)
+        model.selectScope(null)
+        advanceUntilIdle()
+        assertEquals(3, model.state.value.total)
+        assertEquals(3, a.requests.size) // Two memberships still produce one request in All.
+        assertEquals(2, b.requests.size)
+        assertEquals(2, ungrouped.requests.size)
+        assertTrue(unsupported.requests.isEmpty())
+        assertTrue(disabled.requests.isEmpty())
     }
 
-    @Test fun entrySourceOverridesTheBrowseGroupAndSwitchingSourceKeepsTheKeyword() = runTest(dispatcher) {
+    @Test fun groupEditsRefreshTargetsButRenamingRunsNoSearchAndDeletionDoesNotExpandTheQuery() = runTest(dispatcher) {
         val a = Paged().apply { load = { _, _ -> SearchPage(listOf(item("a")), null) } }
         val b = Paged().apply { load = { _, _ -> SearchPage(listOf(item("b")), null) } }
-        val aId = add("a", a, SourceCategory.Anime)
-        val bId = add("b", b, SourceCategory.General)
-        every { browsing.scope } returns MutableStateFlow(SourceCategory.Adult)
-        val model = model(SavedStateHandle(mapOf("sourceNamespace" to aId.namespace, "sourceId" to aId.id, "sourceName" to "a")))
+        val aId = add("a", a, setOf("reading"))
+        val bId = add("b", b, setOf("favorites"))
+        val model = model()
+        runCurrent()
+        model.selectScope("reading")
+        model.search("title")
+        advanceUntilIdle()
+        grouping.value = grouping.value.copy(groups = grouping.value.groups.map {
+            if (it.id == "reading") it.copy(name = "Weekend") else it
+        })
+        advanceUntilIdle()
+        assertEquals("Weekend", model.state.value.groups.first().name)
+        assertEquals(1, a.requests.size)
+        assertTrue(b.requests.isEmpty())
+        model.stop()
+        grouping.value = grouping.value.copy(memberships = mapOf(aId to emptySet(), bId to setOf("reading")))
+        advanceUntilIdle()
+        assertTrue(model.state.value.stopped)
+        assertTrue(b.requests.isEmpty())
+        model.resume()
+        advanceUntilIdle()
+        assertEquals(bId, model.state.value.books.single().source)
+        assertEquals(1, a.requests.size)
+        assertEquals(1, b.requests.size)
+        grouping.value = grouping.value.copy(groups = grouping.value.groups.filterNot { it.id == "reading" },
+            memberships = mapOf(aId to emptySet(), bId to emptySet()))
+        advanceUntilIdle()
+        assertNull(model.state.value.scope)
+        assertEquals("title", model.state.value.query)
+        assertEquals("", model.state.value.submittedKeyword)
+        assertTrue(model.state.value.books.isEmpty())
+        assertEquals(1, a.requests.size)
+        assertEquals(1, b.requests.size)
+    }
+
+    @Test fun entrySourceOverridesTheSavedGroupAndSwitchingSourceKeepsTheKeyword() = runTest(dispatcher) {
+        val a = Paged().apply { load = { _, _ -> SearchPage(listOf(item("a")), null) } }
+        val b = Paged().apply { load = { _, _ -> SearchPage(listOf(item("b")), null) } }
+        val aId = add("a", a, setOf("reading"))
+        val bId = add("b", b, setOf("favorites"))
+        val model = model(SavedStateHandle(mapOf("sourceNamespace" to aId.namespace, "sourceId" to aId.id, "sourceName" to "a", "search.group" to "favorites")))
         runCurrent()
         model.search("Title")
         advanceUntilIdle()
@@ -164,7 +224,6 @@ class SearchHubViewModelTest {
         assertEquals(2, a.requests.size)
         assertEquals(2, b.requests.size)
         assertEquals(2, model.state.value.books.size)
-        verify(exactly = 0) { browsing.selectScope(any()) }
     }
 
     @Test fun switchingSourceDuringProgressiveSearchRejectsLateResultsAndResetsPagination() = runTest(dispatcher) {
@@ -690,11 +749,11 @@ class SearchHubViewModelTest {
 
     @Test fun savedStateRestoresQueryAndScopeButReloadsContentAndHistoryKeepsNewestFirst() = runTest(dispatcher) {
         val provider = Paged()
-        add("a", provider, SourceCategory.Adult)
+        add("a", provider, setOf("reading"))
         val saved = SavedStateHandle()
         val model = model(saved)
         runCurrent()
-        model.selectScope(SourceCategory.Adult)
+        model.selectScope("reading")
         model.search(" first "); advanceUntilIdle()
         model.search("second"); advanceUntilIdle()
         model.search("first"); advanceUntilIdle()
@@ -703,7 +762,7 @@ class SearchHubViewModelTest {
         val restored = model(SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
         advanceUntilIdle()
         assertEquals("first", restored.state.value.query)
-        assertEquals(SourceCategory.Adult, restored.state.value.scope)
+        assertEquals("reading", restored.state.value.scope)
         assertEquals(4, provider.requests.size)
         restored.deleteHistory("first"); advanceUntilIdle()
         assertEquals(listOf("second"), restored.state.value.history)

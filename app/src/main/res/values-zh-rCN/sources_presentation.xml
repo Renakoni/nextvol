@@ -3,8 +3,6 @@
     <string name="sources_initializing">正在初始化…</string>
     <string name="sources_initialization_failed">初始化失败 · 请检查书源设置</string>
     <string name="sources_initialize">初始化书源</string>
-    <string name="sources_imported_group">已添加书源</string>
-    <string name="sources_builtin_group">内置书源</string>
     <string name="sources_details">书源详情</string>
     <string name="sources_hide_details">收起书源详情</string>
     <string name="sources_filter_all">全部</string>

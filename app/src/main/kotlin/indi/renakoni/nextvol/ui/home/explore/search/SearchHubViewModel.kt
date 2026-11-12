@@ -12,6 +12,9 @@ import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.explore.*
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.data.web.*
+import indi.renakoni.nextvol.data.web.rules.ImportedRuleSources
+import indi.renakoni.nextvol.data.web.rules.SourceGroup
+import indi.renakoni.nextvol.data.web.rules.SourceGrouping
 import indi.renakoni.nextvol.ui.home.discovery.DiscoveryVersion
 import indi.renakoni.nextvol.ui.home.discovery.version
 import io.nightfish.lightnovelreader.api.book.BookInformation
@@ -32,7 +35,7 @@ data class SearchHubBook(
 )
 
 data class SearchHubSource(
-    val id: Identifier, val name: String, val category: SourceCategory?,
+    val id: Identifier, val name: String, val groupIds: Set<String> = emptySet(),
     val page: Int = 1, val nextPage: Int? = null, val pending: Boolean = true,
     val failure: SourceSearchFailure? = null,
     val query: String? = null,
@@ -42,7 +45,9 @@ data class SearchHubSource(
 
 data class SearchHubState(
     val query: String = "", val submittedKeyword: String = "", val history: List<String> = emptyList(),
-    val scope: SourceCategory? = null, val sources: List<SearchHubSource> = emptyList(),
+    // null means all sources; an empty group ID means ungrouped, as in source management.
+    val scope: String? = null, val sources: List<SearchHubSource> = emptyList(),
+    val groups: List<SourceGroup> = emptyList(),
     val selectedSource: Identifier? = null, val selectedSourceName: String = "",
     val books: List<SearchHubBook> = emptyList(), val searching: Boolean = false,
     val stopped: Boolean = false, val limited: Boolean = false,
@@ -50,7 +55,12 @@ data class SearchHubState(
     val loadingSources: Boolean = false, val restorationFailed: Boolean = false,
 ) {
     val scopedSources get() = sources.filter {
-        if (selectedSource != null) it.id == selectedSource else scope == null || it.category == scope
+        when {
+            selectedSource != null -> it.id == selectedSource
+            scope == null -> true
+            scope.isEmpty() -> it.groupIds.isEmpty()
+            else -> scope in it.groupIds
+        }
     }
     val failures get() = scopedSources.filter { it.failure != null }
     val hasMore get() = !limited && scopedSources.any { it.nextPage != null }
@@ -64,12 +74,12 @@ class SearchHubViewModel internal constructor(
     users: UserDataRepository,
     private val accounts: SourceSessionManager,
     private val saved: SavedStateHandle,
-    browsing: SourceBrowseSettings,
+    grouping: StateFlow<SourceGrouping>,
     private val io: CoroutineDispatcher,
 ) : ViewModel() {
     @Inject constructor(registry: WebSourceRegistry, coordinator: SearchCoordinator, books: BookRepository,
         users: UserDataRepository, accounts: SourceSessionManager, saved: SavedStateHandle,
-        browsing: SourceBrowseSettings) : this(registry, coordinator, books, users, accounts, saved, browsing, Dispatchers.IO)
+        sources: ImportedRuleSources) : this(registry, coordinator, books, users, accounts, saved, sources.grouping, Dispatchers.IO)
 
     private val history = users.stringListUserData(UserDataPath.Search.History.path)
     private val initialSource = saved.get<String>("sourceNamespace")?.let { namespace ->
@@ -77,8 +87,7 @@ class SearchHubViewModel internal constructor(
     }
     private val mutable = MutableStateFlow(SearchHubState(
         query = saved["search.query"] ?: "", submittedKeyword = saved["search.submitted"] ?: "",
-        scope = if (saved.contains("search.scope")) SourceCategory.entries.find { it.name == saved.get<String>("search.scope") }
-            else browsing.scope.value.takeIf { initialSource == null },
+        scope = saved.get<String>("search.group").takeIf { initialSource == null },
         selectedSource = initialSource, selectedSourceName = saved["sourceName"] ?: "",
         loadingSources = true,
     ))
@@ -97,29 +106,46 @@ class SearchHubViewModel internal constructor(
     private val detailsGate = Semaphore(4)
 
     init {
-        saved["search.scope"] = state.value.scope?.name.orEmpty()
         viewModelScope.launch {
             history.getFlow().collect { values ->
                 mutable.value = state.value.copy(history = values.orEmpty().asReversed().filter(String::isNotBlank).distinct())
             }
         }
         viewModelScope.launch {
-            combine(registry.restoredSources, accounts.changes) { sources, generations ->
-                sources.filter { SourceCapability.Search in it.metadata.capabilities }
-                    .associate { it.metadata.id to it.version(generations) }
-            }.distinctUntilChanged().collect { next ->
-                cancelWork()
-                val old = state.value.sources.associateBy { it.id }
+            combine(registry.restoredSources, accounts.changes, grouping) { sources, generations, groups ->
+                sources.filter { it.metadata.id in groups.memberships && SourceCapability.Search in it.metadata.capabilities }
+                    .associate { it.metadata.id to it.version(generations) } to groups
+            }.distinctUntilChanged().collect { (next, grouping) ->
+                val previous = state.value
+                val old = previous.sources.associateBy { it.id }
                 val unchanged = next.keys.filter { next[it] == versions[it] }.toSet()
-                results.entries.removeAll { it.value.book.source !in unchanged }
                 val sources = next.map { (id, version) ->
-                    old[id]?.takeIf { id in unchanged } ?: SearchHubSource(id, version.metadata.item.name, version.metadata.category,
-                        query = if (versions.isEmpty()) null else java.util.UUID.randomUUID().toString())
+                    (old[id]?.takeIf { id in unchanged } ?: SearchHubSource(id, version.metadata.item.name,
+                        query = if (versions.isEmpty()) null else java.util.UUID.randomUUID().toString()))
+                        .copy(groupIds = grouping.memberships[id].orEmpty())
                 }
-                versions = next
-                next.keys.forEach { if (it !in sourceOrder) sourceOrder[it] = sourceOrder.size }
-                mutable.value = state.value.copy(sources = sources, books = rankedResults(), loadingSources = false,
+                val scopeRemoved = !previous.scope.isNullOrEmpty() && grouping.groups.none { it.id == previous.scope }
+                val updated = previous.copy(sources = sources, groups = grouping.groups, loadingSources = false,
                     restorationFailed = registry.restoration.value == SourceRestoration.Failed)
+                if (scopeRemoved) {
+                    // Deleting a group must not silently submit its keyword to every source.
+                    saved["search.group"] = null
+                    saved["search.submitted"] = ""
+                    versions = next
+                    reset(updated.copy(scope = null, submittedKeyword = ""))
+                } else if (previous.scopedSources.map { it.id }.toSet().intersect(unchanged) !=
+                    updated.scopedSources.map { it.id }.toSet().intersect(unchanged)) {
+                    versions = next
+                    reset(updated, stopped = previous.stopped)
+                } else if (next == versions) {
+                    mutable.value = updated // Renaming or editing unrelated groups runs no new search.
+                } else {
+                    cancelWork()
+                    results.entries.removeAll { it.value.book.source !in unchanged }
+                    versions = next
+                    next.keys.forEach { if (it !in sourceOrder) sourceOrder[it] = sourceOrder.size }
+                    mutable.value = updated.copy(books = rankedResults(), searching = false)
+                }
                 loadPending()
             }
         }
@@ -131,9 +157,9 @@ class SearchHubViewModel internal constructor(
         if (value) loadPending() else cancelWork()
     }
 
-    fun selectScope(scope: SourceCategory?) {
+    fun selectScope(scope: String?) {
         if (scope == state.value.scope && state.value.selectedSource == null) return
-        saved["search.scope"] = scope?.name.orEmpty()
+        saved["search.group"] = scope
         saved["sourceNamespace"] = null
         saved["sourceId"] = null
         saved["sourceName"] = null
@@ -144,7 +170,7 @@ class SearchHubViewModel internal constructor(
     fun selectSource(id: Identifier) {
         if (id == state.value.selectedSource) return
         val source = state.value.sources.firstOrNull { it.id == id } ?: return
-        saved["search.scope"] = ""
+        saved["search.group"] = null
         saved["sourceNamespace"] = id.namespace
         saved["sourceId"] = id.id
         saved["sourceName"] = source.name
@@ -169,15 +195,15 @@ class SearchHubViewModel internal constructor(
         loadPending()
     }
 
-    private fun reset(next: SearchHubState) {
+    private fun reset(next: SearchHubState, stopped: Boolean = false) {
         cancelWork()
         results.clear()
         ranking = SearchRanking(next.submittedKeyword)
         sourceOrder.clear()
         next.sources.forEach { sourceOrder[it.id] = sourceOrder.size }
         query = java.util.UUID.randomUUID().toString()
-        mutable.value = next.copy(books = emptyList(), sources = next.sources.map { SearchHubSource(it.id, it.name, it.category) },
-            searching = false, stopped = false, limited = false, completed = 0, total = 0, revision = next.revision + 1)
+        mutable.value = next.copy(books = emptyList(), sources = next.sources.map { SearchHubSource(it.id, it.name, it.groupIds) },
+            searching = false, stopped = stopped, limited = false, completed = 0, total = 0, revision = next.revision + 1)
     }
 
     fun stop() {

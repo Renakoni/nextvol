@@ -27,7 +27,8 @@ import javax.inject.Inject
 
 data class SourceManagementState(val installed: List<InstalledRuleSource> = emptyList(),
     val catalog: List<CatalogSource> = emptyList(), val catalogPreview: Boolean = false,
-    val registry: List<SourceListing> = emptyList(), val selected: Identifier? = null,
+    val registry: List<SourceListing> = emptyList(), val nativeSources: List<ManagedSource> = emptyList(),
+    val selected: Identifier? = null,
     val preview: ImportPreview? = null, val updateTarget: Identifier? = null,
     val previewOrigins: Map<Int, String> = emptyMap(),
     val busy: Boolean = false, val showProgress: Boolean = true, val message: Int? = null, val loginForm: LoginForm? = null,
@@ -39,6 +40,15 @@ data class SourceManagementState(val installed: List<InstalledRuleSource> = empt
     val groups: List<SourceGroup> = emptyList(), val groupRevision: Long = 0,
     val configurationError: SourceSaveError? = null, val variableError: SourceSaveError? = null,
     val editor: SourceEditorState? = null) {
+    val addedSources: List<ManagedSource> = run {
+        val presentations = catalog.associateBy { it.key }
+        nativeSources.sortedBy { it.key } + installed.map { source ->
+            val presentation = presentations[source.definition.importKey]
+            ManagedSource(ImportedRuleSources.id(source.definition), presentation?.name ?: source.definition.displayName,
+                presentation?.host?.takeIf(String::isNotBlank) ?: Uri.parse(source.definition.importKey).host.orEmpty(),
+                source.preferences, source.hasDiscovery)
+        }
+    }
     val ruleSettings = installed.find { ImportedRuleSources.id(it.definition) == selected }
         ?.let { RuleSettingsPresentation.read(it.definition) }
     val verification get() = verifications.firstOrNull { prompt ->
@@ -124,7 +134,8 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         registry.awaitRestoration()
         val installed = sources.installedSources()
         val groups = sources.sourceGroups()
-        mutable.update { it.copy(installed = installed, groups = groups, catalog = catalog.entries,
+        val nativeSources = sources.nativeSources()
+        mutable.update { it.copy(installed = installed, nativeSources = nativeSources, groups = groups, catalog = catalog.entries,
             message = if (registry.restoration.value == SourceRestoration.Failed) R.string.sources_restoration_failed else it.message) }
     }
     fun refresh() = launch { reload() }
@@ -251,23 +262,19 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         else showPreview(checked.preview, id)
     }
     fun setEnabled(id: Identifier, enabled: Boolean) = launch {
-        val hasDiscovery = state.value.installed.firstOrNull { ImportedRuleSources.id(it.definition) == id }?.hasDiscovery == true
+        val hasDiscovery = state.value.addedSources.firstOrNull { it.id == id }?.hasDiscovery == true
         // Enabling a source is the single user action that makes its catalogue visible.
         // Sources without exploreUrl remain search-only.
         sources.setPreferences(id, enabled = enabled, discoveryVisible = enabled && hasDiscovery)
         if (state.value.selected == id) selectSource(id) else reload()
     }
-    fun setZLibraryEnabled(enabled: Boolean) = launch {
-        zLibrary.update(zLibrary.state.value.settings.copy(enabled = enabled))
-    }
     private fun networkState(id: Identifier): SourceNetworkState {
         val installed = state.value.installed.find { ImportedRuleSources.id(it.definition) == id }
-        val listing = state.value.registry.find { it.metadata.id == id }
         val limitation = when {
             installed != null -> if (RuleSettingsPresentation.read(installed.definition).nativeBrowser &&
                 !AndroidSourceBrowser.supportsVpnBypass(context)) R.string.sources_network_native else null
             id == ZLibrarySources.ID -> null
-            id == "Wenku8".ofId() && listing?.metadata?.builtIn == true -> null
+            id == "Wenku8".ofId() -> null
             else -> R.string.sources_network_unsupported
         }
         return SourceNetworkState(networkSettings.mode(id) == SourceNetworkMode.BypassVpn, limitation,
@@ -286,9 +293,14 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
         // No source registration/revision or account change; running chains keep their route.
         mutable.update { it.copy(network = networkState(id), message = R.string.sources_saved) }
     }
-    fun saveZLibrary(origin: String, permissions: String) = launch {
+    fun saveZLibrary(origin: String, permissions: String) = launch(showProgress = false, onFailure = { failure ->
+        mutable.update { it.copy(configurationError = saveError(failure)) }
+    }) {
+        clearConfigurationError()
         zLibrary.update(zLibrary.state.value.settings.copy(origin = origin,
+            enabled = state.value.nativeSources.first { it.id == ZLibrarySources.ID }.preferences.enabled,
             origins = permissions.lines().filter(String::isNotBlank)))
+        reload()
         mutable.update { it.copy(message = R.string.sources_saved) }
     }
     fun clearConfigurationError() { mutable.update { it.copy(configurationError = null) } }

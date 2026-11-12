@@ -4,7 +4,7 @@
     <string name="source_category_female">Female fiction</string>
     <string name="source_category_anime">Light novels</string>
     <string name="source_category_literature">Classics</string>
-    <string name="source_category_general">More fiction</string>
+    <string name="source_category_general">General</string>
     <string name="source_category_adult">R18</string>
     <string name="source_catalog_tab">Categories</string>
     <string name="source_import_tab">Import</string>

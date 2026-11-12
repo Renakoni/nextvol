@@ -74,7 +74,7 @@ class SourcePreferencesTest {
         }
     }
 
-    @Test fun olderInstalledSourcesReceiveOnlyExactCatalogMappings() = runBlocking {
+    @Test fun restorationRefreshesOnlyExactCatalogMappings() = runBlocking {
         val context = host()
         RuleSourceFixture().use { fixture ->
             val accounts = SourceSessionManager(fixture.authority)
@@ -88,10 +88,11 @@ class SourcePreferencesTest {
                 sources.activate(unknown.reference(), emptyList())
                 sources.stop()
                 val snapshot = File(context.filesDir, "rule-sources/active.json")
-                val legacy = Json.parseToJsonElement(snapshot.readText()).jsonObject.getValue("sources").jsonArray.map { row ->
+                val saved = Json.parseToJsonElement(snapshot.readText()).jsonObject
+                val rows = saved.getValue("sources").jsonArray.map { row ->
                     JsonObject(row.jsonObject + ("preferences" to JsonObject(row.jsonObject.getValue("preferences").jsonObject - "category")))
                 }
-                snapshot.writeText(JsonArray(legacy).toString())
+                snapshot.writeText(JsonObject(saved + ("sources" to JsonArray(rows))).toString())
                 registry = WebSourceRegistry(fixture.authority)
                 sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
                 sources.restore()

@@ -22,6 +22,7 @@
     <string name="search_no_sources">No searchable sources in this scope</string>
     <string name="search_no_sources_description">Choose another scope or enable a source in source management.</string>
     <string name="search_scope_title">Search scope</string>
+    <string name="search_scope_groups_help">Groups match source management. Counts include enabled sources that support search.</string>
     <string name="search_change_scope">Change search scope: %1$s</string>
     <string name="search_selected_source">Selected source</string>
     <string name="search_find_source">Source name</string>

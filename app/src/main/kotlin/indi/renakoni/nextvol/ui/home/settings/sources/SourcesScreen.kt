@@ -55,9 +55,6 @@ import indi.renakoni.nextvol.data.web.SourceCapability
 import indi.renakoni.nextvol.data.web.SourceCategory
 import indi.renakoni.nextvol.data.web.SourceListing
 import indi.renakoni.nextvol.data.web.SourceStatus
-import indi.renakoni.nextvol.data.web.rules.ImportedRuleSources
-import indi.renakoni.nextvol.data.web.rules.LoginStatus
-import indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources
 import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
@@ -165,14 +162,13 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
     var selecting by rememberSaveable { mutableStateOf(false) }
     var selectedSources by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var groupingSources by rememberSaveable { mutableStateOf<List<String>?>(null) }
-    val visibleSources = state.installed.filter {
+    val visibleSources = state.addedSources.filter {
         managementGroup == null || (managementGroup == "" && it.preferences.groupIds.isEmpty()) || managementGroup in it.preferences.groupIds
     }
     var chosen by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var url by rememberSaveable { mutableStateOf("") }
     val addStates = rememberSaveableStateHolder()
     val settingsStates = rememberSaveableStateHolder()
-    var deleting by remember { mutableStateOf(false) }
     var editorMenu by remember { mutableStateOf(false) }
     var discardEditor by remember { mutableStateOf(false) }
     var findingInEditor by rememberSaveable(state.editor?.installed?.definition?.sourceId) { mutableStateOf(false) }
@@ -202,12 +198,12 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         sourceToast?.cancel()
         sourceToast = textToast(context.applicationContext, toastText, Toast.LENGTH_SHORT).also { it.show() }
     }
-    LaunchedEffect(state.installed) {
-        if (managementGroup == "" && state.installed.none { it.preferences.groupIds.isEmpty() }) managementGroup = null
+    LaunchedEffect(state.installed, state.nativeSources) {
+        if (managementGroup == "" && state.addedSources.none { it.preferences.groupIds.isEmpty() }) managementGroup = null
         chosen = chosen - state.installed.map { it.definition.importKey }.toSet()
-        selectedSources = selectedSources.filter { selected -> state.installed.any { it.definition.sourceId == selected } }
-        selectedGroupSources = selectedGroupSources.filter { selected -> state.installed.any {
-            it.definition.sourceId == selected && (openedGroup in it.preferences.groupIds) != addingGroupSources
+        selectedSources = selectedSources.filter { selected -> state.addedSources.any { it.key == selected } }
+        selectedGroupSources = selectedGroupSources.filter { selected -> state.addedSources.any {
+            it.key == selected && (openedGroup in it.preferences.groupIds) != addingGroupSources
         } }
     }
     LaunchedEffect(state.groups) {
@@ -217,8 +213,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         }
     }
     val file = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { uri -> model.previewFile(uri, AUTO_PROFILE) } }
-    val installed = state.installed.find { ImportedRuleSources.id(it.definition) == state.selected }
-    val selectedEntry = state.registry.find { it.metadata.id == state.selected }
+    val selectedSource = state.addedSources.find { it.id == state.selected }
     fun back() {
         when {
             state.loginForm != null -> model.cancelLogin()
@@ -241,9 +236,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
         TopAppBar(title = { Text(when {
             state.editor != null -> stringResource(R.string.sources_editor_title)
             state.preview != null -> stringResource(R.string.sources_preview)
-            state.selected == ZLibrarySources.ID -> "Z-Library"
-            installed != null -> state.catalog.find { it.key == installed.definition.importKey }?.name ?: installed.definition.displayName
-            selectedEntry != null -> selectedEntry.metadata.item.name
+            selectedSource != null -> selectedSource.name
             adding && category != null -> stringResource(category!!.title)
             adding -> stringResource(R.string.sources_add)
             managingGroups && addingGroupSources -> stringResource(R.string.source_group_add_title, openedGroupName)
@@ -294,7 +287,7 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
             onSecondary = { selectedGroupSources = emptyList(); addingGroupSources = false; selectingGroupSources = false },
             action = stringResource(if (addingGroupSources) R.string.source_group_add else R.string.source_group_remove),
             onAction = {
-                model.updateGroups(selectedGroupSources.map { Identifier("rules", it) }.toSet(),
+                model.updateGroups(state.addedSources.filter { it.key in selectedGroupSources }.map { it.id }.toSet(),
                     if (addingGroupSources) setOfNotNull(openedGroup) else emptySet(),
                     if (addingGroupSources) emptySet() else setOfNotNull(openedGroup))
             }, actionEnabled = selectedGroupSources.isNotEmpty() && !state.busy, secondaryEnabled = !state.busy)
@@ -313,8 +306,6 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                     (fadeOut(tween(120)) + slideOutHorizontally(tween(180)) { -it / 12 * direction })
             }) { page ->
         val state = page.state
-        val installed = state.installed.find { ImportedRuleSources.id(it.definition) == state.selected }
-        val selectedEntry = state.registry.find { it.metadata.id == state.selected }
         if (state.editor != null) {
             SourceEditorScreen(state.editor, state.busy, model, Modifier.padding(padding).consumeWindowInsets(padding), findingInEditor,
                 onCloseFind = { findingInEditor = false })
@@ -346,127 +337,11 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
             inlineMessage?.takeUnless { it == R.string.sources_saved || it == R.string.source_groups_saved }?.let { message ->
                 item { Text(stringResource(message), color = MaterialTheme.colorScheme.primary) }
             }
-            if (state.selected == ZLibrarySources.ID) {
-                item(key = "zlibrary-settings") { ZLibrarySettingsEditor(state.zLibrary, state.busy, state.registry.find { it.metadata.id == ZLibrarySources.ID },
-                    onEnabled = model::setZLibraryEnabled, onSave = model::saveZLibrary,
-                    onSearch = { onSearch(ZLibrarySources.ID) }, network = state.network, onBypassVpn = model::setBypassVpn) }
-            } else if (installed != null) {
-                item(key = "rule-settings") {
-                    val definition = installed.definition
-                    val settings = checkNotNull(state.ruleSettings)
-                    var configuration by rememberSaveable(definition.sourceId, state.variable) { mutableStateOf(state.variable) }
-                    val grantedPermissions = installed.origins.joinToString("\n") { it.origin }
-                    var permissionBaseline by rememberSaveable(definition.sourceId) { mutableStateOf(grantedPermissions) }
-                    var permissions by rememberSaveable(definition.sourceId) { mutableStateOf(grantedPermissions) }
-                    // SaveableStateProvider restores values without rechecking rememberSaveable inputs.
-                    if (permissionBaseline != grantedPermissions) {
-                        permissionBaseline = grantedPermissions
-                        permissions = grantedPermissions
+            if (state.selected != null) {
+                item(key = "source-settings") {
+                    state.addedSources.find { it.id == state.selected }?.let { source ->
+                        SourceSettings(source, state, model, onSearch = { onSearch(source.id) })
                     }
-                    var showDetails by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
-                    var editPermissions by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
-                    var editVariable by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
-                    var manualVariable by rememberSaveable(definition.sourceId) { mutableStateOf(false) }
-                    val entry = state.registry.find { it.metadata.id == state.selected }
-                    val capabilities = entry.actionCapabilities()
-                    val hasVariable = !manualVariable && (settings.variableDescription.isNotBlank() || state.variable.isNotBlank())
-                    val variableEditor: @Composable () -> Unit = {
-                        if (editVariable) Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (settings.variableDescription.isNotBlank()) Text(settings.variableDescription,
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            OutlinedTextField(configuration, { configuration = it; model.clearVariableError() }, Modifier.fillMaxWidth(),
-                                label = { Text(stringResource(R.string.sources_variable)) }, minLines = 2, maxLines = 6,
-                                enabled = !state.busy && state.storedSettingsAvailable)
-                            SourceSaveActions(state.variableError, state.busy || !state.storedSettingsAvailable, R.string.sources_save_variable,
-                                onSave = { model.saveVariable(state.selected!!, configuration) })
-                        }
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionHeader(text = stringResource(R.string.sources_basic_section))
-                        if (entry?.status == SourceStatus.Failed) Text(stringResource(R.string.sources_action_failed), color = MaterialTheme.colorScheme.error)
-                        if (installed.preferences.enabled && installed.origins.isEmpty()) Text(stringResource(R.string.sources_awaiting_permissions))
-                        val enabledLabel = stringResource(R.string.sources_enabled)
-                        ListItem(headlineContent = { Text(enabledLabel) },
-                            trailingContent = { Switch(installed.preferences.enabled,
-                                { model.setEnabled(state.selected!!, it) }, enabled = !state.busy,
-                                modifier = Modifier.semantics { contentDescription = enabledLabel }) })
-                        Column {
-                            if (SourceCapability.Search in capabilities) SourceSettingsRow(stringResource(R.string.explore_search), !state.busy) {
-                                onSearch(state.selected!!)
-                            }
-                            SourceSettingsRow(stringResource(R.string.sources_editor_title), !state.busy) { model.beginEditor(state.selected!!) }
-                        }
-                        val savedAccount = state.storedSettingsAvailable && state.loginStatus != LoginStatus.LoggedOut
-                        if (settings.loginDeclared || settings.loginErrorField != null || savedAccount || state.verification != null) {
-                            SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(if (settings.loginDeclared || settings.loginErrorField != null || savedAccount)
-                                R.string.sources_account_section else R.string.sources_verification_section))
-                            if (settings.loginErrorField != null) {
-                                Text(stringResource(R.string.sources_login_definition_error, settings.loginErrorField), color = MaterialTheme.colorScheme.error)
-                            }
-                            if (settings.loginErrorField == null || savedAccount || state.verification != null) {
-                                SourceAccountSection(state.loginStatus.takeIf { state.storedSettingsAvailable }, state.accountName,
-                                    entry?.status in setOf(SourceStatus.Registered, SourceStatus.Ready),
-                                    settings.loginErrorField == null && settings.loginDeclared && SourceCapability.Login in capabilities,
-                                    state.busy, state.verification,
-                                    onLogin = { model.beginLogin(state.selected!!) }, onRelogin = { model.relogin(state.selected!!) },
-                                    onLogout = { model.logout(state.selected!!) },
-                                    onRetry = { model.select(state.selected) }, onVerify = model::verifyPending)
-                            }
-                        }
-                        SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(R.string.sources_network_section))
-                        Column {
-                            state.network?.let { SourceNetworkSection(it, state.busy, model::setBypassVpn, model::revokeCertificate) }
-                            SourceSettingsRow(stringResource(R.string.sources_permissions_title), !state.busy, editPermissions,
-                                installed.deniedOrigins.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.sources_denied_count, it.size) }) {
-                                editPermissions = !editPermissions
-                            }
-                        }
-                        if (editPermissions) Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            installed.deniedOrigins.forEach { request ->
-                                SourcePermissionCandidate(request.origin, request.kind.name, permissions, state.busy) { permissions = it }
-                            }
-                            SourcePermissionsField(permissions, state.busy) { permissions = it; model.clearConfigurationError() }
-                            SourceSaveActions(state.configurationError, state.busy, R.string.sources_save_permissions,
-                                onSave = { model.savePermissions(state.selected!!, permissions) })
-                        }
-                        if (settings.configurationDeclared || hasVariable) {
-                            SectionHeader(Modifier.padding(top = 12.dp), text = stringResource(R.string.sources_configuration))
-                            Column {
-                                if (settings.configurationDeclared && settings.loginErrorField == null) {
-                                    SourceSettingsRow(stringResource(R.string.sources_open_panel), !state.busy &&
-                                        entry?.status in setOf(SourceStatus.Registered, SourceStatus.Ready) && SourceCapability.Login in capabilities) {
-                                        model.beginConfiguration(state.selected!!)
-                                    }
-                                }
-                                if (hasVariable) SourceSettingsRow(stringResource(R.string.sources_edit_variable),
-                                    !state.busy && state.storedSettingsAvailable, editVariable) { editVariable = !editVariable }
-                            }
-                        }
-                        if (hasVariable) variableEditor()
-                        val canCheckUpdate = model.canCheckUpdate(definition)
-                        if (!hasVariable || canCheckUpdate) Column {
-                            HorizontalDivider(Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                            SourceSettingsRow(stringResource(R.string.sources_advanced), expanded = showDetails) { showDetails = !showDetails }
-                            if (showDetails) {
-                                if (canCheckUpdate) SourceSettingsRow(stringResource(R.string.sources_check_update), !state.busy) {
-                                    model.checkUpdate(state.selected!!)
-                                }
-                                // An undeclared variable can still be used by dynamically loaded scripts.
-                                if (!hasVariable) SourceSettingsRow(stringResource(R.string.sources_edit_variable),
-                                    !state.busy && state.storedSettingsAvailable, editVariable) { manualVariable = true; editVariable = !editVariable }
-                                if (!hasVariable) variableEditor()
-                            }
-                        }
-                        TextButton(onClick = { deleting = true }, enabled = !state.busy) { Text(stringResource(R.string.sources_delete), color = MaterialTheme.colorScheme.error) }
-                    }
-                    if (deleting) AlertDialog(onDismissRequest = { deleting = false }, title = { Text(stringResource(R.string.sources_delete)) },
-                        text = { Text(stringResource(R.string.sources_delete_help)) }, confirmButton = { TextButton(onClick = { deleting = false; model.remove(state.selected!!) }) { Text(stringResource(R.string.sources_delete)) } },
-                        dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(android.R.string.cancel)) } })
-                }
-            } else if (state.selected != null) {
-                item(key = "registered-settings") {
-                    RegisteredSourceSettings(selectedEntry, state.network, state.busy,
-                        onSearch = { onSearch(state.selected) }, onBypassVpn = model::setBypassVpn)
                 }
             } else {
                 item(key = "source-management-actions") {
@@ -477,48 +352,21 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                             !state.busy, Modifier.weight(1f)) { managingGroups = true }
                     }
                 }
-                item { SectionHeader(text = stringResource(R.string.sources_builtin_group)) }
-                item {
-                    val entry = state.registry.find { it.metadata.id == ZLibrarySources.ID }
-                    ListItem(headlineContent = { Text("Z-Library") },
-                        supportingContent = { Column {
-                            Text(stringResource(R.string.zlibrary_source_summary))
-                        } },
-                        trailingContent = {
-                            if (state.zLibrary.settings.available && SourceCapability.Search in entry.actionCapabilities()) IconButton(onClick = { onSearch(ZLibrarySources.ID) }, enabled = !state.busy) {
-                                Icon(painterResource(R.drawable.search_24px), stringResource(R.string.explore_search))
-                            }
-                        }, modifier = Modifier.clip(MaterialTheme.shapes.large).clickable(enabled = !state.busy) { model.select(ZLibrarySources.ID) },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer))
-                }
-                items(state.registry.filter { it.metadata.builtIn && it.metadata.id != ZLibrarySources.ID }, key = { it.metadata.id.toString() }) { entry ->
-                    ListItem(headlineContent = { Text(entry.metadata.item.name) }, supportingContent = { Column {
-                        Text(stringResource(R.string.sources_builtin))
-                    } },
-                        modifier = Modifier.clip(MaterialTheme.shapes.large).clickable(enabled = !state.busy) { model.select(entry.metadata.id) },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                        trailingContent = {
-                            if (SourceCapability.Search in entry.actionCapabilities()) IconButton(onClick = { onSearch(entry.metadata.id) }, enabled = !state.busy) {
-                                Icon(painterResource(R.drawable.search_24px), stringResource(R.string.explore_search))
-                            }
-                        })
-                }
                 item(key = "source-user-groups") {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             SectionHeader(modifier = Modifier.weight(1f),
-                                text = if (state.installed.isEmpty()) stringResource(R.string.sources_imported_group)
-                                    else stringResource(R.string.source_catalog_installed, state.installed.size))
+                                text = stringResource(R.string.source_catalog_installed, state.addedSources.size))
                             if (selecting) {
                                 val selection = when {
-                                    visibleSources.isNotEmpty() && visibleSources.all { it.definition.sourceId in selectedSources } -> ToggleableState.On
-                                    visibleSources.any { it.definition.sourceId in selectedSources } -> ToggleableState.Indeterminate
+                                    visibleSources.isNotEmpty() && visibleSources.all { it.key in selectedSources } -> ToggleableState.On
+                                    visibleSources.any { it.key in selectedSources } -> ToggleableState.Indeterminate
                                     else -> ToggleableState.Off
                                 }
                                 Row(Modifier.heightIn(min = 48.dp).triStateToggleable(selection,
                                     enabled = !state.busy && visibleSources.isNotEmpty(), role = Role.Checkbox) {
-                                    val ids = visibleSources.map { it.definition.sourceId }
+                                    val ids = visibleSources.map { it.key }
                                     selectedSources = if (selection == ToggleableState.On) selectedSources - ids.toSet()
                                         else (selectedSources + ids).distinct()
                                 }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically,
@@ -526,39 +374,37 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
                                     TriStateCheckbox(selection, onClick = null, enabled = !state.busy && visibleSources.isNotEmpty())
                                     Text(stringResource(R.string.source_group_select_all), style = MaterialTheme.typography.labelLarge)
                                 }
-                            } else if (state.installed.isNotEmpty()) TextButton(onClick = { selecting = true },
+                            } else if (state.addedSources.isNotEmpty()) TextButton(onClick = { selecting = true },
                                 enabled = !state.busy && visibleSources.isNotEmpty()) {
                                 Text(stringResource(R.string.source_group_select_members))
                             }
                         }
-                        SourceGroupFilters(state.groups, state.installed, managementGroup) { managementGroup = it }
+                        SourceGroupFilters(state.groups, state.addedSources, managementGroup) { managementGroup = it }
                     }
                 }
                 if (visibleSources.isEmpty()) item {
                     Text(stringResource(R.string.source_catalog_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                items(visibleSources, key = { it.definition.sourceId }) { source ->
-                    val id = ImportedRuleSources.id(source.definition)
-                    val presentation = state.catalog.find { it.key == source.definition.importKey }
-                    val selected = source.definition.sourceId in selectedSources
+                items(visibleSources, key = { it.key }) { source ->
+                    val id = source.id
+                    val selected = source.key in selectedSources
                     val selectLabel = stringResource(R.string.source_group_select)
-                    ListItem(headlineContent = { Text(presentation?.name ?: source.definition.displayName,
+                    ListItem(headlineContent = { Text(source.name,
                         style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         leadingContent = if (selecting) ({ Checkbox(selected, onCheckedChange = null, enabled = !state.busy) }) else null,
                         supportingContent = {
-                            Text(presentation?.host?.takeIf(String::isNotBlank)
-                                ?: android.net.Uri.parse(source.definition.importKey).host.orEmpty(),
+                            Text(source.host,
                                 style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         },
                         trailingContent = if (selecting) null else ({ Switch(source.preferences.enabled,
                             { model.setEnabled(id, it) }, enabled = !state.busy) }),
                         modifier = Modifier.clip(MaterialTheme.shapes.large).then(if (selecting)
                             Modifier.toggleable(selected, enabled = !state.busy, role = Role.Checkbox) {
-                                selectedSources = if (selected) selectedSources - source.definition.sourceId
-                                    else selectedSources + source.definition.sourceId
+                                selectedSources = if (selected) selectedSources - source.key
+                                    else selectedSources + source.key
                             } else Modifier.combinedClickable(enabled = !state.busy, onClick = { model.select(id) },
                                 onLongClickLabel = selectLabel, onLongClick = {
-                                    selecting = true; selectedSources = listOf(source.definition.sourceId)
+                                    selecting = true; selectedSources = listOf(source.key)
                                 })),
                         colors = ListItemDefaults.colors(containerColor = if (selecting && selected)
                             MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer))
@@ -574,8 +420,8 @@ fun SourcesScreen(state: SourceManagementState, model: SourcesViewModel,
             Text(stringResource(R.string.sources_editor_discard))
         } }, dismissButton = { TextButton(onClick = { discardEditor = false }) { Text(stringResource(android.R.string.cancel)) } })
     if (groupingSources != null) {
-        val members = groupingSources.orEmpty().map { Identifier("rules", it) }.toSet()
-        SourceGroupsDialog(state.groups, state.installed, state.busy, state.message, state.groupRevision, groupingSources.orEmpty().toSet(),
+        val members = state.addedSources.filter { it.key in groupingSources.orEmpty() }.map { it.id }.toSet()
+        SourceGroupsDialog(state.groups, state.addedSources, state.busy, state.message, state.groupRevision, groupingSources.orEmpty().toSet(),
             onDismiss = { groupingSources = null },
             onSave = { added, removed -> model.updateGroups(members, added, removed) },
             onCreate = { name, added, removed -> model.createGroup(name, members, added, removed) })

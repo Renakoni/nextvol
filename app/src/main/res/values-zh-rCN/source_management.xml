@@ -26,7 +26,6 @@
     <string name="sources_route_unavailable">所选网络路线不可用，请检查网络后重试。</string>
     <string name="sources_advanced">高级选项</string>
     <string name="sources_origin_candidates_help">引用或被拦截的站点仅作为候选。请逐一核对，加入草稿后保存才会授权；不会显示路径或凭据。</string>
-    <string name="sources_denied_origins">此书源被拦截的请求</string>
     <string name="sources_denied_count">%1$d 项站点请求待核对</string>
     <string name="sources_origin_add">加入授权草稿</string>
     <string name="sources_origin_in_draft">已在授权草稿中</string>
@@ -45,7 +44,6 @@
     <string name="sources_file">选择本地文件</string>
     <string name="sources_preview">预览书源</string>
     <string name="sources_empty">尚未添加书源。添加后可阅读更多站点的书籍。</string>
-    <string name="sources_builtin">内置书源</string>
     <string name="sources_available">已启用</string>
     <string name="sources_unavailable">不可用 · 请检查书源设置</string>
     <string name="sources_format">格式：%1$s</string>

@@ -26,7 +26,6 @@
     <string name="sources_route_unavailable">The selected network route is unavailable. Check your connection and retry.</string>
     <string name="sources_advanced">Advanced options</string>
     <string name="sources_origin_candidates_help">Referenced or blocked sites are suggestions only. Review each site, add it to the draft, then save to authorize it. Paths and credentials are never shown.</string>
-    <string name="sources_denied_origins">Blocked requests for this source</string>
     <string name="sources_denied_count">%1$d site requests need review</string>
     <string name="sources_origin_add">Add to permission draft</string>
     <string name="sources_origin_in_draft">In permission draft</string>
@@ -45,7 +44,6 @@
     <string name="sources_file">Choose local file</string>
     <string name="sources_preview">Preview sources</string>
     <string name="sources_empty">No added sources yet. Add one to read from more sites.</string>
-    <string name="sources_builtin">Built in</string>
     <string name="sources_available">Enabled</string>
     <string name="sources_unavailable">Unavailable · Review source settings</string>
     <string name="sources_format">Format: %1$s</string>
