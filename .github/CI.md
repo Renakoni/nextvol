@@ -328,6 +328,15 @@ The budget accommodates the observed 280–298 MB cold variant archives while
 leaving room for reuse. It reduces upload peaks but does not guarantee that any
 number of concurrent PRs will fit the repository's cache quota. Older task
 outputs can be rebuilt normally if they no longer fit.
+
+Completed run `43242207864` restored a previously bounded Release archive and
+reused 53 of 98 actionable tasks, including Kotlin compilation and R8; the build
+took 48 seconds. Before saving, Release and benchmark payloads had each grown
+to about 607 MiB and were trimmed back to 512 MiB (about 190 MiB removed in total).
+This confirms both reuse and the upload bound, not that 512 MiB is an optimal
+budget for every workload. It does not limit JVM test memory or the repository's
+total cache usage; other refs, shared tools and overlapping snapshots also count.
+
 Cache keys include the variant and commit; restore prefixes allow reuse after
 source edits, with Gradle checking the actual task inputs. Closed PR cache entries
 are removed by `cleanup-pr-caches.yml`. After Release checks or signed release
@@ -572,8 +581,10 @@ the protection settings and retain the existing five checks and strict mode.
 The completed cold-cache run `43218511653` spent 12m21s in Gradle (132 executed,
 10 cached tasks), including both Debug/Release KSP and compilation plus App
 Debug Android/unit-test Lint analysis. Task log timestamps overlap across workers;
-they are not individual task timings. Removing the second variant and test scans
-reduces that work, but the new runtime must be measured on comparable completed runs.
+they are not individual task timings. The completed Release-only run `43242208328`
+passed with a 2m56s analysis step after restoring shared Gradle and Release outputs.
+The cache conditions differ, so this comparison cannot isolate the savings from
+removing the second variant and test scans.
 
 ## Maintenance
 

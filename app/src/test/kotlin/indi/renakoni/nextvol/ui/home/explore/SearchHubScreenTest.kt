@@ -113,7 +113,7 @@ class SearchHubScreenTest {
         assertEquals("A book", state.query)
         assertNull(submitted)
         compose.onNodeWithTag("search_source_query").assertDoesNotExist()
-        compose.onNodeWithTag("search_scope").assertTextEquals("Source 999")
+        compose.onNodeWithTag("search_scope").assertTextEquals("Source 23")
         compose.onNodeWithText("Searchable sources: 1").assertDoesNotExist()
     }
 
