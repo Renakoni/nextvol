@@ -610,9 +610,9 @@ private fun DetailContent(
         }
     }
 
-    LaunchedEffect(directory.scrollToDirectory, directory.chapterToLocate, data.page, data.directoryItemKeys, searching, data.matches, visible) {
+    LaunchedEffect(directory.scrollToDirectory, directory.chapterToLocate, data.page, data.directoryItemKeys, searching, data.matches, visible, uiState.readingAvailable) {
         if (!directory.scrollToDirectory || visible < deferred || (searching && data.matches == null)) return@LaunchedEffect
-        val headerIndex = if (selectingChapters || searching) 0 else 4
+        val headerIndex = (if (selectingChapters || searching) 0 else 4) + (if (uiState.readingAvailable) 0 else 1)
         val chapterKey = data.chapters.firstOrNull { it.chapter.id == directory.chapterToLocate }?.key
         val chapterIndex = chapterKey?.let(data.directoryItemKeys::indexOf) ?: -1
         val errorItemCount = if (uiState.bookVolumes?.isErr == true) 1 else 0

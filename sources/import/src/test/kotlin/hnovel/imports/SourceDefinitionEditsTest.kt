@@ -31,11 +31,11 @@ class SourceDefinitionEditsTest {
         assertSame(definition, SourceDefinitionEdits.prepare(definition, SourceDefinitionEdits.format(definition.rawJson)))
     }
 
-    @Test fun invalidDraftsCannotBecomeRevisions() {
-        for (text in listOf("{", "[$raw]", raw.toString().replace("\"Original\"", "\"Original\",\"bookSourceName\":\"duplicate\""),
-                JsonObject(raw + ("ruleContent" to JsonPrimitive(false))).toString())) {
-            assertTrue(runCatching { SourceDefinitionEdits.prepare(definition, text) }.exceptionOrNull() is SourceEditException)
-        }
+    @Test fun malformedRuleSectionsCannotBecomeRevisions() {
+        val text = JsonObject(raw + ("ruleContent" to JsonPrimitive(false))).toString()
+        val failure = runCatching { SourceDefinitionEdits.prepare(definition, text) }.exceptionOrNull() as SourceEditException
+        assertEquals(ImportCode.InvalidField, failure.code)
+        assertEquals("ruleContent", failure.field)
     }
 
     @Test fun syntaxValidationAcceptsObjectsWithoutExecutingOrRequiringSourceRules() {

@@ -95,18 +95,22 @@ class MetadataDetailScreenTest {
         compose.onNodeWithText(activity.get().getString(R.string.detail_info_stats)).assertDoesNotExist()
     }
 
-    @Test fun directoryWithoutContentShowsChaptersWithoutOfferingReading() {
+    @Test fun directoryWithoutContentLocatesChaptersWithoutOfferingReading() {
         val state = readingState(0, LocalDateTime.of(1970, 1, 1, 0, 0)).apply {
             readingAvailable = false
             onlineDirectory = true
             bookVolumes = Ok(BookVolumes("book", listOf(Volume("v", "Volume",
-                listOf(ChapterInformation("chapter", "Listed chapter"))))))
+                (1..60).map { ChapterInformation("chapter-$it", "Chapter $it") }))))
+            userReadingData = userReadingData!!.copy(lastReadChapterId = "chapter-30")
         }
         show(state)
         compose.mainClock.advanceTimeBy(500)
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Listed chapter"))
-        compose.onNodeWithText("Listed chapter").assertIsDisplayed().assertIsNotEnabled()
-        compose.onNodeWithText(activity.get().getString(R.string.start_reading)).assertDoesNotExist()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(activity.get().getString(R.string.detail_contents)))
+        compose.onNodeWithContentDescription(activity.get().getString(R.string.detail_directory_options)).performClick()
+        compose.onNodeWithText(activity.get().getString(R.string.detail_directory_locate)).performClick()
+        compose.onNodeWithText("Chapter 30").assertIsDisplayed().assertIsNotEnabled()
+        compose.onNodeWithText("Chapter 29").assertIsNotDisplayed()
+        compose.onNodeWithText(activity.get().getString(R.string.continue_reading)).assertDoesNotExist()
         compose.onNodeWithContentDescription("Export").assertDoesNotExist()
     }
 

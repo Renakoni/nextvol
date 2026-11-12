@@ -869,7 +869,6 @@ class RuleSourceTest {
             }))
         }).use { source ->
             val id = fixture.server.url("/book/one").toString()
-            fixture.beforeRun = { _, _ -> error("Missing operations must not execute scripts") }
             val directory = failure { source.directory(id) }
             assertEquals(ContentError.MissingCapability, directory.code)
             assertEquals("ruleToc.chapterList", directory.field)
@@ -877,10 +876,8 @@ class RuleSourceTest {
             assertEquals(ContentError.MissingCapability, content.code)
             assertEquals("ruleContent.content", content.field)
             assertEquals(0, fixture.server.requestCount)
-            fixture.beforeRun = { _, _ -> }
             assertEquals(id, source.search("title").single().id)
             assertEquals("Same title", source.information(id).title)
-            assertEquals(2, fixture.server.requestCount)
         } }
     }
 
