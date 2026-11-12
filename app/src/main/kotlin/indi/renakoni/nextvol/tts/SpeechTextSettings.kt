@@ -14,7 +14,7 @@ data class SpeechTextSettings(
     val recordText: Boolean = false,
     val continueDialogue: Boolean = false,
     val replaceEmoji: Boolean = false,
-    val separateEnglish: Boolean = true,
+    val separateEnglish: Boolean = false,
     val filterUnspoken: Boolean = true,
     val languageDetector: Int = 300,
     val filterLanguage: Boolean = false,

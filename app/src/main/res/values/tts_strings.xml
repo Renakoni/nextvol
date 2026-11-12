@@ -38,7 +38,7 @@
     <string name="tts_preview">Preview voice</string>
     <string name="tts_preview_voice">Preview %1$s</string>
     <string name="tts_pause_preview_voice">Pause preview of %1$s</string>
-    <string name="tts_preview_text">Welcome to NextVol. The rain has stopped, and a new chapter begins.</string>
+    <string name="tts_preview_text">The rain has stopped, and a new chapter begins.</string>
     <string name="tts_preparing">Preparing audio…</string>
     <string name="tts_buffering">Waiting for audio…</string>
     <string name="tts_playing">Reading aloud</string>

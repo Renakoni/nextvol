@@ -355,11 +355,30 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 R.string.tts_diagnostic_logging_description, state.diagnosticLogging, onDiagnosticLogging) }
         }
     }
-    if (editing) AlertDialog(onDismissRequest = { editing = false }, title = { Text(stringResource(R.string.tts_voice_audition_text)) },
-        text = { TextField(text, { text = it.take(2000) }, Modifier.fillMaxWidth(), minLines = 3, maxLines = 8) },
-        confirmButton = { TextButton(onClick = { preferences.auditionData.asynchronousSet(text.trim()); editing = false }) {
-            Text(stringResource(R.string.tts_engine_save))
-        } }, dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } })
+    if (editing) BasicAlertDialog(onDismissRequest = { editing = false }) {
+        Surface(shape = MaterialTheme.shapes.extraLarge, color = AlertDialogDefaults.containerColor) {
+            Column {
+                Text(stringResource(R.string.tts_voice_audition_text),
+                    Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 16.dp),
+                    style = MaterialTheme.typography.displayMedium)
+                TextField(text, { text = it.take(2000) },
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp).weight(1f, fill = false),
+                    minLines = 2, maxLines = 8, textStyle = MaterialTheme.typography.bodyLarge,
+                    shape = MaterialTheme.shapes.medium,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                    TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = { preferences.auditionData.asynchronousSet(text.trim()); editing = false }) {
+                        Text(stringResource(R.string.tts_engine_save))
+                    }
+                }
+            }
+        }
+    }
     if (editingPause) AlertDialog(onDismissRequest = { editingPause = false },
         title = { Text(stringResource(R.string.tts_paragraph_pause)) },
         text = { OutlinedTextField(pauseText, { pauseText = it }, singleLine = true,

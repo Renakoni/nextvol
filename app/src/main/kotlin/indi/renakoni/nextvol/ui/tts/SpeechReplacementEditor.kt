@@ -51,7 +51,6 @@ internal fun SpeechReplacementEditorScreen(state: SpeechReplacementsState, ruleI
         Column(Modifier.testTag("speech-replacement-editor")) {
             Text(stringResource(if (ruleId == null) R.string.tts_replace_add else R.string.tts_replace_edit),
                 Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp), style = MaterialTheme.typography.headlineSmall)
-            SpeechSchemeCaption(Modifier.padding(horizontal = 24.dp).padding(bottom = 8.dp))
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 ReplacementField(name, { name = it }, stringResource(R.string.tts_replace_name), singleLine = true,

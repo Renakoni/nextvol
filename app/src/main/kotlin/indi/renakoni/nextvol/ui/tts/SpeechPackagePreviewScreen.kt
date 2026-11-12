@@ -48,6 +48,7 @@ import hnovel.speech.HttpSpeechPackageImport
 import hnovel.speech.OfflinePackagePlan
 import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,7 +81,7 @@ fun SpeechPackagePreviewScreen(
     }
     val context = LocalContext.current
     Scaffold(topBar = {
-        SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_package_preview, onBack) {
+        SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_package_preview, onBack, titleText = null) {
             if (imports.isNotEmpty()) Box {
                 TextButton(onClick = {
                     if (imports.size == 1) imports.single().second() else importMenuExpanded = true

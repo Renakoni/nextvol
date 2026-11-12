@@ -22,6 +22,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.tts.names.SpeechNameCandidate
 import indi.renakoni.nextvol.tts.names.SpeechNameRecognizer
 import kotlinx.coroutines.CancellationException
@@ -71,7 +72,7 @@ internal fun SpeechNameTestScreen(onBack: () -> Unit) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     val saved = rememberSaveableStateHolder()
     val tabs = listOf(R.string.tts_name_ner, R.string.tts_new_word_algorithm, R.string.tts_name_classification_tab)
-    Scaffold(topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_name_test, onBack) }) { padding ->
+    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_name_test, onBack) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             PrimaryScrollableTabRow(selectedTabIndex = selected, edgePadding = 20.dp) {
                 tabs.forEachIndexed { index, title ->
