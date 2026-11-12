@@ -1,18 +1,14 @@
 package indi.renakoni.nextvol.ui.tts
 
+import hnovel.speech.SpeechSearchQuery
 import indi.renakoni.nextvol.tts.SpeechRoleRule
-import java.util.Locale
 
 /** r2.p.w / D6.a.v: submitted whitespace-separated conditions are combined with AND. */
 internal fun filterSpeechRoles(rules: List<SpeechRoleRule>, query: String): List<SpeechRoleRule> {
-    val terms = query.trim { Character.isWhitespace(it) }.replace(Regex("\\s+"), " ")
-        .replace(Regex("(?<=:)\\s+"), "").split(' ')
-    val locale = Locale.getDefault()
-    return terms.fold(rules) { matches, term ->
-        val separator = term.indexOf(':')
-        val prefix = if (separator < 0) "" else term.substring(0, separator).lowercase(locale)
-        val value = term.substring(separator + 1).lowercase(locale)
-        matches.filter { rule ->
+    val search = SpeechSearchQuery(query)
+    val locale = search.locale
+    return rules.filter { rule ->
+        search.terms.all { (prefix, value) ->
             fun contains(field: String) = field.isNotEmpty() && field.lowercase(locale).contains(value)
             when (prefix) {
                 "isabstract" -> rule.isAbstract == (value == "true")
