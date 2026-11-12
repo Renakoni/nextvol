@@ -9,7 +9,7 @@ class SourceEditException(val code: ImportCode, val field: String? = null,
 object SourceDefinitionEdits {
     private val pretty = Json { prettyPrint = true }
 
-    fun prepare(before: SourceDefinition, text: String, revision: Long = before.revision + 1): SourceDefinition {
+    fun prepare(before: SourceDefinition, text: String): SourceDefinition {
         val raw = parse(text)
         val parsed = try { LegadoSourceAdapter().validate(raw) }
         catch (failure: ImportFailure) { throw SourceEditException(failure.code, failure.field) }
@@ -20,9 +20,8 @@ object SourceDefinitionEdits {
         }
         val json = canonical(raw).toString()
         if (json == before.rawJson) return before
-        require(revision > before.revision)
         return before.copy(displayName = parsed.name, enabled = parsed.enabled, enabledExplore = parsed.enabledExplore,
-            contentDigest = digest(json), revision = revision, rawJson = json)
+            contentDigest = digest(json), rawJson = json)
     }
 
     fun format(text: String): String = pretty.encodeToString(JsonObject.serializer(), parse(text))

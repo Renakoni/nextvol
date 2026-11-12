@@ -42,6 +42,7 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
         companion object {
             fun prepare(installed: InstalledRuleSource, text: String): PreparedEdit {
                 val next = SourceDefinitionEdits.prepare(installed.definition, text)
+                if (next === installed.definition) return PreparedEdit(installed, next, emptyList())
                 val existing = SourceOriginCandidates.discover(Json.parseToJsonElement(installed.definition.rawJson).jsonObject)
                     .map { it.origin }.toSet()
                 val granted = installed.origins.mapNotNull { sourcePermissionOrigin(it.origin) }.toSet()

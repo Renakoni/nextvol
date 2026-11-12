@@ -17,13 +17,13 @@ class SourceDefinitionEditsTest {
         "Original", true, true, ImportOrigin(ImportOrigin.Kind.Url, "https://updates.example/source.json"),
         digest(canonical(raw).toString()), 4, canonical(raw).toString())
 
-    @Test fun localEditKeepsImportIdentityAndChangesOnlyRevisionData() {
-        val edited = SourceDefinitionEdits.prepare(definition, raw.toString().replace("old.example", "new.example"), 8)
+    @Test fun preparationKeepsImportIdentityAndLeavesRevisionAssignmentToCommit() {
+        val edited = SourceDefinitionEdits.prepare(definition, raw.toString().replace("old.example", "new.example"))
         assertEquals(definition.sourceId, edited.sourceId)
         assertEquals(definition.importKey, edited.importKey)
         assertEquals(definition.origin, edited.origin)
         assertEquals(definition.profile, edited.profile)
-        assertEquals(8L, edited.revision)
+        assertEquals(definition.revision, edited.revision)
         assertNotEquals(definition.contentDigest, edited.contentDigest)
         assertEquals(digest(edited.rawJson), edited.contentDigest)
         assertTrue(edited.rawJson.contains("new.example"))
