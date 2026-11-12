@@ -1,6 +1,7 @@
 package hnovel.content
 
 import hnovel.rules.RuleValue
+import hnovel.rules.text
 import hnovel.content.RuleDiscoveryCatalogParser.MAX_CATALOG_ROWS
 import hnovel.content.RuleDiscoveryCatalogParser.inputTypes
 import kotlinx.serialization.json.*

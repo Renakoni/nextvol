@@ -156,7 +156,7 @@ class RuleScriptFailure(val code: String) : RuntimeException(code)
 class RuleBudgetExceeded : RuntimeException("Rule execution budget exceeded")
 internal class RuleFailure(val error: RuleError) : RuntimeException(error.code)
 
-internal fun RuleValue.text(): String = when (this) {
+fun RuleValue.text(): String = when (this) {
     is RuleValue.Text -> value
     is RuleValue.Node -> content
     is RuleValue.Captures -> groups.joinToString("\n")
@@ -164,8 +164,17 @@ internal fun RuleValue.text(): String = when (this) {
     RuleValue.Empty -> ""
 }
 
-internal fun RuleValue.items(): List<RuleValue> = when (this) {
+fun RuleValue.items(): List<RuleValue> = when (this) {
     is RuleValue.Items -> values
     RuleValue.Empty -> emptyList()
     else -> listOf(this)
+}
+
+fun JsonElement.toRuleValue(): RuleValue = when (this) {
+    JsonNull -> RuleValue.Empty
+    is JsonPrimitive -> RuleValue.Text(content)
+    is JsonArray -> RuleValue.Items(map {
+        if (it is JsonPrimitive && !it.isString) RuleValue.Node(it.toString(), InputKind.Json) else it.toRuleValue()
+    })
+    is JsonObject -> RuleValue.Node(toString(), InputKind.Json)
 }

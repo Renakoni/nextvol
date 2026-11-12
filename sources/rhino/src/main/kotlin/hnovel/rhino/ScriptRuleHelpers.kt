@@ -11,7 +11,7 @@ import org.apache.commons.text.StringEscapeUtils
 /** Nested AnalyzeRule helpers share the current Rhino context, variables and rule budget. */
 internal class ScriptRuleHelpers(private val scope: Scriptable, frame: ScriptFrame, private val limits: ScriptLimits) {
     private val context = frame.ruleContext ?: RuleContext(frame.sourceId, frame.bookId, frame.chapterId, frame.baseUrl)
-    init { if (context.content == null) context.content = frame.ruleInput ?: value(frame.variables["result"] ?: JsonNull) }
+    init { if (context.content == null) context.content = frame.ruleInput ?: (frame.variables["result"] ?: JsonNull).toRuleValue() }
     private var root: RuleValue
         get() = context.content!!
         set(value) { context.content = value }
@@ -63,7 +63,7 @@ internal class ScriptRuleHelpers(private val scope: Scriptable, frame: ScriptFra
                     require(it is JsonPrimitive && it.isString)
                     it.content
                 }
-                root = elementInput ?: if (args[0] is JsonArray) RuleValue.Node(args[0].toString(), InputKind.Json) else value(args[0])
+                root = elementInput ?: if (args[0] is JsonArray) RuleValue.Node(args[0].toString(), InputKind.Json) else args[0].toRuleValue()
                 if (nextBase != null) baseUrl = nextBase
                 return JsonNull
             }
@@ -82,7 +82,7 @@ internal class ScriptRuleHelpers(private val scope: Scriptable, frame: ScriptFra
             }
             val booleanOverload = name == "java.getString" && args.size == 2 && args[1] is JsonPrimitive && args[1].jsonPrimitive.booleanOrNull != null
             val unescape = !booleanOverload || args[1].jsonPrimitive.boolean
-            val input = elementInput ?: args.getOrNull(1)?.takeUnless { booleanOverload || it == JsonNull }?.let(::value) ?: root
+            val input = elementInput ?: args.getOrNull(1)?.takeUnless { booleanOverload || it == JsonNull }?.toRuleValue() ?: root
             val url = args.getOrNull(2)?.jsonPrimitive?.boolean ?: false
             val output = when (name) {
                 "java.getString" -> if (url) OutputKind.Url else OutputKind.Text
@@ -99,8 +99,8 @@ internal class ScriptRuleHelpers(private val scope: Scriptable, frame: ScriptFra
                     put("baseUrl", this, baseUrl)
                     put("src", this, sourceValue(cx))
                 }
-                value(Json.parseToJsonElement(BoundedJsonResult(limits.maxBridgeChars)
-                    .encode(evaluateGlobal(cx, nested, request.script, "nested-rule"))))
+                Json.parseToJsonElement(BoundedJsonResult(limits.maxBridgeChars)
+                    .encode(evaluateGlobal(cx, nested, request.script, "nested-rule"))).toRuleValue()
             }
             val result = evaluator.evaluate(rule, input, context, output, RuleLocation(name), budget, context.baseUrl, baseUrl)
             if (result is RuleResult.Failure) {
@@ -112,39 +112,19 @@ internal class ScriptRuleHelpers(private val scope: Scriptable, frame: ScriptFra
                 elements = selected
             }
             return when (name) {
-                "java.getString" -> JsonPrimitive(text(selected).let { if (unescape) StringEscapeUtils.unescapeHtml4(it) else it })
-                "java.getStringList" -> JsonArray((if (selected is RuleValue.Text) selected.value.split('\n') else items(selected).map(::text)).map(::JsonPrimitive))
+                "java.getString" -> JsonPrimitive(selected.text().let { if (unescape) StringEscapeUtils.unescapeHtml4(it) else it })
+                "java.getStringList" -> JsonArray((if (selected is RuleValue.Text) selected.value.split('\n') else selected.items().map { it.text() }).map(::JsonPrimitive))
                 else -> json(selected)
             }
         } catch (_: RuleBudgetExceeded) { throw ScriptBudgetExceeded() }
         finally { depth-- }
     }
 
-    private fun items(value: RuleValue): List<RuleValue> = when (value) {
-        RuleValue.Empty -> emptyList()
-        is RuleValue.Items -> value.values
-        else -> listOf(value)
-    }
-    private fun text(value: RuleValue): String = when (value) {
-        RuleValue.Empty -> ""
-        is RuleValue.Text -> value.value
-        is RuleValue.Node -> value.content
-        is RuleValue.Items -> value.values.joinToString("\n", transform = ::text)
-        is RuleValue.Captures -> value.groups.joinToString("\n")
-    }
     private fun json(value: RuleValue): JsonElement = when (value) {
         RuleValue.Empty -> JsonNull
         is RuleValue.Text -> JsonPrimitive(value.value)
         is RuleValue.Node -> if (value.kind == InputKind.Json) Json.parseToJsonElement(value.content) else JsonPrimitive(value.content)
         is RuleValue.Items -> JsonArray(value.values.map(::json))
         is RuleValue.Captures -> JsonArray(value.groups.map(::JsonPrimitive))
-    }
-    private fun value(json: JsonElement): RuleValue = when (json) {
-        JsonNull -> RuleValue.Empty
-        is JsonPrimitive -> RuleValue.Text(json.content)
-        is JsonArray -> RuleValue.Items(json.map {
-            if (it is JsonPrimitive && !it.isString) RuleValue.Node(it.toString(), InputKind.Json) else value(it)
-        })
-        is JsonObject -> RuleValue.Node(json.toString(), InputKind.Json)
     }
 }

@@ -129,11 +129,4 @@ internal object WorkerDirectoryRows {
         (before.keys + after.keys).filter { before[it] != after[it] }.associateWith { after[it] }
 
     private fun String.truth() = isNotBlank() && this != "null" && trim().lowercase() !in setOf("false", "no", "not", "0", "0.0")
-    private fun RuleValue.text(): String = when (this) {
-        is RuleValue.Text -> value
-        is RuleValue.Node -> content
-        is RuleValue.Items -> values.joinToString("\n") { it.text() }
-        is RuleValue.Captures -> groups.joinToString("\n")
-        RuleValue.Empty -> ""
-    }
 }
