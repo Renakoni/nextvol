@@ -227,8 +227,8 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     suspend fun enable(ids: Set<String>, enabled: Boolean) = change { current ->
         val changed = current.associateByTo(linkedMapOf()) { it.definition.id }
         combined(current).filter { it.definition.id in ids }.forEach { source ->
-            changed[source.definition.id] = source.copy(definition = previewHttpSpeech(JsonObject(source.definition.raw +
-                ("nextvolEnabled" to JsonPrimitive(enabled))).toString()).sources.single())
+            changed[source.definition.id] = source.copy(definition = previewHttpSpeech(JsonObject(source.definition.raw + mapOf(
+                "id" to JsonPrimitive(source.definition.id), "nextvolEnabled" to JsonPrimitive(enabled))).toString()).sources.single())
         }
         changed.values.toList()
     }
