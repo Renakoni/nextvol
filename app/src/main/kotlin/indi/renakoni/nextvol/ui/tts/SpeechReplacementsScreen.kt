@@ -20,6 +20,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.tts.*
 
 @Composable
@@ -101,7 +102,7 @@ internal fun SpeechReplacementPreviewScreen(state: SpeechReplacementsState, onBa
     val sample = stringResource(R.string.tts_replace_sample)
     var text by rememberSaveable { mutableStateOf(sample) }
     DisposableEffect(Unit) { onDispose(onClearPreview) }
-    Scaffold(topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_replace_preview, onBack) }) { padding ->
+    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_replace_preview, onBack) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).imePadding(), contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { ReplacementField(text, { text = it; onClearPreview() }, stringResource(R.string.tts_replace_input),

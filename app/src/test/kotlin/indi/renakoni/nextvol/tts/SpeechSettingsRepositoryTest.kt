@@ -27,6 +27,7 @@ class SpeechSettingsRepositoryTest {
         val data = storage()
         val repository = SpeechSettingsRepository(data)
         assertFalse(repository.get().allowMultipleVoices)
+        assertFalse(repository.get().text.separateEnglish)
         val previousLocale = Locale.getDefault()
         try {
             Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
@@ -51,7 +52,7 @@ class SpeechSettingsRepositoryTest {
             activate = false, mode = 0, isAbstract = true, matchBefore = false,
             speaker = SpeechVoiceRef(httpSource = "alice", label = "Alice voice")))
         val text = SpeechTextSettings(dialogue = true, recordVoice = true, recordText = true,
-            continueDialogue = true, replaceEmoji = true, separateEnglish = false, filterUnspoken = false, maxSentenceLength = 72)
+            continueDialogue = true, replaceEmoji = true, separateEnglish = true, filterUnspoken = false, maxSentenceLength = 72)
         repository.update { it.copy(replacements = rules, httpSource = "online", text = text,
             rate = 1.5f, pitch = 0.8f, volume = 0.74f, allowMultipleVoices = true,
             roleRules = roles, roleContextPattern = "__ROLE__") }

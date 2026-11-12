@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.tts.ReadAloudState
@@ -79,7 +80,7 @@ fun SpeechSettingsScreen(
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
     Scaffold(
-        topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_settings, onBack, titleText = schemeTitle) },
+        topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_settings, onBack, titleText = schemeTitle) },
         bottomBar = {
             if (hasPlayback) SpeechPlaybackBar(playback, onCommand, onOpen = { showPlayback = true })
         },
@@ -195,7 +196,7 @@ fun SpeechPreferencesScreen(
     schemeSummary: String? = null,
 ) {
     Scaffold(
-        topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_preferences, onBack) },
+        topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_preferences, onBack) },
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding).testTag("speech-preferences-list"),

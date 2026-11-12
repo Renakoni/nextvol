@@ -15,7 +15,6 @@
     <string name="tts_scheme_rename">重新命名方案</string>
     <string name="tts_scheme_delete">刪除方案</string>
     <string name="tts_scheme_delete_replacement">使用此方案的書籍將改用以下方案；若刪除預設方案，所選方案也將成為新預設。</string>
-    <string name="tts_scheme_editing">正在編輯：%1$s</string>
     <string name="tts_scheme_actions">%1$s的操作</string>
     <string name="tts_scheme_default_usage">跟隨預設的書籍</string>
     <string name="tts_scheme_used_by">使用書籍：%1$s</string>

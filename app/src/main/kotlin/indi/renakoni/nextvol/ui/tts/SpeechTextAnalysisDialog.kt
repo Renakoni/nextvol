@@ -62,7 +62,6 @@ internal fun SpeechTextAnalysisContent(state: SpeechTextAnalysisState, onCancel:
             Text(if (result != null) state.sourceName else stringResource(R.string.tts_analysis_title),
                 Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.headlineSmall,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
-            SpeechSchemeCaption(Modifier.padding(horizontal = 24.dp).padding(top = 8.dp))
             if (state.sourceName.isNotBlank() && result == null)
                 Text(state.sourceName, Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

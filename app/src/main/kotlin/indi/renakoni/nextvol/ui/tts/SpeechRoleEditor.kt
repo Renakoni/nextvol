@@ -43,7 +43,6 @@ internal fun SpeechRoleEditorScreen(state: SpeechRolesState, onBack: () -> Unit,
             Text(stringResource(if (existing) R.string.tts_role_edit else R.string.tts_role_add),
                 Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp),
                 style = MaterialTheme.typography.headlineSmall)
-            SpeechSchemeCaption(Modifier.padding(horizontal = 24.dp).padding(bottom = 8.dp))
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 RoleDropdown(modes.find { it.first == if (languageMode) 1 else draft.mode }?.second.orEmpty(), stringResource(R.string.tts_role_mode),

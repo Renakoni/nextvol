@@ -15,7 +15,6 @@
     <string name="tts_scheme_rename">Rename scheme</string>
     <string name="tts_scheme_delete">Delete scheme</string>
     <string name="tts_scheme_delete_replacement">Replace this scheme with the selection below for all books that use it. If it is the default, the selection becomes the new default.</string>
-    <string name="tts_scheme_editing">Editing: %1$s</string>
     <string name="tts_scheme_actions">Actions for %1$s</string>
     <string name="tts_scheme_default_usage">Books following the default</string>
     <string name="tts_scheme_used_by">Used by: %1$s</string>
