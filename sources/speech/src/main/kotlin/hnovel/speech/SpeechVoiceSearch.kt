@@ -1,7 +1,5 @@
 package hnovel.speech
 
-import java.util.Locale
-
 data class SpeechSearchVoice(
     val name: String,
     val code: String = "",
@@ -18,16 +16,10 @@ data class SpeechSearchVoice(
 
 /** MultiTTS speaker search: terms intersect; plain terms search name, description and code. */
 class SpeechVoiceSearch(query: String) {
-    private val locale = Locale.getDefault()
-    private val terms = query.trim { Character.isWhitespace(it) }.replace(whitespace, " ")
-        .replace(afterColon, "").split(' ').filter(String::isNotEmpty).map { term ->
-            val separator = term.indexOf(':')
-            if (separator < 0) "" to term.lowercase(locale)
-            else term.substring(0, separator).lowercase(locale) to term.substring(separator + 1).lowercase(locale)
-        }
+    private val search = SpeechSearchQuery(query)
 
-    fun matches(voice: SpeechSearchVoice): Boolean = terms.all { (field, value) ->
-        fun String.containsTerm(term: String = value) = isNotEmpty() && lowercase(locale).contains(term)
+    fun matches(voice: SpeechSearchVoice): Boolean = search.terms.all { (field, value) ->
+        fun String.containsTerm(term: String = value) = isNotEmpty() && lowercase(search.locale).contains(term)
         when (field) {
             "locale" -> voice.locale.containsTerm()
             "ischecked" -> voice.selected == (value == "true")
@@ -45,10 +37,5 @@ class SpeechVoiceSearch(query: String) {
             "extendui" -> voice.extensions.containsTerm()
             else -> (field + value).let { voice.name.containsTerm(it) || voice.description.containsTerm(it) || voice.code.containsTerm(it) }
         }
-    }
-
-    private companion object {
-        val whitespace = Regex("\\s+")
-        val afterColon = Regex("(?<=:)\\s+")
     }
 }

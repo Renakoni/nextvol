@@ -25,12 +25,10 @@ import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.reader.ReaderLayoutTestActivity
-import indi.renakoni.nextvol.theme.DefaultDarkColorScheme
-import indi.renakoni.nextvol.theme.DefaultLightColorScheme
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.home.discovery.DiscoveryTopBar
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
-import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
 import org.junit.Assert.*
 import org.junit.Rule
@@ -53,14 +51,12 @@ class TypographyInstrumentedTest {
 
     @Test fun wrappedHeadingsAndSettingsRowsKeepRoomForEveryLine() {
         var scale by mutableStateOf(1f)
-        var dark by mutableStateOf(false)
         var chinese by mutableStateOf(false)
         var role by mutableStateOf(0)
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
-                MaterialTheme(typography = AppTypography,
-                    colorScheme = if (dark) DefaultDarkColorScheme else DefaultLightColorScheme) {
+                MaterialTheme(typography = AppTypography) {
                     Surface(Modifier.width(240.dp)) {
                         val title = if (chinese) "中文标题\n第二行文字" else "Reading settings\nTypography gyp"
                         when (role) {
@@ -74,14 +70,15 @@ class TypographyInstrumentedTest {
                 }
             }
         }
-        for (fontScale in listOf(1f, 1.3f, 1.5f, 2f)) for (isDark in listOf(false, true)) {
+        for (fontScale in listOf(1f, 1.3f, 1.5f, 2f)) {
             for (isChinese in listOf(false, true)) for (textRole in 0..3) {
-                compose.runOnIdle { scale = fontScale; dark = isDark; chinese = isChinese; role = textRole }
+                compose.runOnIdle { scale = fontScale; chinese = isChinese; role = textRole }
                 val nodes = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
-                assertTrue(nodes.fetchSemanticsNodes().isNotEmpty())
-                for (index in nodes.fetchSemanticsNodes().indices) {
+                val nodeCount = nodes.fetchSemanticsNodes().size
+                assertTrue(nodeCount > 0)
+                for (index in 0 until nodeCount) {
                     val result = layout(nodes[index])
-                    val label = "scale=$scale dark=$dark chinese=$chinese role=$role"
+                    val label = "scale=$scale chinese=$chinese role=$role"
                     assertTrue("text has measurable height: $label", result.size.height > 0)
                     assertTrue("fixture must wrap: $label", result.lineCount >= 2)
                     val fontPixels = with(result.layoutInput.density) { result.layoutInput.style.fontSize.toPx() }

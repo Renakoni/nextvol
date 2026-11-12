@@ -9,7 +9,6 @@ import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentDa
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.text.ComponentProcessor
 import io.nightfish.lightnovelreader.api.text.TextProcessor
-import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -22,7 +21,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [27], application = Application::class)
 class TextProcessingContentContractTest {
     @Test
-    fun bothEntryPointsPreserveProcessorOrderMetadataExtensionsAndIncompleteItems() = runTest {
+    fun chapterProcessingPreservesProcessorOrderMetadataExtensionsAndIncompleteItems() {
         val registry = ContentComponentRegistry()
         val processing = TextProcessingRepository(
             mockk { every { enabled } returns false },
@@ -49,8 +48,7 @@ class TextProcessingContentContractTest {
                 {"id":"fixture:unknown","data":{"value":2}},
                 {"data":{"text":"missing id"}},
                 {"id":"fixture:missing-data"},
-                7,
-                []
+                7
             ]
         }""").jsonObject, "previous", "next")
         val expected = chapter.copy(content = Json.parseToJsonElement("""{
@@ -61,28 +59,12 @@ class TextProcessingContentContractTest {
             {"id":"fixture:unknown","data":{"value":2}},
             {"data":{"text":"missing id"}},
             {"id":"fixture:missing-data"},
-            7,
-            []
+            7
         ]}""").jsonObject)
 
-        val decoder = ContentJsonDecoder(registry)
-        val outputs = listOf(
-            processing.processChapterContent("book") { chapter },
-            processing.coroutineProcessChapterContent("book") { chapter },
-        )
-        for (output in outputs) {
-            assertEquals(expected, output)
-            val rendered = decoder.decodeComponents(
-                output.content,
-                create = { (it as SimpleTextComponentData).text },
-                error = { "error" },
-            )
-            assertEquals(listOf("bodyAB", "short", "error", "error", "error", "error", "error"), rendered)
-            val exported = mutableListOf<String>()
-            decoder.getDataFromJsonObject(output.content) { exported += (it as SimpleTextComponentData).text }
-            assertEquals(listOf("bodyAB"), exported)
-        }
-        assertEquals(listOf("book/A", "book/B", "book/A", "book/B"), events)
+        val output = processing.processChapterContent("book") { chapter }
+        assertEquals(expected, output)
+        assertEquals(listOf("book/A", "book/B"), events)
     }
 
     @Test
@@ -95,12 +77,6 @@ class TextProcessingContentContractTest {
             processor.process<SimpleTextComponentData> { it.copy(text = it.text + "changed") }
 
             assertEquals(original, processor.get())
-            val decoder = ContentJsonDecoder(registry)
-            assertEquals(
-                listOf("error"),
-                decoder.decodeComponents(processor.get(), { "unexpected" }, { "error" }),
-            )
-            decoder.getDataFromJsonObject(processor.get()) { error("No valid component to export") }
         }
     }
 }

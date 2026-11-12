@@ -5,7 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import indi.renakoni.nextvol.R
-import io.nightfish.lightnovelreader.api.ui.components.SettingsSwitchEntry
+import indi.renakoni.nextvol.ui.components.SettingsSwitchEntry
 
 @Composable
 internal fun ReaderMotionSwitch(settings: ReaderSettingsEditor, modifier: Modifier = Modifier) {

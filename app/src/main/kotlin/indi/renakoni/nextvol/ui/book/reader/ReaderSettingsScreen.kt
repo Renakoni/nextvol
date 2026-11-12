@@ -56,8 +56,8 @@ import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.components.SettingsSliderEntry
-import io.nightfish.lightnovelreader.api.ui.components.SettingsClickableEntry
-import io.nightfish.lightnovelreader.api.ui.components.SettingsSwitchEntry
+import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.ui.components.SettingsSwitchEntry
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)

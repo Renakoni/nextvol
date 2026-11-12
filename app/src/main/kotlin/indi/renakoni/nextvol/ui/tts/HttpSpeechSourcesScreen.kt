@@ -182,15 +182,14 @@ internal fun HttpSpeechSourcesScreen(
         if (catalogReady && currentGroup == "system") onSystemGroup()
     }
     val searchQuery = query.trim()
-    val filteredSources = remember(state.sources, selection, searchQuery) {
-        val search = hnovel.speech.SpeechVoiceSearch(searchQuery)
+    val search = remember(searchQuery) { hnovel.speech.SpeechVoiceSearch(searchQuery) }
+    val filteredSources = remember(state.sources, selection, search) {
         state.sources.filter {
             val voice = it.searchVoice(selection.voiceSelection(SpeechVoiceRef(httpSource = it.definition.id)) != null)
             search.matches(voice)
         }
     }
-    val filteredOffline = remember(offlineVoices, selection, searchQuery) {
-        val search = hnovel.speech.SpeechVoiceSearch(searchQuery)
+    val filteredOffline = remember(offlineVoices, selection, search) {
         offlineVoices.filter {
             val voice = it.searchVoice(selection.voiceSelection(SpeechVoiceRef(offlineVoice = it.reference)) != null)
             search.matches(voice)

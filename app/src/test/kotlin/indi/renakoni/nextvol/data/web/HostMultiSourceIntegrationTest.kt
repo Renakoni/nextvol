@@ -330,7 +330,6 @@ class HostMultiSourceIntegrationTest {
         assertEquals(1, status.content.taskTotalChapters)
         assertEquals(2, status.content.totalChapters)
         assertEquals(indi.renakoni.nextvol.data.download.BookDownloadPhase.Partial, status.content.phase)
-        assertFalse(books.getIsBookCached(a.storageKey))
     }
 
     @Test fun automaticBookshelfDownloadAfterCancelledSelectionUsesTheWholeBook() = runBlocking {

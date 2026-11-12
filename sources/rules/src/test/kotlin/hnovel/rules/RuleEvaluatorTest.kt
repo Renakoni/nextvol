@@ -1,11 +1,35 @@
 package hnovel.rules
 
+import kotlinx.serialization.json.*
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class RuleEvaluatorTest {
+    @Test fun jsonValuesKeepScalarTextSeparateFromStructuredArrayEntries() {
+        assertEquals(RuleValue.Empty, JsonNull.toRuleValue())
+        assertEquals(RuleValue.Text("7"), JsonPrimitive(7).toRuleValue())
+        assertEquals(RuleValue.Text("true"), JsonPrimitive(true).toRuleValue())
+        assertEquals(RuleValue.Items(listOf(
+            RuleValue.Node("7", InputKind.Json), RuleValue.Node("true", InputKind.Json),
+            RuleValue.Node("null", InputKind.Json), RuleValue.Text("line\ntext"),
+            RuleValue.Items(listOf(RuleValue.Node("2", InputKind.Json), RuleValue.Node("3", InputKind.Json))),
+            RuleValue.Node("""{"id":4}""", InputKind.Json),
+        )), Json.parseToJsonElement("""[7,true,null,"line\ntext",[2,3],{"id":4}]""").toRuleValue())
+    }
+
+    @Test fun textJoinsNestedValuesWhileItemsOnlyUnwrapsTheOuterList() {
+        val captures = RuleValue.Captures(listOf("whole", "group"))
+        val values = listOf(RuleValue.Text("text"), RuleValue.Node("<p>node</p>", InputKind.Html),
+            RuleValue.Items(listOf(captures, RuleValue.Empty)))
+        val nested = RuleValue.Items(values)
+        assertEquals("text\n<p>node</p>\nwhole\ngroup\n", nested.text())
+        assertEquals(values, nested.items())
+        assertEquals(listOf(captures), captures.items())
+        assertEquals(emptyList<RuleValue>(), RuleValue.Empty.items())
+    }
+
     @Test fun selectorTemplateReplacementsKeepRegexCharacterClassesLiteral() {
         val input = RuleValue.Text("""<a onclick="showMore('Book intro')">Open</a>""")
         val selector = """@@a@onclick##showMore[(]['](.*)['][)]##Intro: ${'$'}1"""

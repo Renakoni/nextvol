@@ -9,6 +9,7 @@ import hnovel.network.FailureCode
 import hnovel.network.OriginDenial
 import hnovel.network.RequestStage
 import hnovel.network.ResourceKind
+import hnovel.rules.text
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*

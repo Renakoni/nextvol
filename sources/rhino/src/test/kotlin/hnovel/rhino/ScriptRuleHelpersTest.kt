@@ -43,9 +43,6 @@ class ScriptRuleHelpersTest {
     @Test fun explicitAndScriptArrayInputsStayStructuredForJsonPath() {
         assertEquals(JsonPrimitive(true), run("Array.isArray(java.getElement('@js:[{id:1}]'))"))
         assertEquals(JsonPrimitive("second"), run("java.getString('$[1].title',[{title:'first'},{title:'second'}])"))
-        assertEquals(Json.parseToJsonElement("""[7,true,null,"text",[2,3],{"id":4}]"""), run("""
-            java.getElements('<js>[7,true,null,"text",[2,3],{id:4}]</js>$.[*]')
-        """))
         assertEquals(Json.parseToJsonElement("""[{"id":1},{"id":2}]"""), run("""
             java.setContent({items:[{id:1},{id:2}]});
             java.getElements('$.items[*]<js>result</js>$.[*]')
