@@ -94,7 +94,7 @@ fun ExploreHomeScreen(
                             .collect { onScroll(id, it) }
                     }
                     val titleHeight = with(LocalDensity.current) { (16.sp * 2.2f).toDp() }
-                    PullToRefreshBox(isRefreshing = content.acting || content.loading && content.sections.isEmpty(),
+                    PullToRefreshBox(isRefreshing = content.refreshing || content.acting || content.loading && content.sections.isEmpty(),
                         onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
                         // A keyed trailing spacer would anchor the empty list when the first feed arrives.
                         LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp)) {

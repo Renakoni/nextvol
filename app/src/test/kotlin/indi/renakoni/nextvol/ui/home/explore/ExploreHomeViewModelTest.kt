@@ -286,7 +286,7 @@ class ExploreHomeViewModelTest {
         assertEquals("Late book", model.state.value.content.getValue(id).sections.single().books.single().title)
     }
 
-    @Test fun leavingAnIncompleteFeedCancelsItAndReturningLoadsRemainingPreviews() = runTest(dispatcher) {
+    @Test fun switchingSourcesCancelsRefreshAndReturningLoadsRemainingPreviews() = runTest(dispatcher) {
         var requests = 0
         var cancelled = 0
         val finish = CompletableDeferred<Unit>()
@@ -294,6 +294,7 @@ class ExploreHomeViewModelTest {
             override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
                 requests++
                 emit(Ok(listOf(DiscoverySection("first", "First", emptyList()))))
+                if (requests == 1) return@flow
                 try { finish.await() } finally { if (!finish.isCompleted) cancelled++ }
                 emit(Ok(listOf(DiscoverySection("complete", "Complete", emptyList()))))
             }
@@ -301,17 +302,23 @@ class ExploreHomeViewModelTest {
         val other = add("b", Feed())
         val model = model()
         runCurrent()
+        model.refresh()
+        runCurrent()
+        assertTrue(model.state.value.content.getValue(id).refreshing)
         model.select(other)
         runCurrent()
         assertEquals(1, cancelled)
         assertFalse(model.state.value.content.getValue(id).loaded)
-        finish.complete(Unit)
-        advanceUntilIdle()
+        assertFalse(model.state.value.content.getValue(id).refreshing)
         assertEquals("First", model.state.value.content.getValue(id).sections.single().title)
         assertEquals("Same list", model.state.value.content.getValue(other).sections.single().title)
         model.select(id)
+        runCurrent()
+        assertTrue(model.state.value.content.getValue(id).loading)
+        assertFalse(model.state.value.content.getValue(id).refreshing)
+        finish.complete(Unit)
         advanceUntilIdle()
-        assertEquals(2, requests)
+        assertEquals(3, requests)
         assertEquals("Complete", model.state.value.content.getValue(id).sections.single().title)
     }
 
@@ -378,16 +385,22 @@ class ExploreHomeViewModelTest {
         model.refresh()
         runCurrent()
         val waiting = model.state.value.content.getValue(id)
+        assertTrue(waiting.refreshing)
         assertEquals(listOf("Old first", "Old second"), waiting.sections.map { it.books.single().title })
         assertTrue(waiting.sections.all { it.previewLoading })
         update.complete(Unit)
         runCurrent()
         assertEquals(listOf("New first", "Old second"),
             model.state.value.content.getValue(id).sections.map { it.books.single().title })
+        assertTrue(model.state.value.content.getValue(id).refreshing)
+        model.refresh()
+        runCurrent()
+        assertEquals(2, loads)
         finish.complete(Unit)
         advanceUntilIdle()
         val complete = model.state.value.content.getValue(id)
         assertTrue(complete.loaded)
+        assertFalse(complete.refreshing)
         assertFalse(complete.sections.first().previewLoading)
         assertNull(complete.sections.first().previewFailure)
         assertEquals("New first", complete.sections.first().books.single().title)
@@ -540,6 +553,7 @@ class ExploreHomeViewModelTest {
         feed.failure = DiscoveryError.AuthenticationRequired
         model.refresh()
         advanceUntilIdle()
+        assertFalse(model.state.value.content[a]!!.refreshing)
         assertEquals(shown, model.state.value.content[a]!!.sections)
         assertEquals(DiscoveryError.AuthenticationRequired, model.state.value.content[a]!!.error)
         model.select(b)
