@@ -275,26 +275,6 @@ class BookRepositoryOperationsTest {
     }
 
     @Test
-    fun cacheStatusKeepsMissingEmptyAndPartiallyCachedVolumeSemantics() = runTest {
-        val repository = fixture.repository()
-        coEvery { fixture.local.getBookVolumes("book") } returns null
-        assertFalse(repository.getIsBookCached("book"))
-        coEvery { fixture.local.getBookVolumes("book") } returns BookVolumes("book", emptyList())
-        assertFalse(repository.getIsBookCached("book"))
-        val volume = Volume("volume", "title", emptyList())
-        coEvery { fixture.local.getBookVolumes("book") } returns BookVolumes("book", listOf(volume))
-        assertTrue(repository.getIsBookCached("book"))
-        coEvery { fixture.local.getBookVolumes("book") } returns BookVolumes(
-            "book", listOf(volume.copy(chapters = listOf(ChapterInformation("first", "1"), ChapterInformation("second", "2")))),
-        )
-        coEvery { fixture.local.isChapterContentExists("first") } returns true
-        coEvery { fixture.local.isChapterContentExists("second") } returns false
-        assertFalse(repository.getIsBookCached("book"))
-        coEvery { fixture.local.isChapterContentExists("second") } returns true
-        assertTrue(repository.getIsBookCached("book"))
-    }
-
-    @Test
     fun readingUpdatesUseTheStoredValueAndRetainTheLocalObservationFlow() = runTest {
         val observed = MutableStateFlow(UserReadingData("book", totalReadTime = 10))
         coEvery { fixture.local.getUserReadingData("book") } answers { observed.value }

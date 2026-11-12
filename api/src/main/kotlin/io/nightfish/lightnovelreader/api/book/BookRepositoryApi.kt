@@ -127,15 +127,4 @@ interface BookRepositoryApi {
      */
     suspend fun updateUserReadingData(id: String, update: (UserReadingData) -> UserReadingData)
 
-    /**
-     * 获取书本是缓存状态
-     *
-     * @param bookId 查询的书本id
-     *
-     * @return 是否缓存
-     *
-     * @since Api 2
-     */
-    suspend fun getIsBookCached(bookId: String): Boolean
-
 }
