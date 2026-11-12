@@ -1,0 +1,21 @@
+name: Save bounded variant build cache
+description: Limit historical task outputs before publishing a successful variant build
+inputs:
+  path:
+    description: Local Gradle task cache directory
+    required: true
+  key:
+    description: Cache key supplied by the variant restore action
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Bound variant task payloads before upload
+      shell: bash
+      env:
+        CI_GRADLE_BUILD_CACHE_DIR: ${{ inputs.path }}
+      run: python3 .github/scripts/ci_task_cache.py
+    - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ inputs.path }}
+        key: ${{ inputs.key }}

@@ -58,7 +58,7 @@ jobs:
           ./gradlew --no-daemon :app:assembleRelease -x :app:lintVitalRelease --console=plain --stacktrace --max-workers=2
       - name: Save Release task outputs before signing
         if: steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: ./.github/actions/save-gradle-build-cache
         with:
           path: ${{ steps.build-cache.outputs.path }}
           key: ${{ steps.build-cache.outputs.key }}

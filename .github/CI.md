@@ -264,6 +264,17 @@ large snapshot. Release and benchmark additionally retain task outputs, includin
 R8, in separate local caches selected by `ci.init.gradle`. These start with shared
 main outputs and preserve each variant's own entries. The minified cache is saved
 before device tests so a test failure does not discard successful compilation.
+Before each Release/benchmark upload (including signed releases),
+`save-gradle-build-cache` limits Gradle task payloads to 512 MiB, keeping newer
+outputs first and skipping individual entries that do not fit. Gradle's lock and
+metadata files are left alone. Trimming runs after successful compilation, so
+it only affects future cache reuse, not the APK or test artifacts. This bounds
+history inside a snapshot as well as the number of snapshots; previously repeated
+edits grew individual archives past 1.5 GB before remote retention could run.
+The budget accommodates the observed 280–298 MB cold variant archives while
+leaving room for reuse. It reduces upload peaks but does not guarantee that any
+number of concurrent PRs will fit the repository's cache quota. Older task
+outputs can be rebuilt normally if they no longer fit.
 Cache keys include the variant and commit; restore prefixes allow reuse after
 source edits, with Gradle checking the actual task inputs. Closed PR cache entries
 are removed by `cleanup-pr-caches.yml`. After Release checks or signed release
@@ -272,6 +283,12 @@ retains only the latest snapshot for each ref/variant and removes redundant PR
 tool copies once a main entry exists for that tool. It checks out only main code,
 never the completed workflow's head or its artifacts, with `actions: write`.
 Concurrent cleanups tolerate caches already removed by another run or eviction.
+Cleanup run titles identify the closed PR or triggering workflow run; the Actions
+run counter is independent of PR numbering. Retention summaries report the
+inventory, selected deletions and expected remaining bytes (concurrent writes or
+eviction can change the live total). A missing main Gradle root produces a warning
+to run `Warm Android caches` on main; a present root alone does not prove that all
+its payloads remain available.
 Caches are disposable acceleration: misses fall back to normal dependency or
 fixed tool downloads. AboutLibraries uses local license texts instead of making
 per-library license/funding requests during APK builds.
