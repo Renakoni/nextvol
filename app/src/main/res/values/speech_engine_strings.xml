@@ -16,7 +16,6 @@
     <string name="tts_engine_invalid">Check the engine code and request configuration.</string>
     <string name="tts_engine_add_speaker">New speaker</string>
     <string name="tts_engine_empty">Import a voice package or add an HTTP engine.</string>
-    <string name="tts_engine_repair">Repair engine</string>
     <string name="tts_engine_search">Search engines</string>
     <string name="tts_engine_login">Sign in</string>
 </resources>

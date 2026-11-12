@@ -357,7 +357,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
                 onSystemGroup = { settingsViewModel.refresh(systemCatalog = true) },
                 catalogReady = state.loaded && offline.loaded,
                 onOfflineGroup = offlineViewModel::openEngine,
-                onEngine = { nav.navigate(SpeechEngineEditorRoute(it, "http")) },
                 onVoiceEditor = { source, copy -> nav.navigate(HttpVoiceEditorRoute(source.definition.id, copy)) },
                 onEnableVoice = { source, enabled -> viewModel.enable(listOf(source), enabled) },
                 onImport = { picker.launch(arrayOf("application/json", "application/zip", "application/x-zip-compressed",

@@ -69,7 +69,6 @@ internal fun HttpSpeechSourcesScreen(
     onOrderOffline: (List<String>) -> Unit = {},
     onDeleteHttp: (List<SavedHttpSpeechSource>) -> Unit = {},
     onDeleteOffline: (List<InstalledOfflineVoice>) -> Unit = {},
-    onEngine: (String) -> Unit = {},
     onVoiceEditor: ((SavedHttpSpeechSource, Boolean) -> Unit)? = null,
     onEnableVoice: (SavedHttpSpeechSource, Boolean) -> Unit = { _, _ -> },
     selection: SpeechSettings = SpeechSettings(),
@@ -122,10 +121,6 @@ internal fun HttpSpeechSourcesScreen(
                         DropdownMenu(menu, { menu = false }) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { menu = false; onVoiceEditor(source, false) })
                             DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { menu = false; onVoiceEditor(source, true) })
-                            source.importedEngineCode?.let { code ->
-                                DropdownMenuItem(text = { Text(stringResource(if (source.engineDeleted) R.string.tts_engine_repair else R.string.tts_engine_edit)) },
-                                    onClick = { menu = false; onEngine(code) })
-                            }
                             DropdownMenuItem(text = { Text(stringResource(if (source.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
                                 onClick = { menu = false; onEnableVoice(source, !source.enabled) })
                             if (!source.isBuiltIn) {
