@@ -65,7 +65,7 @@ class OfflineSpeechPackageTest {
         val plan = preview("isstts", "62915", paths).plan!!
         assertEquals("isstts\u0000voice", plan.id)
         assertEquals(paths.map { "isstts/$it" }, plan.resources.map { it.path })
-        val config = OfflineVoiceConfig("isstts", "voice", "62915", "en-US", 48000, .8f, 1.2f, 3f, 2, gender = 2, rawParameters = "62915")
+        val config = OfflineVoiceConfig("isstts", "voice", "62915", "en-US", 48000, 1f, 1.2f, 3f, 2, gender = 2, rawParameters = "62915")
         assertEquals(config, Json.decodeFromString<OfflineVoiceConfig>(Json.encodeToString(plan.configuration)))
         val sherpa = preview("sherpa", paths = listOf("voice/model.onnx", "voice/tokens.txt"),
             param = """{"speakerId":"@sid"}""", extra = mapOf("extendUI" to """[{"code":"sid","value":"7"}]""")).plan!!
