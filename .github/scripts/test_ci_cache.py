@@ -46,18 +46,15 @@ class CacheSelectionTests(unittest.TestCase):
 
         current = f'v2-ubuntu24-{"c" * 64}'
         upgraded = f'v2-ubuntu24-{"d" * 64}'
-        # Legacy image keys and distinct host tools coexist during migration.
         caches = [
-            entry(1, 'refs/heads/main', 'v1-ubuntu24-20261101.360.1'),
-            entry(2, 'refs/heads/main', 'v1-ubuntu24-20261111.127.1'),
-            entry(3, 'refs/heads/main', current),
-            entry(4, 'refs/heads/main', current, inputs='b'),
-            entry(5, 'refs/pull/804/merge', current),
-            entry(6, 'refs/pull/804/merge', upgraded),
-            entry(7, 'refs/pull/804/merge', upgraded, inputs='b'),
-            entry(8, 'refs/pull/805/merge', upgraded),
+            entry(1, 'refs/heads/main', current),
+            entry(2, 'refs/heads/main', current, inputs='b'),
+            entry(3, 'refs/heads/main', upgraded),
+            entry(4, 'refs/pull/804/merge', current),
+            entry(5, 'refs/pull/804/merge', current, inputs='b'),
+            entry(6, 'refs/pull/805/merge', current),
         ]
-        self.assertEqual({3, 6}, {cache['id'] for cache in ci_cache_retention.obsolete_snapshots(caches)})
+        self.assertEqual({1, 4}, {cache['id'] for cache in ci_cache_retention.obsolete_snapshots(caches)})
 
     def test_full_warmup_compiles_jvm_tests_and_apks_without_running_tests_or_r8(self):
         tasks = ci_cache.full_plan()['gradle-args'].split()

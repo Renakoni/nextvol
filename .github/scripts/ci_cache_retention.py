@@ -40,10 +40,10 @@ def obsolete_snapshots(caches):
         variant = re.fullmatch(r'gradle-tasks-linux-(release|benchmark)-v1-[0-9a-f]{40}', key)
         if variant and (ref == MAIN or re.fullmatch(r'refs/pull/\d+/merge', ref)):
             groups[(ref, variant[1])].append(cache)
-        runtime = re.fullmatch(r'(onnxruntime-linux-v[12]-.+)-[0-9a-f]{64}', key)
+        runtime = re.fullmatch(r'(onnxruntime-linux-v2-.+)-[0-9a-f]{64}', key)
         if runtime and (ref == MAIN or re.fullmatch(r'refs/pull/\d+/merge', ref)):
-            # Keep distinct host toolchains (and legacy runner images) during
-            # rollouts. Only newer inputs with the same prefix supersede a cache.
+            # Keep distinct toolchains during rollouts. Only newer inputs with
+            # the same prefix supersede a cache.
             groups[(ref, runtime[1])].append(cache)
 
     obsolete = []
