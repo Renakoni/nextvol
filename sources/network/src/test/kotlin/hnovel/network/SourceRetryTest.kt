@@ -86,16 +86,29 @@ class SourceRetryTest {
         }
     }
 
-    @Test(timeout = 10000) fun aTaskRequestTimeoutIsRecoverableWithoutRepeatingTheSocketCall() = runBlocking {
+    @Test(timeout = 10000) fun taskBodyTimeoutsRespectReplaySafetyWithoutRepeatingTheSocketCall() = runBlocking {
         fixture { server, session, clock ->
-            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
-            val failure = withContext(RequestRetryContext()) {
-                session.execute(request(server, 3).copy(timeoutMillis = 300))
-            } as BrokerResult.Failure
-            assertEquals(FailureCode.Timeout, failure.code)
-            assertTrue(failure.retryable)
-            assertEquals(1, server.requestCount)
-            assertTrue(clock.waits.tryReceive().isFailure)
+            // Initialize the client outside the deadline under test.
+            server.enqueue(MockResponse().setBody("ready"))
+            response(session.execute(request(server, 0).copy(url = server.url("/warmup").toString())))
+            for ((index, streaming) in listOf(false, true).withIndex()) {
+                // Each read makes progress; only the total budget should stop the response.
+                server.enqueue(MockResponse().setBody("a".repeat(32 * 1024))
+                    .throttleBody(1024, 100, TimeUnit.MILLISECONDS))
+                val received = AtomicInteger()
+                val failure = withContext(RequestRetryContext()) {
+                    val request = request(server, 3).copy(timeoutMillis = 1000)
+                    if (streaming) session.stream(request, RequestCommitGuard { it() }) { _, _, size ->
+                        received.addAndGet(size)
+                    } else session.execute(request)
+                } as BrokerResult.Failure
+                assertEquals(failure.toString(), RequestStage.Connect, failure.stage)
+                assertEquals(FailureCode.Timeout, failure.code)
+                assertEquals(failure.toString(), !streaming, failure.retryable)
+                if (streaming) assertTrue("Stream must deliver bytes before timing out", received.get() > 0)
+                assertEquals(index + 2, server.requestCount)
+                assertTrue(clock.waits.tryReceive().isFailure)
+            }
         }
     }
 

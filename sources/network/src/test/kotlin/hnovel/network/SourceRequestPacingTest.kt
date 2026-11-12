@@ -78,8 +78,11 @@ class SourceRequestPacingTest {
         assertTrue(account.executeHttp(request.copy(url = server.url("/subrequest").toString(), cache = CacheMode.Disabled), guard) is BrokerResult.Success)
         assertTrue(account.loadImage(request.copy(url = server.url("/cover").toString(), kind = ResourceKind.Image)) is BrokerResult.Success)
         assertEquals(3, server.requestCount)
-        assertEquals(FailureCode.Timeout, (account.execute(request.copy(url = server.url("/waiting").toString(),
-            timeoutMillis = 100)) as BrokerResult.Failure).code)
+        val failure = account.execute(request.copy(url = server.url("/waiting").toString(),
+            timeoutMillis = 100)) as BrokerResult.Failure
+        assertEquals(FailureCode.Timeout, failure.code)
+        assertEquals(RequestStage.Queue, failure.stage)
+        assertFalse(failure.toString(), failure.retryable)
         assertEquals(3, server.requestCount)
     } }
 
