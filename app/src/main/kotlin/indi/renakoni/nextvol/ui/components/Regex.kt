@@ -17,7 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.TextUnit
 import indi.renakoni.nextvol.ui.home.reading.stats.predefinedColors
@@ -31,59 +30,34 @@ private object RegexTheme {
     val escape = predefinedColors[3]
 }
 
-private fun AnnotatedString.Builder.colorChar(char: String, color: Color) {
-    withStyle(style = SpanStyle(color = color)) {
-        append(char)
-    }
-}
-
-private fun AnnotatedString.Builder.escapeCheckAndColor(buffer: Char, char: Char, color: Color) {
-    if (buffer != '\\') colorChar(char.toString(), color)
-    else colorChar("\\$char", color = RegexTheme.escape)
-}
-
 fun regexAnnotatedString(regex: String): AnnotatedString =
     buildAnnotatedString {
-        var buffer = '\r'
+        append(regex)
+        var escaped = false
         var isInBrackets = false
         regex.forEachIndexed { index, char ->
-            var oChar = char
-            when (char) {
-                '(', ')' -> escapeCheckAndColor(
-                    buffer,
-                    char,
-                    RegexTheme.parentheses
-                )
-
-                '[', ']', '{', '}', '.' -> escapeCheckAndColor(
-                    buffer,
-                    char,
-                    RegexTheme.brackets
-                )
-
-                '^', '-', '$', '|' -> escapeCheckAndColor(buffer, char, RegexTheme.symbol)
-                '\\' -> if (buffer == '\\') {
-                            colorChar("\\\\", color = RegexTheme.escape)
-                            oChar = '\r'
-                        }
-                        else if (index == regex.length - 1) append(char)
-
-                '*', '+' -> escapeCheckAndColor(buffer, char, RegexTheme.math)
-                '1', '2', '3', '4', '5', '6', '7', '8', '9', '0' ->
-                    if (isInBrackets) colorChar(char.toString(), RegexTheme.math)
-                    else append(char)
-
-                ',' -> if (isInBrackets) colorChar(char.toString(), RegexTheme.parentheses)
-                else append(char)
-
-                else -> if (buffer == '\\')
-                    if (char.isLetter()) colorChar("\\$char", color = RegexTheme.control)
-                    else colorChar("\\$char", color = RegexTheme.escape)
-                else append(char)
+            if (escaped) {
+                val color = if (char.isLetter()) RegexTheme.control else RegexTheme.escape
+                addStyle(SpanStyle(color = color), index - 1, index + 1)
+                escaped = false
+                return@forEachIndexed
             }
+            val color = when (char) {
+                '(', ')' -> RegexTheme.parentheses
+                '[', ']', '{', '}', '.' -> RegexTheme.brackets
+                '^', '-', '$', '|' -> RegexTheme.symbol
+                '\\' -> {
+                    escaped = true
+                    null
+                }
+                '*', '+' -> RegexTheme.math
+                in '0'..'9' -> if (isInBrackets) RegexTheme.math else null
+                ',' -> if (isInBrackets) RegexTheme.parentheses else null
+                else -> null
+            }
+            color?.let { addStyle(SpanStyle(color = it), index, index + 1) }
             if (char == '{') isInBrackets = true
             if (char == '}') isInBrackets = false
-            buffer = oChar
         }
     }
 
