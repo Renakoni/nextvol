@@ -12,7 +12,6 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import indi.renakoni.nextvol.data.ExternalFiles
 import indi.renakoni.nextvol.data.backup.BackupException
-import indi.renakoni.nextvol.data.backup.BackupFailure
 import indi.renakoni.nextvol.data.backup.BackupFiles
 import indi.renakoni.nextvol.data.backup.BackupDataManager
 import kotlinx.coroutines.CancellationException
@@ -59,23 +58,14 @@ class ImportDataWork @AssistedInject constructor(
             e.printStackTrace()
             return Result.failure(workDataOf(BackupException.ERROR_KEY to (e as? BackupException)?.reason?.name))
         }
-        if (appLocalData.version != backupDataManager.currentAppDataVersion) {
-            return Result.failure(workDataOf(BackupException.ERROR_KEY to BackupFailure.UNSUPPORTED_VERSION.name))
-        }
-        try {
-            backupDataManager.validateBackup(appLocalData)
-        } catch (failure: IllegalArgumentException) {
-            Log.e(TAG, "Invalid backup identities", failure)
-            return Result.failure(workDataOf(BackupException.ERROR_KEY to BackupFailure.INVALID.name))
-        }
         try {
             backupDataManager.importAppLocalData(appLocalData, overwrite)
-                .onErr {
-                    Log.e(TAG, "Failed to import the data", it)
-                    return Result.failure()
-                }
+                .onErr { throw it }
         } catch (cancelled: CancellationException) {
             throw cancelled
+        } catch (failure: BackupException) {
+            Log.e(TAG, "Failed to import the data", failure)
+            return Result.failure(workDataOf(BackupException.ERROR_KEY to failure.reason.name))
         } catch (failure: Exception) {
             Log.e(TAG, "Failed to import the data", failure)
             return Result.failure()

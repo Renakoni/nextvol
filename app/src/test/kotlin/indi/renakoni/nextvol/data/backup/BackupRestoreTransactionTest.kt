@@ -4,7 +4,10 @@ import android.app.Application
 import android.content.ContextWrapper
 import android.net.Uri
 import androidx.room.Room
+import androidx.work.ListenableWorker
+import androidx.work.workDataOf
 import com.github.michaelbull.result.get
+import com.github.michaelbull.result.getError
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.book.SourceChapterId
 import indi.renakoni.nextvol.data.book.bind
@@ -20,6 +23,8 @@ import indi.renakoni.nextvol.data.statistics.ReadingStatsUpdate
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
 import indi.renakoni.nextvol.data.storage.StorageUsageRepository
+import indi.renakoni.nextvol.data.work.ImportDataWork
+import indi.renakoni.nextvol.data.work.workerParameters
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.book.*
@@ -40,6 +45,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -136,7 +142,6 @@ class BackupRestoreTransactionTest {
     }
 
     private suspend fun expectWriteFailure(data: AppLocalData, overwrite: Boolean) {
-        backup.validateBackup(data)
         val failure = runCatching { backup.importAppLocalData(data, overwrite) }.exceptionOrNull()
         assertNotNull("Fixture must reach the database write failure", failure)
         assertTrue(generateSequence(failure) { it.cause }.any {
@@ -144,9 +149,16 @@ class BackupRestoreTransactionTest {
         })
     }
 
-    @Test fun firstWriteFailureKeepsEveryOldRowAndOfflineFile() = runBlocking {
+    @Test fun workerWriteFailureKeepsEveryOldRowAndOfflineFile() = runBlocking {
         failAt(incoming)
-        expectWriteFailure(payload(incoming), overwrite = true)
+        val file = directory.newFile("restore.nvbackup")
+        BackupArchive.write(file, payload(incoming), BackupArchive.manifest(BackupKind.USER_DATA, emptySet()))
+        val uri = Uri.parse("content://backup-test/restore")
+        shadowOf(context.contentResolver).registerInputStream(uri, file.inputStream())
+        val worker = ImportDataWork(context, workerParameters(workDataOf("uri" to uri.toString(), "overwrite" to true)), backup)
+        assertEquals(ListenableWorker.Result.failure(), worker.doWork())
+        val failure = ShadowLog.getLogsForTag(ImportDataWork.TAG).last().throwable
+        assertTrue(generateSequence(failure) { it.cause }.any { it.message.orEmpty().contains("injected restore write failure") })
         assertOldLibrary()
         downloads.finish(attempt, true)
     }
@@ -216,13 +228,15 @@ class BackupRestoreTransactionTest {
     }
 
     @Test fun invalidVersionAndIdentityAreRejectedBeforeAnyChange() = runBlocking {
-        assertTrue(backup.importAppLocalData(payload(incoming).copy(version = 99), overwrite = true).isErr)
+        val versionFailure = backup.importAppLocalData(payload(incoming).copy(version = 99), overwrite = true).getError()
+        assertEquals(BackupFailure.UNSUPPORTED_VERSION, (versionFailure as BackupException).reason)
         assertOldLibrary()
         val invalid = payload(incoming).let {
             it.copy(localDataList = listOf(LocalData.empty().copy(bookInformationEntities =
                 listOf(information(incoming).copy(id = "invalid-unscoped-id")))))
         }
-        assertTrue(runCatching { backup.importAppLocalData(invalid, overwrite = true) }.exceptionOrNull() is IllegalArgumentException)
+        val identityFailure = backup.importAppLocalData(invalid, overwrite = true).getError()
+        assertEquals(BackupFailure.INVALID, (identityFailure as BackupException).reason)
         assertOldLibrary()
     }
 

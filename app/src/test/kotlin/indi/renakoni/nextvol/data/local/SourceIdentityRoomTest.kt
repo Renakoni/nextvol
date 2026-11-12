@@ -307,8 +307,7 @@ class SourceIdentityRoomTest {
         assertEquals(SourceChapterId(a, "9").storageKey, local.getUserReadingData(a.storageKey).lastReadChapterId)
         val invalid = restored.copy(localDataList = listOf(restored.localDataList.single().copy(bookAliases = listOf(
             indi.renakoni.nextvol.data.local.room.entity.BookAliasEntity(a.storageKey, b.storageKey)))))
-        try { backup.importAppLocalData(invalid, overwrite = true); fail("Cross-source aliases must be rejected") }
-        catch (_: IllegalArgumentException) { }
+        assertTrue("Cross-source aliases must be rejected", backup.importAppLocalData(invalid, overwrite = true).isErr)
         assertEquals(other, local.aliases.resolve(a))
     }
 
@@ -345,10 +344,7 @@ class SourceIdentityRoomTest {
         val data = exported.localDataList.single()
         val wrong = data.volumeEntities.first().copy(chapterIds = listOf(SourceChapterId(other, "9").storageKey))
         val malformed = exported.copy(localDataList = listOf(data.copy(volumeEntities = listOf(wrong))))
-        try {
-            backup.importAppLocalData(malformed)
-            fail("Expected rejection")
-        } catch (_: IllegalArgumentException) { }
+        assertTrue("Expected rejection", backup.importAppLocalData(malformed).isErr)
         assertEquals("A", local.getBookInformation(a.storageKey)!!.title)
         assertEquals("B", local.getBookInformation(b.storageKey)!!.title)
     }
