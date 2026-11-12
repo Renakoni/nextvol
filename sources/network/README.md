@@ -178,13 +178,16 @@ checks continue to apply to approved CDN/API/redirect targets.
   within an origin. Cross-origin forwarding of a retained body fails explicitly. The host
   can authorize a separate explicit request to that endpoint without implicitly sending
   the previous endpoint's login body.
-- `retry` is the number of additional attempts (0..3 by default), for IO failures and
-  429/502/503/504. Explicit retry also applies to POST; default retry is zero. Permissions,
+- `retry` bounds additional attempts (0..3 by default), for recoverable IO failures and
+  429/502/503/504 on safe GET/HEAD reads. Safe connection recovery can use one attempt even
+  at `retry=0`, within the host limit, and shares this budget. Streamed bodies, browser actions
+  and other methods are not replayed; an owning download task disables in-session retries. Permissions,
   quotas and malformed requests are not retried. HTTP error responses remain structured
   responses so later source rules can inspect status/body.
 - A total coroutine deadline covers queueing, rate delays, redirects, retries and body
-  reads. Session permits and minimum start intervals apply to all attempts/hops. Cancelling
-  the caller cancels its OkHttp call through body consumption and releases permits;
+  reads. Ordinary HTTP calls have no separate OkHttp total deadline; socket connect/read/write
+  limits still apply. Session permits and minimum start intervals apply to all attempts/hops.
+  Cancelling the caller cancels its OkHttp call through body consumption and releases permits;
   closing/replacing the session cancels in-flight/queued requests and rejects old handles.
 - Response bytes are bounded, with a header bound as well. Response charset comes from an
   explicit request override, then Content-Type, then a valid HTML head declaration, then

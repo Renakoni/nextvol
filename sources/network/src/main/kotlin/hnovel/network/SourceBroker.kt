@@ -592,8 +592,9 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
         // requests stay explicit HTTP operations; URL options can still supply a render script.
         val snapshot = request.copy(headers = request.headers.toMap(), browser = request.browser ?:
             if (browserDefault && browserRead && request.kind == ResourceKind.Document) BrowserOptions() else null)
+        val replaySafe = receive == null && retryPolicy.safe(snapshot)
         val retryContext = currentCoroutineContext()[RequestRetryContext]
-        if (receive != null || !retryPolicy.safe(snapshot)) retryContext?.disallowReplay()
+        if (!replaySafe) retryContext?.disallowReplay()
         val observation = requestTrace.takeUnless { it === RequestTrace.None }?.let {
             RequestObservation(it, currentCoroutineContext()[RequestObservation])
         }
@@ -659,17 +660,17 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
                 }
             } catch (_: TimeoutCancellationException) {
                 BrokerResult.Failure(stage, FailureCode.Timeout,
-                    retryable = stage == RequestStage.Connect && retryPolicy.safe(snapshot))
+                    retryable = stage == RequestStage.Connect && replaySafe)
             } catch (cancelled: CancellationException) { throw cancelled }
               catch (failure: BrokerFailure) {
                   var result: BrokerResult.Failure? = null
                   guard.commit { result = permissionResult(failure, snapshot.kind) }
-                  checkNotNull(result).let { it.copy(retryable = it.code == FailureCode.RouteUnavailable && retryPolicy.safe(snapshot)) }
+                  checkNotNull(result).let { it.copy(retryable = it.code == FailureCode.RouteUnavailable && replaySafe) }
               }
               catch (_: IllegalArgumentException) { BrokerResult.Failure(RequestStage.Parse, FailureCode.InvalidRequest) }
-              catch (_: java.net.UnknownHostException) { BrokerResult.Failure(RequestStage.Connect, FailureCode.Dns, retryable = retryPolicy.safe(snapshot)) }
+              catch (_: java.net.UnknownHostException) { BrokerResult.Failure(RequestStage.Connect, FailureCode.Dns, retryable = replaySafe) }
               catch (failure: IOException) { BrokerResult.Failure(RequestStage.Connect, FailureCode.Network,
-                  retryable = retryPolicy.safe(snapshot) && retryPolicy.recoverable(failure)) }
+                  retryable = replaySafe && retryPolicy.recoverable(failure)) }
         }
         return try { work.await().also { checkOpen() }.let { result ->
             observation?.record(RequestEvidence.Completed, when {
@@ -833,7 +834,8 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
                         response.newBuilder().removeHeader("Retry-After").build()
                     }
                 }
-                .dns(policy.dns(url, route.dns)).callTimeout(request.timeoutMillis, TimeUnit.MILLISECONDS)
+                // execute() owns the overall deadline and cancels the call when it expires.
+                .dns(policy.dns(url, route.dns))
                 .readTimeout(request.timeoutMillis, TimeUnit.MILLISECONDS).build()
                 .newCall(Request.Builder().url(url).tag(NetworkPolicy::class.java, policy)
                     .tag(HttpRequestObservation::class.java, observation?.let { HttpRequestObservation(it, attempt, hop) })
