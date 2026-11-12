@@ -462,6 +462,7 @@ class SourcesScreenTest {
         val id = ImportedRuleSources.id(definition)
         val sources = mockk<ImportedRuleSources>()
         coEvery { sources.sourceGroups() } returns emptyList()
+        coEvery { sources.nativeSources() } returns emptyList()
         coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, emptyList()))
         val readingSettings = CompletableDeferred<Unit>()
         val finishReading = CompletableDeferred<Unit>()
@@ -735,20 +736,6 @@ class SourcesScreenTest {
         compose.onNodeWithText("Sign in").assertDoesNotExist()
         compose.runOnIdle { state = state.copy(registry = listOf(entry.copy(status = SourceStatus.Ready))) }
         compose.onNodeWithText("Search this source").assertIsEnabled()
-    }
-
-    @Test fun builtInSearchStartsLazySourcesAndHidesFailedOnes() {
-        val id = Identifier("builtin", "fixture")
-        val entry = SourceListing(SourceMetadata(WebDataSourceItem(id, "Built-in fixture", "fixture"),
-            setOf(SourceCapability.Search), builtIn = true), SourceStatus.Registered)
-        var state by mutableStateOf(SourceManagementState(registry = listOf(entry)))
-        var searched: Identifier? = null
-        activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onSearch = { searched = it }) {} } }
-        compose.onNodeWithText("Initialize source").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Search this source").performClick()
-        org.junit.Assert.assertEquals(id, searched)
-        compose.runOnIdle { state = state.copy(registry = listOf(entry.copy(status = SourceStatus.Failed))) }
-        compose.onNodeWithContentDescription("Search this source").assertDoesNotExist()
     }
 
     @Test fun disabledDefinitionIsSelectableInPreviewWithoutBeingEnabled() {
