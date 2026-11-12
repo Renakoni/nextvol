@@ -94,7 +94,7 @@ class MscVoiceEditingTest {
         assertEquals(updatedEngine.parameters, source.httpEngine()!!.parameters)
         if (code == "microsoft") {
             assertEquals("https://westus.tts.speech.microsoft.com/cognitiveservices/v1", source.definition.url)
-            assertTrue(source.origins.isEmpty())
+            assertEquals(listOf("https://westus.tts.speech.microsoft.com:443"), source.origins)
         }
         assertEquals("${code}_voice_1", settings.get().narrationVoices.single().externalId)
         assertEquals(settings.get().narrationVoices, settings.get().dialogueVoices)
@@ -145,8 +145,7 @@ class MscVoiceEditingTest {
         val restoredModel = File(offline.directory(restored.resourceReference), modelPath)
         assertEquals("voice", restoredModel.readText())
         val target = editHttpVoice(source, buildJsonObject { put("code", "renamed") }, true, false)
-            .copy(origins = listOf("https://speech.example:443"),
-                offlineResources = OfflineSpeechResources(original.resourceReference, mapOf("unrelated.dat" to 1L)))
+            .copy(offlineResources = OfflineSpeechResources(original.resourceReference, mapOf("unrelated.dat" to 1L)))
         online.saveVoice(target)
         settings.update { it.copy(dialogueVoices = listOf(SpeechVoiceRef(httpSource = target.definition.id, externalId = target.packageVoiceId()))) }
         val lease = offline.acquire(restored.reference)

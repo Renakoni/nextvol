@@ -29,14 +29,11 @@ class SpeechEngineCatalogService @Inject constructor(
         }
         if (engines.isEmpty()) return@withContext null
         val filterLanguage = settings.get().text.filterLanguage
-        val sources = repository.sources()
         var error: SpeechError? = null
         for (engine in engines) {
-            val source = sources.firstOrNull { it.importedEngineCode == engine.code }
             try { refresh(engine, filterLanguage) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: HttpSpeechException) {
-                source?.let { repository.recordDeniedOrigins(it.definition.id, failure.deniedOrigins) }
                 if (error == null) error = when (failure.error) {
                     HttpSpeechError.PermissionDenied -> SpeechError.HttpPermission
                     HttpSpeechError.UnsupportedDependency -> SpeechError.HttpUnsupported

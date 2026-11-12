@@ -108,9 +108,6 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
     fun delete(voices: List<InstalledOfflineVoice>) = work {
         operations.deleteOffline(voices)
     }
-    fun enable(voices: List<InstalledOfflineVoice>, enabled: Boolean) = work {
-        operations.enableOffline(voices, enabled)
-    }
     private fun work(action: suspend () -> Unit) = viewModelScope.launch {
         mutableState.update { it.copy(error = false) }
         try { action() }
@@ -123,7 +120,7 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
 internal fun OfflineSpeechSourceRow(
     voice: InstalledOfflineVoice, state: OfflineSpeechState,
     onSelect: (InstalledOfflineVoice) -> Unit, onPreview: (InstalledOfflineVoice) -> Unit,
-    onEdit: (InstalledOfflineVoice, Boolean) -> Unit, onEnable: (List<InstalledOfflineVoice>, Boolean) -> Unit,
+    onEdit: (InstalledOfflineVoice, Boolean) -> Unit,
     onDelete: (List<InstalledOfflineVoice>) -> Unit,
     selection: SpeechSettings,
     onDialogue: (InstalledOfflineVoice) -> Unit,
@@ -149,8 +146,6 @@ internal fun OfflineSpeechSourceRow(
                 DropdownMenu(actions, { actions = false }) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { actions = false; onEdit(voice, false) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { actions = false; onEdit(voice, true) })
-                    DropdownMenuItem(text = { Text(stringResource(if (voice.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
-                        onClick = { actions = false; onEnable(listOf(voice), !voice.enabled) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { actions = false; onDelete(listOf(voice)) })
                 }
             }

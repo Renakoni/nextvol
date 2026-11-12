@@ -9,7 +9,9 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -70,7 +72,7 @@ class SpeechVoiceOperationsTest {
         verify(exactly = 1) { controller.command(SpeechAction.Stop) }
     }
 
-    @Test fun offlineDisablingRefreshesTheDefaultRevisionBeforeStoppingAndEnablingAlsoRefreshesIt() = runTest {
+    @Test fun offlineDisablingStopsBeforeWritingAndFinishesTheUpdateWhenItsEditorCloses() = runTest {
         val reference = OfflineVoiceRef("voice", "original")
         val voice = InstalledOfflineVoice(reference, "Voice", emptyMap())
         val disabled = voice.copy(reference = reference.copy(revision = "disabled"), enabled = false)
@@ -81,23 +83,33 @@ class SpeechVoiceOperationsTest {
         var current = original
         every { controller.state } returns MutableStateFlow(ReadAloudState(SpeechRequest("book", "chapter")))
         every { controller.command(SpeechAction.Stop) } returns Unit
-        coEvery { offline.enable(setOf(reference), false) } returns listOf(disabled)
+        val writing = CompletableDeferred<Unit>()
+        val finishWrite = CompletableDeferred<Unit>()
+        coEvery { offline.enable(setOf(reference), false) } coAnswers {
+            writing.complete(Unit)
+            finishWrite.await()
+            listOf(disabled)
+        }
         coEvery { offline.enable(setOf(disabled.reference), true) } returns listOf(enabled)
         coEvery { settings.updateAll(any()) } coAnswers {
             current = firstArg<(SpeechSettings) -> SpeechSettings>()(current)
         }
         coEvery { settings.forBook("book") } coAnswers { current }
 
-        operations.enableOffline(listOf(voice), false)
+        val disabling = launch { operations.enableOffline(listOf(voice), false) }
+        writing.await()
+        disabling.cancel()
+        finishWrite.complete(Unit)
+        disabling.join()
         assertEquals(original.copy(offlineVoice = disabled.reference), current)
         operations.enableOffline(listOf(disabled), true)
         assertEquals(original.copy(offlineVoice = enabled.reference), current)
 
         coVerifyOrder {
-            offline.enable(setOf(reference), false)
-            settings.updateAll(any())
             settings.forBook("book")
             controller.command(SpeechAction.Stop)
+            offline.enable(setOf(reference), false)
+            settings.updateAll(any())
             offline.enable(setOf(disabled.reference), true)
             settings.updateAll(any())
         }

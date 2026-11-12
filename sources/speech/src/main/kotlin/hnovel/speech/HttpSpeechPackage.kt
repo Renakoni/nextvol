@@ -9,7 +9,6 @@ enum class HttpSpeechPackageError { UnsupportedEngine, UnsupportedRequest, Requi
 class HttpSpeechPackageImport(
     val sources: List<HttpSpeechDefinition> = emptyList(),
     val error: HttpSpeechPackageError? = null,
-    val hasLocalAudioSettings: Boolean = false,
     val engine: SpeechEngineConfig? = null,
 )
 
@@ -56,11 +55,7 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
         val configuration = SpeechEngineConfig(engine.code, engine.name, engine.type ?: "inner",
             definition.values["param"].text().orEmpty(), definition.values["note"].text().orEmpty(), template, header,
             raw = definition.jsonData().jsonObject)
-        HttpSpeechPackageImport(sources, engine = configuration, hasLocalAudioSettings = engine.voices.any { voice ->
-            listOf("speed", "volume", "pitch").any { field ->
-                voice.raw.values[field].text()?.toDoubleOrNull()?.let { it != 1.0 } == true
-            }
-        })
+        HttpSpeechPackageImport(sources, engine = configuration)
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: IllegalArgumentException) { failed(HttpSpeechPackageError.InvalidConfiguration) }
     // YAML preview is iterative, but the existing HTTP JSON representation uses recursive serialization.

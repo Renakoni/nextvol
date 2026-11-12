@@ -98,18 +98,11 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     private val mutex = Mutex()
     private val mutableChanges = MutableStateFlow(0L)
     val changes = mutableChanges.asStateFlow()
-    private val mutableDeniedOrigins = MutableStateFlow<Map<String, List<String>>>(emptyMap())
-    val deniedOrigins = mutableDeniedOrigins.asStateFlow()
     private val mutableSynthesisResults = MutableStateFlow<Map<String, HttpSynthesisResult>>(emptyMap())
     internal val synthesisResults = mutableSynthesisResults.asStateFlow()
 
     internal fun recordSynthesis(source: SavedHttpSpeechSource, message: Int) {
         mutableSynthesisResults.update { it + (source.definition.id to HttpSynthesisResult(source, message)) }
-    }
-
-    internal fun recordDeniedOrigins(id: String, origins: List<String>) {
-        val safe = origins.filter { sourceOrigin(it) == it }.distinct().take(32)
-        if (safe.isNotEmpty()) mutableDeniedOrigins.update { (it + (id to safe)).entries.toList().takeLast(512).associate { entry -> entry.toPair() } }
     }
 
     suspend fun registerEngine(engine: SpeechEngineConfig) = change(listOf(engine)) { it }
@@ -124,7 +117,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         require(creating || previous != null)
         if (!engine.deleted && (previous == null || previous.url != engine.url || previous.header != engine.header || previous.parameters != engine.parameters))
             newHttpVoice(engine)
-        val sources = store.sources.map { if (it.importedEngineCode == engine.code) it.withHttpEngine(engine) else it }
+        val sources = store.sources.map { if (it.importedEngineCode == engine.code) it.withHttpEngine(engine).withRequestOrigins(it) else it }
         store.copy(sources = sources, engines = if (previous == null) store.engines + engine else store.engines.map { if (it.code == engine.code) engine else it })
     }
 
@@ -177,7 +170,20 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val incoming = source.copy(packageAvatar = avatars[source.definition.id] ?: source.packageAvatar)
             val index = merged.indexOfFirst { it.definition.id == incoming.definition.id ||
                 incoming.packageIdentity() != null && it.packageIdentity() == incoming.packageIdentity() }
-            val imported = mergeHttpVoice(merged.getOrNull(index), incoming)
+            val original = mergeHttpVoice(merged.getOrNull(index), incoming)
+            val imported = if (httpVoiceParameters(original.definition).speed == 1f && (original.definition.speed ?: 5) == 5) original else {
+                val raw = original.definition.raw.toMutableMap()
+                val speed = JsonPrimitive(1f)
+                val voice = JsonObject(original.speakerData() + ("speed" to speed))
+                val metadata = (raw["multiTts"] as? JsonObject)?.takeIf { original.definition.usesMultiTts }
+                if (metadata == null) raw["nextvolVoice"] = voice
+                else raw["multiTts"] = JsonObject(metadata + ("voice" to voice))
+                // HTTP JSON request speed uses 5 for 1x; retain the ID from before normalization.
+                if (raw.containsKey("speed")) raw["speed"] = JsonPrimitive(5)
+                raw["id"] = JsonPrimitive(original.definition.id)
+                original.copy(definition = HttpSpeechDefinition.parse(JsonObject(raw)),
+                    speakerDefaults = original.speakerDefaults?.let { JsonObject(it + ("speed" to speed)) })
+            }
             if (index < 0) merged += imported else merged[index] = imported
         }
         merged
@@ -186,7 +192,10 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     suspend fun saveVoice(source: SavedHttpSpeechSource) = change(listOfNotNull(source.httpEngine())) { current ->
         val previous = combined(current).find { it.definition.id == source.definition.id }
         require(previous != null || !source.definition.id.startsWith(BUILT_IN_PREFIX))
-        current.filterNot { it.definition.id == source.definition.id } + source.copy(credentials = previous?.credentials ?: source.credentials)
+        val saved = source.withRequestOrigins(previous ?: builtIns.find { it.definition.id == source.engineReference })
+            .copy(credentials = previous?.credentials ?: source.credentials)
+        val index = current.indexOfFirst { it.definition.id == source.definition.id }
+        current.toMutableList().apply { if (index < 0) add(saved) else this[index] = saved }
     }
 
     /** Commit an explicit directory refresh only while its engine configuration is still current. */
@@ -216,11 +225,12 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     }
 
     suspend fun enable(ids: Set<String>, enabled: Boolean) = change { current ->
-        val changed = combined(current).filter { it.definition.id in ids }.map { source ->
-            source.copy(definition = previewHttpSpeech(JsonObject(source.definition.raw +
-                ("nextvolEnabled" to JsonPrimitive(enabled))).toString()).sources.single())
+        val changed = current.associateByTo(linkedMapOf()) { it.definition.id }
+        combined(current).filter { it.definition.id in ids }.forEach { source ->
+            changed[source.definition.id] = source.copy(definition = HttpSpeechDefinition.parse(JsonObject(source.definition.raw + mapOf(
+                "id" to JsonPrimitive(source.definition.id), "nextvolEnabled" to JsonPrimitive(enabled)))))
         }
-        current.filterNot { it.definition.id in ids } + changed
+        changed.values.toList()
     }
 
     suspend fun delete(id: String) = delete(setOf(id))
@@ -251,7 +261,7 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
         val engines = retained + imported
             .distinctBy { it.code }.filter { incoming -> store.engines.none { it.code == incoming.code } }
         store.copy(sources = changed.map { source -> engines.find { it.code == source.importedEngineCode }
-            ?.let { source.withHttpEngine(it) } ?: source }, engines = engines)
+            ?.let { source.withHttpEngine(it).withRequestOrigins(source) } ?: source }, engines = engines)
     }
 
     private suspend fun changeStore(update: (HttpSpeechStore) -> HttpSpeechStore) = withContext(Dispatchers.IO) {
@@ -305,9 +315,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             mutableSynthesisResults.update { results -> results.filter { (id, result) ->
                 sources.any { it.definition.id == id && result.source.sameExecution(it) }
             } }
-            mutableDeniedOrigins.update { denied -> denied.mapNotNull { (id, origins) ->
-                sources.find { it.definition.id == id }?.let { source -> id to (origins - source.origins.toSet()) }
-            }.toMap() }
         }
     }
 

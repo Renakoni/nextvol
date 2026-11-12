@@ -124,7 +124,6 @@ class SpeechSettingsViewModelTest {
             settings.value = firstArg<(SpeechSettings) -> SpeechSettings>()(settings.value)
         }
         coEvery { http.sources() } returns listOf(source)
-        every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         coEvery { http.delete(setOf(source.definition.id)) } returns Unit
         val playback = MutableStateFlow(ReadAloudState())
         val controller = mockk<ReadAloudController>(relaxed = true)
@@ -155,7 +154,6 @@ class SpeechSettingsViewModelTest {
         every { http.changes } returns changes
         coEvery { http.sources() } coAnswers { saved }
         coEvery { http.save(any()) } coAnswers { saved = firstArg(); changes.value++ }
-        every { http.deniedOrigins } returns MutableStateFlow(emptyMap())
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
         val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk(), mockk())

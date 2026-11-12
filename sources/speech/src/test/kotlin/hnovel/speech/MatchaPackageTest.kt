@@ -83,7 +83,7 @@ class MatchaPackageTest {
         assertEquals(.5f, config.noiseScale, 0f)
         assertEquals(.7f, config.noiseScaleW, 0f)
         assertEquals(1.2f, config.lengthScale, 0f)
-        assertEquals(.8f, config.speed, 0f)
+        assertEquals(1f, config.speed, 0f)
         assertEquals(1.1f, config.pitch, 0f)
         assertEquals(3f, config.volume, 0f)
         val explicit = discoverSherpaVoiceConfig(names, Json.parseToJsonElement("""{"model":"theresa.int8.onnx"}""") as JsonObject)

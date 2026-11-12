@@ -83,7 +83,6 @@ class HttpSpeechClientTest {
                 client(owner, base).use { source ->
                     val denied = try { source.synthesize(text); error("Expected permission failure") } catch (e: HttpSpeechException) { e }
                     assertEquals(HttpSpeechError.PermissionDenied, denied.error)
-                    assertEquals(listOf(sourceOrigin(base)), denied.deniedOrigins)
                 }
             }
         }

@@ -46,7 +46,7 @@ class SpeechPackagePreviewScreenTest {
         activity.get().setContent {
             MaterialTheme(typography = AppTypography) {
                 HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = listOf(builtIn, imported)), {}, {},
-                    onSelect = { selected = it }, onDelete = { removed = it.definition.id }, onSites = { _, _ -> },
+                    onSelect = { selected = it }, onDelete = { removed = it.definition.id },
                     onConfirmImport = {}, onDismissImport = {}, onEdit = { _, _, _, _ -> }, onPreview = { auditioned = it })
             }
         }

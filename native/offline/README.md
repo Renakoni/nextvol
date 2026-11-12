@@ -196,7 +196,9 @@ request or declared PCM format, not a universal resampler. Shared DSP remains
 the responsibility of #814; role/segment overrides are not implemented here.
 
 Playback settings owns the shared audition text used by the voice list, system
-voice choices. The editor has Cancel and Save actions; audition is available
+voice choices. The editor has Cancel and Save actions, plus a bottom-left
+Disable/Enable action for existing voices. Disable/Enable closes the editor on
+success without saving draft edits. Audition is available
 from the voice list after saving. Finishing audition restores the book's audible
 boundary, play/pause intent and frozen timer. Saving publishes a new synthesis
 revision when required, invalidating prepared speech plans.

@@ -77,7 +77,7 @@ class SpeechControlsTest {
         activity.get().setContent {
             MaterialTheme {
                 HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = voices, loaded = true), {}, {},
-                    { selectedCalls++ }, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                    { selectedCalls++ }, {}, {}, {}, { _, _, _, _ -> },
                     selection = settings, onDialogue = { selectedCalls++ }, onPreview = {},
                     playback = ReadAloudState(SpeechRequest("book", "chapter"), SpeechPhase.Paused),
                     onCommand = { playbackActions += it }, onDeleteHttp = { deleted = it },
@@ -131,7 +131,7 @@ class SpeechControlsTest {
         val state = androidx.compose.runtime.mutableStateOf(HttpSpeechSourcesState(sources = voices, loaded = true))
         var imports = 0
         activity.get().setContent { MaterialTheme {
-            HttpSpeechSourcesScreen(state.value, {}, { imports++ }, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+            HttpSpeechSourcesScreen(state.value, {}, { imports++ }, {}, {}, {}, {}, { _, _, _, _ -> },
                 focusVoiceKey = "http:${second.definition.id}", onDeleteHttp = { deleted ->
                     state.value = state.value.copy(sources = state.value.sources - deleted.toSet())
                 })
@@ -221,7 +221,7 @@ class SpeechControlsTest {
         val state = androidx.compose.runtime.mutableStateOf(ReadAloudState(
             SpeechRequest("", "", "Sample.", SpeechSettings(httpSource = "preview-0"), sources[0].definition.name), SpeechPhase.Preparing))
         activity.get().setContent { MaterialTheme {
-            HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = sources, loaded = true), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+            HttpSpeechSourcesScreen(HttpSpeechSourcesState(sources = sources, loaded = true), {}, {}, {}, {}, {}, {}, { _, _, _, _ -> },
                 playback = state.value, onPreview = {}, focusVoiceKey = "http:preview-0")
         } }
         compose.onAllNodesWithText(sources[0].definition.name).assertCountEquals(2)
@@ -321,7 +321,7 @@ class SpeechControlsTest {
                     composable<SpeechSettingsRoute> { androidx.compose.material3.Text("Listening settings") }
                     composable<HttpSpeechSourcesRoute> { entry ->
                         val route = entry.toRoute<HttpSpeechSourcesRoute>()
-                        HttpSpeechSourcesScreen(sources.value, {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                        HttpSpeechSourcesScreen(sources.value, {}, {}, {}, {}, {}, {}, { _, _, _, _ -> },
                             focusVoiceKey = route.voiceKey, configureCredentials = route.configureCredentials,
                             catalogReady = sources.value.loaded, onConfigure = { target, values ->
                                 assertEquals(source.definition.id, target.definition.id)
@@ -458,7 +458,7 @@ class SpeechControlsTest {
         try {
             activity.get().setContent { MaterialTheme {
                 val state by model.state.collectAsState()
-                HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, {}, {}, { _, _, _, _ -> },
                     onRefresh = model::refresh,
                     systemSettings = { SystemSpeechSettings(state, {}, {}, {}) })
             } }
@@ -485,7 +485,7 @@ class SpeechControlsTest {
         var dialogue: String? = null
         activity.get().setContent {
             MaterialTheme {
-                HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, { _, _ -> }, {}, {}, { _, _, _, _ -> },
+                HttpSpeechSourcesScreen(HttpSpeechSourcesState(), {}, {}, {}, {}, {}, {}, { _, _, _, _ -> },
                     systemSettings = {
                         SystemSpeechSettings(SpeechSettingsUiState(loading = false,
                             voices = listOf(SpeechVoice("candidate", "en-US", false, true))), {}, { selected = it }, {},

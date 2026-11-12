@@ -15,9 +15,9 @@ import java.util.Base64
 
 enum class HttpSpeechError { InvalidSource, Script, UnsupportedDependency, LoginRequired, Authentication, PermissionDenied, Network, Timeout, TooLarge, InvalidAudio }
 
-/** Contains stable errors and origin-only permission requests, never scripts, credentials or response bodies. */
+/** Contains stable errors, never scripts, credentials or response bodies. */
 class HttpSpeechException(val error: HttpSpeechError, val statusCode: Int? = null,
-    val networkCode: hnovel.network.FailureCode? = null, val deniedOrigins: List<String> = emptyList()) : Exception(error.name)
+    val networkCode: hnovel.network.FailureCode? = null) : Exception(error.name)
 
 /** One selected source/session; the platform runner owns isolated execution, never the media service. */
 class HttpSpeechClient(
@@ -100,8 +100,7 @@ class HttpSpeechClient(
                     val endpoint = if (source.nativeEngine == "microsoft") microsoftSubscriptionPackageUrl(
                         requireNotNull(source.multiTts).getValue("voice").jsonObject.string("param")) else source.url
                     session.permissionFailureDetail(endpoint, ResourceKind.Api)?.let { failure ->
-                        throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code,
-                            deniedOrigins = listOfNotNull(failure.denial?.origin))
+                        throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code)
                     }
                 }
                 val speed = source.scriptSpeed(rate)
@@ -145,8 +144,7 @@ class HttpSpeechClient(
 
     private suspend fun executeDoubaoCatalog(request: BrokerRequest): BrokerResponse {
         session.permissionFailureDetail(DoubaoSpeechClient.ENDPOINT, ResourceKind.Api)?.let { failure ->
-            throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code,
-                deniedOrigins = listOfNotNull(failure.denial?.origin))
+            throw HttpSpeechException(failure.code.speechError(), networkCode = failure.code)
         }
         // The audited directory is a fixed companion endpoint of the authorized Doubao engine.
         val origin = "https://www.doubao.com"
@@ -161,8 +159,7 @@ class HttpSpeechClient(
         if (!authority.accepts(identity)) throw CancellationException("Speech source retired")
         return when (result) {
             is BrokerResult.Success -> result.response
-            is BrokerResult.Failure -> throw HttpSpeechException(result.code.speechError(), networkCode = result.code,
-                deniedOrigins = listOfNotNull(result.denial?.origin))
+            is BrokerResult.Failure -> throw HttpSpeechException(result.code.speechError(), networkCode = result.code)
         }
     }
 
@@ -170,8 +167,7 @@ class HttpSpeechClient(
         session.webSocket(request, RequestCommitGuard { authority.authorized(identity, it) }, receive)
     } catch (failure: BrokerWebSocketException) {
         throw HttpSpeechException(failure.statusCode?.let(::httpStatusError) ?: failure.failure.code.speechError(),
-            statusCode = failure.statusCode, networkCode = failure.failure.code,
-            deniedOrigins = listOfNotNull(failure.failure.denial?.origin))
+            statusCode = failure.statusCode, networkCode = failure.failure.code)
     }
 
     private suspend fun executeMicrosoft(request: BrokerRequest): BrokerResponse {
@@ -200,8 +196,7 @@ class HttpSpeechClient(
         }
         return when (received) {
             is BrokerResult.Success -> received.response
-            is BrokerResult.Failure -> throw HttpSpeechException(received.code.speechError(), networkCode = received.code,
-                deniedOrigins = listOfNotNull(received.denial?.origin))
+            is BrokerResult.Failure -> throw HttpSpeechException(received.code.speechError(), networkCode = received.code)
         }
     }
 
@@ -232,8 +227,7 @@ class HttpSpeechClient(
                         hnovel.execution.FailureCode.BridgeDenied -> status?.let(::httpStatusError)
                             ?: broker.requestFailure?.code?.speechError() ?: HttpSpeechError.Script
                         else -> HttpSpeechError.Script
-                    }, statusCode = status, networkCode = broker.requestFailure?.code,
-                        deniedOrigins = session.deniedOrigins.map { it.origin })
+                    }, statusCode = status, networkCode = broker.requestFailure?.code)
                 }
             }
         }
@@ -260,8 +254,7 @@ class HttpSpeechClient(
         val sink = audioSink
         val response = when (val received = if (sink == null) session.execute(bounded, guard) else session.stream(bounded, guard, sink)) {
             is BrokerResult.Success -> received.response
-            is BrokerResult.Failure -> throw HttpSpeechException(received.code.speechError(), networkCode = received.code,
-                deniedOrigins = listOfNotNull(received.denial?.origin))
+            is BrokerResult.Failure -> throw HttpSpeechException(received.code.speechError(), networkCode = received.code)
         }
         currentCoroutineContext().ensureActive()
         if (!authority.accepts(identity)) throw CancellationException("Speech source retired")

@@ -105,7 +105,7 @@ class BuiltInSpeechSourcesTest {
         repository.save(listOf(japanese, chinese))
         val selected = repository.sources().single { it.definition.id == chinese.definition.id }
         val draft = VoiceDraft.from(selected, selected.definition.id)
-        repository.saveVoice(editHttpVoice(selected, draft.copy(name = "My voice").fields().speakerFields(), true, false))
+        repository.saveVoice(editHttpVoice(selected, draft.copy(name = "My voice", speed = "1.4").fields().speakerFields(), true, false))
         val copy = editHttpVoice(selected, draft.copy(name = "My copy").fields().speakerFields(), true, true)
         repository.saveVoice(copy)
         val incoming = listOf(chinese, english, french).map { it.definition }
@@ -117,6 +117,7 @@ class BuiltInSpeechSourcesTest {
         val refreshed = repository().sources().filterNot { it.isBuiltIn }.associateBy { it.definition.id }
         assertEquals(setOf(japanese.definition.id, chinese.definition.id, english.definition.id, copy.definition.id), refreshed.keys)
         assertEquals("My voice", refreshed.getValue(chinese.definition.id).definition.name)
+        assertEquals(1.4f, httpVoiceParameters(refreshed.getValue(chinese.definition.id).definition).speed)
         assertEquals("zh-CN-liaoning", refreshed.getValue(chinese.definition.id).speakerData().getValue("locale").jsonPrimitive.content)
         assertEquals("zh-CN-liaoning", refreshed.getValue(copy.definition.id).speakerData().getValue("locale").jsonPrimitive.content)
         assertEquals(japanese.definition.raw, refreshed.getValue(japanese.definition.id).definition.raw)
@@ -184,6 +185,7 @@ class BuiltInSpeechSourcesTest {
         val original = initial.first()
         val copy = editHttpVoice(original, buildJsonObject { put("name", original.definition.name) }, true, true)
         repository.saveVoice(copy)
+        assertEquals(original.origins, repository.sources().single { it.definition.id == copy.definition.id }.origins)
         repository.enable(setOf(original.definition.id), false)
         val ticket = repository.withSource(original.definition.id) { source, _ ->
             authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
@@ -288,7 +290,7 @@ class BuiltInSpeechSourcesTest {
                 put("engine", buildJsonObject {
                     put("code", engine); put("name", "Same display name"); put("type", "http"); put("url", "$base/old")
                 })
-                put("voice", buildJsonObject { put("code", code); put("name", "Package $code"); put("speed", "1.3") })
+                put("voice", buildJsonObject { put("code", code); put("name", "Package $code"); put("speed", "1.0") })
             })
         }.toString()).sources.single(), listOf(base))
         val originals = listOf(voice("a"), voice("b"), voice("c", "other"))
@@ -297,7 +299,7 @@ class BuiltInSpeechSourcesTest {
         val oldTicket = repository.withSource("b") { source, _ ->
             authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
         }!!
-        val url = "$base/updated?voice={{voiceCode}}&text={{speakText}}"
+        val url = "https://updated.example.org/audio?voice={{voiceCode}}&text={{speakText}}"
         val header = """{"X-Engine":"edited"}"""
         repository.saveEngine(repository.engines().single { it.code == "shared" }.copy(name = "Edited engine", url = url, header = header))
         val restored = repository().sources()
@@ -307,10 +309,10 @@ class BuiltInSpeechSourcesTest {
             val source = restored.single { it.definition.id == original.definition.id }
             assertEquals("Edited engine", source.category)
             assertEquals(original.definition.name, source.definition.name)
-            assertEquals(original.origins, source.origins)
+            assertEquals(listOf("https://updated.example.org:443"), source.origins)
             assertEquals(original.speakerData(), source.speakerData())
             assertEquals(url, source.importedEngine!!.getValue("url").jsonPrimitive.content)
-            assertTrue(source.definition.url.contains("/updated"))
+            assertEquals(url, source.definition.url)
             assertEquals(header, source.definition.text("header"))
         }
     }
@@ -324,6 +326,7 @@ class BuiltInSpeechSourcesTest {
         repository.saveVoice(first)
         repository.saveVoice(editHttpVoice(first, buildJsonObject { put("name", "Second"); put("code", "second") }, true, true))
         val ticket = repository.withSource(first.definition.id) { source, _ ->
+            assertEquals(listOf("https://example.org:443"), source.origins)
             authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
         }!!
         val renamed = engine.copy(name = "Renamed", note = "Notes", order = 3)
@@ -346,12 +349,13 @@ class BuiltInSpeechSourcesTest {
         val voice = newHttpVoice(engine).copy(isVoiceCopy = false)
         val repository = repository()
         repository.save(listOf(voice))
-        val edited = repository.engines().single().copy(name = "Mine", url = "https://example.org/edited", header = "{\"X-Test\":\"custom\"}")
+        val edited = repository.engines().single().copy(name = "Mine", url = "https://edited.example.org/edited", header = "{\"X-Test\":\"custom\"}")
         repository.saveEngine(edited)
         repository.save(listOf(voice))
         assertEquals(edited, repository().engines().single())
         val updated = repository.sources().single { !it.isBuiltIn }
         assertEquals(voice.definition.id, updated.definition.id)
+        assertEquals(listOf("https://edited.example.org:443"), updated.origins)
         assertTrue(updated.definition.url.contains("/edited"))
         repository.saveEngine(edited.copy(header = ""))
         assertFalse(repository.sources().single { !it.isBuiltIn }.definition.raw.containsKey("header"))
@@ -360,13 +364,58 @@ class BuiltInSpeechSourcesTest {
         assertTrue(repository().sources().single { !it.isBuiltIn }.available)
     }
 
-    @Test fun filteredVoiceOrderSurvivesEditsReimportAndReopenWithoutRevokingPlayback() = runBlocking {
+    @Test fun importsResetSpeedWhileLaterEditsKeepIdentityAndRate() = runBlocking {
+        val plain = SavedHttpSpeechSource(previewHttpSpeech("""{"name":"HTTP voice","url":"https://example.org/audio","speed":7,
+            "nextvolVoice":{"speed":1.2,"pitch":0.8,"volume":0.6},
+            "multiTts":{"engine":{"code":"unsupported"},"voice":{"speed":1.8}}}""").sources.single(), listOf("https://example.org:443"))
+        val engine = SpeechEngineConfig("bdotts", "Baidu")
+        val packaged = editHttpVoice(newHttpVoice(engine), buildJsonObject {
+            put("name", "Package voice"); put("speed", 1.2f); put("pitch", 0.8f); put("volume", 0.6f)
+        }, true, false).copy(isVoiceCopy = false, speakerDefaults = null)
+        val originals = listOf(plain, packaged)
+        val repository = repository()
+        repository.save(originals)
+        val imported = repository().sources().filterNot { it.isBuiltIn }
+        assertEquals(originals.map { it.definition.id }, imported.map { it.definition.id })
+        assertEquals(5, imported.first().definition.speed)
+        assertTrue(imported.all { httpVoiceParameters(it.definition) == SpeechAudioParameters(1f, 0.8f, 0.6f) })
+        imported.forEach { source ->
+            repository.saveVoice(editHttpVoice(source, buildJsonObject {
+                put("name", source.definition.name); put("speed", 1.4f)
+            }, true, false))
+        }
+        val edited = repository().sources().filterNot { it.isBuiltIn }
+        assertEquals(imported.map { it.definition.id }, edited.map { it.definition.id })
+        assertTrue(edited.all { httpVoiceParameters(it.definition).speed == 1.4f })
+        val moved = edited.first().copy(definition = previewHttpSpeech(JsonObject(edited.first().definition.raw +
+            ("url" to JsonPrimitive("https://edited.example.org/audio"))).toString()).sources.single())
+        repository.saveVoice(moved)
+        assertEquals(listOf("https://edited.example.org:443"), repository().sources().single { it.definition.id == moved.definition.id }.origins)
+        repository.save(originals)
+        val reimported = repository().sources().filterNot { it.isBuiltIn }
+        assertEquals(imported.map { it.definition.id }, reimported.map { it.definition.id })
+        assertTrue(reimported.all { httpVoiceParameters(it.definition) == SpeechAudioParameters(1f, 0.8f, 0.6f) })
+    }
+
+    @Test fun voiceOrderSurvivesEditsCopiesReimportAndReopenWithoutRevokingPlayback() = runBlocking {
         val repository = repository()
         val engine = SpeechEngineConfig("http_order", "Order", "http", url = "https://example.org/audio?voice={{voiceCode}}")
         val original = newHttpVoice(engine).copy(isVoiceCopy = false)
-        val second = editHttpVoice(original, buildJsonObject { put("name", "Second"); put("code", "second") }, true, true)
+        val second = SavedHttpSpeechSource(previewHttpSpeech("""{"name":"Second","url":"https://example.org/audio"}""")
+            .sources.single(), listOf("https://example.org:443"))
         val third = editHttpVoice(original, buildJsonObject { put("name", "Third"); put("code", "third") }, true, true)
-        repository.save(listOf(original, second, third))
+        repository.save(listOf(original, second))
+        repository.saveVoice(third)
+        val initialOrder = listOf(original.definition.id, second.definition.id, third.definition.id)
+        val edited = editHttpVoice(original, buildJsonObject { put("name", "Edited") }, true, false)
+        repository.saveVoice(edited)
+        val editedVoices = repository().sources().filterNot { it.isBuiltIn }
+        assertEquals(initialOrder, editedVoices.map { it.definition.id })
+        assertEquals("Edited", editedVoices.first().definition.name)
+        repository.enable(setOf(second.definition.id), false)
+        val disabledVoices = repository().sources().filterNot { it.isBuiltIn }
+        assertEquals(initialOrder, disabledVoices.map { it.definition.id })
+        assertFalse(disabledVoices[1].enabled)
         val ticket = repository.withSource(original.definition.id) { source, _ ->
             authority.issue(source.definition.id, "http-tts", source.definition.revision, "speech")
         }!!
@@ -374,7 +423,8 @@ class BuiltInSpeechSourcesTest {
         val order = listOf(third.definition.id, second.definition.id, original.definition.id)
         assertEquals(order, repository().sources().filterNot { it.isBuiltIn }.map { it.definition.id })
         assertTrue(authority.accepts(ticket))
-        repository.enable(setOf(second.definition.id), false)
+        repository.enable(setOf(second.definition.id), true)
+        repository.saveVoice(edited)
         repository.save(listOf(original))
         assertEquals(order, repository().sources().filterNot { it.isBuiltIn }.map { it.definition.id })
         val sources = repository.sources()

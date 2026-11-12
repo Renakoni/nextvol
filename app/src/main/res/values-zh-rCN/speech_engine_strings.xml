@@ -16,7 +16,6 @@
     <string name="tts_engine_invalid">请检查引擎代号和请求配置。</string>
     <string name="tts_engine_add_speaker">新建发音人</string>
     <string name="tts_engine_empty">导入语音包或新建 HTTP 引擎。</string>
-    <string name="tts_engine_repair">修复引擎</string>
     <string name="tts_engine_search">搜索引擎</string>
     <string name="tts_engine_login">登录</string>
 </resources>

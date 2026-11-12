@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.imports.SourceOriginCandidates
-import hnovel.network.sourceOrigin
 import hnovel.speech.previewHttpSpeech
 import hnovel.speech.HttpSpeechDefinition
 import indi.renakoni.nextvol.R
@@ -41,7 +40,6 @@ data class HttpSpeechSourcesState(
     val invalid: Int = 0,
     val configurationSaved: Long = 0,
     val error: Int? = null,
-    val deniedOrigins: Map<String, List<String>> = emptyMap(),
 )
 
 @HiltViewModel
@@ -69,7 +67,6 @@ class HttpSpeechSourcesViewModel @Inject constructor(
             logger.speechDebugEnabled = value.diagnosticLogging
             mutableState.update { it.copy(selected = value.httpSource, offlineSelected = value.offlineVoice != null) }
         } }
-        viewModelScope.launch { repository.deniedOrigins.collect { value -> mutableState.update { it.copy(deniedOrigins = value) } } }
     }
 
     fun select(id: String?) = work {
@@ -196,21 +193,8 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         }
     }
 
-    fun enable(sources: List<SavedHttpSpeechSource>, enabled: Boolean) = work {
-        operations.enableHttp(sources, enabled)
-    }
-
     fun delete(sources: List<SavedHttpSpeechSource>) = work {
         operations.deleteHttp(sources)
-    }
-
-    fun sites(source: SavedHttpSpeechSource, text: String) = work(R.string.tts_source_sites_invalid) {
-        val origins = text.lineSequence().map(String::trim).filter(String::isNotEmpty).map {
-            requireNotNull(sourceOrigin(it))
-        }.distinct().toList()
-        require(origins.size <= 32)
-        if (isInUse(setOf(source.definition.id))) controller.command(SpeechAction.Stop)
-        repository.saveVoice(source.copy(origins = origins))
     }
 
     fun edit(source: SavedHttpSpeechSource, name: String, url: String, header: String) = work(R.string.tts_source_invalid) {

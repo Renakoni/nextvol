@@ -357,12 +357,10 @@ fun NavGraphBuilder.speechSettingsDestination() {
                 onSystemGroup = { settingsViewModel.refresh(systemCatalog = true) },
                 catalogReady = state.loaded && offline.loaded,
                 onOfflineGroup = offlineViewModel::openEngine,
-                onEngine = { nav.navigate(SpeechEngineEditorRoute(it, "http")) },
                 onVoiceEditor = { source, copy -> nav.navigate(HttpVoiceEditorRoute(source.definition.id, copy)) },
-                onEnableVoice = { source, enabled -> viewModel.enable(listOf(source), enabled) },
                 onImport = { picker.launch(arrayOf("application/json", "application/zip", "application/x-zip-compressed",
                     "application/yaml", "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
-                onSelect = { toggleVoice(false, httpVoice(it)) }, onDelete = { deletingHttp = listOf(it) }, onSites = viewModel::sites,
+                onSelect = { toggleVoice(false, httpVoice(it)) }, onDelete = { deletingHttp = listOf(it) },
                 onConfirmImport = viewModel::confirmImport, onDismissImport = viewModel::dismissPreview, onEdit = viewModel::edit,
                 onConfigure = viewModel::configure, onPreview = { viewModel.previewVoice(it, preview) },
                 playback = playback, onCommand = viewModel.controller::command,
@@ -379,7 +377,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
                     playback = playback,
                     onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
                     onDialogue = { toggleVoice(true, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
-                    onPreview = { offlineViewModel.preview(it, preview) }, onDelete = { deleting = it }, onEnable = offlineViewModel::enable,
+                    onPreview = { offlineViewModel.preview(it, preview) }, onDelete = { deleting = it },
                     onEdit = { voice, copy -> nav.navigate(OfflineVoiceEditorRoute(voice.reference.id, copy)) }) },
                 systemSettings = { query ->
                     SystemSpeechSettings(settings.copy(loading = settings.loading || state.busy,
@@ -421,28 +419,32 @@ fun NavGraphBuilder.speechSettingsDestination() {
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val route = entry.toRoute<OfflineVoiceEditorRoute>()
+        val closeEditor: () -> Unit = { if (nav.currentBackStackEntry == entry) nav.popBackStack() }
         val viewModel = hiltViewModel<OfflineVoiceEditorViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val copyPattern = if (route.copy) stringResource(R.string.tts_voice_copy_suffix) else null
         LaunchedEffect(route.id, route.engineCode) { viewModel.load(route.id, copyPattern,
-            null, route.newVoice, route.engineCode) }
+            route.newVoice, route.engineCode) }
         VoiceEditorScreen(state, route.copy, viewModel::edit, onSave = {
-            viewModel.save(route.copy, nav::popBackStackIfResumed, creating = route.engineCode != null) },
+            viewModel.save(route.copy, closeEditor, creating = route.engineCode != null) },
             onBack = nav::popBackStackIfResumed,
+            onToggleEnabled = { viewModel.toggleEnabled(closeEditor) },
             showParameters = preferences.showParameters, showExtensions = preferences.showExtensions, newVoice = route.newVoice)
     }
     dialog<HttpVoiceEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
         HideReadAloudOverlay()
         val nav = LocalNavController.current
         val route = entry.toRoute<HttpVoiceEditorRoute>()
+        val closeEditor: () -> Unit = { if (nav.currentBackStackEntry == entry) nav.popBackStack() }
         val viewModel = hiltViewModel<HttpVoiceEditorViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val copyPattern = if (route.copy) stringResource(R.string.tts_voice_copy_suffix) else null
-        LaunchedEffect(route.id) { viewModel.load(route.id, copyPattern, null, route.engineCode) }
-        VoiceEditorScreen(state, route.copy, viewModel::edit, onSave = { viewModel.save(route.copy, nav::popBackStackIfResumed) },
+        LaunchedEffect(route.id) { viewModel.load(route.id, copyPattern, route.engineCode) }
+        VoiceEditorScreen(state, route.copy, viewModel::edit, onSave = { viewModel.save(route.copy, closeEditor) },
             onBack = nav::popBackStackIfResumed, parametersSupported = viewModel.hasParameters,
+            onToggleEnabled = { viewModel.toggleEnabled(closeEditor) },
             showParameters = preferences.showParameters, showExtensions = preferences.showExtensions, newVoice = route.engineCode != null)
     }
     composable<SpeechPackagePreviewRoute> { entry ->

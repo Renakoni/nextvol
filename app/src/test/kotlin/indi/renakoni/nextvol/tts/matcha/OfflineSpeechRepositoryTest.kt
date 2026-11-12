@@ -40,6 +40,7 @@ class OfflineSpeechRepositoryTest {
         val original = repository.install(input, plan(input))
         assertEquals(original, OfflineSpeechRepository(root).voices().single())
         assertEquals(24000, original.configuration!!.sampleRate)
+        assertEquals(1f, original.configuration.speed)
         assertEquals("image fixture", repository.avatar(original)!!.readText())
         repository.recordRuntimeInfo(original.reference, OfflineVoiceRuntimeInfo(original.configuration, 3, 22050))
         val discovered = repository.voices().single()
@@ -48,7 +49,8 @@ class OfflineSpeechRepositoryTest {
         val refreshed = repository.install(input, plan(input))
         val renamed = repository.save(refreshed.copy(name = "My voice"))
         assertEquals(refreshed.reference.id, renamed.reference.id)
-        val edited = repository.save(renamed.copy(configuration = renamed.configuration!!.copy(speed = 1f)))
+        val edited = repository.save(renamed.copy(configuration = renamed.configuration!!.copy(speed = 1.2f)))
+        assertEquals(1.2f, edited.configuration!!.speed)
         assertEquals(original.reference.id, edited.reference.id)
         assertNotEquals(original.reference.revision, edited.reference.revision)
         assertEquals(refreshed.resourceReference, edited.resourceReference)
@@ -63,7 +65,7 @@ class OfflineSpeechRepositoryTest {
         assertEquals("My voice", imported.name)
         assertEquals(1f, imported.configuration!!.speed)
         assertEquals(1f, imported.configuration.sherpa!!.speed)
-        assertEquals(1.5f, imported.defaults!!.configuration.speed)
+        assertEquals(1f, imported.defaults!!.configuration.speed)
         assertEquals(original.reference.id, imported.reference.id)
         assertEquals("tokens", File(lease.directory, "tokens.txt").readText())
         repository.acquire(imported.reference).use { assertEquals("after!", File(it.directory, "tokens.txt").readText()) }
@@ -82,7 +84,7 @@ class OfflineSpeechRepositoryTest {
         repository.acquire(reimported.reference).use { assertTrue(it.directory.isDirectory) }
     }
 
-    @Test fun configurationOnlyImportUpdatesTheCatalogWithoutReplacingModelsOrUserOverrides() = runBlocking {
+    @Test fun configurationOnlyImportResetsSpeedWithoutReplacingModelsOrOtherUserOverrides() = runBlocking {
         val root = files.newFolder()
         val repository = OfflineSpeechRepository(root)
         val archive = archive(speed = 1.3f)
@@ -112,9 +114,9 @@ class OfflineSpeechRepositoryTest {
         assertEquals(edited.resourceReference, imported.resourceReference)
         assertEquals(edited.sizes, imported.sizes)
         assertEquals("My voice", imported.name)
-        assertEquals(1.1f, imported.configuration!!.speed)
+        assertEquals(1f, imported.configuration!!.speed)
         assertEquals(2, imported.configuration.sherpa!!.speakerId)
-        assertEquals(1.5f, imported.defaults!!.configuration.speed)
+        assertEquals(1f, imported.defaults!!.configuration.speed)
         assertEquals("Imported note", imported.metadata.note)
         assertEquals("tokens", File(lease.directory, "tokens.txt").readText())
         assertEquals(imported, OfflineSpeechRepository(root).voices().single())
