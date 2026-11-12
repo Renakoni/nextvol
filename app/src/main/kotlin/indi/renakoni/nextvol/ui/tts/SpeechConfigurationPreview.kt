@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.RadioButton
@@ -28,9 +29,10 @@ internal fun LazyListScope.speechConfigurationPreview(state: SpeechPackagePrevie
     val config = state.configuration ?: return
     if (!config.hasChanges && config.error == null && config.unsupported.isEmpty()) return
     item(key = "configuration") {
+        HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 16.dp))
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.tts_config_import), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.tts_config_import), style = MaterialTheme.typography.displaySmall)
             config.error?.let { Text(stringResource(R.string.tts_config_invalid, it), color = MaterialTheme.colorScheme.error) }
             if (config.hasChanges) {
                 Text(stringResource(R.string.tts_config_counts, config.replacements?.size ?: 0,

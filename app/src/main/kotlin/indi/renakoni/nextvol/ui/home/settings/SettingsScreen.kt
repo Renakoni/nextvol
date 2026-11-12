@@ -135,6 +135,7 @@ internal fun SettingsTopBar(
     onBack: () -> Unit,
     titleText: String?,
     subtitle: String? = null,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
     TopAppBar(
         title = {
@@ -156,6 +157,7 @@ internal fun SettingsTopBar(
             }
         },
         scrollBehavior = scrollBehavior,
+        actions = actions,
     )
 }
 

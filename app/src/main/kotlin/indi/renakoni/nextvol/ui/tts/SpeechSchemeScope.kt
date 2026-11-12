@@ -55,7 +55,8 @@ internal fun SpeechSchemeCaption(modifier: Modifier = Modifier) {
 @androidx.compose.material3.ExperimentalMaterial3Api
 @Composable
 internal fun SpeechSettingsTopBar(scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior,
-    title: Int, onBack: () -> Unit, titleText: String? = null) {
+    title: Int, onBack: () -> Unit, titleText: String? = null,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {}) {
     indi.renakoni.nextvol.ui.home.settings.SettingsTopBar(scrollBehavior, title, onBack, titleText,
-        LocalSpeechSchemeName.current?.let { stringResource(R.string.tts_scheme_editing, it) })
+        LocalSpeechSchemeName.current?.let { stringResource(R.string.tts_scheme_editing, it) }, actions)
 }
