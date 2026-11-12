@@ -32,8 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import hnovel.speech.SpeechPackageError
 import hnovel.speech.SpeechPackageKind
@@ -66,7 +67,7 @@ fun SpeechPackagePreviewScreen(
     var importMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val imports = preview?.engines.orEmpty().mapIndexedNotNull { index, engine ->
         val http = httpImports[index]
-        val configuration = if (http?.error == null && http?.sources?.isEmpty() == true) http.engine
+        val configuration = if (http?.sources?.isEmpty() == true) http.engine
             else if (engine.voices.isEmpty()) offline.offlineEngineImports[index] else null
         val action: (() -> Unit)? = when {
             onImport != null && !http?.sources.isNullOrEmpty() -> { { onImport(http.sources) } }
@@ -101,7 +102,7 @@ fun SpeechPackagePreviewScreen(
             }
         }
     }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-package-preview"),
+        LazyColumn(Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(vertical = 16.dp)) {
             item(key = "summary") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
@@ -264,8 +265,11 @@ private fun PackageSectionHeader(title: String, expanded: Boolean = false, onTog
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (onToggle != null) TextButton(onClick = onToggle) {
-            Text(stringResource(if (expanded) R.string.tts_package_collapse else R.string.tts_package_show_all))
+        if (onToggle != null) {
+            val actionLabel = stringResource(if (expanded) R.string.tts_package_collapse else R.string.tts_package_show_all)
+            TextButton(onClick = onToggle, modifier = Modifier.semantics { contentDescription = "$title, $actionLabel" }) {
+                Text(actionLabel)
+            }
         }
     }
 }
