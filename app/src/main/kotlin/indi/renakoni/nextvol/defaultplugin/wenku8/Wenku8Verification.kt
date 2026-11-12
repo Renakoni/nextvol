@@ -13,7 +13,6 @@ import indi.renakoni.nextvol.data.web.rules.SourceVerificationCoordinator
 import indi.renakoni.nextvol.data.web.rules.VerificationOwner
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.ktor.http.encodeURLParameter
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import java.io.File
@@ -45,16 +44,11 @@ class Wenku8Verification @Inject constructor(@ApplicationContext context: Contex
                 entry = session(owner, cookies)
             }
             val session = entry.session
-            // Both legacy domains redirect here. Seed the destination's cookies before its first navigation.
-            val target = url.toHttpUrl().let { address ->
-                if (address.host in setOf("www.wenku8.cc", "www.wenku8.com"))
-                    address.newBuilder().scheme("https").host("www.wenku8.net").port(443).build() else address
-            }.toString()
-            val request = BrokerRequest("wenku8", target, responseCharset = "GB18030")
+            val request = BrokerRequest("wenku8", url, responseCharset = "GB18030")
             suspend fun read(interactive: Boolean): Document {
                 val result = session.execute(request.copy(browser = BrowserOptions(nativeWebsite = true,
                     interactive = interactive, title = metadata.item.name,
-                    script = "document.documentElement.outerHTML")))
+                    script = if (interactive) "document.documentElement.outerHTML" else "")))
                 return when (result) {
                     is BrokerResult.Success -> wenku8Document(result.response)
                     is BrokerResult.Failure -> {
@@ -72,7 +66,7 @@ class Wenku8Verification @Inject constructor(@ApplicationContext context: Contex
                 if (failure.code != ContentError.BrowserRequired) throw failure
                 throw SourceContentException(ContentError.BrowserRequired, "wenku8",
                     verification = SourceVerification((failure as? Wenku8Challenge)?.kind ?: BrowserChallengeKind.SiteVerification,
-                        origin = sourceOrigin(target)) { verified = read(true) })
+                        origin = sourceOrigin(url)) { verified = read(true) })
             }
         }
     }
@@ -105,9 +99,11 @@ class Wenku8Verification @Inject constructor(@ApplicationContext context: Contex
 }
 
 internal fun wenku8Document(response: BrokerResponse): Document {
-    websiteChallenge(response)?.let { throw Wenku8Challenge(it, response.status.takeIf { it > 0 }) }
-    if (response.kind != ResponseKind.BrowserDocument && response.status !in 200..299) {
-        throw SourceContentException(ContentError.Network, "wenku8", httpStatus = response.status)
+    // Native browser reads already check challenges and HTTP failures before returning the DOM.
+    if (response.kind != ResponseKind.BrowserDocument) {
+        websiteChallenge(response)?.let { throw Wenku8Challenge(it, response.status.takeIf { it > 0 }) }
+        if (response.status !in 200..299)
+            throw SourceContentException(ContentError.Network, "wenku8", httpStatus = response.status)
     }
     return Jsoup.parse(response.text(), response.finalUrl)
         .outputSettings(Document.OutputSettings().prettyPrint(false).syntax(Document.OutputSettings.Syntax.xml))

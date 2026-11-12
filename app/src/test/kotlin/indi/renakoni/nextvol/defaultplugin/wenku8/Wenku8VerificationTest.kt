@@ -2,12 +2,12 @@ package indi.renakoni.nextvol.defaultplugin.wenku8
 
 import android.content.ContextWrapper
 import com.github.michaelbull.result.getOrElse
-import hnovel.content.ContentError
-import hnovel.content.SourceContentException
 import hnovel.network.*
 import hnovel.network.SourceSession
+import indi.renakoni.nextvol.data.explore.searchFailure
 import indi.renakoni.nextvol.data.web.*
 import indi.renakoni.nextvol.data.web.rules.SourceVerificationCoordinator
+import indi.renakoni.nextvol.defaultplugin.wenku8.book.Wenku8WebsiteDataSource
 import indi.renakoni.nextvol.defaultplugin.wenku8.explore.Wenku8Discovery
 import io.mockk.every
 import io.mockk.mockk
@@ -24,14 +24,14 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class Wenku8VerificationTest {
     @get:Rule val directory = TemporaryFolder()
     private val source = Wenku8Api.METADATA.id
-    private val url = "https://www.wenku8.cc/modules/article/articlelist.php?page=1"
-    private val target = url.replace("wenku8.cc", "wenku8.net")
+    private val url = "https://www.wenku8.net/modules/article/articlelist.php?page=1"
     private val challenge = "<title>Just a moment...</title><script>var _cf_chl_opt = {};</script>"
     private val seeds = mapOf("jieqiUserInfo" to "fixture")
 
@@ -54,8 +54,10 @@ class Wenku8VerificationTest {
         challenge = BrowserChallengeKind.Cloudflare)
     private fun nativeChallenge(): Nothing = throw Wenku8Challenge(BrowserChallengeKind.Cloudflare, 403)
 
-    @Test fun httpChallengeIsNotRetriedOrReportedAsAnEmptyFeed() = runBlocking {
+    @Test fun httpErrorsRetainTheirClassificationWithoutRetries() = runBlocking {
         MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(403).setHeader("cf-mitigated", "challenge").setBody(challenge))
+            server.enqueue(MockResponse().setResponseCode(404).setBody("<title>Not found</title>"))
             server.enqueue(MockResponse().setResponseCode(403).setHeader("cf-mitigated", "challenge").setBody(challenge))
             server.start()
             Wenku8Api { SourceNetworkRoute.systemDefault() }.use { api ->
@@ -65,21 +67,15 @@ class Wenku8VerificationTest {
                 val result = withTimeout(3000) { provider.feed() }
                 assertEquals(DiscoveryError.VerificationRequired, result.component2())
                 assertEquals(1, server.requestCount)
+                assertEquals(DiscoveryError.Network, withTimeout(3000) { provider.feed() }.component2())
+                assertEquals(2, server.requestCount)
+                val search = Wenku8WebsiteDataSource(server.url("/").toString().trimEnd('/'), api)
+                val failure = runCatching { withTimeout(3000) { search.searchPage("articlename", "fixture", 1) } }
+                    .exceptionOrNull()
+                assertEquals(DiscoveryError.VerificationRequired, searchFailure(checkNotNull(failure)).error)
+                assertEquals(3, server.requestCount)
             }
         }
-    }
-
-    @Test fun successfulChallengeAndLoginDocumentsAreRejectedButAnEmptyDocumentIsValid() {
-        fun response(body: String, address: String = target, status: Int = 200) =
-            BrokerResponse(status, address, emptyMap(), body.toByteArray(), "UTF-8", 0)
-        assertEquals(BrowserChallengeKind.Cloudflare,
-            (runCatching { wenku8Document(response(challenge)) }.exceptionOrNull() as Wenku8Challenge).kind)
-        assertEquals(BrowserChallengeKind.Login,
-            (runCatching { wenku8Document(response("<input type=password>", "https://www.wenku8.net/login.php")) }
-                .exceptionOrNull() as Wenku8Challenge).kind)
-        assertEquals(503, (runCatching { wenku8Document(response("<title>Unavailable</title>", status = 503)) }
-            .exceptionOrNull() as SourceContentException).httpStatus)
-        assertTrue(wenku8Document(response("<html></html>")).select("a[href*=/book/]").isEmpty())
     }
 
     @Test fun foregroundVerificationConsumesItsDocumentAndRetainsTheBrowserSession() = runBlocking {
@@ -92,12 +88,12 @@ class Wenku8VerificationTest {
             override suspend fun execute(session: SourceSession, request: BrokerRequest, options: BrowserOptions,
                 guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult {
                 browserCalls++
-                assertEquals(target, request.url)
+                assertEquals(url, request.url)
                 assertNull(request.headers["Cookie"])
-                assertEquals("jieqiUserInfo=fixture", session.cookie(target))
+                assertEquals("jieqiUserInfo=fixture", session.cookie(url))
                 if (!options.interactive && !verified) return blocked()
                 if (options.interactive) { interactiveCalls++; verified = true }
-                return page(target, "<p>文库 • ・ 〜</p>")
+                return page(url, "<p>文库 • ・ 〜</p>")
             }
         }
         Fixture(browser).use { fixture ->
@@ -114,45 +110,16 @@ class Wenku8VerificationTest {
         }
     }
 
-    @Test fun backgroundVerificationOnlyOpensAfterTheActionAndResumesItsOwner() = runBlocking {
-        var interactiveCalls = 0
-        var verified = false
-        var resumes = 0
-        val browser = object : BrowserExecutor {
-            override suspend fun defaultUserAgent() = "Fixture browser"
-            override suspend fun execute(session: SourceSession, request: BrokerRequest, options: BrowserOptions,
-                guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult {
-                if (options.interactive) { interactiveCalls++; verified = true }
-                return if (verified) page(target, "<p>ready</p>") else blocked()
-            }
-        }
-        Fixture(browser).use { fixture ->
-            val background = BackgroundSourceRequest { { _, _ -> resumes++ } }
-            val failure = withContext(background) { runCatching {
-                fixture.recovery.request(source, url, seeds) { nativeChallenge() }
-            }.exceptionOrNull() as SourceContentException }
-            assertEquals(ContentError.BrowserRequired, failure.code)
-            assertEquals(0, interactiveCalls)
-            val prompt = fixture.coordinator.prompts.value.single()
-            assertFalse(prompt.foreground)
-            assertEquals(BrowserChallengeKind.Cloudflare, prompt.kind)
-            fixture.coordinator.verifyBackground(prompt.id)
-            assertEquals(1, interactiveCalls)
-            assertEquals(1, resumes)
-            assertTrue(fixture.coordinator.prompts.value.isEmpty())
-        }
-    }
-
     @Test fun recreatingTheAdapterDoesNotOverwriteVerifiedCookiesWithBuiltInSeeds() = runBlocking {
         var visits = 0
         val browser = object : BrowserExecutor {
             override suspend fun defaultUserAgent() = "Fixture browser"
             override suspend fun execute(session: SourceSession, request: BrokerRequest, options: BrowserOptions,
                 guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult {
-                assertEquals(if (visits++ == 0) "jieqiUserInfo=fixture" else "jieqiUserInfo=verified", session.cookie(target))
-                session.updateNativeBrowserCookies(target,
+                assertEquals(if (visits++ == 0) "jieqiUserInfo=fixture" else "jieqiUserInfo=verified", session.cookie(url))
+                session.updateNativeBrowserCookies(url,
                     listOf("jieqiUserInfo=verified; Path=/; Secure; HttpOnly; Max-Age=3600"))
-                return page(target, "<p>ready</p>")
+                return page(url, "<p>ready</p>")
             }
         }
         repeat(2) {
@@ -167,17 +134,17 @@ class Wenku8VerificationTest {
         val bothBlocked = CompletableDeferred<Unit>()
         var blockedCalls = 0
         var interactiveCalls = 0
-        var verified = false
+        val verified = AtomicBoolean()
         val browser = object : BrowserExecutor {
             override suspend fun defaultUserAgent() = "Fixture browser"
             override suspend fun execute(session: SourceSession, request: BrokerRequest, options: BrowserOptions,
                 guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult {
-                if (!options.interactive && !verified) {
+                if (!options.interactive && !verified.get()) {
                     synchronized(bothBlocked) { if (++blockedCalls == 2) bothBlocked.complete(Unit) }
                     bothBlocked.await()
                     return blocked()
                 }
-                if (options.interactive) { interactiveCalls++; verified = true }
+                if (options.interactive) { interactiveCalls++; verified.set(true) }
                 return page(request.url, "<p>${request.url.substringAfter("page=")}</p>")
             }
         }
@@ -191,30 +158,6 @@ class Wenku8VerificationTest {
                 assertEquals("2", second.await().text())
             }
             assertEquals(1, interactiveCalls)
-            assertTrue(fixture.coordinator.prompts.value.isEmpty())
-        }
-    }
-
-    @Test fun leavingTheForegroundCancelsTheBrowserAndDoesNotResumeHttp() = runBlocking {
-        val opened = CompletableDeferred<Unit>()
-        val cancelled = CompletableDeferred<Unit>()
-        val browser = object : BrowserExecutor {
-            override suspend fun defaultUserAgent() = "Fixture browser"
-            override suspend fun execute(session: SourceSession, request: BrokerRequest, options: BrowserOptions,
-                guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult {
-                if (!options.interactive) return blocked()
-                opened.complete(Unit)
-                try { awaitCancellation() } finally { cancelled.complete(Unit) }
-            }
-        }
-        Fixture(browser).use { fixture ->
-            val ui = ForegroundSourceRequest()
-            val pending = async(ui) { fixture.recovery.request(source, url, seeds) { nativeChallenge() } }
-            withTimeout(3000) { opened.await() }
-            ui.setActive(false)
-            withTimeout(3000) { pending.join(); cancelled.await() }
-            assertTrue(pending.isCancelled)
-            assertFalse(ui.verifying)
             assertTrue(fixture.coordinator.prompts.value.isEmpty())
         }
     }

@@ -236,7 +236,7 @@ class Wenku8WebsiteDataSource(
                 nextSearchAt = android.os.SystemClock.elapsedRealtime() + 5_000
                 wenku8Api.getWithWenku8Cookie(
                     url("modules/article/search.php?searchtype=$searchType&searchkey=$encodedKeyword&page=$page")
-                ).getOrElse { throw java.io.IOException("Search request failed", it) }
+                ).getOrElse { throw it }
             }
             if (soup.text().contains("错误原因：对不起，两次搜索的间隔时间不得少于 5 秒")) {
                 delay(5.seconds)

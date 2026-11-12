@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.data.explore
 
 import com.github.michaelbull.result.*
-import hnovel.content.ContentError
 import hnovel.content.SourceContentException
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.book.bind
@@ -79,22 +78,8 @@ data class SourceSearchFailure(val error: DiscoveryError, val field: String? = n
 internal fun searchFailure(failure: Throwable): SourceSearchFailure = when (failure) {
     is SourceRequestException -> SourceSearchFailure(failure.error,
         permission = failure.denial?.let { DiscoveryPermission(it.origin, it.kind.name) })
-    is SourceContentException -> SourceSearchFailure(when (failure.code) {
-        ContentError.MissingCapability -> DiscoveryError.Unsupported
-        ContentError.LoginRequired -> DiscoveryError.AuthenticationRequired
-        ContentError.BrowserRequired -> if (failure.verification?.kind == hnovel.network.BrowserChallengeKind.Login)
-            DiscoveryError.AuthenticationRequired else DiscoveryError.VerificationRequired
-        ContentError.PermissionDenied -> DiscoveryError.PermissionDenied
-        ContentError.AddressDenied -> DiscoveryError.AddressDenied
-        ContentError.Dns -> DiscoveryError.Dns
-        ContentError.RouteUnavailable -> DiscoveryError.RouteUnavailable
-        ContentError.RouteUnsupported -> DiscoveryError.RouteUnsupported
-        ContentError.Certificate -> DiscoveryError.Certificate
-        ContentError.Network -> DiscoveryError.Network
-        ContentError.Limit -> DiscoveryError.Limit
-        ContentError.Unavailable -> DiscoveryError.Unavailable
-        else -> DiscoveryError.InvalidRules
-    }, failure.field, failure.denial?.let { DiscoveryPermission(it.origin, it.kind.name) }, failure.diagnostic, failure.httpStatus)
+    is SourceContentException -> SourceSearchFailure(failure.discoveryError(), failure.field,
+        failure.denial?.let { DiscoveryPermission(it.origin, it.kind.name) }, failure.diagnostic, failure.httpStatus)
     is java.io.IOException -> SourceSearchFailure(DiscoveryError.Network)
     else -> SourceSearchFailure(DiscoveryError.Unavailable)
 }

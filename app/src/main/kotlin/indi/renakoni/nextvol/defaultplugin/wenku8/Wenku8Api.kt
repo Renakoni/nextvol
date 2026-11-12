@@ -9,7 +9,6 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.get
 import com.github.michaelbull.result.getOrElse
-import com.github.michaelbull.result.runCatching
 import hnovel.network.BrokerLimits
 import hnovel.network.SourceNetworkRoute
 import indi.renakoni.nextvol.data.web.SourceRequestOwner
@@ -29,12 +28,10 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.UserAgent
 import io.ktor.client.plugins.cookies.ConstantCookiesStorage
 import io.ktor.client.plugins.cookies.HttpCookies
-import io.ktor.client.request.cookie
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.http.Cookie
 import io.ktor.http.HttpHeaders
-import io.ktor.http.isSuccess
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.ChapterContent
 import io.nightfish.lightnovelreader.api.book.Volume
@@ -49,18 +46,10 @@ import io.nightfish.lightnovelreader.api.web.WebDataSource
 import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
 import io.nightfish.lightnovelreader.api.web.explore.ExplorePageProvider
 import io.nightfish.lightnovelreader.api.web.search.SearchProvider
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -76,7 +65,6 @@ import java.nio.charset.Charset
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import kotlin.time.Duration.Companion.milliseconds
 
 
 /** wenku8 页面使用的字符集。声明为 gbk，实际输出 GB18030，详见 [Wenku8Api.getWithWenku8Cookie] */
@@ -141,9 +129,8 @@ class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search
             }
         }
         install(HttpRequestRetry) {
-            retryOnServerErrors(maxRetries = 3)
             exponentialDelay()
-            retryIf { _, response ->
+            retryIf(maxRetries = 3) { _, response ->
                 response.headers["cf-mitigated"] != "challenge" &&
                     (response.status.value == 429 || response.status.value in 500..599)
             }
@@ -153,39 +140,24 @@ class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search
         }
         install(HttpTimeout)
     }
-    private val hosts =
-        listOf("https://www.wenku8.cc", "https://www.wenku8.net", "https://www.wenku8.com")
-    var host = hosts[0]
+    private val host = "https://www.wenku8.net"
     private val bookRequestDispatcher = BookRequestDispatcher(host, this)
-    private val isOffLineStateFlow = MutableStateFlow(false)
     private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val requestLimiter = Semaphore(BrokerLimits.DEFAULT_CONCURRENCY)
-    private var coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
     private val titleRegex = Regex("(.*) ?[(（](.*)[)）] ?$")
     override val cache = Cache(
         timeout = 2 * 60 * 60 * 1000
     )
     override val permits = BrokerLimits.DEFAULT_CONCURRENCY
 
-    override fun onLoad() {
-        coroutineScope.launch {
-            while (currentCoroutineContext().isActive) {
-                offLine = isOffLine()
-                isOffLineStateFlow.emit(offLine)
-                delay((if (offLine) 3000 else 100000).milliseconds)
-            }
-        }
-    }
-
     override fun close() {
-        coroutineScope.cancel()
         verification?.close()
         clients.close()
     }
 
-    override var offLine: Boolean = true
-
-    override val isOffLineFlow = isOffLineStateFlow
+    override val offLine = false
+    override val isOffLineFlow = MutableStateFlow(false)
+    override suspend fun isOffLine() = false
 
     fun wenku8Cookies(): Map<String, String> = mapOf(
         "jieqiUserInfo" to "jieqiUserId=1125456,jieqiUserName=yyhyy,jieqiUserGroup=3,jieqiUserVip=0,jieqiUserPassword=eb62861281462fd923fb99218735fef0,jieqiUserName_un=yyhyy,jieqiUserHonor_un=&#x4E2D;&#x7EA7;&#x4F1A;&#x5458;,jieqiUserGroupName_un=&#x666E;&#x901A;&#x4F1A;&#x5458;,jieqiUserLogin=1739294499",
@@ -204,62 +176,10 @@ class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search
     }
 
 
-    suspend fun anyTrue(
-        tasks: List<suspend () -> Boolean>
-    ): Boolean = coroutineScope {
-        val deferredList = tasks.map { task ->
-            async {
-                task()
-            }
-        }.toMutableList()
-
-        try {
-            while (deferredList.isNotEmpty()) {
-                val (finished, value) = select {
-                    deferredList.forEach { deferred ->
-                        deferred.onAwait { result ->
-                            deferred to result
-                        }
-                    }
-                }
-
-                deferredList.remove(finished)
-
-                if (value) {
-                    deferredList.forEach { it.cancel() }
-                    return@coroutineScope true
-                }
-            }
-
-            false
-        } finally {
-            deferredList.forEach { it.cancel() }
-        }
-    }
-
-    override suspend fun isOffLine(): Boolean = withContext(Dispatchers.IO) {
-        suspend fun webSite(index: Int): Boolean = runCatching {
-            clients.request(requestSourceId()) { ktorClient -> ktorClient.get(hosts[index]) {
-                wenku8Cookies().forEach { (name, value) ->
-                    cookie(name, value)
-                }
-            }.let { response ->
-                // A verification response proves reachability; do not poll the challenge every three seconds.
-                response.status.isSuccess() || response.headers["cf-mitigated"] == "challenge"
-            } }
-        }.getOrElse { false }
-        return@withContext !anyTrue(listOf(
-            { webSite(0) },
-            { webSite(1) },
-            { webSite(2) },
-        ))
-    }
-
     override val id = METADATA.id
     // Native image requests bypass Ktor's UserAgent plugin. Do not copy document cookies.
     override val imageHeader = mapOf(HttpHeaders.UserAgent to WENKU8_USER_AGENT)
 
-    // The periodic built-in reachability check has no host caller and belongs to this source.
     private suspend fun requestSourceId() = currentCoroutineContext()[SourceRequestOwner]?.id ?: id
 
     override suspend fun getImage(bookId: String, url: String, cover: Boolean): Result<ByteArray, WebRequestError> = try {
