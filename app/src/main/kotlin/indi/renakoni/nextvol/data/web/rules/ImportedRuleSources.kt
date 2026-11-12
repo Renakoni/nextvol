@@ -55,6 +55,8 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val active = linkedMapOf<Identifier, Binding>()
     private var groups: List<SourceGroup> = emptyList()
+    private val nativeSources = linkedMapOf<Identifier, NativeSource>()
+    private var nativePreferences: Map<Identifier, SourcePreferences> = emptyMap()
     private var restored = false
     var restorationFailed = false
         private set
@@ -95,10 +97,12 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
                 check(snapshot.groups.map { it.id }.distinct().size == snapshot.groups.size)
                 check(snapshot.groups.map { it.name.lowercase(java.util.Locale.ROOT) }.distinct().size == snapshot.groups.size)
                 check(snapshot.groups.all { it.id.isNotBlank() && SourceGroup.validName(it.name) && it.name == it.name.trim() })
-                check(snapshot.sources.all { row -> row.preferences().groupIds.all { id -> snapshot.groups.any { it.id == id } } })
+                check((snapshot.sources.map { it.preferences() } + snapshot.nativePreferences.values)
+                    .all { preferences -> preferences.groupIds.all { id -> snapshot.groups.any { it.id == id } } })
                 check(snapshot.sources.size <= ImportLimits().maxStoredEntries &&
                     snapshot.sources.map { it.definition.sourceId }.distinct().size == snapshot.sources.size)
                 groups = snapshot.groups
+                nativePreferences = snapshot.nativePreferences
                 snapshot.sources
             }
         } catch (_: java.io.FileNotFoundException) { emptyList() }
@@ -162,11 +166,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
                     ?.jsonPrimitive?.content?.isNotBlank() == true
                 val category = catalog.entry(definition)?.category
                 val groupId = if (groupByCatalog && category != null) {
-                    val id = "catalog:${category.name}"
-                    val name = context.getString(category.title)
-                    (nextGroups.firstOrNull { it.id == id }
-                        ?: nextGroups.firstOrNull { it.name.equals(name, ignoreCase = true) }
-                        ?: SourceGroup(id, name).also { nextGroups.add(it) }).id
+                    catalogGroup(category, nextGroups)
                 } else null
                 InstalledSource(definition, origins.map { it.copy(headers = it.headers.toMap()) },
                     preferences = if (enableNew) SourcePreferences(true, definition.enabledExplore || hasExploreUrl,
@@ -209,6 +209,42 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
             it.installed.origins, it.session?.deniedOrigins.orEmpty(), it.installed.preferences()) } }
     }
 
+    /** Native adapters share the installed preferences and group snapshot with rule sources. */
+    suspend fun registerNative(metadata: SourceMetadata, host: () -> String, enabled: Boolean = true,
+        onEnabled: suspend (Boolean) -> Unit) = withContext(Dispatchers.IO) {
+        restore()
+        lock.withLock {
+            check(!restorationFailed)
+            val nextGroups = groups.toMutableList()
+            val preferences = nativePreferences[metadata.id] ?: SourcePreferences(enabled,
+                SourceCapability.Explore in metadata.capabilities, category = metadata.category,
+                groupIds = metadata.category?.let { setOf(catalogGroup(it, nextGroups)) }.orEmpty())
+            val next = nativePreferences + (metadata.id to preferences)
+            if (next != nativePreferences || nextGroups != groups) save(active.values.map { it.installed }, nextGroups, next)
+            groups = nextGroups
+            nativePreferences = next
+            nativeSources[metadata.id] = NativeSource(metadata, host, onEnabled)
+            onEnabled(preferences.enabled)
+        }
+    }
+
+    suspend fun nativeSources(): List<ManagedSource> = withContext(Dispatchers.IO) {
+        restore()
+        lock.withLock { nativeSources.map { (id, source) ->
+            ManagedSource(id, source.metadata.item.name, source.host(), nativePreferences.getValue(id),
+                SourceCapability.Explore in source.metadata.capabilities)
+        } }
+    }
+
+    private fun catalogGroup(category: SourceCategory, target: MutableList<SourceGroup>): String {
+        val id = "catalog:${category.name}"
+        val name = context.getString(category.title)
+        return (target.firstOrNull { it.id == id } ?: target.firstOrNull { it.name.equals(name, true) }
+            ?: SourceGroup(id, name).also { target.add(it) }).id
+    }
+
+    private fun preferences(id: Identifier) = active[id]?.installed?.preferences() ?: nativePreferences[id]
+
     suspend fun sourceGroups(): List<SourceGroup> = withContext(Dispatchers.IO) {
         restore()
         lock.withLock { groups.toList() }
@@ -219,10 +255,10 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         restore()
         lock.withLock {
             val group = SourceGroup(java.util.UUID.randomUUID().toString(), checkedGroupName(name))
-            require(members.all { it in active })
+            require(members.all { preferences(it) != null })
             require((added + removed).all { id -> groups.any { it.id == id } } && added.intersect(removed).isEmpty())
             saveGrouping(groups + group, members.associateWith {
-                (active.getValue(it).installed.preferences().groupIds + added + group.id) - removed
+                (checkNotNull(preferences(it)).groupIds + added + group.id) - removed
             })
         }
     }
@@ -240,18 +276,18 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         restore()
         lock.withLock {
             require(groups.any { it.id == groupId })
-            val members = active.filterValues { groupId in it.installed.preferences().groupIds }.keys
+            val members = (active.keys + nativePreferences.keys).filter { groupId in checkNotNull(preferences(it)).groupIds }
             saveGrouping(groups.filterNot { it.id == groupId },
-                members.associateWith { active.getValue(it).installed.preferences().groupIds - groupId })
+                members.associateWith { checkNotNull(preferences(it)).groupIds - groupId })
         }
     }
 
     suspend fun updateGroups(members: Set<Identifier>, added: Set<String>, removed: Set<String>) = withContext(Dispatchers.IO) {
         restore()
         lock.withLock {
-            require(members.isNotEmpty() && members.all { it in active })
+            require(members.isNotEmpty() && members.all { preferences(it) != null })
             require((added + removed).all { id -> groups.any { it.id == id } } && added.intersect(removed).isEmpty())
-            saveGrouping(groups, members.associateWith { (active.getValue(it).installed.preferences().groupIds + added) - removed })
+            saveGrouping(groups, members.associateWith { (checkNotNull(preferences(it)).groupIds + added) - removed })
         }
     }
 
@@ -267,8 +303,12 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
             if (id !in memberships) binding else binding.copy(installed = binding.installed.copy(
                 preferences = binding.installed.preferences().copy(groupId = null, groupIds = memberships.getValue(id))))
         }
-        save(next.values.map { it.installed }, nextGroups)
+        val nextNative = nativePreferences.mapValues { (id, preferences) ->
+            memberships[id]?.let { preferences.copy(groupId = null, groupIds = it) } ?: preferences
+        }
+        save(next.values.map { it.installed }, nextGroups, nextNative)
         groups = nextGroups
+        nativePreferences = nextNative
         active.putAll(next)
     }
 
@@ -295,14 +335,28 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         restore()
         lock.withLock {
             check(!restorationFailed)
-            val old = checkNotNull(active[source]) { "Source is not installed" }
-            val current = old.installed.preferences()
+            val current = checkNotNull(preferences(source)) { "Source is not installed" }
             val next = current.copy(enabled = enabled ?: current.enabled,
                 discoveryVisible = discoveryVisible ?: current.discoveryVisible,
                 enabledSetByUser = enabled != null || current.enabledSetByUser)
             if (next == current) return@withLock
             if (!next.enabled) downloads?.revokeSourceTasks(source)
-            replace(old, old.installed.copy(preferences = next))
+            val native = nativeSources[source]
+            if (native != null) {
+                // Cancellation must not split runtime activation from its durable preference.
+                withContext(NonCancellable) {
+                    if (next.enabled != current.enabled) native.onEnabled(next.enabled)
+                    try { save(active.values.map { it.installed }, native = nativePreferences + (source to next)) }
+                    catch (failure: Exception) {
+                        if (next.enabled != current.enabled) native.onEnabled(current.enabled)
+                        throw failure
+                    }
+                    nativePreferences = nativePreferences + (source to next)
+                }
+            } else {
+                val old = checkNotNull(active[source])
+                replace(old, old.installed.copy(preferences = next))
+            }
         }
     }
 
@@ -530,10 +584,11 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         }
     }
 
-    private fun save(installed: List<InstalledSource>, sourceGroups: List<SourceGroup> = groups) {
+    private fun save(installed: List<InstalledSource>, sourceGroups: List<SourceGroup> = groups,
+        native: Map<Identifier, SourcePreferences> = nativePreferences) {
         check(installed.size <= ImportLimits().maxStoredEntries)
         directory.mkdirs()
-        val bytes = Json.encodeToString(InstalledSnapshot.serializer(), InstalledSnapshot(installed, sourceGroups)).toByteArray(Charsets.UTF_8)
+        val bytes = Json.encodeToString(InstalledSnapshot.serializer(), InstalledSnapshot(installed, sourceGroups, native)).toByteArray(Charsets.UTF_8)
         check(bytes.size <= MAX_SNAPSHOT_BYTES)
         val output = committed.startWrite()
         try { output.write(bytes); committed.finishWrite(output) }
@@ -547,7 +602,10 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         active.clear()
     }
 
-    @Serializable private data class InstalledSnapshot(val sources: List<InstalledSource>, val groups: List<SourceGroup> = emptyList())
+    private data class NativeSource(val metadata: SourceMetadata, val host: () -> String,
+        val onEnabled: suspend (Boolean) -> Unit)
+    @Serializable private data class InstalledSnapshot(val sources: List<InstalledSource>, val groups: List<SourceGroup> = emptyList(),
+        val nativePreferences: Map<Identifier, SourcePreferences> = emptyMap())
     @Serializable private data class InstalledSource(val definition: SourceDefinition, val origins: List<NetworkGrant>,
         val preferences: SourcePreferences? = null) {
         fun preferences() = preferences ?: SourcePreferences(definition.enabled, definition.enabledExplore)

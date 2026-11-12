@@ -45,7 +45,6 @@
     <string name="sources_file">Choose local file</string>
     <string name="sources_preview">Preview sources</string>
     <string name="sources_empty">No added sources yet. Add one to read from more sites.</string>
-    <string name="sources_builtin">Built in</string>
     <string name="sources_available">Enabled</string>
     <string name="sources_unavailable">Unavailable · Review source settings</string>
     <string name="sources_format">Format: %1$s</string>

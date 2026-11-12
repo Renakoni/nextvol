@@ -841,6 +841,8 @@ class SourcesScreenTest {
         val native = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources
         val settings = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySettings()
         val state = SourceManagementState(selected = native.ID,
+            nativeSources = listOf(indi.renakoni.nextvol.data.web.ManagedSource(native.ID, "Z-Library", "z-lib.gd",
+                indi.renakoni.nextvol.data.web.rules.SourcePreferences(true, false))),
             zLibrary = indi.renakoni.nextvol.data.web.zlibrary.ZLibraryState(settings),
             registry = listOf(SourceListing(SourceMetadata(WebDataSourceItem(native.ID, "Z-Library", "fixture"),
                 setOf(SourceCapability.Search), builtIn = true), SourceStatus.Ready)))
@@ -848,13 +850,13 @@ class SourcesScreenTest {
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model, onSearch = { selected = it }) {} } }
         compose.onNodeWithText("Search this source").performClick()
         org.junit.Assert.assertEquals(native.ID, selected)
-        compose.onNodeWithText("Advanced options").performClick()
+        compose.onNodeWithText("API site").performClick()
         compose.onNodeWithText("https://z-lib.fo:443").performScrollTo().performClick()
         verify(exactly = 0) { model.saveZLibrary(any(), any()) }
         compose.onNodeWithText("Save site and permissions").performScrollTo().performClick()
         verify(exactly = 1) { model.saveZLibrary("https://z-lib.fo:443", settings.origins.joinToString("\n")) }
         compose.onNodeWithContentDescription("Enable source").performScrollTo().performClick()
-        verify(exactly = 1) { model.setZLibraryEnabled(false) }
+        verify(exactly = 1) { model.setEnabled(native.ID, false) }
     }
 
     @Test fun loginControlsSubmitDefaultsAndTheCurrentSourceFormValues() {
@@ -907,14 +909,28 @@ class SourcesScreenTest {
         val builtinId = Identifier("lightnovelreader", "Wenku8")
         val builtin = SourceListing(SourceMetadata(WebDataSourceItem(builtinId, "Wenku8", "Built-in provider"),
             setOf(SourceCapability.Search), builtIn = true), SourceStatus.Registered)
-        var state by mutableStateOf(SourceManagementState(registry = listOf(builtin)))
+        var state by mutableStateOf(SourceManagementState(registry = listOf(builtin),
+            nativeSources = listOf(indi.renakoni.nextvol.data.web.ManagedSource(builtinId, "Wenku8", "www.wenku8.net",
+                indi.renakoni.nextvol.data.web.rules.SourcePreferences(true, false)))))
         activity.get().setContent { MaterialTheme { SourcesScreen(state, model) {} } }
+        compose.onNodeWithText("www.wenku8.net").assertExists()
         compose.onNodeWithText("Wenku8").performClick()
         verify(exactly = 1) { model.select(builtinId) }
         compose.runOnIdle { state = state.copy(selected = builtinId, network = SourceNetworkState()) }
         compose.onNodeWithText("Search this source").assertExists()
         compose.onNodeWithContentDescription("Bypass VPN").assertIsOff().assertIsEnabled().performClick()
         verify(exactly = 1) { model.setBypassVpn(true) }
+        compose.onNodeWithContentDescription("Enable source").assertIsOn().performClick()
+        verify(exactly = 1) { model.setEnabled(builtinId, false) }
+        compose.runOnIdle {
+            state = state.copy(registry = emptyList(), nativeSources = state.nativeSources.map {
+                it.copy(preferences = it.preferences.copy(enabled = false))
+            })
+        }
+        compose.onNodeWithText("Wenku8").assertExists()
+        compose.onNodeWithText("Search this source").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Enable source").assertIsOff().performClick()
+        verify(exactly = 1) { model.setEnabled(builtinId, true) }
     }
 
     @Test fun manualVariableNeedsNoAuthorCommentAndDraftsSurvivePreferenceChanges() {

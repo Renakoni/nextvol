@@ -95,13 +95,30 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
         // Only the metadata snapshot gates online lookups. Each source prepares its runtime on use.
         webBookDataSourceManager.registry.restoreIn(coroutineScope) {
             startupPhase("sources") {
+                startupPhase("imported-sources") { importedRuleSources.restore() }
                 startupPhase("builtin-source") {
-                    webBookDataSourceManager.registry.register(Wenku8Api.METADATA) {
-                        Wenku8Api(wenku8SearchSupport, wenku8Verification.get()) { id -> sourceNetworkSettings.forSource(id).snapshot() }
+                    var registration: indi.renakoni.nextvol.data.web.SourceRegistration? = null
+                    importedRuleSources.registerNative(Wenku8Api.METADATA, { "www.wenku8.net" }) { enabled ->
+                        if (enabled && registration == null) {
+                            registration = webBookDataSourceManager.registry.register(Wenku8Api.METADATA) {
+                                Wenku8Api(wenku8SearchSupport, wenku8Verification.get()) { id -> sourceNetworkSettings.forSource(id).snapshot() }
+                            }
+                        } else if (!enabled) {
+                            registration?.unregister()
+                            registration = null
+                        }
                     }
                 }
-                startupPhase("imported-sources") { importedRuleSources.restore() }
-                startupPhase("zlibrary-source") { zLibrarySources.restore() }
+                startupPhase("zlibrary-source") {
+                    zLibrarySources.restore()
+                    importedRuleSources.registerNative(indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources.METADATA,
+                        { android.net.Uri.parse(zLibrarySources.state.value.settings.origin).host.orEmpty() },
+                        enabled = zLibrarySources.state.value.settings.enabled) { enabled ->
+                        if (!zLibrarySources.state.value.restorationFailed) {
+                            zLibrarySources.update(zLibrarySources.state.value.settings.copy(enabled = enabled))
+                        }
+                    }
+                }
             }
             if (BuildConfig.BENCHMARK) {
                 android.util.Log.i("NextVolStartup", "snapshot timeNs=${android.os.SystemClock.elapsedRealtimeNanos()} " +

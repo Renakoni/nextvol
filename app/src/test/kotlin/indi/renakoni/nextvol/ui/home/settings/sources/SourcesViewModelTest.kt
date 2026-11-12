@@ -325,6 +325,7 @@ class SourcesViewModelTest {
             setOf(SourceCapability.Search, SourceCapability.Login))) { source }
         val sources = mockk<ImportedRuleSources>()
         coEvery { sources.sourceGroups() } returns emptyList()
+        coEvery { sources.nativeSources() } returns emptyList()
         coEvery { sources.installedSources() } returns listOf(InstalledRuleSource(definition, listOf(NetworkGrant("https://fixture.invalid/"))))
         coEvery { sources.storedSettings(id, "account") } returns RuleStoredSettings("saved variable", "session", "reader")
         val login = mockk<SourceLoginService>(relaxed = true)
@@ -752,6 +753,7 @@ class SourcesViewModelTest {
         }
         val sources = mockk<ImportedRuleSources>()
         coEvery { sources.sourceGroups() } returns emptyList()
+        coEvery { sources.nativeSources() } returns emptyList()
         coEvery { sources.installedSources() } returns emptyList()
         val zLibrary = mockk<ZLibrarySources>()
         every { zLibrary.state } returns MutableStateFlow(indi.renakoni.nextvol.data.web.zlibrary.ZLibraryState())

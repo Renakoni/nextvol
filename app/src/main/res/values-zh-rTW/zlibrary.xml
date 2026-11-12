@@ -1,6 +1,4 @@
 <resources>
-    <string name="zlibrary_source_summary">依語言與格式搜尋書籍</string>
-    <string name="zlibrary_capabilities">在應用程式內搜尋並查看書籍資訊與封面。暫不支援登入、檔案下載和全文閱讀。</string>
     <string name="zlibrary_mirror">API 網站</string>
     <string name="zlibrary_mirror_help">填寫不含路徑的網站位址。更換網站不會變更書籍關聯；所選網站也需要列在下方權限中。</string>
     <string name="zlibrary_save">儲存網站與權限</string>

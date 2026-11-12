@@ -37,6 +37,54 @@ class SourceGroupsTest {
             preview.candidates.single().existing?.let(ImportDecision::Replace) ?: ImportDecision.Add))).items.single().reference!!
     }
 
+    @Test fun nativeAndRuleSourcesShareGroupsAndDisabledPreferencesSurviveRestart() = runBlocking {
+        val context = host()
+        RuleSourceFixture().use { fixture ->
+            val accounts = SourceSessionManager(fixture.authority)
+            val native = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources
+            var registry = WebSourceRegistry(fixture.authority)
+            var sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
+            var zLibrary = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources(context, registry, StorageCipher.Plain)
+            var activations = 0
+            suspend fun registerNative() {
+                zLibrary.restore()
+                sources.registerNative(native.METADATA, { "z-lib.gd" }, zLibrary.state.value.settings.enabled) { enabled ->
+                    activations++
+                    zLibrary.update(zLibrary.state.value.settings.copy(enabled = enabled))
+                }
+            }
+            try {
+                registerNative()
+                val catalogGroup = sources.sourceGroups().single()
+                sources.renameGroup(catalogGroup.id, "My books")
+                val rule = sources.activate(commit(sources, fixture.raw()), emptyList())
+                sources.updateGroups(setOf(rule), setOf(catalogGroup.id), emptySet())
+                sources.createGroup("Favorites", setOf(rule, native.ID), removed = setOf(catalogGroup.id))
+                val group = sources.sourceGroups().last()
+                assertEquals(setOf(group.id), sources.nativeSources().single().preferences.groupIds)
+                assertEquals(setOf(group.id), sources.installedSources().single().preferences.groupIds)
+                assertEquals(1, activations) // Membership edits must not rebuild source runtimes.
+                sources.setPreferences(native.ID, enabled = false)
+                assertTrue(registry.resolve(native.ID) is SourceResolution.Missing)
+                sources.stop(); zLibrary.stop()
+                registry = WebSourceRegistry(fixture.authority)
+                sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
+                zLibrary = indi.renakoni.nextvol.data.web.zlibrary.ZLibrarySources(context, registry, StorageCipher.Plain)
+                registerNative()
+                assertFalse(sources.nativeSources().single().preferences.enabled)
+                assertEquals(setOf(group.id), sources.nativeSources().single().preferences.groupIds)
+                assertEquals("My books", sources.sourceGroups().first().name)
+                assertTrue(registry.resolve(native.ID) is SourceResolution.Missing)
+                sources.deleteGroup(group.id)
+                assertTrue(sources.nativeSources().single().preferences.groupIds.isEmpty())
+                assertTrue(sources.installedSources().single().preferences.groupIds.isEmpty())
+                sources.setPreferences(native.ID, enabled = true)
+                assertTrue(registry.sources.value.any { it.metadata.id == native.ID })
+                assertTrue(sources.nativeSources().single().preferences.enabled)
+            } finally { sources.stop(); zLibrary.stop() }
+        }
+    }
+
     @Test fun catalogGroupsAreCreatedOnDemandAndReusedAfterRenameAndRestart() = runBlocking {
         val context = host()
         val catalog = SourceCatalog(context)

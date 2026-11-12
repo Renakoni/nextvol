@@ -1,6 +1,4 @@
 <resources>
-    <string name="zlibrary_source_summary">按语言和格式搜索书籍</string>
-    <string name="zlibrary_capabilities">在应用内搜索并查看书籍信息和封面。暂不支持登录、文件下载和全文阅读。</string>
     <string name="zlibrary_mirror">API 站点</string>
     <string name="zlibrary_mirror_help">填写不含路径的站点地址。更换站点不会改变书籍关联；所选站点也需要列在下方权限中。</string>
     <string name="zlibrary_save">保存站点和权限</string>

@@ -45,7 +45,6 @@
     <string name="sources_file">选择本地文件</string>
     <string name="sources_preview">预览书源</string>
     <string name="sources_empty">尚未添加书源。添加后可阅读更多站点的书籍。</string>
-    <string name="sources_builtin">内置书源</string>
     <string name="sources_available">已启用</string>
     <string name="sources_unavailable">不可用 · 请检查书源设置</string>
     <string name="sources_format">格式：%1$s</string>

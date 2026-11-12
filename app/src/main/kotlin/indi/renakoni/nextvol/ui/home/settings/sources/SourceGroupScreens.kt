@@ -24,14 +24,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.data.web.rules.InstalledRuleSource
+import indi.renakoni.nextvol.data.web.ManagedSource
 
 @Composable
 internal fun SourceGroupsScreen(state: SourceManagementState, onOpen: (String) -> Unit, onCreate: () -> Unit,
     modifier: Modifier = Modifier) {
-    val members = state.installed.flatMap { source -> source.preferences.groupIds.map { it to source } }
+    val members = state.addedSources.flatMap { source -> source.preferences.groupIds.map { it to source } }
         .groupBy({ it.first }, { it.second })
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -59,11 +58,9 @@ internal fun SourceGroupsScreen(state: SourceManagementState, onOpen: (String) -
 }
 
 @Composable
-private fun SourceGroupRow(name: String, members: List<InstalledRuleSource>, state: SourceManagementState,
+private fun SourceGroupRow(name: String, members: List<ManagedSource>, state: SourceManagementState,
     emptySummary: String, onClick: () -> Unit) {
-    val preview = members.take(3).joinToString(" · ") { source ->
-        state.catalog.find { it.key == source.definition.importKey }?.name ?: source.definition.displayName
-    }
+    val preview = members.take(3).joinToString(" · ") { it.name }
     ListItem(headlineContent = { Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         supportingContent = { Text(preview.ifEmpty { emptySummary }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         leadingContent = {
@@ -88,16 +85,12 @@ internal fun SourceGroupMembersScreen(state: SourceManagementState, groupId: Str
     selecting: Boolean, selected: List<String>, onSelection: (List<String>) -> Unit, onSelect: () -> Unit,
     onAdd: () -> Unit, modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
-    val sources = state.installed.filter { (groupId in it.preferences.groupIds) != adding }
+    val sources = state.addedSources.filter { (groupId in it.preferences.groupIds) != adding }
     val selectionMode = adding || selecting
-    val catalog = state.catalog.associateBy { it.key }
-    fun name(source: InstalledRuleSource) = catalog[source.definition.importKey]?.name ?: source.definition.displayName
-    fun host(source: InstalledRuleSource) = catalog[source.definition.importKey]?.host?.takeIf(String::isNotBlank)
-        ?: source.definition.importKey.toUri().host.orEmpty()
     val visible = sources.filter { source ->
-        name(source).contains(query.trim(), true) || host(source).contains(query.trim(), true)
+        source.name.contains(query.trim(), true) || source.host.contains(query.trim(), true)
     }
-    val allVisibleSelected = visible.isNotEmpty() && visible.all { it.definition.sourceId in selected }
+    val allVisibleSelected = visible.isNotEmpty() && visible.all { it.key in selected }
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         if (adding) Text(stringResource(R.string.source_group_add_help), Modifier.padding(top = 12.dp, bottom = 4.dp),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -118,12 +111,12 @@ internal fun SourceGroupMembersScreen(state: SourceManagementState, groupId: Str
             if (selectionMode) {
                 val selection = when {
                     allVisibleSelected -> ToggleableState.On
-                    visible.any { it.definition.sourceId in selected } -> ToggleableState.Indeterminate
+                    visible.any { it.key in selected } -> ToggleableState.Indeterminate
                     else -> ToggleableState.Off
                 }
                 Row(Modifier.heightIn(min = 48.dp).triStateToggleable(selection, enabled = !state.busy && visible.isNotEmpty(),
                     role = Role.Checkbox) {
-                    val ids = visible.map { it.definition.sourceId }
+                    val ids = visible.map { it.key }
                     onSelection(if (allVisibleSelected) selected - ids.toSet() else (selected + ids).distinct())
                 }.padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     TriStateCheckbox(selection, onClick = null, enabled = !state.busy && visible.isNotEmpty(),
@@ -149,16 +142,16 @@ internal fun SourceGroupMembersScreen(state: SourceManagementState, groupId: Str
         if (state.message == R.string.sources_action_failed) Text(stringResource(state.message),
             Modifier.padding(bottom = 8.dp), color = MaterialTheme.colorScheme.error)
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 16.dp)) {
-            itemsIndexed(visible, key = { _, source -> source.definition.sourceId }) { index, source ->
-                val checked = source.definition.sourceId in selected
+            itemsIndexed(visible, key = { _, source -> source.key }) { index, source ->
+                val checked = source.key in selected
                 val memberships = state.groups.filter { it.id in source.preferences.groupIds }.joinToString(" · ") { it.name }
                 val shape = RoundedCornerShape(topStart = if (index == 0) 20.dp else 0.dp, topEnd = if (index == 0) 20.dp else 0.dp,
                     bottomStart = if (index == visible.lastIndex) 20.dp else 0.dp, bottomEnd = if (index == visible.lastIndex) 20.dp else 0.dp)
-                val selectSource = { onSelection(if (checked) selected - source.definition.sourceId else selected + source.definition.sourceId) }
+                val selectSource = { onSelection(if (checked) selected - source.key else selected + source.key) }
                 Column(Modifier.clip(shape)) {
-                    ListItem(headlineContent = { Text(name(source), maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    ListItem(headlineContent = { Text(source.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         supportingContent = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(host(source), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(source.host, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (adding && memberships.isNotEmpty()) Text(memberships, style = MaterialTheme.typography.labelMedium,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
                         } },
@@ -183,11 +176,11 @@ internal fun SourceGroupMembersScreen(state: SourceManagementState, groupId: Str
                         Icon(painterResource(R.drawable.view_list_24px), null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(stringResource(when {
                             query.isNotBlank() && sources.isNotEmpty() -> R.string.source_group_no_matches
-                            state.installed.isEmpty() -> R.string.source_group_no_sources
+                            state.addedSources.isEmpty() -> R.string.source_group_no_sources
                             adding -> R.string.source_group_candidates_empty
                             else -> R.string.source_group_members_empty
                         }), style = MaterialTheme.typography.titleMedium)
-                        if (!adding && sources.isEmpty() && state.installed.isNotEmpty()) {
+                        if (!adding && sources.isEmpty() && state.addedSources.isNotEmpty()) {
                             Text(stringResource(R.string.source_group_empty_help), style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }

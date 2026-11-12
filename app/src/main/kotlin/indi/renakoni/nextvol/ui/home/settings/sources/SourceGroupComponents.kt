@@ -20,7 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.data.web.rules.InstalledRuleSource
+import indi.renakoni.nextvol.data.web.ManagedSource
 import indi.renakoni.nextvol.data.web.rules.SourceGroup
 
 @Composable
@@ -36,7 +36,7 @@ internal fun SourceManagementAction(title: String, icon: Int, enabled: Boolean, 
 }
 
 @Composable
-internal fun SourceGroupFilters(groups: List<SourceGroup>, installed: List<InstalledRuleSource>,
+internal fun SourceGroupFilters(groups: List<SourceGroup>, installed: List<ManagedSource>,
     selected: String?, onSelect: (String?) -> Unit) {
     val ungroupedCount = installed.count { it.preferences.groupIds.isEmpty() }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -66,13 +66,13 @@ private fun SourceGroupFilter(name: String, count: Int, selected: Boolean, onSel
 }
 
 @Composable
-internal fun SourceGroupsDialog(groups: List<SourceGroup>, installed: List<InstalledRuleSource>, busy: Boolean,
+internal fun SourceGroupsDialog(groups: List<SourceGroup>, installed: List<ManagedSource>, busy: Boolean,
     message: Int?, revision: Long, members: Set<String>, onDismiss: () -> Unit,
     onSave: (Set<String>, Set<String>) -> Unit, onCreate: (String, Set<String>, Set<String>) -> Unit) {
     var creating by rememberSaveable(revision) { mutableStateOf(false) }
     var added by rememberSaveable(revision) { mutableStateOf(emptyList<String>()) }
     var removed by rememberSaveable(revision) { mutableStateOf(emptyList<String>()) }
-    val sources = installed.filter { it.definition.sourceId in members }
+    val sources = installed.filter { it.key in members }
     if (creating) {
         SourceGroupNameDialog(groups, null, busy, message, onDismiss = { creating = false },
             onSave = { onCreate(it, added.toSet(), removed.toSet()) })

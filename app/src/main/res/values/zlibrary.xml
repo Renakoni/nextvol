@@ -1,6 +1,4 @@
 <resources>
-    <string name="zlibrary_source_summary">Search books by language and format</string>
-    <string name="zlibrary_capabilities">Search and view book information and covers in the app. Sign-in, file downloads and reading are not available yet.</string>
     <string name="zlibrary_mirror">API site</string>
     <string name="zlibrary_mirror_help">Use a site origin without a path. Changing sites keeps your books linked. The selected site must also be in the permissions below.</string>
     <string name="zlibrary_save">Save site and permissions</string>

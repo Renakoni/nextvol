@@ -3,8 +3,6 @@
     <string name="sources_initializing">Initializing…</string>
     <string name="sources_initialization_failed">Initialization failed · Review source settings</string>
     <string name="sources_initialize">Initialize source</string>
-    <string name="sources_imported_group">Added sources</string>
-    <string name="sources_builtin_group">Built-in sources</string>
     <string name="sources_details">Source details</string>
     <string name="sources_hide_details">Hide source details</string>
     <string name="sources_filter_all">All</string>
