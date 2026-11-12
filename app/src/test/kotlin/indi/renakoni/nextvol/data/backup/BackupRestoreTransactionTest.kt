@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.ContextWrapper
 import android.net.Uri
 import androidx.room.Room
+import androidx.work.ListenableWorker
+import androidx.work.workDataOf
 import com.github.michaelbull.result.get
 import com.github.michaelbull.result.getError
 import indi.renakoni.nextvol.data.book.SourceBookId
@@ -21,6 +23,8 @@ import indi.renakoni.nextvol.data.statistics.ReadingStatsUpdate
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
 import indi.renakoni.nextvol.data.storage.StorageUsageRepository
+import indi.renakoni.nextvol.data.work.ImportDataWork
+import indi.renakoni.nextvol.data.work.workerParameters
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.book.*
@@ -41,6 +45,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -144,9 +149,16 @@ class BackupRestoreTransactionTest {
         })
     }
 
-    @Test fun firstWriteFailureKeepsEveryOldRowAndOfflineFile() = runBlocking {
+    @Test fun workerWriteFailureKeepsEveryOldRowAndOfflineFile() = runBlocking {
         failAt(incoming)
-        expectWriteFailure(payload(incoming), overwrite = true)
+        val file = directory.newFile("restore.nvbackup")
+        BackupArchive.write(file, payload(incoming), BackupArchive.manifest(BackupKind.USER_DATA, emptySet()))
+        val uri = Uri.parse("content://backup-test/restore")
+        shadowOf(context.contentResolver).registerInputStream(uri, file.inputStream())
+        val worker = ImportDataWork(context, workerParameters(workDataOf("uri" to uri.toString(), "overwrite" to true)), backup)
+        assertEquals(ListenableWorker.Result.failure(), worker.doWork())
+        val failure = ShadowLog.getLogsForTag(ImportDataWork.TAG).last().throwable
+        assertTrue(generateSequence(failure) { it.cause }.any { it.message.orEmpty().contains("injected restore write failure") })
         assertOldLibrary()
         downloads.finish(attempt, true)
     }
