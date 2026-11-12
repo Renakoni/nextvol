@@ -25,7 +25,21 @@ jobs:
         with:
           check: jvm
       - name: Check CI task selection
+        if: steps.scope.outputs.scopes != 'docs'
         run: python3 .github/scripts/test_ci_scope.py
+      - name: Check CI helper scripts
+        if: steps.scope.outputs.scripts == 'true'
+        run: |
+          python3 .github/scripts/test_emulator_tests.py
+          python3 .github/scripts/test_ci_emulator.py
+          python3 .github/scripts/test_prepare_android_sdk.py
+          python3 .github/scripts/test_ci_debug_apks.py
+          python3 .github/scripts/test_ci_cache.py
+          python3 .github/scripts/test_check_resources.py
+          python3 .github/scripts/check_resources.py
+          python3 native/onnxruntime/test_verify_sources.py
+          python3 native/onnxruntime/test_build_cache.py
+          python3 native/offline/test_fetch_runtime.py
       - name: Prepare fixed Android environment
         if: steps.scope.outputs.run == 'true'
         id: environment
@@ -35,17 +49,6 @@ jobs:
       - name: Restore shared Robolectric SDKs
         if: steps.scope.outputs.run == 'true'
         uses: ./.github/actions/robolectric
-      - name: Check emulator preparation and failure handling
-        if: steps.scope.outputs.scopes == 'full'
-        run: |
-          python3 .github/scripts/test_emulator_tests.py
-          python3 .github/scripts/test_ci_emulator.py
-          python3 .github/scripts/test_prepare_android_sdk.py
-          python3 .github/scripts/test_ci_debug_apks.py
-          python3 .github/scripts/test_ci_cache.py
-          python3 native/onnxruntime/test_verify_sources.py
-          python3 native/onnxruntime/test_build_cache.py
-          python3 native/offline/test_fetch_runtime.py
       - name: Run JVM unit tests
         if: steps.scope.outputs.run == 'true'
         env:

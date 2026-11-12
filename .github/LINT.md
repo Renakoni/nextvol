@@ -1,7 +1,11 @@
-# Reviewed app Debug Lint findings
+# App Lint coverage and reviewed findings
 
-Scope: `:app:lintDebug` with the repository wrapper / JDK 22, including its
-configured test analysis. This is not a claim about every module or variant.
+CI runs full `:app:lintRelease` with the repository wrapper / JDK 22 and explicitly
+ignores test sources. JVM/device jobs own test execution and Debug fixture coverage;
+there is no second Debug or Vital scan. See [CI coverage](CI.md#lint-and-translation-coverage).
+
+The review below records the historical `:app:lintDebug` audit; the checked-in
+`app/lint-baseline.xml` is the current baseline, not this historical inventory.
 The immediate pre-change report at #343 (`752943a4`) has 17 Error, 368 Warning,
 and 8 Hint findings; translation/quantity/format errors have already been fixed
 by #323/#327. The original #334 inventory predates those fixes.
