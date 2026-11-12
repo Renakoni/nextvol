@@ -39,15 +39,23 @@ class CacheSelectionTests(unittest.TestCase):
         ]
         self.assertEqual({1, 3}, {cache['id'] for cache in ci_cache_retention.obsolete_snapshots(caches)})
 
-    def test_native_cache_retention_keeps_the_latest_runtime_per_ref(self):
-        def entry(identifier, ref):
+    def test_native_cache_retention_keeps_the_latest_inputs_per_ref_and_image(self):
+        def entry(identifier, ref, image, inputs='a'):
             return {'id': identifier, 'ref': ref, 'created_at': f'2026-10-{identifier:02d}',
-                    'key': f'onnxruntime-linux-v1-ubuntu24-image-{identifier}'}
+                    'key': f'onnxruntime-linux-v1-ubuntu24-{image}-{inputs * 64}'}
 
-        caches = [entry(1, 'refs/heads/main'), entry(2, 'refs/heads/main'),
-                  entry(3, 'refs/pull/804/merge'), entry(4, 'refs/pull/804/merge'),
-                  entry(5, 'refs/pull/805/merge')]
-        self.assertEqual({1, 3}, {cache['id'] for cache in ci_cache_retention.obsolete_snapshots(caches)})
+        # All three images were still serving jobs during the observed rollout.
+        caches = [
+            entry(1, 'refs/heads/main', '20261101.360.1'),
+            entry(2, 'refs/heads/main', '20261111.127.1'),
+            entry(3, 'refs/heads/main', '20261111.370.1'),
+            entry(4, 'refs/heads/main', '20261111.127.1', inputs='b'),
+            entry(5, 'refs/pull/804/merge', '20261101.360.1'),
+            entry(6, 'refs/pull/804/merge', '20261111.127.1'),
+            entry(7, 'refs/pull/804/merge', '20261111.127.1', inputs='b'),
+            entry(8, 'refs/pull/805/merge', '20261111.127.1'),
+        ]
+        self.assertEqual({2, 6}, {cache['id'] for cache in ci_cache_retention.obsolete_snapshots(caches)})
 
     def test_full_warmup_compiles_jvm_tests_and_apks_without_running_tests_or_r8(self):
         tasks = ci_cache.full_plan()['gradle-args'].split()

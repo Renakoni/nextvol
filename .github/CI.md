@@ -302,7 +302,7 @@ keys together when upgrading. Automatic Gradle JDK/SDK provisioning is disabled.
 | --- | --- | --- |
 | Gradle (`setup-gradle`) | All build/test checks | Wrapper, dependencies, transforms, local build cache; only the serialized main warmer writes |
 | Variant task outputs | Release/Minified checks and signed releases | Separate Release/benchmark outputs; latest snapshot per ref and variant, saved after a successful APK build |
-| ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref |
+| ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref and runner image |
 | Embedded offline SDK | APK builds and signed releases | ZIP pinned by URL/SHA-256; main writes one shared archive, PRs only restore |
 | SDK | All checks | Platform, Build Tools, adb; main publishes one shared version |
 | Emulator + one API image | Device checks only | Main publishes separate API 24 and API 35 entries |
@@ -392,7 +392,15 @@ main publishes entries available to other PRs. The Debug, Release and minified
 APK builders can still build independently on their first simultaneous miss.
 Cache hits remove the repeated
 ORT compilation, not the existing checks or Matcha build. Main/PR retention keeps
-each ref's newest ORT entry; main's different input key never replaces a PR's entry.
+the newest ORT input entry for each ref and runner image (the key prefix before
+the input digest). GitHub rolls out runner images gradually, so several image
+versions may still be serving jobs simultaneously. Their exact-key installs are
+not interchangeable: keeping only one entry per ref deleted still-needed main
+caches and forced each PR to compile ORT again. Each compressed install is about
+4.5 MiB. Inactive image entries expire through GitHub's seven-day unused-cache
+policy; closed-PR cleanup still removes all entries for that PR. Main's different
+input key never replaces a PR's entry. A genuinely new runner image still needs
+its first build; the daily main warmer makes that install available to other PRs.
 
 The embedded SDK uses a separate cache containing only its compressed ZIP. APK
 jobs verify the pinned SHA-256, extract and validate the libraries, then supply
