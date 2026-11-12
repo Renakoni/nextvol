@@ -286,22 +286,6 @@ class BookRepository @Inject constructor(
                 }
         }
 
-    override suspend fun getIsBookCached(bookId: String): Boolean {
-        val book = BookIdentity.book(bookId)
-        if (LocalBookStore.isLocal(book)) return localBooks.contains(book)
-        localBookDataSource.getBookVolumes(bookId)?.let { bookVolumes ->
-            if (bookVolumes.volumes.isEmpty())
-                return false
-            bookVolumes.volumes.forEach { bookVolume ->
-                bookVolume.chapters.forEach {
-                    if (!localBookDataSource.isChapterContentExists(it.id))
-                        return false
-                }
-            }
-        } ?: return false
-        return true
-    }
-
     internal suspend fun sourceRevision(book: SourceBookId): String = downloadSource(book)?.revision.orEmpty()
 
     internal suspend fun downloadSource(book: SourceBookId): indi.renakoni.nextvol.data.web.SourceMetadata? {

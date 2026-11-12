@@ -244,7 +244,6 @@ class LocalBookStoreTest {
         assertEquals(SourceChapterId(book, "1").storageKey, content.nextChapter)
         assertTrue(books.readingAvailability(book.storageKey).first().local)
         assertFalse(books.readingAvailability(book.storageKey).first().online)
-        assertTrue(books.getIsBookCached(book.storageKey))
         assertEquals(42, books.getUserReadingData(book.storageKey).totalReadTime)
         books.preloadChapterContent(first, book.storageKey)
         assertTrue(books.refreshBookInformation(book).isOk)

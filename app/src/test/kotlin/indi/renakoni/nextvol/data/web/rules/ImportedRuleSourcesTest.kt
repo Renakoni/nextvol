@@ -169,7 +169,6 @@ class ImportedRuleSourcesTest {
                     shelves.addBookIntoBookShelf(1, info)
                     val worker = CacheBookWork(context, workerParameters(workDataOf("bookId" to book.storageKey)), mockk(relaxed = true), books, downloads)
                     assertEquals(ListenableWorker.Result.success(), worker.doWork())
-                    assertTrue(books.getIsBookCached(book.storageKey))
                     val first = local.getBookVolumes(book.storageKey)!!.volumes.single().chapters.first()
                     val content = local.getChapterContent(first.id)!!
                     val data = mutableListOf<Any>()
@@ -188,8 +187,9 @@ class ImportedRuleSourcesTest {
                 assertTrue(registry.resolve(b) is SourceResolution.Missing)
                 loader.memoryCache?.clear()
                 for (book in bound) {
-                    val chapter = local.getBookVolumes(book.storageKey)!!.volumes.single().chapters.first()
-                    assertEquals(local.getChapterContent(chapter.id), books.getChapterContentFlow(chapter.id, book.storageKey).last().get())
+                    for (chapter in local.getBookVolumes(book.storageKey)!!.volumes.single().chapters) {
+                        assertEquals(local.getChapterContent(chapter.id)!!, books.getChapterContentFlow(chapter.id, book.storageKey).last().get())
+                    }
                     val image = loader.execute(coil3.request.ImageRequest.Builder(context)
                         .data(indi.renakoni.nextvol.data.image.SourceImage(book, fixture.server.url("/image.png").toString())).build())
                     assertTrue(image.toString(), image is coil3.request.SuccessResult)
@@ -202,7 +202,10 @@ class ImportedRuleSourcesTest {
                 assertEquals(bound.map { it.storageKey }.toSet(), shelves.getBookshelf(1)!!.allBookIds.toSet())
                 assertEquals(99, local.getUserReadingData(bound[0].storageKey).totalReadTime)
                 service.remove(a); service.remove(b)
-                assertTrue(books.getIsBookCached(bound[0].storageKey))
+                val book = bound[0]
+                for (chapter in local.getBookVolumes(book.storageKey)!!.volumes.single().chapters) {
+                    assertEquals(local.getChapterContent(chapter.id)!!, books.getChapterContentFlow(chapter.id, book.storageKey).last().get())
+                }
             } finally { service.stop(); registry.unregister(EmptyWebDataSource.id); db.close(); loader.shutdown(); cache.shutdown(); coil3.SingletonImageLoader.reset() }
         }
     }
