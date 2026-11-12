@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.ui.tts
 
+import hnovel.speech.SpeechSearchQuery
 import indi.renakoni.nextvol.tts.SPEECH_POOL_FEMALE
 import indi.renakoni.nextvol.tts.SPEECH_POOL_MALE
 import indi.renakoni.nextvol.tts.SpeechRoleRule
@@ -21,26 +22,28 @@ class SpeechVoicePoolSearchTest {
         val first = SpeechVoiceItem(SPEECH_POOL_FEMALE, voice)
         val second = first.copy(id = "second", activate = false, name = "Bob")
         val items = listOf(first, second)
-        assertEquals(listOf(first), filterSpeechVoicePool(items, "group:失配女 voice:alice ischecked:true", label))
-        assertEquals(listOf(second), filterSpeechVoicePool(items, "ischecked:other", label))
-        assertEquals(items, filterSpeechVoicePool(items, "voice:voice-01", label))
-        assertTrue(filterSpeechVoicePool(items, "voice-01", label).isEmpty())
+        assertEquals(listOf(first), filterSpeechVoicePool(items, SpeechSearchQuery("group:失配女 voice:alice ischecked:true"), label))
+        assertEquals(listOf(second), filterSpeechVoicePool(items, SpeechSearchQuery("ischecked:other"), label))
+        assertEquals(items, filterSpeechVoicePool(items, SpeechSearchQuery("voice:voice-01"), label))
+        assertTrue(filterSpeechVoicePool(items, SpeechSearchQuery("voice-01"), label).isEmpty())
     }
 
     @Test fun assignmentSearchSeparatesPersonVoiceAndAbstractRole() {
         val pair = SpeechVoicePair("book", "小明", SPEECH_POOL_FEMALE, voice)
-        assertEquals(listOf(pair), filterSpeechVoicePairs(listOf(pair), "小明 group:失配女 voice:alice", label))
-        assertTrue(filterSpeechVoicePairs(listOf(pair), "失配女", label).isEmpty())
-        assertEquals(listOf(pair), filterSpeechVoicePairs(listOf(pair), "voice:voice-01", label))
-        assertTrue(filterSpeechVoicePairs(listOf(pair), "ischecked:false", label).isEmpty())
+        assertEquals(listOf(pair), filterSpeechVoicePairs(listOf(pair), SpeechSearchQuery("小明 group:失配女 voice:alice"), label))
+        assertTrue(filterSpeechVoicePairs(listOf(pair), SpeechSearchQuery("失配女"), label).isEmpty())
+        assertEquals(listOf(pair), filterSpeechVoicePairs(listOf(pair), SpeechSearchQuery("voice:voice-01"), label))
+        assertTrue(filterSpeechVoicePairs(listOf(pair), SpeechSearchQuery("ischecked:false"), label).isEmpty())
     }
 
     @Test fun blankQueriesKeepEmptyDisplayFieldsWithoutTreatingExplicitColonAsBlank() {
         val items = listOf(SpeechVoiceItem("", SpeechVoiceRef(), name = ""))
         val pairs = listOf(SpeechVoicePair("book", "", "", SpeechVoiceRef()))
-        assertEquals(items, filterSpeechVoicePool(items, " \t\n", label))
-        assertEquals(pairs, filterSpeechVoicePairs(pairs, " \t\n", label))
-        assertTrue(filterSpeechVoicePool(items, ":", label).isEmpty())
-        assertTrue(filterSpeechVoicePairs(pairs, ":", label).isEmpty())
+        val blank = SpeechSearchQuery(" \t\n")
+        val colon = SpeechSearchQuery(":")
+        assertEquals(items, filterSpeechVoicePool(items, blank, label))
+        assertEquals(pairs, filterSpeechVoicePairs(pairs, blank, label))
+        assertTrue(filterSpeechVoicePool(items, colon, label).isEmpty())
+        assertTrue(filterSpeechVoicePairs(pairs, colon, label).isEmpty())
     }
 }

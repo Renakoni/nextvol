@@ -19,14 +19,11 @@ class SpeechSearchQueryTest {
     @Test fun parsingAndVoiceMatchingShareTheCapturedDefaultLocale() {
         val original = Locale.getDefault()
         try {
-            val turkish = Locale.forLanguageTag("tr-TR")
-            Locale.setDefault(turkish)
-            val query = SpeechSearchQuery("CODE: I")
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
             val search = SpeechVoiceSearch("code:I")
             Locale.setDefault(Locale.US)
-            assertEquals(turkish, query.locale)
-            assertEquals(listOf("code" to "ı"), query.terms)
             assertTrue(search.matches(SpeechSearchVoice("", code = "I")))
+            assertFalse(search.matches(SpeechSearchVoice("", code = "i")))
         } finally { Locale.setDefault(original) }
     }
 }

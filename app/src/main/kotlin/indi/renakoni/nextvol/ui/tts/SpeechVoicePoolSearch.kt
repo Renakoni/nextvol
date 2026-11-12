@@ -6,8 +6,7 @@ import indi.renakoni.nextvol.tts.SpeechVoicePair
 import java.util.Locale
 
 /** MultiTTS D6.a.v cases 4/5, with the shared r2.p.w AND query parser. */
-internal fun filterSpeechVoicePool(items: List<SpeechVoiceItem>, query: String, groupLabel: (String) -> String): List<SpeechVoiceItem> {
-    val search = SpeechSearchQuery(query)
+internal fun filterSpeechVoicePool(items: List<SpeechVoiceItem>, search: SpeechSearchQuery, groupLabel: (String) -> String): List<SpeechVoiceItem> {
     val locale = search.locale
     return items.filter { item -> search.terms.all { (prefix, value) ->
         when (prefix) {
@@ -19,8 +18,7 @@ internal fun filterSpeechVoicePool(items: List<SpeechVoiceItem>, query: String, 
     } }
 }
 
-internal fun filterSpeechVoicePairs(items: List<SpeechVoicePair>, query: String, groupLabel: (String) -> String): List<SpeechVoicePair> {
-    val search = SpeechSearchQuery(query)
+internal fun filterSpeechVoicePairs(items: List<SpeechVoicePair>, search: SpeechSearchQuery, groupLabel: (String) -> String): List<SpeechVoicePair> {
     val locale = search.locale
     return items.filter { item -> search.terms.all { (prefix, value) ->
         when (prefix) {
