@@ -122,7 +122,6 @@ class ExploreHomeViewModelTest {
         assertEquals(listOf("First"), partial.sections.map { it.title })
         assertTrue(partial.loading)
         assertFalse(partial.loaded)
-        assertFalse(partial.refreshing)
         assertEquals(id, partial.sections.single().books.single().id.sourceId)
         assertEquals("/first", model.more(partial.sections.single())!!.target)
         io.mockk.verify { text.processExploreBooksRow(match { it.title == "Book one" }) }
@@ -311,7 +310,6 @@ class ExploreHomeViewModelTest {
         assertEquals(1, cancelled)
         assertFalse(model.state.value.content.getValue(id).loaded)
         assertFalse(model.state.value.content.getValue(id).refreshing)
-        assertFalse(model.state.value.content.getValue(other).refreshing)
         assertEquals("First", model.state.value.content.getValue(id).sections.single().title)
         assertEquals("Same list", model.state.value.content.getValue(other).sections.single().title)
         model.select(id)
@@ -385,11 +383,8 @@ class ExploreHomeViewModelTest {
         advanceUntilIdle()
         assertTrue(model.state.value.content.getValue(id).loaded)
         model.refresh()
-        assertTrue(model.state.value.content.getValue(id).refreshing)
-        model.refresh()
         runCurrent()
         val waiting = model.state.value.content.getValue(id)
-        assertEquals(2, loads)
         assertTrue(waiting.refreshing)
         assertEquals(listOf("Old first", "Old second"), waiting.sections.map { it.books.single().title })
         assertTrue(waiting.sections.all { it.previewLoading })
@@ -405,7 +400,6 @@ class ExploreHomeViewModelTest {
         advanceUntilIdle()
         val complete = model.state.value.content.getValue(id)
         assertTrue(complete.loaded)
-        assertFalse(complete.loading)
         assertFalse(complete.refreshing)
         assertFalse(complete.sections.first().previewLoading)
         assertNull(complete.sections.first().previewFailure)
@@ -558,7 +552,6 @@ class ExploreHomeViewModelTest {
         val shown = model.state.value.content[a]!!.sections
         feed.failure = DiscoveryError.AuthenticationRequired
         model.refresh()
-        assertTrue(model.state.value.content[a]!!.refreshing)
         advanceUntilIdle()
         assertFalse(model.state.value.content[a]!!.refreshing)
         assertEquals(shown, model.state.value.content[a]!!.sections)

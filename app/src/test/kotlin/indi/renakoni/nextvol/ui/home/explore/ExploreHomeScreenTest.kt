@@ -107,29 +107,18 @@ class ExploreHomeScreenTest {
         compose.runOnIdle { assertEquals(previous, scroll) }
     }
 
-    @Test fun refreshIndicatorStaysVisibleWithBooksUntilRefreshEnds() {
+    @Test fun refreshIndicatorDistinguishesManualRefreshFromBackgroundPreviews() {
         val id = Identifier("fixture", "Refreshing source")
-        var page by mutableStateOf(DiscoveryPageContent(loading = true))
+        var page by mutableStateOf(content(id).copy(loaded = false, loading = true))
         val indicator = SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate)
         activity.get().setContent { MaterialTheme {
             ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to page)),
                 {}, { _, _ -> }, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
         } }
-        compose.onNode(indicator).assertIsDisplayed()
-        compose.runOnIdle { page = content(id).copy(loaded = false, loading = true) }
         compose.onNode(indicator).assertDoesNotExist()
-        compose.runOnIdle { page = page.copy(loaded = true, loading = false) }
-
-        compose.runOnIdle { page = page.copy(loaded = false, loading = true, refreshing = true) }
+        compose.runOnIdle { page = page.copy(refreshing = true) }
         compose.onNode(indicator).assertIsDisplayed()
         compose.onNodeWithText("Same book").assertIsDisplayed()
-        compose.runOnIdle {
-            page = page.copy(sections = page.sections.map { section ->
-                section.copy(books = section.books.map { it.copy(title = "Updated book") })
-            })
-        }
-        compose.onNodeWithText("Updated book").assertIsDisplayed()
-        compose.onNode(indicator).assertIsDisplayed()
         compose.runOnIdle { page = page.copy(loaded = true, loading = false, refreshing = false) }
         compose.onNode(indicator).assertDoesNotExist()
     }

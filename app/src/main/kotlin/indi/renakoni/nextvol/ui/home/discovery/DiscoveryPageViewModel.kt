@@ -210,7 +210,7 @@ abstract class DiscoveryPageViewModel(
         // A completed page remains useful while its replacement is loading.
         // Interrupted refreshes still discard their partial snapshot.
         if (state.value.content[id]?.loaded == true) resumablePreviews += id else resumablePreviews -= id
-        put(id, (state.value.content[id] ?: newContent()).copy(loaded = false, loading = false, refreshing = true, error = null))
+        put(id, (state.value.content[id] ?: newContent()).copy(loaded = false, refreshing = true, error = null))
         if (active) load()
     }
 
