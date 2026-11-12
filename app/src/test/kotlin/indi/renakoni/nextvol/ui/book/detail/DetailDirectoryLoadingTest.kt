@@ -37,7 +37,7 @@ class DetailDirectoryLoadingTest {
         val repository = mockk<BookRepository>()
         val shelves = mockk<BookshelfRepository>(relaxed = true)
         val downloads = mockk<DownloadProgressRepository>()
-        every { repository.readingAvailability(key) } returns flowOf(BookReadingAvailability(true, true, false, null))
+        every { repository.readingAvailability(key) } returns flowOf(BookReadingAvailability(true, true, false, null, onlineDirectory = true))
         every { repository.getBookInformationFlow(key, any()) } returns flow {
             release.await()
             emit(Err(WebRequestError("Information", "Unavailable")))

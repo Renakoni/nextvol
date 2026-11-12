@@ -449,7 +449,9 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
     private fun metadata(installed: InstalledSource, generation: Long, capabilities: RuleSourceCapabilities): SourceMetadata {
         val definition = installed.definition
         return SourceMetadata(WebDataSourceItem(id(definition), catalog.entry(definition)?.name ?: definition.displayName, "Imported source"), buildSet {
-            addAll(listOf(SourceCapability.BookInformation, SourceCapability.Directory, SourceCapability.ChapterContent, SourceCapability.Images))
+            addAll(listOf(SourceCapability.BookInformation, SourceCapability.Images))
+            if (capabilities.directory) add(SourceCapability.Directory)
+            if (capabilities.content) add(SourceCapability.ChapterContent)
             if (capabilities.search) add(SourceCapability.Search)
             if (capabilities.login) add(SourceCapability.Login)
             if (capabilities.feed) add(SourceCapability.Explore)
@@ -475,7 +477,8 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         val source = try { createRuleSource(definition, ticket, authority, session, runner, trace, discoveryEnabled = preferences.discoveryVisible) }
             catch (failure: Exception) { authority.revoke(ticket); broker.close(); throw failure }
         val metadata = metadata(installed, generation,
-            RuleSourceCapabilities(source.canSearch, source.canLogin, source.canFeed, source.canCategorize))
+            RuleSourceCapabilities(source.canSearch, source.canLogin, source.canFeed, source.canCategorize,
+                source.canReadDirectory, source.canReadContent))
         val recovery = verification?.let { RuleRequestRecovery(it,
             VerificationOwner(id, definition.contentDigest, generation), definition.displayName) }
         val pixivFilter = if (pixivBlocking.accepts(definition)) PixivBookFilter(session) else null

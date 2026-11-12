@@ -95,6 +95,21 @@ class MetadataDetailScreenTest {
         compose.onNodeWithText(activity.get().getString(R.string.detail_info_stats)).assertDoesNotExist()
     }
 
+    @Test fun directoryWithoutContentShowsChaptersWithoutOfferingReading() {
+        val state = readingState(0, LocalDateTime.of(1970, 1, 1, 0, 0)).apply {
+            readingAvailable = false
+            onlineDirectory = true
+            bookVolumes = Ok(BookVolumes("book", listOf(Volume("v", "Volume",
+                listOf(ChapterInformation("chapter", "Listed chapter"))))))
+        }
+        show(state)
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Listed chapter"))
+        compose.onNodeWithText("Listed chapter").assertIsDisplayed().assertIsNotEnabled()
+        compose.onNodeWithText(activity.get().getString(R.string.start_reading)).assertDoesNotExist()
+        compose.onNodeWithContentDescription("Export").assertDoesNotExist()
+    }
+
     @Test fun failedDirectoryIsVisibleAndCanRetryInsteadOfOfferingAnInertReadAction() {
         val key = SourceBookId(io.nightfish.lightnovelreader.api.identifier.Identifier("fixture", "a"), "book").storageKey
         val state = MutableDetailUiState().apply {

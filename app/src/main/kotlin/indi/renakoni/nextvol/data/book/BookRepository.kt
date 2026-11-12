@@ -62,8 +62,9 @@ internal fun WorkManager.observeSubmittedUniqueWork(name: String, operation: Ope
 }
 
 data class BookReadingAvailability(val online: Boolean, val local: Boolean, val metadataOnly: Boolean,
-    val generation: Long?) {
+    val generation: Long?, val onlineDirectory: Boolean) {
     val available get() = online || local
+    val directoryAvailable get() = onlineDirectory || local
 }
 
 @Singleton
@@ -88,20 +89,20 @@ class BookRepository @Inject constructor(
     fun readingAvailability(bookId: String): Flow<BookReadingAvailability> {
         val book = BookIdentity.book(bookId)
         if (LocalBookStore.isLocal(book)) return localBooks.observeAvailability(book)
-            .map { BookReadingAvailability(false, it, false, null) }.distinctUntilChanged()
+            .map { BookReadingAvailability(false, it, false, null, onlineDirectory = false) }.distinctUntilChanged()
         return sourceRegistry.sources.onStart { sourceRegistry.awaitSourceRegistration(book.sourceId) }.map { sources ->
             val entry = sources.find { it.metadata.id == book.sourceId }
             val capabilities = entry?.metadata?.capabilities.orEmpty()
-            val online = entry?.metadata?.supportsReading == true &&
-                entry?.status != indi.renakoni.nextvol.data.web.SourceStatus.Failed
+            val usable = entry != null && entry.status != indi.renakoni.nextvol.data.web.SourceStatus.Failed
+            val online = usable && entry?.metadata?.supportsReading == true
             BookReadingAvailability(online,
                 !online && localBookDataSource.getBookVolumes(book.storageKey)?.volumes?.any { it.chapters.isNotEmpty() } == true,
                 entry != null && indi.renakoni.nextvol.data.web.SourceCapability.Directory !in capabilities,
-                entry?.generation)
+                entry?.generation, onlineDirectory = usable && indi.renakoni.nextvol.data.web.SourceCapability.Directory in capabilities)
         }.onStart {
             if (sourceRegistry.restoration.value == indi.renakoni.nextvol.data.web.SourceRestoration.Restoring &&
                 localBookDataSource.getBookVolumes(book.storageKey)?.volumes?.any { it.chapters.isNotEmpty() } == true)
-                emit(BookReadingAvailability(false, true, false, null))
+                emit(BookReadingAvailability(false, true, false, null, onlineDirectory = false))
         }.distinctUntilChanged()
     }
 

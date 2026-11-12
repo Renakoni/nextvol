@@ -33,7 +33,7 @@ class SourceDefinitionEditsTest {
 
     @Test fun invalidDraftsCannotBecomeRevisions() {
         for (text in listOf("{", "[$raw]", raw.toString().replace("\"Original\"", "\"Original\",\"bookSourceName\":\"duplicate\""),
-                JsonObject(raw - "ruleContent").toString(), JsonObject(raw + ("ruleToc" to JsonObject(emptyMap()))).toString())) {
+                JsonObject(raw + ("ruleContent" to JsonPrimitive(false))).toString())) {
             assertTrue(runCatching { SourceDefinitionEdits.prepare(definition, text) }.exceptionOrNull() is SourceEditException)
         }
     }

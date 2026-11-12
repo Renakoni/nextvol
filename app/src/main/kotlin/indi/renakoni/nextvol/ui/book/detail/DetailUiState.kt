@@ -21,6 +21,8 @@ interface DetailUiState {
     val downloadItem: DownloadItem?
     val isInBookshelf: Boolean
     val readingAvailable: Boolean
+    val onlineDirectory: Boolean
+    val directoryAvailable get() = readingAvailable || onlineDirectory
     val canCache: Boolean
     val metadataOnly: Boolean
 }
@@ -33,6 +35,7 @@ class MutableDetailUiState: DetailUiState {
     override var downloadItem: DownloadItem? by mutableStateOf(null)
     override var isInBookshelf: Boolean by mutableStateOf(false)
     override var readingAvailable: Boolean by mutableStateOf(false)
+    override var onlineDirectory: Boolean by mutableStateOf(false)
     override var canCache: Boolean by mutableStateOf(false)
     override var metadataOnly: Boolean by mutableStateOf(false)
 }

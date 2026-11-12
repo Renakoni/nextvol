@@ -137,11 +137,6 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
                         throw RevisionException(RevisionError.PermissionRequired, sourcePermissionOrigin(base))
                     // Adapter construction checks structure; initialization runs only in the real isolated runner.
                     createRuleSource(definition, ticket, authority, session, runner).use {
-                        // BookInfo may reuse the name already extracted by search/discovery.
-                        for ((field, required) in mapOf("ruleToc" to "chapterList", "ruleContent" to "content")) {
-                            if (raw[field]?.jsonObject?.get(required)?.jsonPrimitive?.content.isNullOrBlank())
-                                throw RevisionException(RevisionError.InvalidCandidate)
-                        }
                         val limits = ExecutionLimits(timeoutMillis = 10000)
                         val task = ExecutionTask.Rule("@js:true", RuleValue.Empty, OutputKind.Text,
                             baseUrl = base, libraryCode = raw["jsLib"]?.jsonPrimitive?.content)
