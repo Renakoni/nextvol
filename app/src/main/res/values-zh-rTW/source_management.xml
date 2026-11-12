@@ -26,7 +26,6 @@
     <string name="sources_route_unavailable">所選網路路線不可用，請檢查網路後重試。</string>
     <string name="sources_advanced">進階選項</string>
     <string name="sources_origin_candidates_help">引用或遭攔截的網站僅作為候選。請逐一核對，加入草稿後儲存才會授權；不會顯示路徑或憑證資訊。</string>
-    <string name="sources_denied_origins">此書源遭攔截的請求</string>
     <string name="sources_denied_count">%1$d 項網站請求待核對</string>
     <string name="sources_origin_add">加入授權草稿</string>
     <string name="sources_origin_in_draft">已在授權草稿中</string>
