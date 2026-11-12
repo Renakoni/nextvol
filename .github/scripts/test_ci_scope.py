@@ -91,8 +91,7 @@ class ScopeTests(unittest.TestCase):
                      'data/book/BookRepository.kt', 'ui/book/detail/DetailViewModel.kt'):
             self.assertEqual(ci_scope.plan({'full'}), self.select(
                 MAIN + 'data/export/EpubShareFiles.kt', MAIN + path))
-        for relative in ('ui/export/NewShareTest.kt', 'data/download/BookDownloadTest.kt',
-                         'data/work/BookWorkIdentityTest.kt'):
+        for relative in ('ui/export/NewShareTest.kt', 'data/work/BookWorkIdentityTest.kt'):
             self.assertNotIn('-PciTestScope=', self.select(ci_scope.KOTLIN_ROOTS[1] + relative)['gradle-args'])
 
     def test_backup_production_and_legacy_resources_keep_their_consumers(self):
@@ -121,7 +120,7 @@ class ScopeTests(unittest.TestCase):
                      'ui/home/settings/SettingsViewModel.kt', 'ui/home/settings/Navigation.kt'):
             self.assertEqual(ci_scope.plan({'full'}), self.select(
                 MAIN + 'data/backup/BackupArchive.kt', MAIN + path))
-        for relative in ('data/local/SourceIdentityRoomTest.kt', 'data/localbook/LocalBookRelinkTest.kt'):
+        for relative in ('data/local/SourceIdentityRoomTest.kt', 'data/download/LegacyDownloadSchema.kt'):
             tests = self.select(ci_scope.KOTLIN_ROOTS[1] + relative)
             self.assertNotIn('-PciTestScope=', tests['gradle-args'])
             self.assertFalse(tests['device-24'])
@@ -144,8 +143,9 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(plan['minified'])
         mixed = self.select(MAIN + 'data/storage/StorageBookCleanup.kt',
                             ci_scope.KOTLIN_ROOTS[1] + 'data/download/BookDownloadTest.kt',
-                            ci_scope.KOTLIN_ROOTS[1] + 'data/localbook/LocalBookStoreTest.kt')
-        self.assertNotIn('-PciTestScope=', mixed['gradle-args'])
+                            ci_scope.KOTLIN_ROOTS[1] + 'data/localbook/LocalBookStoreTest.kt',
+                            ci_scope.KOTLIN_ROOTS[1] + 'ui/book/detail/DetailDirectoryPagingTest.kt')
+        self.assertIn('-PciTestScope=reader,storage', mixed['gradle-args'])
         self.assertEqual('storage', mixed['device-scopes'])
         self.assertFalse(mixed['device-35'])
 
@@ -343,6 +343,9 @@ class ScopeTests(unittest.TestCase):
         for path in (MAIN + 'ui/components/Cards.kt', MAIN + 'ui/navigation/Navigation.kt',
                      MAIN + 'ui/home/settings/list/ReadingSettingsList.kt',
                      MAIN + 'data/local/UserReadingDataRepository.kt',
+                     MAIN + 'data/download/BookDownloadStore.kt',
+                     MAIN + 'data/localbook/LocalBookStore.kt',
+                     MAIN + 'data/content/ContentJsonDecoder.kt',
                      MAIN + 'data/format/FormattingRuleProcessor.kt',
                      MAIN + 'data/logging/LoggerRepository.kt',
                      MAIN + 'ui/newfeature/NewScreen.kt',
@@ -378,13 +381,27 @@ class ScopeTests(unittest.TestCase):
             MAIN + 'ui/book/reader/ReaderScreen.kt')['scopes'])
 
     def test_jvm_only_inputs_keep_owner_and_integrity_without_release_or_devices(self):
-        for path, owner in ((MAIN.replace('/main/', '/test/') + 'TestSupport.kt', ':app:testDebugUnitTest'),
-                            ('app/src/test/resources/backups/README.md', ':app:testDebugUnitTest'),
-                            ('sources/network/src/test/kotlin/NetworkTest.kt', ':source-network:test')):
+        test_root = ci_scope.KOTLIN_ROOTS[1]
+        cases = [
+                (test_root + 'TestSupport.kt', ':app:testDebugUnitTest', None),
+                (test_root + 'data/content/ContentTestHost.kt', ':app:testDebugUnitTest', None),
+                ('app/src/test/resources/backups/README.md', ':app:testDebugUnitTest', 'backup'),
+                ('sources/network/src/test/kotlin/NetworkTest.kt', ':source-network:test', None)]
+        cases += [(test_root + relative, ':app:testDebugUnitTest', scope) for relative, scope in (
+            ('data/download/BookDownloadTest.kt', 'storage'),
+            ('data/localbook/TxtBookParserTest.kt', 'storage'),
+            ('ui/localbook/LocalBookRelinkUiTest.kt', 'storage'),
+            ('ui/book/download/BookDownloadScreenTest.kt', 'storage'),
+            ('data/content/ContentDecodingContractTest.kt', 'reader'),
+            ('data/format/FormatRepositoryTest.kt', 'reader'),
+            ('ui/book/detail/DetailDirectoryPagingTest.kt', 'reader'))]
+        for path, owner, scope in cases:
             with self.subTest(path=path):
                 plan = self.select(path)
                 self.assertIn(owner, plan['gradle-args'])
                 self.assertIn(':source-compatibility:test', plan['gradle-args'])
+                filters = [arg for arg in plan['gradle-args'].split() if arg.startswith('-PciTestScope=')]
+                self.assertEqual([] if scope is None else ['-PciTestScope=' + scope], filters)
                 self.assertFalse(plan['lint'])
                 for check in ('release', 'device-24', 'device-35', 'minified'):
                     self.assertFalse(plan[check])

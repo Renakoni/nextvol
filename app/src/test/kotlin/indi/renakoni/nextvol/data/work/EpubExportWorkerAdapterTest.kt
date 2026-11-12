@@ -28,14 +28,15 @@ import org.robolectric.annotation.Config
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [27, 34], application = Application::class)
+@Config(sdk = [34], application = Application::class)
 class EpubExportWorkerAdapterTest {
     private val context = RuntimeEnvironment.getApplication()
     private val book = SourceBookId(Identifier("fixture", "adapter"), "book")
     private val useCase = spyk(ExportBookToEpubUseCase(context, mockk(), mockk(), mockk(), mockk()))
     private val notifications = shadowOf(context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
 
-    @Test fun persistedKeysMapToTypedRequestAndCompletionIntentKeepsRequestId() = runTest {
+    @Test @Config(sdk = [27, 34])
+    fun persistedKeysMapToTypedRequestAndCompletionIntentKeepsRequestId() = runTest {
         val id = UUID.randomUUID()
         val selected = listOf("v2", "v1").map { BookIdentity.volumeKey(book, it) }
         val input = workDataOf("bookId" to book.storageKey, "title" to "Book", "exportType" to "VOLUMES",

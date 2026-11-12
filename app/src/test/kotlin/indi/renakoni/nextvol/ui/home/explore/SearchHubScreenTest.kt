@@ -94,10 +94,10 @@ class SearchHubScreenTest {
         compose.onNodeWithText("Find your next book").assertIsDisplayed()
     }
 
-    @Test fun oneOfAThousandSourcesCanBeFoundWithoutChangingTheBookQuery() {
-        state = SearchHubState(query = "A book", scope = SourceCategory.Adult, sources = List(1000) {
+    @Test fun findingAnOffscreenSourceClearsTheCategoryWithoutChangingTheBookQuery() {
+        state = SearchHubState(query = "A book", scope = SourceCategory.Adult, sources = List(24) {
             source.copy(id = Identifier("fixture", "$it"), name = "Source $it",
-                category = if (it == 999) null else source.category)
+                category = if (it == 23) null else source.category)
         })
         render()
         compose.onNodeWithTag("search_scope").performClick()
@@ -105,10 +105,10 @@ class SearchHubScreenTest {
         compose.onNodeWithText("One source").performClick()
         compose.onNodeWithTag("search_source_query").assertIsFocused()
         val fieldTop = compose.onNodeWithTag("search_source_query").fetchSemanticsNode().boundsInRoot.top
-        compose.onNodeWithTag("search_source_query").performTextInput("999")
+        compose.onNodeWithTag("search_source_query").performTextInput("23")
         assertEquals(fieldTop, compose.onNodeWithTag("search_source_query").fetchSemanticsNode().boundsInRoot.top)
-        compose.onNodeWithText("Source 999").assertIsDisplayed().performClick()
-        assertEquals(Identifier("fixture", "999"), state.selectedSource)
+        compose.onNodeWithText("Source 23").assertIsDisplayed().performClick()
+        assertEquals(Identifier("fixture", "23"), state.selectedSource)
         assertNull(state.scope)
         assertEquals("A book", state.query)
         assertNull(submitted)

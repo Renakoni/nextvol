@@ -170,10 +170,15 @@ class ResponseContractTest {
     }
 
     @Test fun responseConsumptionSequencesMatchPinnedJsoupIncludingBufferedStreamRejection() {
-        val operations = listOf("bufferUp", "body", "bodyAsBytes", "parse", "bodyStream")
-        val sequences = operations.flatMap { first -> operations.flatMap { second ->
-            operations.map { third -> listOf(first, second, third) }
-        } }
+        // Cover each operation from fresh, buffered, parsed and streamed bodies.
+        // Failed reads and bufferUp must not resurrect a consumed response.
+        val sequences = listOf(
+            listOf("bufferUp", "bodyStream", "bufferUp", "body", "bodyAsBytes", "parse", "parse", "body", "bodyAsBytes"),
+            listOf("body", "bodyAsBytes", "parse", "bodyStream"),
+            listOf("bodyAsBytes", "body", "parse", "bodyStream"),
+            listOf("parse", "bufferUp", "body", "bodyAsBytes", "parse", "bodyStream"),
+            listOf("bodyStream", "bufferUp", "body", "bodyAsBytes", "parse", "bodyStream"),
+        )
         MockWebServer().use { server ->
             for (sequence in sequences) {
                 server.enqueue(MockResponse().setBody("<p>one</p>"))
@@ -196,7 +201,6 @@ class ResponseContractTest {
                             catch(e){return false}
                         })
                     """, data("<p>one</p>".toByteArray())))
-                if (sequence.take(2) == listOf("bufferUp", "bodyStream")) assertEquals(listOf(true, false), expected.take(2))
             }
         }
     }

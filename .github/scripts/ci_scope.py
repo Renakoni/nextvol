@@ -123,6 +123,14 @@ def classify(path):
             if relative.startswith('ui/bookmanager/') or (root == KOTLIN_ROOTS[0] and
                     relative.startswith(('data/storage/', 'ui/storagemanager/'))):
                 return 'storage'
+            # Test-only owners already belong to these positive Gradle filters.
+            # Shared helpers (e.g. LegacyDownloadSchema/ContentTestHost) stay broad;
+            # production implementations still need their cross-feature consumers.
+            if root == KOTLIN_ROOTS[1] and relative.endswith('Test.kt'):
+                if relative.startswith(('data/download/', 'data/localbook/', 'ui/localbook/', 'ui/book/download/')):
+                    return 'storage'
+                if relative.startswith(('data/content/', 'data/format/', 'ui/book/detail/')):
+                    return 'reader'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
             if relative.startswith('ui/home/settings/textformatting/'):

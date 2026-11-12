@@ -117,9 +117,9 @@ failure/cancellation boundaries and retained reading records; `LocalBookStoreTes
 exercises metadata recovery before storage queries and clearing imported content.
 API 24 retains download persistence and local import without browser/TTS suites.
 Shared Room/DAO, BookIdentity, book repositories and reading-record core paths
-still widen coverage. Changes to shared JVM consumers such as `BookDownloadTest`
-or `LocalBookStoreTest` conservatively run the full App JVM suite; combined with
-storage production edits they retain storage-only devices, not all devices.
+still widen coverage. Changes limited to download/local-book test classes select
+the storage JVM group; adding them to storage production edits retains
+storage-only devices, not all devices.
 
 ### Source module consumers
 
@@ -211,6 +211,13 @@ feature scope where available); JVM modules select their complete owning test ta
 changes also select `:source-compatibility:test`, whose product-test file inputs
 invalidate its cache when a referenced class is deleted or moved.
 
+Test classes ending in `Test.kt` under `data/download`, `data/localbook`,
+`ui/localbook` and `ui/book/download` use the existing storage group. Those under
+`data/content`, `data/format` and `ui/book/detail` use reader; `DetailExportTest`
+keeps its export group. Helpers such as `LegacyDownloadSchema.kt` and
+`ContentTestHost.kt` still select the complete App suite because other packages
+consume them. Shared production code in these directories remains broad.
+
 App Android tests select their device scope plus compatibility integrity. The two
 known benchmark smoke classes select their minified check, which still assembles
 both the benchmark App and instrumentation APK. Other benchmark paths remain
@@ -245,6 +252,19 @@ starting another fixture for the same forward/backward assertions.
 Text-layout character invariants use seven representative boundary triples
 instead of the 108 width/height/spacing permutations. This reduces repeated work
 while deliberately giving up the second API's full position/spread run.
+External-file URI/Manifest compatibility still runs on SDK 27 and 35; name/MIME
+selection and file staging run once. Export Worker foreground service types and
+completion intents retain SDK 27 and 34, while request/error/cancellation logic
+runs once on 34. The listening-cover test follows both a book change and the
+audible chapter during buffering in one fixture.
+
+Response consumption compares five state-transition sequences with pinned Jsoup
+instead of all 125 operation triples; every operation is still exercised from
+fresh, buffered, parsed and streamed states. Search concurrency uses 17 sources
+(two batches of eight plus a tail), and source selection uses 24 offscreen-capable
+rows instead of 1000. These are behavioral checks, not large-corpus benchmarks.
+Large local-file imports, pagination limits, cookie expiry and process isolation
+retain the sizes or real deadlines needed to cross their regression boundaries.
 Source browsing tests retain cache eviction and cancellation boundaries without
 traversing 1000 sources. Catalogue tests retain 69-page pagination, 7501 JSON
 chapter objects crossing the worker boundary, and partial-directory recovery;
