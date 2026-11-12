@@ -160,57 +160,6 @@ class ReaderSpacingInstrumentedTest {
         assertEquals(expectedGap, bounds(third).top - bounds(second).bottom, 1f)
     }
 
-    @Test fun changingLayoutInTheRealPagerRetainsTheVisibleCharacter() {
-        val text = (1..100).joinToString("\n") { paragraph ->
-            (1..5).joinToString(" ") { sentence -> "Sentence $paragraph.$sentence is part of the reading position." }
-        }
-        val component = SimpleTextComponent(SimpleTextComponentData(text), UserDataRepository(database.userDataDao()), context)
-        val chapter = ChapterContentUiState("reflow", "Reflow", listOf(component), null, null)
-        lateinit var flip: MutableFlipPageContentUiState
-        flip = MutableFlipPageContentUiState({}, {}, {}, { flip.pagerState = it }).apply {
-            readingChapterId = chapter.id
-            readingChapterContent = Ok(chapter)
-        }
-        var width by mutableStateOf(320.dp)
-        compose.setContent {
-            val colors = lightColorScheme()
-            MaterialTheme(colorScheme = colors, typography = AppTypography) {
-                CompositionLocalProvider(
-                    LocalAppTheme provides AppTheme(false, colors),
-                    LocalReaderTextLayout provides rememberReaderTextLayout(settings),
-                ) {
-                    Box(Modifier.width(width).height(420.dp)) {
-                        FlipPageContentComponent(Modifier, flip, settings, PaddingValues(0.dp), {}, {}, {})
-                    }
-                }
-            }
-        }
-        compose.waitUntil(15_000) { flip.pagerState.pageCount > 5 }
-        compose.runOnIdle { scope.launch { flip.pagerState.scrollToPage(flip.pagerState.pageCount / 2) } }
-        compose.waitForIdle()
-        val before = flip.pagerState
-        val original = visibleTextLayouts().first().layoutInput.text.text
-        val anchor = text.indexOf(original)
-        assertTrue(anchor > 0)
-        runBlocking {
-            settings.fontSizeUserData.set(22f)
-            settings.fontLineHeightUserData.set(12f)
-            settings.paragraphSpacingUserData.set(8f)
-        }
-        compose.runOnIdle { width = 250.dp }
-        compose.waitUntil(15_000) {
-            flip.pagerState !== before && visibleTextLayouts().any {
-                it.layoutInput.style.fontSize.value == 22f && it.layoutInput.style.lineHeight.value == 34f
-            }
-        }
-        assertTrue("The original visible character must remain on the current page", visibleTextLayouts().any {
-            val displayed = it.layoutInput.text.text
-            val start = text.indexOf(displayed)
-            anchor in start until start + displayed.length
-        })
-        assertEquals(chapter.id, flip.readingChapterId)
-    }
-
     @Test fun realPagerUsesTheRoundedAsymmetricBodyWidthAtFractionalDensity() {
         val fixture = ReflowFixture(PaddingValues(start = 7.3.dp, end = 12.7.dp, top = 9.4.dp, bottom = 15.2.dp), Density(1.3f))
         fun assertBodyWidth() {

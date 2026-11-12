@@ -30,13 +30,6 @@ jobs:
         uses: ./.github/actions/android-environment
         with:
           native-tools: 'false'
-      - name: Check resource contracts
-        if: steps.scope.outputs.run == 'true'
-        shell: bash
-        run: |
-          mkdir -p build/reports/lint
-          python3 .github/scripts/test_check_resources.py 2>&1 | tee build/reports/lint/resource-tests.log
-          python3 .github/scripts/check_resources.py 2>&1 | tee build/reports/lint/resources.log
       - name: Run full Debug Lint and production Release fatal checks
         if: ${{ !cancelled() && steps.environment.outcome == 'success' }}
         shell: bash

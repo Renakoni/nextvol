@@ -273,8 +273,17 @@ class ReaderPositionInstrumentedTest {
                 listOf(280, 26, 12, 9), listOf(450, 18, 6, 16), listOf(320, 20, 0, 0),
             )) {
                 compose.runOnIdle { fixture.width = width.dp; fixture.padding = PaddingValues(padding.dp) }
-                runBlocking { settings.fontSizeUserData.set(font.toFloat()); settings.fontLineHeightUserData.set(spacing.toFloat()) }
-                compose.waitUntil(20_000) { textLayouts().any { it.layoutInput.style.fontSize.value == font.toFloat() } }
+                runBlocking {
+                    settings.fontSizeUserData.set(font.toFloat())
+                    settings.fontLineHeightUserData.set(spacing.toFloat())
+                    settings.paragraphSpacingUserData.set(spacing.toFloat())
+                }
+                compose.waitUntil(20_000) {
+                    settings.paragraphSpacing == spacing.toFloat() && textLayouts().any {
+                        it.layoutInput.style.fontSize.value == font.toFloat() &&
+                            it.layoutInput.style.lineHeight.value == (font + spacing).toFloat()
+                    }
+                }
                 fixture.awaitReady()
                 fixture.assertPosition(description = "flip=$flip width=$width font=$font spacing=$spacing padding=$padding")
             }

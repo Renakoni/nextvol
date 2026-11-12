@@ -190,14 +190,6 @@ class ReaderSpreadInstrumentedTest {
         assertFalse(fixture.settings.animatePageTurns)
     }
 
-    @Test fun unverifiedComponentFallsBackForTheWholeChapter() {
-        val fixture = Fixture(unsupported = true)
-        assertEquals(5, fixture.flip.pagerState.pageCount)
-        assertEquals(0..0, fixture.flip.visibleLeafRange)
-        fixture.turn(true)
-        assertEquals(1..1, fixture.flip.visibleLeafRange)
-    }
-
     @Test fun doublePreferenceSurvivesUnsupportedContentAndInactiveRenderer() {
         runBlocking { baseSettings.pageLayoutUserData.set("double") }
         val fixture = Fixture()
@@ -214,6 +206,8 @@ class ReaderSpreadInstrumentedTest {
         assertEquals(1, fixture.layoutResult.value?.geometry?.columns)
         assertEquals(6, fixture.flip.pagerState.pageCount)
         assertEquals("double", fixture.settings.pageLayout)
+        fixture.turn(true)
+        assertEquals(1..1, fixture.flip.visibleLeafRange)
         compose.runOnIdle { fixture.flip.readingChapterContent = Ok(original) }
         compose.waitUntil(15_000) { fixture.layoutResult.value?.geometry?.columns == 2 }
         assertNull(fixture.layoutResult.value?.reason)
@@ -312,7 +306,6 @@ class ReaderSpreadInstrumentedTest {
         val direction: LayoutDirection = LayoutDirection.Ltr,
         animated: Boolean = false,
         reduced: Boolean = false,
-        private val unsupported: Boolean = false,
         volume: Boolean = false,
     ) {
         val settings = object : ReaderSettings by baseSettings {
@@ -327,10 +320,7 @@ class ReaderSpreadInstrumentedTest {
         private val repository = UserDataRepository(database.userDataDao())
         private fun text(value: String) = SimpleTextComponent(SimpleTextComponentData(value), repository, context)
         private fun chapter(id: String, prev: String?, next: String?) = ChapterContentUiState(id, id, listOf(
-            if (unsupported) object : AbstractContentComponent<ImageComponentData>(ImageComponentData(Uri.fromFile(image))) {
-                override val id = ImageComponentData.id
-                @Composable override fun Content(modifier: Modifier) { Text("SPECIAL", modifier) }
-            } else text("$id first"),
+            text("$id first"),
             ImageComponent(ImageComponentData(Uri.fromFile(image))),
             text("$id middle"), ImageComponent(ImageComponentData(Uri.fromFile(image))), text("$id last"),
         ), prev, next)

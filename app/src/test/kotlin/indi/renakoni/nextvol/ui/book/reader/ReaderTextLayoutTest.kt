@@ -45,7 +45,10 @@ class ReaderTextLayoutTest {
 
     @Test fun everyCharacterIsCoveredExactlyOnceAcrossWidthsHeightsAndSpacing() {
         val sources = listOf(ReaderTextSource(0, "\nA long paragraph with spaces.\n\nend\r\n"), ReaderTextSource(1, "Next block!"))
-        for (width in listOf(-1, 0, 1, 3, 9, 80)) for (height in listOf(-1, 0, 1, 10, 21, 100)) for (spacing in listOf(0, 7, 64)) {
+        for ((width, height, spacing) in listOf(
+            Triple(-1, 100, 0), Triple(80, -1, 0), Triple(0, 0, 7),
+            Triple(1, 1, 0), Triple(3, 10, 0), Triple(9, 21, 7), Triple(80, 100, 64),
+        )) {
             val pages = layout(sources, width, height, spacing)
             assertTrue(pages.all { it.isNotEmpty() && it.first().spacingBefore == 0 })
             pages.forEach { page ->

@@ -279,7 +279,8 @@ tasks.withType<Test>().configureEach {
             "ui.home.MainNavigationTest", "data.web.rules.DiscoveryRoutingTest",
         ),
         "stats" to listOf("ui.home.reading.stats.*"),
-        "bangumi" to listOf("ui.bangumi.*"),
+        "bangumi" to listOf("ui.bangumi.*", "data.bangumi.*",
+            "defaultplugin.wenku8.BangumiSearchApiTest", "defaultplugin.wenku8.Wenku8SearchRecallTest"),
         "about" to listOf("ui.home.settings.SettingsHierarchyTest"),
         "logs" to listOf("ui.home.settings.SettingsHierarchyTest", "data.logging.LoggerRepositoryTest"),
     )
@@ -289,11 +290,13 @@ tasks.withType<Test>().configureEach {
         "ui.book.reader.*", "data.content.*", "data.web.rules.MixedSourceAcceptanceTest",
         "ui.book.detail.*", "data.book.ChapterReadStateTest",
         "ui.home.settings.SettingsHierarchyTest", "ui.tts.SpeechControlsTest",
+        "data.format.*", "ui.home.settings.textformatting.*",
     )
     val scopeTests = uiTests + mapOf(
         "ui" to uiTests.values.flatten(),
         "reader" to readerTests,
         "speech" to readerTests + listOf("tts.*", "ui.tts.*"),
+        "speech-ui" to readerTests + listOf("tts.*", "ui.tts.*"),
         "update" to listOf("data.update.*", "ui.home.settings.SettingsHierarchyTest"),
         "export" to listOf(
             "data.export.*", "data.work.EpubExportWorkerAdapterTest", "data.work.EpubExportRegressionTest",

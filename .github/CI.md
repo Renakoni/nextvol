@@ -35,15 +35,17 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 
 | Changed scope | JVM tasks | Debug devices | Minified runtime | Lint / Release APK |
 | --- | --- | --- | --- | --- |
-| Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens | Corresponding feature and reviewed consumers | Skip | Skip | Run |
+| Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens; `data/bangumi` | Corresponding feature and reviewed consumers | Skip | Skip | Run |
 | Discovery and categories UI | Discovery/categories, explore, navigation and discovery routing consumers | Skip | Source runtime smoke (uses categories/discovery) | Run |
-| Reader UI | Reader, content, directory/detail, settings/font and speech-control consumers | API 24 reader panel/layout/spacing; API 24 + 35 wide reader position/spread | Skip | Run |
-| Speech implementation/UI | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
+| Reader UI and text-formatting settings UI | Reader, content, directory/detail, formatting/settings/font and speech-control consumers | API 24 reader panel/layout/spacing; API 35 wide reader position/spread | Skip | Run |
+| Speech implementation (`tts`) | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
+| Speech UI (`ui/tts`) | App speech + reader tests | Skip | Read-aloud smoke | Run |
 | App updates: `data/update`, dedicated update settings and available-update dialog | App update tests and `SettingsHierarchyTest` | Skip | Skip | Run |
 | EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
 | Backup implementation, dedicated import/export dialogs and backup Workers | App backup, persistence and shared-file consumers | Skip | Skip | Run |
 | Storage queries/cleanup/ownership and dedicated book/storage management UI | App storage, downloads, local books and reading-record consumers | API 24 download persistence and local import | Skip | Run |
 | Source module Kotlin implementation and existing source-catalog JSON | Complete App JVM plus module consumers below | Existing full Debug device coverage; speech module retains reader/speech devices | Source runtime; add read-aloud when speech is affected | Run |
+| Only reviewed CI helpers/cache cleanup workflow | Python helper checks, without Gradle | Skip | Skip | Skip |
 | Shared/unknown code, resources, module inputs, dependencies, manifests, build or CI configuration | All existing JVM tasks | All existing selected classes | Both existing smoke tests | Run |
 | Only root / `.github/*.md` / `docs/**/*.md` documentation, the three existing Issue templates, or `.github/FUNDING.yml` | Skip | Skip | Skip | Skip |
 
@@ -58,6 +60,21 @@ The Issue template allowlist names `bug_report.yml`, `feature_request.yml`, and
 review before it can skip Android work. PR templates use the `.github/*.md` rule.
 Deleted documentation follows the same allowlist. A move into a source or fixture
 directory also includes its destination, which retains that input's checks.
+
+Bangumi data changes retain repository/network/account/migration tests, UI and
+the Wenku8 Bangumi search/recall consumers. Text-formatting settings use the reader
+group, including formatting tests. Shared `data/format`, `data/text`, `data/logging`
+and reading-statistics data remain broad because their consumers cross feature
+boundaries. Speech UI uses `speech-ui`: App speech/reader consumers and the
+minified read-aloud entry still run; changing `tts` implementation restores its
+source-speech and Debug device coverage through the normal union.
+
+The CI helper allowlist covers cache planning/retention/task-cache scripts, their
+existing Python regression entrypoints, resource contracts and the cache cleanup
+workflow. These run before Android setup in the JVM check. Selector implementation,
+actions, build/environment entrypoints and unknown scripts still select full
+checks. Resource contract tests and the actual resource scan run here once for
+full/helper scope; translation resources select full scope.
 
 The update scope includes source parsing, query/download failures and Android
 interaction through `data.update.*`, plus the update settings consumer in
@@ -87,7 +104,8 @@ download/local-file ownership, bookmark selection and Worker file handoff.
 dialogs/error message are allowed production entries. Shared external-file
 dispatch, settings/navigation, database schemas/DAOs and UserData remain broad.
 All `app/src/test/resources/backups/**` files, including README and legacy `.lnr`
-archives, are test inputs: they select backup consumers and Lint without Release.
+archives, are test inputs: they select backup consumers without production Lint
+or Release.
 No separate backup device group is introduced.
 
 Storage selects download and local-book JVM suites, book/download/local-book UI,
@@ -161,30 +179,34 @@ The Gradle property filters test execution, not compilation: App and test source
 still compile together. Release assembly and Lint remain necessary for production
 UI changes. Selection reduces unrelated work; it does not promise a fixed runtime.
 The JVM job always runs the lightweight selector regression tests, including
-documentation-only changes. Emulator/environment script checks run for full scope.
+documentation-only changes. Other helper checks run for full scope or reviewed
+CI-helper changes, even when no Android work is selected.
 
 ## JVM test coverage
 
 UI filters select `bookshelf`, `explore`, `catalog`, `stats`, `bangumi`, `about`
 (including licenses), or `logs`. Bookshelf also includes its home lifecycle test;
-catalog includes explore, MainNavigation and DiscoveryRouting tests; about/logs
+catalog includes explore, MainNavigation and DiscoveryRouting tests; Bangumi
+includes its data package and Wenku8 search consumers; about/logs
 retain SettingsHierarchy, with LoggerRepository for logs. The manual `ui` filter
 is the union of these feature sets. Shared components, navigation and theme inputs
 remain full, and new test packages without a matching group keep the App suite.
 
 Reader includes detail/directory consumers, chapter read-state persistence,
 SettingsHierarchy (the font-license entry) and SpeechControls (ReaderTopBar), as
-well as reader/content/mixed-source tests. Speech unions the reader set with
+well as reader/content/mixed-source and formatting tests. Speech unions that set with
 `tts.*` and `ui.tts.*`; its API 24 services and minified read-aloud smoke remain.
+Speech UI selects the same App union without source-speech or Debug devices.
 All feature and business sets use positive unions; none exclude another group's
 consumers. App tasks explicitly fail on no discovered tests or unmatched filters.
 
 ### Test-only inputs
 
 Production paths retain the policy above. Known test-only paths independently
-select their execution environments and keep Lint, without a production Release
-APK. App JVM tests/resources select the App owner (using a reviewed feature scope
-where available); JVM modules select their complete owning test task. Test code
+select their execution environments without production Lint or a Release APK.
+App Lint does not enable `checkTestSources`; these edits already compile and run
+their owning tests. App JVM tests/resources select the App owner (using a reviewed
+feature scope where available); JVM modules select their complete owning test task. Test code
 changes also select `:source-compatibility:test`, whose product-test file inputs
 invalidate its cache when a referenced class is deleted or moved.
 
@@ -212,6 +234,14 @@ empty-state variants are not all tested individually. Reader and speech suites,
 download recovery, backup transactions, and source isolation remain covered.
 
 Browser back tests use API 24 and 35 for the legacy and modern callback paths.
+The two stale-window ownership cases run on API 35 only: they do not exercise an
+API-specific back callback. Reader position and spread tests run once on API 35;
+API 24 retains real font/text/layout/spacing coverage. The redundant pager-reflow
+case is merged into the real ViewModel position test, including paragraph spacing;
+unsupported-content page navigation is part of the existing fallback/recovery
+case. Text-layout character invariants use seven representative boundary triples
+instead of the 108 width/height/spacing permutations. This reduces repeated work
+while deliberately giving up the second API's full position/spread run.
 Source browsing tests retain cache eviction and cancellation boundaries without
 traversing 1000 sources. Catalogue tests retain 69-page pagination, 7501 JSON
 chapter objects crossing the worker boundary, and partial-directory recovery;
@@ -423,8 +453,8 @@ source-policy comparison. See #721 for the complete experiment cost and evidence
 JVM tests, Lint, and Release assembly do not start an emulator. Device tests cover
 real Binder/isolated processes, WebView, Android UI, and service behavior that a
 host JVM cannot fully validate. API 24 retains minimum-version coverage. Full
-selection runs 17 normal-viewport classes on API 24 and 9 on API 35; both also run
-the two wide-viewport reader classes. `ci_scope.py` owns these class lists, and
+selection runs 18 normal-viewport classes on API 24 and 9 on API 35; API 35 also
+runs the two wide-viewport reader classes. `ci_scope.py` owns these class lists, and
 `connected-tests.sh` installs the prebuilt APKs only for selected nonempty suites.
 The Minified API 35 check runs only `MinifiedSourceRuntimeTest` and
 `ReadAloudSmokeTest` against a shrunk App; it does not repeat the Debug suite.
@@ -476,19 +506,19 @@ logs with instrumentation output and the job timeout/cancellation reason.
 
 ## Lint and translation coverage
 
-`Android Lint` runs the standard-library resource contract tests/checker and
+`Android Lint` runs
 `:app:lintDebug` plus `:app:lintVitalRelease` with the repository wrapper and JDK 22.
 APK jobs exclude Vital Lint to avoid duplicating this work alongside R8; local
 assembly defaults are unchanged. No emulator is required.
-Lint still runs after a resource-check failure to collect its diagnostics. Bash
-pipefail preserves failures while tee records output; neither step allows errors
-to become a successful check. HTML/XML/text reports and logs upload with
+Resource contracts run in the independent JVM workflow, so their failure does
+not prevent Lint from collecting diagnostics. Bash pipefail preserves the Gradle
+failure while tee records output. HTML/XML/text reports and logs upload with
 `if: always()`, including failing runs. Setup failures before analysis may leave
 no Lint report; the Actions step log remains the evidence in that case.
 
 | Scope | Coverage |
 | --- | --- |
-| App Debug | Full Android Lint, including main/Debug resources and the configured test source analysis |
+| App Debug | Full production Android Lint, including main/Debug resources; `checkTestSources` is not enabled |
 | App translations | Default/en, Simplified Chinese and Traditional Chinese; see [resource contracts](RESOURCE_CONTRACTS.md) |
 | `:api` | Dependency model/class information used by app analysis; no independent `:api:lintDebug` scan |
 | `:benchmark` | Android test module, exercised by the existing minified device job; not independently linted |
