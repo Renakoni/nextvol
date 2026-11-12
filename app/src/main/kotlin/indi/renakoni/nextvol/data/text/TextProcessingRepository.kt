@@ -49,13 +49,6 @@ class TextProcessingRepository @Inject constructor(
         }
     }
 
-    suspend fun coroutineProcessChapterContent(bookId: String, block: suspend () -> ChapterContent): ChapterContent = process(block.invoke()) { processor ->
-        {
-            processor.processChapterContent(bookId, it, ComponentProcessor(
-                componentDataRegistry.serializeMap, componentDataRegistry.dataKClassMap, it.content
-            ))
-        }
-    }
     fun processExploreBooksRow(exploreDisplayBook: ExploreDisplayBook): ExploreDisplayBook = process(exploreDisplayBook) { it::processExploreBooksRow }
 
     init {
