@@ -42,14 +42,35 @@ runs:
       run: |
         set -euo pipefail
         test -n "$ORT_INPUTS"
-        # The runner image fixes the host compiler used for protoc. Neither the
-        # application commit nor Matcha/JNI inputs change this runtime identity.
-        key="onnxruntime-linux-v1-${ImageOS:?}-${ImageVersion:?}-$ORT_INPUTS"
+        # Identify protoc's actual host tools instead of the whole runner image.
+        # Unrelated image updates must not rebuild the fixed Android runtime.
+        export LC_ALL=C
+        host_versions="$("${CC:-cc}" --version)"
+        host_versions+=$'\n'"$("${CXX:-c++}" --version)"
+        host_linker="$("${CXX:-c++}" -print-prog-name=ld)"
+        host_versions+=$'\n'"$("$host_linker" --version)"
+        host_tools="$(printf '%s\n' "$host_versions" | sha256sum | cut -d ' ' -f1)"
+        printf '%s\n' "$host_versions"
+        key="onnxruntime-linux-v2-${ImageOS:?}-$host_tools-$ORT_INPUTS"
+        echo "ONNX Runtime cache key: $key"
         echo "key=$key" >> "$GITHUB_OUTPUT"
         echo "ORG_GRADLE_PROJECT_matchaOrtCacheKey=$key" >> "$GITHUB_ENV"
     - name: Restore and save the source-built ONNX Runtime install
+      id: ort
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: app/build/matcha/onnxruntime/install
         # Exact inputs only. GitHub isolates PR writes from the shared main cache.
         key: ${{ steps.runtime.outputs.key }}
+    - name: Populate a missing shared ONNX Runtime install
+      if: github.ref == 'refs/heads/main' && steps.ort.outputs.cache-hit != 'true'
+      shell: bash
+      # Gradle can restore Matcha's final outputs without recreating ORT's install.
+      # Repair main's shared install even when that task will be FROM-CACHE.
+      run: |
+        python3 native/onnxruntime/build_android.py \
+          --ndk "$ORG_GRADLE_PROJECT_matchaNdk" \
+          --cmake "$ORG_GRADLE_PROJECT_matchaCmake" \
+          --ninja "$ORG_GRADLE_PROJECT_matchaNinja" \
+          --output app/build/matcha/onnxruntime --jobs 3 \
+          --cache-key "$ORG_GRADLE_PROJECT_matchaOrtCacheKey"

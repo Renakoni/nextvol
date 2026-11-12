@@ -302,7 +302,7 @@ keys together when upgrading. Automatic Gradle JDK/SDK provisioning is disabled.
 | --- | --- | --- |
 | Gradle (`setup-gradle`) | All build/test checks | Wrapper, dependencies, transforms, local build cache; only the serialized main warmer writes |
 | Variant task outputs | Release/Minified checks and signed releases | Separate Release/benchmark outputs; latest snapshot per ref and variant, saved after a successful APK build |
-| ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref and runner image |
+| ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref and host toolchain |
 | Embedded offline SDK | APK builds and signed releases | ZIP pinned by URL/SHA-256; main writes one shared archive, PRs only restore |
 | SDK | All checks | Platform, Build Tools, adb; main publishes one shared version |
 | Emulator + one API image | Device checks only | Main publishes separate API 24 and API 35 entries |
@@ -382,25 +382,30 @@ Misses, failed prewarming, or cancellation leave
 ordinary PR checks able to build normally using Gradle's input validation.
 
 The independent ONNX Runtime cache uses the vendored sources, source inventories,
-build scripts/profile, pinned toolchain action and Ubuntu runner image revision.
-Kotlin, Matcha/JNI, PR commit IDs and native README/validation notes are not inputs.
+build scripts/profile, pinned toolchain action, Ubuntu OS series and the actual
+host C/C++ compiler and linker version banners. The Android NDK, CMake and Ninja
+remain pinned. The runner image revision is not an input: image updates with the
+same build tools reuse the same install. Kotlin, Matcha/JNI, PR commit IDs and
+native README/validation notes are not inputs.
 Only `app/build/matcha/onnxruntime/install` is archived, never CMake object trees.
 The builder verifies the source inventory and every exported file's hash before
 skipping protoc and ORT compilation; missing, stale or damaged exports rebuild.
 Successful PR jobs can publish this small cache within their own merge ref, while
-main publishes entries available to other PRs. The Debug, Release and minified
+main publishes entries available to other PRs. On main, a missing install is
+built before Gradle runs, so a Matcha task output hit cannot leave the independent
+shared ORT cache missing. The Debug, Release and minified
 APK builders can still build independently on their first simultaneous miss.
 Cache hits remove the repeated
 ORT compilation, not the existing checks or Matcha build. Main/PR retention keeps
-the newest ORT input entry for each ref and runner image (the key prefix before
-the input digest). GitHub rolls out runner images gradually, so several image
-versions may still be serving jobs simultaneously. Their exact-key installs are
-not interchangeable: keeping only one entry per ref deleted still-needed main
-caches and forced each PR to compile ORT again. Each compressed install is about
-4.5 MiB. Inactive image entries expire through GitHub's seven-day unused-cache
-policy; closed-PR cleanup still removes all entries for that PR. Main's different
-input key never replaces a PR's entry. A genuinely new runner image still needs
-its first build; the daily main warmer makes that install available to other PRs.
+the newest ORT input entry for each ref and toolchain prefix (before the input
+digest), including legacy v1 image keys while older branches still use them.
+Different toolchains must not evict each other's exact-key installs during a
+rollout. Each compressed install is about 4.5 MiB. Inactive entries expire through
+GitHub's seven-day unused-cache policy; closed-PR cleanup still removes all
+entries for that PR. Main's different input key never replaces a PR's entry.
+The v2 key requires an initial build; after main publishes it, PRs with the same
+inputs can reuse it across runner image revisions. Source/toolchain changes,
+eviction or damaged exports can still require rebuilding.
 
 The embedded SDK uses a separate cache containing only its compressed ZIP. APK
 jobs verify the pinned SHA-256, extract and validate the libraries, then supply
