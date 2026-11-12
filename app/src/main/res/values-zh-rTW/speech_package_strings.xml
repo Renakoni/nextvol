@@ -3,6 +3,9 @@
     <string name="tts_package_http_request_unsupported">請求標頭設定格式不正確。</string>
     <string name="tts_package_http_parameters_required">發音人參數或擴充控制項設定格式不正確。</string>
     <string name="tts_package_preview">語音包預覽</string>
+    <string name="tts_package_import">匯入</string>
+    <string name="tts_package_voices">聲音 · %1$d</string>
+    <string name="tts_package_show_all">查看全部</string>
     <string name="tts_package_reading">正在讀取語音包…</string>
     <string name="tts_package_unknown">暫未識別此套件類型</string>
     <string name="tts_package_counts">引擎 %1$d · 聲音 %2$d · 資源檔案 %3$d</string>
@@ -15,9 +18,7 @@
     <string name="tts_package_resource_missing">未包含模型資源：%1$s</string>
     <string name="tts_package_unnamed_voice">未命名聲音</string>
     <string name="tts_package_collapse">收起</string>
-    <string name="tts_package_show_voices">查看全部 %1$d 個聲音</string>
     <string name="tts_package_show_resource_refs">查看全部 %1$d 項模型引用</string>
-    <string name="tts_package_show_resources">查看全部 %1$d 個資源檔案</string>
     <string name="tts_package_documents">設定檔案</string>
     <string name="tts_package_resources">套件內資源</string>
     <string name="tts_package_missing_engine">缺少對應的引擎定義。</string>
