@@ -171,7 +171,7 @@ class BuiltInSpeechSourcesTest {
 
     @Test fun freshInstallLoadsTheCompleteCatalogWithoutWriting() = runBlocking {
         val initial = repository().sources()
-        assertEquals(96, initial.size)
+        assertEquals(95, initial.size)
         assertTrue(initial.all { it.isConfigured })
         assertEquals(26, initial.count { it.definition.usesMicrosoftTranslator })
         assertTrue(initial.all { it.isBuiltIn && it.origins.isNotEmpty() && it.origins.all { origin -> sourceOrigin(origin) == origin } })
@@ -230,11 +230,11 @@ class BuiltInSpeechSourcesTest {
         val restored = repository().sources().single { !it.isBuiltIn }
         assertEquals(imported.definition.raw, restored.definition.raw)
         assertEquals(imported.origins, restored.origins)
-        assertEquals(97, repository.sources().size)
+        assertEquals(96, repository.sources().size)
         try { repository.save(listOf(repository.sources().first())); fail("Built-in IDs must be reserved") }
         catch (_: IllegalArgumentException) { }
         repository.delete(source.id)
-        assertEquals(96, repository.sources().size)
+        assertEquals(95, repository.sources().size)
     }
 
     @Test fun refreshedPackageKeepsEditedSpeakerIdentityAndDoesNotOverwriteIndependentCopies() = runBlocking {

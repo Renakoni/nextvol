@@ -3,6 +3,12 @@
     <string name="tts_package_http_request_unsupported">请求头配置格式不正确。</string>
     <string name="tts_package_http_parameters_required">发音人参数或扩展控件配置格式不正确。</string>
     <string name="tts_package_preview">语音包预览</string>
+    <string name="tts_package_import">导入</string>
+    <string name="tts_package_import_failed">导入失败</string>
+    <string name="tts_package_engine_save_failed">未能保存引擎配置，请重试。</string>
+    <string name="tts_package_error_dismiss">知道了</string>
+    <string name="tts_package_voices">声音 · %1$d</string>
+    <string name="tts_package_show_all">查看全部</string>
     <string name="tts_package_reading">正在读取语音包…</string>
     <string name="tts_package_unknown">暂未识别此包类型</string>
     <string name="tts_package_counts">引擎 %1$d · 声音 %2$d · 资源文件 %3$d</string>
@@ -15,9 +21,7 @@
     <string name="tts_package_resource_missing">未包含模型资源：%1$s</string>
     <string name="tts_package_unnamed_voice">未命名声音</string>
     <string name="tts_package_collapse">收起</string>
-    <string name="tts_package_show_voices">查看全部 %1$d 个声音</string>
     <string name="tts_package_show_resource_refs">查看全部 %1$d 项模型引用</string>
-    <string name="tts_package_show_resources">查看全部 %1$d 个资源文件</string>
     <string name="tts_package_documents">配置文件</string>
     <string name="tts_package_resources">包内资源</string>
     <string name="tts_package_missing_engine">缺少对应的引擎定义。</string>

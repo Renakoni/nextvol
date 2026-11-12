@@ -81,11 +81,11 @@ JVM tests cover import boundaries, template/data separation, request cancellatio
 
 ## Bundled Android catalog
 
-Android loads `app/src/main/assets/speech/builtin-voices.json` on every repository instance. The 96 fixed entries remain available without an import file, after reopening, and after app-data reset. Namespaced IDs keep existing imported definitions and selections separate. Speaker metadata and enabled state can be overridden, and voices can be copied; built-in entries cannot be deleted. Copies keep the approved origins.
+Android loads `app/src/main/assets/speech/builtin-voices.json` on every repository instance. The 95 fixed entries remain available without an import file, after reopening, and after app-data reset. Namespaced IDs keep existing imported definitions and selections separate. Speaker metadata and enabled state can be overridden, and voices can be copied; built-in entries cannot be deleted. Copies keep the approved origins.
 
 Imported MultiTTS speakers retain their `param` and `extendUI`. Candidate controls feed JSON-encoded values into the request template's `params` array without executing during import or editing. Reimport retains stable speaker IDs and local overrides. Auditions remain in the voice list and use saved settings through the existing authorization and worker path. Shared audio effects remain the responsibility of #814.
 
-The catalog covers the previously exercised Baidu, AISpeech, Volcengine, Microsoft Translator, Shipook and iFlytek-compatible recipes. Qidian proxy voices and Aliyun are not bundled.
+The catalog covers the previously exercised Baidu, AISpeech, Volcengine, Microsoft Translator and Shipook recipes. Qidian proxy voices and Aliyun are not bundled.
 
 Only exact audited service origins are granted. Microsoft regional grants remain confined to its existing adapter. Bundled client-protocol constants are distinct from user account keys. The original account-dependent login UI, broken dynamic endpoints and unsupported selectors are not bundled as working voices. Public-service availability remains independent of catalog persistence; bundled online voices still require a working network and service.
 

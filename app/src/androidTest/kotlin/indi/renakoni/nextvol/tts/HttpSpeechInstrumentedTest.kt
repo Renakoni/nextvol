@@ -201,7 +201,7 @@ class HttpSpeechInstrumentedTest {
             assertFalse(authority.accepts(oldTicket))
             reopened.withSource(source.id) { _, runtime -> assertFalse(runtime.exists()) }
             reopened.delete(source.id)
-            assertEquals(96, reopened.sources().size)
+            assertEquals(95, reopened.sources().size)
             assertTrue(reopened.sources().all { it.isBuiltIn })
             assertNull(reopened.withSource(source.id) { _, _ -> error("Deleted source cannot reopen") })
         } finally { directory.deleteRecursively() }

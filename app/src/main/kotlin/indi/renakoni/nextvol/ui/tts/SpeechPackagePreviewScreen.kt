@@ -2,15 +2,22 @@ package indi.renakoni.nextvol.ui.tts
 
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -24,9 +31,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import hnovel.speech.SpeechPackageError
 import hnovel.speech.SpeechPackageKind
@@ -40,7 +49,6 @@ import hnovel.speech.OfflinePackagePlan
 import hnovel.speech.MatchaPackageError
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
-import indi.renakoni.nextvol.ui.components.SectionHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,27 +63,65 @@ fun SpeechPackagePreviewScreen(
     onCancelInstall: () -> Unit = {},
     onImportConfiguration: (Boolean) -> Unit = {},
     onImportOfflineConfiguration: (InstalledOfflineVoice) -> Unit = {},
+    onDismissEngineImportError: () -> Unit = {},
 ) {
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var importMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    val imports = preview?.engines.orEmpty().mapIndexedNotNull { index, engine ->
+        val http = httpImports[index]
+        val configuration = if (http?.sources?.isEmpty() == true) http.engine
+            else if (engine.voices.isEmpty()) offline.offlineEngineImports[index] else null
+        val action: (() -> Unit)? = when {
+            onImport != null && !http?.sources.isNullOrEmpty() -> { { onImport(http.sources) } }
+            onImportEngine != null && configuration != null -> { { onImportEngine(configuration) } }
+            else -> null
+        }
+        action?.let { engine to it }
+    }
     val context = LocalContext.current
-    Scaffold(topBar = { SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_package_preview, onBack) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("speech-package-preview"),
+    Scaffold(topBar = {
+        SpeechSettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_package_preview, onBack) {
+            if (imports.isNotEmpty()) Box {
+                TextButton(onClick = {
+                    if (imports.size == 1) imports.single().second() else importMenuExpanded = true
+                }, enabled = !offline.installing) {
+                    Text(stringResource(R.string.tts_package_import))
+                }
+                DropdownMenu(expanded = importMenuExpanded, onDismissRequest = { importMenuExpanded = false }) {
+                    imports.forEach { (engine, action) ->
+                        DropdownMenuItem(text = {
+                            Column {
+                                Text(engine.name.take(256), style = MaterialTheme.typography.bodyLarge)
+                                Text(engine.code.take(256), style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }, enabled = !offline.installing, onClick = {
+                            importMenuExpanded = false
+                            action()
+                        })
+                    }
+                }
+            }
+        }
+    }) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(vertical = 16.dp)) {
             item(key = "summary") {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (preview == null) {
                         Text(stringResource(R.string.tts_package_reading), style = MaterialTheme.typography.headlineSmall)
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                     } else {
-                        if (preview.name.isNotEmpty()) Text(preview.name, style = MaterialTheme.typography.headlineSmall)
+                        if (preview.name.isNotEmpty()) Text(preview.name, style = MaterialTheme.typography.displayMedium)
                         preview.error?.let { error ->
                             Text(stringResource(error.messageResource), color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyMedium)
                         } ?: run {
                             if (preview.kinds == setOf(SpeechPackageKind.Unknown)) Text(stringResource(R.string.tts_package_unknown))
                             Text(stringResource(R.string.tts_package_counts, preview.engines.size,
-                                preview.engines.sumOf { it.voices.size }, preview.resources.size), style = MaterialTheme.typography.bodyMedium)
+                                preview.engines.sumOf { it.voices.size }, preview.resources.size), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -84,11 +130,13 @@ fun SpeechPackagePreviewScreen(
             preview?.engines?.forEachIndexed { engineIndex, engine ->
                 val httpImport = httpImports[engineIndex]
                 item(key = "engine:$engineIndex") {
+                    HorizontalDivider(Modifier.padding(horizontal = 24.dp, vertical = 16.dp))
                     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(engine.name.take(256), style = MaterialTheme.typography.titleLarge)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(engine.name.take(256), style = MaterialTheme.typography.displaySmall)
                         Text(stringResource(R.string.tts_package_engine_info, engine.code.take(256),
-                            engine.type?.take(64) ?: stringResource(R.string.tts_package_undeclared)), style = MaterialTheme.typography.bodyMedium)
+                            engine.type?.take(64) ?: stringResource(R.string.tts_package_undeclared)), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         val localVoices = offline.offlineImports.filterKeys { it.first == engineIndex }.values
                         val configurationUpdates = offline.offlineConfigurations.filterKeys { it.first == engineIndex }
                         val hasOffline = localVoices.any { it.plan != null } || configurationUpdates.isNotEmpty()
@@ -108,41 +156,32 @@ fun SpeechPackagePreviewScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         httpImport?.error?.let { error -> Text(stringResource(error.messageResource), style = MaterialTheme.typography.bodyMedium) }
-                        if (httpImport?.error == null && httpImport?.sources?.isEmpty() == true && onImportEngine != null) {
-                            httpImport.engine?.let { configuration ->
-                                FilledTonalButton(onClick = { onImportEngine(configuration) }, enabled = !offline.installing,
-                                    modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.tts_import_sources)) }
-                            }
-                        }
-                        if (engine.voices.isEmpty() && onImportEngine != null) offline.offlineEngineImports[engineIndex]?.let { configuration ->
-                            FilledTonalButton(onClick = { onImportEngine(configuration) }, enabled = !offline.installing) {
-                                Text(stringResource(R.string.tts_import_sources))
-                            }
-                        }
-                        if (onImport != null && !httpImport?.sources.isNullOrEmpty()) {
-                            FilledTonalButton(onClick = { onImport(httpImport.sources) }, enabled = !offline.installing, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(R.string.tts_import_sources))
-                            }
-                        }
                     }
                 }
                 items(if ("refs:$engineIndex" in expanded) engine.requiredResources else engine.requiredResources.take(5),
                     key = { "ref:$engineIndex:${it.path}" }) { resource ->
                     Text(stringResource(if (resource.present) R.string.tts_package_resource_present else R.string.tts_package_resource_missing,
-                        resource.path.take(1024)), Modifier.padding(horizontal = 38.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+                        resource.path.take(1024)), Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
                 }
                 if (engine.requiredResources.size > 5) item(key = "more-refs:$engineIndex") {
                     TextButton(onClick = { expanded = if ("refs:$engineIndex" in expanded) expanded - "refs:$engineIndex" else expanded + "refs:$engineIndex" },
-                        modifier = Modifier.padding(horizontal = 26.dp)) {
+                        modifier = Modifier.padding(horizontal = 12.dp)) {
                         Text(if ("refs:$engineIndex" in expanded) stringResource(R.string.tts_package_collapse)
                             else stringResource(R.string.tts_package_show_resource_refs, engine.requiredResources.size))
                     }
                 }
+                if (engine.voices.isNotEmpty()) item(key = "voices-title:$engineIndex") {
+                    PackageSectionHeader(stringResource(R.string.tts_package_voices, engine.voices.size),
+                        expanded = "voices:$engineIndex" in expanded,
+                        onToggle = if (engine.voices.size > 5) ({
+                            expanded = if ("voices:$engineIndex" in expanded) expanded - "voices:$engineIndex" else expanded + "voices:$engineIndex"
+                        }) else null)
+                }
                 itemsIndexed(if ("voices:$engineIndex" in expanded) engine.voices else engine.voices.take(5),
                     key = { index, _ -> "voice:$engineIndex:$index" }) { voiceIndex, voice ->
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(voice.name.take(256).ifEmpty { stringResource(R.string.tts_package_unnamed_voice) }, style = MaterialTheme.typography.titleMedium)
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(voice.name.take(256).ifEmpty { stringResource(R.string.tts_package_unnamed_voice) }, style = MaterialTheme.typography.bodyLarge)
                         if (voice.code.isNotEmpty()) Text(voice.code.take(256), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         offline.offlineImports[engineIndex to voiceIndex]?.let { local ->
@@ -191,40 +230,55 @@ fun SpeechPackagePreviewScreen(
                         }
                     }
                 }
-                if (engine.voices.size > 5) item(key = "more:$engineIndex") {
-                    TextButton(onClick = { expanded = if ("voices:$engineIndex" in expanded) expanded - "voices:$engineIndex" else expanded + "voices:$engineIndex" },
-                        modifier = Modifier.padding(horizontal = 26.dp)) {
-                        Text(if ("voices:$engineIndex" in expanded) stringResource(R.string.tts_package_collapse)
-                            else stringResource(R.string.tts_package_show_voices, engine.voices.size))
-                    }
-                }
             }
             if (!preview?.documents.isNullOrEmpty()) {
                 item(key = "documents-title") {
-                    SectionHeader(Modifier.padding(horizontal = 24.dp, vertical = 10.dp), stringResource(R.string.tts_package_documents))
+                    HorizontalDivider(Modifier.padding(horizontal = 24.dp).padding(top = 24.dp, bottom = 8.dp))
+                    PackageSectionHeader(stringResource(R.string.tts_package_documents))
                 }
                 items(preview.documents, key = { "document:${it.path}" }) { document ->
-                    Text(document.path, Modifier.padding(horizontal = 38.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                    Text(document.path, Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium)
                 }
             }
             if (!preview?.resources.isNullOrEmpty()) {
                 item(key = "resources-title") {
-                    SectionHeader(Modifier.padding(horizontal = 24.dp, vertical = 10.dp), stringResource(R.string.tts_package_resources))
+                    HorizontalDivider(Modifier.padding(horizontal = 24.dp).padding(top = 24.dp, bottom = 8.dp))
+                    PackageSectionHeader(stringResource(R.string.tts_package_resources), expanded = "resources" in expanded,
+                        onToggle = if (preview.resources.size > 8) ({
+                            expanded = if ("resources" in expanded) expanded - "resources" else expanded + "resources"
+                        }) else null)
                 }
                 itemsIndexed(if ("resources" in expanded) preview.resources else preview.resources.take(8), key = { index, _ -> "resource:$index" }) { _, resource ->
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 38.dp, vertical = 8.dp)) {
-                        Text(resource.path.take(1024), style = MaterialTheme.typography.bodyMedium)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(resource.path.take(1024), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         Text(Formatter.formatShortFileSize(context, resource.bytes), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                if (preview.resources.size > 8) item(key = "more-resources") {
-                    TextButton(onClick = { expanded = if ("resources" in expanded) expanded - "resources" else expanded + "resources" },
-                        modifier = Modifier.padding(horizontal = 26.dp)) {
-                        Text(if ("resources" in expanded) stringResource(R.string.tts_package_collapse)
-                            else stringResource(R.string.tts_package_show_resources, preview.resources.size))
-                    }
-                }
+            }
+        }
+    }
+    if (offline.engineImportFailed) AlertDialog(
+        onDismissRequest = onDismissEngineImportError,
+        title = { Text(stringResource(R.string.tts_package_import_failed), style = MaterialTheme.typography.displayMedium) },
+        text = { Text(stringResource(R.string.tts_package_engine_save_failed), style = MaterialTheme.typography.bodyMedium) },
+        confirmButton = {
+            TextButton(onClick = onDismissEngineImportError) { Text(stringResource(R.string.tts_package_error_dismiss)) }
+        },
+    )
+}
+
+@Composable
+private fun PackageSectionHeader(title: String, expanded: Boolean = false, onToggle: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp).heightIn(min = 48.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (onToggle != null) {
+            val actionLabel = stringResource(if (expanded) R.string.tts_package_collapse else R.string.tts_package_show_all)
+            TextButton(onClick = onToggle, modifier = Modifier.semantics { contentDescription = "$title, $actionLabel" }) {
+                Text(actionLabel)
             }
         }
     }
