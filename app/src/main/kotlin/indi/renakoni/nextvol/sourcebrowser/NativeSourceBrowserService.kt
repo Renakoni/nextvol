@@ -439,6 +439,7 @@ class NativeSourceBrowserService : Service() {
                     }
                     val challenge = result?.get("challenge")?.takeUnless { it == JsonNull }?.jsonPrimitive?.content ?: httpChallenge?.name
                     if (challenge != null) {
+                        trace("Challenge kind=$challenge interactive=${job.options.interactive}")
                         if (deferChallenge) completeText(result!!.getValue("value").jsonPrimitive.content,
                             result.getValue("url").jsonPrimitive.content,
                             if (httpChallenge == BrowserChallengeKind.Cloudflare) mapOf("cf-mitigated" to listOf("challenge")) else emptyMap())

@@ -18,7 +18,7 @@ enum class ContentError { Unavailable, LoginRequired, MissingCapability, Browser
     RouteUnavailable, RouteUnsupported, Certificate }
 
 /** Same interpretation for direct requests and host-denied script requests. No URL crosses this boundary. */
-internal fun hnovel.network.FailureCode.contentError(): ContentError = when (this) {
+fun hnovel.network.FailureCode.contentError(): ContentError = when (this) {
     hnovel.network.FailureCode.OriginDenied -> ContentError.PermissionDenied
     hnovel.network.FailureCode.AddressDenied -> ContentError.AddressDenied
     hnovel.network.FailureCode.Dns -> ContentError.Dns
@@ -33,7 +33,7 @@ internal fun hnovel.network.FailureCode.contentError(): ContentError = when (thi
 }
 
 /** Recovery is a host-owned action, never a script-provided URL or authority claim. */
-class SourceVerification internal constructor(val kind: hnovel.network.BrowserChallengeKind?,
+class SourceVerification(val kind: hnovel.network.BrowserChallengeKind?,
     val certificate: hnovel.network.CertificateProblem? = null,
     /** Exact HTTP origin; an unknown origin cannot share another request's verification. */
     val origin: String? = null,

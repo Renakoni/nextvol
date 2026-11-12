@@ -6,8 +6,10 @@ import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.coroutines.coroutineBinding
 import com.github.michaelbull.result.get
 import com.github.michaelbull.result.getOrElse
+import com.github.michaelbull.result.mapError
 import indi.renakoni.nextvol.defaultplugin.wenku8.Wenku8Api
 import indi.renakoni.nextvol.data.book.UNKNOWN_BOOK_UPDATE_TIME
+import indi.renakoni.nextvol.data.web.requestErrorKind
 import hnovel.content.parseBookUpdateTime
 import hnovel.content.parseBookWordCount
 import indi.renakoni.nextvol.data.explore.SearchPage
@@ -28,7 +30,7 @@ import io.nightfish.lightnovelreader.api.content.builder.ContentBuilder
 import io.nightfish.lightnovelreader.api.content.builder.image
 import io.nightfish.lightnovelreader.api.content.builder.simpleText
 import io.nightfish.lightnovelreader.api.error.WebRequestError
-import io.nightfish.lightnovelreader.api.error.mapAsWebRequestError
+import io.nightfish.lightnovelreader.api.error.WebRequestErrorKind
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.search.SearchResult
 import kotlinx.coroutines.Dispatchers
@@ -53,9 +55,15 @@ class Wenku8WebsiteDataSource(
     private val titleRegex = Regex("(.*) ?[(（](.*)[)）] ?$")
     private fun url(string: String) = "$host/$string"
 
+    private fun <T> Result<T, Throwable>.requestError() = mapError { failure ->
+        val content = failure as? hnovel.content.SourceContentException
+        val kind = content?.requestErrorKind() ?: WebRequestErrorKind.Other
+        WebRequestError("网络请求失败", "网络请求时出现了错误", failure, kind)
+    }
+
     override suspend fun getBookInformation(id: String): Result<BookInformation, WebRequestError> = coroutineBinding {
         val soup = wenku8Api.getWithWenku8Cookie(url("book/$id.htm"))
-            .mapAsWebRequestError("网络请求失败", "网络请求时出现了错误")
+            .requestError()
             .bind()
         val titleGroup = soup
             .selectFirstXpath("//*[@id=\"content\"]/div[1]/table[1]/tbody/tr[1]/td/table/tbody/tr/td[1]/span/b")
@@ -125,7 +133,7 @@ class Wenku8WebsiteDataSource(
 
     override suspend fun getBookVolumes(id: String): Result<BookVolumes, WebRequestError> = coroutineBinding {
         val soup = wenku8Api.getWithWenku8Cookie(url("novel/${id.toInt() / 1000}/$id/index.htm"))
-            .mapAsWebRequestError("网络请求失败", "网络请求时出现了错误")
+            .requestError()
             .bind()
         val trs = soup.selectXpath("/html/body/table/tbody/tr")
         val volumes = mutableListOf<Volume>()
@@ -163,7 +171,7 @@ class Wenku8WebsiteDataSource(
         bookId: String
     ): Result<ChapterContent, WebRequestError> = coroutineBinding {
         val soup = wenku8Api.getWithWenku8Cookie(url("novel/${bookId.toInt() / 1000}/$bookId/$chapterId.htm"))
-            .mapAsWebRequestError("网络请求失败", "网络请求时出现了错误")
+            .requestError()
             .bind()
         val title = soup.selectFirstXpath("//*[@id=\"title\"]")?.text() ?: Err(WebRequestError("解析错误", "无法解析该章节的标题(id=$chapterId)")).bind()
         if (soup.text().contains("因版权问题")) Err(WebRequestError("版权错误", "由于「$title」为Wenku8上具有版权文件的书籍的章节, 我们无法提供其数据")).bind()

@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.defaultplugin.wenku8.explore
 
+import indi.renakoni.nextvol.data.web.discoveryError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -136,6 +137,8 @@ class Wenku8Discovery(private val host: String, private val fetch: suspend (Stri
         throw cancelled
     } catch (_: Wenku8RouteUnavailableException) {
         Err(DiscoveryError.RouteUnavailable)
+    } catch (failure: hnovel.content.SourceContentException) {
+        Err(failure.discoveryError())
     } catch (_: Exception) {
         Err(DiscoveryError.Network)
     }

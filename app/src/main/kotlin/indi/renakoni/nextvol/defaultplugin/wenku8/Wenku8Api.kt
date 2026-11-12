@@ -68,7 +68,6 @@ import kotlinx.io.EOFException
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.jsoup.Jsoup
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import org.jsoup.select.Elements
@@ -90,6 +89,7 @@ internal const val WENKU8_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64
     "NextVol from wenku8.net"
 )
 class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search.Wenku8SearchSupport? = null,
+    private val verification: Wenku8Verification? = null,
     routes: (Identifier) -> SourceNetworkRoute) : WebBookDataSource, SourceImageProvider, AutoCloseable {
     companion object {
         val METADATA = SourceMetadata(WebDataSourceItem("Wenku8".ofId(), "Wenku8", "NextVol from wenku8.net"),
@@ -144,7 +144,8 @@ class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search
             retryOnServerErrors(maxRetries = 3)
             exponentialDelay()
             retryIf { _, response ->
-                !response.status.isSuccess() && response.status.value !in 300..399
+                response.headers["cf-mitigated"] != "challenge" &&
+                    (response.status.value == 429 || response.status.value in 500..599)
             }
             retryOnExceptionIf { _, cause ->
                 cause is EOFException || cause is ConnectException
@@ -178,6 +179,7 @@ class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search
 
     override fun close() {
         coroutineScope.cancel()
+        verification?.close()
         clients.close()
     }
 
@@ -241,7 +243,10 @@ class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search
                 wenku8Cookies().forEach { (name, value) ->
                     cookie(name, value)
                 }
-            }.status.isSuccess() }
+            }.let { response ->
+                // A verification response proves reachability; do not poll the challenge every three seconds.
+                response.status.isSuccess() || response.headers["cf-mitigated"] == "challenge"
+            } }
         }.getOrElse { false }
         return@withContext !anyTrue(listOf(
             { webSite(0) },
@@ -382,12 +387,13 @@ class Wenku8Api(searchSupport: indi.renakoni.nextvol.defaultplugin.wenku8.search
                 //
                 // 这里读原始字节自行解码，而不是把字符集交给 bodyAsText：
                 // 后者的参数只是 fallback，响应头声明了 charset 时并不生效。
-                val res = clients.request(requestSourceId()) { String(it.get(url).bodyAsBytes(), WENKU8_CHARSET) }
-                Ok(Jsoup.parse(res).outputSettings(
-                    Document.OutputSettings()
-                        .prettyPrint(false)
-                        .syntax(Document.OutputSettings.Syntax.xml)
-                ))
+                val source = requestSourceId()
+                suspend fun document() = clients.request(source) { client ->
+                    val response = client.get(url)
+                    wenku8Document(hnovel.network.BrokerResponse(response.status.value, response.call.request.url.toString(),
+                        response.headers.entries().associate { it.key to it.value }, response.bodyAsBytes(), WENKU8_CHARSET.name(), 0))
+                }
+                Ok(verification?.request(source, url, wenku8Cookies(), ::document) ?: document())
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { Err(failure) }
         }
