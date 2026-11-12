@@ -112,6 +112,19 @@ class BookshelfLayoutUiTest {
         compose.waitForIdle()
     }
 
+    @Test fun listCardDisplaysCachedHtmlDescriptionAsText() {
+        val raw = "<br>标签<p class=\"introduce\">边陲小镇</p>"
+        val information = BookInformation("book", "Book", author = "Author", description = raw,
+            publishingHouse = "", wordCount = WordCount(0), lastUpdated = LocalDateTime.MIN, isComplete = false)
+        activity.get().setContent {
+            MaterialTheme {
+                BookCardContent(Modifier, false, false, information, onClick = {}, onLongPress = {}, titleHeight = null)
+            }
+        }
+        compose.onNodeWithText("标签\n边陲小镇", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithText(raw, useUnmergedTree = true).assertDoesNotExist()
+    }
+
     @Test fun switchingDuringSelectionKeepsSourceQualifiedBooksAndActions() {
         val a = book("a", "same", "Alpha")
         val b = book("b", "same", "Beta")

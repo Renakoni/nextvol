@@ -77,6 +77,7 @@ import com.github.michaelbull.result.onOk
 import com.valentinilk.shimmer.shimmer
 import com.valentinilk.shimmer.unclippedBoundsInWindow
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.components.ElasticPressContainer
 import indi.renakoni.nextvol.ui.components.EmptyPage
@@ -419,7 +420,7 @@ private fun ReadingBookCard(
     }
     val progress = remember(userReadingData.readingProgress) { "${(userReadingData.readingProgress * 100).toInt()}%" }
     val infoText = "$lastRead • $readingTime • $progress"
-    val description = remember(bookInformation.description) { bookInformation.description.trim() }
+    val description = remember(bookInformation.description) { bookDescriptionForDisplay(bookInformation.description).trim() }
 
     Box(
         modifier = modifier.clip(RoundedCornerShape(12.dp))
