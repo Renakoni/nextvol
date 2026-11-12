@@ -34,11 +34,8 @@ class SpeechVoiceOperations @Inject constructor(
         }
     }
 
-    private suspend fun httpInUse(ids: Set<String>): Boolean {
-        val request = controller.state.value.request ?: return false
-        val active = request.previewSettings ?: settings.forBook(request.bookId)
-        return active.references().any { it.httpSource in ids }
-    }
+    suspend fun httpInUse(ids: Set<String>): Boolean =
+        activeSettings()?.references()?.any { it.httpSource in ids } == true
 
     suspend fun deleteOffline(voices: List<InstalledOfflineVoice>) {
         if (voices.isEmpty()) return
@@ -66,9 +63,11 @@ class SpeechVoiceOperations @Inject constructor(
         }
     }
 
-    private suspend fun offlineInUse(ids: Set<String>): Boolean {
-        val request = controller.state.value.request ?: return false
-        val active = request.previewSettings ?: settings.forBook(request.bookId)
-        return active.references().any { it.offlineVoice?.id in ids }
+    private suspend fun offlineInUse(ids: Set<String>): Boolean =
+        activeSettings()?.references()?.any { it.offlineVoice?.id in ids } == true
+
+    private suspend fun activeSettings(): SpeechSettings? {
+        val request = controller.state.value.request ?: return null
+        return request.previewSettings ?: settings.forBook(request.bookId)
     }
 }

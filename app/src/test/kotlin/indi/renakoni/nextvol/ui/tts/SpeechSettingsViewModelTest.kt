@@ -10,6 +10,7 @@ import hnovel.speech.SpeechEngineConfig
 import hnovel.speech.OfflineVoiceConfig
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -156,7 +157,8 @@ class SpeechSettingsViewModelTest {
         coEvery { http.save(any()) } coAnswers { saved = firstArg(); changes.value++ }
         val controller = mockk<ReadAloudController>(relaxed = true)
         every { controller.state } returns MutableStateFlow(ReadAloudState())
-        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk(), mockk())
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), mockk(),
+            SpeechVoiceOperations(http, mockk(), schemesRepository, controller))
         try {
             library.state.first { it.loaded }
             library.previewPackage(listOf(definition), null)
@@ -173,6 +175,44 @@ class SpeechSettingsViewModelTest {
             assertEquals(definition.id, library.state.value.sources.single().definition.id)
             coVerify(exactly = 0) { repository.update(any()) }
             verify(exactly = 0) { controller.previewVoice(any(), any(), any()) }
+        } finally { library.viewModelScope.cancel() }
+    }
+
+    @Test fun editingHttpVoiceUsesThePlayingBookOrPreviewInsteadOfTheEditedScheme() = runTest {
+        val source = SavedHttpSpeechSource(hnovel.speech.previewHttpSpeech(
+            """{"id":"candidate","name":"Candidate","url":"https://example.org"}""").sources.single(), emptyList())
+        settings.value = SpeechSettings(httpSource = "candidate")
+        coEvery { http.sources() } returns listOf(source)
+        coEvery { http.saveVoice(any()) } returns Unit
+        coEvery { schemesRepository.forBook("book") } returns SpeechSettings(httpSource = "other")
+        val playback = MutableStateFlow(ReadAloudState(SpeechRequest("book", "chapter")))
+        val controller = mockk<ReadAloudController>(relaxed = true)
+        every { controller.state } returns playback
+        val references = mockk<SpeechVoiceReferences>(relaxed = true)
+        val library = HttpSpeechSourcesViewModel(http, repository, mockk(relaxed = true), controller, mockk(), mockk(), mockk(), references,
+            SpeechVoiceOperations(http, mockk(), schemesRepository, controller))
+        try {
+            library.state.first { it.loaded }
+            library.edit(source, "Renamed", "https://example.org", "")
+            library.state.first { !it.busy }
+            assertNull(library.state.value.error)
+            verify(exactly = 0) { controller.command(SpeechAction.Stop) }
+
+            playback.value = ReadAloudState(SpeechRequest("book", "chapter", "Preview", SpeechSettings(
+                speakerVoices = mapOf("role" to SpeechVoiceRef(httpSource = "candidate")))))
+            library.edit(source, "Updated", "https://example.org", "")
+            library.state.first { !it.busy }
+            assertNull(library.state.value.error)
+            coVerifyOrder {
+                schemesRepository.forBook("book")
+                http.saveVoice(any())
+                references.replaceReference(any(), any())
+                controller.command(SpeechAction.Stop)
+                http.saveVoice(any())
+                references.replaceReference(any(), any())
+            }
+            coVerify(exactly = 1) { schemesRepository.forBook("book") }
+            verify(exactly = 1) { controller.command(SpeechAction.Stop) }
         } finally { library.viewModelScope.cancel() }
     }
 
