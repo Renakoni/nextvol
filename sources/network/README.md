@@ -183,7 +183,8 @@ checks continue to apply to approved CDN/API/redirect targets.
   quotas and malformed requests are not retried. HTTP error responses remain structured
   responses so later source rules can inspect status/body.
 - A total coroutine deadline covers queueing, rate delays, redirects, retries and body
-  reads. Session permits and minimum start intervals apply to all attempts/hops. Cancelling
+  reads. Ordinary HTTP calls have no separate OkHttp total deadline; socket connect/read/write
+  limits still apply. Session permits and minimum start intervals apply to all attempts/hops. Cancelling
   the caller cancels its OkHttp call through body consumption and releases permits;
   closing/replacing the session cancels in-flight/queued requests and rejects old handles.
 - Response bytes are bounded, with a header bound as well. Response charset comes from an

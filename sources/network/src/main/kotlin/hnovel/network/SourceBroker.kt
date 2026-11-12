@@ -833,7 +833,8 @@ class SourceSession internal constructor(val scope: SourceScope, grants: List<Ne
                         response.newBuilder().removeHeader("Retry-After").build()
                     }
                 }
-                .dns(policy.dns(url, route.dns)).callTimeout(request.timeoutMillis, TimeUnit.MILLISECONDS)
+                // execute() owns the overall deadline and cancels the call when it expires.
+                .dns(policy.dns(url, route.dns))
                 .readTimeout(request.timeoutMillis, TimeUnit.MILLISECONDS).build()
                 .newCall(Request.Builder().url(url).tag(NetworkPolicy::class.java, policy)
                     .tag(HttpRequestObservation::class.java, observation?.let { HttpRequestObservation(it, attempt, hop) })

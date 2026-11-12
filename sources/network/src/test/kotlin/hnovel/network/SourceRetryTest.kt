@@ -88,13 +88,21 @@ class SourceRetryTest {
 
     @Test(timeout = 10000) fun aTaskRequestTimeoutIsRecoverableWithoutRepeatingTheSocketCall() = runBlocking {
         fixture { server, session, clock ->
+            // Initialize the client outside the deadline under test.
+            server.enqueue(MockResponse().setBody("ready"))
+            response(session.execute(request(server, 0).copy(url = server.url("/warmup").toString())))
+            server.takeRequest()
             server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
-            val failure = withContext(RequestRetryContext()) {
-                session.execute(request(server, 3).copy(timeoutMillis = 300))
-            } as BrokerResult.Failure
+            val pending = async(RequestRetryContext()) {
+                session.execute(request(server, 3).copy(timeoutMillis = 1000))
+            }
+            val received = withContext(Dispatchers.IO) { server.takeRequest(3, TimeUnit.SECONDS) }
+            val failure = completed(pending) as BrokerResult.Failure
+            assertNotNull(failure.toString(), received)
+            assertEquals(failure.toString(), RequestStage.Connect, failure.stage)
             assertEquals(FailureCode.Timeout, failure.code)
-            assertTrue(failure.retryable)
-            assertEquals(1, server.requestCount)
+            assertTrue(failure.toString(), failure.retryable)
+            assertEquals(2, server.requestCount)
             assertTrue(clock.waits.tryReceive().isFailure)
         }
     }
