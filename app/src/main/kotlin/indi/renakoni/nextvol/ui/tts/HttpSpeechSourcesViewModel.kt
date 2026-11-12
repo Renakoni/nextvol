@@ -103,7 +103,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
             .map { it.definition.id }.toSet()
         val affected = state.value.sources.filter { it.definition.id in related || it.engineReference in related }
             .map { it.definition.id }.toSet()
-        if (isInUse(affected))
+        if (operations.httpInUse(affected))
             controller.command(SpeechAction.Stop)
         repository.configure(source.definition.id, credentials)
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
@@ -158,7 +158,7 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         val sources = state.value.pending ?: return@work
         val affected = state.value.sources.filter { old -> sources.any { it.definition.id == old.definition.id ||
             it.packageIdentity() != null && it.packageIdentity() == old.packageIdentity() } }.map { it.definition.id }.toSet()
-        if (isInUse(affected)) controller.command(SpeechAction.Stop)
+        if (operations.httpInUse(affected)) controller.command(SpeechAction.Stop)
         withContext(NonCancellable) {
             val uri = packageUri
             if (uri == null) repository.save(sources) else withContext(Dispatchers.IO) {
@@ -206,18 +206,12 @@ class HttpSpeechSourcesViewModel @Inject constructor(
         }
         val preview = previewHttpSpeech(JsonObject(raw).toString())
         require(preview.issues.isEmpty())
-        if (isInUse(setOf(source.definition.id))) controller.command(SpeechAction.Stop)
+        if (operations.httpInUse(setOf(source.definition.id))) controller.command(SpeechAction.Stop)
         val updated = preview.sources.single()
         repository.saveVoice(source.copy(definition = updated))
         references.replaceReference(SpeechVoiceRef(httpSource = source.definition.id, externalId = source.packageVoiceId()),
             SpeechVoiceRef(httpSource = updated.id, label = updated.name, externalId = source.packageVoiceId()))
         mutableState.update { it.copy(configurationSaved = it.configurationSaved + 1) }
-    }
-
-    private suspend fun isInUse(ids: Set<String>): Boolean {
-        val request = controller.state.value.request ?: return false
-        val active = request.previewSettings ?: settings.forBook(request.bookId)
-        return active.references().any { it.httpSource in ids }
     }
 
     private suspend fun refreshSources() {
