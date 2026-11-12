@@ -11,6 +11,13 @@ class FormattingRuleProcessorTest {
         assertEquals("\tA\"\\\r\b\u000c\$1", applyFormattingRules("\n", listOf(rule)))
     }
 
+    @Test fun regexPatternsPreserveWordBoundariesAndEscapedBackslashes() {
+        val rule = FormattingRule(name = "regex escapes", isRegex = true,
+            match = """\bcat\b|\\d""", replacement = "_", isEnabled = true)
+
+        assertEquals("_ scatter _ 7", applyFormattingRules("cat scatter \\d 7", listOf(rule)))
+    }
+
     @Test fun regexReplacementsDoNotReprocessGeneratedText() {
         val rule = FormattingRule(name = "repeat", isRegex = true, match = "(a)", replacement = "\$1\$1", isEnabled = true)
 

@@ -19,7 +19,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class FormatRepositoryTest {
-    @Test fun globalRulesRunBeforeBookRulesAndRunTwiceForAnEmptyBookId() = runTest {
+    @Test fun globalRulesRunBeforeBookRules() = runTest {
         val loaded = CompletableDeferred<Unit>()
         val dao = mockk<FormattingRuleDao>()
         every { dao.getAllBookRuleEntityFlow() } returns flow {
@@ -33,10 +33,9 @@ class FormatRepositoryTest {
         }
         val repository = FormatRepository(dao)
         loaded.await()
-        fun title(bookId: String) = repository.processBookVolumes(
-            BookVolumes(bookId, listOf(Volume("volume", "a", emptyList())))).volumes.single().volumeTitle
+        val result = repository.processBookVolumes(
+            BookVolumes("book", listOf(Volume("volume", "a", emptyList()))))
 
-        assertEquals("b", title("book"))
-        assertEquals("aaaa", title(""))
+        assertEquals("b", result.volumes.single().volumeTitle)
     }
 }

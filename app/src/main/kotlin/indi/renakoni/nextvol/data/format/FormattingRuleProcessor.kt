@@ -3,13 +3,15 @@ package indi.renakoni.nextvol.data.format
 import java.util.regex.PatternSyntaxException
 
 private val groupReferenceRegex = Regex("""\$([0-9]+)""")
+private val controlCharEscapeRegex = Regex("""\\[\\"tnrbf]|\\u[0-9a-fA-F]{4}""")
 
 internal fun applyFormattingRules(text: String, rules: List<FormattingRule>): String {
     var result = text
-    for (formattingRule in rules.filter { it.isEnabled }) {
+    for (formattingRule in rules) {
+        if (!formattingRule.isEnabled) continue
         try {
             result = if (formattingRule.isRegex) result.replaceTextWithRegex(
-                Regex(formattingRule.match.unescapeControlChars()),
+                Regex(formattingRule.match),
                 formattingRule.replacement.unescapeControlChars()
             )
             else result.replace(
@@ -23,7 +25,7 @@ internal fun applyFormattingRules(text: String, rules: List<FormattingRule>): St
 }
 
 private fun String.unescapeControlChars(): String {
-    return this.replace(Regex("""\\[\\"tnrbf]|\\u[0-9a-fA-F]{4}""")) {
+    return this.replace(controlCharEscapeRegex) {
         when (it.value) {
             "\\n" -> "\n"
             "\\t" -> "\t"
@@ -32,11 +34,7 @@ private fun String.unescapeControlChars(): String {
             "\\f" -> "\u000c"
             "\\\"" -> "\""
             "\\\\" -> "\\"
-            else -> {
-                if (it.value.startsWith("\\u")) {
-                    it.value.substring(2).toInt(16).toChar().toString()
-                } else it.value
-            }
+            else -> it.value.substring(2).toInt(16).toChar().toString()
         }
     }
 }
