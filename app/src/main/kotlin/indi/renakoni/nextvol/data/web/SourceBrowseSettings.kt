@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Discovery and categories share a scope, but retain separate selections for each scope. */
+/** Discovery and categories share the user's selection; each page retains its own fallback. */
 @Singleton
 class SourceBrowseSettings @Inject constructor(@ApplicationContext context: Context) {
     private val preferences = context.getSharedPreferences("source-browsing", Context.MODE_PRIVATE)
@@ -16,6 +16,15 @@ class SourceBrowseSettings @Inject constructor(@ApplicationContext context: Cont
         it.name == preferences.getString("scope", null)
     })
     val scope = mutableScope.asStateFlow()
+    private val mutableSelections = MutableStateFlow(
+        (listOf<SourceCategory?>(null) + SourceCategory.entries).associateWith { selected("shared", it) })
+    val selections = mutableSelections.asStateFlow()
+
+    fun selectSource(category: SourceCategory?, id: Identifier) {
+        if (selections.value[category] == id) return
+        writeSelection("shared", category, id)
+        mutableSelections.value = mutableSelections.value + (category to id)
+    }
 
     fun selectScope(category: SourceCategory?) {
         if (category == scope.value) return
@@ -31,6 +40,10 @@ class SourceBrowseSettings @Inject constructor(@ApplicationContext context: Cont
 
     fun remember(page: String, category: SourceCategory?, id: Identifier) {
         if (selected(page, category) == id) return
+        writeSelection(page, category, id)
+    }
+
+    private fun writeSelection(page: String, category: SourceCategory?, id: Identifier) {
         val key = "$page.${category?.name.orEmpty()}"
         preferences.edit().putString("$key.namespace", id.namespace).putString("$key.source", id.id).apply()
     }

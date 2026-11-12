@@ -60,7 +60,7 @@ fun NavGraphBuilder.categoriesDestination() {
     }
 }
 
-/** A shortcut can target a restored category entry. Bottom-tab visits do not overwrite its selection. */
+/** Deliver explicit shortcuts to restored entries; ordinary visits use the shared source selection. */
 @Composable
 internal fun CategorySourceSelection(entry: NavBackStackEntry, ready: Boolean, onSelect: (Identifier) -> Unit) {
     val requested by entry.savedStateHandle.getStateFlow<String?>(CATEGORY_SOURCE_REQUEST, null).collectAsStateWithLifecycle()
