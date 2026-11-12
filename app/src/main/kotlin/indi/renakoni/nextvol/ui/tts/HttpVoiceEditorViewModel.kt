@@ -50,10 +50,10 @@ class HttpVoiceEditorViewModel @Inject constructor(
     private var loadingControls: Job? = null
     val hasParameters get() = source?.importedEngineCode != null
 
-    fun load(id: String, copyPattern: String? = null, cachedSource: SavedHttpSpeechSource? = null, engineCode: String? = null) {
+    fun load(id: String, copyPattern: String? = null, engineCode: String? = null) {
         if (source != null) return
         work {
-            val selected = cachedSource ?: withContext(Dispatchers.IO) {
+            val selected = withContext(Dispatchers.IO) {
                 if (engineCode != null) newHttpVoice(repository.engines().single { it.code == engineCode && !it.deleted })
                 else repository.sources().single { it.definition.id == id }
             }

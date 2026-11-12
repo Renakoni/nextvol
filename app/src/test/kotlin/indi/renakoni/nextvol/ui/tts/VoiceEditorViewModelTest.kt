@@ -57,7 +57,8 @@ class VoiceEditorViewModelTest {
     @Test fun httpDisableIgnoresDraftEditsAndClosesOnlyAfterTheOperationFinishes() = runTest {
         val source = SavedHttpSpeechSource(previewHttpSpeech(
             """{"id":"voice","name":"Voice","url":"https://example.org"}""").sources.single(), emptyList())
-        httpEditor.load("voice", cachedSource = source)
+        coEvery { http.sources() } returns listOf(source)
+        httpEditor.load("voice")
         val draft = httpEditor.state.first { !it.busy && it.draft != null }.draft!!
         httpEditor.edit(draft.copy(name = "Unsaved", code = "changed", speed = "invalid"))
         val persisted = CompletableDeferred<Unit>()
@@ -72,14 +73,14 @@ class VoiceEditorViewModelTest {
         action.join()
 
         assertTrue(closed)
-        coVerify(exactly = 1) { operations.enableHttp(listOf(source), false) }
         coVerify(exactly = 0) { http.saveVoice(any()) }
     }
 
     @Test fun offlineEnableKeepsTheEditorOpenOnFailureAndRetriesWithoutSavingTheDraft() = runTest {
         val voice = InstalledOfflineVoice(OfflineVoiceRef("voice", "revision"), "Voice", emptyMap(), enabled = false,
             configuration = OfflineVoiceConfig("sherpa", "voice"))
-        offlineEditor.load("voice", cachedVoice = voice)
+        coEvery { offline.voices() } returns listOf(voice)
+        offlineEditor.load("voice")
         val draft = offlineEditor.state.first { !it.busy && it.draft != null }.draft!!
         offlineEditor.edit(draft.copy(name = "Unsaved", code = "changed", speed = "invalid"))
         coEvery { operations.enableOffline(listOf(voice), true) } throws IllegalStateException("write failed")

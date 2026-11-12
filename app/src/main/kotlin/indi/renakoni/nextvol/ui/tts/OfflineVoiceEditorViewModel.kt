@@ -48,7 +48,7 @@ class OfflineVoiceEditorViewModel @Inject constructor(
     private var loaded: String? = null
     private var loadingControls: Job? = null
 
-    fun load(id: String, copyPattern: String? = null, cachedVoice: InstalledOfflineVoice? = null, newVoice: Boolean = false,
+    fun load(id: String, copyPattern: String? = null, newVoice: Boolean = false,
         engineCode: String? = null) {
         val key = engineCode ?: id
         if (loaded == key) return
@@ -60,7 +60,7 @@ class OfflineVoiceEditorViewModel @Inject constructor(
                     OfflineVoiceRef(java.util.UUID.randomUUID().toString(), java.util.UUID.randomUUID().toString()),
                     "", emptyMap(), configuration = OfflineVoiceConfig(engineCode, "", type = 1,
                         locale = java.util.Locale.getDefault().let { "${it.language}-${it.country}" }))
-                else cachedVoice ?: repository.voices().single { it.reference.id == id }
+                else repository.voices().single { it.reference.id == id }
                 val original = installed.copy(configuration = (installed.configuration ?: repository.configuration(installed)).copy(engineParameters = ""))
                 val draft = restored?.let { runCatching { Json.decodeFromString<VoiceDraft>(it) }.getOrNull() }
                     ?: VoiceDraft.from(original).let { if (newVoice) it.copy(name = "", note = "", description = "", avatar = "", enabled = true)

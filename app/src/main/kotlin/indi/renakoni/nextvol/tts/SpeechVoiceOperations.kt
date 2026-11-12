@@ -57,13 +57,13 @@ class SpeechVoiceOperations @Inject constructor(
     suspend fun enableOffline(voices: List<InstalledOfflineVoice>, enabled: Boolean) {
         if (voices.isEmpty()) return
         val ids = voices.map { it.reference.id }.toSet()
+        if (!enabled && offlineInUse(ids))
+            controller.command(SpeechAction.Stop)
         withContext(NonCancellable) {
             val updated = offline.enable(voices.map { it.reference }.toSet(), enabled)
             settings.updateAll { selected -> updated.find { it.reference.id == selected.offlineVoice?.id && it.reference.id in ids }
                 ?.let { selected.copy(offlineVoice = it.reference) } ?: selected }
         }
-        if (!enabled && offlineInUse(ids))
-            controller.command(SpeechAction.Stop)
     }
 
     private suspend fun offlineInUse(ids: Set<String>): Boolean {
