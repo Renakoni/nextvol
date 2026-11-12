@@ -57,7 +57,7 @@ fun previewHttpSpeechPackage(engine: SpeechPackageEngine): HttpSpeechPackageImpo
             definition.values["param"].text().orEmpty(), definition.values["note"].text().orEmpty(), template, header,
             raw = definition.jsonData().jsonObject)
         HttpSpeechPackageImport(sources, engine = configuration, hasLocalAudioSettings = engine.voices.any { voice ->
-            listOf("speed", "volume", "pitch").any { field ->
+            listOf("volume", "pitch").any { field ->
                 voice.raw.values[field].text()?.toDoubleOrNull()?.let { it != 1.0 } == true
             }
         })

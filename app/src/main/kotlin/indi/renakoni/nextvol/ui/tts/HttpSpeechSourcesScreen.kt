@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 internal fun HttpSpeechSourcesScreen(
     state: HttpSpeechSourcesState, onBack: () -> Unit, onImport: () -> Unit,
     onSelect: (String?) -> Unit, onDelete: (SavedHttpSpeechSource) -> Unit,
-    onSites: (SavedHttpSpeechSource, String) -> Unit, onConfirmImport: () -> Unit, onDismissImport: () -> Unit,
+    onConfirmImport: () -> Unit, onDismissImport: () -> Unit,
     onEdit: (SavedHttpSpeechSource, String, String, String) -> Unit,
     onConfigure: (SavedHttpSpeechSource, Map<String, String>) -> Unit = { _, _ -> },
     onPreview: ((String?) -> Unit)? = null,
@@ -86,8 +86,6 @@ internal fun HttpSpeechSourcesScreen(
     var configuring by remember { mutableStateOf<SavedHttpSpeechSource?>(null) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    var editing by remember { mutableStateOf<SavedHttpSpeechSource?>(null) }
-    var sites by remember { mutableStateOf("") }
     var definition by remember { mutableStateOf<SavedHttpSpeechSource?>(null) }
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
@@ -131,7 +129,6 @@ internal fun HttpSpeechSourcesScreen(
                             DropdownMenuItem(text = { Text(stringResource(if (source.enabled) R.string.tts_voice_disable else R.string.tts_voice_enable)) },
                                 onClick = { menu = false; onEnableVoice(source, !source.enabled) })
                             if (!source.isBuiltIn) {
-                                DropdownMenuItem(text = { Text(stringResource(R.string.tts_source_sites)) }, onClick = { menu = false; editing = source; sites = source.origins.joinToString("\n") })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { menu = false; onDelete(source) })
                             }
                         }
@@ -141,7 +138,6 @@ internal fun HttpSpeechSourcesScreen(
                         definition = source; name = source.definition.name
                         url = source.definition.url; header = source.definition.text("header")
                     },
-                    onSites = { editing = source; sites = source.origins.joinToString("\n") },
                     onDelete = { onDelete(source) })
             })
     }
@@ -347,21 +343,6 @@ internal fun HttpSpeechSourcesScreen(
                 Text(stringResource(R.string.tts_import_sources))
             } }, dismissButton = { TextButton(onClick = onDismissImport, enabled = !state.busy) { Text(stringResource(R.string.cancel)) } })
     }
-    editing?.let { source ->
-        AlertDialog(onDismissRequest = { editing = null }, title = { Text(stringResource(R.string.tts_source_sites)) },
-            text = { Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(sites, { sites = it }, modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp))
-                state.deniedOrigins[source.definition.id].orEmpty().forEach { origin ->
-                    if (origin !in sites.lineSequence().map(String::trim).toSet()) TextButton(onClick = {
-                        sites = (sites.trim() + "\n" + origin).trim()
-                    }) { Text(stringResource(R.string.tts_allow_source_site, origin)) }
-                }
-                if (source.definition.usesMicrosoftTranslator) Text(stringResource(R.string.tts_microsoft_sites),
-                    style = MaterialTheme.typography.bodySmall)
-            } },
-            confirmButton = { TextButton(onClick = { onSites(source, sites); editing = null }) { Text(stringResource(R.string.confirm)) } },
-            dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel)) } })
-    }
     definition?.let { source ->
         val close = { definition = null }
         AlertDialog(onDismissRequest = { if (!state.busy) close() }, title = {
@@ -383,7 +364,7 @@ internal fun HttpSpeechSourcesScreen(
 }
 
 @Composable
-private fun SpeechSourceActions(enabled: Boolean, onEdit: () -> Unit, onSites: () -> Unit, onDelete: () -> Unit) {
+private fun SpeechSourceActions(enabled: Boolean, onEdit: () -> Unit, onDelete: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { menu = true }, enabled = enabled) {
@@ -391,7 +372,6 @@ private fun SpeechSourceActions(enabled: Boolean, onEdit: () -> Unit, onSites: (
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { menu = false; onEdit() })
-            DropdownMenuItem(text = { Text(stringResource(R.string.tts_source_sites)) }, onClick = { menu = false; onSites() })
             DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { menu = false; onDelete() })
         }
     }

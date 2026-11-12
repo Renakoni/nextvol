@@ -87,10 +87,9 @@
     <string name="tts_import_failed">This file could not be imported.</string>
     <string name="tts_online_empty">No voices available.</string>
     <string name="tts_online_privacy">Book text is sent to the selected speech service.</string>
-    <string name="tts_source_sites">Service websites</string>
     <string name="tts_remove_source">Remove voice</string>
     <string name="tts_error_http_source">This voice is unavailable. Choose another voice.</string>
-    <string name="tts_error_http_permission">This voice needs access to another website. Check its service websites.</string>
+    <string name="tts_error_http_permission">This voice tried to access a website outside its allowed addresses.</string>
     <string name="tts_error_http_unsupported">This voice uses a feature that is not supported yet. Choose another voice.</string>
     <string name="tts_error_http_login">This voice needs account information.</string>
     <string name="tts_edit_source">Edit voice</string>
@@ -98,9 +97,7 @@
     <string name="tts_source_request">Request URL or script</string>
     <string name="tts_source_headers">Request headers</string>
     <string name="tts_source_invalid">Check the voice name and request configuration.</string>
-    <string name="tts_source_sites_invalid">Enter one HTTP or HTTPS website per line.</string>
     <string name="tts_microsoft_sites">Allowing Microsoft Translator also permits its regional speech servers (*.tts.speech.microsoft.com).</string>
-    <string name="tts_allow_source_site">Allow %1$s</string>
     <string name="tts_source_actions">Voice options</string>
     <string name="tts_library_actions">Library options</string>
     <string name="tts_needs_key">Set up Key</string>

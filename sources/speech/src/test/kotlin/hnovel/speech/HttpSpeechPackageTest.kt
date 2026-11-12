@@ -85,7 +85,7 @@ class HttpSpeechPackageTest {
         assertEquals(2, converted.sources.map { it.id }.distinct().size)
         val source = converted.sources.first()
         val voice = source.raw.getValue("multiTts").jsonObject.getValue("voice").jsonObject
-        assertEquals("1.3", voice.getValue("speed").jsonPrimitive.content)
+        assertEquals("1.0", voice.getValue("speed").jsonPrimitive.content)
         assertEquals("2.0", voice.getValue("volume").jsonPrimitive.content)
         assertEquals("16000", voice.getValue("sampleRate").jsonPrimitive.content)
         assertEquals(JsonNull, voice.getValue("param"))

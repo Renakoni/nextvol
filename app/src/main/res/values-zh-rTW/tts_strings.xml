@@ -80,10 +80,9 @@
     <string name="tts_import_failed">無法匯入此檔案。</string>
     <string name="tts_online_empty">暫無可用音源</string>
     <string name="tts_online_privacy">正文將傳送至所選朗讀服務。</string>
-    <string name="tts_source_sites">服務網站</string>
     <string name="tts_remove_source">移除音源</string>
     <string name="tts_error_http_source">此音源暫時無法使用，請選擇其他音源。</string>
-    <string name="tts_error_http_permission">此音源需要連接其他網站，請檢查服務網站設定。</string>
+    <string name="tts_error_http_permission">此音源嘗試存取授權範圍外的網站。</string>
     <string name="tts_error_http_unsupported">此音源使用了尚未支援的功能，請選擇其他音源。</string>
     <string name="tts_error_http_login">此音源需要帳號資訊。</string>
     <string name="tts_edit_source">編輯音源</string>
@@ -91,9 +90,7 @@
     <string name="tts_source_request">請求網址或指令碼</string>
     <string name="tts_source_headers">請求標頭</string>
     <string name="tts_source_invalid">請檢查音源名稱和請求設定。</string>
-    <string name="tts_source_sites_invalid">每行填寫一個 HTTP 或 HTTPS 網站網址。</string>
     <string name="tts_microsoft_sites">允許微軟翻譯服務也將允許其區域語音伺服器（*.tts.speech.microsoft.com）。</string>
-    <string name="tts_allow_source_site">允許 %1$s</string>
     <string name="tts_source_actions">音源選項</string>
     <string name="tts_library_actions">音源庫選項</string>
     <string name="tts_needs_key">待設定 Key</string>

@@ -98,18 +98,11 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
     private val mutex = Mutex()
     private val mutableChanges = MutableStateFlow(0L)
     val changes = mutableChanges.asStateFlow()
-    private val mutableDeniedOrigins = MutableStateFlow<Map<String, List<String>>>(emptyMap())
-    val deniedOrigins = mutableDeniedOrigins.asStateFlow()
     private val mutableSynthesisResults = MutableStateFlow<Map<String, HttpSynthesisResult>>(emptyMap())
     internal val synthesisResults = mutableSynthesisResults.asStateFlow()
 
     internal fun recordSynthesis(source: SavedHttpSpeechSource, message: Int) {
         mutableSynthesisResults.update { it + (source.definition.id to HttpSynthesisResult(source, message)) }
-    }
-
-    internal fun recordDeniedOrigins(id: String, origins: List<String>) {
-        val safe = origins.filter { sourceOrigin(it) == it }.distinct().take(32)
-        if (safe.isNotEmpty()) mutableDeniedOrigins.update { (it + (id to safe)).entries.toList().takeLast(512).associate { entry -> entry.toPair() } }
     }
 
     suspend fun registerEngine(engine: SpeechEngineConfig) = change(listOf(engine)) { it }
@@ -177,7 +170,20 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             val incoming = source.copy(packageAvatar = avatars[source.definition.id] ?: source.packageAvatar)
             val index = merged.indexOfFirst { it.definition.id == incoming.definition.id ||
                 incoming.packageIdentity() != null && it.packageIdentity() == incoming.packageIdentity() }
-            val imported = mergeHttpVoice(merged.getOrNull(index), incoming)
+            val original = mergeHttpVoice(merged.getOrNull(index), incoming)
+            val imported = if (httpVoiceParameters(original.definition).speed == 1f && (original.definition.speed ?: 5) == 5) original else {
+                val raw = original.definition.raw.toMutableMap()
+                val speed = JsonPrimitive(1f)
+                val voice = JsonObject(original.speakerData() + ("speed" to speed))
+                val metadata = raw["multiTts"] as? JsonObject
+                if (metadata == null) raw["nextvolVoice"] = voice
+                else raw["multiTts"] = JsonObject(metadata + ("voice" to voice))
+                // Legacy HTTP request speed uses 5 for 1x; retain the ID from before normalization.
+                if (raw.containsKey("speed")) raw["speed"] = JsonPrimitive(5)
+                raw["id"] = JsonPrimitive(original.definition.id)
+                original.copy(definition = HttpSpeechDefinition.parse(JsonObject(raw)),
+                    speakerDefaults = original.speakerDefaults?.let { JsonObject(it + ("speed" to speed)) })
+            }
             if (index < 0) merged += imported else merged[index] = imported
         }
         merged
@@ -308,9 +314,6 @@ class HttpSpeechRepository @Inject constructor(@ApplicationContext context: Cont
             mutableSynthesisResults.update { results -> results.filter { (id, result) ->
                 sources.any { it.definition.id == id && result.source.sameExecution(it) }
             } }
-            mutableDeniedOrigins.update { denied -> denied.mapNotNull { (id, origins) ->
-                sources.find { it.definition.id == id }?.let { source -> id to (origins - source.origins.toSet()) }
-            }.toMap() }
         }
     }
 

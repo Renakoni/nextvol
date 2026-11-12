@@ -433,7 +433,7 @@ private fun preserveOverrides(previous: InstalledOfflineVoice?, imported: Instal
     val baseline = json.encodeToJsonElement(defaults.configuration).jsonObject
     val current = json.encodeToJsonElement(old).jsonObject
     val updated = json.encodeToJsonElement(requireNotNull(imported.configuration)).jsonObject
-    val overrides = current.filter { (key, value) -> key !in setOf("parameters", "sherpa", "engineParameters") && value != baseline[key] }
+    val overrides = current.filter { (key, value) -> key !in setOf("speed", "parameters", "sherpa", "engineParameters") && value != baseline[key] }
     val configuration = Json.decodeFromJsonElement<OfflineVoiceConfig>(JsonObject(updated + overrides))
     return imported.copy(name = if (previous.name == defaults.name) imported.name else previous.name,
         enabled = previous.enabled, configuration = normalizeOfflineVoice(configuration, imported.sizes.keys),

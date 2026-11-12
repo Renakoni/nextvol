@@ -38,7 +38,7 @@ class OfflineSpeechPackageTest {
         assertEquals("4", plan.configuration.parameters)
         assertEquals("", plan.configuration.engineParameters)
         assertEquals(16000, plan.configuration.sampleRate)
-        assertEquals(0f, plan.configuration.speed)
+        assertEquals(1f, plan.configuration.speed)
         assertEquals(0f, plan.configuration.volume)
         assertEquals("en-US", plan.configuration.locale)
         val defaults = SpeechPackageVoice("zh-CN-Voice", "Voice", fields("sampleRate" to "0", "pitch" to "0")).withImportDefaults("microsoft")

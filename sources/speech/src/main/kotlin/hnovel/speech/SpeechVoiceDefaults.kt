@@ -1,13 +1,14 @@
 package hnovel.speech
 
-/** MultiTTS's YAML import fills these fields after reading the speaker, without replacing declared values. */
+/** Imported speakers start at 1x speed; other declared settings retain their package values. */
 internal fun SpeechPackageVoice.withImportDefaults(engine: String): SpeechPackageVoice {
     val fields = raw.values.toMutableMap()
     for (key in listOf("speed", "volume", "sampleRate", "pitch", "locale")) {
         if (fields[key] != null && fields[key] !is SpeechPackageValue.Scalar) configurationFailure(MatchaPackageError.Parameters, key)
     }
     fun set(key: String, value: String) { fields[key] = SpeechPackageValue.Scalar(value, null, false) }
-    for (key in listOf("speed", "volume")) if (fields[key].text().isNullOrBlank()) set(key, "0.0")
+    set("speed", "1.0")
+    if (fields["volume"].text().isNullOrBlank()) set("volume", "0.0")
     if (fields["sampleRate"].text().isNullOrBlank() || fields["sampleRate"].text()?.toIntOrNull() == 0) set("sampleRate", "16000")
     if (fields["pitch"].text().isNullOrBlank() || fields["pitch"].text()?.toFloatOrNull() == 0f) set("pitch", "1.0")
     if (fields["locale"].text().isNullOrEmpty()) {

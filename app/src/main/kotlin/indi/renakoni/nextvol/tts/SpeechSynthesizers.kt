@@ -139,7 +139,6 @@ class SpeechSynthesizers @Inject constructor(
         override val supportsStreaming get() = client?.supportsStreaming == true
         private var rate = 1f
         private var volume = 1f
-        private var sourceId: String? = null
         private var selectedSource: SavedHttpSpeechSource? = null
         override var audioParameters = SpeechAudioParameters()
             private set
@@ -153,7 +152,6 @@ class SpeechSynthesizers @Inject constructor(
                 if (!source.available) throw SpeechException(SpeechError.HttpSourceUnavailable)
                 val definition = source.playbackDefinition()
                 audioParameters = httpAudioParameters(definition, settings)
-                sourceId = source.definition.id
                 selectedSource = source
                 val broker = SourceBroker(runtime.toPath(), cipher = cipher)
                 owner = broker
@@ -210,7 +208,6 @@ class SpeechSynthesizers @Inject constructor(
                     HttpSpeechError.Timeout -> SpeechError.SynthesisTimeout
                     HttpSpeechError.InvalidAudio, HttpSpeechError.TooLarge -> SpeechError.InvalidAudio
                 }
-                sourceId?.let { repository.recordDeniedOrigins(it, failure.deniedOrigins) }
                 throw SpeechException(error).apply { initCause(failure) }
             }
             catch (_: java.io.IOException) {

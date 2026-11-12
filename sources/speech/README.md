@@ -5,9 +5,10 @@ This module imports HTTP TTS definitions and returns bounded audio bytes. Androi
 ## Definitions and requests
 
 - Import previews accept an object or a list (4 MiB, 1024 entries, bounded JSON depth). IDs remain exact strings, including large numeric IDs; definitions without IDs receive a canonical SHA-256 identity. Unknown fields and original scripts survive saving and editing.
+- Importing or reimporting voices resets their speed to 1.0. Later voice edits retain the selected speed; this does not change the separate playback rate. HTTP JSON request-speed fields use 5 for the same 1x default.
 - `speakText` and `speakSpeed` are bound only for speech execution. The reference configuration's `speed=5` maps to script `speakSpeed=10`; an application rate of 1.0 maps to 10. Each provider's script still determines what that value means to its service.
 - Original static expressions or a terminal `@js:`/`<js>` rule execute in the existing isolated worker. Generated request strings, nested requests and substituted book text are data, not another round of templates. Speech requests do not expand book-source page alternatives.
-- Requests use `SourceBroker` origin grants, cancellation, cookies, pacing and redirect checks. A redirect or dynamically returned audio origin can require a separate user grant. Denial diagnostics contain origins only, never paths, queries or credentials.
+- Requests use `SourceBroker` origin grants, cancellation, cookies, pacing and redirect checks. Redirects and dynamically returned audio URLs outside the approved origins fail with a permission error. Errors never include scripts, credentials or response bodies.
 - Each synthesis has a 60-second deadline and a 2 MiB audio limit. Data-URI audio has its own bounded decoder, without increasing ordinary source URL limits. Container signatures reject obvious text/error payloads; Android inspects the audio track before committing a file. These checks do not replace complete decoding/playback acceptance.
 - `loginCheckJs` and interactive login/configuration UIs are not implemented here. Preserving a configuration does not claim that every dependency can execute. No arbitrary `Packages` or Java reflection is exposed.
 
@@ -37,7 +38,7 @@ Two audited script shapes (fixed voice and header-selected voice) use a host ada
 
 The adapter obtains its signing material from the selected definition. It generates the complete `MSTranslatorAndroidApp::signature::date::id` envelope, holds the returned token in the current client for at most eight minutes, and refreshes once after HTTP 401. Rate limits and other service failures are not retried. SSML escapes book text and maps application 1.0x to 0%, 0.5x to -50%, and 2.0x to +100%.
 
-Approving the Translator origin also approves this adapter's regional Microsoft speech service, as shown during import and website editing. The authentication response supplies a validated region label, never an arbitrary URL. Only a host-owned request receives the derived exact HTTPS origin; general source scripts do not receive that grant. Authentication and synthesis redirects are disabled.
+Approving the Translator origin also approves this adapter's regional Microsoft speech service, as shown during import. The authentication response supplies a validated region label, never an arbitrary URL. Only a host-owned request receives the derived exact HTTPS origin; general source scripts do not receive that grant. Authentication and synthesis redirects are disabled.
 
 This compatibility path is distinct from Edge WebSocket and Azure subscription-key authentication. Its fixed protocol signing constant is not an Azure subscription key or a user account.
 
@@ -54,7 +55,7 @@ The mapping follows MultiTTS 1.8.3 (84), APK SHA-256 `d3f7736b1bf162829677c0772a
 | Speaker `code`, `locale` | Code identifies the saved speaker; locale supplies SSML xml:lang, without a zh/en allowlist. |
 | Speaker `param` | Ordered voice name, role, style, style degree, optional language skill. Defaults: Default, Default, 1.0, no lang wrapper. Optional slots resolve @extendUI values; an empty slot ends optional parsing as in the original. |
 | Application synthesis rate/volume | Native SSML: int(rate × 40)%, int(volume × 50), with pitch 0%. Thus default 1.0 maps to 40% / 50, independently of the audited script recipes. |
-| Speaker speed/volume/pitch/sampleRate | Preserved for common audio processing #814; not applied by this native backend or claimed as implemented effects. |
+| Speaker speed/volume/pitch/sampleRate | Used by common audio processing; speed starts at 1.0 on import and remains editable afterward. |
 
 The native adapter shares the existing session-local token cache, one refresh on 401, origin/address policy, timeout, cancellation, response limit and player. Fixed client-protocol signing material comes from the original adapter; no account credential or token is persisted in logs. Original random X-Forwarded-For spoofing is not needed for the observed service requests and is omitted. Editable SSML attributes and book text are escaped, avoiding the original attribute interpolation defect.
 

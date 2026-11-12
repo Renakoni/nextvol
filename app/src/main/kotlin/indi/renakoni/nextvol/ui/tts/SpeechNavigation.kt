@@ -362,7 +362,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
                 onEnableVoice = { source, enabled -> viewModel.enable(listOf(source), enabled) },
                 onImport = { picker.launch(arrayOf("application/json", "application/zip", "application/x-zip-compressed",
                     "application/yaml", "application/x-yaml", "text/yaml", "text/x-yaml", "text/plain", "application/octet-stream")) },
-                onSelect = { toggleVoice(false, httpVoice(it)) }, onDelete = { deletingHttp = listOf(it) }, onSites = viewModel::sites,
+                onSelect = { toggleVoice(false, httpVoice(it)) }, onDelete = { deletingHttp = listOf(it) },
                 onConfirmImport = viewModel::confirmImport, onDismissImport = viewModel::dismissPreview, onEdit = viewModel::edit,
                 onConfigure = viewModel::configure, onPreview = { viewModel.previewVoice(it, preview) },
                 playback = playback, onCommand = viewModel.controller::command,

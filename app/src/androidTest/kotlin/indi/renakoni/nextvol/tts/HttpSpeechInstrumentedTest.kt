@@ -197,12 +197,9 @@ class HttpSpeechInstrumentedTest {
                 File(runtime, "test-cache").writeText("old state")
                 authority.issue(source.id, "http-tts", source.revision, "speech")
             }!!
-            reopened.recordDeniedOrigins(source.id, listOf("https://audio.example.org:443", "https://audio.example.org/private?token=secret"))
-            assertEquals(listOf("https://audio.example.org:443"), reopened.deniedOrigins.value[source.id])
             reopened.save(listOf(reopened.sources().single { it.definition.id == source.id }.copy(origins = listOf("https://example.org:443", "https://audio.example.org:443"))))
             assertFalse(authority.accepts(oldTicket))
             reopened.withSource(source.id) { _, runtime -> assertFalse(runtime.exists()) }
-            assertTrue(reopened.deniedOrigins.value[source.id].isNullOrEmpty())
             reopened.delete(source.id)
             assertEquals(96, reopened.sources().size)
             assertTrue(reopened.sources().all { it.isBuiltIn })
