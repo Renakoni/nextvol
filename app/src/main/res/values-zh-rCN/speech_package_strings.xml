@@ -4,6 +4,9 @@
     <string name="tts_package_http_parameters_required">发音人参数或扩展控件配置格式不正确。</string>
     <string name="tts_package_preview">语音包预览</string>
     <string name="tts_package_import">导入</string>
+    <string name="tts_package_import_failed">导入失败</string>
+    <string name="tts_package_engine_save_failed">未能保存引擎配置，请重试。</string>
+    <string name="tts_package_error_dismiss">知道了</string>
     <string name="tts_package_voices">声音 · %1$d</string>
     <string name="tts_package_show_all">查看全部</string>
     <string name="tts_package_reading">正在读取语音包…</string>

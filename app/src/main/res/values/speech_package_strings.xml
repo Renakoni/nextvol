@@ -4,6 +4,9 @@
     <string name="tts_package_http_parameters_required">The voice parameters or extension controls have an invalid format.</string>
     <string name="tts_package_preview">Voice package preview</string>
     <string name="tts_package_import">Import</string>
+    <string name="tts_package_import_failed">Import failed</string>
+    <string name="tts_package_engine_save_failed">Could not save the engine configuration. Please try again.</string>
+    <string name="tts_package_error_dismiss">Got it</string>
     <string name="tts_package_voices">Voices · %1$d</string>
     <string name="tts_package_show_all">Show all</string>
     <string name="tts_package_reading">Reading package information…</string>

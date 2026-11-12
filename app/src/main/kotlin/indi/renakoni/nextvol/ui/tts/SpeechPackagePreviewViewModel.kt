@@ -65,6 +65,7 @@ data class SpeechPackagePreviewState(
     val offlineConfigurations: Map<Pair<Int, Int>, InstalledOfflineVoice> = emptyMap(),
     val offlineEngineImports: Map<Int, hnovel.speech.SpeechEngineConfig> = emptyMap(),
     val updatedOfflineVoices: Set<String> = emptySet(),
+    val engineImportFailed: Boolean = false,
 )
 
 /** Resource installation is independent of whether this device can execute the selected engine. */
@@ -185,7 +186,8 @@ class SpeechPackagePreviewViewModel @Inject constructor(
 
     fun importEngine(engine: hnovel.speech.SpeechEngineConfig, onSaved: () -> Unit) {
         if (state.value.installing) return
-        mutableState.update { it.copy(installing = true, installError = null) }
+        mutableState.update { it.copy(installing = true, installingId = null, installed = null,
+            installError = null, engineImportFailed = false) }
         viewModelScope.launch {
             try {
                 if (engine.isOnline) http.registerEngine(engine) else engines.register(engine)
@@ -193,10 +195,12 @@ class SpeechPackagePreviewViewModel @Inject constructor(
                 onSaved()
             }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { recordImport(failed = true); mutableState.update { it.copy(installError = R.string.tts_import_failed) } }
+            catch (_: Exception) { recordImport(failed = true); mutableState.update { it.copy(engineImportFailed = true) } }
             finally { mutableState.update { it.copy(installing = false) } }
         }
     }
+
+    fun dismissEngineImportError() { mutableState.update { it.copy(engineImportFailed = false) } }
 
     fun importOfflineConfiguration(draft: InstalledOfflineVoice) {
         if (state.value.installing || draft !in state.value.offlineConfigurations.values) return
