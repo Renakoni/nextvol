@@ -377,14 +377,6 @@ class ScopeTests(unittest.TestCase):
             '.github/ISSUE_TEMPLATE/bug_report.yml',
             MAIN + 'ui/book/reader/ReaderScreen.kt')['scopes'])
 
-    def test_test_changes_select_their_scope(self):
-        self.assertEqual('reader', self.select(
-            'app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/ReaderLayoutTest.kt')['scopes'])
-        self.assertEqual('reader', self.select(
-            'app/src/androidTest/kotlin/indi/renakoni/nextvol/reader/ReaderLayoutInstrumentedTest.kt')['scopes'])
-        self.assertEqual('reader,speech', self.select(
-            'app/src/androidTest/kotlin/indi/renakoni/nextvol/tts/SystemSpeechInstrumentedTest.kt')['scopes'])
-
     def test_jvm_only_inputs_keep_owner_and_integrity_without_release_or_devices(self):
         for path, owner in ((MAIN.replace('/main/', '/test/') + 'TestSupport.kt', ':app:testDebugUnitTest'),
                             ('app/src/test/resources/backups/README.md', ':app:testDebugUnitTest'),

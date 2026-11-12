@@ -26,25 +26,28 @@ jobs:
           check: lint
       - name: Prepare fixed Android environment
         if: steps.scope.outputs.run == 'true'
-        id: environment
         uses: ./.github/actions/android-environment
         with:
           native-tools: 'false'
-      - name: Run full Debug Lint and production Release fatal checks
-        if: ${{ !cancelled() && steps.environment.outcome == 'success' }}
+      - name: Restore Release task outputs
+        if: steps.scope.outputs.run == 'true'
+        uses: ./.github/actions/gradle-build-cache
+        with:
+          variant: release
+      - name: Run full production Release Lint
+        if: steps.scope.outputs.run == 'true'
         shell: bash
         run: |
           mkdir -p build/reports/lint
           # Lint analyzes Kotlin/resources; native packaging remains checked by APK builds.
-          ./gradlew --no-daemon :app:lintDebug :app:lintVitalRelease -x :app:buildMatchaNative -x :app:prepareOfflineRuntime --continue --console=plain --stacktrace --max-workers=2 2>&1 | tee build/reports/lint/gradle.log
+          ./gradlew --no-daemon :app:lintRelease -x :app:buildMatchaNative -x :app:prepareOfflineRuntime --console=plain --stacktrace --max-workers=2 2>&1 | tee build/reports/lint/gradle.log
       - name: Upload Lint reports
         if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android-lint-reports
           path: |
-            app/build/reports/lint-results-debug.*
-            app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug
-            app/build/intermediates/lint_vital_intermediate_text_report/release/lintVitalReportRelease
+            app/build/reports/lint-results-release.*
+            app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease
             build/reports/lint
           if-no-files-found: warn

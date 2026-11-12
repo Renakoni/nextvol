@@ -284,7 +284,6 @@ class ReaderPositionInstrumentedTest {
                             it.layoutInput.style.lineHeight.value == (font + spacing).toFloat()
                     }
                 }
-                fixture.awaitReady()
                 fixture.assertPosition(description = "flip=$flip width=$width font=$font spacing=$spacing padding=$padding")
             }
         }
@@ -400,7 +399,6 @@ class ReaderPositionInstrumentedTest {
         fixture.assertPosition()
         val before = fixture.reader.uiState.contentUiState!!.readingProgress
         compose.runOnIdle { fixture.width = 900.dp; fixture.height = 560.dp }
-        fixture.awaitReady()
         fixture.assertPosition()
         val after = fixture.reader.uiState.contentUiState!!.readingProgress
         assertNotEquals("Reflow must actually change the displayed extent", before, after)

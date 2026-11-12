@@ -117,6 +117,8 @@ android {
 
     lint {
         baseline = file("lint-baseline.xml")
+        // CI analyzes production Release once; owning JVM/device jobs validate tests.
+        ignoreTestSources = true
         // Full scans must reject stale entries. Vital scans do not run every baseline detector.
         error += "LintBaselineFixed"
     }

@@ -118,8 +118,8 @@ class ReaderSpreadInstrumentedTest {
         assertEquals(2..3, fixture.flip.visibleLeafRange)
     }
 
-    @Test fun fiveLeavesNavigateAsThreeDisjointScreens() {
-        val fixture = Fixture()
+    @Test fun animatedTurnsNavigateFiveLeavesAsThreeDisjointScreens() {
+        val fixture = Fixture(animated = true)
         assertEquals(5, fixture.flip.realLeafCount)
         assertEquals(3, fixture.flip.pagerState.pageCount)
         assertEquals(0..1, fixture.flip.visibleLeafRange)
@@ -172,14 +172,6 @@ class ReaderSpreadInstrumentedTest {
         compose.waitUntil(10_000) { fixture.flip.pagerState !== narrow && fixture.flip.pagerState.pageCount == 3 }
         compose.waitForIdle()
         assertEquals(2..3, fixture.flip.visibleLeafRange)
-    }
-
-    @Test fun animatedPageTurnsMoveWholeSpreads() {
-        val fixture = Fixture(animated = true)
-        fixture.turn(true)
-        assertEquals(2..3, fixture.flip.visibleLeafRange)
-        fixture.turn(false)
-        assertEquals(0..1, fixture.flip.visibleLeafRange)
     }
 
     @Test fun reducedMotionDoesNotChangeTheStoredAnimationOrSpreadStep() {

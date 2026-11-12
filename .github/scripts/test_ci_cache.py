@@ -13,36 +13,23 @@ import ci_task_cache
 
 
 class CacheSelectionTests(unittest.TestCase):
-    def test_variant_budget_keeps_newer_payloads_and_leaves_metadata_alone(self):
+    def test_variant_budget_keeps_newer_fitting_payloads_and_leaves_metadata_alone(self):
         with tempfile.TemporaryDirectory() as folder:
             directory = Path(folder)
-            for identifier, size in ((1, 6), (2, 4), (3, 6)):
+            # The newest oversized entry must not crowd out useful smaller ones.
+            for identifier, size in ((1, 6), (2, 4), (3, 6), (4, 11)):
                 entry = directory / f'{identifier:032x}'
                 entry.write_bytes(b'x' * size)
                 os.utime(entry, (identifier, identifier))
             metadata = directory / 'gc.properties'
             metadata.write_text('metadata', encoding='utf-8')
 
-            self.assertEqual((16, 10), ci_task_cache.trim_cache(directory, limit=10))
+            self.assertEqual((27, 10), ci_task_cache.trim_cache(directory, limit=10))
             self.assertEqual({'gc.properties', f'{2:032x}', f'{3:032x}'},
                              {path.name for path in directory.iterdir()})
             self.assertEqual('metadata', metadata.read_text(encoding='utf-8'))
             # A bounded snapshot is unchanged on the next save, including hits.
             self.assertEqual((10, 10), ci_task_cache.trim_cache(directory, limit=10))
-
-    def test_variant_budget_skips_oversized_entry_without_discarding_smaller_outputs(self):
-        with tempfile.TemporaryDirectory() as folder:
-            directory = Path(folder)
-            small = directory / ('1' * 32)
-            large = directory / ('2' * 32)
-            small.write_bytes(b'keep')
-            large.write_bytes(b'x' * 11)
-            os.utime(small, (1, 1))
-            os.utime(large, (2, 2))
-
-            self.assertEqual((15, 4), ci_task_cache.trim_cache(directory, limit=10))
-            self.assertEqual(b'keep', small.read_bytes())
-            self.assertFalse(large.exists())
 
     def test_embedded_sdk_retains_latest_shared_archive(self):
         caches = [

@@ -25,6 +25,7 @@ jobs:
         with:
           check: jvm
       - name: Check CI task selection
+        if: steps.scope.outputs.scopes != 'docs'
         run: python3 .github/scripts/test_ci_scope.py
       - name: Check CI helper scripts
         if: steps.scope.outputs.scripts == 'true'

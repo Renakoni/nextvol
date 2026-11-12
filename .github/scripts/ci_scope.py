@@ -292,7 +292,7 @@ def plan_for_paths(paths):
     minified.update(filter(None, result['minified-classes'].split(',')))
     result['minified-classes'] = ','.join(sorted(minified))
     result['minified'] = bool(minified)
-    # App Lint does not check test sources. Test-only edits already compile and
+    # App Lint explicitly ignores test sources. Test-only edits already compile and
     # execute their owner; they do not need another production Android analysis.
     result['scripts'] = result['scripts'] or script_inputs
     labels = scopes | test_scopes | device_scopes

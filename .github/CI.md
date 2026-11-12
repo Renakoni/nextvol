@@ -178,9 +178,10 @@ python3 .github/scripts/ci_scope.py --paths app/src/main/kotlin/indi/renakoni/ne
 The Gradle property filters test execution, not compilation: App and test sources
 still compile together. Release assembly and Lint remain necessary for production
 UI changes. Selection reduces unrelated work; it does not promise a fixed runtime.
-The JVM job always runs the lightweight selector regression tests, including
-documentation-only changes. Other helper checks run for full scope or reviewed
-CI-helper changes, even when no Android work is selected.
+The JVM job runs the lightweight selector regression tests for non-documentation
+changes, retaining filter/class inventory checks when tests are moved or deleted.
+Documentation-only changes just report the selection. Other helper checks run for
+full scope or reviewed CI-helper changes, even when no Android work is selected.
 
 ## JVM test coverage
 
@@ -204,7 +205,7 @@ consumers. App tasks explicitly fail on no discovered tests or unmatched filters
 
 Production paths retain the policy above. Known test-only paths independently
 select their execution environments without production Lint or a Release APK.
-App Lint does not enable `checkTestSources`; these edits already compile and run
+App Lint sets `ignoreTestSources = true`; these edits already compile and run
 their owning tests. App JVM tests/resources select the App owner (using a reviewed
 feature scope where available); JVM modules select their complete owning test task. Test code
 changes also select `:source-compatibility:test`, whose product-test file inputs
@@ -239,7 +240,9 @@ API-specific back callback. Reader position and spread tests run once on API 35;
 API 24 retains real font/text/layout/spacing coverage. The redundant pager-reflow
 case is merged into the real ViewModel position test, including paragraph spacing;
 unsupported-content page navigation is part of the existing fallback/recovery
-case. Text-layout character invariants use seven representative boundary triples
+case. Animated turns share the complete five-leaf navigation case instead of
+starting another fixture for the same forward/backward assertions.
+Text-layout character invariants use seven representative boundary triples
 instead of the 108 width/height/spacing permutations. This reduces repeated work
 while deliberately giving up the second API's full position/spread run.
 Source browsing tests retain cache eviction and cancellation boundaries without
@@ -506,10 +509,18 @@ logs with instrumentation output and the job timeout/cancellation reason.
 
 ## Lint and translation coverage
 
-`Android Lint` runs
-`:app:lintDebug` plus `:app:lintVitalRelease` with the repository wrapper and JDK 22.
+`Android Lint` runs `:app:lintRelease` once with the repository wrapper and JDK 22.
+This checks the actual production manifest/resources with all enabled detectors,
+including fatal ones, rather than preparing Debug and Release for overlapping
+full/Vital scans. Test sources are explicitly excluded with `ignoreTestSources`;
+leaving `checkTestSources` false still schedules test analysis in the pinned AGP.
+Debug-only probe/fixture sources remain compiled and exercised by JVM/device
+jobs, but no longer receive their own Lint scan.
 APK jobs exclude Vital Lint to avoid duplicating this work alongside R8; local
 assembly defaults are unchanged. No emulator is required.
+Lint restores the existing Release task cache without saving another archive,
+so Gradle can reuse matching compilation outputs from previous APK builds.
+Misses still compile normally; concurrent jobs need not have published a snapshot.
 Resource contracts run in the independent JVM workflow, so their failure does
 not prevent Lint from collecting diagnostics. Bash pipefail preserves the Gradle
 failure while tee records output. HTML/XML/text reports and logs upload with
@@ -518,11 +529,11 @@ no Lint report; the Actions step log remains the evidence in that case.
 
 | Scope | Coverage |
 | --- | --- |
-| App Debug | Full production Android Lint, including main/Debug resources; `checkTestSources` is not enabled |
+| App Release | Full production Android Lint, including main/Release manifest and resources; test sources explicitly ignored |
 | App translations | Default/en, Simplified Chinese and Traditional Chinese; see [resource contracts](RESOURCE_CONTRACTS.md) |
-| `:api` | Dependency model/class information used by app analysis; no independent `:api:lintDebug` scan |
+| `:api` | Dependency model/class information and AGP partial analysis used by the App Lint task |
 | `:benchmark` | Android test module, exercised by the existing minified device job; not independently linted |
-| App Release/snapshot/benchmark | No full variant Lint here; Release assembly/lintVital and minified runtime remain separate checks |
+| App Debug/snapshot/benchmark | No additional full variant Lint; Debug tests, Release assembly and minified runtime remain separate checks |
 | JVM source/EPUB modules | Existing JVM/build checks; not independent Android Lint targets |
 
 The gate fails on Error/Fatal diagnostics outside the reviewed baseline. Warnings
@@ -537,6 +548,12 @@ The Lint concurrency key includes the event and PR/ref, keeping PR, merge-group,
 and manual runs independent from one another and from the other three workflows.
 Configure `Android Lint` as required only after a real PR has passed; read back
 the protection settings and retain the existing five checks and strict mode.
+
+The completed cold-cache run `43218511653` spent 12m21s in Gradle (132 executed,
+10 cached tasks), including both Debug/Release KSP and compilation plus App
+Debug Android/unit-test Lint analysis. Task log timestamps overlap across workers;
+they are not individual task timings. Removing the second variant and test scans
+reduces that work, but the new runtime must be measured on comparable completed runs.
 
 ## Maintenance
 
