@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -104,6 +105,33 @@ class ExploreHomeScreenTest {
         compose.runOnIdle { page = page.copy(sections = sections + sections.last().copy(id = "20", title = "Section 20")) }
         compose.onNodeWithText("Section 8").assertIsDisplayed()
         compose.runOnIdle { assertEquals(previous, scroll) }
+    }
+
+    @Test fun refreshIndicatorStaysVisibleWithBooksUntilRefreshEnds() {
+        val id = Identifier("fixture", "Refreshing source")
+        var page by mutableStateOf(DiscoveryPageContent(loading = true))
+        val indicator = SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate)
+        activity.get().setContent { MaterialTheme {
+            ExploreHomeScreen(DiscoveryPageState(listOf(listing(id)), id, mapOf(id to page)),
+                {}, { _, _ -> }, {}, {}, {}, {}, {}, { _, _ -> }, { _, _ -> }, {})
+        } }
+        compose.onNode(indicator).assertIsDisplayed()
+        compose.runOnIdle { page = content(id).copy(loaded = false, loading = true) }
+        compose.onNode(indicator).assertDoesNotExist()
+        compose.runOnIdle { page = page.copy(loaded = true, loading = false) }
+
+        compose.runOnIdle { page = page.copy(loaded = false, loading = true, refreshing = true) }
+        compose.onNode(indicator).assertIsDisplayed()
+        compose.onNodeWithText("Same book").assertIsDisplayed()
+        compose.runOnIdle {
+            page = page.copy(sections = page.sections.map { section ->
+                section.copy(books = section.books.map { it.copy(title = "Updated book") })
+            })
+        }
+        compose.onNodeWithText("Updated book").assertIsDisplayed()
+        compose.onNode(indicator).assertIsDisplayed()
+        compose.runOnIdle { page = page.copy(loaded = true, loading = false, refreshing = false) }
+        compose.onNode(indicator).assertDoesNotExist()
     }
 
     @Test fun returningToTheFeedRestoresTheSavedPositionForEachSource() {

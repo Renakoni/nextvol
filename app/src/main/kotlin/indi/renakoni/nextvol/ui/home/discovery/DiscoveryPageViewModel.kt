@@ -23,6 +23,7 @@ data class DiscoveryPageContent(
     val categories: List<SourceDiscoveryCategory> = emptyList(),
     val loaded: Boolean = false,
     val loading: Boolean = false,
+    val refreshing: Boolean = false,
     val error: DiscoveryError? = null,
     val scroll: DiscoveryScroll = DiscoveryScroll(),
     val filters: List<DiscoveryFilter> = emptyList(),
@@ -202,13 +203,14 @@ abstract class DiscoveryPageViewModel(
 
     fun refresh() {
         val id = state.value.selected ?: return
+        if (state.value.content[id]?.refreshing == true) return
         indi.renakoni.nextvol.data.image.SourceImageRetryEvents.request(id)
         cancelLoad()
         refreshCatalog += id
         // A completed page remains useful while its replacement is loading.
         // Interrupted refreshes still discard their partial snapshot.
         if (state.value.content[id]?.loaded == true) resumablePreviews += id else resumablePreviews -= id
-        put(id, (state.value.content[id] ?: newContent()).copy(loaded = false, loading = false, error = null))
+        put(id, (state.value.content[id] ?: newContent()).copy(loaded = false, loading = false, refreshing = true, error = null))
         if (active) load()
     }
 
@@ -288,7 +290,7 @@ abstract class DiscoveryPageViewModel(
         val token = Any()
         browserToken = token
         browser?.cancel()
-        put(command.source, state.value.content.getValue(command.source).copy(loading = false, acting = true, error = null, errorField = null, errorPermission = null, errorDiagnostic = null, errorHttpStatus = null))
+        put(command.source, state.value.content.getValue(command.source).copy(loading = false, refreshing = false, acting = true, error = null, errorField = null, errorPermission = null, errorDiagnostic = null, errorHttpStatus = null))
         browser = viewModelScope.launch {
             val result = discoveryRequest { discovery.openBrowser(action) }
             // Its Activity covers this destination. Completion may precede onStart, after UI
@@ -343,7 +345,7 @@ abstract class DiscoveryPageViewModel(
         state.value.selected?.let { id -> state.value.content[id]?.let { page ->
             if (page.loading && page.sections.any { it.previewFailure == null && it.books.isNotEmpty() })
                 resumablePreviews += id
-            put(id, page.copy(loading = false, acting = browserToken != null))
+            put(id, page.copy(loading = false, refreshing = false, acting = browserToken != null))
         } }
     }
 
@@ -424,7 +426,7 @@ abstract class DiscoveryPageViewModel(
                     }
                     failure?.let { return@discoveryRequest Err(it) }
                 }
-                Ok(content.copy(loaded = true, loading = false, acting = false, error = null, errorField = null, errorPermission = null, errorDiagnostic = null, errorHttpStatus = null))
+                Ok(content.copy(loaded = true, loading = false, refreshing = false, acting = false, error = null, errorField = null, errorPermission = null, errorDiagnostic = null, errorHttpStatus = null))
             }
             // A retained verification window may fail before this page resumes. Its result
             // still belongs here; navigation/cancellation already invalidate serial.
@@ -432,7 +434,7 @@ abstract class DiscoveryPageViewModel(
             val current = state.value.content[id] ?: previous
             result.onOk { page -> refreshCatalog -= id; put(id, page.copy(scroll = current.scroll,
                 sections = page.sections.map { previewOverrides[it.id] ?: it })) }
-                .onErr { put(id, current.copy(error = it, loading = false, errorField = sessions[id]?.failureField, errorPermission = sessions[id]?.permissionFailure, errorDiagnostic = sessions[id]?.diagnosticFailure, errorHttpStatus = sessions[id]?.httpStatus)) }
+                .onErr { put(id, current.copy(error = it, loading = false, refreshing = false, errorField = sessions[id]?.failureField, errorPermission = sessions[id]?.permissionFailure, errorDiagnostic = sessions[id]?.diagnosticFailure, errorHttpStatus = sessions[id]?.httpStatus)) }
         }
     }
 }
