@@ -363,22 +363,18 @@ class ReadAloudOverlayTest {
         player().assertDoesNotExist()
     }
 
-    @Test fun coverAlwaysUsesTheCurrentListeningBookAndChapter() {
+    @Test fun coverFollowsTheCurrentBookAndKeepsTheAudibleChapterDuringBuffering() {
         show()
         compose.runOnIdle { state.value = state.value.copy(request = SpeechRequest("another-book", "chapter-2")) }
         compose.onNodeWithTag("read-aloud-cover").performClick()
         assertEquals(listOf(SpeechRequest("another-book", "chapter-2")), opened)
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
-    }
-
-    @Test fun coverUsesTheAudibleChapterWhileTheNextChapterIsBuffering() {
-        show()
         compose.runOnIdle {
-            state.value = state.value.copy(request = SpeechRequest("book", "next"), phase = SpeechPhase.Buffering,
-                position = indi.renakoni.nextvol.tts.SpeechPosition("book", "audible", "fingerprint", 12, 24))
+            state.value = state.value.copy(request = SpeechRequest("another-book", "next"), phase = SpeechPhase.Buffering,
+                position = indi.renakoni.nextvol.tts.SpeechPosition("another-book", "audible", "fingerprint", 12, 24))
         }
         compose.onNodeWithTag("read-aloud-cover").performClick()
-        assertEquals(listOf(SpeechRequest("book", "audible")), opened)
+        assertEquals(listOf(SpeechRequest("another-book", "chapter-2"), SpeechRequest("another-book", "audible")), opened)
     }
 
     @Test fun coverNavigatesFromDiscoveryAndReplacesAnAlreadyOpenReader() {

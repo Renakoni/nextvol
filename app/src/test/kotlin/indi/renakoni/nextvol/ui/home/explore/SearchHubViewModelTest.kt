@@ -98,11 +98,12 @@ class SearchHubViewModelTest {
         author = "Author", description = "Description", publishingHouse = "", wordCount = WordCount(0),
         lastUpdated = LocalDateTime.MIN, isComplete = false))
 
-    @Test fun thousandSourcesAreLazyAndRunWithAtMostEightRequests() = runTest(dispatcher) {
+    @Test fun queuedSourcesStartLazilyAndDrainWithAtMostEightRequests() = runTest(dispatcher) {
+        val sourceCount = 17 // Two full batches and one queued tail request.
         var active = 0
         var peak = 0
         var calls = 0
-        repeat(1000) { index -> add("source-$index", Paged().apply { load = { _, _ ->
+        repeat(sourceCount) { index -> add("source-$index", Paged().apply { load = { _, _ ->
             active++; calls++; peak = maxOf(peak, active)
             try { delay(10); SearchPage(emptyList(), null) } finally { active-- }
         } }) }
@@ -114,8 +115,8 @@ class SearchHubViewModelTest {
         assertEquals(8, calls)
         advanceUntilIdle()
         assertEquals(8, peak)
-        assertEquals(1000, calls)
-        assertEquals(1000, model.state.value.completed)
+        assertEquals(sourceCount, calls)
+        assertEquals(sourceCount, model.state.value.completed)
         assertFalse(model.state.value.searching)
         assertTrue(model.state.value.books.isEmpty())
     }

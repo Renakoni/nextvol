@@ -95,6 +95,10 @@ def main():
     obsolete = obsolete_snapshots(caches)
     if args.gradle_key:
         obsolete.extend(obsolete_gradle(caches, args.gradle_key))
+    total_bytes = sum(cache['size_in_bytes'] for cache in caches)
+    removed_bytes = sum(cache['size_in_bytes'] for cache in obsolete)
+    has_gradle = any(cache['ref'] == MAIN and cache['key'].startswith(GRADLE_HOME) for cache in caches)
+    print(f'Inspected {len(caches)} caches, {total_bytes} bytes', flush=True)
     for cache in obsolete:
         print(f"{'Would delete' if args.dry_run else 'Deleting'} {cache['id']} "
               f"{cache['ref']} {cache['key']} ({cache['size_in_bytes']} bytes)", flush=True)
@@ -104,7 +108,17 @@ def main():
             # Another cleanup or GitHub's quota eviction may have removed it.
             if result.returncode and '(HTTP 404)' not in result.stderr:
                 raise RuntimeError(result.stderr)
-    print(f"Selected {len(obsolete)} caches, {sum(cache['size_in_bytes'] for cache in obsolete)} bytes")
+    summary = (f'Inspected {len(caches)} caches: {total_bytes / 1024**3:.2f} GiB.\n\n'
+               f'Selected {len(obsolete)} caches for deletion: {removed_bytes / 1024**3:.2f} GiB.\n\n'
+               f'Expected remaining from this inventory: {len(caches) - len(obsolete)} caches, '
+               f'{(total_bytes - removed_bytes) / 1024**3:.2f} GiB.\n\n'
+               f'Main Gradle root snapshot: {"present (payloads not checked)" if has_gradle else "missing"}.\n')
+    print(summary)
+    if not has_gradle:
+        print('::warning::Shared main Gradle snapshot is missing. Run Warm Android caches on main to restore it.')
+    if os.environ.get('GITHUB_STEP_SUMMARY'):
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
+            output.write(f'### Cache retention{" (dry run)" if args.dry_run else ""}\n\n{summary}')
 
 
 if __name__ == '__main__':

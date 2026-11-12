@@ -17,6 +17,12 @@ UI_ROOTS = {'ui/home/bookshelf/': 'bookshelf', 'ui/home/explore/': 'explore',
             'ui/home/reading/stats/': 'stats', 'ui/bangumi/': 'bangumi',
             'ui/home/settings/about/': 'about', 'ui/home/settings/licenses/': 'about',
             'ui/home/settings/logcat/': 'logs'}
+SCRIPT_INPUTS = {f'.github/scripts/{name}' for name in (
+    'ci_cache.py', 'ci_cache_retention.py', 'ci_task_cache.py',
+    'test_ci_scope.py', 'test_ci_cache.py', 'test_ci_debug_apks.py',
+    'test_ci_emulator.py', 'test_emulator_tests.py', 'test_prepare_android_sdk.py',
+    'check_resources.py', 'test_check_resources.py',
+)} | {'.github/workflows/cleanup-pr-caches.yml'}
 JVM_TASKS = [':app:testDebugUnitTest', ':epub:test', ':source-rules:test',
              ':source-network:test', ':source-import:test', ':source-execution:test',
              ':source-compatibility:test', ':source-rhino:test', ':source-content:test',
@@ -117,9 +123,23 @@ def classify(path):
             if relative.startswith('ui/bookmanager/') or (root == KOTLIN_ROOTS[0] and
                     relative.startswith(('data/storage/', 'ui/storagemanager/'))):
                 return 'storage'
+            # Test-only owners already belong to these positive Gradle filters.
+            # Shared helpers (e.g. LegacyDownloadSchema/ContentTestHost) stay broad;
+            # production implementations still need their cross-feature consumers.
+            if root == KOTLIN_ROOTS[1] and relative.endswith('Test.kt'):
+                if relative.startswith(('data/download/', 'data/localbook/', 'ui/localbook/', 'ui/book/download/')):
+                    return 'storage'
+                if relative.startswith(('data/content/', 'data/format/', 'ui/book/detail/')):
+                    return 'reader'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
-            if relative.startswith(('tts/', 'ui/tts/')):
+            if relative.startswith('ui/home/settings/textformatting/'):
+                return 'reader'
+            if relative.startswith('data/bangumi/'):
+                return 'bangumi'
+            if relative.startswith('ui/tts/'):
+                return 'speech-ui'
+            if relative.startswith('tts/'):
                 return 'speech'
             if relative.startswith(('ui/home/discovery/', 'ui/home/categories/')):
                 return 'catalog'
@@ -168,7 +188,9 @@ def device_classes(scopes, api):
     reader = full or 'reader' in scopes
     if api == 24:
         main += [name for scope, name in EXTRA_24 if full or scope in scopes]
-    return qualified(main), qualified(READER_WIDE if reader else [])
+    # API 24 retains real text/font/layout checks. Position and spread behavior
+    # run once on API 35 instead of repeating the whole wide suite on both APIs.
+    return qualified(main), qualified(READER_WIDE if reader and api == 35 else [])
 
 
 def plan(scopes):
@@ -185,12 +207,13 @@ def plan(scopes):
     minified = []
     if full or scopes & {'catalog', 'source'}:
         minified.append(MINIFIED_SOURCE)
-    if full or 'speech' in scopes:
+    if full or scopes & {'speech', 'speech-ui'}:
         minified.append(MINIFIED_SPEECH)
     return {
         'scopes': ','.join(sorted(scopes)) or 'docs',
         'device-scopes': ','.join(sorted(scopes)) or 'docs',
         'jvm': active,
+        'scripts': full,
         'gradle-args': ' '.join(tasks),
         'device-24': any(device_classes(scopes, 24)),
         'device-35': any(device_classes(scopes, 35)),
@@ -207,8 +230,12 @@ def plan_for_paths(paths):
     production = []
     test_scopes, device_scopes, modules, minified = set(), set(), set(), set()
     test_inputs = False
+    script_inputs = False
     source_production = False
     for path in paths:
+        if path in SCRIPT_INPUTS:
+            script_inputs = True
+            continue
         source_module = source_module_for_path(path)
         if source_module or path in SOURCE_CATALOG_FILES:
             consumers = SOURCE_CONSUMERS[source_module] if source_module else ('content',)
@@ -273,9 +300,12 @@ def plan_for_paths(paths):
     minified.update(filter(None, result['minified-classes'].split(',')))
     result['minified-classes'] = ','.join(sorted(minified))
     result['minified'] = bool(minified)
-    result['lint'] = result['lint'] or test_inputs
+    # App Lint explicitly ignores test sources. Test-only edits already compile and
+    # execute their owner; they do not need another production Android analysis.
+    result['scripts'] = result['scripts'] or script_inputs
     labels = scopes | test_scopes | device_scopes
-    result['scopes'] = 'full' if 'full' in labels else ','.join(sorted(labels)) or ('tests' if test_inputs else 'docs')
+    result['scopes'] = ('full' if 'full' in labels else ','.join(sorted(labels))
+                        or ('tests' if test_inputs else 'ci' if script_inputs else 'docs'))
     return result
 
 
@@ -322,7 +352,7 @@ def main():
     args = parser.parse_args()
     if args.device_api:
         scopes = set(args.scopes.split(','))
-        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'source', 'update', 'export', 'backup', 'storage', 'docs', *UI_ROOTS.values()}:
+        if not scopes <= {'full', 'ui', 'catalog', 'reader', 'speech', 'speech-ui', 'source', 'update', 'export', 'backup', 'storage', 'docs', *UI_ROOTS.values()}:
             parser.error('unknown test scope')
         print('\n'.join(device_classes(scopes, args.device_api)))
         return
@@ -340,7 +370,7 @@ def main():
             summary.write(f'### Check selection: {args.check}\n\n')
             summary.write(f"Scopes: `{result['scopes']}`. {reason}\n\n")
             summary.write('Check | Selected\n--- | ---\n')
-            for check in ('jvm', 'device-24', 'device-35', 'release', 'lint', 'minified'):
+            for check in ('scripts', 'jvm', 'device-24', 'device-35', 'release', 'lint', 'minified'):
                 summary.write(f'{check} | {result[check]}\n')
             summary.write(f"\nGradle: `{result['gradle-args'] or 'none'}`\n")
 

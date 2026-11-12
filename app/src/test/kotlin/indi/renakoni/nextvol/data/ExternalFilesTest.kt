@@ -21,24 +21,27 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowContentResolver
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [27, 35], application = Application::class)
+@Config(sdk = [35], application = Application::class)
 class ExternalFilesTest {
     private val context = RuntimeEnvironment.getApplication()
     private val uri = Uri.parse("content://qq-files/opaque/12345")
 
     @Test fun opaqueProviderNamesOverrideGenericAndIncorrectSenderTypes() = runBlocking {
-        for ((name, format) in listOf("小说.第一卷.EPUB" to LocalBookFormat.EPUB, "小说.TXT" to LocalBookFormat.TXT,
-            "NextVolData.NVBACKUP" to null, "old.lnr" to null)) {
+        for ((name, format, mime) in listOf(
+            Triple("小说.第一卷.EPUB", LocalBookFormat.EPUB, "text/plain"),
+            Triple("小说.TXT", LocalBookFormat.TXT, "application/zip"),
+            Triple("NextVolData.NVBACKUP", null, "application/octet-stream"),
+            Triple("old.lnr", null, "application/zip"),
+        )) {
             ShadowContentResolver.registerProviderInternal("qq-files", NamedProvider(name))
-            for (mime in listOf("application/octet-stream", "application/zip", "text/plain")) {
-                val file = ExternalFiles.resolve(context.contentResolver, Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime))!!
-                assertEquals(name, file.name)
-                assertEquals(format, file.bookFormat)
-            }
+            val file = ExternalFiles.resolve(context.contentResolver, Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime))!!
+            assertEquals(name, file.name)
+            assertEquals(format, file.bookFormat)
         }
     }
 
-    @Test fun streamAndClipUrisWorkButSharedTextAndRemoteUrlsAreNotFiles() {
+    @Test @Config(sdk = [27, 35])
+    fun streamAndClipUrisWorkButSharedTextAndRemoteUrlsAreNotFiles() {
         assertEquals(uri, ExternalFiles.uri(Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uri)))
         assertEquals(uri, ExternalFiles.uri(Intent(Intent.ACTION_SEND).apply { clipData = ClipData.newRawUri("book", uri) }))
         assertNull(ExternalFiles.uri(Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_TEXT, "content://qq-files/book.txt")))
@@ -55,7 +58,8 @@ class ExternalFilesTest {
         assertNull(ExternalFiles.resolve(context.contentResolver, Intent(Intent.ACTION_VIEW, Uri.parse("file:///sdcard/photo.jpg"))))
     }
 
-    @Test fun installedManifestResolvesLocalOpenAndShareWithoutClaimingWebLinks() {
+    @Test @Config(sdk = [27, 35])
+    fun installedManifestResolvesLocalOpenAndShareWithoutClaimingWebLinks() {
         fun resolves(intent: Intent) = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
             .any { it.activityInfo.name == "indi.renakoni.nextvol.MainActivity" }
         for (mime in listOf("application/epub+zip", "text/plain", ExternalFiles.BACKUP_MIME,

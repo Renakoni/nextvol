@@ -52,7 +52,7 @@ class ScopeTests(unittest.TestCase):
     def test_positive_app_filters_have_existing_test_classes(self):
         build = (ROOT / 'app/build.gradle.kts').read_text(encoding='utf-8')
         filters = build.split('val uiTests =', 1)[1].split('require(scopes.all', 1)[0]
-        patterns = re.findall(r'"((?:ui|data|tts)\.[A-Za-z0-9.*]+)"', filters)
+        patterns = re.findall(r'"((?:ui|data|tts|defaultplugin)\.[A-Za-z0-9.*]+)"', filters)
         classes = [ci_scope.PACKAGE + path.relative_to(ROOT / 'app/src/test/kotlin/indi/renakoni/nextvol')
                    .with_suffix('').as_posix().replace('/', '.')
                    for path in (ROOT / 'app/src/test/kotlin/indi/renakoni/nextvol').rglob('*.kt')
@@ -91,8 +91,7 @@ class ScopeTests(unittest.TestCase):
                      'data/book/BookRepository.kt', 'ui/book/detail/DetailViewModel.kt'):
             self.assertEqual(ci_scope.plan({'full'}), self.select(
                 MAIN + 'data/export/EpubShareFiles.kt', MAIN + path))
-        for relative in ('ui/export/NewShareTest.kt', 'data/download/BookDownloadTest.kt',
-                         'data/work/BookWorkIdentityTest.kt'):
+        for relative in ('ui/export/NewShareTest.kt', 'data/work/BookWorkIdentityTest.kt'):
             self.assertNotIn('-PciTestScope=', self.select(ci_scope.KOTLIN_ROOTS[1] + relative)['gradle-args'])
 
     def test_backup_production_and_legacy_resources_keep_their_consumers(self):
@@ -107,7 +106,7 @@ class ScopeTests(unittest.TestCase):
         for resource in ('README.md', 'before-nextvol.lnr'):
             tests = self.select('app/src/test/resources/backups/' + resource)
             self.assertIn('-PciTestScope=backup', tests['gradle-args'])
-            self.assertTrue(tests['lint'])
+            self.assertFalse(tests['lint'])
             self.assertFalse(tests['release'])
             self.assertFalse(tests['device-24'])
 
@@ -121,7 +120,7 @@ class ScopeTests(unittest.TestCase):
                      'ui/home/settings/SettingsViewModel.kt', 'ui/home/settings/Navigation.kt'):
             self.assertEqual(ci_scope.plan({'full'}), self.select(
                 MAIN + 'data/backup/BackupArchive.kt', MAIN + path))
-        for relative in ('data/local/SourceIdentityRoomTest.kt', 'data/localbook/LocalBookRelinkTest.kt'):
+        for relative in ('data/local/SourceIdentityRoomTest.kt', 'data/download/LegacyDownloadSchema.kt'):
             tests = self.select(ci_scope.KOTLIN_ROOTS[1] + relative)
             self.assertNotIn('-PciTestScope=', tests['gradle-args'])
             self.assertFalse(tests['device-24'])
@@ -144,8 +143,9 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(plan['minified'])
         mixed = self.select(MAIN + 'data/storage/StorageBookCleanup.kt',
                             ci_scope.KOTLIN_ROOTS[1] + 'data/download/BookDownloadTest.kt',
-                            ci_scope.KOTLIN_ROOTS[1] + 'data/localbook/LocalBookStoreTest.kt')
-        self.assertNotIn('-PciTestScope=', mixed['gradle-args'])
+                            ci_scope.KOTLIN_ROOTS[1] + 'data/localbook/LocalBookStoreTest.kt',
+                            ci_scope.KOTLIN_ROOTS[1] + 'ui/book/detail/DetailDirectoryPagingTest.kt')
+        self.assertIn('-PciTestScope=reader,storage', mixed['gradle-args'])
         self.assertEqual('storage', mixed['device-scopes'])
         self.assertFalse(mixed['device-35'])
 
@@ -179,7 +179,7 @@ class ScopeTests(unittest.TestCase):
                 for check in ('device-24', 'device-35', 'minified'):
                     self.assertFalse(plan[check])
 
-    def test_reader_keeps_both_api_reflow_suites_without_source_browser_tests(self):
+    def test_reader_splits_minimum_api_layout_from_wide_behavior_without_source_browser_tests(self):
         plan = self.select(MAIN + 'ui/book/reader/ReaderScreen.kt')
         self.assertEqual('reader', plan['scopes'])
         self.assertTrue(plan['device-24'])
@@ -189,13 +189,16 @@ class ScopeTests(unittest.TestCase):
             main, wide = ci_scope.device_classes({'reader'}, api)
             self.assertNotIn('NativeBrowser', main)
             self.assertNotIn('IsolatedExecution', main)
-            self.assertIn('ReaderPositionInstrumentedTest', wide)
-            self.assertIn('ReaderSpreadInstrumentedTest', wide)
+            if api == 35:
+                self.assertIn('ReaderPositionInstrumentedTest', wide)
+                self.assertIn('ReaderSpreadInstrumentedTest', wide)
+            else:
+                self.assertEqual('', wide)
         self.assertEqual('', ci_scope.device_classes({'reader'}, 35)[0])
         self.assertIn('ReaderLayoutInstrumentedTest', ci_scope.device_classes({'reader'}, 24)[0])
 
     def test_speech_includes_reader_and_only_speech_minified_smoke(self):
-        for path in ('tts/ReadAloudSession.kt', 'ui/tts/ReadAloudScreen.kt'):
+        for path in ('tts/ReadAloudSession.kt', 'tts/ReadAloudController.kt'):
             plan = self.select(MAIN + path)
             self.assertEqual('reader,speech', plan['scopes'])
             self.assertIn(':source-speech:test', plan['gradle-args'])
@@ -204,6 +207,40 @@ class ScopeTests(unittest.TestCase):
                           ci_scope.device_classes({'reader', 'speech'}, 24)[0])
             self.assertIn('SpeechReplacementInstrumentedTest',
                           ci_scope.device_classes({'reader', 'speech'}, 24)[0])
+
+    def test_speech_ui_keeps_app_consumers_and_minified_smoke_without_debug_devices(self):
+        plan = self.select(MAIN + 'ui/tts/ReadAloudScreen.kt')
+        self.assertEqual(':app:testDebugUnitTest -PciTestScope=speech-ui', plan['gradle-args'])
+        self.assertEqual(ci_scope.MINIFIED_SPEECH, plan['minified-classes'])
+        self.assertFalse(plan['device-24'])
+        self.assertFalse(plan['device-35'])
+        mixed = self.select(MAIN + 'ui/tts/SpeechControls.kt', MAIN + 'tts/ReadAloudSession.kt')
+        self.assertTrue(mixed['device-24'])
+        self.assertTrue(mixed['device-35'])
+        self.assertIn(':source-speech:test', mixed['gradle-args'])
+
+    def test_reviewed_data_and_formatting_paths_reuse_feature_scopes(self):
+        for relative, scope in (('data/bangumi/BangumiRepository.kt', 'bangumi'),
+                                ('ui/home/settings/textformatting/FormattingViewModel.kt', 'reader')):
+            with self.subTest(path=relative):
+                plan = self.select(MAIN + relative)
+                self.assertEqual(':app:testDebugUnitTest -PciTestScope=' + scope, plan['gradle-args'])
+                self.assertFalse(plan['minified'])
+                self.assertEqual(scope == 'reader', plan['device-35'])
+
+    def test_ci_helpers_only_run_scripts_and_mixed_unknown_inputs_stay_full(self):
+        plan = self.select('.github/scripts/ci_cache_retention.py', '.github/scripts/test_ci_cache.py')
+        self.assertEqual('ci', plan['scopes'])
+        self.assertTrue(plan['scripts'])
+        for check in ('jvm', 'lint', 'release', 'device-24', 'device-35', 'minified'):
+            self.assertFalse(plan[check])
+        mixed = self.select('.github/scripts/test_check_resources.py', MAIN + 'ui/tts/ReadAloudScreen.kt')
+        self.assertTrue(mixed['scripts'])
+        self.assertTrue(mixed['jvm'])
+        self.assertTrue(mixed['minified'])
+        self.assertTrue(mixed['lint'])
+        self.assertEqual(ci_scope.plan({'full'}), self.select('.github/scripts/test_ci_cache.py',
+                                                           '.github/scripts/unknown.py'))
 
     def test_catalog_keeps_source_smoke_without_unrelated_device_suites(self):
         for path in ('ui/home/discovery/DiscoveryComponents.kt',
@@ -306,6 +343,11 @@ class ScopeTests(unittest.TestCase):
         for path in (MAIN + 'ui/components/Cards.kt', MAIN + 'ui/navigation/Navigation.kt',
                      MAIN + 'ui/home/settings/list/ReadingSettingsList.kt',
                      MAIN + 'data/local/UserReadingDataRepository.kt',
+                     MAIN + 'data/download/BookDownloadStore.kt',
+                     MAIN + 'data/localbook/LocalBookStore.kt',
+                     MAIN + 'data/content/ContentJsonDecoder.kt',
+                     MAIN + 'data/format/FormattingRuleProcessor.kt',
+                     MAIN + 'data/logging/LoggerRepository.kt',
                      MAIN + 'ui/newfeature/NewScreen.kt',
                      'app/src/main/res/values/strings.xml', 'app/src/main/AndroidManifest.xml',
                      'sources/content/src/main/resources/unknown.json', 'gradle/libs.versions.toml',
@@ -338,23 +380,29 @@ class ScopeTests(unittest.TestCase):
             '.github/ISSUE_TEMPLATE/bug_report.yml',
             MAIN + 'ui/book/reader/ReaderScreen.kt')['scopes'])
 
-    def test_test_changes_select_their_scope(self):
-        self.assertEqual('reader', self.select(
-            'app/src/test/kotlin/indi/renakoni/nextvol/ui/book/reader/ReaderLayoutTest.kt')['scopes'])
-        self.assertEqual('reader', self.select(
-            'app/src/androidTest/kotlin/indi/renakoni/nextvol/reader/ReaderLayoutInstrumentedTest.kt')['scopes'])
-        self.assertEqual('reader,speech', self.select(
-            'app/src/androidTest/kotlin/indi/renakoni/nextvol/tts/SystemSpeechInstrumentedTest.kt')['scopes'])
-
     def test_jvm_only_inputs_keep_owner_and_integrity_without_release_or_devices(self):
-        for path, owner in ((MAIN.replace('/main/', '/test/') + 'TestSupport.kt', ':app:testDebugUnitTest'),
-                            ('app/src/test/resources/backups/README.md', ':app:testDebugUnitTest'),
-                            ('sources/network/src/test/kotlin/NetworkTest.kt', ':source-network:test')):
+        test_root = ci_scope.KOTLIN_ROOTS[1]
+        cases = [
+                (test_root + 'TestSupport.kt', ':app:testDebugUnitTest', None),
+                (test_root + 'data/content/ContentTestHost.kt', ':app:testDebugUnitTest', None),
+                ('app/src/test/resources/backups/README.md', ':app:testDebugUnitTest', 'backup'),
+                ('sources/network/src/test/kotlin/NetworkTest.kt', ':source-network:test', None)]
+        cases += [(test_root + relative, ':app:testDebugUnitTest', scope) for relative, scope in (
+            ('data/download/BookDownloadTest.kt', 'storage'),
+            ('data/localbook/TxtBookParserTest.kt', 'storage'),
+            ('ui/localbook/LocalBookRelinkUiTest.kt', 'storage'),
+            ('ui/book/download/BookDownloadScreenTest.kt', 'storage'),
+            ('data/content/ContentDecodingContractTest.kt', 'reader'),
+            ('data/format/FormatRepositoryTest.kt', 'reader'),
+            ('ui/book/detail/DetailDirectoryPagingTest.kt', 'reader'))]
+        for path, owner, scope in cases:
             with self.subTest(path=path):
                 plan = self.select(path)
                 self.assertIn(owner, plan['gradle-args'])
                 self.assertIn(':source-compatibility:test', plan['gradle-args'])
-                self.assertTrue(plan['lint'])
+                filters = [arg for arg in plan['gradle-args'].split() if arg.startswith('-PciTestScope=')]
+                self.assertEqual([] if scope is None else ['-PciTestScope=' + scope], filters)
+                self.assertFalse(plan['lint'])
                 for check in ('release', 'device-24', 'device-35', 'minified'):
                     self.assertFalse(plan[check])
 
@@ -364,11 +412,13 @@ class ScopeTests(unittest.TestCase):
         self.assertTrue(plan['device-35'])
         self.assertEqual(':source-compatibility:test', plan['gradle-args'])
         self.assertFalse(plan['release'])
+        self.assertFalse(plan['lint'])
         plan = self.select('tests/benchmark/src/main/kotlin/' + ci_scope.MINIFIED_SPEECH.replace('.', '/') + '.kt')
         self.assertEqual(ci_scope.MINIFIED_SPEECH, plan['minified-classes'])
         self.assertTrue(plan['minified'])
         self.assertFalse(plan['release'])
         self.assertFalse(plan['jvm'])
+        self.assertFalse(plan['lint'])
 
     def test_shared_test_inputs_include_jvm_and_android_consumers(self):
         for path, owner in (('sources/content/src/testFixtures/kotlin/RuleSourceFixture.kt', ':app:testDebugUnitTest'),
@@ -415,8 +465,8 @@ class ScopeTests(unittest.TestCase):
         for api in (24, 35):
             main, wide = ci_scope.device_classes({'full'}, api)
             self.assertTrue(main)
-            self.assertTrue(wide)
-            classes = (main + ',' + wide).split(',')
+            self.assertEqual(api == 35, bool(wide))
+            classes = list(filter(None, (main + ',' + wide).split(',')))
             self.assertEqual(len(classes), len(set(classes)))
             for name in classes:
                 self.assertTrue((ROOT / 'app/src/androidTest/kotlin' /
@@ -537,16 +587,17 @@ esac
         self.assertIn('shell wm size reset', adb)
         self.assertIn('shell wm density reset', adb)
 
-    def test_api24_reader_runs_narrow_and_wide_suites(self):
-        result, calls, _ = self.run_connected(24, 'reader')
+    def test_api24_reader_runs_layout_suite_without_repeating_wide_tests(self):
+        result, calls, adb = self.run_connected(24, 'reader')
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(list(ci_scope.device_classes({'reader'}, 24)), calls)
+        self.assertEqual([ci_scope.device_classes({'reader'}, 24)[0]], calls)
+        self.assertNotIn('shell wm size', adb)
 
     def test_full_retains_both_api_suites(self):
         for api in (24, 35):
             result, calls, _ = self.run_connected(api, 'full')
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual(list(ci_scope.device_classes({'full'}, api)), calls)
+            self.assertEqual(list(filter(None, ci_scope.device_classes({'full'}, api))), calls)
 
     def test_test_failures_propagate_and_wide_failure_restores_viewport(self):
         result, calls, _ = self.run_connected(24, 'reader', 'narrow')

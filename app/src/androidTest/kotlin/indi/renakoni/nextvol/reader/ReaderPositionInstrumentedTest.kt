@@ -273,9 +273,17 @@ class ReaderPositionInstrumentedTest {
                 listOf(280, 26, 12, 9), listOf(450, 18, 6, 16), listOf(320, 20, 0, 0),
             )) {
                 compose.runOnIdle { fixture.width = width.dp; fixture.padding = PaddingValues(padding.dp) }
-                runBlocking { settings.fontSizeUserData.set(font.toFloat()); settings.fontLineHeightUserData.set(spacing.toFloat()) }
-                compose.waitUntil(20_000) { textLayouts().any { it.layoutInput.style.fontSize.value == font.toFloat() } }
-                fixture.awaitReady()
+                runBlocking {
+                    settings.fontSizeUserData.set(font.toFloat())
+                    settings.fontLineHeightUserData.set(spacing.toFloat())
+                    settings.paragraphSpacingUserData.set(spacing.toFloat())
+                }
+                compose.waitUntil(20_000) {
+                    settings.paragraphSpacing == spacing.toFloat() && textLayouts().any {
+                        it.layoutInput.style.fontSize.value == font.toFloat() &&
+                            it.layoutInput.style.lineHeight.value == (font + spacing).toFloat()
+                    }
+                }
                 fixture.assertPosition(description = "flip=$flip width=$width font=$font spacing=$spacing padding=$padding")
             }
         }
@@ -391,7 +399,6 @@ class ReaderPositionInstrumentedTest {
         fixture.assertPosition()
         val before = fixture.reader.uiState.contentUiState!!.readingProgress
         compose.runOnIdle { fixture.width = 900.dp; fixture.height = 560.dp }
-        fixture.awaitReady()
         fixture.assertPosition()
         val after = fixture.reader.uiState.contentUiState!!.readingProgress
         assertNotEquals("Reflow must actually change the displayed extent", before, after)

@@ -11,6 +11,9 @@ outputs:
   scopes:
     description: Selected test scopes
     value: ${{ steps.select.outputs.scopes }}
+  scripts:
+    description: Whether CI helper regression checks are affected
+    value: ${{ steps.select.outputs.scripts }}
   device-scopes:
     description: Device scopes independent of JVM-only test changes
     value: ${{ steps.select.outputs.device-scopes }}

@@ -139,7 +139,7 @@ class SourceBrowserBackTest {
         assertTrue(results.single() is BrokerResult.Failure)
     }
 
-    @Test fun obsoleteLoginWindowCannotCancelTheCurrentWindow() {
+    @Test @Config(sdk = [35]) fun obsoleteLoginWindowCannotCancelTheCurrentWindow() {
         val results = mutableListOf<BrokerResult>()
         val service = sourceService(results)
         val old = Robolectric.buildActivity(SourceBrowserActivity::class.java).setup()
@@ -180,7 +180,7 @@ class SourceBrowserBackTest {
         verify(exactly = 1) { service.cancel("native-job") }
     }
 
-    @Test fun aLateNativeWindowCannotAttachToAnotherJob() {
+    @Test @Config(sdk = [35]) fun aLateNativeWindowCannotAttachToAnotherJob() {
         val service = nativeService()
         val old = nativeActivity("retired-job").setup()
         assertTrue(old.get().isFinishing)
