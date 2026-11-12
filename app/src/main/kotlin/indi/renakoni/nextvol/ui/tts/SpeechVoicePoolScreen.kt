@@ -56,8 +56,9 @@ internal fun SpeechVoicePoolScreen(state: SpeechVoicePoolState, onBack: () -> Un
     val male = stringResource(R.string.tts_pool_male)
     val female = stringResource(R.string.tts_pool_female)
     val label: (String) -> String = { when (it) { SPEECH_POOL_MALE -> male; SPEECH_POOL_FEMALE -> female; else -> it } }
-    val visible = remember(ordered, query, male, female) { filterSpeechVoicePool(ordered, query, label) }
-    val pairs = remember(state.pairs, query, male, female) { filterSpeechVoicePairs(state.pairs, query, label) }
+    val search = remember(query) { hnovel.speech.SpeechSearchQuery(query) }
+    val visible = remember(ordered, search, male, female) { filterSpeechVoicePool(ordered, search, label) }
+    val pairs = remember(state.pairs, search, male, female) { filterSpeechVoicePairs(state.pairs, search, label) }
     val listState = rememberLazyListState()
     val reorder = rememberReorderableLazyListState(listState) { from, to ->
         ordered = moveSpeechVoicePool(ordered, from.key as String, to.key as String)

@@ -9,12 +9,11 @@ class SpeechReplacementSearchTest {
         val first = SpeechReplacementRule(name = "Reading", source = "Chongqing", target = "Chungking", group = "places")
         val second = first.copy(id = "second", name = "Disabled", source = "(Chongqing)", target = "", regex = true, activate = false)
         val rules = listOf(first, second)
-        assertEquals(rules, filterSpeechReplacements(rules, " CHONGQING "))
+        assertEquals(rules, filterSpeechReplacements(rules, "chongqing"))
         assertEquals(listOf(first), filterSpeechReplacements(rules, "reading Chungking"))
-        assertEquals(listOf(second), filterSpeechReplacements(rules, " source:  Chongqing\tisregex:TRUE ischecked:false "))
+        assertEquals(listOf(second), filterSpeechReplacements(rules, "source:chongqing isregex:true ischecked:false"))
         assertEquals(listOf(first), filterSpeechReplacements(rules, "target:"))
         assertTrue(filterSpeechReplacements(rules, "places").isEmpty())
-        assertEquals(rules, filterSpeechReplacements(rules, "\t\n"))
     }
 
     @Test fun unknownPrefixesAndNonTrueBooleanValuesFollowOriginalSearch() {

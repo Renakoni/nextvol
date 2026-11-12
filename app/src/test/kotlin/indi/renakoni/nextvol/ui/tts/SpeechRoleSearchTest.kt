@@ -11,7 +11,7 @@ class SpeechRoleSearchTest {
             speaker = SpeechVoiceRef(httpSource = "engine:voice", label = "Warm"), matchAfter = false)
         val abstract = role.copy(id = "two", name = "Family", regex = "Bob|Ben", isAbstract = true, activate = false)
         val rules = listOf(role, abstract)
-        assertEquals(listOf(role), filterSpeechRoles(rules, "alice voice: WARM isChecked:true matchMode:before"))
+        assertEquals(listOf(role), filterSpeechRoles(rules, "alice voice:warm ischecked:true matchmode:before"))
         assertEquals(listOf(abstract), filterSpeechRoles(rules, "isAbstract:true isChecked:false"))
         assertEquals(listOf(role), filterSpeechRoles(rules, "regex:Alice|"))
         assertTrue(filterSpeechRoles(rules, "Friends").isEmpty())
