@@ -144,7 +144,51 @@ class SourceBrowseViewModelTest {
         assertTrue(providers.values.all { it.feeds == 0 && it.catalogs == 0 })
     }
 
-    @Test fun sharedScopeKeepsIndependentCapabilitiesSelectionsAndContentPositions() = runTest(dispatcher) {
+    @Test fun sourceTabsSynchronizeByIdentityAndKeepEachPagesContentAndPosition() = runTest(dispatcher) {
+        repeat(25) { add(it, capabilities = if (it == 0) setOf(SourceCapability.Explore)
+            else setOf(SourceCapability.Explore, SourceCapability.Categories)) }
+        val explore = model()
+        val categories = model(SourceCapability.Categories)
+        categories.setActive(true)
+        advanceUntilIdle()
+        categories.setActive(false)
+        explore.setActive(true)
+        advanceUntilIdle()
+
+        explore.select(id(20))
+        advanceUntilIdle()
+        assertEquals(id(20), categories.state.value.selected)
+        assertEquals(1, explore.state.value.pageIndex)
+        assertEquals(0, categories.state.value.pageIndex) // The lists have different supported sources.
+        assertEquals(0, providers.getValue(id(20)).catalogs)
+        explore.scroll(id(20), DiscoveryScroll(8, 19))
+        explore.setActive(false)
+        categories.setActive(true)
+        advanceUntilIdle()
+        categories.scroll(id(20), DiscoveryScroll(4, 11))
+
+        categories.select(id(4))
+        categories.setActive(false)
+        explore.setActive(true) // Resume before the selection collector runs.
+        assertEquals(id(4), explore.state.value.selected)
+        advanceUntilIdle()
+        assertEquals(id(4), categories.state.value.selected)
+        assertEquals(1, providers.getValue(id(4)).feeds)
+        assertEquals(0, providers.getValue(id(4)).catalogs)
+
+        explore.select(id(20))
+        advanceUntilIdle()
+        explore.setActive(false)
+        categories.setActive(true)
+        advanceUntilIdle()
+        assertEquals(id(20), categories.state.value.selected)
+        assertEquals(DiscoveryScroll(8, 19), explore.state.value.content.getValue(id(20)).scroll)
+        assertEquals(DiscoveryScroll(4, 11), categories.state.value.content.getValue(id(20)).scroll)
+        assertEquals(1, providers.getValue(id(20)).feeds)
+        assertEquals(1, providers.getValue(id(20)).catalogs)
+    }
+
+    @Test fun unsupportedSharedSourceKeepsPageFallbackAndIndependentContentPositions() = runTest(dispatcher) {
         repeat(23) { add(it, capabilities = if (it < 19) setOf(SourceCapability.Explore, SourceCapability.Categories) else setOf(SourceCapability.Explore)) }
         val anime = add(30, SourceCategory.Anime)
         val unknown = add(31, null)
@@ -153,19 +197,21 @@ class SourceBrowseViewModelTest {
         explore.setActive(true)
         categories.setActive(true)
         advanceUntilIdle()
-        explore.select(id(21))
+        explore.selectScope(SourceCategory.Female)
+        advanceUntilIdle()
         categories.select(id(7))
+        advanceUntilIdle()
+        explore.select(id(21))
         advanceUntilIdle()
         explore.scroll(id(21), DiscoveryScroll(8, 19))
         categories.scroll(id(7), DiscoveryScroll(4, 11))
-        explore.selectScope(SourceCategory.Female)
-        advanceUntilIdle()
         assertEquals(23, explore.state.value.sources.size)
         assertEquals(19, categories.state.value.sources.size)
         assertEquals(2, explore.state.value.pageCount)
         assertEquals(1, categories.state.value.pageCount)
         assertEquals(id(21), explore.state.value.selected)
         assertEquals(id(7), categories.state.value.selected)
+        assertEquals(id(21), browsing.selections.value[SourceCategory.Female])
         assertTrue(explore.state.value.sources.none { it.metadata.id == unknown })
         categories.selectScope(SourceCategory.Anime)
         advanceUntilIdle()
@@ -179,6 +225,12 @@ class SourceBrowseViewModelTest {
         assertEquals(1, providers.getValue(id(21)).feeds)
         assertEquals(1, providers.getValue(id(7)).catalogs)
         assertEquals(25, registry.sources.value.size)
+        assertEquals(id(21), browsing.selections.value[SourceCategory.Female])
+        // Explicitly clicking the fallback tab still replaces the shared choice.
+        categories.select(id(7))
+        advanceUntilIdle()
+        assertEquals(id(7), explore.state.value.selected)
+        assertEquals(id(7), browsing.selections.value[SourceCategory.Female])
     }
 
     @Test fun decayedCategoryPagesRebuildTheirControlsWithTheUsersDraft() = runTest(dispatcher) {
@@ -287,9 +339,10 @@ class SourceBrowseViewModelTest {
         assertEquals(SourceCategory.Literature, browsing.scope.value)
     }
 
-    @Test fun processRecreationRestoresScopeAndEachPagesStableIdentity() = runTest(dispatcher) {
+    @Test fun processRecreationRestoresSharedSelectionAheadOfEachPagesSavedState() = runTest(dispatcher) {
         repeat(25) { add(it) }
-        val explore = model()
+        val exploreSaved = SavedStateHandle()
+        val explore = model(saved = exploreSaved)
         advanceUntilIdle()
         explore.selectScope(SourceCategory.Female)
         advanceUntilIdle()
@@ -300,17 +353,17 @@ class SourceBrowseViewModelTest {
         categories.select(id(4))
         stores.forEach { it.clear() }
         val settings = SourceBrowseSettings(RuntimeEnvironment.getApplication())
-        val restoredExplore = model(settings = settings)
+        val restoredExplore = model(saved = exploreSaved, settings = settings)
         val restoredCategories = model(SourceCapability.Categories, settings = settings)
         advanceUntilIdle()
         assertEquals(SourceCategory.Female, settings.scope.value)
-        assertEquals(id(23), restoredExplore.state.value.selected)
-        assertEquals(1, restoredExplore.state.value.pageIndex)
+        assertEquals(id(4), restoredExplore.state.value.selected)
+        assertEquals(0, restoredExplore.state.value.pageIndex)
         assertEquals(id(4), restoredCategories.state.value.selected)
         assertEquals(0, restoredCategories.state.value.pageIndex)
     }
 
-    @Test fun explicitRoutesRevealKnownOrUnclassifiedSourcesWithoutChangingOrdinaryTabSelection() = runTest(dispatcher) {
+    @Test fun explicitRoutesShareKnownOrUnclassifiedSourcesAndLaterTabSelectionsWin() = runTest(dispatcher) {
         add(0)
         val anime = add(1, SourceCategory.Anime)
         val unknown = add(2, null)
@@ -325,22 +378,26 @@ class SourceBrowseViewModelTest {
         advanceUntilIdle()
         assertNull(browsing.scope.value)
         assertEquals(unknown, categories.state.value.selected)
+        assertEquals(unknown, explore.state.value.selected)
         categories.setActive(false)
         explore.select(id(0))
         categories.setActive(true)
         advanceUntilIdle()
-        assertEquals(unknown, categories.state.value.selected)
+        assertEquals(id(0), categories.state.value.selected)
     }
 
     @Test fun emptyInitialInventoryKeepsThePersistedSelectionUntilItArrives() = runTest(dispatcher) {
         browsing.selectScope(SourceCategory.Female)
-        browsing.remember("explore", SourceCategory.Female, id(5))
+        browsing.selectSource(SourceCategory.Female, id(5))
         val model = model()
         assertTrue(model.state.value.loadingSources)
         advanceUntilIdle()
         assertNull(model.state.value.selected)
-        assertEquals(id(5), browsing.selected("explore", SourceCategory.Female))
+        assertEquals(id(5), browsing.selections.value[SourceCategory.Female])
         add(0)
+        advanceUntilIdle()
+        assertEquals(id(0), model.state.value.selected)
+        assertEquals(id(5), browsing.selections.value[SourceCategory.Female])
         add(5)
         advanceUntilIdle()
         assertEquals(id(5), model.state.value.selected)

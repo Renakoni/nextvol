@@ -10,7 +10,7 @@ import io.nightfish.lightnovelreader.api.web.discovery.DiscoveryFilter
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
-/** Reusable selection policy; each destination owns its own saved selection. */
+/** Each destination exposes only sources supporting its capability. */
 internal fun discoverySources(sources: List<SourceListing>, capability: SourceCapability) = sources
     // Discovery owns lazy initialization. Keep registered sources visible while they
     // initialize, but never retain a source whose initialization has failed.

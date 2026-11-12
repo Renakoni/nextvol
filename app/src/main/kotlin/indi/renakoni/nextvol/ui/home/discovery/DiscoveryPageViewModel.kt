@@ -56,7 +56,7 @@ internal const val MAX_RETAINED_SOURCE_PAGES = 8
 
 data class DiscoveryCommand(val source: Identifier, val epoch: Long, val action: DiscoveryAction, val values: Map<String, String>)
 
-/** Each navigation entry owns its source selection, drafts, requests and browser handoff. */
+/** Entries share source selection while owning their drafts, requests and browser handoff. */
 abstract class DiscoveryPageViewModel(
     private val registry: WebSourceRegistry,
     accounts: SourceSessionManager,
@@ -69,7 +69,7 @@ abstract class DiscoveryPageViewModel(
     private val mutableState = MutableStateFlow(DiscoveryPageState(loadingSources = true, scope = browsing.scope.value))
     val state = mutableState.asStateFlow()
     private var versions = emptyMap<Identifier, DiscoveryVersion>()
-    // category./explore. keys own this entry's persisted selection. Bare namespace/sourceId
+    // category./explore. keys retain this entry's fallback selection. Bare namespace/sourceId
     // are Route.Main.Categories arguments, used only as the initial fallback. Later shortcuts
     // to a restored entry must be consumed through openSource(), not by rewriting route arguments.
     private var explicitRequest = if (saved.get<String>("$key.namespace") == null)
@@ -95,9 +95,11 @@ abstract class DiscoveryPageViewModel(
 
     init {
         viewModelScope.launch {
-            combine(registry.restoredSources, accounts.changes, browsing.scope) { sources, generations, scope ->
+            combine(registry.restoredSources, accounts.changes, browsing.scope, browsing.selections) { sources, generations, scope, _ ->
                 Triple(discoverySources(sources, capability), generations, scope)
             }.collect { (available, generations, scope) ->
+                // Queued inventory/scope emissions must use the latest user selection.
+                val shared = browsing.selections.value[scope]
                 val explicit = available.find { it.metadata.id == explicitRequest }
                 if (explicit != null && scope != null && explicit.metadata.category != scope) {
                     browsing.selectScope(explicit.metadata.category)
@@ -110,7 +112,7 @@ abstract class DiscoveryPageViewModel(
                 val restored = if (scopeChanged || previous.selected == null) savedSelection(scope) else null
                 val fallback = if (capability == SourceCapability.Categories && previous.selected == null)
                     browsing.selected("explore", scope) else null
-                val requested = explicit?.metadata?.id ?: restored?.takeIf { it in ids }
+                val requested = explicit?.metadata?.id ?: shared?.takeIf { it in ids } ?: restored?.takeIf { it in ids }
                     ?: previous.selected?.takeIf { it in ids } ?: fallback?.takeIf { it in ids }
                 val oldIndex = previous.sources.indexOfFirst { it.metadata.id == previous.selected }
                 val neighbor = if (!scopeChanged && oldIndex >= 0) {
@@ -132,7 +134,10 @@ abstract class DiscoveryPageViewModel(
                 mutableState.value = DiscoveryPageState(sources, selected, content, scope = scope, availableSources = available,
                     restorationFailed = registry.restoration.value == SourceRestoration.Failed)
                 if (selected != null) remember(selected)
-                if (explicit != null && explicit.metadata.id == selected) explicitRequest = null
+                if (explicit != null && explicit.metadata.id == selected) {
+                    explicitRequest = null
+                    browsing.selectSource(scope, explicit.metadata.id)
+                }
                 if (active) load()
             }
         }
@@ -143,12 +148,18 @@ abstract class DiscoveryPageViewModel(
     fun setActive(value: Boolean, retainBrowser: Boolean = false) {
         active = value
         foreground.setActive(value, retainBrowser)
+        // A root can resume before the shared selection's collector has run.
+        if (value && explicitRequest == null && state.value.scope == browsing.scope.value) {
+            browsing.selections.value[state.value.scope]?.takeIf { it != state.value.selected }?.let { select(it) }
+        }
         if (value) load() else if (!retainBrowser || !foreground.verifying) cancelLoad(retainBrowser)
     }
 
     fun select(id: Identifier) {
         explicitRequest = null
-        if (id == state.value.selected || state.value.sources.none { it.metadata.id == id }) return
+        if (state.value.sources.none { it.metadata.id == id }) return
+        browsing.selectSource(state.value.scope, id)
+        if (id == state.value.selected) return
         cancelLoad()
         remember(id)
         mutableState.value = state.value.copy(selected = id)
@@ -300,6 +311,7 @@ abstract class DiscoveryPageViewModel(
         saved["$key.namespace"] = id.namespace
         saved["$key.source"] = id.id
         saved["$key.scope"] = scope?.name.orEmpty()
+        // Automatic fallbacks must not replace a shared source unsupported by this page.
         browsing.remember(key, scope, id)
         val page = state.value.sources.indexOfFirst { it.metadata.id == id } / SOURCE_PAGE_SIZE
         pageSelections[scope to page] = id
