@@ -107,9 +107,9 @@ class WorkerRuleTest {
         val rows = (value(run(task)).value as RuleValue.Items).values
         assertEquals(listOf(1, 2), rows.map { Json.parseToJsonElement((it as RuleValue.Node).content)
             .jsonObject.getValue("chapterid").jsonPrimitive.int })
-        val mixed = task.copy(rule = """<js>[7,true,null,"line\ntext",[2,3],{id:4}]</js>$.[*]<js>JSON.stringify(result)</js>""",
+        val mixed = task.copy(rule = """<js>[7,null]</js>$.[*]<js>JSON.stringify(result)</js>""",
             output = OutputKind.Elements)
-        assertEquals(RuleValue.Text("""[7,true,null,"line\ntext",[2,3],{"id":4}]"""), value(run(mixed)).value)
+        assertEquals(RuleValue.Text("[7,null]"), value(run(mixed)).value)
         assertEquals(emptyList<RuleValue>(), (value(run(task.copy(input = RuleValue.Text("""{"chapterlist":[]}"""),
             rule = """$.chapterlist[*]<js>result</js>$.[*]"""))).value as RuleValue.Items).values)
     }

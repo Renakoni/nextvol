@@ -283,19 +283,6 @@ internal class RuleEvaluation(private val identity: ExecutionIdentity, private v
     }.toMap()
 }
 
-internal fun RuleValue.items(): List<RuleValue> = when (this) {
-    is RuleValue.Items -> values
-    RuleValue.Empty -> emptyList()
-    else -> listOf(this)
-}
-internal fun RuleValue.text(): String = when (this) {
-    is RuleValue.Text -> value
-    is RuleValue.Node -> content
-    is RuleValue.Items -> values.joinToString("\n") { it.text() }
-    is RuleValue.Captures -> groups.joinToString("\n")
-    RuleValue.Empty -> ""
-}
-
 internal fun scriptBody(code: String): String = code.trim().let {
     when {
         it.startsWith("@js:", true) -> it.substring(4)

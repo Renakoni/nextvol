@@ -39,7 +39,7 @@ internal object WorkerRuleEvaluator {
             when (val result = RhinoScriptEngine(bridge, ScriptLimits(timeoutMillis = limits.timeoutMillis, maxResultChars = limits.maxOutputBytes,
                 maxBridgeChars = limits.scriptDataLimit), archives, compilations)
                 .evaluate(request.script, frame, library)) {
-                is ScriptResult.Success -> value(Json.parseToJsonElement(result.json))
+                is ScriptResult.Success -> Json.parseToJsonElement(result.json).toRuleValue()
                 is ScriptResult.Failure -> { scriptFailure = result; throw RuleScriptFailure(result.code.name) }
             }
         }
@@ -69,14 +69,5 @@ internal object WorkerRuleEvaluator {
                 ?: if (scriptFailure?.code == hnovel.rhino.FailureCode.RequestSyntax) result.error.copy(stage = RuleStage.Parse) else result.error,
                 scriptFailure?.dependency, scriptFailure?.hostCall)
         }
-    }
-
-    private fun value(json: JsonElement): RuleValue = when (json) {
-        JsonNull -> RuleValue.Empty
-        is JsonPrimitive -> RuleValue.Text(json.content)
-        is JsonArray -> RuleValue.Items(json.map {
-            if (it is JsonPrimitive && !it.isString) RuleValue.Node(it.toString(), InputKind.Json) else value(it)
-        })
-        is JsonObject -> RuleValue.Node(json.toString(), InputKind.Json)
     }
 }
