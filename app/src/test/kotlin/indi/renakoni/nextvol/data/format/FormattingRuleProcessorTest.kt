@@ -29,11 +29,25 @@ class FormattingRuleProcessorTest {
         assertEquals("_a__", applyFormattingRules("ab", listOf(rule)))
     }
 
-    @Test fun captureSubstitutionKeepsMissingGroupsAndReplacesNumberPrefixesInOrder() {
+    @Test fun numericReferencesHandleWholeMatchOptionalAndMissingGroups() {
         val rule = FormattingRule(name = "groups", isRegex = true, match = """(\u0061)(b)?""",
-            replacement = "\$0:\$1:\$2:\$10", isEnabled = true)
+            replacement = "\$0:\$1:\$2:\$10:\$9:\$", isEnabled = true)
 
-        assertEquals("a:a:\$2:a0", applyFormattingRules("a", listOf(rule)))
+        assertEquals("a:a::a0:\$9:\$", applyFormattingRules("a", listOf(rule)))
+    }
+
+    @Test fun multiDigitReferencesUseTheLongestExistingGroupNumber() {
+        val rule = FormattingRule(name = "ten groups", isRegex = true,
+            match = "(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)", replacement = "\$10:\$1", isEnabled = true)
+
+        assertEquals("j:a", applyFormattingRules("abcdefghij", listOf(rule)))
+    }
+
+    @Test fun capturedTextIsNotParsedAsAReplacementTemplate() {
+        val rule = FormattingRule(name = "captured text", isRegex = true,
+            match = "(.*)-(.*)", replacement = "\$1\\n\$2\\\\", isEnabled = true)
+
+        assertEquals("\$2\\原文\n正文\\", applyFormattingRules("\$2\\原文-正文", listOf(rule)))
     }
 
     @Test fun disabledAndInvalidRulesDoNotPreventFollowingRulesFromRunningInOrder() {
