@@ -1,18 +1,25 @@
 package indi.renakoni.nextvol.tts
 
+import hnovel.imports.SourceOriginCandidates
 import hnovel.speech.*
 import kotlinx.serialization.json.*
 import java.util.UUID
 
 internal fun SavedHttpSpeechSource.speakerData(): JsonObject =
-    (definition.raw["multiTts"] as? JsonObject)?.get("voice") as? JsonObject
+    (if (definition.usesMultiTts) (definition.raw["multiTts"] as? JsonObject)?.get("voice") as? JsonObject else null)
         ?: definition.raw["nextvolVoice"] as? JsonObject ?: JsonObject(emptyMap())
+
+/** Apply literal request origins on explicit saves, never in response to a runtime denial or redirect. */
+internal fun SavedHttpSpeechSource.withRequestOrigins(previous: SavedHttpSpeechSource?): SavedHttpSpeechSource {
+    if (previous != null && listOf("url", "header", "loginUrl", "jsLib").all { definition.raw[it] == previous.definition.raw[it] }) return this
+    return copy(origins = SourceOriginCandidates.speech(definition.raw).map { it.origin }.distinct())
+}
 
 /** Rebuild an imported speaker using its engine template; origins and engine credentials are not changed here. */
 internal fun editHttpVoice(source: SavedHttpSpeechSource, fields: JsonObject, enabled: Boolean, copy: Boolean): SavedHttpSpeechSource {
     val voice = JsonObject(source.speakerData() + fields)
     val name = voice.getValue("name").jsonPrimitive.content
-    val metadata = source.definition.raw["multiTts"] as? JsonObject
+    val metadata = (source.definition.raw["multiTts"] as? JsonObject)?.takeIf { source.definition.usesMultiTts }
     val generated = if (metadata != null && source.importedEngineCode != null) {
         val engine = requireNotNull(source.importedEngine)
         val code = requireNotNull(source.importedEngineCode)

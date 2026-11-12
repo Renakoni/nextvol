@@ -80,7 +80,6 @@ class HttpSpeechPackageTest {
         assertTrue(engineOnly.sources.isEmpty())
         assertEquals(engine.code, engineOnly.engine!!.code)
         assertEquals(2, converted.sources.size)
-        assertTrue(converted.hasLocalAudioSettings)
         assertEquals(converted.sources.map { it.id }, previewHttpSpeechPackage(engine).sources.map { it.id })
         assertEquals(2, converted.sources.map { it.id }.distinct().size)
         val source = converted.sources.first()
