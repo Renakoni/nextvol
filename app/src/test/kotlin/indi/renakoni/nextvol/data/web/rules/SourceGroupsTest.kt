@@ -63,6 +63,7 @@ class SourceGroupsTest {
                 val group = sources.sourceGroups().last()
                 assertEquals(setOf(group.id), sources.nativeSources().single().preferences.groupIds)
                 assertEquals(setOf(group.id), sources.installedSources().single().preferences.groupIds)
+                assertEquals(mapOf(rule to setOf(group.id), native.ID to setOf(group.id)), sources.grouping.value.memberships)
                 assertEquals(1, activations) // Membership edits must not rebuild source runtimes.
                 sources.setPreferences(native.ID, enabled = false)
                 assertTrue(registry.resolve(native.ID) is SourceResolution.Missing)
@@ -74,6 +75,8 @@ class SourceGroupsTest {
                 assertFalse(sources.nativeSources().single().preferences.enabled)
                 assertEquals(setOf(group.id), sources.nativeSources().single().preferences.groupIds)
                 assertEquals("My books", sources.sourceGroups().first().name)
+                assertEquals(sources.sourceGroups(), sources.grouping.value.groups)
+                assertEquals(setOf(group.id), sources.grouping.value.memberships[native.ID])
                 assertTrue(registry.resolve(native.ID) is SourceResolution.Missing)
                 sources.deleteGroup(group.id)
                 assertTrue(sources.nativeSources().single().preferences.groupIds.isEmpty())
@@ -406,6 +409,7 @@ class SourceGroupsTest {
                 sources.createGroup("Reading", setOf(id))
                 val before = sources.installedSources()
                 val groups = sources.sourceGroups()
+                val grouping = sources.grouping.value
                 val runtime = (registry.resolve(id) as SourceResolution.Ready).runtime
                 val base = File(context.filesDir, "rule-sources/active.json")
                 val saved = base.readBytes()
@@ -417,6 +421,7 @@ class SourceGroupsTest {
                 } finally { base.deleteRecursively(); base.writeBytes(saved); backup.delete() }
                 assertEquals(before, sources.installedSources())
                 assertEquals(groups, sources.sourceGroups())
+                assertEquals(grouping, sources.grouping.value)
                 assertSame(runtime, (registry.resolve(id) as SourceResolution.Ready).runtime)
                 assertEquals("Same title", runtime.getBookInformation(fixture.server.url("/book/one").toString()).get()!!.title)
             } finally { sources.stop() }

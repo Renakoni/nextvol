@@ -22,6 +22,7 @@
     <string name="search_no_sources">目前範圍暫無可搜尋書源</string>
     <string name="search_no_sources_description">請選擇其他範圍，或前往書源管理啟用書源。</string>
     <string name="search_scope_title">搜尋範圍</string>
+    <string name="search_scope_groups_help">群組與書源管理保持一致，數量僅統計已啟用且支援搜尋的書源。</string>
     <string name="search_change_scope">切換搜尋範圍：%1$s</string>
     <string name="search_selected_source">目前選擇</string>
     <string name="search_find_source">書源名稱</string>

@@ -39,14 +39,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.data.web.SourceCategory
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SearchScopeSheet(
     state: SearchHubState, onDismiss: () -> Unit,
-    onScope: (SourceCategory?) -> Unit, onSource: (Identifier) -> Unit,
+    onScope: (String?) -> Unit, onSource: (Identifier) -> Unit,
 ) {
     var choosingSource by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -85,18 +84,22 @@ internal fun SearchScopeSheet(
                 LazyColumn(Modifier.fillMaxSize().testTag("search_scope_options"), state = scopeList,
                     contentPadding = PaddingValues(bottom = 16.dp)) {
                     item {
+                        Text(stringResource(R.string.search_scope_groups_help),
+                            Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         ScopeRow(stringResource(R.string.source_range_all),
                             selected = state.selectedSource == null && state.scope == null,
                             count = state.sources.size, onClick = { onScope(null) })
                         ScopeRow(stringResource(R.string.search_single_source), selected = state.selectedSource != null,
                             opensSearch = true, value = selectedName, onClick = { choosingSource = true })
                     }
-                    // Only categories with searchable sources; an active empty scope stays visible as selected.
-                    items(SourceCategory.entries.filter { category ->
-                        category == state.scope || state.sources.any { it.category == category }
-                    }, key = { it.name }) { category ->
-                        ScopeRow(stringResource(category.title), selected = state.selectedSource == null && state.scope == category,
-                            count = state.sources.count { it.category == category }, onClick = { onScope(category) })
+                    if (state.scope == "" || state.sources.any { it.groupIds.isEmpty() }) item(key = "ungrouped") {
+                        ScopeRow(stringResource(R.string.source_group_ungrouped), selected = state.selectedSource == null && state.scope == "",
+                            count = state.sources.count { it.groupIds.isEmpty() }, onClick = { onScope("") })
+                    }
+                    items(state.groups, key = { it.id }) { group ->
+                        ScopeRow(group.name, selected = state.selectedSource == null && state.scope == group.id,
+                            count = state.sources.count { group.id in it.groupIds }, onClick = { onScope(group.id) })
                     }
                 }
             } else {
@@ -136,8 +139,9 @@ internal fun SearchScopeSheet(
                             }
                             items(matches, key = { it.id.toString() }) { source ->
                                 ScopeRow(source.name, selected = source.id == state.selectedSource,
-                                    description = stringResource(if (query.isBlank()) R.string.search_selected_source
-                                        else source.category?.title ?: R.string.source_group_ungrouped),
+                                    description = if (query.isBlank()) stringResource(R.string.search_selected_source)
+                                        else state.groups.filter { it.id in source.groupIds }.joinToString(" · ") { it.name }
+                                            .ifEmpty { stringResource(R.string.source_group_ungrouped) },
                                     onClick = { keyboard?.hide(); focus.clearFocus(); onSource(source.id) })
                             }
                         }

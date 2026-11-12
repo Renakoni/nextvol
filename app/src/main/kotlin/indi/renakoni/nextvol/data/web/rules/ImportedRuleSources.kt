@@ -21,6 +21,8 @@ import indi.renakoni.nextvol.data.web.*
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -57,6 +59,8 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
     private var groups: List<SourceGroup> = emptyList()
     private val nativeSources = linkedMapOf<Identifier, NativeSource>()
     private var nativePreferences: Map<Identifier, SourcePreferences> = emptyMap()
+    private val mutableGrouping = MutableStateFlow(SourceGrouping())
+    val grouping = mutableGrouping.asStateFlow()
     private var restored = false
     var restorationFailed = false
         private set
@@ -119,6 +123,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         registry.registerBatch { register ->
             classified.forEach { entry -> active[id(entry.definition)] = restoreLazyBinding(entry, register) }
         }
+        publishGrouping(classified)
         restored = true
     } }
 
@@ -310,6 +315,12 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         groups = nextGroups
         nativePreferences = nextNative
         active.putAll(next)
+    }
+
+    private fun publishGrouping(installed: List<InstalledSource>, sourceGroups: List<SourceGroup> = groups,
+        native: Map<Identifier, SourcePreferences> = nativePreferences) {
+        mutableGrouping.value = SourceGrouping(sourceGroups,
+            installed.associate { id(it.definition) to it.preferences().groupIds } + native.mapValues { it.value.groupIds })
     }
 
     /** Validated candidate is compared again at commit; remove/account changes cannot resurrect it. */
@@ -593,6 +604,7 @@ class ImportedRuleSources @Inject constructor(@ApplicationContext private val co
         val output = committed.startWrite()
         try { output.write(bytes); committed.finishWrite(output) }
         catch (failure: Exception) { committed.failWrite(output); throw failure }
+        publishGrouping(installed, sourceGroups, native)
     }
 
     /** Stop process-owned registrations without changing the durable activation snapshot. */
