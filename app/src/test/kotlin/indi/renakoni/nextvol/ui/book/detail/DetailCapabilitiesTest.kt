@@ -51,7 +51,7 @@ class DetailCapabilitiesTest {
         coEvery { repository.bookInformationForDisplay(any()) } coAnswers {
             firstArg<BookInformation>().let { if (it.lastUpdated.year > 1970) it.copy(lastUpdated = sourceDate) else it }
         }
-        every { repository.readingAvailability(key) } returns flowOf(BookReadingAvailability(false, false, false, null))
+        every { repository.readingAvailability(key) } returns flowOf(BookReadingAvailability(false, false, false, null, onlineDirectory = false))
         every { repository.getUserReadingDataFlow(key) } returns emptyFlow()
         every { repository.downloadChanges(key) } returns emptyFlow()
         every { repository.downloadStatusFlow(key) } returns emptyFlow()
@@ -84,7 +84,7 @@ class DetailCapabilitiesTest {
         val key = SourceBookId(ZLibrarySources.ID, "1/abcdef").storageKey
         val book = BookInformation(key, "Metadata book", author = "Author", description = "Description",
             publishingHouse = "", wordCount = WordCount(0), lastUpdated = LocalDateTime.of(1970, 1, 1, 0, 0), isComplete = false)
-        val availability = MutableStateFlow(BookReadingAvailability(false, false, true, 1))
+        val availability = MutableStateFlow(BookReadingAvailability(false, false, true, 1, onlineDirectory = false))
         val repository = mockk<BookRepository>()
         val shelves = mockk<BookshelfRepository>()
         val downloads = mockk<DownloadProgressRepository>()
@@ -117,30 +117,35 @@ class DetailCapabilitiesTest {
             model.retryInformation()
             until { model.uiState.bookInformation != null }
             verify(exactly = 2) { repository.getBookInformationFlow(key, any()) }
-            availability.value = BookReadingAvailability(false, true, false, null)
+            availability.value = BookReadingAvailability(false, false, false, 2, onlineDirectory = true)
             until { model.uiState.bookVolumes != null }
-            assertTrue(model.uiState.readingAvailable)
+            assertFalse(model.uiState.readingAvailable)
+            assertTrue(model.uiState.directoryAvailable)
             assertFalse(model.uiState.canCache)
-            verify(exactly = 1) { repository.getBookVolumesFlow(key, any()) }
+            availability.value = BookReadingAvailability(false, true, false, null, onlineDirectory = false)
+            until { model.uiState.readingAvailable && model.uiState.bookVolumes != null }
+            assertFalse(model.uiState.canCache)
+            verify(timeout = 5000, exactly = 2) { repository.getBookVolumesFlow(key, any()) }
 
             val failure = io.nightfish.lightnovelreader.api.error.WebRequestError("Directory", "No chapters")
             every { repository.getBookVolumesFlow(key, any()) } returns flowOf(Err(failure))
             model.retryVolumes()
             until { model.uiState.bookVolumes?.getError() == failure }
+            val started = CompletableDeferred<Unit>()
             val cancelled = CompletableDeferred<Unit>()
             every { repository.getBookVolumesFlow(key, any()) } returns flow {
+                started.complete(Unit)
                 try { awaitCancellation() } finally { cancelled.complete(Unit) }
             }
             model.retryVolumes()
-            until { model.uiState.bookVolumes == null }
-            verify(timeout = 5000, exactly = 3) { repository.getBookVolumesFlow(key, any()) }
-            availability.value = BookReadingAvailability(false, false, true, 2)
+            withTimeout(5000) { started.await() }
+            availability.value = BookReadingAvailability(false, false, true, 3, onlineDirectory = false)
             withTimeout(5000) { cancelled.await() }
-            until { !model.uiState.readingAvailable }
+            until { !model.uiState.directoryAvailable }
+            clearMocks(repository, answers = false)
             model.retryVolumes()
             assertNull(model.uiState.bookVolumes)
-            verify(exactly = 3) { repository.getBookVolumesFlow(key, any()) }
-            verify(exactly = 2) { repository.getBookInformationFlow(key, any()) }
+            verify(exactly = 0) { repository.getBookVolumesFlow(key, any()) }
         } finally {
             val job = model.viewModelScope.coroutineContext.job
             store.clear()

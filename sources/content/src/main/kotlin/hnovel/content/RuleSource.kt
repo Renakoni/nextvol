@@ -48,6 +48,8 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
     }
     val canSearch get() = spec.searchUrl.isNotBlank()
     val canLogin get() = spec.loginUrl.isNotBlank() || spec.loginUi.isNotBlank()
+    val canReadDirectory get() = spec.directoryRule.isNotBlank()
+    val canReadContent get() = spec.contentRule.isNotBlank()
     /** Whole-operation replay requires declarative reads with no user hooks or shared script state.
      * Actual extracted URLs and HTTP methods are checked again before each request. */
     val canReplayDownloads get() = spec.library == null && !spec.browserRead &&
@@ -302,7 +304,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         // Sources without an update marker still participate in host background update checks.
         // A script-provided bookUrl is an alias proposal, not permission to move unreadable content.
         val loadDirectory = refreshed.book.id != id ||
-            (inferUpdate && refreshed.book.latestChapter.isBlank() && refreshed.book.updateTime.isBlank())
+            (canReadDirectory && inferUpdate && refreshed.book.latestChapter.isBlank() && refreshed.book.updateTime.isBlank())
         var directoryLoaded = false
         if (loadDirectory) try {
             refreshed = directory(refreshed)
@@ -326,6 +328,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
     suspend fun directory(bookId: String): List<RuleChapter> {
         val requestedAt = currentCoroutineContext()[SourceWorkRequest]?.startedAtNanos ?: System.nanoTime()
         return operation("ruleToc", timeoutMillis = DIRECTORY_TIMEOUT_MILLIS) {
+            val rule = directoryRule()
             val id = store.canonicalId(sourceLink(spec.baseUrl, bookId))
             val book = record(id, reuseInformation = true)
             val prefetched = prefetchedDirectoryId == book.book.id
@@ -336,7 +339,7 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
                 if (prefetched || reused) {
                     if (reused) trace.record(ContentTraceEvent("cache", "ruleToc", 0, result = "QueuedRefreshReuse"))
                     book.chapters
-                } else directory(book).let { refreshed ->
+                } else directory(book, rule).let { refreshed ->
                     // Foreground details no longer infer updates by loading the catalogue inside
                     // information(). Retain the observed change for later background checks.
                     if (book.chapters.map { it.id } != refreshed.chapters.map { it.id })
@@ -364,6 +367,8 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
     }
 
     suspend fun content(bookId: String, chapterId: String): RuleContent = operation("ruleContent", timeoutMillis = DIRECTORY_TIMEOUT_MILLIS) {
+        val rule = spec.contentRule
+        if (rule.isBlank()) throw SourceContentException(ContentError.MissingCapability, "ruleContent.content")
         val id = sourceLink(spec.baseUrl, bookId)
         val saved = record(id)
         var record = saved
@@ -383,8 +388,6 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
         val next = record.chapters.subList(index + 1, record.chapters.size).firstOrNull { !it.isVolume }?.id
         val context = evaluation(record.book, chapter)
         context.nextChapterUrl = next
-        val rule = spec.content.string("content")
-        if (rule.isBlank()) throw SourceContentException(ContentError.MissingCapability, "ruleContent.content")
         val queue = ArrayDeque<String>().apply { add(chapter.id) }
         val visited = linkedSetOf<String>()
         val pages = mutableListOf<String>()
@@ -503,13 +506,15 @@ class RuleSource internal constructor(binding: RuleSourceBinding) : AutoCloseabl
             partialDirectory = old?.takeIf { it.revision == identity.revision && it.book.id == canonicalId && it.book.tocUrl == tocUrl }?.partialDirectory)
     }
 
-    private suspend fun directory(initial: BookRecord): BookRecord = coroutineScope {
+    private fun directoryRule(): String = spec.directoryRule.ifBlank {
+        throw SourceContentException(ContentError.MissingCapability, "ruleToc.chapterList")
+    }
+
+    private suspend fun directory(initial: BookRecord, rule: String = directoryRule()): BookRecord = coroutineScope {
         // A web-novel catalogue may contain tens of thousands of rows. Its budget is
         // independent of a single chapter's pagination and includes all per-row rules.
         val context = evaluation(initial.book, maxRuleCalls = DIRECTORY_MAX_CHAPTERS * 8 + DIRECTORY_MAX_PAGES * 4)
         spec.toc.string("preUpdateJs").takeIf { it.isNotBlank() }?.let { context.script(it, RuleValue.Empty, "ruleToc.preUpdateJs") }
-        val rule = spec.toc.string("chapterList")
-        if (rule.isBlank()) throw SourceContentException(ContentError.MissingCapability, "ruleToc.chapterList")
         val tocUrl = context.book.metadata["tocUrl"]?.jsonPrimitive?.content ?: initial.book.tocUrl
         val queue = ArrayDeque<String>().apply { add(sourceLink(initial.book.id, tocUrl)) }
         val visited = linkedSetOf<String>()

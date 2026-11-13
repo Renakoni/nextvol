@@ -35,6 +35,8 @@ internal class RuleSourceDefinition(val stored: SourceDefinition) {
     val information = rules("ruleBookInfo")
     val toc = rules("ruleToc")
     val content = rules("ruleContent")
+    val directoryRule = toc.string("chapterList")
+    val contentRule = content.string("content")
     private fun rules(name: String): JsonObject = when (val value = root[name]) {
         null, JsonNull -> JsonObject(emptyMap())
         is JsonObject -> value

@@ -862,6 +862,25 @@ class RuleSourceTest {
         } }
     }
 
+    @Test fun missingReadingRulesLeaveSearchAndInformationUsableWithoutRunningUnavailableOperations() = runBlocking {
+        RuleSourceFixture().use { fixture -> fixture.source(customize = { raw ->
+            JsonObject(raw - "ruleContent" + ("ruleToc" to buildJsonObject {
+                put("preUpdateJs", "throw new Error('no directory')")
+            }))
+        }).use { source ->
+            val id = fixture.server.url("/book/one").toString()
+            val directory = failure { source.directory(id) }
+            assertEquals(ContentError.MissingCapability, directory.code)
+            assertEquals("ruleToc.chapterList", directory.field)
+            val content = failure { source.content(id, fixture.server.url("/c/1").toString()) }
+            assertEquals(ContentError.MissingCapability, content.code)
+            assertEquals("ruleContent.content", content.field)
+            assertEquals(0, fixture.server.requestCount)
+            assertEquals(id, source.search("title").single().id)
+            assertEquals("Same title", source.information(id).title)
+        } }
+    }
+
     @Test fun catalogueCyclesEndWithCollectedChaptersWhileHttpFailuresStillFail() = runBlocking {
         RuleSourceFixture().use { fixture -> fixture.source().use { source ->
             val id = fixture.server.url("/book/one").toString()

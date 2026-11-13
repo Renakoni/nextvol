@@ -148,7 +148,7 @@ class SourceRevisionUpdatesTest {
                 val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
                 val brokenScript = JsonObject(fixture.raw() + ("jsLib" to JsonPrimitive("throw new Error('private-secret')"))).toString()
                 val renamed = JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Edited"))).toString()
-                for ((text, approved) in listOf("{" to grants, JsonObject(fixture.raw() - "ruleContent").toString() to grants,
+                for ((text, approved) in listOf("{" to grants,
                         brokenScript to grants, renamed to listOf(NetworkGrant("https://unapproved.example")))) {
                     assertTrue(runCatching { updates.edit(PreparedEdit.prepare(before, text), approved) }.isFailure)
                     assertArrayEquals(snapshot, File(host.filesDir, "rule-sources/active.json").readBytes())
@@ -232,32 +232,50 @@ class SourceRevisionUpdatesTest {
         } }
     }
 
-    @Test fun updatePreservesIdentityRetiresOldRuntimeAndRestoresFromOneSnapshot() = runBlocking {
+    @Test fun partialSourcesCanActivateEditUpdateAndRestoreWithTheirActualCapabilities() = runBlocking {
         val host = Host()
         RuleSourceFixture().use { fixture ->
             val accounts = SourceSessionManager(fixture.authority)
             var registry = WebSourceRegistry(fixture.authority)
             var sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
             try {
-                val first = candidate(sources, fixture.raw())
+                val first = candidate(sources, JsonObject(fixture.raw() - "ruleContent"))
                 val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
-                val id = sources.activate(first.reference(), grants)
+                val id = sources.activateBatch(mapOf(first.reference() to grants), enableNew = true).single()
+                val initial = registry.sources.value.single().metadata
+                assertTrue(SourceCapability.Directory in initial.capabilities)
+                assertFalse(SourceCapability.ChapterContent in initial.capabilities)
+                val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
+                sources.setPreferences(id, enabled = false)
+                updates.edit(PreparedEdit.prepare(sources.installedSources().single(),
+                    JsonObject(fixture.raw() - "ruleToc" - "ruleContent").toString()), grants)
+                sources.setPreferences(id, enabled = true)
                 val runtime = (registry.resolve(id) as SourceResolution.Ready).runtime
+                assertFalse(SourceCapability.Directory in runtime.metadata.capabilities)
+                assertFalse(SourceCapability.ChapterContent in runtime.metadata.capabilities)
                 val book = fixture.server.url("/book/one").toString()
                 assertEquals("Same title", runtime.getBookInformation(book).get()!!.title)
                 val next = candidate(sources, JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Updated"))))
-                val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
                 updates.apply(id, next.reference(), grants)
                 assertFalse(runtime.isAvailable)
                 val changed = (registry.resolve(id) as SourceResolution.Ready).runtime
                 assertEquals(first.sourceId, next.sourceId)
                 assertEquals(next.contentDigest, changed.metadata.revision)
+                assertTrue(changed.metadata.supportsReading)
                 assertEquals(book, changed.getBookInformation(book).get()!!.id)
+                updates.edit(PreparedEdit.prepare(sources.installedSources().single(),
+                    JsonObject(Json.parseToJsonElement(next.rawJson).jsonObject - "ruleToc").toString()), grants)
+                val partial = (registry.resolve(id) as SourceResolution.Ready).runtime.metadata
+                assertFalse(SourceCapability.Directory in partial.capabilities)
+                assertTrue(SourceCapability.ChapterContent in partial.capabilities)
                 sources.stop()
                 registry = WebSourceRegistry(fixture.authority)
                 sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
                 sources.restore()
-                assertEquals(next.contentDigest, (registry.resolve(id) as SourceResolution.Ready).runtime.metadata.revision)
+                assertEquals(partial, registry.sources.value.single().metadata)
+                val restored = (registry.resolve(id) as SourceResolution.Ready).runtime
+                assertEquals(partial, restored.metadata)
+                assertEquals(book, restored.getBookInformation(book).get()!!.id)
             } finally { sources.stop(); host.root.deleteRecursively() }
         }
     }

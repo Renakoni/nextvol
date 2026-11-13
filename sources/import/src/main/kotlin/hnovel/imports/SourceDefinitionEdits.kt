@@ -13,11 +13,6 @@ object SourceDefinitionEdits {
         val raw = parse(text)
         val parsed = try { LegadoSourceAdapter().validate(raw) }
         catch (failure: ImportFailure) { throw SourceEditException(failure.code, failure.field) }
-        for ((section, field) in mapOf("ruleToc" to "chapterList", "ruleContent" to "content")) {
-            val rule = (raw[section] as? JsonObject)?.get(field) as? JsonPrimitive
-            if (rule?.isString != true || rule.content.isBlank())
-                throw SourceEditException(ImportCode.InvalidField, "$section.$field")
-        }
         val json = canonical(raw).toString()
         if (json == before.rawJson) return before
         return before.copy(displayName = parsed.name, enabled = parsed.enabled, enabledExplore = parsed.enabledExplore,

@@ -67,10 +67,11 @@ class DetailViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO + foreground) {
             combine(bookRepository.readingAvailability(bookId), directoryRetry) { availability, _ -> availability }.collectLatest { availability ->
                 _uiState.readingAvailable = availability.available
+                _uiState.onlineDirectory = availability.onlineDirectory
                 _uiState.canCache = availability.online
                 _uiState.metadataOnly = availability.metadataOnly
                 _uiState.bookVolumes = null
-                if (availability.available) {
+                if (availability.directoryAvailable) {
                     // The repository orders remote metadata preparation; cached directories can display immediately.
                     bookRepository.getBookVolumesFlow(bookId, WebDataSourcePriority.High).collect {
                         _uiState.bookVolumes = it
@@ -100,7 +101,7 @@ class DetailViewModel @Inject constructor(
 
     fun retryInformation() { book?.let { loadInformation(it.storageKey) } }
 
-    fun retryVolumes() { if (_uiState.readingAvailable) directoryRetry.value++ }
+    fun retryVolumes() { if (_uiState.directoryAvailable) directoryRetry.value++ }
 
     suspend fun setChaptersRead(chapterIds: Set<String>, read: Boolean) {
         val bookId = checkNotNull(book).storageKey

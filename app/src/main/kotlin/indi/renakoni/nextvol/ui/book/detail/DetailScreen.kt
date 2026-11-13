@@ -610,9 +610,9 @@ private fun DetailContent(
         }
     }
 
-    LaunchedEffect(directory.scrollToDirectory, directory.chapterToLocate, data.page, data.directoryItemKeys, searching, data.matches, visible) {
+    LaunchedEffect(directory.scrollToDirectory, directory.chapterToLocate, data.page, data.directoryItemKeys, searching, data.matches, visible, uiState.readingAvailable) {
         if (!directory.scrollToDirectory || visible < deferred || (searching && data.matches == null)) return@LaunchedEffect
-        val headerIndex = if (selectingChapters || searching) 0 else 4
+        val headerIndex = (if (selectingChapters || searching) 0 else 4) + (if (uiState.readingAvailable) 0 else 1)
         val chapterKey = data.chapters.firstOrNull { it.chapter.id == directory.chapterToLocate }?.key
         val chapterIndex = chapterKey?.let(data.directoryItemKeys::indexOf) ?: -1
         val errorItemCount = if (uiState.bookVolumes?.isErr == true) 1 else 0
@@ -678,7 +678,7 @@ private fun DetailContent(
                 Modifier.padding(horizontal = itemHorizontalPadding, vertical = itemVerticalPadding),
                 style = typography.bodyMedium, color = colorScheme.onSurfaceVariant)
         }
-        if (visible >= 5 && uiState.readingAvailable) item(key = "directory-toolbar") {
+        if (visible >= 5 && uiState.directoryAvailable) item(key = "directory-toolbar") {
             DirectoryToolbar(
                 chapterCount = data.allChapters.size, page = data.page, onPageChange = directory::changePage,
                 descending = directory.descending, hideRead = directory.hideReadChapters, selecting = selectingChapters,
@@ -692,7 +692,7 @@ private fun DetailContent(
             )
         }
 
-        if (visible >= 6 && uiState.readingAvailable) {
+        if (visible >= 6 && uiState.directoryAvailable) {
             uiState.bookVolumes?.onErr { error ->
                 item {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -719,7 +719,7 @@ private fun DetailContent(
                                 isLastRead = result.chapter.id == currentChapterId, readingProgress = progress[result.chapter.id] ?: 0f,
                                 onClick = { focusManager.clearFocus(); onClickChapter(result.chapter.id) },
                                 selecting = selectingChapters, selected = result.chapter.id in selectedChapterIds,
-                                selectionEnabled = selectionEnabled, volumeTitle = result.volumeTitle,
+                                selectionEnabled = selectionEnabled, readingEnabled = uiState.readingAvailable, volumeTitle = result.volumeTitle,
                             )
                         }
                     }
@@ -745,6 +745,7 @@ private fun DetailContent(
                                     chapter = chapter, isRead = chapter.id in data.readIds, isLastRead = chapter.id == currentChapterId,
                                     readingProgress = progress[chapter.id] ?: 0f, onClick = { onClickChapter(chapter.id) },
                                     selecting = selectingChapters, selected = chapter.id in selectedChapterIds, selectionEnabled = selectionEnabled,
+                                    readingEnabled = uiState.readingAvailable,
                                 )
                             }
                         }
@@ -1274,6 +1275,7 @@ private fun ChapterItem(
     selecting: Boolean,
     selected: Boolean,
     selectionEnabled: Boolean,
+    readingEnabled: Boolean,
     volumeTitle: String? = null,
 ) {
     Box(
@@ -1289,7 +1291,7 @@ private fun ChapterItem(
             .then(if (selecting) Modifier.toggleable(
                 value = selected, enabled = selectionEnabled, role = Role.Checkbox,
                 onValueChange = { onClick() },
-            ) else Modifier.clickable(onClick = onClick))
+            ) else Modifier.clickable(enabled = readingEnabled, onClick = onClick))
             .padding(horizontal = 14.dp, vertical = 14.dp)
     ) {
         Row(
