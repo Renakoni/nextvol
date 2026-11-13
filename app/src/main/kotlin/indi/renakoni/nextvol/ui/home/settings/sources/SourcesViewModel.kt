@@ -65,7 +65,8 @@ data class SourceNetworkState(val bypassVpn: Boolean = false, val limitation: In
 data class SourceSaveError(val message: Int, val detail: String? = null, val line: Int? = null, val column: Int? = null)
 data class SourceEditorState(val installed: InstalledRuleSource, val rawJson: String,
     val error: SourceSaveError? = null, val saved: Boolean = false, val originalJson: String = rawJson,
-    val pendingOrigins: List<String> = emptyList(), val jsonValid: Boolean = false) {
+    val pendingOrigins: List<String> = emptyList(), val jsonValid: Boolean = false,
+    val prepared: SourceRevisionUpdates.PreparedEdit? = null) {
     val dirty get() = rawJson != originalJson
 }
 
@@ -334,7 +335,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     fun closeEditor() { if (!state.value.busy) mutable.update { it.copy(editor = null) } }
     fun editDraft(rawJson: String) {
         if (!state.value.busy) mutable.update { state -> state.copy(editor = state.editor?.copy(rawJson = rawJson,
-            pendingOrigins = emptyList(), error = null, saved = false, jsonValid = false)) }
+            pendingOrigins = emptyList(), prepared = null, error = null, saved = false, jsonValid = false)) }
     }
     fun validateEditor() = launch(showProgress = false, onFailure = { failure ->
         mutable.update { it.copy(editor = it.editor?.copy(error = saveError(failure), jsonValid = false, saved = false)) }
@@ -348,7 +349,7 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     }) {
         val draft = checkNotNull(state.value.editor)
         mutable.update { it.copy(editor = draft.copy(rawJson = SourceDefinitionEdits.format(draft.rawJson),
-            pendingOrigins = emptyList(), error = null, saved = false, jsonValid = true)) }
+            pendingOrigins = emptyList(), prepared = null, error = null, saved = false, jsonValid = true)) }
     }
     fun dismissEditorOrigins() { if (!state.value.busy) mutable.update { it.copy(editor = it.editor?.copy(pendingOrigins = emptyList())) } }
     fun saveEditor() = persistEditor(false)
@@ -358,18 +359,15 @@ class SourcesViewModel @Inject constructor(@ApplicationContext private val conte
     }) {
         val draft = checkNotNull(state.value.editor)
         if (approve && draft.pendingOrigins.isEmpty()) return@launch
-        val next = SourceDefinitionEdits.prepare(draft.installed.definition, draft.rawJson)
-        val existing = SourceOriginCandidates.discover(Json.parseToJsonElement(draft.installed.definition.rawJson).jsonObject).map { it.origin }.toSet()
-        val granted = draft.installed.origins.mapNotNull { sourcePermissionOrigin(it.origin) }.toSet()
-        val introduced = SourceOriginCandidates.discover(Json.parseToJsonElement(next.rawJson).jsonObject)
-            .map { it.origin }.distinct().filter { it !in existing && it !in granted }
+        val prepared = draft.prepared ?: SourceRevisionUpdates.PreparedEdit.prepare(draft.installed, draft.rawJson)
+        val introduced = prepared.introducedOrigins
         if (introduced.isNotEmpty() && (!approve || draft.pendingOrigins != introduced)) {
-            mutable.update { it.copy(editor = draft.copy(pendingOrigins = introduced, error = null, saved = false)) }
+            mutable.update { it.copy(editor = draft.copy(pendingOrigins = introduced, prepared = prepared, error = null, saved = false)) }
             return@launch
         }
         mutable.update { it.copy(editor = draft.copy(error = null, pendingOrigins = emptyList(), saved = false)) }
         val id = ImportedRuleSources.id(draft.installed.definition)
-        updates.edit(id, draft.installed, draft.rawJson, draft.installed.origins + introduced.map { NetworkGrant(it) })
+        updates.edit(prepared, draft.installed.origins + introduced.map { NetworkGrant(it) })
         reload()
         val installed = state.value.installed.single { ImportedRuleSources.id(it.definition) == id }
         mutable.update { it.copy(editor = SourceEditorState(installed, SourceDefinitionEdits.format(installed.definition.rawJson), saved = true)) }

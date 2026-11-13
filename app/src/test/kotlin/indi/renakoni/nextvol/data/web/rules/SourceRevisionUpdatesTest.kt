@@ -9,6 +9,7 @@ import hnovel.content.RuleTaskRunner
 import hnovel.imports.*
 import hnovel.network.NetworkGrant
 import indi.renakoni.nextvol.data.web.*
+import indi.renakoni.nextvol.data.web.rules.SourceRevisionUpdates.PreparedEdit
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -90,15 +91,22 @@ class SourceRevisionUpdatesTest {
                 assertEquals(0, fixture.server.requestCount)
                 val grants = listOf(NetworkGrant("http://127.0.0.1:${fixture.server.port}", true))
                 val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
-                updates.edit(id, before, draft, grants)
+                val prepared = PreparedEdit.prepare(before, draft)
+                val staged = candidate(sources, JsonObject(raw + ("bookSourceName" to JsonPrimitive("Staged"))))
+                updates.edit(prepared, grants)
                 assertFalse(runtime.isAvailable)
                 val edited = sources.installedSources().single()
                 assertEquals(first.sourceId, edited.definition.sourceId)
                 assertEquals(first.importKey, edited.definition.importKey)
                 assertEquals(before.preferences, edited.preferences)
                 assertEquals("keep configuration", sources.storedSettings(id).variable)
-                assertEquals(first, sources.definitions.list().single())
+                assertEquals(staged, sources.definitions.list().single())
+                assertTrue(edited.definition.revision > staged.revision)
                 assertEquals(grants, edited.origins)
+                val currentRuntime = (registry.resolve(id) as SourceResolution.Ready).runtime
+                updates.edit(PreparedEdit.prepare(edited, SourceDefinitionEdits.format(edited.definition.rawJson)), grants)
+                assertEquals(edited, sources.installedSources().single())
+                assertSame(currentRuntime, (registry.resolve(id) as SourceResolution.Ready).runtime)
                 val rules = sources.loginTarget(id).rules
                 val base = "http://127.0.0.1:${fixture.server.port}"
                 val book = rules.discovery("$base/search").single()
@@ -117,7 +125,8 @@ class SourceRevisionUpdatesTest {
                 sources = ImportedRuleSources(host, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
                 assertEquals(edited, sources.installedSources().single())
                 val restoredUpdates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
-                restoredUpdates.edit(id, sources.installedSources().single(), JsonObject(Json.parseToJsonElement(draft).jsonObject + ("bookSourceName" to JsonPrimitive("Edited again"))).toString(), grants)
+                restoredUpdates.edit(PreparedEdit.prepare(sources.installedSources().single(),
+                    JsonObject(Json.parseToJsonElement(draft).jsonObject + ("bookSourceName" to JsonPrimitive("Edited again"))).toString()), grants)
                 assertTrue(sources.installedSources().single().definition.revision > edited.definition.revision)
             } finally { sources.stop(); host.root.deleteRecursively() }
         }
@@ -141,17 +150,18 @@ class SourceRevisionUpdatesTest {
                 val renamed = JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Edited"))).toString()
                 for ((text, approved) in listOf("{" to grants, JsonObject(fixture.raw() - "ruleContent").toString() to grants,
                         brokenScript to grants, renamed to listOf(NetworkGrant("https://unapproved.example")))) {
-                    assertTrue(runCatching { updates.edit(id, before, text, approved) }.isFailure)
+                    assertTrue(runCatching { updates.edit(PreparedEdit.prepare(before, text), approved) }.isFailure)
                     assertArrayEquals(snapshot, File(host.filesDir, "rule-sources/active.json").readBytes())
                     assertEquals(first, sources.definitions.list().single())
                     assertSame(oldRuntime, (registry.resolve(id) as SourceResolution.Ready).runtime)
                 }
+                val stale = PreparedEdit.prepare(before, renamed)
                 updates.updatePermissions(id, grants + NetworkGrant("https://extra.example"))
-                assertEquals(RevisionError.Stale, (runCatching { updates.edit(id, before, renamed, grants) }
+                assertEquals(RevisionError.Stale, (runCatching { updates.edit(stale, grants) }
                     .exceptionOrNull() as RevisionException).code)
                 val current = sources.installedSources().single()
-                updates.edit(id, current, renamed, current.origins)
-                assertEquals(RevisionError.Stale, (runCatching { updates.edit(id, current, first.rawJson, grants) }
+                updates.edit(PreparedEdit.prepare(current, renamed), current.origins)
+                assertEquals(RevisionError.Stale, (runCatching { updates.edit(PreparedEdit.prepare(current, first.rawJson), grants) }
                     .exceptionOrNull() as RevisionException).code)
                 assertEquals("Edited", sources.installedSources().single().definition.displayName)
             } finally { sources.stop(); host.root.deleteRecursively() }
@@ -174,7 +184,7 @@ class SourceRevisionUpdatesTest {
                 fixture.afterRun = { entered.complete(Unit); awaitCancellation() }
                 val updates = SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority)
                 val changed = JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Cancelled"))).toString()
-                val pending = launch { updates.edit(id, before, changed, grants) }
+                val pending = launch { updates.edit(PreparedEdit.prepare(before, changed), grants) }
                 withTimeout(5000) { entered.await() }
                 pending.cancelAndJoin()
                 assertEquals(before, sources.installedSources().single())

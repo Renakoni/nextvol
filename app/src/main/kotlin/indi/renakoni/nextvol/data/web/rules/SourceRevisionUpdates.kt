@@ -36,6 +36,23 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
     private val temporary = File(context.cacheDir, "source-revision-checks")
     private val pixiv = PixivUpdateAdapter(catalog)
 
+    /** Only parsed drafts can reach edit; the same site analysis survives the approval dialog. */
+    class PreparedEdit private constructor(internal val installed: InstalledRuleSource,
+        internal val definition: SourceDefinition, val introducedOrigins: List<String>) {
+        companion object {
+            fun prepare(installed: InstalledRuleSource, text: String): PreparedEdit {
+                val next = SourceDefinitionEdits.prepare(installed.definition, text)
+                if (next === installed.definition) return PreparedEdit(installed, next, emptyList())
+                val existing = SourceOriginCandidates.discover(Json.parseToJsonElement(installed.definition.rawJson).jsonObject)
+                    .map { it.origin }.toSet()
+                val granted = installed.origins.mapNotNull { sourcePermissionOrigin(it.origin) }.toSet()
+                val introduced = SourceOriginCandidates.discover(Json.parseToJsonElement(next.rawJson).jsonObject)
+                    .map { it.origin }.distinct().filter { it !in existing && it !in granted }
+                return PreparedEdit(installed, next, introduced)
+            }
+        }
+    }
+
     fun manages(definition: SourceDefinition): Boolean = pixiv.manages(definition)
 
     fun canCheckUpdate(definition: SourceDefinition): Boolean = updateAddress(definition) != null
@@ -80,12 +97,13 @@ class SourceRevisionUpdates @Inject constructor(@ApplicationContext context: Con
     }
 
     /** The installed snapshot is authoritative; local edits do not overwrite staged import candidates. */
-    suspend fun edit(source: Identifier, expected: InstalledRuleSource, text: String, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
-        val before = installed(source)
+    suspend fun edit(prepared: PreparedEdit, approvedOrigins: List<NetworkGrant>) = withContext(Dispatchers.IO) {
+        val expected = prepared.installed
+        val before = installed(ImportedRuleSources.id(expected.definition))
         if (before.definition != expected.definition || before.origins != expected.origins) throw RevisionException(RevisionError.Stale)
-        val revision = maxOf(expected.definition.revision, sources.definitions.list().filter { it.sourceId == expected.definition.sourceId }
-            .maxOfOrNull { it.revision } ?: 0) + 1
-        val next = SourceDefinitionEdits.prepare(expected.definition, text, revision)
+        val next = if (prepared.definition == before.definition) before.definition else prepared.definition.copy(
+            revision = maxOf(before.definition.revision, sources.definitions.list().filter { it.sourceId == before.definition.sourceId }
+                .maxOfOrNull { it.revision } ?: 0) + 1)
         replace(before, next, approvedOrigins)
     }
 
