@@ -12,8 +12,12 @@ Pull requests, merge groups, and manual runs use four independent workflows:
 The JVM check does not wait for the release APK build. Selected device tests retain
 the API matrix and diagnostic reports. When minified coverage is affected, a
 producer builds and uploads the benchmark APKs, then a separate API 35 job tests
-that exact artifact ID. Each job has its own 30-minute budget, so cold native
-compilation cannot consume the device test's budget. The existing required
+that exact artifact ID. APK producers have a 45-minute budget for a cold ORT
+build, Kotlin/R8 and cache publication; device tests retain a separate 30-minute
+budget. Main cache warming and signed release builds also allow 45 minutes.
+These are cancellation ceilings, not target durations: cache hits still skip
+native compilation. Cold compilation cannot consume the device test's budget.
+The existing required
 `Minified source runtime (API 35)` check fails if its producer fails; unselected
 checks still report success through the same gate as Debug device checks.
 The workflows have separate concurrency groups so they cannot cancel each other.
@@ -302,7 +306,7 @@ keys together when upgrading. Automatic Gradle JDK/SDK provisioning is disabled.
 | --- | --- | --- |
 | Gradle (`setup-gradle`) | All build/test checks | Wrapper, dependencies, transforms, local build cache; only the serialized main warmer writes |
 | Variant task outputs | Release/Minified checks and signed releases | Separate Release/benchmark outputs; latest snapshot per ref and variant, saved after a successful APK build |
-| ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref |
+| ONNX Runtime install | All native build consumers | Source-built library, headers, licenses and manifest; exact input key, latest entry per main/PR ref and toolchain |
 | Embedded offline SDK | APK builds and signed releases | ZIP pinned by URL/SHA-256; main writes one shared archive, PRs only restore |
 | SDK | All checks | Platform, Build Tools, adb; main publishes one shared version |
 | Emulator + one API image | Device checks only | Main publishes separate API 24 and API 35 entries |
@@ -382,17 +386,33 @@ Misses, failed prewarming, or cancellation leave
 ordinary PR checks able to build normally using Gradle's input validation.
 
 The independent ONNX Runtime cache uses the vendored sources, source inventories,
-build scripts/profile, pinned toolchain action and Ubuntu runner image revision.
-Kotlin, Matcha/JNI, PR commit IDs and native README/validation notes are not inputs.
+build scripts/profile, Ubuntu OS series and the actual tool versions: host C/C++
+compilers/linker, CMake, Ninja and the NDK revision metadata. The Android NDK,
+CMake and Ninja remain pinned. Neither the runner image revision nor the cache
+action file is an input: image or cache-management changes with the same build
+tools reuse the same install. Kotlin, Matcha/JNI, PR commit IDs and native
+README/validation notes are not inputs.
 Only `app/build/matcha/onnxruntime/install` is archived, never CMake object trees.
 The builder verifies the source inventory and every exported file's hash before
 skipping protoc and ORT compilation; missing, stale or damaged exports rebuild.
 Successful PR jobs can publish this small cache within their own merge ref, while
-main publishes entries available to other PRs. The Debug, Release and minified
+main publishes entries available to other PRs. On main, a missing install is
+built and saved before Gradle runs, so a Matcha task output hit cannot leave the
+independent shared ORT cache missing, and a later build/signing/upload failure
+does not discard the completed ORT compilation. Main and PR restore paths are
+mutually exclusive; each job restores once. The Debug, Release and minified
 APK builders can still build independently on their first simultaneous miss.
 Cache hits remove the repeated
 ORT compilation, not the existing checks or Matcha build. Main/PR retention keeps
-each ref's newest ORT entry; main's different input key never replaces a PR's entry.
+the newest ORT input entry for each ref and toolchain prefix (before the input
+digest).
+Different toolchains must not evict each other's exact-key installs during a
+rollout. Each compressed install is about 4.5 MiB. Inactive entries expire through
+GitHub's seven-day unused-cache policy; closed-PR cleanup still removes all
+entries for that PR. Main's different input key never replaces a PR's entry.
+The v2 key requires an initial build; after main publishes it, PRs with the same
+inputs can reuse it across runner image revisions. Source/toolchain changes,
+eviction or damaged exports can still require rebuilding.
 
 The embedded SDK uses a separate cache containing only its compressed ZIP. APK
 jobs verify the pinned SHA-256, extract and validate the libraries, then supply

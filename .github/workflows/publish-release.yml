@@ -15,7 +15,7 @@ jobs:
     name: Build signed APK and draft release
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write
     steps:
