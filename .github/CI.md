@@ -12,8 +12,12 @@ Pull requests, merge groups, and manual runs use four independent workflows:
 The JVM check does not wait for the release APK build. Selected device tests retain
 the API matrix and diagnostic reports. When minified coverage is affected, a
 producer builds and uploads the benchmark APKs, then a separate API 35 job tests
-that exact artifact ID. Each job has its own 30-minute budget, so cold native
-compilation cannot consume the device test's budget. The existing required
+that exact artifact ID. APK producers have a 45-minute budget for a cold ORT
+build, Kotlin/R8 and cache publication; device tests retain a separate 30-minute
+budget. Main cache warming and signed release builds also allow 45 minutes.
+These are cancellation ceilings, not target durations: cache hits still skip
+native compilation. Cold compilation cannot consume the device test's budget.
+The existing required
 `Minified source runtime (API 35)` check fails if its producer fails; unselected
 checks still report success through the same gate as Debug device checks.
 The workflows have separate concurrency groups so they cannot cancel each other.

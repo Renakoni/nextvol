@@ -16,7 +16,8 @@ jobs:
   release-apk:
     name: Release APK
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # A cold ORT build plus R8 and cache publication can exceed 30 minutes.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Select affected checks
@@ -58,7 +59,7 @@ jobs:
   minified-apks:
     name: Build minified test APKs
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     outputs:
       run: ${{ steps.scope.outputs.run }}
       classes: ${{ steps.scope.outputs.minified-classes }}

@@ -16,7 +16,7 @@ jobs:
   debug-apks:
     name: Build selected Debug test APKs
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     outputs:
       device-24: ${{ steps.scope.outputs.device-24 }}
       device-35: ${{ steps.scope.outputs.device-35 }}

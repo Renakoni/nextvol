@@ -66,7 +66,7 @@ jobs:
     if: needs.selection.outputs.gradle-args != ''
     name: Populate main Gradle caches
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./.github/actions/android-environment
