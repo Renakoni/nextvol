@@ -12,9 +12,10 @@ import java.util.Locale
 
 /** Reproduce the reference storage's filename casing without duplicating model data. */
 internal fun prepareMicrosoftResources(files: List<File>, checkCancelled: () -> Unit) {
+    val seen = files.toMutableSet()
     fun link(source: File, name: String) {
         val alias = File(source.parentFile, name)
-        if (!alias.exists()) {
+        if (seen.add(alias) && !alias.exists()) {
             checkCancelled()
             // The model directory is renamed after installation, so keep the target relative to the alias.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Files.createSymbolicLink(alias.toPath(), source.toPath().fileName)
