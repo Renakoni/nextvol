@@ -8,7 +8,9 @@ coroutine to stop generation. For the clip API, close the synthesizer after use.
 
 `GptSovitsVoice` takes a local root, a V2 Pro or V2 Pro Plus character ID, a
 reference recording (up to 30 seconds) and its Mandarin transcript. The backend supports Android 10
-or newer. The Mandarin frontend uses the Voicebox normalization, segmentation,
+or newer. MuMu's x86 Houdini translator cannot load the runtime's thread-local
+state during model initialization, so this backend reports unavailable there.
+The Mandarin frontend uses the Voicebox normalization, segmentation,
 contextual pronunciation, tone sandhi and erhua before RoBERTa alignment.
 On arm64 the default is CPU + WebGPU. Reference encoding and autoregressive
 decoding use the CPU provider in the bundled ORT 1.27 build. The acoustic stage uses
