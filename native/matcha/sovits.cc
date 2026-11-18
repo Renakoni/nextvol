@@ -120,17 +120,15 @@ void Voice::prepare(const Text& prompt, const std::vector<float>& pcm32, const s
   encoder_ = load(model_ / "t2s_encoder_fp32.onnx");
   first_ = load(model_ / "t2s_first_stage_decoder_fp32.onnx");
   stage_ = load(model_ / "t2s_stage_decoder_fp32.onnx");
-  vits_ = load(model_ / "vits_fp32.onnx");
   first_sampling_ = contains(names(first_, true), "sampling");
   stage_inputs_ = names(stage_, true);
   stage_sampling_ = contains(stage_inputs_, "sampling");
   stage_inputs_.erase(std::remove(stage_inputs_.begin(), stage_inputs_.end(), "sampling"), stage_inputs_.end());
   first_outputs_ = names(first_, false);
   stage_outputs_ = names(stage_, false);
-  speed_input_ = contains(names(vits_, true), "speed");
 }
 
-std::vector<int16_t> Voice::generate(const Text& text) {
+std::vector<int64_t> Voice::semantics(const Text& text) {
   auto phones = tensor(text.phones, {1, static_cast<int64_t>(text.phones.size())});
   auto features = bert(text);
   auto encoded = evaluate(encoder_, run_, {{"ref_seq", &ref_phones_}, {"text_seq", &phones},
@@ -171,17 +169,40 @@ std::vector<int16_t> Voice::generate(const Text& text) {
     break;
   }
   if (tokens.empty()) throw std::runtime_error("GPT-SoVITS decoder did not complete a segment");
-  state.clear();
+  return tokens;
+}
+
+std::vector<float> Voice::condition(bool advanced) const {
+  const auto& value = advanced ? advanced_ : ge_;
+  auto info = value.GetTensorTypeAndShapeInfo();
+  auto shape = info.GetShape();
+  if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT ||
+      shape.size() != 3 || shape[0] != 1 || shape[2] != 1)
+    throw std::runtime_error("Unexpected V2 speaker conditioning");
+  auto ptr = value.GetTensorData<float>();
+  return {ptr, ptr + info.GetElementCount()};
+}
+
+std::vector<int16_t> Voice::vocode(const std::vector<int64_t>& ids, const std::vector<int64_t>& tokens) {
+  if (!vits_) {
+    vits_ = load(model_ / "vits_fp32.onnx");
+    speed_input_ = contains(names(vits_, true), "speed");
+  }
+  auto phones = tensor(ids, {1, static_cast<int64_t>(ids.size())});
   auto semantic = tensor(tokens, {1, 1, static_cast<int64_t>(tokens.size())});
   auto speed = tensor<double>({1.0}, {1});
   Inputs acoustic{{"text_seq", &phones}, {"pred_semantic", &semantic}, {"ge", &ge_}, {"ge_advanced", &advanced_}};
   if (speed_input_) acoustic.emplace_back("speed", &speed);
   auto audio = evaluate(vits_, run_, acoustic, {"audio"});
   auto info = audio[0].GetTensorTypeAndShapeInfo();
-  auto count = info.GetElementCount();
-  if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT || !count || count > (8 * 1024 * 1024 - 44) / 2)
+  if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT)
+    throw std::runtime_error("Invalid GPT-SoVITS audio type");
+  return pcm(audio[0].GetTensorData<float>(), info.GetElementCount());
+}
+
+std::vector<int16_t> Voice::pcm(const float* samples, size_t count) {
+  if (!count || count > (8 * 1024 * 1024 - 44) / 2)
     throw std::runtime_error("Invalid GPT-SoVITS audio output");
-  auto samples = audio[0].GetTensorData<float>();
   std::vector<int16_t> pcm(count);
   bool audible = false;
   for (size_t i = 0; i < count; ++i) {

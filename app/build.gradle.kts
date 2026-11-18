@@ -67,6 +67,24 @@ if (matchaNative) {
     tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(buildMatchaNative) }
 }
 
+// Only the native HTP components enter the APK. Java and WebGPU use their own ORT.
+val sovitsQnn by configurations.creating { isTransitive = false }
+dependencies {
+    add(sovitsQnn.name, "com.microsoft.onnxruntime:onnxruntime-android-qnn:1.27.0@aar")
+    add(sovitsQnn.name, "com.qualcomm.qti:qnn-runtime:2.42.0@aar")
+}
+val prepareSovitsQnn by tasks.registering(Sync::class) {
+    from({ sovitsQnn.map { zipTree(it) } }) {
+        include("jni/arm64-v8a/libonnxruntime.so", "jni/arm64-v8a/libQnnHtp*.so", "jni/arm64-v8a/libQnnSystem.so")
+        eachFile { path = path.removePrefix("jni/") }
+        rename("libonnxruntime\\.so", "libonnxruntime-qnn.so")
+        includeEmptyDirs = false
+    }
+    into(layout.buildDirectory.dir("sovits-qnn"))
+}
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("JniLibFolders") }
+    .configureEach { dependsOn(prepareSovitsQnn) }
+
 // Audio processing is independent of the arm64-only offline model runtime.
 val audioOutput = layout.buildDirectory.dir("speech-audio").get().asFile
 val buildSpeechAudioNative by tasks.registering(Exec::class) {
@@ -98,6 +116,7 @@ tasks.matching { it.name.startsWith("merge") && it.name.endsWith("JniLibFolders"
 tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareSpeechAudioLicenses) }
 
 android {
+    sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("sovits-qnn").get().asFile)
     sourceSets.getByName("main").jniLibs.srcDir(audioOutput.resolve("jniLibs"))
     sourceSets.getByName("main").assets.srcDir(audioOutput.resolve("assets"))
     sourceSets.getByName("main").jniLibs.srcDir(offlineRuntime.resolve("jniLibs"))
@@ -240,6 +259,7 @@ android {
     }
     packaging {
         // Embedded engines such as Sogou open companion libraries by their filesystem paths.
+        jniLibs.keepDebugSymbols += "**/libQnnHtp*Skel.so"
         jniLibs.useLegacyPackaging = true
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -357,6 +377,7 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 dependencies {
+    implementation(files(rootProject.file("native/sovits/onnxruntime-webgpu.aar")))
     implementation("com.optimaize.languagedetector:language-detector:0.6") {
         exclude(group = "com.intellij", module = "annotations")
         // Profiles are read with the existing kotlinx JSON parser, without JSONIC's desktop reflection.
