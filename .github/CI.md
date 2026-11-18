@@ -364,8 +364,8 @@ build, before signing or uploading attachments. This supplies main's shared Rele
 outputs without adding R8 to the ordinary cache warmer.
 
 `gradle-cache.yml` refreshes main's compilation caches after build/environment
-configuration, `native/onnxruntime/**`, or the offline SDK descriptor/downloader
-changes, a manual main run, or daily maintenance at 09:17 UTC.
+configuration or `native/onnxruntime/**` changes, a manual main run, or daily
+maintenance at 09:17 UTC.
 Ordinary source, test, documentation
 and template changes do not trigger it. A lightweight selector compares the
 push's `before` SHA with the checked-out commit and reuses the ordinary scope
@@ -416,7 +416,8 @@ eviction or damaged exports can still require rebuilding.
 
 The app downloads the vendor SDK directly from its pinned release asset. APK jobs
 package the GPT-SoVITS runtime separately and embed its download URL and SHA-256
-in the host APK. The first public distribution of that ZIP is tracked in #1094 for the next app release.
+in the host APK. Issue #1094 tracks publication of both the v5 vendor ZIP and the
+GPT-SoVITS ZIP with the next app release.
 
 JVM and Lint jobs use `-PmatchaNative=false` and skip native tool preparation.
 The minified APK producer saves

@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.tts.runtime
 
+import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.os.Process
@@ -37,10 +38,10 @@ internal enum class SpeechRuntimePack(val id: String) {
 }
 
 internal object SpeechLibraries {
-    lateinit var context: Context
+    lateinit var context: Application
         private set
 
-    fun initialize(application: Context) { context = application }
+    fun initialize(application: Application) { context = application }
 
     private val vendorManifest by lazy {
         requireVendor()

@@ -13,6 +13,13 @@ loads the arm64 SDK libraries on demand. The archive contains
 `jniLibs/arm64-v8a/` and `assets/offline-native/`. The host keeps the JNI
 declarations. Voice models and SDK authorizations are supplied separately.
 
+To reproduce `offline-runtime-arm64-v5.zip`, extract the published v4 ZIP to a
+clean directory and run `python native/offline/package_runtime.py <directory> offline-runtime-arm64-v5.zip`
+(Python 3.11, zlib 1.2.13). Compare its SHA-256 with `runtime.json`. The classic
+IssTTS engine needs `libissavth.so`, but v4 declares the newer library's SONAME
+inside that file. Packaging corrects the single character in the ELF name and
+updates its manifest digest. The app loads both SDK versions from the verified ZIP.
+
 For local compatibility investigation, prepare the minimum arm64 library set
 from a caller-supplied runtime APK:
 

@@ -46,6 +46,9 @@ class SpeechRuntimeInstrumentedTest {
         assertFalse(availability.installed(voice, repository).canRun)
         installTestRuntime(SpeechRuntimePack.Vendor, availability)
         assertTrue(availability.installed(voice, repository).canRun)
+        // IssTTS 4 and 3 must resolve different authorization libraries in the same process.
+        Class.forName("com.iflytek.speech.libisstts")
+        Class.forName("com.iflytek.speech.libxsstts")
         repository.acquire(voice.reference).use { lease ->
             val synth = OfflineSpeechSynthesizer(context, lease.directory, lease.configuration)
             val output = File(folder, "sample.wav")

@@ -304,8 +304,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val settings by settingsViewModel.state.collectAsStateWithLifecycle()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
-        var runtimeDialog by rememberSaveable { mutableStateOf(false) }
-        if (runtimeDialog) SpeechRuntimeDialog { runtimeDialog = false }
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
         val context = LocalContext.current

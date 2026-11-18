@@ -11,7 +11,7 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [29], application = Application::class)
+@Config(sdk = [30], application = Application::class)
 class SovitsMandarinTest {
     @get:Rule val temporary = TemporaryFolder()
 

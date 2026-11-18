@@ -7,7 +7,7 @@
 正式 Release 和 Snapshot APK 仅支持 `arm64-v8a`，无法在其他架构或 32 位 Android 系统上安装。
 继续发布单个 APK，文件名与更新协议不变。
 Debug、Benchmark 和 ReaderBenchmark 保留其他架构，用于开发及模拟器验证。
-厂商语音和 GPT-SoVITS 运行库由听书设置按需下载。厂商包复用已有组件 Release。GPT-SoVITS 以 ZIP 的 SHA-256 标识版本，首次公开分发随下一次正式 Release，见 #1094。APK 内的 SHA-256 固定了可执行组件的内容。
+厂商语音和 GPT-SoVITS 运行库由听书设置按需下载。厂商包 v5 和按内容摘要命名的 GPT-SoVITS 包随下一次正式 Release 分发，见 #1094。APK 内的 SHA-256 固定了可执行组件的内容。
 发布工作流单独保存原生符号表，供崩溃定位，不放入 APK。
 
 ## 网站接口
