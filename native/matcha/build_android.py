@@ -96,7 +96,7 @@ def main():
         'profile': 'Sherpa VITS / Matcha / Kokoro / Kitten / CPU / one instance',
         'abi': 'arm64-v8a', 'android_api': 26, 'stl': 'c++_static',
         'source_inventory_sha256': digest(ROOT / 'sources.sha256'),
-        'recipe_sha256': {name: digest(ROOT / name) for name in ('build_android.py', 'CMakeLists.txt', 'phonemize.cmake', 'sources.cmake', 'sources.json', 'jni.cc', 'name_model.cc', 'espeak_jni.cc', 'platform.c')},
+        'recipe_sha256': {name: digest(ROOT / name) for name in ('build_android.py', 'CMakeLists.txt', 'phonemize.cmake', 'sources.cmake', 'sources.json', 'jni.cc', 'name_model.cc', 'sovits.cc', 'sovits.h', 'sovits_jni.cc', 'espeak_jni.cc', 'platform.c')},
         'espeak': {'version': '1.52.0.1', 'library_sha256': digest(espeak), 'library_bytes': espeak.stat().st_size},
         'library_sha256': digest(library), 'library_bytes': library.stat().st_size,
         'needed_libraries': needed, 'load_segment_alignments': [row[-1] for row in loads],

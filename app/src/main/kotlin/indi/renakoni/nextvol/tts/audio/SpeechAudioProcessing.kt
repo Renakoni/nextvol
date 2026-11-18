@@ -221,7 +221,7 @@ internal suspend fun processSpeechAudio(
 }
 
 /** Input limits belong to each synthesizer; resampling a valid input may produce a larger WAV. */
-private class SpeechWaveFile(file: File, private val sampleRate: Int) : AutoCloseable {
+internal class SpeechWaveFile(file: File, private val sampleRate: Int) : AutoCloseable {
     private val output = RandomAccessFile(file, "rw")
     private var bytes = 0L
     init {
@@ -229,7 +229,30 @@ private class SpeechWaveFile(file: File, private val sampleRate: Int) : AutoClos
         catch (failure: Throwable) { output.close(); throw failure }
     }
 
-    fun append(pcm: ByteArray) { output.write(pcm); bytes += pcm.size }
+    fun append(samples: ShortArray) {
+        val bytes = ByteArray(samples.size * 2)
+        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(samples)
+        append(bytes)
+    }
+
+    fun appendSilence(durationMs: Int, checkCancelled: () -> Unit) {
+        var remaining = durationMs.toLong() * sampleRate / 1000 * 2
+        require(remaining >= 0 && bytes + remaining <= 0xffffffffL - 36) { "Pause exceeds the RIFF size limit" }
+        val zeros = ByteArray(minOf(8192L, remaining).toInt())
+        while (remaining > 0) {
+            checkCancelled()
+            val count = minOf(remaining, zeros.size.toLong()).toInt()
+            output.write(zeros, 0, count)
+            bytes += count
+            remaining -= count
+        }
+    }
+
+    fun append(pcm: ByteArray) {
+        require(bytes + pcm.size <= 0xffffffffL - 36) { "Audio exceeds the RIFF size limit" }
+        output.write(pcm)
+        bytes += pcm.size
+    }
 
     fun finish() {
         output.seek(0)

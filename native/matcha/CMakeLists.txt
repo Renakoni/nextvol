@@ -35,5 +35,5 @@ target_link_libraries(nextvol-espeak PRIVATE espeak-ng)
 # Keep eSpeak's global state private to this library, separate from Sherpa's copy.
 target_link_options(nextvol-espeak PRIVATE -Wl,--exclude-libs,ALL)
 include(sources.cmake)
-add_library(nextvol-matcha SHARED jni.cc name_model.cc ${SHERPA_SOURCES})
+add_library(nextvol-matcha SHARED jni.cc name_model.cc sovits.cc sovits_jni.cc ${SHERPA_SOURCES})
 target_link_libraries(nextvol-matcha PRIVATE kaldifst piper_phonemize offline-istft onnxruntime android log)
