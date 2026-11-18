@@ -20,10 +20,12 @@ def package(source: Path, output: Path):
     manifest["libraries"][library.name]["sha256"] = hashlib.sha256(data).hexdigest()
     overrides = {library: data, manifest_path: (json.dumps(manifest, indent=2) + "\n").encode()}
 
-    paths = (p for tree in ("assets", "jniLibs") for p in (source / tree).rglob("*") if p.is_file())
+    names = sorted(p.relative_to(source).as_posix() for tree in ("assets", "jniLibs")
+                   for p in (source / tree).rglob("*") if p.is_file())
     with ZipFile(output, "x") as archive:
-        for path in sorted(paths, key=lambda p: p.relative_to(source).as_posix()):
-            entry = ZipInfo(path.relative_to(source).as_posix())
+        for name in names:
+            path = source / name
+            entry = ZipInfo(name)
             entry.create_system = 3
             entry.external_attr = 0o100644 << 16
             archive.writestr(entry, overrides[path] if path in overrides else path.read_bytes(),
