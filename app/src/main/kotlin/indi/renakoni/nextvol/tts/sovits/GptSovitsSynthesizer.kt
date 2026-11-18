@@ -6,7 +6,7 @@ import androidx.annotation.RequiresApi
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.audio.PcmAudioProcessor
 import indi.renakoni.nextvol.tts.audio.SpeechWaveFile
-import indi.renakoni.nextvol.tts.matcha.matchaAvailable
+import indi.renakoni.nextvol.BuildConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,7 +38,6 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     private var acoustic: SovitsAcoustic? = null
     internal var lastProvider: String = "CPU"
         private set
-    @Volatile private var cancelled = false
     private var handle = 0L
     private var ownsPermit = false
     private var preparing: Job? = null
@@ -51,13 +50,13 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
             withContext(Dispatchers.IO) {
                 coroutineScope {
                     val job = currentCoroutineContext().job
-                    synchronized(lifecycle) { checkActive(); preparing = job }
+                    synchronized(lifecycle) { generation.checkCancelled(); preparing = job }
                     try {
-                        if (!matchaAvailable()) throw SpeechException(SpeechError.OfflineUnavailable)
+                        if (!BuildConfig.MATCHA_NATIVE || "arm64-v8a" !in Build.SUPPORTED_ABIS) throw SpeechException(SpeechError.OfflineUnavailable)
                         permit.acquire()
                         synchronized(lifecycle) {
-                            if (cancelled) { permit.release(); throw CancellationException() }
                             ownsPermit = true
+                            generation.checkCancelled()
                         }
                         prepare(settings)
                     } finally { synchronized(lifecycle) { preparing = null } }
@@ -66,7 +65,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
             return voice.character
         } catch (failure: Throwable) {
             withContext(NonCancellable + Dispatchers.IO) { close() }
-            if (failure is CancellationException) throw failure
+            if (failure is CancellationException || failure is SpeechException) throw failure
             if (failure is Exception || failure is LinkageError)
                 throw SpeechException(SpeechError.OfflineUnavailable).apply { initCause(failure) }
             throw failure
@@ -75,15 +74,15 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
 
     @RequiresApi(29)
     private suspend fun prepare(settings: SpeechSettings) {
-        val speaker = prepareSovitsFiles(voice)
+        prepareSovitsFiles(voice)
         val (pcm32, pcm16) = readSovitsReference(voice.referenceAudio)
         val mandarin = SovitsMandarin(context, voice.runtime)
         val prompt = mandarin.encode(voice.referenceText)
         nativeOperation {
             synchronized(lifecycle) {
-                checkActive()
+                generation.checkCancelled()
                 handle = SovitsNative.create(voice.model.absolutePath.encodeToByteArray(),
-                    voice.runtime.absolutePath.encodeToByteArray(), speaker.absolutePath.encodeToByteArray())
+                    voice.runtime.absolutePath.encodeToByteArray())
             }
             SovitsNative.prepare(handle, prompt.phones, prompt.tokens, prompt.repeats, pcm32, pcm16)
             try {
@@ -91,7 +90,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                 acoustic?.prepare(context)
             } catch (failure: Throwable) {
                 if (failure !is Exception && failure !is LinkageError) throw failure
-                checkActive()
+                generation.checkCancelled()
                 acoustic?.close()
                 acoustic = null
                 android.util.Log.w("NextVolSoVITS", "Accelerated voice unavailable", failure)
@@ -141,7 +140,6 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
 
     private suspend fun pcm(text: String): ByteArray {
         require(text.isNotBlank() && text.length <= maxInputLength)
-        if (Build.VERSION.SDK_INT < 29) throw SpeechException(SpeechError.OfflineUnavailable)
         return nativeOperation {
             val input = checkNotNull(frontend).encode(text)
             val tokens = SovitsNative.semantics(handle, input.phones, input.tokens, input.repeats)
@@ -164,7 +162,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                     }
                     currentCoroutineContext().ensureActive()
                     synchronized(lifecycle) {
-                        checkActive()
+                        generation.checkCancelled()
                         Files.move(partial.toPath(), output.toPath())
                         committed = true
                     }
@@ -183,19 +181,16 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
         continuation.invokeOnCancellation { cancel() }
         continuation.resumeWith(runCatching {
             operation.withLock {
-                checkActive()
-                try { block().also { checkActive() } }
-                catch (failure: Exception) { checkActive(); throw failure }
+                generation.checkCancelled()
+                try { block().also { generation.checkCancelled() } }
+                catch (failure: Exception) { generation.checkCancelled(); throw failure }
             }
         })
     }
 
-    private fun checkActive() { if (cancelled) throw CancellationException("GPT-SoVITS cancelled") }
-
     override fun cancel() {
         val job = synchronized(lifecycle) {
-            cancelled = true
-            generation.cancel("GPT-SoVITS cancelled")
+            generation.cancel()
             if (handle != 0L) SovitsNative.cancel(handle)
             preparing
         }
@@ -206,12 +201,15 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
         cancel()
         operation.withLock {
             synchronized(lifecycle) {
-                acoustic?.close()
-                acoustic = null
-                if (handle != 0L) SovitsNative.close(handle)
-                handle = 0
-                frontend = null
-                if (ownsPermit) { ownsPermit = false; permit.release() }
+                try {
+                    acoustic?.close()
+                } finally {
+                    acoustic = null
+                    if (handle != 0L) SovitsNative.close(handle)
+                    handle = 0
+                    frontend = null
+                    if (ownsPermit) { ownsPermit = false; permit.release() }
+                }
             }
         }
     }

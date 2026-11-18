@@ -14,84 +14,47 @@ internal class V2HtpVocoder(
     private val environment: OrtEnvironment,
     private val session: (String) -> OrtSession,
     private val directory: File,
-    private val runtime: () -> File?,
-    private val performance: String,
+    runtime: File,
+    appUpdatedAt: Long,
     private val stemChannels: Int,
 ) : AutoCloseable {
     private val bodyChannels = stemChannels / 32
-    private var htp: QnnSession? = null
-    private var prepared = false
+    private val htp = QnnSession(runtime, File(directory, BODY), appUpdatedAt)
     private var workspace: Workspace? = null
-    var lastUsedNpu = false
-        private set
-    private val qnnModel by lazy(LazyThreadSafetyMode.NONE) {
-        QnnSession.Model(requireNotNull(runtime()), File(directory, BODY), File(directory, "vits_fp32.bin"), "v2")
-    }
-
-    private fun load(compile: Boolean, onCompile: () -> Unit = {}): QnnSession = QnnSession(
-        qnnModel, performance, V2VocoderWindows.FRAMES, allowCompilation = compile, onCompile = onCompile,
-    )
-
-    fun prepare() {
-        if (prepared || runtime() == null) return
-        try {
-            htp = load(true)
-            prepared = true
-        } catch (error: Exception) {
-            unavailable(error)
-        }
-    }
 
     fun generate(latent: OnnxTensor, ge: OnnxTensorLike): FloatArray? {
-        lastUsedNpu = false
         val length = latent.info.shape.last().toInt()
         // Small utterances do not amortize the overlap and backend transition.
-        if (!prepared || runtime() == null || length < 192) return null
-        try {
-            val npu = htp ?: load(false).also { htp = it }
-            val work = workspace ?: Workspace().also { workspace = it }
-            val audio = FloatArray(Math.multiplyExact(length, SCALE))
-            session(STEM).runCancellable(mapOf("latent" to latent, "ge" to ge)).use { result ->
-                val hidden = (result.get(0) as OnnxTensor).floatBuffer
-                val head = session(HEAD)
-                for (window in V2VocoderWindows.plan(length)) {
-                    GenerationContext.checkCurrent()
-                    work.input.clear()
-                    for (channel in 0 until stemChannels) {
-                        hidden.limit(hidden.capacity())
-                        hidden.position(channel * length + window.start)
-                        hidden.limit(hidden.position() + V2VocoderWindows.FRAMES)
-                        work.input.put(hidden)
-                    }
-                    work.input.rewind()
-                    npu.step(mapOf("stem" to work.input), work.output)
-                    head.runCancellable(mapOf("body" to work.headInput)).use { output ->
-                        val pcm = (output.get(0) as OnnxTensor).floatBuffer
-                        pcm.position((window.begin - window.start) * SCALE)
-                        pcm.get(audio, window.begin * SCALE, (window.end - window.begin) * SCALE)
-                    }
+        if (length < 192) return null
+        val work = workspace ?: Workspace().also { workspace = it }
+        val audio = FloatArray(Math.multiplyExact(length, SCALE))
+        session(STEM).runCancellable(mapOf("latent" to latent, "ge" to ge)).use { result ->
+            val hidden = (result.get(0) as OnnxTensor).floatBuffer
+            val head = session(HEAD)
+            for (window in V2VocoderWindows.plan(length)) {
+                GenerationContext.checkCurrent()
+                work.input.clear()
+                for (channel in 0 until stemChannels) {
+                    hidden.limit(hidden.capacity())
+                    hidden.position(channel * length + window.start)
+                    hidden.limit(hidden.position() + V2VocoderWindows.FRAMES)
+                    work.input.put(hidden)
+                }
+                work.input.rewind()
+                htp.step(work.input, work.output)
+                head.runCancellable(mapOf("body" to work.headInput)).use { output ->
+                    val pcm = (output.get(0) as OnnxTensor).floatBuffer
+                    pcm.position((window.begin - window.start) * SCALE)
+                    pcm.get(audio, window.begin * SCALE, (window.end - window.begin) * SCALE)
                 }
             }
-            lastUsedNpu = true
-
-            return audio
-        } catch (error: Exception) {
-            unavailable(error)
-            return null
         }
+        return audio
     }
 
-    private fun unavailable(error: Exception) {
-        close()
-        GenerationContext.checkCurrent()
-        prepared = false
-        android.util.Log.w("NextVolSoVITS", "HTP unavailable, using FP32 WebGPU", error)
-    }
-
-    // Keep the prepared-cache state when memory pressure releases live sessions.
     override fun close() {
-        htp?.close(); htp = null
-        workspace?.close(); workspace = null
+        htp.close()
+        workspace?.close()
     }
 
     private inner class Workspace : AutoCloseable {

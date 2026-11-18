@@ -1,80 +1,305 @@
 package indi.renakoni.nextvol.tts.sovits
 
 import android.content.Context
-import android.icu.text.MessageFormat
-import android.icu.text.Transliterator
-import androidx.annotation.RequiresApi
+import indi.renakoni.nextvol.tts.SpeechError
+import indi.renakoni.nextvol.tts.SpeechException
 import org.json.JSONObject
 import java.io.File
-import java.text.Normalizer
-import java.util.Locale
 
 internal class SovitsText(val phones: LongArray, val tokens: LongArray, val repeats: LongArray)
 
-/** The three sequences have different lengths. RoBERTa expands one token per character to its phones. */
-@RequiresApi(29)
 internal class SovitsMandarin(context: Context, runtime: File) {
-    private val pinyin = Transliterator.getInstance("Han-Latin")
-    private val simplified = Transliterator.getInstance("Traditional-Simplified")
-    private val numbers = MessageFormat("{0,spellout}", Locale.SIMPLIFIED_CHINESE)
-    private val lexicon = context.assets.open("gpt-sovits/mandarin-phones.txt").bufferedReader().useLines { lines ->
-        lines.associate { row ->
-            val fields = row.split(' ')
-            fields.first() to fields.drop(1).map(String::toLong)
-        }
-    }
+    private val resources = ChineseG2pAssetRepository.load(context)
+    private val toneSandhi = ToneSandhiProcessor()
+    private val erhua = ErhuaProcessor()
     private val vocab = JSONObject(File(runtime, "roberta-wwm-ext-large-onnx/roberta_tokenizer/tokenizer.json")
         .readText()).getJSONObject("model").getJSONObject("vocab")
 
     fun encode(text: String): SovitsText {
-        val normal = simplified.transliterate(Normalizer.normalize(text, Normalizer.Form.NFKC))
-        val expanded = Regex("[0-9]+(?:\\.[0-9]+)?").replace(normal) { match ->
-            val value = match.value
-            if (value.length > 15 || value.length > 1 && value[0] == '0' && value[1] != '.')
-                value.map { if (it == '.') '点' else "零一二三四五六七八九"[it - '0'] }.joinToString("")
-            else numbers.format(arrayOf<Any>(value.toBigDecimal()))
-        }
+        val normalizedText = normalizeText(text)
         val phones = mutableListOf<Long>()
         val repeats = mutableListOf<Long>()
         val tokens = mutableListOf(vocab.getLong("[CLS]"))
         val unknown = vocab.getLong("[UNK]")
-        fun append(character: String, ids: List<Long>) {
+        fun append(char: Char, symbols: List<String>) {
+            val ids = symbols.map { GenieSymbols.symbolToId.getValue(it).toLong() }
             phones.addAll(ids)
             repeats += ids.size.toLong()
-            tokens += vocab.optLong(character, unknown)
+            tokens += vocab.optLong(char.toString(), unknown)
         }
-        for (match in Regex("\\p{IsHan}+|\\S").findAll(expanded)) {
-            val word = match.value
-            if (Character.UnicodeScript.of(word.codePointAt(0)) == Character.UnicodeScript.HAN) {
-                val chars = word.codePoints().toArray().map { String(Character.toChars(it)) }
-                val readings = pinyin.transliterate(word).trim().split(Regex("\\s+"))
-                chars.forEachIndexed { index, char ->
-                    val syllable = if (readings.size == chars.size) readings[index] else pinyin.transliterate(char)
-                    val decomposed = Normalizer.normalize(syllable.lowercase(Locale.ROOT), Normalizer.Form.NFD)
-                    val tone = decomposed.firstNotNullOfOrNull { mark ->
-                        when (mark) { '\u0304' -> 1; '\u0301' -> 2; '\u030c' -> 3; '\u0300' -> 4; else -> null }
-                    } ?: 5
-                    val base = decomposed.replace("u\u0308", "v").filter { it in 'a'..'z' }
-                    val ids = requireNotNull(lexicon[base]) { "Unknown Mandarin syllable for $char" }
-                    append(char, listOf(ids[0], ids[tone]))
+        var index = 0
+        while (index < normalizedText.length) {
+            val char = normalizedText[index]
+            if (isSupportedPunctuation(char)) {
+                append(char, listOf(char.toString()))
+                index += 1
+                continue
+            }
+            val start = index
+            while (index < normalizedText.length && isChineseCharacter(normalizedText[index])) index += 1
+            val words = preMergeToneWords(segmentChineseText(normalizedText.substring(start, index)))
+            for (segment in words) {
+                val wordPinyin = pinyinForWord(segment.text)
+                val tag = segment.tag
+                val modifiedPinyin = toneSandhi.modifyWord(segment.text, tag, wordPinyin)
+                val erhuaPinyin = erhua.modifyWord(modifiedPinyin, segment.text, tag)
+                erhuaPinyin.forEachIndexed { i, pinyin ->
+                    pinyinToSymbols(pinyin)?.let { append(segment.text[i], it) }
                 }
-            } else {
-                val symbol = when (word) {
-                    "。", "." -> "."
-                    "，", ",", "、", "；", ";", "：", ":" -> ","
-                    "!", "?", "-" -> word
-                    "—", "–" -> "-"
-                    "…", "⋯" -> "…"
-                    else -> {
-                        require(!Character.isLetterOrDigit(word.codePointAt(0))) { "Mandarin text required: $word" }
-                        continue
-                    }
-                }
-                append(symbol, lexicon.getValue(symbol))
             }
         }
         require(phones.isNotEmpty() && tokens.size < 512) { "Empty or oversized GPT-SoVITS text" }
         tokens += vocab.getLong("[SEP]")
         return SovitsText(phones.toLongArray(), tokens.toLongArray(), repeats.toLongArray())
+    }
+
+    private data class WordSegment(val text: String, val tag: String)
+
+    private fun segmentChineseText(text: String): List<WordSegment> {
+        if (text.isEmpty()) return emptyList()
+        val logTotalFrequency = kotlin.math.ln(resources.totalWordFrequency)
+        val scores = DoubleArray(text.length + 1) { Double.NEGATIVE_INFINITY }
+        val lengths = IntArray(text.length)
+        scores[text.length] = 0.0
+        for (start in text.lastIndex downTo 0) {
+            val maxLength = minOf(resources.maxWordLength, text.length - start)
+            for (length in 1..maxLength) {
+                val word = text.substring(start, start + length)
+                val frequency = resources.wordFrequency(word)
+                if (frequency <= 0) continue
+                val suffixScore = scores[start + length]
+                if (suffixScore.isInfinite() && suffixScore < 0) continue
+                val score = kotlin.math.ln(frequency.toDouble()) - logTotalFrequency + suffixScore
+                if (score > scores[start]) {
+                    scores[start] = score
+                    lengths[start] = length
+                }
+            }
+            if (lengths[start] == 0) {
+                lengths[start] = 1
+                scores[start] = -logTotalFrequency + scores[start + 1]
+            }
+        }
+
+        val result = mutableListOf<WordSegment>()
+        var index = 0
+        while (index < text.length) {
+            val length = lengths[index].coerceAtLeast(1)
+            val word = text.substring(index, minOf(text.length, index + length))
+            result += WordSegment(word, resources.wordTag(word))
+            index += length
+        }
+        return result
+    }
+
+    private fun pinyinForWord(word: String): List<String> {
+        val exportedPinyin = resources.wordPinyinFor(word)
+        if (exportedPinyin != null && exportedPinyin.size == word.length) return exportedPinyin
+        val phrasePinyin = resources.polyphonicPinyin[word]
+        if (phrasePinyin != null && phrasePinyin.size == word.length) return phrasePinyin
+        return word.map { char -> singleCharacterPinyin(char) ?: "" }
+    }
+
+    /** Mirrors Python ToneSandhi.pre_merge_for_modify before word-local rules run. */
+    private fun preMergeToneWords(segments: List<WordSegment>): List<WordSegment> {
+        var merged = mergeBuWords(segments)
+        merged = mergeYiWords(merged)
+        merged = mergeAdjacentReduplication(merged)
+        merged = mergeContinuousThirdToneWords(merged, allWordsToneThree = true)
+        merged = mergeContinuousThirdToneWords(merged, allWordsToneThree = false)
+        return mergeErWords(merged)
+    }
+
+    private fun mergeBuWords(segments: List<WordSegment>): List<WordSegment> {
+        val result = mutableListOf<WordSegment>()
+        for (segment in segments) {
+            val previous = result.lastOrNull()
+            if (previous?.text == "\u4e0d") {
+                result[result.lastIndex] = mergeWords(previous, segment)
+            } else {
+                result += segment
+            }
+        }
+        return result
+    }
+
+    private fun mergeYiWords(segments: List<WordSegment>): List<WordSegment> {
+        val result = mutableListOf<WordSegment>()
+        var index = 0
+        while (index < segments.size) {
+            if (index + 2 < segments.size &&
+                segments[index + 1].text == "\u4e00" &&
+                segments[index].text == segments[index + 2].text &&
+                segments[index].tag == "v" &&
+                segments[index + 2].tag == "v"
+            ) {
+                result += mergeWords(segments[index], segments[index + 1], segments[index + 2])
+                index += 3
+            } else {
+                result += segments[index]
+                index += 1
+            }
+        }
+
+        val appended = mutableListOf<WordSegment>()
+        for (segment in result) {
+            val previous = appended.lastOrNull()
+            if (previous?.text == "\u4e00") {
+                appended[appended.lastIndex] = mergeWords(previous, segment)
+            } else {
+                appended += segment
+            }
+        }
+        return appended
+    }
+
+    private fun mergeAdjacentReduplication(segments: List<WordSegment>): List<WordSegment> {
+        val result = mutableListOf<WordSegment>()
+        for (segment in segments) {
+            val previous = result.lastOrNull()
+            if (previous != null && previous.text == segment.text) {
+                result[result.lastIndex] = mergeWords(previous, segment)
+            } else {
+                result += segment
+            }
+        }
+        return result
+    }
+
+    private fun mergeContinuousThirdToneWords(
+        segments: List<WordSegment>,
+        allWordsToneThree: Boolean,
+    ): List<WordSegment> {
+        val result = mutableListOf<WordSegment>()
+        var previousWasMerged = false
+        for (segment in segments) {
+            val previous = result.lastOrNull()
+            val shouldMerge = previous != null &&
+                !previousWasMerged &&
+                previous.text.length + segment.text.length <= 3 &&
+                !isReduplication(previous.text) &&
+                if (allWordsToneThree) {
+                    allToneThree(previous.text) && allToneThree(segment.text)
+                } else {
+                    lastToneIsThree(previous.text) && firstToneIsThree(segment.text)
+                }
+            if (shouldMerge) {
+                result[result.lastIndex] = mergeWords(previous, segment)
+                previousWasMerged = true
+            } else {
+                result += segment
+                previousWasMerged = false
+            }
+        }
+        return result
+    }
+
+    private fun mergeErWords(segments: List<WordSegment>): List<WordSegment> {
+        val result = mutableListOf<WordSegment>()
+        for (segment in segments) {
+            val previous = result.lastOrNull()
+            if (segment.text == "\u513f" && previous != null && previous.text != "#") {
+                result[result.lastIndex] = mergeWords(previous, segment)
+            } else {
+                result += segment
+            }
+        }
+        return result
+    }
+
+    private fun mergeWords(vararg words: WordSegment): WordSegment {
+        val text = words.joinToString(separator = "") { it.text }
+        val tag = resources.wordTag(text).ifEmpty { words.first().tag }
+        return WordSegment(text, tag)
+    }
+
+    private fun allToneThree(word: String): Boolean =
+        pinyinForWord(word).let { pinyins ->
+            pinyins.size == word.length && pinyins.all { toneOf(it) == 3 }
+        }
+
+    private fun lastToneIsThree(word: String): Boolean =
+        toneOf(pinyinForWord(word).lastOrNull().orEmpty()) == 3
+
+    private fun firstToneIsThree(word: String): Boolean =
+        toneOf(pinyinForWord(word).firstOrNull().orEmpty()) == 3
+
+    private fun isReduplication(word: String): Boolean =
+        word.length == 2 && word[0] == word[1]
+
+    private fun toneOf(pinyin: String): Int =
+        pinyin.lastOrNull()?.digitToIntOrNull() ?: 0
+
+    private fun normalizeText(text: String): String {
+        val deepNormalized = ChineseTextNormalizer
+            .normalize(text, resources.traditionalToSimplified)
+            .replace("...", "\u2026")
+        val trimmed = deepNormalized.trim()
+        val replaced = buildString(trimmed.length) {
+            trimmed.forEach { char ->
+                when (char) {
+                    '\n', '\r', '。' -> append('.')
+                    '：', '、', '，', '；', ':', ';', ',' -> append(',')
+                    '！', '!' -> append('!')
+                    '？', '?' -> append('?')
+                    '…', '~', '～' -> append('…')
+                    '·' -> append(',')
+                    '$' -> append('.')
+                    '.' -> append('.')
+                    ' ', '\t' -> Unit
+                    else -> if (isChineseCharacter(char)) append(char)
+                        else if (char.isLetterOrDigit()) throw SpeechException(SpeechError.UnsupportedContent)
+                }
+            }
+        }
+        return duplicatePunctuationRegex.replace(replaced, "$1")
+    }
+
+    private fun singleCharacterPinyin(char: Char): String? {
+        val override = resources.polyphonicPinyin[char.toString()]?.firstOrNull()
+        if (override != null) {
+            return override
+        }
+        return resources.singleCharPinyin[char.toString()]
+    }
+
+    private fun pinyinToSymbols(pinyinWithTone: String): List<String>? {
+        val tone = pinyinWithTone.lastOrNull()?.takeIf(Char::isDigit) ?: return null
+        val base = pinyinWithTone.dropLast(1)
+        val initial = initials.firstOrNull(base::startsWith).orEmpty()
+        val final = base.removePrefix(initial)
+        val pinyinKey = if (initial.isNotEmpty()) {
+            initial + (vReplacementMap[final] ?: final)
+        } else {
+            val direct = pinyinReplacementMap[final]
+            if (direct != null) {
+                direct
+            } else {
+                val first = final.firstOrNull()
+                val single = first?.let(singleReplacementMap::get)
+                if (single != null) {
+                    single + final.drop(1)
+                } else {
+                    final
+                }
+            }
+        }
+        val phones = resources.opencpopByPinyin[pinyinKey]?.split(' ') ?: return null
+        require(phones.size == 2) { "Unexpected opencpop mapping for $pinyinKey" }
+        return listOf(phones[0], phones[1] + tone)
+    }
+
+    private fun isSupportedPunctuation(char: Char): Boolean =
+        char == '.' || char == ',' || char == '!' || char == '?' || char == '…' || char == '-'
+
+    private fun isChineseCharacter(char: Char): Boolean =
+        char.code in 0x4e00..0x9fff
+
+    companion object {
+        private val initials = listOf("zh", "ch", "sh", "b", "c", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "q", "r", "s", "t", "w", "x", "y", "z")
+        private val vReplacementMap = mapOf("uei" to "ui", "iou" to "iu", "uen" to "un")
+        private val pinyinReplacementMap = mapOf("ing" to "ying", "i" to "yi", "in" to "yin", "u" to "wu")
+        private val singleReplacementMap = mapOf('v' to "yu", 'e' to "e", 'i' to "y", 'u' to "w")
+        private val duplicatePunctuationRegex = Regex("([。！，？：；、,.!?…-])\\1+")
     }
 }

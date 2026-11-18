@@ -5,7 +5,10 @@
   "source_sha256": "c3ee8878f72ba2fb0ffec5d80a7577a6c3798e23c63ceee91128af3f6cbfb4ce",
   "graphs": {
     "split-encoder.onnx": "4307e026d4ce5a5875610a0bdd97f9209ae4c14efe03c0616b6d7a89afd08301",
-    "split-hifigan.onnx": "c810b967ec25caf1e3d11a68626ed0c29a7d153a88d808c676a986342d24dd9a"
+    "split-hifigan.onnx": "c810b967ec25caf1e3d11a68626ed0c29a7d153a88d808c676a986342d24dd9a",
+    "v2-htp-body.onnx": "644029c2e1cfaa67d3cc5995a5e0666fd5b320153c707aa3efdd0c165addd0d4",
+    "v2-htp-head.onnx": "38347cb9b60d25d2187c27085cd513eb385dd4ab3c5a63251c259bcf346ae263",
+    "v2-htp-stem.onnx": "2f6910863bc206d7f6530fc293219f5a38b8c64a6798a546e335616d133713f7"
   },
   "hifigan_transform": "subpixel_compact_fp32_v1"
 }

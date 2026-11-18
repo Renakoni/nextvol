@@ -10,11 +10,10 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.security.MessageDigest
 
 /** ORT reads external initializers relative to the graph. Publish each derived file only when complete. */
 @RequiresApi(26)
-internal suspend fun prepareSovitsFiles(voice: GptSovitsVoice): File {
+internal suspend fun prepareSovitsFiles(voice: GptSovitsVoice) {
     val task = currentCoroutineContext()
     fun publish(target: File, write: (File) -> Unit) {
         val partial = File.createTempFile(".sovits-", ".part", target.parentFile)
@@ -53,37 +52,4 @@ internal suspend fun prepareSovitsFiles(voice: GptSovitsVoice): File {
     for (name in listOf("prompt_encoder", "t2s_shared", "vits"))
         expand(voice.model, "${name}_fp16.bin", "${name}_fp32.bin")
     expand(File(voice.runtime, "chinese-hubert-base"), "chinese-hubert-base_weights_fp16.bin", "chinese-hubert-base_weights.bin")
-
-    val speaker = File(voice.runtime, "speaker_encoder.onnx")
-    // The published single-file speaker encoder uses IR 9 operators but declares IR 10.
-    // Only project the exact verified export for NextVol's source-built ORT 1.17.
-    if (!speaker.inputStream().use { it.read() == 8 && it.read() == 10 }) return speaker
-    val compatible = File(voice.runtime, "speaker_encoder_ort17.onnx")
-    if (compatible.isFile && compatible.length() == speaker.length() && compatible.lastModified() == speaker.lastModified())
-        return compatible
-    publish(compatible) { partial ->
-        val digest = MessageDigest.getInstance("SHA-256")
-        speaker.inputStream().use { input ->
-            partial.outputStream().use { output ->
-                val header = byteArrayOf(8, 10)
-                require(input.read() == 8 && input.read() == 10)
-                digest.update(header)
-                output.write(byteArrayOf(8, 9))
-                val buffer = ByteArray(128 * 1024)
-                while (true) {
-                    task.ensureActive()
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    digest.update(buffer, 0, count)
-                    output.write(buffer, 0, count)
-                }
-            }
-        }
-        require(digest.digest().joinToString("") { "%02x".format(it) } ==
-            "31ed0858f7059785dfd58731efb0effdbe39d5b9175b2b36f5a3341adbc0bb67") {
-            "Supply an ORT 1.17 compatible speaker encoder"
-        }
-        partial.setLastModified(speaker.lastModified())
-    }
-    return compatible
 }

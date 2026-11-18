@@ -18,9 +18,8 @@ internal object DeviceAcceleration {
         if (!BuildConfig.MATCHA_NATIVE || Build.VERSION.SDK_INT < 29 ||
             !isQualcomm(manufacturer, Build.HARDWARE) || "arm64-v8a" !in Build.SUPPORTED_ABIS) return null
         val runtime = File(context.applicationInfo.nativeLibraryDir)
-        if (!hasRuntimeFiles(runtime)) return null
         val updated = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
-        val key = capabilityCacheKey(Build.FINGERPRINT, updated, runtime)
+        val key = "${Build.FINGERPRINT}\n$updated"
         if (cachedCapability(File(context.noBackupFilesDir, "sovits-npu-capability"), key) {
             val probe = File(context.cacheDir, "sovits-qnn-probe.onnx")
             try {
@@ -38,11 +37,7 @@ internal object DeviceAcceleration {
         return htp
     }
 
-    internal fun capabilityCacheKey(system: String, appUpdatedAt: Long, runtime: File): String =
-        "$system\n$appUpdatedAt\n" + runtime.listFiles().orEmpty().filter { it.isFile && (it.name.startsWith("libQnn") || it.name == "libonnxruntime-qnn.so") }
-            .sortedBy { it.name }.joinToString("\n") { "${it.name}:${it.length()}:${it.lastModified()}" }
-
-    internal fun cachedCapability(cache: File, key: String, probe: () -> Boolean): Boolean {
+    private fun cachedCapability(cache: File, key: String, probe: () -> Boolean): Boolean {
         when (runCatching { cache.readText() }.getOrNull()) {
             "true\n$key" -> return true
             "false\n$key" -> return false
@@ -53,17 +48,8 @@ internal object DeviceAcceleration {
         }
     }
 
-    internal fun isQualcomm(manufacturer: String, hardware: String): Boolean =
+    private fun isQualcomm(manufacturer: String, hardware: String): Boolean =
         manufacturer.contains("qualcomm", ignoreCase = true) || manufacturer.equals("qti", ignoreCase = true) ||
             manufacturer.equals("qcom", ignoreCase = true) ||
             hardware.equals("qcom", ignoreCase = true)
-
-    internal fun hasRuntimeFiles(directory: File): Boolean {
-        if (!listOf("libonnxruntime-qnn.so", "libQnnHtp.so", "libQnnHtpPrepare.so", "libQnnSystem.so")
-                .all { File(directory, it).isFile }) return false
-        return directory.listFiles().orEmpty().any { file ->
-            file.isFile && file.name.matches(Regex("libQnnHtpV[0-9]+Stub\\.so")) &&
-                File(directory, file.name.replace("Stub.so", "Skel.so")).isFile
-        }
-    }
 }

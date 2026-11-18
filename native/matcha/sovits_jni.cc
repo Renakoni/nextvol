@@ -27,8 +27,8 @@ void fail(JNIEnv* env, const std::exception& error) {
 }  // namespace
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_create(JNIEnv* env, jobject, jbyteArray model, jbyteArray runtime, jbyteArray speaker) {
-  try { return reinterpret_cast<jlong>(new sovits::Voice(path(env, model), path(env, runtime), path(env, speaker))); }
+Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_create(JNIEnv* env, jobject, jbyteArray model, jbyteArray runtime) {
+  try { return reinterpret_cast<jlong>(new sovits::Voice(path(env, model), path(env, runtime))); }
   catch (const std::exception& e) { fail(env, e); return 0; }
 }
 

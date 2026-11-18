@@ -65,10 +65,15 @@ def split(directory: Path):
     del body.graph.value_info[:]
     for name, graph in zip(GRAPHS, (stem, body, head)):
         onnx.save(onnx.shape_inference.infer_shapes(graph), directory / name)
+    split_manifest = directory / "split-vits.json"
+    digests = {name: hashlib.sha256((directory / name).read_bytes()).hexdigest() for name in GRAPHS}
+    if split_manifest.is_file():
+        data = json.loads(split_manifest.read_text(encoding="utf-8"))
+        data["graphs"].update(digests)
+        split_manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     if not manifest_path.is_file():
         return
-    for name in GRAPHS:
-        manifest["files"][name] = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+    manifest["files"].update(digests)
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 

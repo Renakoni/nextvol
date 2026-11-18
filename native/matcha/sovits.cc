@@ -61,8 +61,8 @@ std::vector<size_t> feedback(const std::vector<std::string>& inputs, const std::
 }
 }  // namespace
 
-Voice::Voice(std::filesystem::path model, std::filesystem::path runtime, std::filesystem::path speaker)
-    : model_(std::move(model)), runtime_(std::move(runtime)), speaker_(std::move(speaker)) {
+Voice::Voice(std::filesystem::path model, std::filesystem::path runtime)
+    : model_(std::move(model)), runtime_(std::move(runtime)) {
   options_.SetIntraOpNumThreads(4);
   options_.SetInterOpNumThreads(1);
   options_.DisableCpuMemArena();
@@ -105,7 +105,7 @@ void Voice::prepare(const Text& prompt, const std::vector<float>& pcm32, const s
   }
   Tensor speaker{nullptr};
   {
-    auto sv = load(speaker_);
+    auto sv = load(runtime_ / "speaker_encoder.onnx");
     speaker = std::move(evaluate(sv, run_, {{"waveform", &wav16}}, {"embedding"})[0]);
   }
   {
@@ -126,6 +126,14 @@ void Voice::prepare(const Text& prompt, const std::vector<float>& pcm32, const s
   stage_inputs_.erase(std::remove(stage_inputs_.begin(), stage_inputs_.end(), "sampling"), stage_inputs_.end());
   first_outputs_ = names(first_, false);
   stage_outputs_ = names(stage_, false);
+  first_map_ = feedback(stage_inputs_, first_outputs_);
+  stage_map_ = feedback(stage_inputs_, stage_outputs_);
+  stop_index_ = position(stage_outputs_, "stop_condition_tensor");
+  y_index_ = position(stage_outputs_, "y");
+  auto stop_type = stage_.GetOutputTypeInfo(stop_index_);
+  auto info = stop_type.GetTensorTypeAndShapeInfo();
+  if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL || info.GetElementCount() != 1)
+    throw std::runtime_error("Invalid GPT-SoVITS decoder stop flag");
 }
 
 std::vector<int64_t> Voice::semantics(const Text& text) {
@@ -138,36 +146,29 @@ std::vector<int64_t> Voice::semantics(const Text& text) {
   if (first_sampling_) prefill.emplace_back("sampling", &sampling);
   auto state = evaluate(first_, run_, prefill, first_outputs_);
   encoded.clear();
-  auto first_map = feedback(stage_inputs_, first_outputs_);
-  auto stage_map = feedback(stage_inputs_, stage_outputs_);
-  const size_t stop_index = position(stage_outputs_, "stop_condition_tensor");
-  const size_t y_index = position(stage_outputs_, "y");
-  std::vector<int64_t> tokens;
+  size_t completed = 0;
   // V2 semantics run at 25 Hz. The cap is below NextVol's 8 MiB PCM clip limit.
   constexpr size_t max_steps = 1500;
-  for (size_t step = 0; step < max_steps; ++step) {
+  while (completed < max_steps) {
     Inputs inputs;
-    const auto& indices = step == 0 ? first_map : stage_map;
+    const auto& indices = completed == 0 ? first_map_ : stage_map_;
     for (size_t i = 0; i < indices.size(); ++i) inputs.emplace_back(stage_inputs_[i], &state[indices[i]]);
     if (stage_sampling_) inputs.emplace_back("sampling", &sampling);
     state = evaluate(stage_, run_, inputs, stage_outputs_);
-    const auto& stop = state[stop_index];
-    auto stop_info = stop.GetTensorTypeAndShapeInfo();
-    if (stop_info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL || stop_info.GetElementCount() != 1)
-      throw std::runtime_error("Invalid GPT-SoVITS decoder stop flag");
-    if (!*stop.GetTensorData<bool>()) continue;
-    const auto& y = state[y_index];
-    auto info = y.GetTensorTypeAndShapeInfo();
-    size_t count = info.GetElementCount();
-    if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64 || count < step + 1)
-      throw std::runtime_error("Invalid GPT-SoVITS decoder tokens");
-    auto end = y.GetTensorData<int64_t>() + count;
-    auto start = end - (step + 1);
-    auto special = std::find_if(start, end, [](int64_t id) { return id >= 1024 || id < 0; });
-    tokens.assign(start, special);
-    if (!tokens.empty() && tokens.back() == 0) tokens.pop_back();
-    break;
+    const auto& stop = state[stop_index_];
+    ++completed;
+    if (*stop.GetTensorData<bool>()) break;
   }
+  const auto& y = state[y_index_];
+  auto info = y.GetTensorTypeAndShapeInfo();
+  size_t count = info.GetElementCount();
+  if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64 || count < completed)
+    throw std::runtime_error("Invalid GPT-SoVITS decoder tokens");
+  auto end = y.GetTensorData<int64_t>() + count;
+  auto start = end - completed;
+  auto special = std::find_if(start, end, [](int64_t id) { return id >= 1024 || id < 0; });
+  std::vector<int64_t> tokens(start, special);
+  if (!tokens.empty() && tokens.back() == 0) tokens.pop_back();
   if (tokens.empty()) throw std::runtime_error("GPT-SoVITS decoder did not complete a segment");
   return tokens;
 }

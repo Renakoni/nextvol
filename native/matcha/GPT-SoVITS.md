@@ -7,11 +7,12 @@ and publishes a 32 kHz mono PCM16 WAV at a new destination. Cancel the calling
 coroutine to stop generation. For the clip API, close the synthesizer after use.
 
 `GptSovitsVoice` takes a local root, a V2 Pro or V2 Pro Plus character ID, a
-reference recording (up to 30 seconds) and its Mandarin transcript. The initial
-text frontend uses Android ICU for Mandarin and requires Android 10 or newer.
+reference recording (up to 30 seconds) and its Mandarin transcript. The backend supports Android 10
+or newer. The Mandarin frontend uses the Voicebox normalization, segmentation,
+contextual pronunciation, tone sandhi and erhua before RoBERTa alignment.
 On arm64 the default is CPU + WebGPU. Reference encoding and autoregressive
-decoding use the existing CPU runtime. The acoustic stage uses the bundled
-WebGPU runtime, with CPU fallback if the adapter or graph fails. Both the clip
+decoding use the CPU provider in the bundled ORT 1.27 build. The acoustic stage uses
+WebGPU, with CPU fallback if the adapter or graph fails. Both the clip
 and chapter entry points use this policy.
 
 ```text
@@ -52,15 +53,15 @@ CPU vocoder reuses the semantic tokens already produced for that segment.
 
 After the first frame of the app, an IO worker runs the Qualcomm HTP arithmetic
 probe with CPU fallback disabled. An earlier speech request shares the same
-probe. The result is cached against the system build, app update and installed
-runtime libraries. Compatible voices with `v2-htp-{stem,body,head}.onnx`
+probe. The result is cached against the system build and APK update. Compatible voices with
+`v2-htp-{stem,body,head}.onnx`
 automatically use the NPU for latents of at least 192 frames. Shorter utterances
 continue on GPU. HTP uses 64-frame windows with eight frames of context and
 FP32 stem/head stages. V2 Pro uses 512/16 stem/body-output channels and V2 Pro
 Plus uses 768/24. A failed HTP context falls back to the GPU for that voice.
 
 To prepare the optional graphs from an exported voice on a workstation with
-Python, ONNX, NumPy and ONNX Runtime installed, run the copied V2 tools against
+Python and ONNX installed, run the copied V2 tools against
 its `tts_models` directory:
 
 ```sh
@@ -78,9 +79,9 @@ the separate Microsoft QNN 1.27.0 runtime by absolute path and passes float
 buffers across runtime boundaries. Gradle packages its matching Qualcomm
 2.42.0 libraries from Maven Central; the installed app works offline.
 
-The Mandarin phone table uses the OpenCPOP syllable mapping and V2 symbol
-indices from GPT-SoVITS commit `6d51ffceafbf240145619af4c92408a6e54b7924`.
-Its MIT license is included with the asset. The model layout and reference
+The Mandarin frontend and dictionaries follow Voicebox. The OpenCPOP syllable mapping and V2 symbol
+indices come from GPT-SoVITS commit `6d51ffceafbf240145619af4c92408a6e54b7924`.
+The asset directory includes the third-party notices. The model layout and reference
 conditioning follow the V2 flow in Voicebox. Model weights are supplied locally.
 
 - https://github.com/RVC-Boss/GPT-SoVITS/tree/6d51ffceafbf240145619af4c92408a6e54b7924/GPT_SoVITS/text

@@ -2,24 +2,21 @@ package indi.renakoni.nextvol.tts.sovits
 
 import java.util.concurrent.CancellationException
 
-class GenerationCancelledException(val reason: String) : CancellationException(reason)
-
 /** A request owns its cancellation hooks; removal and termination share one lock. */
 internal class GenerationContext {
     @Volatile
-    var cancellationReason: String? = null
-        private set
+    private var cancelled = false
 
     private val hooks = linkedSetOf<() -> Unit>()
 
     fun checkCancelled() {
-        cancellationReason?.let { throw GenerationCancelledException(it) }
+        if (cancelled) throw CancellationException("GPT-SoVITS cancelled")
     }
 
     @Synchronized
-    fun cancel(reason: String) {
-        if (cancellationReason != null) return
-        cancellationReason = reason
+    fun cancel() {
+        if (cancelled) return
+        cancelled = true
         hooks.forEach { it() }
     }
 

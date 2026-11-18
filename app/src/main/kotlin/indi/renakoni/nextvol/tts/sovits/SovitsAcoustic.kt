@@ -26,23 +26,21 @@ internal class SovitsAcoustic(
     fun prepare(context: Context) {
         val directory = voice.model
         val runtime = DeviceAcceleration.detect(context)
-        try {
+        val layout = try {
             SplitVocoderAssets.prepare(context, voice, runtime != null)
-        } catch (failure: java.io.IOException) {
-            Log.i("NextVolSoVITS", "Using installed voice graphs", failure)
+        } catch (failure: Exception) {
+            Log.w("NextVolSoVITS", "Using original VITS graph", failure)
+            SplitVocoderAssets.Layout.Full
         }
-        if (File(directory, "split-vits.json").isFile) {
-            try {
-                SplitVocoderAssets.validate(directory)
-                split = true
-            } catch (failure: Exception) {
-                Log.w("NextVolSoVITS", "Ignoring incompatible split graphs", failure)
-            }
-        }
-        if (runtime != null && split && V2HtpVocoder.GRAPHS.all { File(directory, it).isFile }) {
+        split = layout != SplitVocoderAssets.Layout.Full
+        if (runtime != null && layout == SplitVocoderAssets.Layout.Htp) {
+            val updated = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
             val channels = if (voice.version == GptSovitsVersion.V2Pro) 512 else 768
-            htp = V2HtpVocoder(environment, ::session, directory, { runtime }, "balanced", channels)
-            htp?.prepare()
+            try {
+                htp = V2HtpVocoder(environment, ::session, directory, runtime, updated, channels)
+            } catch (failure: Exception) {
+                Log.w("NextVolSoVITS", "HTP unavailable for this voice", failure)
+            }
         }
     }
 
@@ -51,14 +49,14 @@ internal class SovitsAcoustic(
             options.setIntraOpNumThreads(4)
             options.setInterOpNumThreads(1)
             options.addConfigEntry("session.intra_op.allow_spinning", "0")
-            if (name == SplitVocoderAssets.HIFIGAN || name == FULL) options.addWebGPU(emptyMap())
+            if (gpuAvailable && (name == SplitVocoderAssets.HIFIGAN || name == FULL)) options.addWebGPU(emptyMap())
             environment.createSession(File(voice.model, name).absolutePath, options)
         }
     }
 
     fun generate(phones: LongArray, tokens: LongArray): ByteArray? {
         lastProvider = "CPU"
-        if (!gpuAvailable && htp == null) return null
+        if (!gpuAvailable && !split) return null
         val inputs = mutableMapOf<String, OnnxTensor>()
         try {
             val encoder = session(if (split) SplitVocoderAssets.ENCODER else FULL)
@@ -74,13 +72,27 @@ internal class SovitsAcoustic(
                 val value = result[0] as OnnxTensor
                 if (split) {
                     val speaker = inputs.getValue("ge")
-                    htp?.generate(value, speaker)?.let {
-                        lastProvider = "QNN"
-                        return@use SovitsNative.pcm(it)
+                    try {
+                        htp?.generate(value, speaker)?.let {
+                            return@use SovitsNative.pcm(it).also { lastProvider = "QNN" }
+                        }
+                    } catch (failed: Exception) {
+                        GenerationContext.checkCurrent()
+                        htp?.close()
+                        htp = null
+                        Log.w("NextVolSoVITS", "HTP failed for this voice", failed)
                     }
-                    if (!gpuAvailable) return@use null
-                    session(SplitVocoderAssets.HIFIGAN).runCancellable(mapOf(SplitVocoderAssets.BOUNDARY to value, "ge" to speaker)).use {
+                    val vocoderInputs = mapOf(SplitVocoderAssets.BOUNDARY to value, "ge" to speaker)
+                    fun render() = session(SplitVocoderAssets.HIFIGAN).runCancellable(vocoderInputs).use {
                         pcm(it[0] as OnnxTensor)
+                    }
+                    if (!gpuAvailable) return@use render()
+                    try { render() } catch (failed: Exception) {
+                        GenerationContext.checkCurrent()
+                        gpuAvailable = false
+                        sessions.remove(SplitVocoderAssets.HIFIGAN)?.close()
+                        Log.w("NextVolSoVITS", "WebGPU failed, rendering the same latent on CPU", failed)
+                        render()
                     }
                 } else pcm(value)
             }
@@ -90,8 +102,9 @@ internal class SovitsAcoustic(
             if (failure !is Exception && failure !is LinkageError) throw failure
             GenerationContext.checkCurrent()
             gpuAvailable = false
-            sessions.remove(if (split) SplitVocoderAssets.HIFIGAN else FULL)?.close()
-            Log.w("NextVolSoVITS", "WebGPU unavailable for this voice, using CPU", failure)
+            split = false
+            close()
+            Log.w("NextVolSoVITS", "Using original CPU vocoder for this voice", failure)
             return null
         } finally { inputs.values.forEach { it.close() } }
     }
@@ -101,11 +114,12 @@ internal class SovitsAcoustic(
         require(count in 1..((8 * 1024 * 1024L - 44) / 2))
         val audio = FloatArray(count.toInt())
         value.floatBuffer.get(audio)
-        return SovitsNative.pcm(audio).also { lastProvider = "WebGPU" }
+        return SovitsNative.pcm(audio).also { lastProvider = if (gpuAvailable) "WebGPU" else "CPU" }
     }
 
     override fun close() {
         htp?.close()
+        htp = null
         sessions.values.forEach { it.close() }
         sessions.clear()
     }
