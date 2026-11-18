@@ -38,19 +38,21 @@ internal class SpeechRuntimeDownloads @Inject constructor(
     val changes = states.asStateFlow()
 
     @Synchronized fun start(pack: SpeechRuntimePack) {
-        if (!pack.supported || pack.installed || jobs[pack]?.isCompleted == false) return
+        val state = states.value[pack]
+        if (state != RuntimeDownload.Available && state !is RuntimeDownload.Failed) return
         set(pack, RuntimeDownload.Downloading(null))
         val job = scope.launch {
             try {
                 install(pack)
-                if (pack == SpeechRuntimePack.Vendor) availability.runtimeInstalled()
-                set(pack, RuntimeDownload.Installed)
-                if (pack == SpeechRuntimePack.Sovits) DeviceAcceleration.detect(SpeechLibraries.context)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
                 set(pack, RuntimeDownload.Failed(failure.localizedMessage.orEmpty()))
+                return@launch
             }
+            if (pack == SpeechRuntimePack.Vendor) availability.runtimeInstalled()
+            set(pack, RuntimeDownload.Installed)
+            if (pack == SpeechRuntimePack.Sovits) DeviceAcceleration.detect(SpeechLibraries.context)
         }
         jobs[pack] = job
         job.invokeOnCompletion { cause ->

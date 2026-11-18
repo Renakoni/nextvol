@@ -2,9 +2,10 @@ package indi.renakoni.nextvol.data.update
 
 import android.app.Application
 import android.content.ContextWrapper
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -16,6 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30], application = Application::class)
@@ -57,9 +59,14 @@ class UpdateArtifactDownloaderTest {
         assertTrue(progress.isEmpty())
     }
 
-    @Test fun checksumFailureCleansUpAndACorrectHashAllowsRetry() = runBlocking {
-        server.enqueue(MockResponse().setBody("wrong apk"))
+    @Test fun cancelledAndUnverifiedDownloadsCleanUpAndAllowRetry() = runBlocking {
         val files = downloader.prepare()
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        val stalled = launch(Dispatchers.IO) { download(files = files) }
+        assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+        withTimeout(5000) { stalled.cancelAndJoin() }
+
+        server.enqueue(MockResponse().setBody("wrong apk"))
         try {
             download(release("expected apk"), files)
             fail("Expected checksum failure")

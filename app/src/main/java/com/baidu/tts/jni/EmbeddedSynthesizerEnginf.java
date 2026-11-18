@@ -7,8 +7,6 @@ public final class EmbeddedSynthesizerEnginf implements IEmbeddedSynthesizerEngi
     private volatile OnNewDataListener listener;
 
     static {
-        SpeechLibraries.loadVendor("c++_shared");
-        SpeechLibraries.loadVendor("BDSpeechDecoder_V1");
         SpeechLibraries.loadVendor("bd_ettf");
         bdTTSSetNativeLogLevel(3);
     }

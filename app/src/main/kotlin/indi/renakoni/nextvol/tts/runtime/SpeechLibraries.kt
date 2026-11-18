@@ -31,6 +31,7 @@ internal object SpeechLibraries {
     fun initialize(application: Context) { context = application }
 
     private val vendorManifest by lazy {
+        requireVendor()
         File(SpeechRuntimePack.Vendor.directory, "assets/offline-native/runtime-manifest.json")
             .bufferedReader().use { JSONObject(it.readText()).getJSONObject("libraries") }
     }
@@ -42,7 +43,6 @@ internal object SpeechLibraries {
     private val loadedVendor = mutableSetOf<String>()
 
     @JvmStatic @Synchronized fun loadVendor(name: String) {
-        requireVendor()
         fun load(fileName: String) {
             if (fileName in loadedVendor) return
             val dependencies = vendorManifest.getJSONObject(fileName).getJSONArray("needed")

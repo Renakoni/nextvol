@@ -12,8 +12,8 @@ internal object DeviceAcceleration {
 
     /** Called on an IO worker after first draw, or by an earlier speech request. */
     @Synchronized fun detect(context: Context): File? {
-        if (!SpeechRuntimePack.Sovits.installed) return null
         if (checked) return htp
+        if (!SpeechRuntimePack.Sovits.installed) return null
         checked = true
         val manufacturer = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MANUFACTURER else Build.HARDWARE
         if (!isQualcomm(manufacturer, Build.HARDWARE)) return null

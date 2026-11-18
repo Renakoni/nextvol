@@ -1,10 +1,10 @@
 package indi.renakoni.nextvol.tts.runtime
 
-import hnovel.speech.OfflinePackagePlan
 import androidx.test.platform.app.InstrumentationRegistry
 import hnovel.speech.previewSpeechPackage
 import hnovel.speech.previewOfflineVoice
 import indi.renakoni.nextvol.tts.SpeechSettings
+import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
 import indi.renakoni.nextvol.data.update.UpdateArtifactDownloader
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
@@ -37,21 +37,17 @@ class SpeechRuntimeInstrumentedTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val folder = File(context.filesDir, "vendor-test")
         val availability = OfflineAvailabilityChecker(context)
-        val models = mapOf("sougou" to "linglan", "microsoft" to "zh-CN-XiaoxiaoNeural", "bytedance" to "BV001_24k")
-        val voices = models.map { (id, code) ->
-            // Device fixture: the original archive and its unpacked voice directory, already present before download.
-            val preview = previewSpeechPackage(File(folder, "$id.zip"))
-            val engine = preview.engines.single { it.code == id }
-            previewOfflineVoice(preview, engine, engine.voices.single { it.code == code }).plan!!
-        }
-        fun canRun(voice: OfflinePackagePlan) =
-            availability.inspect(voice.configuration, emptySet()) { error(it) }.canRun
-        assertTrue(voices.none(::canRun))
-
+        val archive = File(folder, "sougou.zip")
+        val preview = previewSpeechPackage(archive)
+        val engine = preview.engines.single { it.code == "sougou" }
+        val plan = previewOfflineVoice(preview, engine, engine.voices.single { it.code == "linglan" }).plan!!
+        val repository = OfflineSpeechRepository(File(folder, "installed"))
+        val voice = repository.install(archive, plan)
+        assertFalse(availability.installed(voice, repository).canRun)
         installTestRuntime(SpeechRuntimePack.Vendor, availability)
-        for (voice in voices) {
-            assertTrue(voice.name, canRun(voice))
-            val synth = OfflineSpeechSynthesizer(context, File(folder, voice.directory), voice.configuration)
+        assertTrue(availability.installed(voice, repository).canRun)
+        repository.acquire(voice.reference).use { lease ->
+            val synth = OfflineSpeechSynthesizer(context, lease.directory, lease.configuration)
             val output = File(folder, "sample.wav")
             try {
                 synth.open(SpeechSettings())

@@ -89,7 +89,6 @@ android {
         sourceSets.getByName("main").jniLibs.srcDir(matchaOutput.resolve("jniLibs"))
         sourceSets.getByName("main").assets.srcDir(matchaOutput.resolve("assets"))
     }
-    sourceSets.getByName("androidTest").assets.srcDir("../native/sovits/assets/gpt-sovits/chinese_g2p")
     sourceSets.getByName("androidTest").assets.srcDir("../sources/rhino/src/test/resources")
     sourceSets.getByName("androidTest").assets.srcDir("../tests/source-compatibility/browser")
     sourceSets.getByName("androidTest").assets.srcDir("../tests/source-compatibility/fixtures/native-routing/site")
@@ -360,6 +359,7 @@ kotlin {
 
 // PotatoEPUB ships Java 22 bytecode. Exercise real exports on the JDK already used by CI.
 tasks.withType<Test>().configureEach {
+    inputs.dir(rootProject.file("native/sovits/assets/gpt-sovits/chinese_g2p")).withPathSensitivity(PathSensitivity.RELATIVE)
     javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(22)) })
     val scopes = providers.gradleProperty("ciTestScope").orElse("full").get().split(",").toSet()
     val uiTests = mapOf(

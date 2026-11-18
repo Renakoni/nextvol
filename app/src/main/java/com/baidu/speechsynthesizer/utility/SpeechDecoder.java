@@ -9,10 +9,7 @@ public final class SpeechDecoder {
     public interface Listener { void onAudio(byte[] pcm); }
     private final Listener listener;
 
-    static {
-        SpeechLibraries.loadVendor("c++_shared");
-        SpeechLibraries.loadVendor("BDSpeechDecoder_V1");
-    }
+    static { SpeechLibraries.loadVendor("BDSpeechDecoder_V1"); }
 
     public SpeechDecoder(Listener listener) { this.listener = listener; }
     public native int decodeWithCallback(String instanceId, byte[] audio, Object callback, int index);

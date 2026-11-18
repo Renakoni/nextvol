@@ -28,7 +28,9 @@ internal class SogouEngine(directory: File, private val voice: OfflineVoiceConfi
         val frontModel = resource("dict_zh.dat")
         val backendModel = resource("acoustic/${voice.code}.bin")
         val englishDictionary = resource("engdict.dat")
-        loadLibraries()
+        SpeechLibraries.loadVendor("sgsplit")
+        SpeechLibraries.loadVendor("sgtts")
+        SpeechLibraries.loadVendor("sgtts_lib")
         val configuration = JSONObject().put("enable_log", false)
         handle = proxy.native_searchService(library, configuration.toString())
         check(handle != 0L) { "Sogou could not load its native service: $library" }
@@ -85,12 +87,5 @@ internal class SogouEngine(directory: File, private val voice: OfflineVoiceConfi
             proxy.native_destroyService(handle, library)
             handle = 0L
         }
-    }
-
-    companion object {
-        private val libraries by lazy {
-            listOf("omp", "evalite_uapi", "sgsplit", "sgtts", "sgproxy_lib", "sgtts_lib").forEach(SpeechLibraries::loadVendor)
-        }
-        private fun loadLibraries() = libraries
     }
 }

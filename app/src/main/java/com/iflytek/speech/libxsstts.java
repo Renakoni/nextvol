@@ -5,7 +5,7 @@ import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 @Keep
 public final class libxsstts {
-    static { SpeechLibraries.loadVendor("issxtts30"); SpeechLibraries.loadVendor("issavth"); }
+    static { SpeechLibraries.loadVendor("issxtts30"); }
     private libxsstts() {}
     public static native synchronized int setMachineCode(String configuration);
     public static native synchronized int initRes(String directory, int flags);

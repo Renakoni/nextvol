@@ -4,6 +4,8 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
+import kotlinx.coroutines.InternalCoroutinesApi
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -17,6 +19,13 @@ class UpdateArtifactDownloader @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
     data class Files(val apk: File, val temporary: File)
+
+    private val client by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .build()
+    }
 
     fun prepare(): Files {
         val cacheDir = File(context.cacheDir, "updates").apply { mkdirs() }
@@ -39,26 +48,29 @@ class UpdateArtifactDownloader @Inject constructor(
         }
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     internal suspend fun downloadVerified(
         url: String, sha256: String, destination: File,
         onProgress: suspend (copied: Long, total: Long) -> Unit,
     ): Boolean {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build()
         val request = Request.Builder().url(url).get().build()
         val digest = MessageDigest.getInstance("SHA-256")
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-            val body = response.body
-            val total = body.contentLength()
-            body.byteStream().use { input ->
+        val task = currentCoroutineContext()
+        val call = client.newCall(request)
+        // A stalled socket cannot reach the copy loop's cancellation check.
+        val cancellation = task.job.invokeOnCompletion(onCancelling = true, invokeImmediately = true) {
+            if (it != null) call.cancel()
+        }
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+                val total = response.body.contentLength()
+                val input = response.body.byteStream()
                 FileOutputStream(destination).use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     var copied = 0L
                     while (true) {
-                        currentCoroutineContext().ensureActive()
+                        task.ensureActive()
                         val bytes = input.read(buffer)
                         if (bytes < 0) break
                         output.write(buffer, 0, bytes)
@@ -69,10 +81,15 @@ class UpdateArtifactDownloader @Inject constructor(
                     if (copied == 0L) return false
                 }
             }
+        } catch (failure: IOException) {
+            task.ensureActive()
+            throw failure
+        } finally {
+            cancellation.dispose()
         }
         val actual = digest.digest().joinToString("") { "%02x".format(it) }
         if (actual != sha256) throw IOException("SHA-256 mismatch")
-        currentCoroutineContext().ensureActive()
+        task.ensureActive()
         return true
     }
 }
