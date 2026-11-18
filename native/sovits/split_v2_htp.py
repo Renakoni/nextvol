@@ -14,7 +14,6 @@ GRAPHS = ("v2-htp-stem.onnx", "v2-htp-body.onnx", "v2-htp-head.onnx")
 
 def split(directory: Path):
     manifest_path = directory / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
     model = onnx.load(directory / "vits_fp32.onnx", load_external_data=False)
     weights = {w.name: w for w in model.graph.initializer}
     stem_channels = weights["vq_model.dec.conv_pre.weight"].dims[0]
@@ -67,14 +66,14 @@ def split(directory: Path):
         onnx.save(onnx.shape_inference.infer_shapes(graph), directory / name)
     split_manifest = directory / "split-vits.json"
     digests = {name: hashlib.sha256((directory / name).read_bytes()).hexdigest() for name in GRAPHS}
-    if split_manifest.is_file():
-        data = json.loads(split_manifest.read_text(encoding="utf-8"))
-        data["graphs"].update(digests)
-        split_manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    if not manifest_path.is_file():
-        return
-    manifest["files"].update(digests)
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["files"].update(digests)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    elif split_manifest.is_file():
+        manifest = json.loads(split_manifest.read_text(encoding="utf-8"))
+        manifest["graphs"].update(digests)
+        split_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

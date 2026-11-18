@@ -24,7 +24,6 @@ def split(source: Path) -> tuple[Path, Path]:
     known = {v.name for v in graph.graph.value_info}
     if BOUNDARY not in known:
         graph.graph.value_info.append(onnx.helper.make_tensor_value_info(BOUNDARY, onnx.TensorProto.FLOAT, [1, 192, "latent_frames"]))
-    extractor = Extractor(graph)
     # ONNX Extractor does not follow lexical captures inside If branches.
     # Keep the pre-resize feature/mask ancestors, then expose only the latent.
     captures = []
@@ -33,7 +32,7 @@ def split(source: Path) -> tuple[Path, Path]:
         for name in captures:
             if name not in known:
                 graph.graph.value_info.append(onnx.helper.make_tensor_value_info(name, onnx.TensorProto.FLOAT, [1, None, None]))
-        extractor = Extractor(graph)
+    extractor = Extractor(graph)
     encoder = extractor.extract_model([i.name for i in graph.graph.input], [BOUNDARY] + captures)
     del encoder.graph.output[1:]
     hifigan = extractor.extract_model([BOUNDARY, "ge"], [o.name for o in graph.graph.output])
@@ -52,5 +51,12 @@ if __name__ == "__main__":
     manifest = {"schema_version": 1, "format": "genie_v2proplus_split_v1", "boundary": BOUNDARY,
                 "source_sha256": hashlib.sha256((args.model_dir / "vits_fp32.onnx").read_bytes()).hexdigest(),
                 "graphs": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}}
-    (args.model_dir / "split-vits.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    split_manifest = args.model_dir / "split-vits.json"
+    split_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    checkpoint = args.model_dir / "manifest.json"
+    if checkpoint.is_file():
+        data = json.loads(checkpoint.read_text(encoding="utf-8"))
+        data["files"].update(manifest["graphs"])
+        data["files"][split_manifest.name] = hashlib.sha256(split_manifest.read_bytes()).hexdigest()
+        checkpoint.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(manifest, indent=2))
