@@ -69,10 +69,6 @@ jobs:
           ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: bash .github/scripts/sign-release-apk.sh
-      - name: Publish the matching speech component
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/publish-speech-runtime.sh
       - name: Upload signed release attachments
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

@@ -416,7 +416,7 @@ eviction or damaged exports can still require rebuilding.
 
 The app downloads the vendor SDK directly from its pinned release asset. APK jobs
 package the GPT-SoVITS runtime separately and embed its download URL and SHA-256
-in the host APK. The component publisher uploads that ZIP under its SHA-256. Signed releases reuse the matching component.
+in the host APK. The first public distribution of that ZIP is tracked in #1094 for the next app release.
 
 JVM and Lint jobs use `-PmatchaNative=false` and skip native tool preparation.
 The minified APK producer saves
