@@ -1,10 +1,11 @@
 package com.iflytek.speech;
 
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 @Keep
 public final class libxsstts {
-    static { System.loadLibrary("issxtts30"); System.loadLibrary("issavth"); }
+    static { SpeechLibraries.loadVendor("issxtts30"); SpeechLibraries.loadVendor("issavth"); }
     private libxsstts() {}
     public static native synchronized int setMachineCode(String configuration);
     public static native synchronized int initRes(String directory, int flags);

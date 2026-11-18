@@ -1,23 +1,23 @@
 package indi.renakoni.nextvol.tts.sovits
 
-import android.content.Context
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
 internal object ChineseG2pAssetRepository {
     private var cached = java.lang.ref.WeakReference<ChineseG2pResources>(null)
 
-    @Synchronized fun load(context: Context): ChineseG2pResources =
-        cached.get() ?: loadUncached(context).also { cached = java.lang.ref.WeakReference(it) }
+    @Synchronized fun load(dictionary: File): ChineseG2pResources =
+        cached.get() ?: loadUncached(dictionary).also { cached = java.lang.ref.WeakReference(it) }
 
-    private fun loadUncached(context: Context): ChineseG2pResources {
-        val polyphonicJson = context.assets.open("gpt-sovits/chinese_g2p/polyphonic.json")
+    private fun loadUncached(dictionary: File): ChineseG2pResources {
+        val polyphonicJson = File(dictionary, "polyphonic.json")
             .bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
-        val opencpopText = context.assets.open("gpt-sovits/chinese_g2p/opencpop-strict.txt")
+        val opencpopText = File(dictionary, "opencpop-strict.txt")
             .bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
-        val singleCharJson = context.assets.open("gpt-sovits/chinese_g2p/single_char_pinyin.json")
+        val singleCharJson = File(dictionary, "single_char_pinyin.json")
             .bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
 
@@ -45,7 +45,7 @@ internal object ChineseG2pAssetRepository {
         val wordEntries = HashMap<String, ChineseWordEntry>()
         var maxWordLength = 1
         var totalFrequency = 0L
-        context.assets.open("gpt-sovits/chinese_g2p/contextual_lexicon.tsv")
+        File(dictionary, "contextual_lexicon.tsv")
             .bufferedReader(Charsets.UTF_8)
             .useLines { lines ->
                 lines.forEach { line ->
@@ -62,7 +62,7 @@ internal object ChineseG2pAssetRepository {
                 }
             }
 
-        val traditionalToSimplified = context.assets.open("gpt-sovits/chinese_g2p/traditional_to_simplified.tsv")
+        val traditionalToSimplified = File(dictionary, "traditional_to_simplified.tsv")
             .bufferedReader(Charsets.UTF_8)
             .useLines { lines ->
                 lines.mapNotNull { line ->

@@ -1,8 +1,10 @@
 package com.tencent.btts.jni;
 
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
+
 /** The Lark runtime exports these exact JNI class and method names. */
 public final class SynthesizerNative {
-    static { System.loadLibrary("synthesizer"); }
+    static { SpeechLibraries.loadVendor("synthesizer"); }
     public native int initializeForFiles(String[] paths, a callback);
     public native int appendSpeakers(String directory);
     public native int appendSpeakersForFiles(String[] paths);

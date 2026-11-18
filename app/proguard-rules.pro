@@ -111,3 +111,6 @@
 -keep class com.xiaomi.ai.local.** { *; }
 -keep class es.codefactory.vocalizertts.** { *; }
 -keep class org.nobody.multitts.tts.jni.SpeexBridge { *; }
+
+# The WebGPU Java binding registers native methods by name.
+-keep class ai.onnxruntime.** { *; }

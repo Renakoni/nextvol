@@ -3,7 +3,7 @@ package indi.renakoni.nextvol.tts.sovits
 import android.content.Context
 import android.os.Build
 import android.util.Log
-import indi.renakoni.nextvol.BuildConfig
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import java.io.File
 
 internal object DeviceAcceleration {
@@ -12,18 +12,17 @@ internal object DeviceAcceleration {
 
     /** Called on an IO worker after first draw, or by an earlier speech request. */
     @Synchronized fun detect(context: Context): File? {
+        if (!SpeechRuntimePack.Sovits.installed) return null
         if (checked) return htp
         checked = true
         val manufacturer = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MANUFACTURER else Build.HARDWARE
-        if (!BuildConfig.MATCHA_NATIVE || Build.VERSION.SDK_INT < 29 ||
-            !isQualcomm(manufacturer, Build.HARDWARE) || "arm64-v8a" !in Build.SUPPORTED_ABIS) return null
-        val runtime = File(context.applicationInfo.nativeLibraryDir)
+        if (!isQualcomm(manufacturer, Build.HARDWARE)) return null
+        val runtime = SpeechRuntimePack.Sovits.libraries
         val updated = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
-        val key = "${Build.FINGERPRINT}\n$updated"
+        val key = "${Build.FINGERPRINT}\n$updated\n${SpeechRuntimePack.Sovits.sha256}"
         if (cachedCapability(File(context.noBackupFilesDir, "sovits-npu-capability"), key) {
-            val probe = File(context.cacheDir, "sovits-qnn-probe.onnx")
+            val probe = File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/qnn-probe.onnx")
             try {
-                context.assets.open("gpt-sovits/qnn-probe.onnx").use { input -> probe.outputStream().use(input::copyTo) }
                 QnnSession.probe(runtime, probe)
                 true
             } catch (failure: Exception) {
@@ -32,7 +31,7 @@ internal object DeviceAcceleration {
             } catch (failure: LinkageError) {
                 Log.i("NextVolSoVITS", "HTP runtime unavailable", failure)
                 false
-            } finally { probe.delete() }
+            }
         }) htp = runtime
         return htp
     }

@@ -1,10 +1,11 @@
 package indi.renakoni.nextvol.tts.sovits
 
 import androidx.annotation.Keep
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 
 @Keep
 internal object SovitsNative {
-    init { System.loadLibrary("nextvol-sovits") }
+    init { SpeechLibraries.loadSovits("nextvol-sovits") }
     external fun create(model: ByteArray, runtime: ByteArray): Long
     external fun prepare(handle: Long, phones: LongArray, tokens: LongArray, repeats: LongArray,
         pcm32: FloatArray, pcm16: FloatArray)

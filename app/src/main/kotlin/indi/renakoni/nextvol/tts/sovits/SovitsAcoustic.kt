@@ -27,7 +27,7 @@ internal class SovitsAcoustic(
         val directory = voice.model
         val runtime = DeviceAcceleration.detect(context)
         val layout = try {
-            SplitVocoderAssets.prepare(context, voice, runtime != null)
+            SplitVocoderAssets.prepare(voice, runtime != null)
         } catch (failure: Exception) {
             Log.w("NextVolSoVITS", "Using original VITS graph", failure)
             SplitVocoderAssets.Layout.Full

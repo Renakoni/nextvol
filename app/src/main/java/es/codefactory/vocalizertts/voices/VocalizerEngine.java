@@ -1,6 +1,7 @@
 package es.codefactory.vocalizertts.voices;
 
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 /** Retains the exported JNI names; Android services are not part of this boundary. */
 @Keep
@@ -12,7 +13,7 @@ public final class VocalizerEngine implements AutoCloseable {
 
     public VocalizerEngine(AudioListener listener) {
         this.listener = listener;
-        System.loadLibrary("NuanceVocalizer");
+        SpeechLibraries.loadVendor("NuanceVocalizer");
         g();
         if (mNativeEnginePtr == 0) throw new IllegalStateException("Vocalizer returned no engine handle");
     }

@@ -64,7 +64,7 @@ class UpdateArtifactDownloaderTest {
             download(release("expected apk"), files)
             fail("Expected checksum failure")
         } catch (expected: java.io.IOException) {
-            assertEquals("Update SHA-256 mismatch", expected.message)
+            assertEquals("SHA-256 mismatch", expected.message)
         }
         assertFalse(files.apk.exists())
         assertFalse(files.temporary.exists())

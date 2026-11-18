@@ -1,17 +1,18 @@
 package indi.renakoni.nextvol.tts.offline.legacy
 
-import android.content.Context
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import com.sogou.speech.proxy.NativeProxy
 import hnovel.speech.OfflineVoiceConfig
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import indi.renakoni.nextvol.tts.offline.OfflineEngine
 import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
 import java.io.File
 
 /** Sogou's internal service is a native library handle, not an Android TTS service. */
-internal class SogouEngine(context: Context, directory: File, private val voice: OfflineVoiceConfig) : OfflineEngine {
+internal class SogouEngine(directory: File, private val voice: OfflineVoiceConfig) : OfflineEngine {
     private val proxy = NativeProxy()
-    private val library = File(context.applicationInfo.nativeLibraryDir, "libsgtts.so").absolutePath
+    private val library = File(SpeechRuntimePack.Vendor.libraries, "libsgtts.so").absolutePath
     private var handle = 0L
     @Volatile private var cancelled = false
     override val sampleRate = voice.sampleRate.takeIf { it > 0 } ?: 16000
@@ -88,7 +89,7 @@ internal class SogouEngine(context: Context, directory: File, private val voice:
 
     companion object {
         private val libraries by lazy {
-            listOf("omp", "evalite_uapi", "sgsplit", "sgtts", "sgproxy_lib", "sgtts_lib").forEach(System::loadLibrary)
+            listOf("omp", "evalite_uapi", "sgsplit", "sgtts", "sgproxy_lib", "sgtts_lib").forEach(SpeechLibraries::loadVendor)
         }
         private fun loadLibraries() = libraries
     }

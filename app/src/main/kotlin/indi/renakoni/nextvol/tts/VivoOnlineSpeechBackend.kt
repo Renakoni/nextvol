@@ -7,6 +7,7 @@ import hnovel.network.BrokerResponse
 import hnovel.network.BrokerWebSocket
 import hnovel.speech.OnlineSpeechBackend
 import hnovel.speech.VivoSpeechClient
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonObject
@@ -17,6 +18,7 @@ internal class VivoOnlineSpeechBackend(
     webSocket: suspend (BrokerRequest, (BrokerWebSocket) -> ByteArray) -> ByteArray,
 ) : OnlineSpeechBackend {
     private val client = VivoSpeechClient(metadata, execute, webSocket, { sampleRate ->
+        SpeechLibraries.requireVendor()
         Opus.initOpusDecoder(sampleRate)
         object : VivoSpeechClient.Decoder {
             override fun decode(bytes: ByteArray): ByteArray = Opus.decode(bytes, sampleRate, 1)

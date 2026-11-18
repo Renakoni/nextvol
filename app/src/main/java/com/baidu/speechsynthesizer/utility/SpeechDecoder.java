@@ -1,6 +1,7 @@
 package com.baidu.speechsynthesizer.utility;
 
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 /** JNI names and callback match the bundled Baidu decoder. */
 @Keep
@@ -9,8 +10,8 @@ public final class SpeechDecoder {
     private final Listener listener;
 
     static {
-        System.loadLibrary("c++_shared");
-        System.loadLibrary("BDSpeechDecoder_V1");
+        SpeechLibraries.loadVendor("c++_shared");
+        SpeechLibraries.loadVendor("BDSpeechDecoder_V1");
     }
 
     public SpeechDecoder(Listener listener) { this.listener = listener; }

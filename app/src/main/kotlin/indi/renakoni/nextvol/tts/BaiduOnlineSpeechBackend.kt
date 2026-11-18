@@ -7,6 +7,7 @@ import hnovel.speech.BaiduOnlineSpeechClient
 import hnovel.speech.HttpSpeechError
 import hnovel.speech.HttpSpeechException
 import hnovel.speech.OnlineSpeechBackend
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 
@@ -14,6 +15,7 @@ internal class BaiduOnlineSpeechBackend(
     metadata: JsonObject,
     webSocket: suspend (BrokerRequest, (BrokerWebSocket) -> ByteArray) -> ByteArray,
 ) : OnlineSpeechBackend by BaiduOnlineSpeechClient(metadata, webSocket, { receive ->
+    SpeechLibraries.requireVendor()
     object : BaiduOnlineSpeechClient.Decoder {
         private val id = UUID.randomUUID().toString()
         private val decoder = SpeechDecoder(receive)

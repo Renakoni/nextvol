@@ -414,18 +414,12 @@ The v2 key requires an initial build; after main publishes it, PRs with the same
 inputs can reuse it across runner image revisions. Source/toolchain changes,
 eviction or damaged exports can still require rebuilding.
 
-The embedded SDK uses a separate cache containing only its compressed ZIP. APK
-jobs verify the pinned SHA-256, extract and validate the libraries, then supply
-`offlineRuntimeDir` to Gradle. Main publishes the archive after successful
-preparation; PR misses download locally. Neither Kotlin changes nor runner image
-updates invalidate these pinned bytes. The extracted directory is not added to
-the Gradle task cache, and SDK changes do not invalidate the ORT cache.
+The app downloads the vendor SDK directly from its pinned release asset. APK jobs
+package the GPT-SoVITS runtime separately and embed its download URL and SHA-256
+in the host APK. The component publisher uploads that ZIP under its SHA-256. Signed releases reuse the matching component.
 
-JVM and Lint jobs skip native tool/SDK preparation and exclude
-`:app:buildMatchaNative` and `:app:prepareOfflineRuntime`; their Kotlin build flags
-and existing test/lint coverage remain the same. Host JVM tests cannot load the Android ARM64 library and use the
-existing native test doubles. The APK jobs retain the source build, ELF checks,
-native libraries and license/manifest packaging. The minified APK producer saves
+JVM and Lint jobs use `-PmatchaNative=false` and skip native tool preparation.
+The minified APK producer saves
 its caches before the independent device job starts, including when tests later fail.
 
 The main cache concurrency group preserves its running writer and retains at

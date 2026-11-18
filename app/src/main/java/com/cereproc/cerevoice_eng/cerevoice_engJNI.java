@@ -1,11 +1,12 @@
 package com.cereproc.cerevoice_eng;
 
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 /** The SDK's JNI ABI; pointer wrappers are unnecessary for the internal adapter. */
 @Keep
 public final class cerevoice_engJNI {
-    static { System.loadLibrary("cerevoice_eng"); }
+    static { SpeechLibraries.loadVendor("cerevoice_eng"); }
     public static native long CPRCEN_engine_new();
     public static native void CPRCEN_engine_delete(long engine);
     public static native int CPRCEN_engine_load_voice(long engine, String voice, String license, int type, String account, String password, String server, String proxy);

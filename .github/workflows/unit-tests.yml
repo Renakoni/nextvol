@@ -39,7 +39,6 @@ jobs:
           python3 .github/scripts/check_resources.py
           python3 native/onnxruntime/test_verify_sources.py
           python3 native/onnxruntime/test_build_cache.py
-          python3 native/offline/test_fetch_runtime.py
       - name: Prepare fixed Android environment
         if: steps.scope.outputs.run == 'true'
         id: environment
@@ -56,7 +55,7 @@ jobs:
         run: |
           read -r -a tasks <<< "$GRADLE_TASKS"
           # Host JVM tests cannot load the Android ARM64 library; APK jobs build it.
-          ./gradlew --no-daemon "${tasks[@]}" -x :app:buildMatchaNative -x :app:prepareOfflineRuntime --console=plain --stacktrace --max-workers=2
+          ./gradlew --no-daemon "${tasks[@]}" -PmatchaNative=false --console=plain --stacktrace --max-workers=2
       - name: Upload test reports
         if: always() && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

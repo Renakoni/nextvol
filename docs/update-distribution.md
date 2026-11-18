@@ -7,7 +7,7 @@
 正式 Release 和 Snapshot APK 仅支持 `arm64-v8a`，无法在其他架构或 32 位 Android 系统上安装。
 继续发布单个 APK，文件名与更新协议不变。
 Debug、Benchmark 和 ReaderBenchmark 保留其他架构，用于开发及模拟器验证。
-原生库在打包时由固定 NDK 剥离调试信息；全部 ARM64 离线引擎、字体及模型继续保留。
+厂商语音和 GPT-SoVITS 运行库由听书设置按需下载。两个包使用独立的组件 Release；GPT-SoVITS 以 ZIP 的 SHA-256 标识版本并复用相同内容。APK 内的 SHA-256 固定了可执行组件的内容。
 发布工作流单独保存原生符号表，供崩溃定位，不放入 APK。
 
 ## 网站接口

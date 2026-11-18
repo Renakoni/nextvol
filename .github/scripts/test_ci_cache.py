@@ -31,14 +31,6 @@ class CacheSelectionTests(unittest.TestCase):
             # A bounded snapshot is unchanged on the next save, including hits.
             self.assertEqual((10, 10), ci_task_cache.trim_cache(directory, limit=10))
 
-    def test_embedded_sdk_retains_latest_shared_archive(self):
-        caches = [
-            {'id': 1, 'ref': 'refs/heads/main', 'key': 'offline-sdk-v1-old', 'created_at': '2026-10-30'},
-            {'id': 2, 'ref': 'refs/heads/main', 'key': 'offline-sdk-v1-new', 'created_at': '2026-10-31'},
-            {'id': 3, 'ref': 'refs/pull/827/merge', 'key': 'offline-sdk-v1-new', 'created_at': '2026-10-31'},
-        ]
-        self.assertEqual({1, 3}, {cache['id'] for cache in ci_cache_retention.obsolete_snapshots(caches)})
-
     def test_native_cache_retention_keeps_the_latest_inputs_per_ref_and_toolchain(self):
         def entry(identifier, ref, toolchain, inputs='a'):
             return {'id': identifier, 'ref': ref, 'created_at': f'2026-10-{identifier:02d}',

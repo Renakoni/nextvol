@@ -30,41 +30,49 @@ class UpdateArtifactDownloader @Inject constructor(
         files: Files,
         onProgress: suspend (copied: Long, total: Long) -> Unit,
     ): File? {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build()
-        val request = Request.Builder().url(release.downloadUrl).get().build()
         try {
-            val digest = MessageDigest.getInstance("SHA-256")
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-                val body = response.body
-                val total = body.contentLength()
-                body.byteStream().use { input ->
-                    FileOutputStream(files.temporary).use { output ->
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        var copied = 0L
-                        while (true) {
-                            currentCoroutineContext().ensureActive()
-                            val bytes = input.read(buffer)
-                            if (bytes < 0) break
-                            output.write(buffer, 0, bytes)
-                            digest.update(buffer, 0, bytes)
-                            copied += bytes
-                            if (total > 0) onProgress(copied, total)
-                        }
-                        if (copied == 0L) return null
-                    }
-                }
-            }
-            val actual = digest.digest().joinToString("") { "%02x".format(it) }
-            if (actual != release.sha256) throw IOException("Update SHA-256 mismatch")
-            currentCoroutineContext().ensureActive()
+            if (!downloadVerified(release.downloadUrl, release.sha256, files.temporary, onProgress)) return null
             if (!files.temporary.renameTo(files.apk)) throw IOException("Cannot save update APK")
             return files.apk
         } finally {
             files.temporary.delete()
         }
+    }
+
+    internal suspend fun downloadVerified(
+        url: String, sha256: String, destination: File,
+        onProgress: suspend (copied: Long, total: Long) -> Unit,
+    ): Boolean {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .build()
+        val request = Request.Builder().url(url).get().build()
+        val digest = MessageDigest.getInstance("SHA-256")
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+            val body = response.body
+            val total = body.contentLength()
+            body.byteStream().use { input ->
+                FileOutputStream(destination).use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var copied = 0L
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val bytes = input.read(buffer)
+                        if (bytes < 0) break
+                        output.write(buffer, 0, bytes)
+                        digest.update(buffer, 0, bytes)
+                        copied += bytes
+                        if (total > 0) onProgress(copied, total)
+                    }
+                    if (copied == 0L) return false
+                }
+            }
+        }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (actual != sha256) throw IOException("SHA-256 mismatch")
+        currentCoroutineContext().ensureActive()
+        return true
     }
 }

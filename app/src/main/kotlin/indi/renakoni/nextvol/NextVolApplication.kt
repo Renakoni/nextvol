@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol
 
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import android.app.Application
 import android.content.Context
 import androidx.compose.foundation.ComposeFoundationFlags
@@ -83,6 +84,7 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
             input.readBytes().toString(Charsets.UTF_8).substringBefore('\u0000')
         }
         if (process.endsWith(":source_browser") || process.endsWith(":source_browser_native")) return
+        SpeechLibraries.initialize(this)
         startupPhase("host-injection") { super.onCreate() }
         // Imported voice names can contain emoji absent from the device font or font provider.
         EmojiCompat.init(BundledEmojiCompatConfig(this))

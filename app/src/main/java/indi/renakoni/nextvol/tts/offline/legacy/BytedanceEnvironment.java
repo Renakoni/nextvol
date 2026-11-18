@@ -23,6 +23,10 @@ final class BytedanceEnvironment implements ITTNetDepend {
         if (prepared) return;
         Context app = context.getApplicationContext();
         AbsCronetDependAdapter adapter = new AbsCronetDependAdapter() {
+            @Override public boolean needCustomLoadLibrary() { return true; }
+            @Override public void doLoadLibrary(String name) {
+                indi.renakoni.nextvol.tts.runtime.SpeechLibraries.loadVendor(name);
+            }
             @Override public String getAppId() { return "1234"; }
             @Override public String getAppName() { return "SpeechDemo"; }
             @Override public String getDeviceId() { return "09876"; }

@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.tts.offline
 import android.content.Context
 import hnovel.speech.OfflineVoiceConfig
 import hnovel.speech.multiTtsControl
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.offline.legacy.*
 import kotlinx.coroutines.CancellationException
@@ -158,25 +159,28 @@ internal class OfflineSpeechSynthesizer(
         // Sogou/Baidu use separate runtimes and handles. Other SDKs retain the shared lifecycle limit.
         val permits = mapOf("sougou" to Semaphore(1), "bdetts" to Semaphore(1), "legacy" to legacySpeechPermit)
 
-        fun createEngine(context: Context, directory: File, voice: OfflineVoiceConfig): OfflineEngine = when (voice.engine) {
-            "espeak" -> EspeakEngine(directory, voice)
-            "bytedance" -> BytedanceEngine(context, directory, voice)
-            "bdetts" -> BaiduEngine(context, directory, voice)
-            "sougou" -> SogouEngine(context, directory, voice)
-            "microsoft" -> MicrosoftEngine(context, directory, voice)
-            "weread" -> WeReadEngine(context, directory, voice)
-            "xiaomi" -> XiaomiEngine(context, directory, voice)
-            "samsung" -> SamsungEngine(context, directory, voice)
-            "msctts" -> MscEngine(context, directory, voice)
-            "isstts" -> IssEngine(context, directory, voice)
-            "google" -> GoogleEngine(context, directory, voice)
-            "vocalizer" -> VocalizerEngine(context, directory, voice)
-            "audio" -> AudioEffectEngine(context, directory, voice)
-            "vcstts" -> VcsEngine(context, directory, voice)
-            "larktts" -> LarkEngine(context, directory, voice)
-            "acapela" -> AcapelaEngine(context, directory, voice)
-            "cereproc" -> CereProcEngine(context, directory, voice)
-            else -> throw SpeechException(SpeechError.OfflineUnavailable)
+        fun createEngine(context: Context, directory: File, voice: OfflineVoiceConfig): OfflineEngine {
+            if (voice.engine !in setOf("audio", "espeak")) SpeechLibraries.requireVendor()
+            return when (voice.engine) {
+                "espeak" -> EspeakEngine(directory, voice)
+                "bytedance" -> BytedanceEngine(context, directory, voice)
+                "bdetts" -> BaiduEngine(context, directory, voice)
+                "sougou" -> SogouEngine(directory, voice)
+                "microsoft" -> MicrosoftEngine(context, directory, voice)
+                "weread" -> WeReadEngine(context, directory, voice)
+                "xiaomi" -> XiaomiEngine(context, directory, voice)
+                "samsung" -> SamsungEngine(context, directory, voice)
+                "msctts" -> MscEngine(context, directory, voice)
+                "isstts" -> IssEngine(context, directory, voice)
+                "google" -> GoogleEngine(context, directory, voice)
+                "vocalizer" -> VocalizerEngine(context, directory, voice)
+                "audio" -> AudioEffectEngine(context, directory, voice)
+                "vcstts" -> VcsEngine(context, directory, voice)
+                "larktts" -> LarkEngine(context, directory, voice)
+                "acapela" -> AcapelaEngine(context, directory, voice)
+                "cereproc" -> CereProcEngine(context, directory, voice)
+                else -> throw SpeechException(SpeechError.OfflineUnavailable)
+            }
         }
     }
 }

@@ -1,12 +1,13 @@
 package com.acapelagroup.android.tts;
 
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 @Keep
 public final class acattsandroid {
     public interface Listener { void onSamples(short[] samples, long count); }
     private volatile Listener listener;
-    static { System.loadLibrary("acattsandroid"); }
+    static { SpeechLibraries.loadVendor("acattsandroid"); }
     public void setListener(Listener listener) { this.listener = listener; }
     private long eventsCallback(long event, long a, long b, long c, long d) { return 0; }
     private void samplesCallback(short[] samples, long count) {

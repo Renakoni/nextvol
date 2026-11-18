@@ -9,6 +9,7 @@ import hnovel.speech.OnlineSpeechBackend
 import hnovel.speech.multiTtsControl
 import hnovel.speech.resolveOfflineParameters
 import hnovel.speech.speechPcmWave
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import indi.renakoni.nextvol.tts.offline.legacySpeechPermit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,7 @@ internal class MscOnlineSpeechClient(metadata: JsonObject) : OnlineSpeechBackend
                 if (cancelled.get()) throw CancellationException("MSC synthesis cancelled")
             }
             checkActive()
+            SpeechLibraries.requireVendor()
             val login = linkedMapOf("ver" to "2.7.3195", "downfrom" to downFrom,
                 "net_type" to "WIFI", "net_subtype" to "wifi", "vad_enable" to "false", "auth" to "1",
                 "dvc" to "null|null", "imei" to "null", "sid" to "null", "tel_number" to "null", "appid" to appId,

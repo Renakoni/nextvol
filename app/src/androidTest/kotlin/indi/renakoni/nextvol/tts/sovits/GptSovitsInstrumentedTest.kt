@@ -1,5 +1,7 @@
 package indi.renakoni.nextvol.tts.sovits
 
+import indi.renakoni.nextvol.tts.runtime.installTestRuntime
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import indi.renakoni.nextvol.tts.SpeechChapter
@@ -22,7 +24,13 @@ class GptSovitsInstrumentedTest {
         val tokenizer = File(temporary.root, "roberta-wwm-ext-large-onnx/roberta_tokenizer/tokenizer.json")
         tokenizer.parentFile!!.mkdirs()
         tokenizer.writeText("""{"model":{"vocab":{"[CLS]":101,"[SEP]":102,"[UNK]":100,"书":1,"三":2,"!":3}}}""")
-        val encoded = SovitsMandarin(context, temporary.root).encode("你好，書３！")
+        val dictionary = temporary.newFolder()
+        val assets = InstrumentationRegistry.getInstrumentation().context.assets
+        for (name in listOf("polyphonic.json", "single_char_pinyin.json", "opencpop-strict.txt",
+            "contextual_lexicon.tsv", "traditional_to_simplified.tsv")) {
+            assets.open(name).use { input -> File(dictionary, name).outputStream().use(input::copyTo) }
+        }
+        val encoded = SovitsMandarin(dictionary, temporary.root).encode("你好，書３！")
         assertArrayEquals(longArrayOf(101, 100, 100, 100, 1, 2, 3, 102), encoded.tokens)
         assertArrayEquals(longArrayOf(2, 2, 1, 2, 2, 1), encoded.repeats)
         assertEquals(GenieSymbols.symbolToId.getValue("i2").toLong(), encoded.phones[1])
@@ -33,6 +41,8 @@ class GptSovitsInstrumentedTest {
         val args = InstrumentationRegistry.getArguments()
         val character = args.getString("sovitsCharacter")
         assumeNotNull(character)
+        if (args.getString("installSpeechRuntime") == "true")
+            installTestRuntime(SpeechRuntimePack.Sovits)
         val root = File(context.filesDir, "sovits-test")
         val voice = GptSovitsVoice(root, GptSovitsVersion.valueOf(args.getString("sovitsVersion", "V2ProPlus")),
             requireNotNull(character), File(root, "reference.wav"), File(root, "reference.txt").readText().trim())

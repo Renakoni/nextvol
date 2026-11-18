@@ -4,6 +4,7 @@ import android.content.Context
 import com.bytedance.speech.speechengine.bridge.SpeechBridgeCallback
 import com.bytedance.speech.speechengine.bridge.SpeechEngineBridge
 import hnovel.speech.OfflineVoiceConfig
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import indi.renakoni.nextvol.tts.offline.OfflineEngine
 import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
@@ -127,6 +128,6 @@ internal class BytedanceEngine(context: Context, directory: File, private val vo
     }
 
     companion object {
-        private val libraries by lazy { System.loadLibrary("speechengine") }
+        private val libraries by lazy { SpeechLibraries.loadVendor("speechengine") }
     }
 }

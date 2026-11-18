@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.tts.offline.legacy
 import android.content.Context
 import com.qq.wx.offlinevoice.synthesizer.SynthesizerNative
 import hnovel.speech.OfflineVoiceConfig
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import indi.renakoni.nextvol.tts.offline.OfflineEngine
 import kotlinx.coroutines.CancellationException
 import java.io.File
@@ -68,6 +69,6 @@ internal class WeReadEngine(@Suppress("UNUSED_PARAMETER") context: Context, dire
     }
 
     companion object {
-        private val libraries by lazy { listOf("weread-tts", "hwTTS").forEach(System::loadLibrary) }
+        private val libraries by lazy { listOf("weread-tts", "hwTTS").forEach(SpeechLibraries::loadVendor) }
     }
 }

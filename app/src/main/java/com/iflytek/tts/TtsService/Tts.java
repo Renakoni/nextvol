@@ -1,8 +1,10 @@
 package com.iflytek.tts.TtsService;
 
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
+
 /** All nine methods are registered together by libAisound's JNI_OnLoad. */
 public final class Tts {
-    static { System.loadLibrary("Aisound"); }
+    static { SpeechLibraries.loadVendor("Aisound"); }
     public static native int JniGetVersion(int[] version);
     public static native int JniCreate(String[] resources);
     public static native int JniStop();

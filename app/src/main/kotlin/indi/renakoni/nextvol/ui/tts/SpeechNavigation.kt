@@ -134,6 +134,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val viewModel = hiltViewModel<SpeechSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
+        var runtimeDialog by rememberSaveable { mutableStateOf(false) }
+        if (runtimeDialog) SpeechRuntimeDialog { runtimeDialog = false }
         LaunchedEffect(Unit) { viewModel.refresh() }
         val scheme = route.schemeId?.let { id -> schemes.schemes.items.find { it.id == id } }
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
@@ -145,6 +147,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onEngines = { nav.navigate(SpeechEnginesRoute) { launchSingleTop = true } }.takeIf { route.schemeId == null },
             onReplacements = { nav.navigate(SpeechReplacementsRoute(state.settings.schemeId)) { launchSingleTop = true } },
             onRoles = { nav.navigate(SpeechRolesRoute(state.settings.schemeId)) { launchSingleTop = true } },
+            onRuntimes = { runtimeDialog = true }.takeIf { route.schemeId == null },
             onDiagnostics = { nav.navigate(SpeechDiagnosticsRoute) { launchSingleTop = true } }.takeIf { route.schemeId == null },
             onVoicePool = { nav.navigate(SpeechVoicePoolRoute(state.settings.schemeId, bookId)) { launchSingleTop = true } },
             onCommand = viewModel.controller::command,
@@ -301,6 +304,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val settings by settingsViewModel.state.collectAsStateWithLifecycle()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
+        var runtimeDialog by rememberSaveable { mutableStateOf(false) }
+        if (runtimeDialog) SpeechRuntimeDialog { runtimeDialog = false }
         val preferences = hiltViewModel<SpeechPlaybackSettingsViewModel>().preferences
         val preview = preferences.auditionText.ifBlank { stringResource(R.string.tts_preview_text) }
         val context = LocalContext.current

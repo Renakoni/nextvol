@@ -4,12 +4,13 @@ import android.content.Context;
 import android.content.res.AssetManager;
 import androidx.annotation.Keep;
 import com.google.android.apps.speech.tts.googletts.audio.AndroidDecoder;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 import java.nio.ByteBuffer;
 
 /** These field and callback names are looked up by the embedded JNI runtime. */
 @Keep
 public final class AndroidComposerImpl implements AutoCloseable {
-    static { System.loadLibrary("google_speech_sbg_tts_jni"); }
+    static { SpeechLibraries.loadVendor("google_speech_sbg_tts_jni"); }
     private final AssetManager assetManager;
     private final ByteBuffer directAudioBuffer = ByteBuffer.allocateDirect(4096);
     private final AndroidDecoder decoder = new AndroidDecoder();

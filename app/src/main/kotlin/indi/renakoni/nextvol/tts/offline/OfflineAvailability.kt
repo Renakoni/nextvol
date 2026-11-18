@@ -7,6 +7,7 @@ import android.system.Os
 import android.system.OsConstants
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.speech.OfflineVoiceConfig
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
@@ -36,18 +37,26 @@ class OfflineAvailabilityChecker internal constructor(
     private val device: OfflineDevice,
     private val nativeDirectory: File,
     private val matchaEnabled: Boolean,
-    manifest: () -> JSONObject?,
+    private val vendorDirectory: File? = null,
+    private val manifest: () -> JSONObject?,
 ) {
     @Inject constructor(@ApplicationContext context: Context) : this(
         OfflineDevice(Build.VERSION.SDK_INT,
             (if (Process.is64Bit()) Build.SUPPORTED_64_BIT_ABIS else Build.SUPPORTED_32_BIT_ABIS).toList(),
             runCatching { Os.sysconf(OsConstants._SC_PAGESIZE) }.getOrDefault(0)),
-        File(context.applicationInfo.nativeLibraryDir), BuildConfig.MATCHA_NATIVE, {
-        runCatching { context.assets.open("offline-native/runtime-manifest.json").bufferedReader().use {
+        File(context.applicationInfo.nativeLibraryDir), BuildConfig.MATCHA_NATIVE,
+        SpeechRuntimePack.Vendor.libraries, {
+        runCatching { File(SpeechRuntimePack.Vendor.directory, "assets/offline-native/runtime-manifest.json").bufferedReader().use {
             JSONObject(it.readText()).getJSONObject("libraries")
         } }.getOrNull()
     })
-    private val libraries by lazy(manifest)
+    @Volatile private var libraries = lazy(manifest)
+
+    internal fun runtimeInstalled() {
+        libraries = lazy(manifest)
+        inspections.clear()
+        mutableChanges.update { it + 1 }
+    }
     private val inspections = ConcurrentHashMap<String, OfflineAvailability>()
     private data class Observation(val reference: OfflineVoiceRef, val configuration: OfflineVoiceConfig)
     private val observations = mutableMapOf<Observation, OfflineAvailability>()
@@ -84,6 +93,9 @@ class OfflineAvailabilityChecker internal constructor(
             return OfflineAvailability(R.string.tts_offline_runtime_missing, "lib${required.first()}.so", false)
         val minimumApi = if (configuration.engine in setOf("google", "sherpa", "espeak")) 26 else 24
         if (device.api < minimumApi) return OfflineAvailability(R.string.tts_offline_android, minimumApi.toString(), false)
+        if (vendorDirectory != null && configuration.engine !in setOf("sherpa", "espeak") &&
+            "arm64-v8a" in device.abis && !vendorDirectory.isDirectory)
+            return OfflineAvailability(R.string.tts_runtime_vendor_required, canRun = false)
         val pending = ArrayDeque(required.map { "lib$it.so" })
         val visited = mutableSetOf<String>()
         var incomplete = device.pageSize <= 0
@@ -91,7 +103,7 @@ class OfflineAvailabilityChecker internal constructor(
             val name = pending.removeFirst()
             if (!visited.add(name)) continue
             val inspection = inspections.getOrPut(name) {
-                val file = File(nativeDirectory, name)
+                val file = vendorDirectory?.let { File(it, name) }?.takeIf { it.isFile } ?: File(nativeDirectory, name)
                 if (!file.isFile) {
                     if ("arm64-v8a" !in device.abis) OfflineAvailability(R.string.tts_offline_abi, "arm64-v8a", false)
                     else OfflineAvailability(R.string.tts_offline_runtime_missing, name, false)
@@ -100,7 +112,7 @@ class OfflineAvailabilityChecker internal constructor(
             }
             if (!inspection.canRun) return inspection
             incomplete = incomplete || inspection.message == R.string.tts_offline_check_incomplete
-            libraries?.optJSONObject(name)?.let { metadata ->
+            libraries.value?.optJSONObject(name)?.let { metadata ->
                 if (metadata.optBoolean("requires_api_26") && device.api < 26)
                     return OfflineAvailability(R.string.tts_offline_android, "26", false)
                 val dependencies = metadata.optJSONArray("needed")

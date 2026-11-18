@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.tts.sovits
 
-import android.content.Context
 import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechException
 import org.json.JSONObject
@@ -8,8 +7,8 @@ import java.io.File
 
 internal class SovitsText(val phones: LongArray, val tokens: LongArray, val repeats: LongArray)
 
-internal class SovitsMandarin(context: Context, runtime: File) {
-    private val resources = ChineseG2pAssetRepository.load(context)
+internal class SovitsMandarin(dictionary: File, runtime: File) {
+    private val resources = ChineseG2pAssetRepository.load(dictionary)
     private val toneSandhi = ToneSandhiProcessor()
     private val erhua = ErhuaProcessor()
     private val vocab = JSONObject(File(runtime, "roberta-wwm-ext-large-onnx/roberta_tokenizer/tokenizer.json")
