@@ -11,6 +11,8 @@ import java.nio.FloatBuffer
 import java.nio.LongBuffer
 import java.util.concurrent.CancellationException
 
+internal const val MAX_SOVITS_PCM_SAMPLES = (8 * 1024 * 1024 - 44) / 2
+
 /** V2's autoregressive decoder stays on CPU. The acoustic stage owns its separate WebGPU runtime. */
 internal class SovitsAcoustic(
     private val voice: GptSovitsVoice, private val ge: FloatArray, private val advanced: FloatArray,
@@ -111,7 +113,7 @@ internal class SovitsAcoustic(
 
     private fun pcm(value: OnnxTensor): ByteArray {
         val count = value.info.numElements
-        require(count in 1..((8 * 1024 * 1024L - 44) / 2))
+        require(count in 1..MAX_SOVITS_PCM_SAMPLES.toLong())
         val audio = FloatArray(count.toInt())
         value.floatBuffer.get(audio)
         return SovitsNative.pcm(audio).also { lastProvider = if (gpuAvailable) "WebGPU" else "CPU" }

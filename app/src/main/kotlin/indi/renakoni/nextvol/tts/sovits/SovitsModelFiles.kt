@@ -1,6 +1,6 @@
 package indi.renakoni.nextvol.tts.sovits
 
-import android.util.Half
+import ai.onnxruntime.platform.Fp16Conversions
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -27,7 +27,8 @@ internal suspend fun prepareSovitsFiles(voice: GptSovitsVoice) {
         val target = File(folder, targetName)
         if (target.isFile) return
         val source = File(folder, sourceName)
-        require(source.isFile && source.length() > 0 && source.length() % 2 == 0L) { "Missing or invalid $sourceName" }
+        val size = source.length()
+        require(source.isFile && size > 0 && size % 2 == 0L) { "Missing or invalid $sourceName" }
         publish(target) { partial ->
             DataInputStream(source.inputStream()).use { input ->
                 partial.outputStream().use { output ->
@@ -35,12 +36,12 @@ internal suspend fun prepareSovitsFiles(voice: GptSovitsVoice) {
                     val words = ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
                     val bytes = ByteArray(packed.size * 2)
                     val floats = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
-                    var left = source.length()
+                    var left = size
                     while (left > 0) {
                         task.ensureActive()
                         val count = minOf(left, packed.size.toLong()).toInt()
                         input.readFully(packed, 0, count)
-                        for (i in 0 until count / 2) floats.put(i, Half.toFloat(words.get(i)))
+                        for (i in 0 until count / 2) floats.put(i, Fp16Conversions.fp16ToFloat(words.get(i)))
                         output.write(bytes, 0, count * 2)
                         left -= count
                     }

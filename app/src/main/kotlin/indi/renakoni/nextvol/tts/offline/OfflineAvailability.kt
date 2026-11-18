@@ -2,12 +2,12 @@ package indi.renakoni.nextvol.tts.offline
 
 import android.content.Context
 import android.os.Build
-import android.os.Process
 import android.system.Os
 import android.system.OsConstants
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.speech.OfflineVoiceConfig
 import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
+import indi.renakoni.nextvol.tts.runtime.speechProcessAbis
 import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
@@ -42,7 +42,7 @@ class OfflineAvailabilityChecker internal constructor(
 ) {
     @Inject constructor(@ApplicationContext context: Context) : this(
         OfflineDevice(Build.VERSION.SDK_INT,
-            (if (Process.is64Bit()) Build.SUPPORTED_64_BIT_ABIS else Build.SUPPORTED_32_BIT_ABIS).toList(),
+            speechProcessAbis(context),
             runCatching { Os.sysconf(OsConstants._SC_PAGESIZE) }.getOrDefault(0)),
         File(context.applicationInfo.nativeLibraryDir), BuildConfig.MATCHA_NATIVE,
         SpeechRuntimePack.Vendor.libraries, {

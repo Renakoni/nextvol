@@ -23,11 +23,13 @@ internal class V2HtpVocoder(
     private var workspace: Workspace? = null
 
     fun generate(latent: OnnxTensor, ge: OnnxTensorLike): FloatArray? {
-        val length = latent.info.shape.last().toInt()
+        val frames = latent.info.shape.last()
         // Small utterances do not amortize the overlap and backend transition.
-        if (length < 192) return null
+        if (frames < 192) return null
+        require(frames <= MAX_SOVITS_PCM_SAMPLES / SCALE) { "HTP output exceeds the playback file limit" }
+        val length = frames.toInt()
         val work = workspace ?: Workspace().also { workspace = it }
-        val audio = FloatArray(Math.multiplyExact(length, SCALE))
+        val audio = FloatArray(length * SCALE)
         session(STEM).runCancellable(mapOf("latent" to latent, "ge" to ge)).use { result ->
             val hidden = (result.get(0) as OnnxTensor).floatBuffer
             val head = session(HEAD)

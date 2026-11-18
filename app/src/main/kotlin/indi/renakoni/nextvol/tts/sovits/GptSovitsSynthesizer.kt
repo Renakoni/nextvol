@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.tts.sovits
 
 import android.content.Context
-import android.os.Build
 import androidx.annotation.RequiresApi
 import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import indi.renakoni.nextvol.tts.*
@@ -45,14 +44,14 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
 
     override suspend fun open(settings: SpeechSettings): String {
         check(opened.compareAndSet(false, true))
-        if (Build.VERSION.SDK_INT < 29) throw SpeechException(SpeechError.OfflineUnavailable)
         try {
             withContext(Dispatchers.IO) {
                 coroutineScope {
                     val job = currentCoroutineContext().job
                     synchronized(lifecycle) { generation.checkCancelled(); preparing = job }
                     try {
-                        if (!SpeechRuntimePack.Sovits.installed) throw SpeechException(SpeechError.OfflineUnavailable)
+                        if (!DeviceAcceleration.supportsRuntime(context) || !SpeechRuntimePack.Sovits.directory.isDirectory)
+                            throw SpeechException(SpeechError.OfflineUnavailable)
                         permit.acquire()
                         synchronized(lifecycle) {
                             ownsPermit = true
