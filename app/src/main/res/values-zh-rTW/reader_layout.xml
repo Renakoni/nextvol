@@ -9,7 +9,6 @@
     <string name="reader_font_sample">永 Aa</string>
     <string name="reader_font_import">匯入字型</string>
     <string name="reader_font_licenses">字型授權條款</string>
-    <string name="reader_font_imported">匯入字型</string>
     <string name="reader_font_download">下載字型</string>
     <string name="reader_font_download_failed">字型下載失敗，請點選字型重試。</string>
 </resources>

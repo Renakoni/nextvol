@@ -9,7 +9,6 @@
     <string name="reader_font_sample">永 Aa</string>
     <string name="reader_font_import">Import font</string>
     <string name="reader_font_licenses">Font licenses</string>
-    <string name="reader_font_imported">Imported font</string>
     <string name="reader_welcome_preview" translatable="false">欢迎来到Nextvol\nWelcome to Nextvol</string>
     <string name="reader_font_download">Download font</string>
     <string name="reader_font_transfer" translatable="false">%1$.1f / %2$.1f MB</string>
