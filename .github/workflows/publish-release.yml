@@ -75,6 +75,13 @@ jobs:
           name: NextVol-${{ env.APP_VERSION }}-release
           path: release-artifacts/
           if-no-files-found: error
+      - name: Retain the GPT-SoVITS runtime from the signed APK build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NextVol-${{ env.APP_VERSION }}-speech-runtime
+          path: app/build/outputs/speech-runtimes/gpt-sovits-arm64.zip
+          if-no-files-found: error
+          compression-level: 0
       - name: Retain obfuscation mapping
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
