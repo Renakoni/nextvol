@@ -4,7 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.os.Process
-import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
+import indi.renakoni.nextvol.ProjectLinks
 import org.json.JSONObject
 import java.io.File
 
@@ -19,22 +19,19 @@ internal fun speechProcessAbis(context: Context): List<String> {
 internal enum class SpeechRuntimePack(val id: String) {
     Vendor("vendor"), Sovits("sovits");
 
-    val supported by lazy {
-        when (this) {
-            Vendor -> "arm64-v8a" in speechProcessAbis(SpeechLibraries.context)
-            Sovits -> DeviceAcceleration.supportsRuntime(SpeechLibraries.context)
-        }
-    }
-
     private val spec by lazy {
         SpeechLibraries.context.assets.open("speech-runtimes/$id.json").bufferedReader().use { JSONObject(it.readText()) }
     }
-    val url get() = spec.getString("url")
-    val sha256 get() = spec.getString("sha256")
+    val downloadUrls: List<String> get() {
+        val github = spec.getString("url")
+        val asset = github.substringAfter("/releases/download/")
+        return listOf(github, "${ProjectLinks.DOWNLOADS}/releases/$asset")
+    }
+    val archiveBytes get() = spec.getLong("size")
     val root get() = File(SpeechLibraries.context.noBackupFilesDir, "speech-runtimes/$id")
-    val directory get() = File(root, sha256)
+    val directory get() = File(root, spec.getString("sha256"))
     val libraries get() = File(directory, "jniLibs/arm64-v8a")
-    val installed get() = supported && directory.isDirectory
+    val installed get() = directory.isDirectory
 }
 
 internal object SpeechLibraries {
