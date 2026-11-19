@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+from zipfile import ZipFile
 
 REPOSITORY = "Renakoni/nextvol"
 BUCKET = "nextvol-downloads"
@@ -70,6 +71,55 @@ def read_existing(store):
         raise
 
 
+def already_mirrored(store, key, digest, size):
+    from botocore.exceptions import ClientError
+    try:
+        previous = store.head_object(Bucket=BUCKET, Key=key)
+    except ClientError as error:
+        if error.response["Error"]["Code"] in {"NoSuchKey", "404"}:
+            return False
+        raise
+    if previous.get("Metadata", {}).get("sha256") != digest or previous["ContentLength"] != size:
+        raise ValueError(f"Refusing to overwrite immutable artifact {key}")
+    return True
+
+
+def upload(store, key, path, digest, content_type):
+    store.upload_file(str(path), BUCKET, key, ExtraArgs={
+        "ContentType": content_type, "CacheControl": "public, max-age=31536000, immutable",
+        "Metadata": {"sha256": digest},
+    })
+
+
+def mirror_speech_runtimes(store, apk):
+    prefix = f"https://github.com/{REPOSITORY}/releases/download/"
+    with ZipFile(apk) as archive:
+        for kind in ("vendor", "sovits"):
+            catalog = f"assets/speech-runtimes/{kind}.json"
+            if catalog not in archive.namelist():
+                continue
+            spec = json.loads(archive.read(catalog))
+            url, digest = spec["url"], spec["sha256"]
+            location = re.fullmatch(re.escape(prefix) + r"(offline-runtime-[a-zA-Z0-9-]+)/([a-zA-Z0-9_-]+\.zip)", url)
+            if not location or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise ValueError(f"Invalid {kind} catalog in signed APK")
+            tag, name = location.groups()
+            release = gh_api(f"repos/{REPOSITORY}/releases/tags/{tag}")
+            asset = next((a for a in release["assets"] if a["name"] == name), None)
+            if release["draft"] or not asset or asset["digest"] != "sha256:" + digest:
+                raise ValueError(f"Published runtime does not match the signed APK: {name}")
+            key = f"releases/{tag}/{name}"
+            if already_mirrored(store, key, digest, asset["size"]):
+                continue
+            path = apk.parent / name
+            subprocess.run(["gh", "release", "download", tag, "--repo", REPOSITORY,
+                            "--pattern", name, "--dir", str(apk.parent)], check=True, timeout=300)
+            with path.open("rb") as stream:
+                if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
+                    raise ValueError(f"Runtime ZIP checksum mismatch: {name}")
+            upload(store, key, path, digest, "application/zip")
+
+
 def publish(store, manifest, apk, checksums):
     existing = read_existing(store)
     if existing:
@@ -80,25 +130,12 @@ def publish(store, manifest, apk, checksums):
                 existing["tag"] != manifest["tag"] or existing["sha256"] != manifest["sha256"]):
             raise ValueError("Refusing to replace a published Android version with different content")
     # Immutable names and long cache lifetimes; metadata is always written last.
-    from botocore.exceptions import ClientError
     for path, content_type in ((apk, "application/vnd.android.package-archive"), (checksums, "text/plain")):
         key = f"releases/{manifest['tag']}/{path.name}"
         digest = manifest["sha256"] if path == apk else hashlib.sha256(path.read_bytes()).hexdigest()
-        try:
-            previous = store.head_object(Bucket=BUCKET, Key=key)
-        except ClientError as error:
-            if error.response["Error"]["Code"] not in {"NoSuchKey", "404"}:
-                raise
-            previous = None
-        if previous:
-            if (previous.get("Metadata", {}).get("sha256") != digest or
-                    previous["ContentLength"] != path.stat().st_size):
-                raise ValueError("Refusing to overwrite an immutable release artifact")
-        else:
-            store.upload_file(str(path), BUCKET, key, ExtraArgs={
-                "ContentType": content_type, "CacheControl": "public, max-age=31536000, immutable",
-                "Metadata": {"sha256": digest},
-            })
+        if not already_mirrored(store, key, digest, path.stat().st_size):
+            upload(store, key, path, digest, content_type)
+    mirror_speech_runtimes(store, apk)
     store.put_object(Bucket=BUCKET, Key=MANIFEST_KEY,
                      Body=(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode(),
                      ContentType="application/json; charset=utf-8", CacheControl="no-store")
