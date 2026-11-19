@@ -20,10 +20,10 @@ internal val downloadedFontFamilies = object : LruCache<File, FontFamily>(2) {
     override fun create(key: File) = FontFamily(loadReaderTypeface(key))
 }
 
-internal enum class ReaderFont(val title: Int, private val filename: String? = null) {
+internal enum class ReaderFont(val title: Int, private val filename: String? = null, val preview: Int? = null) {
     System(R.string.reader_font_system),
-    SourceHanSerif(R.string.reader_font_serif, "source_han_serif_regular.otf"),
-    WenKai(R.string.reader_font_wenkai, "lxgw_wenkai_regular.ttf");
+    SourceHanSerif(R.string.reader_font_serif, "source_han_serif_regular.otf", R.drawable.reader_sample_source_han_serif),
+    WenKai(R.string.reader_font_wenkai, "lxgw_wenkai_regular.ttf", R.drawable.reader_sample_wenkai);
 
     private val installation = Mutex()
 

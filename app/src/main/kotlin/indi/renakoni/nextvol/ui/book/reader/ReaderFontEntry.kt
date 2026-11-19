@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.paddingFromBaseline
@@ -162,6 +163,7 @@ internal fun ReaderFontEntry(settings: ReaderSettingsEditor, modifier: Modifier 
             ) {
                 items(ReaderFont.entries, key = { it.name }) { font ->
                     ReaderFontCard(stringResource(font.title), presets.getValue(font), selectedUri, cardWidth,
+                        preview = font.preview,
                         available = font in installed, downloading = pending == font,
                         progress = if (pending == font) progress else null) { uri ->
                         if (font in installed) select(uri) else pending = font
@@ -178,45 +180,58 @@ internal fun ReaderFontEntry(settings: ReaderSettingsEditor, modifier: Modifier 
 }
 
 @Composable
-private fun ReaderFontCard(title: String, uri: Uri, selected: Uri, width: Dp, available: Boolean = true,
+private fun ReaderFontCard(title: String, uri: Uri, selected: Uri, width: Dp, preview: Int? = null, available: Boolean = true,
     downloading: Boolean = false, progress: Pair<Long, Long>? = null, onSelect: (Uri) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val active = selected == uri
     val shape = RoundedCornerShape(14.dp)
     val density = LocalDensity.current
-    val family by produceState<FontFamily>(FontFamily.Default, uri, available) {
-        if (available) value = withContext(Dispatchers.IO) { loadReaderFontFamilySafe(uri) ?: FontFamily.Default }
-    }
+    val dimmed = !available && !downloading
     val ink = when {
-        !available -> colors.onSurfaceVariant
+        dimmed -> colors.onSurfaceVariant
         active -> colors.onSecondaryContainer
         else -> colors.onSurface
     }
+    val border = when {
+        active -> colors.primary
+        dimmed -> colors.outlineVariant.copy(alpha = 0.65f)
+        else -> colors.outlineVariant
+    }
     Box(
         Modifier.width(width).testTag("reader-font-$uri").clip(shape)
-            .background(if (active) colors.secondaryContainer else if (available) colors.surfaceContainerHigh else colors.surfaceContainerLow)
-            .border(1.dp, if (active) colors.primary else colors.outlineVariant, shape)
+            .background(if (active) colors.secondaryContainer else if (available) colors.surfaceContainerHigh else colors.surface)
+            .border(1.dp, border, shape)
             .selectable(active, enabled = !downloading, role = Role.RadioButton) { onSelect(uri) },
         contentAlignment = Alignment.Center,
     ) {
         Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            val sample = when {
-                progress == null -> stringResource(R.string.reader_font_sample)
-                progress.second > 0 -> stringResource(R.string.reader_font_transfer, progress.first / 1e6, progress.second / 1e6)
-                else -> stringResource(R.string.tts_runtime_megabytes, progress.first / 1e6)
+            if (preview != null && progress == null) {
+                Icon(painterResource(preview), contentDescription = null,
+                    modifier = with(density) { Modifier.size(72.sp.toDp(), 38.sp.toDp()) },
+                    tint = if (dimmed) colors.outline else ink)
+            } else {
+                val sample = when {
+                    progress == null -> stringResource(R.string.reader_font_sample)
+                    progress.second > 0 -> stringResource(R.string.reader_font_transfer, progress.first / 1e6, progress.second / 1e6)
+                    else -> stringResource(R.string.tts_runtime_megabytes, progress.first / 1e6)
+                }
+                val family by produceState<FontFamily>(FontFamily.Default, uri) {
+                    if (preview == null) value = withContext(Dispatchers.IO) { loadReaderFontFamilySafe(uri) ?: FontFamily.Default }
+                }
+                Text(sample,
+                    modifier = Modifier.paddingFromBaseline(top = with(density) { 28.sp.toDp() }, bottom = with(density) { 10.sp.toDp() }),
+                    style = MaterialTheme.typography.titleLarge.copy(fontFamily = family, fontSize = if (progress == null) 24.sp else 12.sp,
+                        platformStyle = PlatformTextStyle(includeFontPadding = false)),
+                    maxLines = 1, color = ink)
             }
-            Text(sample,
-                modifier = Modifier.paddingFromBaseline(top = with(density) { 28.sp.toDp() }, bottom = with(density) { 10.sp.toDp() }),
-                style = MaterialTheme.typography.titleLarge.copy(fontFamily = family, fontSize = if (progress == null) 24.sp else 12.sp,
-                    platformStyle = PlatformTextStyle(includeFontPadding = false)),
-                maxLines = 1, color = ink)
             Text(title, style = MaterialTheme.typography.labelMedium, color = ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         }
+        if (dimmed) Spacer(Modifier.matchParentSize().background(colors.surfaceContainerHighest.copy(alpha = 0.20f)))
         if (!available) {
             val corner = Modifier.align(Alignment.TopEnd).padding(5.dp).size(14.dp)
             if (downloading) CircularProgressIndicator(corner, strokeWidth = 2.dp)
-            else Icon(painterResource(R.drawable.download_24px), stringResource(R.string.reader_font_download), corner, tint = ink)
+            else Icon(painterResource(R.drawable.download_24px), stringResource(R.string.reader_font_download), corner, tint = colors.onSurfaceVariant)
         }
     }
 }
