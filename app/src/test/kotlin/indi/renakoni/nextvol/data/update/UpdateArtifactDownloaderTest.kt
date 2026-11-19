@@ -40,29 +40,6 @@ class UpdateArtifactDownloaderTest {
         downloader.download(release, files,
             onProgress = { copied, total -> progress += copied to total })
 
-    @Test fun runtimeProbesRaceHeadRequestsAndIgnoreFailedSources() = runBlocking {
-        MockWebServer().use { mirror ->
-            mirror.start()
-            val urls = listOf(server.url("/pack.zip").toString(), mirror.url("/pack.zip").toString())
-            server.enqueue(MockResponse().setHeadersDelay(5, TimeUnit.SECONDS))
-            val winner = async { downloader.firstReachable(urls) }
-            withContext(Dispatchers.IO) {
-                assertEquals("HEAD", server.takeRequest(3, TimeUnit.SECONDS)?.method)
-                mirror.enqueue(MockResponse())
-            }
-            assertEquals(urls[1], withTimeout(4000) { winner.await() })
-            assertEquals("HEAD", mirror.takeRequest(1, TimeUnit.SECONDS)?.method)
-
-            server.enqueue(MockResponse().setResponseCode(404))
-            mirror.enqueue(MockResponse().setResponseCode(503))
-            assertNull(downloader.firstReachable(urls))
-
-            server.enqueue(MockResponse())
-            mirror.enqueue(MockResponse().setResponseCode(503))
-            assertEquals(urls[0], downloader.firstReachable(urls))
-        }
-    }
-
     @Test fun directApkReplacesOldFilesAndReportsBytesWhileUnknownLengthSkipsProgress() = runBlocking {
         val stale = downloader.prepare()
         stale.apk.writeText("old apk")

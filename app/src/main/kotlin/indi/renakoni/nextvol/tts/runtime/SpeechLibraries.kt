@@ -33,8 +33,8 @@ internal enum class SpeechRuntimePack(val id: String) {
     val downloadUrls: List<String> get() {
         val url = spec.getString("url")
         val prefix = "${ProjectLinks.GITHUB}/releases/download/"
-        return if (url.startsWith(prefix)) listOf(url, "${ProjectLinks.DOWNLOADS}/releases/${url.removePrefix(prefix)}")
-            else listOf(url)
+        if (!url.startsWith(prefix)) return listOf(url)
+        return listOf(url, "${ProjectLinks.DOWNLOADS}/releases/${url.substring(prefix.length)}")
     }
     val sha256 get() = spec.getString("sha256")
     val root get() = File(SpeechLibraries.context.noBackupFilesDir, "speech-runtimes/$id")

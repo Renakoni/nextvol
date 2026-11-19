@@ -2,15 +2,14 @@ package indi.renakoni.nextvol.data.update
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -54,19 +53,31 @@ class UpdateArtifactDownloader @Inject constructor(
         }
     }
 
-    internal suspend fun firstReachable(urls: List<String>): String? = channelFlow {
-        for (url in urls) launch(Dispatchers.IO) {
-            val call = client.newCall(Request.Builder().url(url).head().build())
-            call.timeout().timeout(8, TimeUnit.SECONDS)
-            val reachable = try {
-                call.useResponse { it.isSuccessful }
-            } catch (_: IOException) {
-                false
+    internal suspend fun selectDownloadUrl(urls: List<String>): String? {
+        urls.singleOrNull()?.let { return it }
+        val results = Channel<String?>(urls.size)
+        val calls = urls.map { client.newCall(Request.Builder().url(it).head().build()) }
+        val callback = object : Callback {
+            override fun onFailure(call: Call, e: IOException) { results.trySend(null) }
+            override fun onResponse(call: Call, response: Response) {
+                results.trySend(response.use { if (it.code == 200) it.request.url.toString() else null })
             }
-            if (reachable) send(url)
         }
-    }.firstOrNull()
+        try {
+            return withTimeoutOrNull(8_000) {
+                calls.forEach { it.enqueue(callback) }
+                repeat(calls.size) {
+                    val url = results.receive()
+                    if (url != null) return@withTimeoutOrNull url
+                }
+                null
+            }
+        } finally {
+            calls.forEach { it.cancel() }
+        }
+    }
 
+    @OptIn(InternalCoroutinesApi::class)
     internal suspend fun downloadVerified(
         url: String, sha256: String, destination: File,
         onProgress: suspend (copied: Long, total: Long) -> Unit,
@@ -74,45 +85,40 @@ class UpdateArtifactDownloader @Inject constructor(
         val request = Request.Builder().url(url).get().build()
         val digest = MessageDigest.getInstance("SHA-256")
         val task = currentCoroutineContext()
-        client.newCall(request).useResponse { response ->
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-            val total = response.body.contentLength()
-            val input = response.body.byteStream()
-            FileOutputStream(destination).use { output ->
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                var copied = 0L
-                while (true) {
-                    task.ensureActive()
-                    val bytes = input.read(buffer)
-                    if (bytes < 0) break
-                    output.write(buffer, 0, bytes)
-                    digest.update(buffer, 0, bytes)
-                    copied += bytes
-                    if (total > 0) onProgress(copied, total)
-                }
-                if (copied == 0L) return false
-            }
-        }
-        val actual = digest.digest().joinToString("") { "%02x".format(it) }
-        if (actual != sha256) throw IOException("SHA-256 mismatch")
-        task.ensureActive()
-        return true
-    }
-
-    @OptIn(InternalCoroutinesApi::class)
-    private suspend inline fun <T> Call.useResponse(read: (Response) -> T): T {
-        val task = currentCoroutineContext()
-        // Cancel the socket even while waiting for headers or a stalled read.
+        val call = client.newCall(request)
+        // A stalled socket cannot reach the copy loop's cancellation check.
         val cancellation = task.job.invokeOnCompletion(onCancelling = true, invokeImmediately = true) {
-            if (it != null) cancel()
+            if (it != null) call.cancel()
         }
         try {
-            return execute().use(read)
+            call.execute().use { response ->
+                if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+                val total = response.body.contentLength()
+                val input = response.body.byteStream()
+                FileOutputStream(destination).use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var copied = 0L
+                    while (true) {
+                        task.ensureActive()
+                        val bytes = input.read(buffer)
+                        if (bytes < 0) break
+                        output.write(buffer, 0, bytes)
+                        digest.update(buffer, 0, bytes)
+                        copied += bytes
+                        if (total > 0) onProgress(copied, total)
+                    }
+                    if (copied == 0L) return false
+                }
+            }
         } catch (failure: IOException) {
             task.ensureActive()
             throw failure
         } finally {
             cancellation.dispose()
         }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (actual != sha256) throw IOException("SHA-256 mismatch")
+        task.ensureActive()
+        return true
     }
 }

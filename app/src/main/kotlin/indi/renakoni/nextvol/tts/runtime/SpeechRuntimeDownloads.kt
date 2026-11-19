@@ -75,7 +75,7 @@ internal class SpeechRuntimeDownloads @Inject constructor(
         try {
             // Only a complete, APK-pinned archive may supply executable libraries.
             var lastPercent = -1
-            val url = downloader.firstReachable(pack.downloadUrls)
+            val url = downloader.selectDownloadUrl(pack.downloadUrls)
                 ?: throw IOException(SpeechLibraries.context.getString(R.string.tts_runtime_sources_unreachable))
             if (!downloader.downloadVerified(url, pack.sha256, archive) { copied, total ->
                 val progress = (copied * 100 / total).toInt()
