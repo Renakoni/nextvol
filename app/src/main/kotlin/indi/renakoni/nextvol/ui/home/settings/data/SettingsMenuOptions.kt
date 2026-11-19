@@ -1,11 +1,13 @@
 package indi.renakoni.nextvol.ui.home.settings.data
 
+import androidx.core.os.LocaleListCompat
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.update.UpdatePlatform
 import indi.renakoni.nextvol.ui.components.MenuOptions
 import indi.renakoni.nextvol.ui.components.MenuOptions.Option
 import indi.renakoni.nextvol.utils.DateFormat
 import indi.renakoni.nextvol.utils.DateOrder
+import java.util.Locale
 
 object SettingsMenuOptions {
     data object UpdatePlatformOptions: MenuOptions(
@@ -22,6 +24,23 @@ object SettingsMenuOptions {
         Option("Enabled", R.string.key_dark_mode_enabled),
         Option("Disabled", R.string.key_dark_mode_disabled)
     )
+
+    data object InterfaceLanguageOptions : MenuOptions(
+        Option("", R.string.follow_system),
+        Option("en", R.string.key_locale_en),
+        Option("zh-Hans-CN", R.string.key_locale_zh_cn),
+        Option("zh-Hant-TW", R.string.key_locale_zh_tw),
+    ) {
+        fun selectedKey(locales: LocaleListCompat): String {
+            if (locales.isEmpty) return ""
+            for (index in 0 until locales.size()) {
+                val locale = locales[index] ?: continue
+                optionList.firstOrNull { LocaleListCompat.matchesLanguageAndScript(Locale.forLanguageTag(it.key), locale) }
+                    ?.let { return it.key }
+            }
+            return "en"
+        }
+    }
 
     data object AppLocaleOptions: MenuOptions(
         Option("none", R.string.key_locale_none),

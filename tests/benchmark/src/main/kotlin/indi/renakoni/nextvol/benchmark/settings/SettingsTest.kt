@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.benchmark.settings
 
-import android.os.Build
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
@@ -57,17 +56,9 @@ class SettingsTest : UiAutomatorTest() {
     fun languageAndFormatsOpenAndReturn() {
         openSettings()
         clickScrolledText("Language")
-        device.waitForIdle()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            assertForegroundPackage("com.android.settings")
-            pressBack()
-            assertForegroundPackage(TARGET_PACKAGE)
-            openAppSettings()
-        } else {
-            assertForegroundPackage(TARGET_PACKAGE)
-            scrollToText("Set the app language (Android 13+ required)")
-            scrollToText("Follow System")
-        }
+        clickText("简体中文 (中国大陆)")
+        clickScrolledText("语言")
+        clickText("English")
 
         clickScrolledText("Formats")
         assertText("Formats")
