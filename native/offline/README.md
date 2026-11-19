@@ -7,8 +7,8 @@ SDKs or grant an SDK license.
 Sherpa and its ONNX Runtime continue to build from `native/matcha` and
 `native/onnxruntime`. Microsoft client SDK 1.45.0 comes from its official Maven
 AAR so Azure synthesis remains available in the base application. Download the
-vendor bundle in Speech settings → Speech runtimes. The app verifies the SHA-256
-pinned in `runtime.json`, extracts the ZIP to a private revision directory and
+vendor bundle in Speech settings → Speech runtimes. The app downloads the ZIP
+from the release URL in `runtime.json` or its NextVol mirror, extracts it to a private revision directory and
 loads the arm64 SDK libraries on demand. The archive contains
 `jniLibs/arm64-v8a/` and `assets/offline-native/`. The host keeps the JNI
 declarations. Voice models and SDK authorizations are supplied separately.

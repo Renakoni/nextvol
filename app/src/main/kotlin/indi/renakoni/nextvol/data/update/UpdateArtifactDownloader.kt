@@ -45,7 +45,10 @@ class UpdateArtifactDownloader @Inject constructor(
         onProgress: suspend (copied: Long, total: Long) -> Unit,
     ): File? {
         try {
-            if (!downloadVerified(release.downloadUrl, release.sha256, files.temporary, onProgress)) return null
+            val downloaded = downloadFile(release.downloadUrl, files.temporary, release.sha256) { copied, total ->
+                if (total > 0) onProgress(copied, total)
+            }
+            if (!downloaded) return null
             if (!files.temporary.renameTo(files.apk)) throw IOException("Cannot save update APK")
             return files.apk
         } finally {
@@ -78,12 +81,12 @@ class UpdateArtifactDownloader @Inject constructor(
     }
 
     @OptIn(InternalCoroutinesApi::class)
-    internal suspend fun downloadVerified(
-        url: String, sha256: String, destination: File,
+    internal suspend fun downloadFile(
+        url: String, destination: File, expectedSha256: String? = null,
         onProgress: suspend (copied: Long, total: Long) -> Unit,
     ): Boolean {
         val request = Request.Builder().url(url).get().build()
-        val digest = MessageDigest.getInstance("SHA-256")
+        val digest = expectedSha256?.let { MessageDigest.getInstance("SHA-256") }
         val task = currentCoroutineContext()
         val call = client.newCall(request)
         // A stalled socket cannot reach the copy loop's cancellation check.
@@ -103,9 +106,9 @@ class UpdateArtifactDownloader @Inject constructor(
                         val bytes = input.read(buffer)
                         if (bytes < 0) break
                         output.write(buffer, 0, bytes)
-                        digest.update(buffer, 0, bytes)
+                        digest?.update(buffer, 0, bytes)
                         copied += bytes
-                        if (total > 0) onProgress(copied, total)
+                        onProgress(copied, total)
                     }
                     if (copied == 0L) return false
                 }
@@ -116,8 +119,9 @@ class UpdateArtifactDownloader @Inject constructor(
         } finally {
             cancellation.dispose()
         }
-        val actual = digest.digest().joinToString("") { "%02x".format(it) }
-        if (actual != sha256) throw IOException("SHA-256 mismatch")
+        if (digest != null && digest.digest().joinToString("") { "%02x".format(it) } != expectedSha256) {
+            throw IOException("SHA-256 mismatch")
+        }
         task.ensureActive()
         return true
     }

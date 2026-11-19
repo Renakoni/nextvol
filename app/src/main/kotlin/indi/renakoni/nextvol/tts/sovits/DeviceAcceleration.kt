@@ -27,13 +27,13 @@ internal object DeviceAcceleration {
     /** Called on an IO worker after first draw, or by an earlier speech request. */
     @Synchronized fun detect(context: Context): File? {
         if (checked) return htp
-        if (!SpeechRuntimePack.Sovits.installed) return null
+        if (!supportsRuntime(context) || !SpeechRuntimePack.Sovits.installed) return null
         checked = true
         val manufacturer = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MANUFACTURER else Build.HARDWARE
         if (!isQualcomm(manufacturer, Build.HARDWARE)) return null
         val runtime = SpeechRuntimePack.Sovits.libraries
         val updated = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
-        val key = "${Build.FINGERPRINT}\n$updated\n${SpeechRuntimePack.Sovits.sha256}"
+        val key = "${Build.FINGERPRINT}\n$updated\n${SpeechRuntimePack.Sovits.directory.name}"
         if (cachedCapability(File(context.noBackupFilesDir, "sovits-npu-capability"), key) {
             val probe = File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/qnn-probe.onnx")
             try {

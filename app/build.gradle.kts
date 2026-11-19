@@ -281,6 +281,8 @@ dependencies { implementation(files(webGpuApi)) }
 
 val packAssets = layout.buildDirectory.dir("speech-runtime-assets")
 val vendorSpec = rootProject.file("native/offline/runtime.json")
+val publishedSovitsSpec = rootProject.file("native/sovits/runtime.json")
+val publishSpeechRuntime = providers.gradleProperty("publishSpeechRuntime").map(String::toBoolean).getOrElse(false)
 val sovitsZip = layout.buildDirectory.file("outputs/speech-runtimes/gpt-sovits-arm64.zip")
 if (matchaNative) {
     val sovitsQnn by configurations.creating { isTransitive = false }
@@ -314,17 +316,17 @@ if (matchaNative) {
 }
 val prepareSpeechRuntimeCatalog by tasks.registering {
     inputs.file(vendorSpec)
-    inputs.property("native", matchaNative)
-    if (matchaNative) {
+    inputs.property("publishSpeechRuntime", publishSpeechRuntime)
+    if (publishSpeechRuntime) {
         dependsOn("packageSovitsRuntime")
         inputs.file(sovitsZip)
-    }
+    } else inputs.file(publishedSovitsSpec)
     outputs.dir(packAssets)
     doLast {
         val directory = packAssets.get().asFile.resolve("speech-runtimes").apply { mkdirs() }
         vendorSpec.copyTo(directory.resolve("vendor.json"), overwrite = true)
         val spec = directory.resolve("sovits.json")
-        if (matchaNative) {
+        if (publishSpeechRuntime) {
             val archive = sovitsZip.get().asFile
             val digest = MessageDigest.getInstance("SHA-256")
             archive.inputStream().buffered().use { stream ->
@@ -332,8 +334,8 @@ val prepareSpeechRuntimeCatalog by tasks.registering {
             }
             val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
             val url = "https://github.com/Renakoni/nextvol/releases/download/offline-runtime-sovits-$sha256/${archive.name}"
-            spec.writeText("""{"url":"$url","sha256":"$sha256"}""")
-        } else spec.delete()
+            spec.writeText("""{"url":"$url","sha256":"$sha256","size":${archive.length()}}""")
+        } else publishedSovitsSpec.copyTo(spec, overwrite = true)
     }
 }
 android.sourceSets.getByName("main").assets.srcDir(packAssets.get().asFile)

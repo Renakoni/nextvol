@@ -9,12 +9,11 @@
     <string name="tts_diagnostics_description">聽書日誌</string>
     <string name="tts_runtime_packs">語音執行庫</string>
     <string name="tts_runtime_packs_summary">下載離線朗讀所需的執行庫</string>
-    <string name="tts_runtime_vendor">廠商語音執行庫</string>
-    <string name="tts_runtime_sovits">GPT-SoVITS 執行庫</string>
+    <string name="tts_runtime_vendor">廠商語音</string>
+    <string name="tts_runtime_sovits">GPT-SoVITS</string>
     <string name="tts_runtime_installed">已安裝</string>
-    <string name="tts_runtime_unsupported">此裝置不支援</string>
     <string name="tts_runtime_download">下載</string>
-    <string name="tts_runtime_downloading">正在下載…</string>
+    <string name="tts_runtime_installing">正在安裝…</string>
     <string name="tts_runtime_sources_unreachable">無法連線至 GitHub 和 NextVol，請檢查網路後再試一次。</string>
     <string name="tts_runtime_vendor_required">請到聽書設定的「語音執行庫」下載廠商語音執行庫。</string>
 </resources>
