@@ -103,23 +103,14 @@ class ReaderLayoutInstrumentedTest {
         val original = paginateReaderComponents(components, 400, 300,
             ReaderTextLayoutInput(initial, initial.textStyle(FontFamily.Default, LocaleList("zh-CN")), measurer, 0))
         val anchor = (original[original.size / 2] as ReaderPage).anchor
-        for (font in ReaderFont.entries) {
-            val next = initial.copy(fontSize = 22f, paragraphSpacing = 9f, fontUri = font.uri)
-            val pages = paginateReaderComponents(components, 360, 230,
-                ReaderTextLayoutInput(next, next.textStyle(font.family(), LocaleList("zh-CN")), measurer, 14))
-            val containing = pages.filterIsInstance<ReaderPage>().filter { it.contains(anchor) }
-            assertEquals(1, containing.size)
-            assertTrue(containing.single().ranges.any { anchor.offset in it.start until it.end })
-        }
+        val next = initial.copy(fontSize = 22f, paragraphSpacing = 9f)
+        val pages = paginateReaderComponents(components, 360, 230,
+            ReaderTextLayoutInput(next, next.textStyle(FontFamily.Serif, LocaleList("zh-CN")), measurer, 14))
+        val containing = pages.filterIsInstance<ReaderPage>().single { it.contains(anchor) }
+        assertTrue(containing.ranges.any { anchor.offset in it.start until it.end })
     }
 
-    @Test fun presetsPersistInTheExistingFontKeyAndMissingCustomFontFallsBack() = runBlocking {
-        for (font in ReaderFont.entries) {
-            settings.fontFamilyUriUserData.set(font.uri)
-            assertEquals(font.uri, settings.fontFamilyUriUserData.get())
-            val family = loadReaderFontFamilySafe(font.uri)
-            if (font != ReaderFont.System) assertNotNull(family)
-        }
+    @Test fun missingAndInvalidCustomFontsFallBack() {
         val invalid = File(context.cacheDir, "invalid-reader-font.ttf")
         try {
             invalid.writeText("not a font")
@@ -132,9 +123,7 @@ class ReaderLayoutInstrumentedTest {
 
     @Test fun layoutControlsPreviewWhileDraggingAndPersistIndependentSpacing() {
         val imported = File.createTempFile("reader-font-test-", ".otf", context.filesDir).also(importedFiles::add)
-        context.resources.openRawResource(R.font.source_han_serif_regular).use { input ->
-            imported.outputStream().use { input.copyTo(it) }
-        }
+        File("/system/fonts").listFiles()!!.first { it.extension == "ttf" }.copyTo(imported, overwrite = true)
         runBlocking { settings.fontFamilyUriUserData.set(Uri.fromFile(imported)) }
         compose.waitUntil(5_000) { settings.fontFamilyUri == Uri.fromFile(imported) }
         var dark by mutableStateOf(false)
@@ -174,10 +163,6 @@ class ReaderLayoutInstrumentedTest {
             settings.fontSizeUserData.set(18f)
         }
         compose.waitUntil(5_000) { settings.fontSize == 18f }
-        compose.onNodeWithTag("reader-font-list").performScrollTo()
-            .performScrollToNode(hasText(context.getString(R.string.reader_font_wenkai)))
-        compose.onNodeWithText(context.getString(R.string.reader_font_wenkai)).performClick()
-        compose.waitUntil(5_000) { settings.fontFamilyUri == ReaderFont.WenKai.uri }
         saveScreenshot("reader-layout-light.png")
         compose.runOnIdle { dark = true }
         saveScreenshot("reader-layout-dark.png")

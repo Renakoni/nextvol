@@ -47,9 +47,11 @@ internal fun loadReaderTypeface(file: File): Typeface = requireNotNull(
 fun loadReaderFontFamilySafe(uri: Uri): FontFamily? {
     return try {
         if (uri == Uri.EMPTY) return null
-        ReaderFont.entries.firstOrNull { it.uri == uri }?.let { return it.family() }
+        // A preset selected in a bundled-font APK uses the system face until downloaded.
+        if (uri.scheme == "reader-font") return FontFamily.Default
         val fontFile = File(uri.path ?: return null)
         if (!fontFile.exists()) throw FileNotFoundException()
+        if (fontFile.parentFile?.name == READER_TYPEFACES) return downloadedFontFamilies.get(fontFile)
         FontFamily(loadReaderTypeface(fontFile))
     } catch (e: Exception) {
         Log.e("FontLoad", "Failed to load custom font", e)
