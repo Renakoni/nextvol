@@ -2,7 +2,9 @@ import io.nightfish.potatoepub.builder.EpubBuilder
 import java.io.File
 import java.time.LocalDateTime
 import java.util.concurrent.CancellationException
-import kotlin.test.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Test
 
 class EpubExportSafetyTest {
     @Test fun rebuildingRetainsOneSpineEntryPerChapterAndDoesNotMutateEarlierResult() {
@@ -22,7 +24,7 @@ class EpubExportSafetyTest {
     }
 
     @Test fun emptyBookThrowsRecoverableException() {
-        assertFailsWith<IllegalArgumentException> { EpubBuilder().build() }
+        assertThrows(IllegalArgumentException::class.java) { EpubBuilder().build() }
     }
 
     @Test fun cancellationIsCheckedWhileStreamingLargeResources() {
@@ -35,7 +37,7 @@ class EpubExportSafetyTest {
                 chapter { content { text("Body") } }
             }.build()
             var checks = 0
-            assertFailsWith<CancellationException> {
+            assertThrows(CancellationException::class.java) {
                 epub.save(File(directory, "cancelled.epub")) { if (++checks == 5) throw CancellationException() }
             }
             assertEquals(5, checks)

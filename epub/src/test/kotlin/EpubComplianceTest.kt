@@ -7,10 +7,10 @@ import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 
 class EpubComplianceTest {
     @Test

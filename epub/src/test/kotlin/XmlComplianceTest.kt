@@ -2,9 +2,9 @@ import io.nightfish.potatoepub.builder.SimpleContentBuilder
 import io.nightfish.potatoepub.xml.asFormatedXml
 import io.nightfish.potatoepub.xml.sanitizeXmlSimple
 import org.dom4j.DocumentHelper
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertSame
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Test
 
 class XmlComplianceTest {
     @Test
