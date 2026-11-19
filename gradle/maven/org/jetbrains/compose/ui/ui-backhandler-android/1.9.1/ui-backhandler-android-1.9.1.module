@@ -1,0 +1,246 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../ui-backhandler/1.9.1/ui-backhandler-1.9.1.module",
+    "group": "org.jetbrains.compose.ui",
+    "module": "ui-backhandler",
+    "version": "1.9.1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.5"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.activity",
+          "module": "activity-compose",
+          "version": {
+            "requires": "1.8.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "ui-backhandler-release.aar",
+          "url": "ui-backhandler-android-1.9.1.aar",
+          "size": 4183,
+          "sha512": "a83b9953107f826b94e18789a110fbd804aa9c5066159150c5bb8356e80cf416e29b43d9e516d26d8f68a3e978cd6dbd1ee7e05b65e9551f0103eb08b499566d",
+          "sha256": "8f8f37d0eb33f597608bc20f875021b1d80db6f835c138cd7cef9093c7ad4c24",
+          "sha1": "58dfa579780b07505efaab0dfa111998b7f54e98",
+          "md5": "e60965000065c460e4f8a7f7470e18a6"
+        }
+      ]
+    },
+    {
+      "name": "releaseRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.activity",
+          "module": "activity-compose",
+          "version": {
+            "requires": "1.8.0"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.androidx.lifecycle",
+          "module": "lifecycle-runtime-compose",
+          "version": {
+            "requires": "2.9.5"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.compose.annotation-internal",
+          "module": "annotation",
+          "version": {
+            "requires": "1.9.1"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.compose.runtime",
+          "module": "runtime",
+          "version": {
+            "requires": "1.9.1"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.compose.ui",
+          "module": "ui-util",
+          "version": {
+            "requires": "1.9.1"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.kotlinx",
+          "module": "kotlinx-coroutines-core",
+          "version": {
+            "requires": "1.8.0"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        }
+      ],
+      "dependencyConstraints": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.1.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "ui-backhandler-release.aar",
+          "url": "ui-backhandler-android-1.9.1.aar",
+          "size": 4183,
+          "sha512": "a83b9953107f826b94e18789a110fbd804aa9c5066159150c5bb8356e80cf416e29b43d9e516d26d8f68a3e978cd6dbd1ee7e05b65e9551f0103eb08b499566d",
+          "sha256": "8f8f37d0eb33f597608bc20f875021b1d80db6f835c138cd7cef9093c7ad4c24",
+          "sha1": "58dfa579780b07505efaab0dfa111998b7f54e98",
+          "md5": "e60965000065c460e4f8a7f7470e18a6"
+        }
+      ]
+    },
+    {
+      "name": "releaseSourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "fake-sources",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "files": [
+        {
+          "name": "ui-backhandler-android-1.9.1-sources.jar",
+          "url": "ui-backhandler-android-1.9.1-sources.jar",
+          "size": 5326,
+          "sha512": "b266fc7d91fb3799300524fce484b85b3c7e74526f7fa249e113647d8847a2eb64e20267a24c55234b097e424ec25650294233f00c81909fcd484fbb8e6e4b0e",
+          "sha256": "782d5db2ca160e68dae50c637d434912c1a980cdc27bdb408f9f5eb1bfcaf46e",
+          "sha1": "a41bc4bb7616c84c8b6655e5fe42c55b5d09cc8d",
+          "md5": "7a3d910917c3ed25e4870a69937cbaa4"
+        }
+      ]
+    }
+  ]
+}

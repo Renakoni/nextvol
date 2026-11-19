@@ -1,0 +1,725 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "sh.calvin.reorderable",
+    "module": "reorderable",
+    "version": "3.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.10.2"
+    }
+  },
+  "variants": [
+    {
+      "name": "metadataApiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.platform.type": "common"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.9.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.compose.runtime",
+          "module": "runtime",
+          "version": {
+            "requires": "1.7.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.compose.animation",
+          "module": "animation",
+          "version": {
+            "requires": "1.7.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.compose.foundation",
+          "module": "foundation",
+          "version": {
+            "requires": "1.7.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "reorderable-metadata-3.1.0.jar",
+          "url": "reorderable-3.1.0.jar",
+          "size": 10995,
+          "sha512": "14071a9d1d679e8188a9dde91508783bafe0695bac9ed1942b67c938a59ede15a6f094c8d00632d1426ce246352dca5253f44124af5e6b14d8ebdd30922b3329",
+          "sha256": "6ff303e8906dfdc2487ab41fa202b7865cd0ccef2f21540f8a7b886e8c4ef964",
+          "sha1": "58f417982dcbb62399c276cece11c3ee98b5ee9a",
+          "md5": "d03ffcc4a1c17547e0ed20594000e948"
+        }
+      ]
+    },
+    {
+      "name": "metadataSourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.platform.type": "common"
+      },
+      "files": [
+        {
+          "name": "reorderable-kotlin-3.1.0-sources.jar",
+          "url": "reorderable-3.1.0-sources.jar",
+          "size": 25160,
+          "sha512": "7ac5dad13dc095c88aa0d7fcccb660f150629c6c1ab6de92485d5c7d25cc7c8ca005ed4d6abf5ae133192d49c2996d0cf42abfcb601cb43e45bf7779399ceb1e",
+          "sha256": "71caff203ad0eacff5baea15f79ad1e668a6566c1400dbd36a35e4c12c5e5bc8",
+          "sha1": "f0feb80c207be3c217a5f1c3768041fe731a874d",
+          "md5": "71d87a4d3ec08a73fc7244199048c040"
+        }
+      ]
+    },
+    {
+      "name": "debugApiElements-published",
+      "attributes": {
+        "com.android.build.api.attributes.BuildTypeAttr": "debug",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-android-debug/3.1.0/reorderable-android-debug-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-android-debug",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "debugRuntimeElements-published",
+      "attributes": {
+        "com.android.build.api.attributes.BuildTypeAttr": "debug",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-android-debug/3.1.0/reorderable-android-debug-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-android-debug",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "debugSourcesElements-published",
+      "attributes": {
+        "com.android.build.api.attributes.BuildTypeAttr": "debug",
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-android-debug/3.1.0/reorderable-android-debug-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-android-debug",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "releaseApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-android/3.1.0/reorderable-android-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-android",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "releaseRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-android/3.1.0/reorderable-android-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-android",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "releaseSourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-android/3.1.0/reorderable-android-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-android",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosArm64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iosarm64/3.1.0/reorderable-iosarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iosarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosArm64SourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.native.target": "ios_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iosarm64/3.1.0/reorderable-iosarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iosarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosArm64ResourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.libraryelements": "kotlin-multiplatformresources",
+        "org.gradle.usage": "kotlin-multiplatformresources",
+        "org.jetbrains.kotlin.native.target": "ios_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iosarm64/3.1.0/reorderable-iosarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iosarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosArm64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iosarm64/3.1.0/reorderable-iosarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iosarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosSimulatorArm64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_simulator_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iossimulatorarm64/3.1.0/reorderable-iossimulatorarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iossimulatorarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosSimulatorArm64SourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.native.target": "ios_simulator_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iossimulatorarm64/3.1.0/reorderable-iossimulatorarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iossimulatorarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosSimulatorArm64ResourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.libraryelements": "kotlin-multiplatformresources",
+        "org.gradle.usage": "kotlin-multiplatformresources",
+        "org.jetbrains.kotlin.native.target": "ios_simulator_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iossimulatorarm64/3.1.0/reorderable-iossimulatorarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iossimulatorarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosSimulatorArm64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_simulator_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iossimulatorarm64/3.1.0/reorderable-iossimulatorarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iossimulatorarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosX64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iosx64/3.1.0/reorderable-iosx64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iosx64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosX64SourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iosx64/3.1.0/reorderable-iosx64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iosx64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosX64ResourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.libraryelements": "kotlin-multiplatformresources",
+        "org.gradle.usage": "kotlin-multiplatformresources",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iosx64/3.1.0/reorderable-iosx64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iosx64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "iosX64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-iosx64/3.1.0/reorderable-iosx64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-iosx64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "jsApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "available-at": {
+        "url": "../../reorderable-js/3.1.0/reorderable-js-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-js",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "jsRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "available-at": {
+        "url": "../../reorderable-js/3.1.0/reorderable-js-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-js",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "jsSourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "available-at": {
+        "url": "../../reorderable-js/3.1.0/reorderable-js-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-js",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "jsResourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.libraryelements": "kotlin-multiplatformresourcesjs",
+        "org.gradle.usage": "kotlin-multiplatformresourcesjs",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "available-at": {
+        "url": "../../reorderable-js/3.1.0/reorderable-js-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-js",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "jvmApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-jvm/3.1.0/reorderable-jvm-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-jvm",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "jvmRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-jvm/3.1.0/reorderable-jvm-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-jvm",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "jvmSourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "available-at": {
+        "url": "../../reorderable-jvm/3.1.0/reorderable-jvm-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-jvm",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "macosArm64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "macos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-macosarm64/3.1.0/reorderable-macosarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-macosarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "macosArm64SourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.native.target": "macos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-macosarm64/3.1.0/reorderable-macosarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-macosarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "macosArm64ResourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.libraryelements": "kotlin-multiplatformresources",
+        "org.gradle.usage": "kotlin-multiplatformresources",
+        "org.jetbrains.kotlin.native.target": "macos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-macosarm64/3.1.0/reorderable-macosarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-macosarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "macosArm64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "macos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-macosarm64/3.1.0/reorderable-macosarm64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-macosarm64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "macosX64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "macos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-macosx64/3.1.0/reorderable-macosx64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-macosx64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "macosX64SourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.native.target": "macos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-macosx64/3.1.0/reorderable-macosx64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-macosx64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "macosX64ResourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.libraryelements": "kotlin-multiplatformresources",
+        "org.gradle.usage": "kotlin-multiplatformresources",
+        "org.jetbrains.kotlin.native.target": "macos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-macosx64/3.1.0/reorderable-macosx64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-macosx64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "macosX64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "macos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../reorderable-macosx64/3.1.0/reorderable-macosx64-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-macosx64",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "wasmJsApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.platform.type": "wasm",
+        "org.jetbrains.kotlin.wasm.target": "js"
+      },
+      "available-at": {
+        "url": "../../reorderable-wasm-js/3.1.0/reorderable-wasm-js-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-wasm-js",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "wasmJsRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.platform.type": "wasm",
+        "org.jetbrains.kotlin.wasm.target": "js"
+      },
+      "available-at": {
+        "url": "../../reorderable-wasm-js/3.1.0/reorderable-wasm-js-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-wasm-js",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "wasmJsSourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.platform.type": "wasm",
+        "org.jetbrains.kotlin.wasm.target": "js"
+      },
+      "available-at": {
+        "url": "../../reorderable-wasm-js/3.1.0/reorderable-wasm-js-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-wasm-js",
+        "version": "3.1.0"
+      }
+    },
+    {
+      "name": "wasmJsResourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "non-jvm",
+        "org.gradle.libraryelements": "kotlin-multiplatformresourcesjs",
+        "org.gradle.usage": "kotlin-multiplatformresourcesjs",
+        "org.jetbrains.kotlin.platform.type": "wasm",
+        "org.jetbrains.kotlin.wasm.target": "js"
+      },
+      "available-at": {
+        "url": "../../reorderable-wasm-js/3.1.0/reorderable-wasm-js-3.1.0.module",
+        "group": "sh.calvin.reorderable",
+        "module": "reorderable-wasm-js",
+        "version": "3.1.0"
+      }
+    }
+  ]
+}
