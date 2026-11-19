@@ -7,7 +7,7 @@
 正式 Release 和 Snapshot APK 仅支持 `arm64-v8a`，无法在其他架构或 32 位 Android 系统上安装。
 继续发布单个 APK，文件名与更新协议不变。
 Debug、Benchmark 和 ReaderBenchmark 保留其他架构，用于开发及模拟器验证。
-厂商语音和 GPT-SoVITS 运行库由听书设置按需下载。厂商包 v5 和按内容摘要命名的 GPT-SoVITS 包随下一次正式 Release 分发，见 #1094。APK 内的 SHA-256 固定了可执行组件的内容。
+从 0.2.2 起，厂商语音和 GPT-SoVITS 运行库由听书设置按需下载。APK 内的 SHA-256 固定了两个 ZIP 的内容。
 发布工作流单独保存原生符号表，供崩溃定位，不放入 APK。
 
 ## 网站接口
@@ -38,9 +38,11 @@ APK 与 `SHA256SUMS` 放在 `/releases/vX.Y.Z/`，使用带版本的不可变地
 ## 发布与同步
 
 1. 现有 `Prepare signed release` 工作流构建签名 APK 并创建草稿 Release。
-2. 审阅并发布正式 `vX.Y.Z` Release，附件必须包含唯一的
+2. 从签名 APK 读取 `assets/speech-runtimes/{vendor,sovits}.json`。厂商 v5 按 `native/offline/README.md` 制作，GPT-SoVITS ZIP 取自同次工作流的 `NextVol-X.Y.Z-speech-runtime` 附件。
+   按 APK 中的下载地址准备组件草稿，核对附件摘要。已有相同摘要的组件可以复用。发布应用前先公开组件，组件使用预发布且不设为 Latest。
+3. 审阅并发布正式 `vX.Y.Z` Release，附件必须包含唯一的
    `NextVol-X.Y.Z-release.apk` 和 `SHA256SUMS`。
-3. `Sync formal app release to Nextvol api` 自动验证附件哈希、正式签名证书、
+4. `Sync formal app release to Nextvol api` 自动验证附件哈希、正式签名证书、
    包名以及标签对应的 Android 版本；附件上传成功后才发布清单。
    重试时复用哈希与大小一致的已有对象，不重复上传。
 
