@@ -4,7 +4,6 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
-import androidx.test.uiautomator.Direction
 import indi.renakoni.nextvol.benchmark.ui.UiAutomatorTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -176,7 +175,7 @@ class SettingsTest : UiAutomatorTest() {
     }
 
     @Test
-    fun themeSelectionAndReaderTypographyControlsAreReachable() {
+    fun themeSelectionAndReaderAppearanceSettingsAreReachable() {
         openSettings()
         clickText("Theme & Paper")
 
@@ -190,10 +189,6 @@ class SettingsTest : UiAutomatorTest() {
         scrollToText("Text Color")
         scrollToText("System")
         scrollToText("Import font")
-        scrollToText("Font Size")
-        scrollToText("Font Weight")
-        scrollToText("Line Spacing")
-        scrollToText("Background Image", direction = Direction.UP)
     }
 
     @Test

@@ -49,14 +49,6 @@ internal data class ReaderLayoutSettings(
     val start: Float,
     val end: Float,
 ) {
-    init {
-        require(fontSize in ReaderLayoutValues.fontSizeRange)
-        require(fontWeight in ReaderLayoutValues.fontWeightRange)
-        require(lineSpacing in ReaderLayoutValues.lineSpacingRange)
-        require(paragraphSpacing in ReaderLayoutValues.paragraphSpacingRange)
-        require(listOf(top, bottom, start, end).all { it in ReaderLayoutValues.marginRange })
-    }
-
     fun textStyle(fontFamily: FontFamily?, locales: LocaleList): TextStyle =
         AppTypography.bodyMedium.copy(
             fontSize = fontSize.sp,
@@ -95,8 +87,11 @@ internal data class ReaderTextLayoutInput(
 internal val LocalReaderTextLayout = staticCompositionLocalOf<ReaderTextLayoutInput?> { null }
 
 @Composable
-internal fun rememberReaderTextLayout(settings: ReaderSettings): ReaderTextLayoutInput {
-    val layout = ReaderLayoutSettings.from(settings)
+internal fun rememberReaderTextLayout(settings: ReaderSettings): ReaderTextLayoutInput =
+    rememberReaderTextLayout(ReaderLayoutSettings.from(settings))
+
+@Composable
+internal fun rememberReaderTextLayout(layout: ReaderLayoutSettings): ReaderTextLayoutInput {
     val font = remember(layout.fontUri) { loadReaderFontFamilySafe(layout.fontUri) }
     val locales = LocalTextLocaleList.current
     val measurer = rememberTextMeasurer()
