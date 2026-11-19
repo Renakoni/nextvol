@@ -42,11 +42,11 @@ APK 与 `SHA256SUMS` 放在 `/releases/vX.Y.Z/`，使用带版本的不可变地
    按 APK 中的下载地址准备组件草稿，核对附件摘要。已有相同摘要的组件可以复用。发布应用前先公开组件，组件使用预发布且不设为 Latest。发布新版组件后将 APK 中的 `sovits.json` 更新到 `native/sovits/runtime.json`，供后续开发构建使用。
 3. 审阅并发布正式 `vX.Y.Z` Release，附件必须包含唯一的
    `NextVol-X.Y.Z-release.apk` 和 `SHA256SUMS`。
-4. `Sync formal app release to Nextvol api` 自动验证附件哈希、正式签名证书、
-   包名以及标签对应的 Android 版本；附件上传成功后才发布清单。
-   重试时复用哈希与大小一致的已有对象，不重复上传。
+4. `Sync formal app release to Nextvol api` 验证正式 APK，再从其中的目录读取运行库地址和摘要。
+   组件镜像位于 `https://download.nextvolcom.com/releases/<组件标签>/<ZIP 文件名>`。
+   APK、校验文件和所需运行库全部上传后才切换正式清单。重试时复用摘要和大小一致的已有对象。
 
-草稿、预发布和非应用组件不会同步。上传失败不会切换清单；较旧的版本不会覆盖当前版本。
+只有正式应用发布会触发同步。上传失败时保留现有清单；较旧的版本不会覆盖当前版本。
 同一 Android 版本号的不同内容或同一文件地址的不同内容会被拒绝。
 同步任务串行执行。需要重试或补传既有版本时，在 main 上手动运行同步工作流并填写标签。
 工作流合并到 main 后才会启用正式发布触发器。

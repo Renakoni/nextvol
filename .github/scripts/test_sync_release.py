@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+from zipfile import ZipFile
 
 from botocore.exceptions import ClientError
 import sync_release as sync
@@ -19,7 +20,8 @@ class ReleaseSyncTest(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.apk = Path(self.directory.name) / "NextVol-0.1.1-release.apk"
-        self.apk.write_bytes(b"signed fixture")
+        with ZipFile(self.apk, "w") as archive:
+            archive.writestr("AndroidManifest.xml", b"fixture")
         self.digest = hashlib.sha256(self.apk.read_bytes()).hexdigest()
         self.checksums = self.apk.with_name("SHA256SUMS")
         self.checksums.write_text(f"{self.digest}  {self.apk.name}\n")
@@ -80,6 +82,26 @@ class ReleaseSyncTest(unittest.TestCase):
         with self.assertRaises(OSError):
             self.publish()
         self.store.put_object.assert_not_called()
+
+    def test_runtime_bytes_match_signed_catalog_before_publish_and_retry(self):
+        name, tag = "vendor.zip", "offline-runtime-5"
+        digest = hashlib.sha256(b"component").hexdigest()
+        spec = dict(url=f"https://github.com/{sync.REPOSITORY}/releases/download/{tag}/{name}", sha256=digest)
+        with ZipFile(self.apk, "a") as archive:
+            archive.writestr("assets/speech-runtimes/vendor.json", json.dumps(spec))
+        self.manifest["sha256"] = hashlib.sha256(self.apk.read_bytes()).hexdigest()
+        release = dict(draft=False, assets=[dict(name=name, size=9, digest=f"sha256:{digest}")])
+        path = self.apk.with_name(name)
+        with patch.object(sync, "gh_api", return_value=release), patch.object(sync.subprocess, "run") as fetch:
+            fetch.side_effect = lambda *args, **kwargs: path.write_bytes(b"incorrect")
+            with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+                self.publish()
+            self.store.put_object.assert_not_called()
+            fetch.side_effect = lambda *args, **kwargs: path.write_bytes(b"component")
+            self.publish()
+            self.assertEqual(digest, self.heads[f"releases/{tag}/{name}"]["Metadata"]["sha256"])
+            self.publish()
+            self.assertEqual(2, fetch.call_count)
 
     def test_old_versions_and_changed_content_never_overwrite_current_release(self):
         for previous in (self.manifest | dict(versionCode=10300011), self.manifest | dict(sha256="different")):
