@@ -130,8 +130,8 @@
     <string name="settings_get_updates_desc">检查并安装最新版本</string>
     <string name="settings_distribution_platform">更新分发平台</string>
     <string name="reader_settings">阅读设置</string>
-    <string name="settings_reader_font_size">字体大小</string>
-    <string name="settings_reader_line_spacing">行间距</string>
+    <string name="settings_reader_font_size">字号</string>
+    <string name="settings_reader_line_spacing">行距</string>
     <string name="settings_reader_keep_screen_on">保持屏幕常亮</string>
     <string name="settings_reader_keep_screen_on_desc">在阅读时保持屏幕亮起。可能会增加电量消耗</string>
     <string name="settings_reader_battery_indicator">电量显示</string>

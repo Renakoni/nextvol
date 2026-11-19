@@ -13,6 +13,20 @@ plugins {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "vendoredAndroidLibraries"
+                    url = uri("gradle/maven")
+                }
+            }
+            filter {
+                listOf("", "-android", "-android-debug").forEach { suffix ->
+                    includeModule("sh.calvin.reorderable", "reorderable$suffix")
+                    includeModule("org.jetbrains.compose.ui", "ui-backhandler$suffix")
+                }
+            }
+        }
         google()
         mavenCentral()
         maven { setUrl("https://jitpack.io") }

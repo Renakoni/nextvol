@@ -78,7 +78,7 @@ import indi.renakoni.nextvol.ui.book.reader.ReaderPaperPage
 import indi.renakoni.nextvol.ui.book.reader.ReaderMotionSwitch
 import indi.renakoni.nextvol.ui.book.reader.ReaderFontEntry
 import indi.renakoni.nextvol.ui.book.reader.ReaderLayoutPreview
-import indi.renakoni.nextvol.ui.book.reader.ReaderLayoutSettings
+import indi.renakoni.nextvol.ui.book.reader.ReaderLayoutDraft
 import indi.renakoni.nextvol.ui.book.reader.ReaderTypographyControls
 import indi.renakoni.nextvol.ui.book.reader.ThemeSettingsEditor
 import indi.renakoni.nextvol.ui.components.SectionHeader
@@ -424,17 +424,10 @@ fun ReaderTextSettings(settingState: ReaderSettingsEditor, onClickChangeTextColo
 
         ReaderFontEntry(settingState, Modifier.background(colorScheme.surfaceContainer))
     }
-    val stored = ReaderLayoutSettings.from(settingState)
-    var draft by remember(stored) { mutableStateOf(stored) }
-    val previewSettings = object : ReaderSettingsEditor by settingState {
-        override val fontSize = draft.fontSize
-        override val fontWeigh = draft.fontWeight
-        override val fontLineHeight = draft.lineSpacing
-        override val paragraphSpacing = draft.paragraphSpacing
-    }
-    ReaderLayoutPreview(previewSettings, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).height(160.dp))
+    val draft = ReaderLayoutDraft.rememberDraft(settingState)
+    ReaderLayoutPreview(settingState, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).height(160.dp), draft.layout)
     SettingsCategory {
-        ReaderTypographyControls(settingState, draft) { draft = it }
+        ReaderTypographyControls(settingState, draft)
     }
 }
 
