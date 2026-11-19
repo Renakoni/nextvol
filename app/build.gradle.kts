@@ -45,6 +45,7 @@ if (suppliedOfflineRuntime != null) {
 }
 if (matchaNative) {
     val buildMatchaNative by tasks.registering(Exec::class) {
+        inputs.file(rootProject.file("native/sovits/onnxruntime-webgpu.aar"))
         inputs.property("host", System.getProperty("os.name"))
         inputs.files(rootProject.fileTree("native/matcha") { exclude("build/**", "__pycache__/**") })
         inputs.files(rootProject.fileTree("native/onnxruntime") { exclude("build/**", "__pycache__/**") })
@@ -65,6 +66,24 @@ if (matchaNative) {
         )
     }
     tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(buildMatchaNative) }
+
+    // Only the native HTP components enter the APK. Java and WebGPU use their own ORT.
+    val sovitsQnn by configurations.creating { isTransitive = false }
+    dependencies {
+        add(sovitsQnn.name, "com.microsoft.onnxruntime:onnxruntime-android-qnn:1.27.0@aar")
+        add(sovitsQnn.name, "com.qualcomm.qti:qnn-runtime:2.42.0@aar")
+    }
+    val prepareSovitsQnn by tasks.registering(Sync::class) {
+        from({ sovitsQnn.map { zipTree(it) } }) {
+            include("jni/arm64-v8a/libonnxruntime.so", "jni/arm64-v8a/libQnnHtp*.so", "jni/arm64-v8a/libQnnSystem.so")
+            eachFile { path = path.removePrefix("jni/") }
+            rename("libonnxruntime\\.so", "libonnxruntime-qnn.so")
+            includeEmptyDirs = false
+        }
+        into(layout.buildDirectory.dir("sovits-qnn"))
+    }
+    tasks.matching { it.name.startsWith("merge") && it.name.endsWith("JniLibFolders") }
+        .configureEach { dependsOn(prepareSovitsQnn) }
 }
 
 // Audio processing is independent of the arm64-only offline model runtime.
@@ -103,6 +122,7 @@ android {
     sourceSets.getByName("main").jniLibs.srcDir(offlineRuntime.resolve("jniLibs"))
     sourceSets.getByName("main").assets.srcDir(offlineRuntime.resolve("assets"))
     if (matchaNative) {
+        sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("sovits-qnn").get().asFile)
         sourceSets.getByName("main").jniLibs.srcDir(matchaOutput.resolve("jniLibs"))
         sourceSets.getByName("main").assets.srcDir(matchaOutput.resolve("assets"))
     }
@@ -240,6 +260,8 @@ android {
     }
     packaging {
         // Embedded engines such as Sogou open companion libraries by their filesystem paths.
+        if (!matchaNative) jniLibs.excludes += setOf("**/libortwebgpu.so", "**/libonnxruntime4j_jni.so")
+        jniLibs.keepDebugSymbols += "**/libQnnHtp*Skel.so"
         jniLibs.useLegacyPackaging = true
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -357,6 +379,7 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 dependencies {
+    implementation(files(rootProject.file("native/sovits/onnxruntime-webgpu.aar")))
     implementation("com.optimaize.languagedetector:language-detector:0.6") {
         exclude(group = "com.intellij", module = "annotations")
         // Profiles are read with the existing kotlinx JSON parser, without JSONIC's desktop reflection.

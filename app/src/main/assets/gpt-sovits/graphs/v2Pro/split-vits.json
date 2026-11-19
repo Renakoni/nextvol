@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "format": "genie_v2proplus_split_v1",
+  "boundary": "/vq_model/Mul_2_output_0",
+  "source_sha256": "621b03ebfd4818f97eaf4c942a2f39435fffa1348bc2c158eca87d8e53109a81",
+  "graphs": {
+    "split-encoder.onnx": "1c074dade2f8802e3d8ac66a0a6f3622b742e849d0b08142408a43d6bc12ab8b",
+    "split-hifigan.onnx": "165cccd2dc86f5808ff5bae82952ce22caf795974252a7d5cbc6f3e1b2438eda",
+    "v2-htp-body.onnx": "b61fa2bed4338d8475bafa6ec035c49fde967f4e9768710e65d96c3c79b64aa1",
+    "v2-htp-head.onnx": "9147373969e67e0d8150ac7666a52baae2c3871ae2247a124f8d56465ecd8fd8",
+    "v2-htp-stem.onnx": "bf6503d83ac5ca2d747e43f537e9014be3803eb0fe339e77da875d6e628f44c5"
+  }
+}

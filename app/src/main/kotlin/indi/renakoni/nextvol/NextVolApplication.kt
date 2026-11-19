@@ -142,6 +142,7 @@ class NextVolApplication : Application(), Configuration.Provider, coil3.Singleto
     internal fun startDeferredWork() {
         if (deferredStarted) return
         deferredStarted = true
+        coroutineScope.launch { indi.renakoni.nextvol.tts.sovits.DeviceAcceleration.detect(this@NextVolApplication) }
         coroutineScope.launch { bangumiSync.get().start(coroutineScope) }
         coroutineScope.launch {
             updateChecks.get().startAutomaticCheck()

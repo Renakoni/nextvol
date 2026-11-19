@@ -37,3 +37,12 @@ target_link_options(nextvol-espeak PRIVATE -Wl,--exclude-libs,ALL)
 include(sources.cmake)
 add_library(nextvol-matcha SHARED jni.cc name_model.cc ${SHERPA_SOURCES})
 target_link_libraries(nextvol-matcha PRIVATE kaldifst piper_phonemize offline-istft onnxruntime android log)
+
+set(SOVITS_AAR "${CMAKE_CURRENT_SOURCE_DIR}/../sovits/onnxruntime-webgpu.aar")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SOVITS_AAR}")
+file(ARCHIVE_EXTRACT INPUT "${SOVITS_AAR}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/sovits-ort"
+  PATTERNS "jni/arm64-v8a/libortwebgpu.so")
+add_library(sovits-ort SHARED IMPORTED)
+set_target_properties(sovits-ort PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/sovits-ort/jni/arm64-v8a/libortwebgpu.so")
+add_library(nextvol-sovits SHARED sovits.cc sovits_jni.cc qnn_session.cpp)
+target_link_libraries(nextvol-sovits PRIVATE sovits-ort log dl)

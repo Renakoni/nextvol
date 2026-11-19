@@ -15,6 +15,8 @@ import indi.renakoni.nextvol.tts.matcha.MatchaSpeechSynthesizer
 import indi.renakoni.nextvol.tts.matcha.modelKey
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRuntimeInfo
+import indi.renakoni.nextvol.tts.sovits.GptSovitsSynthesizer
+import indi.renakoni.nextvol.tts.sovits.GptSovitsVoice
 import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import indi.renakoni.nextvol.tts.offline.offlineSpeechExclusiveGroup
@@ -46,6 +48,13 @@ class SpeechSynthesizers @Inject constructor(
 ) {
     /** Development entry for an already installed Sherpa model. */
     fun matcha(resources: MatchaResources): SpeechSynthesizer = MatchaSpeechSynthesizer(resources)
+
+    /** Backend entry for a locally provisioned V2 Pro or V2 Pro Plus voice. */
+    fun gptSovits(voice: GptSovitsVoice): SpeechSynthesizer =
+        ProcessingSpeechSynthesizer(GptSovitsSynthesizer(context, voice))
+
+    suspend fun downloadGptSovitsChapter(voice: GptSovitsVoice, chapter: SpeechChapter, output: File) =
+        withContext(Dispatchers.IO) { GptSovitsSynthesizer(context, voice).downloadChapter(chapter, output) }
 
     fun synthesizer(): SpeechSynthesizer = ProcessingSpeechSynthesizer(CachedSpeechSynthesizer(caches, create = { settings ->
         when {
