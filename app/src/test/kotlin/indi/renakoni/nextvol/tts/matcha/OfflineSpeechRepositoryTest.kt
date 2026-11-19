@@ -300,8 +300,7 @@ class OfflineSpeechRepositoryTest {
             assertEquals("language config", File(directory, "MSTTSLoczhCN.ini").readText())
             assertEquals("prosody", File(directory, "Model.ZhCN.voiceAssistant.BR2").readText())
             assertEquals("domain", File(directory, "NUSData/Model.voiceassistant.UNT").readText())
-            assertTrue(java.nio.file.Files.isSameFile(File(directory, "Acoustic.apm").toPath(),
-                File(directory, "Acoustic.APM").toPath()))
+            assertEquals("Acoustic.apm", java.nio.file.Files.readSymbolicLink(File(directory, "Acoustic.APM").toPath()).toString())
         }
     }
 }

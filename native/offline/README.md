@@ -127,7 +127,7 @@ completed synthesis replaces that failure with a successful-synthesis status;
 edited parameters or a fresh resource revision do not inherit that observation.
 
 Classic Microsoft models rely on case-insensitive filenames in the reference
-app's external storage. Managed installation adds hard links for extension casing,
+app's external storage. Managed installation adds relative symbolic links for extension casing,
 `Tokens.xml` references, extra-language suffixes and NUSData domain suffixes in
 private storage. For example, a packaged `.apm` remains available under the SDK's
 `.APM` lookup, and `voiceAssistant.unt` under `voiceassistant.UNT`, without copying

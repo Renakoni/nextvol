@@ -174,7 +174,7 @@ Classic Microsoft model loading depends on case-insensitive filenames.
 A controlled file-open observation showed `.INI` and `.APM` lookups against
 lowercase package names, and a lowercase `.ini` lookup against an uppercase name.
 The SDK reported these missing files as a wrong decryption key. Installation now
-adds extension hard links before catalog publication. Hongyu additionally needs
+adds extension aliases before catalog publication. Hongyu additionally needs
 the filename stems referenced by `Tokens.xml`, title-cased extra-language suffixes,
 and lowercase NUSData domain suffixes. REA file-open observations confirmed these
 SDK lookups; installation now adds their aliases, preserves original names and
