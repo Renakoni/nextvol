@@ -8,7 +8,7 @@ plugins {
 }
 
 dependencies {
-    testImplementation(kotlin("test"))
+    testImplementation(files("test-libs/junit-platform-console-standalone-1.10.1.jar"))
     implementation(libs.dom4j)
     implementation(libs.jaxen)
 }

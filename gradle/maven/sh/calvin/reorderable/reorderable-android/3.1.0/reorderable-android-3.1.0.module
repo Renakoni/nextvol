@@ -1,0 +1,205 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../reorderable/3.1.0/reorderable-3.1.0.module",
+    "group": "sh.calvin.reorderable",
+    "module": "reorderable",
+    "version": "3.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.10.2"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk8",
+          "version": {
+            "requires": "1.9.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.9.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "reorderable-release.aar",
+          "url": "reorderable-android-3.1.0.aar",
+          "size": 278943,
+          "sha512": "f92124718ab8df37a4bf79b18aef9f219a59fbc0ab312acc9067893a50382a3febec68171bd583d1d1f76cc35c32e394fed5dd4d283857fb75f537c4cad1683f",
+          "sha256": "8a7d3523467cd78fbf01ff541a31e9d719b2612afccb6d092e4a44ba41f74408",
+          "sha1": "4d59bf052c24ee73ddffa71a11843db829b68fe2",
+          "md5": "9d14635c92d0aed6547ae188aafedfd8"
+        }
+      ]
+    },
+    {
+      "name": "releaseRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk8",
+          "version": {
+            "requires": "1.9.0"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.9.0"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.compose.runtime",
+          "module": "runtime",
+          "version": {
+            "requires": "1.7.0"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.compose.animation",
+          "module": "animation",
+          "version": {
+            "requires": "1.7.0"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        },
+        {
+          "group": "org.jetbrains.compose.foundation",
+          "module": "foundation",
+          "version": {
+            "requires": "1.7.0"
+          },
+          "excludes": [
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-stdlib-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-common"
+            },
+            {
+              "group": "org.jetbrains.kotlin",
+              "module": "kotlin-test-annotations-common"
+            }
+          ]
+        }
+      ],
+      "files": [
+        {
+          "name": "reorderable-release.aar",
+          "url": "reorderable-android-3.1.0.aar",
+          "size": 278943,
+          "sha512": "f92124718ab8df37a4bf79b18aef9f219a59fbc0ab312acc9067893a50382a3febec68171bd583d1d1f76cc35c32e394fed5dd4d283857fb75f537c4cad1683f",
+          "sha256": "8a7d3523467cd78fbf01ff541a31e9d719b2612afccb6d092e4a44ba41f74408",
+          "sha1": "4d59bf052c24ee73ddffa71a11843db829b68fe2",
+          "md5": "9d14635c92d0aed6547ae188aafedfd8"
+        }
+      ]
+    },
+    {
+      "name": "releaseSourcesElements-published",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.jvm.environment": "android",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "androidJvm"
+      },
+      "files": [
+        {
+          "name": "reorderable-android-3.1.0-sources.jar",
+          "url": "reorderable-android-3.1.0-sources.jar",
+          "size": 25160,
+          "sha512": "7ac5dad13dc095c88aa0d7fcccb660f150629c6c1ab6de92485d5c7d25cc7c8ca005ed4d6abf5ae133192d49c2996d0cf42abfcb601cb43e45bf7779399ceb1e",
+          "sha256": "71caff203ad0eacff5baea15f79ad1e668a6566c1400dbd36a35e4c12c5e5bc8",
+          "sha1": "f0feb80c207be3c217a5f1c3768041fe731a874d",
+          "md5": "71d87a4d3ec08a73fc7244199048c040"
+        }
+      ]
+    }
+  ]
+}
