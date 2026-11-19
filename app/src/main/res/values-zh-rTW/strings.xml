@@ -131,7 +131,7 @@
     <string name="settings_get_updates_desc">手動取得應用程式更新</string>
     <string name="settings_distribution_platform">更新發布平台</string>
     <string name="reader_settings">閱讀設定</string>
-    <string name="settings_reader_font_size">字型大小</string>
+    <string name="settings_reader_font_size">字級</string>
     <string name="settings_reader_line_spacing">行距</string>
     <string name="settings_reader_keep_screen_on">保持螢幕常亮</string>
     <string name="settings_reader_keep_screen_on_desc">在閱讀時保持螢幕亮起。可能會增加電量消耗</string>
