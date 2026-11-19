@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.tts.runtime
 
+import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.update.UpdateArtifactDownloader
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
@@ -74,7 +75,9 @@ internal class SpeechRuntimeDownloads @Inject constructor(
         try {
             // Only a complete, APK-pinned archive may supply executable libraries.
             var lastPercent = -1
-            if (!downloader.downloadVerified(pack.url, pack.sha256, archive) { copied, total ->
+            val url = downloader.firstReachable(pack.downloadUrls)
+                ?: throw IOException(SpeechLibraries.context.getString(R.string.tts_runtime_sources_unreachable))
+            if (!downloader.downloadVerified(url, pack.sha256, archive) { copied, total ->
                 val progress = (copied * 100 / total).toInt()
                 if (progress != lastPercent) {
                     lastPercent = progress

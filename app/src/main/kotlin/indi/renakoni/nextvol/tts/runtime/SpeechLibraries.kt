@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.os.Process
+import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
 import org.json.JSONObject
 import java.io.File
@@ -29,7 +30,12 @@ internal enum class SpeechRuntimePack(val id: String) {
     private val spec by lazy {
         SpeechLibraries.context.assets.open("speech-runtimes/$id.json").bufferedReader().use { JSONObject(it.readText()) }
     }
-    val url get() = spec.getString("url")
+    val downloadUrls: List<String> get() {
+        val url = spec.getString("url")
+        val prefix = "${ProjectLinks.GITHUB}/releases/download/"
+        return if (url.startsWith(prefix)) listOf(url, "${ProjectLinks.DOWNLOADS}/releases/${url.removePrefix(prefix)}")
+            else listOf(url)
+    }
     val sha256 get() = spec.getString("sha256")
     val root get() = File(SpeechLibraries.context.noBackupFilesDir, "speech-runtimes/$id")
     val directory get() = File(root, sha256)
