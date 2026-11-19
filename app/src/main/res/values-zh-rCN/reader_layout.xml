@@ -9,5 +9,6 @@
     <string name="reader_font_sample">永 Aa</string>
     <string name="reader_font_import">导入字体</string>
     <string name="reader_font_licenses">字体许可</string>
-    <string name="reader_font_imported">导入字体</string>
+    <string name="reader_font_download">下载字体</string>
+    <string name="reader_font_download_failed">字体下载失败，点按字体重试。</string>
 </resources>

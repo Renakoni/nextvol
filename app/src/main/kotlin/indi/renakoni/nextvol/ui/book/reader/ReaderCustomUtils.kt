@@ -34,7 +34,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileNotFoundException
 
 private const val KRAFT_PAPER_URL = "https://portal.curiousers.org/static/lnr/paper.webp"
 private const val KRAFT_PAPER_CACHE_KEY = "default_kraft_paper"
@@ -46,11 +45,8 @@ internal fun loadReaderTypeface(file: File): Typeface = requireNotNull(
 
 fun loadReaderFontFamilySafe(uri: Uri): FontFamily? {
     return try {
-        if (uri == Uri.EMPTY) return null
-        ReaderFont.entries.firstOrNull { it.uri == uri }?.let { return it.family() }
-        val fontFile = File(uri.path ?: return null)
-        if (!fontFile.exists()) throw FileNotFoundException()
-        FontFamily(loadReaderTypeface(fontFile))
+        if (uri.scheme != "file") return null
+        readerFontFamilies.get(File(uri.path ?: return null))
     } catch (e: Exception) {
         Log.e("FontLoad", "Failed to load custom font", e)
         null

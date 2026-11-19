@@ -43,13 +43,9 @@ import indi.renakoni.nextvol.ui.home.settings.theme.ThemeScreen
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
-import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import indi.renakoni.nextvol.ui.book.reader.*
 import indi.renakoni.nextvol.ui.book.reader.content.componet.*
-import indi.renakoni.nextvol.ui.book.reader.content.flip.ReaderPage
-import indi.renakoni.nextvol.ui.book.reader.content.flip.paginateReaderComponents
 import indi.renakoni.nextvol.ui.book.reader.loadReaderFontFamilySafe
-import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
 import io.nightfish.lightnovelreader.api.ui.ReaderStyle
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
@@ -69,14 +65,13 @@ class ReaderLayoutInstrumentedTest {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var database: NextVolDatabase
     private lateinit var settings: SettingState
-    private val importedFiles = mutableListOf<File>()
 
     @Before fun prepare() {
         database = Room.inMemoryDatabaseBuilder(context, NextVolDatabase::class.java).build()
         settings = SettingState(UserDataRepository(database.userDataDao()), scope)
     }
 
-    @After fun close() { scope.cancel(); database.close(); importedFiles.forEach { it.delete() } }
+    @After fun close() { scope.cancel(); database.close() }
 
     @Test fun softBreakAtPageBoundaryKeepsMeasuredHeightAndSourceOffsets() {
         val source = ReaderTextSource(0, "A soft\u2028line break and a final paragraph.\n")
@@ -95,31 +90,7 @@ class ReaderLayoutInstrumentedTest {
         }
     }
 
-    @Test fun changingFontsAndWidthKeepsTheOriginalCharacterAnchor() = runBlocking {
-        val text = (1..80).joinToString("\n") { "第 $it 段：午后的阳光落在书页上。A quiet afternoon in the library." }
-        val components = listOf(SimpleTextComponent(SimpleTextComponentData(text), UserDataRepository(database.userDataDao()), context))
-        val measurer = TextMeasurer(createFontFamilyResolver(context), Density(1.5f), LayoutDirection.Ltr)
-        val initial = ReaderLayoutSettings.from(settings)
-        val original = paginateReaderComponents(components, 400, 300,
-            ReaderTextLayoutInput(initial, initial.textStyle(FontFamily.Default, LocaleList("zh-CN")), measurer, 0))
-        val anchor = (original[original.size / 2] as ReaderPage).anchor
-        for (font in ReaderFont.entries) {
-            val next = initial.copy(fontSize = 22f, paragraphSpacing = 9f, fontUri = font.uri)
-            val pages = paginateReaderComponents(components, 360, 230,
-                ReaderTextLayoutInput(next, next.textStyle(font.family(), LocaleList("zh-CN")), measurer, 14))
-            val containing = pages.filterIsInstance<ReaderPage>().filter { it.contains(anchor) }
-            assertEquals(1, containing.size)
-            assertTrue(containing.single().ranges.any { anchor.offset in it.start until it.end })
-        }
-    }
-
-    @Test fun presetsPersistInTheExistingFontKeyAndMissingCustomFontFallsBack() = runBlocking {
-        for (font in ReaderFont.entries) {
-            settings.fontFamilyUriUserData.set(font.uri)
-            assertEquals(font.uri, settings.fontFamilyUriUserData.get())
-            val family = loadReaderFontFamilySafe(font.uri)
-            if (font != ReaderFont.System) assertNotNull(family)
-        }
+    @Test fun missingAndInvalidCustomFontsFallBack() {
         val invalid = File(context.cacheDir, "invalid-reader-font.ttf")
         try {
             invalid.writeText("not a font")
@@ -131,12 +102,6 @@ class ReaderLayoutInstrumentedTest {
     }
 
     @Test fun layoutControlsPreviewWhileDraggingAndPersistIndependentSpacing() {
-        val imported = File.createTempFile("reader-font-test-", ".otf", context.filesDir).also(importedFiles::add)
-        context.resources.openRawResource(R.font.source_han_serif_regular).use { input ->
-            imported.outputStream().use { input.copyTo(it) }
-        }
-        runBlocking { settings.fontFamilyUriUserData.set(Uri.fromFile(imported)) }
-        compose.waitUntil(5_000) { settings.fontFamilyUri == Uri.fromFile(imported) }
         var dark by mutableStateOf(false)
         compose.setContent {
             val colors = if (dark) darkColorScheme() else lightColorScheme()
@@ -149,13 +114,6 @@ class ReaderLayoutInstrumentedTest {
                 }
             }
         }
-        compose.onNodeWithTag("reader-font-list").performScrollTo()
-        compose.waitUntil(5_000) {
-            compose.onAllNodesWithTag("reader-font-${Uri.fromFile(imported)}").fetchSemanticsNodes().isNotEmpty()
-        }
-        compose.onNodeWithTag("reader-font-list").performScrollToIndex(0)
-        compose.onNodeWithText(context.getString(R.string.reader_font_system)).performClick()
-        compose.waitUntil(5_000) { settings.fontFamilyUri == Uri.EMPTY && imported.exists() }
         val fontSlider = compose.onNodeWithContentDescription(context.getString(R.string.settings_reader_font_size))
         fontSlider.performScrollTo().performTouchInput { down(center); moveTo(centerRight) }
         val previewLayouts = mutableListOf<TextLayoutResult>()
@@ -174,10 +132,6 @@ class ReaderLayoutInstrumentedTest {
             settings.fontSizeUserData.set(18f)
         }
         compose.waitUntil(5_000) { settings.fontSize == 18f }
-        compose.onNodeWithTag("reader-font-list").performScrollTo()
-            .performScrollToNode(hasText(context.getString(R.string.reader_font_wenkai)))
-        compose.onNodeWithText(context.getString(R.string.reader_font_wenkai)).performClick()
-        compose.waitUntil(5_000) { settings.fontFamilyUri == ReaderFont.WenKai.uri }
         saveScreenshot("reader-layout-light.png")
         compose.runOnIdle { dark = true }
         saveScreenshot("reader-layout-dark.png")
