@@ -123,7 +123,9 @@ class ReaderLayoutInstrumentedTest {
         assertEquals(22f, settings.fontSize)
         fontSlider.performTouchInput { up() }
         compose.waitUntil(5_000) { settings.fontSize > 22f }
-        val paragraph = compose.onNodeWithContentDescription(context.getString(R.string.reader_paragraph_spacing))
+        val paragraphLabel = context.getString(R.string.reader_paragraph_spacing)
+        compose.onNodeWithText(paragraphLabel).performScrollTo().performClick()
+        val paragraph = compose.onNodeWithContentDescription(paragraphLabel)
         paragraph.performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(8f) }
         compose.waitUntil(5_000) { settings.paragraphSpacing == 8f }
         assertEquals(7f, settings.fontLineHeight)
@@ -148,7 +150,9 @@ class ReaderLayoutInstrumentedTest {
                 }
             }
         }
-        val paragraph = compose.onNodeWithContentDescription(context.getString(R.string.reader_paragraph_spacing))
+        val paragraphLabel = context.getString(R.string.reader_paragraph_spacing)
+        compose.onNodeWithText(paragraphLabel).performScrollTo().performClick()
+        val paragraph = compose.onNodeWithContentDescription(paragraphLabel)
             .performScrollTo().assertIsDisplayed()
         val density = context.resources.displayMetrics.density
         fun assertFullyVisible(slider: SemanticsNodeInteraction) {

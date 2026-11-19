@@ -14,11 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -33,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -100,45 +97,32 @@ internal fun ReaderLayoutSettingsPage(settings: ReaderSettingsEditor) {
 }
 
 @Composable
-internal fun ReaderTypographyControls(settings: ReaderSettingsEditor, layout: ReaderLayoutSettings, onChange: (ReaderLayoutSettings) -> Unit) {
-    ReaderLayoutSlider(R.string.settings_reader_font_size, layout.fontSize, ReaderLayoutValues.fontSizeRange, "sp", settings.fontSizeUserData, icon = R.drawable.format_size_24px) { onChange(layout.copy(fontSize = it)) }
-    ReaderLayoutSlider(R.string.settings_theme_text_font_weight, layout.fontWeight, ReaderLayoutValues.fontWeightRange, "", settings.fontWeighUserData, step = 100f, icon = R.drawable.format_bold_24px) { onChange(layout.copy(fontWeight = it)) }
-    ReaderLayoutSlider(R.string.settings_reader_line_spacing, layout.lineSpacing, ReaderLayoutValues.lineSpacingRange, "sp", settings.fontLineHeightUserData, icon = R.drawable.format_line_spacing_24px) { onChange(layout.copy(lineSpacing = it)) }
-    ReaderLayoutSlider(R.string.reader_paragraph_spacing, layout.paragraphSpacing, ReaderLayoutValues.paragraphSpacingRange, "sp", settings.paragraphSpacingUserData, icon = R.drawable.format_paragraph_spacing_24px) { onChange(layout.copy(paragraphSpacing = it)) }
-}
-
-@Composable
 private fun ReaderLayoutSlider(
     title: Int, value: Float, range: ClosedFloatingPointRange<Float>, unit: String,
-    userData: FloatUserData, step: Float = 0.5f, icon: Int? = null, onChange: (Float) -> Unit,
+    userData: FloatUserData, onChange: (Float) -> Unit,
 ) {
     val label = stringResource(title)
     // Accessibility can change and finish the value before Compose gets another frame.
     var pendingValue by remember(value) { mutableFloatStateOf(value) }
-    Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh)
-        .padding(horizontal = 22.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-        if (icon != null) Icon(painterResource(icon), contentDescription = null,
-            modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Column(Modifier.weight(1f)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                Text("${if (value % 1f == 0f) value.toInt().toString() else value.toString()} $unit",
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-            }
-            Slider(
-                modifier = Modifier.semantics { contentDescription = label },
-                value = value,
-                onValueChange = {
-                    pendingValue = ((it / step).roundToInt() * step).coerceIn(range)
-                    onChange(pendingValue)
-                },
-                onValueChangeFinished = { userData.asynchronousSet(pendingValue) },
-                valueRange = range,
-            )
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .padding(horizontal = 22.dp, vertical = 12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Text("${if (value % 1f == 0f) value.toInt().toString() else value.toString()} $unit",
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
         }
+        Slider(
+            modifier = Modifier.semantics { contentDescription = label },
+            value = value,
+            onValueChange = {
+                pendingValue = ((it * 2).roundToInt() / 2f).coerceIn(range)
+                onChange(pendingValue)
+            },
+            onValueChangeFinished = { userData.asynchronousSet(pendingValue) },
+            valueRange = range,
+        )
     }
 }
 

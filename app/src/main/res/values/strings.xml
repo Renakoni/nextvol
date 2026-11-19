@@ -137,8 +137,8 @@
     <string name="settings_distribution_platform">Distribution Platform</string>
 
     <string name="reader_settings">Reader Settings</string>
-    <string name="settings_reader_font_size">Font Size</string>
-    <string name="settings_reader_line_spacing">Line Spacing</string>
+    <string name="settings_reader_font_size">Size</string>
+    <string name="settings_reader_line_spacing">Line spacing</string>
     <string name="settings_reader_keep_screen_on">Keep Screen On</string>
     <string name="settings_reader_keep_screen_on_desc">Keep the screen active during reading. This may increase power consumption</string>
     <string name="settings_reader_battery_indicator">Battery Display Mode</string>
@@ -219,7 +219,7 @@
     <string name="settings_theme_text_color_desc">Customize reader text color</string>
     <string name="settings_theme_text_font">Text Font</string>
     <string name="settings_theme_text_font_desc">Use built-in fonts or custom font files</string>
-    <string name="settings_theme_text_font_weight">Font Weight</string>
+    <string name="settings_theme_text_font_weight">Weight</string>
 
     <string name="data_settings">Data</string>
     <string name="settings_snap_data">Snapshot User Data</string>
