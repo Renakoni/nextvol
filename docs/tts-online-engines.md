@@ -22,7 +22,7 @@ Azure 和 MSC 的已审查宿主适配使用 SDK 自带传输；进入合成前�
 HTTP/WebSocket 后端继续使用 broker 的授权、响应限额和取消机制。
 ReadSpeaker 服务可能重定向到另一音频域名，仍需通过现有来源授权处理。
 
-Vivo 和 Baidu 的 JNI 库随 `native/offline/runtime.json` 固定版本获取，
+Vivo 和 Baidu 的解码 JNI 库由用户在「听书设置 → 语音运行库」下载厂商包后启用。下载地址和摘要由 `native/offline/runtime.json` 固定，
 库清单及 SHA-256 由 runtime manifest 记录。导入配置不依赖设备能否加载这些库。
 
 ## 引擎与发音人编辑

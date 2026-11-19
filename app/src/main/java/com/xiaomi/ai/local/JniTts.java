@@ -1,6 +1,7 @@
 package com.xiaomi.ai.local;
 
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 @Keep
 public final class JniTts {
@@ -9,7 +10,7 @@ public final class JniTts {
         int onData(byte[] data, boolean finished);
     }
 
-    static { System.loadLibrary("tts-offline"); }
+    static { SpeechLibraries.loadVendor("tts-offline"); }
 
     public static native boolean createEngine(long instance, TtsOptions options);
     public static native long createTtsInstance();

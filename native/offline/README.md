@@ -6,39 +6,19 @@ SDKs or grant an SDK license.
 
 Sherpa and its ONNX Runtime continue to build from `native/matcha` and
 `native/onnxruntime`. Microsoft client SDK 1.45.0 comes from its official Maven
-AAR. Ordinary builds fetch the release asset pinned by URL and SHA-256 in
-`runtime.json` through `fetch_runtime.py` and embed its libraries and runtime data
-in the APK. The user does not need a second app or an engine download after installation. CI uses the
-same verifier with a shared ZIP cache and supplies the extracted directory to Gradle.
-The bundle is kept outside Git because it contains binary SDKs.
-To build with a locally supplied runtime instead:
+AAR so Azure synthesis remains available in the base application. Download the
+vendor bundle in Speech settings → Speech runtimes. The app verifies the SHA-256
+pinned in `runtime.json`, extracts the ZIP to a private revision directory and
+loads the arm64 SDK libraries on demand. The archive contains
+`jniLibs/arm64-v8a/` and `assets/offline-native/`. The host keeps the JNI
+declarations. Voice models and SDK authorizations are supplied separately.
 
-```text
-./gradlew :app:assembleDebug -PofflineRuntimeDir=/absolute/path/to/runtime
-```
-
-The directory contains `jniLibs/<abi>/*.so` and `assets/offline-native/`. An
-alternative versioned artifact location can be supplied with
-`-PofflineRuntimeUrl=https://.../runtime.zip` with its expected
-`-PofflineRuntimeSha256=<digest>`. A mirror of the pinned bytes uses the same digest.
-The script retains a ZIP beside its output directory, or at `--archive`, and verifies
-its SHA-256 before every extraction. Invalid cached bytes trigger a fresh download;
-a mismatched download fails before replacing the current SDK output. Download or
-extraction failures fail the build instead of silently producing an APK without its engines. No
-model hashes or model allowlist checks are used.
-
-Main publishes one SDK ZIP cache keyed by `runtime.json`; APK jobs restore it or
-download the pinned asset on a miss. JVM/Lint skip SDK preparation. Updating the
-runtime URL or digest triggers main cache warming, and retention keeps the latest
-shared archive. The SDK cache is independent of the source-built ONNX Runtime cache.
-
-The pinned bundle contains arm64 vendor libraries. Release and Snapshot APKs
-package ARM64 only; development APKs retain emulator architectures. The NDK strips
-debug information during APK packaging without removing engines. The runtime
-manifest records the original SDK bundle, before this packaging step.
-APK download size and installed native-library
-size are different measurements; legacy companion-library loading requires
-Android to extract the native libraries during installation.
+To reproduce `offline-runtime-arm64-v5.zip`, extract the published v4 ZIP to a
+clean directory and run `python native/offline/package_runtime.py <directory> offline-runtime-arm64-v5.zip`
+(Python 3.11, zlib 1.2.13). Compare its SHA-256 with `runtime.json`. The classic
+IssTTS engine needs `libissavth.so`, but v4 declares the newer library's SONAME
+inside that file. Packaging corrects the single character in the ELF name and
+updates its manifest digest. The app loads both SDK versions from the verified ZIP.
 
 For local compatibility investigation, prepare the minimum arm64 library set
 from a caller-supplied runtime APK:

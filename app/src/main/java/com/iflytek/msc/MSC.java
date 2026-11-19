@@ -1,11 +1,12 @@
 package com.iflytek.msc;
 
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 /** Exact JNI entry points used by the embedded offline synthesizer. */
 @Keep
 public final class MSC {
-    static { System.loadLibrary("msc"); }
+    static { SpeechLibraries.loadVendor("msc"); }
     private MSC() {}
 
     public static native int QMSPLogin(byte[] user, byte[] password, byte[] parameters);

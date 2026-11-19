@@ -9,6 +9,7 @@ import com.microsoft.cognitiveservices.speech.SpeechSynthesisOutputFormat
 import com.microsoft.cognitiveservices.speech.SpeechSynthesizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 import hnovel.speech.OfflineVoiceConfig
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import indi.renakoni.nextvol.tts.offline.OfflineEngine
 import kotlinx.coroutines.CancellationException
 import org.nobody.multitts.tts.jni.SpeexBridge
@@ -42,6 +43,8 @@ internal class MicrosoftEngine(
             !suppliedLicense.startsWith("Key:") && suppliedLicense.length <= 300 -> "Key:$suppliedLicense"
             else -> suppliedLicense
         }
+        SpeechLibraries.loadVendor("Microsoft.CognitiveServices.Speech.extension.telemetry")
+        SpeechLibraries.loadVendor("Microsoft.CognitiveServices.Speech.extension.embedded.tts")
         val configuration = EmbeddedSpeechConfig.fromPath(model.absolutePath)
         try {
             configuration.setSpeechSynthesisVoice(name, license)

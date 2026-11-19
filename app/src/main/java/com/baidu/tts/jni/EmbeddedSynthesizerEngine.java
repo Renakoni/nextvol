@@ -1,13 +1,13 @@
 package com.baidu.tts.jni;
 
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
+
 /** JNI entry points retain the vendor class and method names. */
 public final class EmbeddedSynthesizerEngine implements IEmbeddedSynthesizerEngine {
     private volatile OnNewDataListener listener;
 
     static {
-        System.loadLibrary("c++_shared");
-        System.loadLibrary("BDSpeechDecoder_V1");
-        System.loadLibrary("bd_etts");
+        SpeechLibraries.loadVendor("bd_etts");
         bdTTSSetNativeLogLevel(3);
     }
 

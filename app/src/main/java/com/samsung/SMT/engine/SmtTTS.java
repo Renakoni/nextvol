@@ -2,6 +2,7 @@ package com.samsung.SMT.engine;
 
 import androidx.annotation.Keep;
 import com.samsung.SMT.ref.VoiceDataInfo;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 /** Native ABI and callback only; application lifecycle stays in the internal adapter. */
 @Keep
@@ -9,7 +10,7 @@ public final class SmtTTS {
     public interface AudioListener { void onAudio(byte[] data); }
     private volatile AudioListener listener;
 
-    static { System.loadLibrary("smtloader"); }
+    static { SpeechLibraries.loadVendor("smtloader"); }
 
     public void setListener(AudioListener listener) { this.listener = listener; }
 

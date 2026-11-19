@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.tts.sovits
 
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
@@ -12,10 +13,10 @@ internal object SplitVocoderAssets {
 
     enum class Layout { Full, Split, Htp }
 
-    fun prepare(context: android.content.Context, voice: GptSovitsVoice, useHtp: Boolean): Layout {
+    fun prepare(voice: GptSovitsVoice, useHtp: Boolean): Layout {
         val directory = voice.model
-        val assets = "gpt-sovits/graphs/${voice.version.directory}"
-        val bundled = context.assets.open("$assets/split-vits.json").bufferedReader().use { JSONObject(it.readText()) }
+        val assets = File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/graphs/${voice.version.directory}")
+        val bundled = File(assets, "split-vits.json").bufferedReader().use { JSONObject(it.readText()) }
         val source = sha256(File(directory, "vits_fp32.onnx"))
         val canonical = source == bundled.getString("source_sha256")
         val data = if (canonical) bundled else {
@@ -34,7 +35,7 @@ internal object SplitVocoderAssets {
             if (!canonical) return false
             val part = File.createTempFile(".sovits-", ".part", directory)
             try {
-                context.assets.open("$assets/$name").use { input -> part.outputStream().use(input::copyTo) }
+                File(assets, name).inputStream().use { input -> part.outputStream().use(input::copyTo) }
                 java.nio.file.Files.move(part.toPath(), file.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
             } finally { part.delete() }
             return true

@@ -74,6 +74,7 @@ fun SpeechSettingsScreen(
     onRoles: (() -> Unit)? = null,
     onVoicePool: (() -> Unit)? = null,
     onDiagnostics: (() -> Unit)? = null,
+    onRuntimes: (() -> Unit)? = null,
     schemeTitle: String? = null,
     schemeUsage: String? = null,
 ) {
@@ -158,7 +159,7 @@ fun SpeechSettingsScreen(
                     }
                 }
             }
-            if (onEngines != null || onDiagnostics != null) item {
+            if (onEngines != null || onDiagnostics != null || onRuntimes != null) item {
                 SettingsCategory {
                     onEngines?.let { open ->
                         SettingsClickableEntry(
@@ -166,6 +167,15 @@ fun SpeechSettingsScreen(
                             painter = painterResource(R.drawable.settings_applications_24px),
                             title = stringResource(R.string.tts_engines),
                             description = stringResource(R.string.tts_engines_description),
+                            onClick = open,
+                        )
+                    }
+                    onRuntimes?.let { open ->
+                        SettingsClickableEntry(
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer),
+                            painter = painterResource(R.drawable.headphones_24px),
+                            title = stringResource(R.string.tts_runtime_packs),
+                            description = stringResource(R.string.tts_runtime_packs_summary),
                             onClick = open,
                         )
                     }

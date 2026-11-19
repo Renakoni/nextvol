@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.tts.sovits
 
 import android.content.Context
 import androidx.annotation.RequiresApi
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.audio.PcmAudioProcessor
 import indi.renakoni.nextvol.tts.audio.SpeechWaveFile
@@ -49,7 +50,8 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                     val job = currentCoroutineContext().job
                     synchronized(lifecycle) { generation.checkCancelled(); preparing = job }
                     try {
-                        if (!DeviceAcceleration.supportsRuntime(context)) throw SpeechException(SpeechError.OfflineUnavailable)
+                        if (!DeviceAcceleration.supportsRuntime(context) || !SpeechRuntimePack.Sovits.directory.isDirectory)
+                            throw SpeechException(SpeechError.OfflineUnavailable)
                         permit.acquire()
                         synchronized(lifecycle) {
                             ownsPermit = true
@@ -73,7 +75,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     private suspend fun prepare(settings: SpeechSettings) {
         prepareSovitsFiles(voice)
         val (pcm32, pcm16) = readSovitsReference(voice.referenceAudio)
-        val mandarin = SovitsMandarin(context, voice.runtime)
+        val mandarin = SovitsMandarin(File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/chinese_g2p"), voice.runtime)
         val prompt = mandarin.encode(voice.referenceText)
         nativeOperation {
             synchronized(lifecycle) {

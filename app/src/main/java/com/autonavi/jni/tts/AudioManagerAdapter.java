@@ -2,10 +2,11 @@ package com.autonavi.jni.tts;
 
 import com.autonavi.jni.audio.listeners.IJNIAudioAssistant;
 import com.autonavi.jni.audio.listeners.IRecordInternalListener;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 /** libbl_vcs registers all of these declarations during JNI_OnLoad. */
 public final class AudioManagerAdapter {
-    static { System.loadLibrary("bl_vcs"); }
+    static { SpeechLibraries.loadVendor("bl_vcs"); }
     // Called from the SDK's audio thread before it populates task fields.
     public AudioPlayerTask generateTask() { return new AudioPlayerTask(); }
     public native long nativeAddSpeakerChangeListener(long j2, ICommonInfoCallback iCommonInfoCallback);

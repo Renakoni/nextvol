@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.tts.sovits
 
 import android.os.Build
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 import java.io.File
 import java.nio.FloatBuffer
 import java.security.MessageDigest
@@ -43,7 +44,7 @@ internal class QnnSession(runtime: File, graph: File, appUpdatedAt: Long) : Auto
 
         /** A real HTP run with CPU fallback disabled; a chip name alone is not proof of support. */
         internal fun probe(runtime: File, model: File) {
-            System.loadLibrary("nextvol-sovits")
+            SpeechLibraries.loadSovits("nextvol-sovits")
             val handle = create(runtime.absolutePath, model.absolutePath, "")
             try {
                 fun buffer() = java.nio.ByteBuffer.allocateDirect(16).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()

@@ -1,10 +1,11 @@
 package com.iflytek.speech;
 
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 @Keep
 public final class libisstts {
-    static { System.loadLibrary("issxtts40"); System.loadLibrary("issauth"); }
+    static { SpeechLibraries.loadVendor("issxtts40"); }
     private libisstts() {}
     public static native synchronized int setMachineCode(String configuration);
     public static native synchronized int initRes(String directory, int flags);

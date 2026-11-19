@@ -3,13 +3,14 @@ package com.acapelagroup.android.tts;
 import android.speech.tts.SynthesisCallback;
 import android.os.Build;
 import androidx.annotation.Keep;
+import indi.renakoni.nextvol.tts.runtime.SpeechLibraries;
 
 /** JNI class name required by the SDK. This is not an Android service. */
 @Keep
 public final class AcattsandroidService {
     private final String identity;
     private volatile SynthesisCallback callback;
-    static { System.loadLibrary("ttsacattsandroidextended"); }
+    static { SpeechLibraries.loadVendor("ttsacattsandroidextended"); }
     public AcattsandroidService(String identity) { this.identity = identity; }
     public void setCallback(SynthesisCallback callback) { this.callback = callback; }
     public String idfunction() { return identity; }

@@ -7,4 +7,13 @@
     <string name="tts_pool_description">Voices available for character assignment</string>
     <string name="tts_engines_description">Speech synthesis engines</string>
     <string name="tts_diagnostics_description">Listening logs</string>
+    <string name="tts_runtime_packs">Speech runtimes</string>
+    <string name="tts_runtime_packs_summary">Download on-device speech engines</string>
+    <string name="tts_runtime_vendor">Vendor speech runtime</string>
+    <string name="tts_runtime_sovits">GPT-SoVITS runtime</string>
+    <string name="tts_runtime_installed">Installed</string>
+    <string name="tts_runtime_unsupported">Unsupported on this device</string>
+    <string name="tts_runtime_download">Download</string>
+    <string name="tts_runtime_downloading">Downloading…</string>
+    <string name="tts_runtime_vendor_required">Download the vendor speech runtime in Speech settings.</string>
 </resources>

@@ -55,7 +55,7 @@ CPU vocoder reuses the semantic tokens already produced for that segment.
 
 After the first frame of the app, an IO worker runs the Qualcomm HTP arithmetic
 probe with CPU fallback disabled. An earlier speech request shares the same
-probe. The result is cached against the system build and APK update. Compatible voices with
+probe. The result is cached against the system build, APK update and installed pack digest. Compatible voices with
 `v2-htp-{stem,body,head}.onnx`
 automatically use the NPU for latents of at least 192 frames. Shorter utterances
 continue on GPU. HTP uses 64-frame windows with eight frames of context and
@@ -71,14 +71,14 @@ python native/sovits/split_vits_acoustic.py --model-dir <tts_models>
 python native/sovits/split_v2_htp.py <tts_models>
 ```
 
-The APK includes the arm64 runtime from Voicebox's V2 WebGPU build of ORT
+The on-demand GPT-SoVITS pack includes the arm64 runtime from Voicebox's V2 WebGPU build of ORT
 1.27.0 (input AAR SHA-256
 `db6d7eba5c8c2f1debc61874b2e9abafd6b581a35c679ff5390b0442de89e698`).
 `native/sovits/package_webgpu.py` reproduces the slim AAR from that build and
 the matching ORT source notices. It gives WebGPU its own library name so the
 existing CPU runtime and Java WebGPU binding can coexist. The HTP bridge opens
 the separate Microsoft QNN 1.27.0 runtime by absolute path and passes float
-buffers across runtime boundaries. Gradle packages its matching Qualcomm
+buffers across runtime boundaries. The same downloadable ZIP contains its matching Qualcomm
 2.42.0 libraries from Maven Central; the installed app works offline.
 
 The Mandarin frontend and dictionaries follow Voicebox. The OpenCPOP syllable mapping and V2 symbol
