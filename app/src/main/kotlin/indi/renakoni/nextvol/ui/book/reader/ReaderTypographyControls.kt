@@ -23,6 +23,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -67,28 +69,54 @@ private enum class TypeSetting(
     val step get() = if (this == Weight) 100f else 0.5f
 }
 
-@Composable
-internal fun ReaderTypographyControls(settings: ReaderSettingsEditor, layout: ReaderLayoutSettings, onChange: (ReaderLayoutSettings) -> Unit) {
-    var selected by rememberSaveable { mutableStateOf(TypeSetting.Size) }
-    val active = selected
-    var pending by remember(active) { mutableStateOf<Float?>(null) }
-    fun finish() {
-        pending?.let { active.preference(settings).asynchronousSet(it) }
-        pending = null
+internal class ReaderLayoutDraft private constructor(
+    stored: ReaderLayoutSettings,
+    private val gesture: MutableState<Edit?>,
+) {
+    private class Edit(val field: FloatUserData, val value: Float, val apply: ReaderLayoutSettings.(Float) -> ReaderLayoutSettings)
+    private var settled by mutableStateOf(stored)
+    val layout by derivedStateOf { gesture.value?.let { it.apply(settled, it.value) } ?: settled }
+
+    fun move(field: FloatUserData, value: Float, apply: ReaderLayoutSettings.(Float) -> ReaderLayoutSettings) {
+        gesture.value?.let { if (it.field != field) finish(it.field) }
+        gesture.value = Edit(field, value, apply)
     }
 
+    fun finish(field: FloatUserData) {
+        val edit = gesture.value ?: return
+        if (edit.field != field) return
+        settled = edit.apply(settled, edit.value)
+        gesture.value = null
+        field.asynchronousSet(edit.value)
+    }
+
+    companion object {
+        @Composable
+        fun rememberDraft(settings: ReaderSettingsEditor): ReaderLayoutDraft {
+            val stored by remember(settings) { derivedStateOf { ReaderLayoutSettings.from(settings) } }
+            // A completed settings write must not replace the value under the user's finger.
+            val gesture = remember(settings) { mutableStateOf<Edit?>(null) }
+            return remember(stored, gesture) { ReaderLayoutDraft(stored, gesture) }
+        }
+    }
+}
+
+@Composable
+internal fun ReaderTypographyControls(settings: ReaderSettingsEditor, draft: ReaderLayoutDraft) {
+    val layout = draft.layout
+    var active by rememberSaveable { mutableStateOf(TypeSetting.Size) }
     val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().background(colors.surfaceContainer).padding(horizontal = 12.dp, vertical = 8.dp)) {
         BoxWithConstraints(Modifier.fillMaxWidth().selectableGroup()) {
             val columns = if (maxWidth >= 248.dp * LocalDensity.current.fontScale) 4 else 2
             Column {
-                TypeSetting.entries.chunked(columns).forEach { row ->
+                remember(columns) { TypeSetting.entries.chunked(columns) }.forEach { row ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         for (item in row) {
                             TypographyTab(item, item.value(layout), item == active, Modifier.weight(1f)) {
                                 if (item != active) {
-                                    finish()
-                                    selected = item
+                                    draft.finish(active.preference(settings))
+                                    active = item
                                 }
                             }
                         }
@@ -97,15 +125,15 @@ internal fun ReaderTypographyControls(settings: ReaderSettingsEditor, layout: Re
             }
         }
         key(active) {
-            TypographyRuler(active, active.value(layout), onChange = { value ->
-                pending = value
-                onChange(active.edit(layout, value))
-            }, onFinish = ::finish)
+            val item = active
+            val field = item.preference(settings)
+            TypographyRuler(item, item.value(layout), onChange = { draft.move(field, it, item.edit) },
+                onFinish = { draft.finish(field) })
         }
     }
 }
 
-private fun Float.readout() = if (this % 1f == 0f) toInt().toString() else toString()
+internal fun Float.readerValueText() = if (this % 1f == 0f) toInt().toString() else toString()
 
 @Composable
 private fun TypographyTab(item: TypeSetting, value: Float, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
@@ -118,7 +146,7 @@ private fun TypographyTab(item: TypeSetting, value: Float, selected: Boolean, mo
     ) {
         Text(stringResource(item.title), style = type.labelMedium, textAlign = TextAlign.Center, color = ink)
         Text(buildAnnotatedString {
-            append(value.readout())
+            append(value.readerValueText())
             if (item != TypeSetting.Weight) withStyle(SpanStyle(fontSize = type.labelSmall.fontSize)) { append(" sp") }
         }, style = type.titleMedium.copy(fontFeatureSettings = "tnum"), color = ink)
         Spacer(Modifier.padding(top = 3.dp).size(16.dp, 2.dp).background(if (selected) colors.primary else Color.Transparent, CircleShape))
@@ -144,7 +172,7 @@ private fun TypographyRuler(setting: TypeSetting, value: Float, onChange: (Float
             onValueChangeFinished = onFinish, interactionSource = interaction,
             modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics {
                 contentDescription = label
-                stateDescription = if (setting == TypeSetting.Weight) value.readout() else "${value.readout()} sp"
+                stateDescription = if (setting == TypeSetting.Weight) value.readerValueText() else "${value.readerValueText()} sp"
             },
             thumb = {
                 Canvas(Modifier.size(12.dp, 20.dp).indication(interaction, ripple(bounded = false, radius = 16.dp))) {

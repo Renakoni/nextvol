@@ -22,11 +22,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,19 +43,8 @@ import kotlin.math.roundToInt
 
 @Composable
 internal fun ReaderLayoutSettingsPage(settings: ReaderSettingsEditor) {
-    val stored = ReaderLayoutSettings.from(settings)
-    var draft by remember(stored) { mutableStateOf(stored) }
-    val previewSettings = object : ReaderSettingsEditor by settings {
-        override val fontSize = draft.fontSize
-        override val fontWeigh = draft.fontWeight
-        override val fontLineHeight = draft.lineSpacing
-        override val paragraphSpacing = draft.paragraphSpacing
-        override val autoPadding = draft.autoPadding
-        override val topPadding = draft.top
-        override val bottomPadding = draft.bottom
-        override val leftPadding = draft.start
-        override val rightPadding = draft.end
-    }
+    val draft = ReaderLayoutDraft.rememberDraft(settings)
+    val layout = draft.layout
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val previewHeight = minOf(148.dp, maxHeight * 0.3f)
@@ -70,24 +54,24 @@ internal fun ReaderLayoutSettingsPage(settings: ReaderSettingsEditor) {
                     Text(stringResource(R.string.reader_layout_preview),
                         modifier = Modifier.padding(start = 16.dp, top = 12.dp),
                         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ReaderLayoutPreview(previewSettings, Modifier.fillMaxWidth().height(previewHeight))
+                    ReaderLayoutPreview(settings, Modifier.fillMaxWidth().height(previewHeight), layout)
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     SettingsCategory { ReaderFontEntry(settings) }
                     SettingsCategory(title = stringResource(R.string.reader_layout_typography)) {
-                        ReaderTypographyControls(settings, draft) { draft = it }
+                        ReaderTypographyControls(settings, draft)
                     }
                     SettingsCategory(title = stringResource(R.string.margin_settings)) {
                         SettingsSwitchEntry(
                             title = stringResource(R.string.settings_reader_auto_margin),
                             description = stringResource(R.string.settings_reader_auto_margin_desc),
-                            checked = draft.autoPadding, booleanUserData = settings.autoPaddingUserData,
+                            checked = layout.autoPadding, booleanUserData = settings.autoPaddingUserData,
                         )
-                        if (!draft.autoPadding) {
-                            ReaderLayoutSlider(R.string.settings_reader_top_margin, draft.top, ReaderLayoutValues.marginRange, "dp", settings.topPaddingUserData) { draft = draft.copy(top = it) }
-                            ReaderLayoutSlider(R.string.settings_reader_bottom_margin, draft.bottom, ReaderLayoutValues.marginRange, "dp", settings.bottomPaddingUserData) { draft = draft.copy(bottom = it) }
-                            ReaderLayoutSlider(R.string.settings_reader_left_margin, draft.start, ReaderLayoutValues.marginRange, "dp", settings.leftPaddingUserData) { draft = draft.copy(start = it) }
-                            ReaderLayoutSlider(R.string.settings_reader_right_margin, draft.end, ReaderLayoutValues.marginRange, "dp", settings.rightPaddingUserData) { draft = draft.copy(end = it) }
+                        if (!layout.autoPadding) {
+                            ReaderMarginSlider(R.string.settings_reader_top_margin, layout.top, settings.topPaddingUserData, draft) { copy(top = it) }
+                            ReaderMarginSlider(R.string.settings_reader_bottom_margin, layout.bottom, settings.bottomPaddingUserData, draft) { copy(bottom = it) }
+                            ReaderMarginSlider(R.string.settings_reader_left_margin, layout.start, settings.leftPaddingUserData, draft) { copy(start = it) }
+                            ReaderMarginSlider(R.string.settings_reader_right_margin, layout.end, settings.rightPaddingUserData, draft) { copy(end = it) }
                         }
                     }
                 }
@@ -97,18 +81,16 @@ internal fun ReaderLayoutSettingsPage(settings: ReaderSettingsEditor) {
 }
 
 @Composable
-private fun ReaderLayoutSlider(
-    title: Int, value: Float, range: ClosedFloatingPointRange<Float>, unit: String,
-    userData: FloatUserData, onChange: (Float) -> Unit,
+private fun ReaderMarginSlider(
+    title: Int, value: Float, field: FloatUserData, draft: ReaderLayoutDraft,
+    edit: ReaderLayoutSettings.(Float) -> ReaderLayoutSettings,
 ) {
     val label = stringResource(title)
-    // Accessibility can change and finish the value before Compose gets another frame.
-    var pendingValue by remember(value) { mutableFloatStateOf(value) }
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh)
         .padding(horizontal = 22.dp, vertical = 12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            Text("${if (value % 1f == 0f) value.toInt().toString() else value.toString()} $unit",
+            Text("${value.readerValueText()} dp",
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)
                     .padding(horizontal = 10.dp, vertical = 4.dp),
                 color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
@@ -116,19 +98,18 @@ private fun ReaderLayoutSlider(
         Slider(
             modifier = Modifier.semantics { contentDescription = label },
             value = value,
-            onValueChange = {
-                pendingValue = ((it * 2).roundToInt() / 2f).coerceIn(range)
-                onChange(pendingValue)
-            },
-            onValueChangeFinished = { userData.asynchronousSet(pendingValue) },
-            valueRange = range,
+            onValueChange = { draft.move(field, (it * 2).roundToInt() / 2f, edit) },
+            onValueChangeFinished = { draft.finish(field) },
+            valueRange = ReaderLayoutValues.marginRange,
         )
     }
 }
 
 @Composable
-internal fun ReaderLayoutPreview(settings: ReaderSettingsEditor, modifier: Modifier = Modifier) = ReaderPaperTheme(settings) {
-    val layout = rememberReaderTextLayout(settings)
+internal fun ReaderLayoutPreview(
+    settings: ReaderSettings, modifier: Modifier = Modifier, preview: ReaderLayoutSettings = ReaderLayoutSettings.from(settings),
+) = ReaderPaperTheme(settings) {
+    val layout = rememberReaderTextLayout(preview)
     val density = LocalDensity.current
     val paragraphSpacing = with(density) { layout.settings.paragraphSpacing.sp.toDp() }
     val windowSize = LocalWindowInfo.current.containerSize

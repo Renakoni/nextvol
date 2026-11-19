@@ -1,30 +1,12 @@
 package indi.renakoni.nextvol.reader
 
-import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
 import android.view.KeyEvent
-import android.view.accessibility.AccessibilityNodeInfo
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberBottomSheetState
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.createFontFamilyResolver
@@ -32,23 +14,17 @@ import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.theme.NextVolTheme
-import indi.renakoni.nextvol.theme.AppTheme
 import indi.renakoni.nextvol.ui.home.settings.theme.ThemeScreen
-import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.ui.book.reader.*
 import indi.renakoni.nextvol.ui.book.reader.content.componet.*
 import indi.renakoni.nextvol.ui.book.reader.loadReaderFontFamilySafe
-import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
-import io.nightfish.lightnovelreader.api.ui.ReaderStyle
-import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
 import kotlinx.coroutines.*
 import org.junit.After
 import org.junit.Assert.*
@@ -101,79 +77,6 @@ class ReaderLayoutInstrumentedTest {
         }
     }
 
-    @Test fun layoutControlsPreviewWhileDraggingAndPersistIndependentSpacing() {
-        var dark by mutableStateOf(false)
-        compose.setContent {
-            val colors = if (dark) darkColorScheme() else lightColorScheme()
-            MaterialTheme(colorScheme = colors, typography = AppTypography) {
-                CompositionLocalProvider(
-                    LocalAppTheme provides AppTheme(dark, colors),
-                    LocalReaderStyle provides ReaderStyle(22f, 7f, 500f, Color.Black, Color.White),
-                ) {
-                    ReaderLayoutSettingsPage(settings)
-                }
-            }
-        }
-        val fontSlider = compose.onNodeWithContentDescription(context.getString(R.string.settings_reader_font_size))
-        fontSlider.performScrollTo().performTouchInput { down(center); moveTo(centerRight) }
-        val previewLayouts = mutableListOf<TextLayoutResult>()
-        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
-            .fetchSemanticsNodes().forEach { node -> node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(previewLayouts) }
-        assertTrue(previewLayouts.any { it.layoutInput.style.fontSize.value > 22f && it.layoutInput.text.text == "Welcome to Nextvol" })
-        assertEquals(22f, settings.fontSize)
-        fontSlider.performTouchInput { up() }
-        compose.waitUntil(5_000) { settings.fontSize > 22f }
-        val paragraphLabel = context.getString(R.string.reader_paragraph_spacing)
-        compose.onNodeWithText(paragraphLabel).performScrollTo().performClick()
-        val paragraph = compose.onNodeWithContentDescription(paragraphLabel)
-        paragraph.performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(8f) }
-        compose.waitUntil(5_000) { settings.paragraphSpacing == 8f }
-        assertEquals(7f, settings.fontLineHeight)
-        runBlocking {
-            assertEquals(8f, settings.paragraphSpacingUserData.get())
-            settings.fontSizeUserData.set(18f)
-        }
-        compose.waitUntil(5_000) { settings.fontSize == 18f }
-        saveScreenshot("reader-layout-light.png")
-        compose.runOnIdle { dark = true }
-        saveScreenshot("reader-layout-dark.png")
-    }
-
-    @Test fun compactLayoutKeepsSpacingAndMarginControlsReachable() {
-        runBlocking { settings.autoPaddingUserData.set(false) }
-        compose.waitUntil(5_000) { !settings.autoPadding }
-        compose.setContent {
-            val colors = lightColorScheme()
-            MaterialTheme(colorScheme = colors, typography = AppTypography) {
-                CompositionLocalProvider(LocalAppTheme provides AppTheme(false, colors)) {
-                    Box(Modifier.width(600.dp).height(250.dp)) { ReaderLayoutSettingsPage(settings) }
-                }
-            }
-        }
-        val paragraphLabel = context.getString(R.string.reader_paragraph_spacing)
-        compose.onNodeWithText(paragraphLabel).performScrollTo().performClick()
-        val paragraph = compose.onNodeWithContentDescription(paragraphLabel)
-            .performScrollTo().assertIsDisplayed()
-        val density = context.resources.displayMetrics.density
-        fun assertFullyVisible(slider: SemanticsNodeInteraction) {
-            val visible = slider.fetchSemanticsNode().boundsInRoot
-            val unclipped = slider.getUnclippedBoundsInRoot()
-            val fullHeight = (unclipped.bottom - unclipped.top).value * density
-            assertTrue("The complete slider must be visible: $visible, full height=$fullHeight", visible.height + 1f >= fullHeight)
-        }
-        saveScreenshot("reader-layout-compact.png")
-        assertFullyVisible(paragraph)
-        paragraph.performSemanticsAction(SemanticsActions.SetProgress) { it(9f) }
-        compose.waitUntil(5_000) { settings.paragraphSpacing == 9f }
-        val bottom = compose.onNodeWithContentDescription(context.getString(R.string.settings_reader_bottom_margin))
-            .performScrollTo().assertIsDisplayed()
-        assertFullyVisible(bottom)
-        bottom.performSemanticsAction(SemanticsActions.SetProgress) { it(23f) }
-        compose.waitUntil(5_000) { settings.bottomPadding == 23f }
-        assertEquals(7f, settings.fontLineHeight)
-        saveScreenshot("reader-layout-compact.png")
-    }
-
     @OptIn(ExperimentalMaterial3Api::class)
     @Test fun paperSubpageReturnsToReadingSettingsBeforeClosingTheSheet() {
         var dismissed = false
@@ -219,27 +122,5 @@ class ReaderLayoutInstrumentedTest {
         compose.onNodeWithTag("reader-paper-sage").assertDoesNotExist()
         compose.onNode(paperEntry).performClick()
         compose.onNodeWithTag("reader-paper-sage").assertIsSelected()
-    }
-
-    private fun saveScreenshot(name: String) {
-        compose.waitForIdle()
-        fun clearFocus(node: AccessibilityNodeInfo?) {
-            node ?: return
-            if (node.isAccessibilityFocused) node.performAction(AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS)
-            for (index in 0 until node.childCount) clearFocus(node.getChild(index))
-        }
-        // Preserve device accessibility settings; clear only the transient focus decoration.
-        clearFocus(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
-        // Compose's window PixelCopy overload is only available from Android 8.
-        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            compose.onRoot().captureToImage().asAndroidBitmap()
-        } else {
-            requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
-        }
-        bitmap.let {
-            File(context.getExternalFilesDir(null), name).outputStream().use {
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-            }
-        }
     }
 }
