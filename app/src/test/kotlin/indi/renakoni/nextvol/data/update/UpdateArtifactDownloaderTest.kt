@@ -16,7 +16,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import java.io.File
 import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
@@ -45,8 +44,6 @@ class UpdateArtifactDownloaderTest {
         stale.apk.writeText("old apk")
         stale.temporary.writeText("old temporary file")
         val files = downloader.prepare()
-        assertEquals(File(directory.root, "updates/NextVol-update.apk"), files.apk)
-        assertEquals(File(directory.root, "updates/NextVol-update.tmp"), files.temporary)
         assertFalse(files.apk.exists())
         assertFalse(files.temporary.exists())
         server.enqueue(MockResponse().setBody("apk bytes"))

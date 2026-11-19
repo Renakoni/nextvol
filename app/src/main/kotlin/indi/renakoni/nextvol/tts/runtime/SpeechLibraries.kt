@@ -23,12 +23,11 @@ internal enum class SpeechRuntimePack(val id: String) {
         SpeechLibraries.context.assets.open("speech-runtimes/$id.json").bufferedReader().use { JSONObject(it.readText()) }
     }
     val downloadUrls: List<String> get() {
-        val url = spec.getString("url")
-        val prefix = "${ProjectLinks.GITHUB}/releases/download/"
-        if (!url.startsWith(prefix)) return listOf(url)
-        return listOf(url, "${ProjectLinks.DOWNLOADS}/releases/${url.substring(prefix.length)}")
+        val github = spec.getString("url")
+        val asset = github.substringAfter("/releases/download/")
+        return listOf(github, "${ProjectLinks.DOWNLOADS}/releases/$asset")
     }
-    val archiveBytes get() = spec.optLong("size")
+    val archiveBytes get() = spec.getLong("size")
     val root get() = File(SpeechLibraries.context.noBackupFilesDir, "speech-runtimes/$id")
     val directory get() = File(root, spec.getString("sha256"))
     val libraries get() = File(directory, "jniLibs/arm64-v8a")

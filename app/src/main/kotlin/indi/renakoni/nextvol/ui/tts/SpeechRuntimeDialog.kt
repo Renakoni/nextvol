@@ -61,13 +61,11 @@ private fun RuntimeRow(pack: SpeechRuntimePack, state: RuntimeDownload, onStart:
                 Text(stringResource(if (vendor) R.string.tts_runtime_vendor else R.string.tts_runtime_sovits),
                     style = MaterialTheme.typography.titleMedium)
                 val detail = when {
-                    transfer != null && transfer.total > 0 -> "${megabytes(transfer.copied)} / ${megabytes(transfer.total)}"
-                    transfer != null -> megabytes(transfer.copied)
+                    transfer != null -> "${megabytes(transfer.copied)} / ${megabytes(transfer.total)}"
                     state == RuntimeDownload.Installing -> stringResource(R.string.tts_runtime_installing)
-                    pack.archiveBytes > 0 -> megabytes(pack.archiveBytes)
-                    else -> null
+                    else -> megabytes(pack.archiveBytes)
                 }
-                if (detail != null) Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
             when (state) {
                 RuntimeDownload.Available, is RuntimeDownload.Failed -> FilledTonalButton(onClick = onStart,
@@ -84,13 +82,13 @@ private fun RuntimeRow(pack: SpeechRuntimePack, state: RuntimeDownload, onStart:
                 }
             }
         }
-        if (transfer != null && transfer.total > 0) {
+        if (transfer != null) {
             val fraction = (transfer.copied.toFloat() / transfer.total).coerceIn(0f, 1f)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LinearProgressIndicator(progress = { fraction }, modifier = Modifier.weight(1f))
                 Text("${(fraction * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
             }
-        } else if (transfer != null || state == RuntimeDownload.Installing) {
+        } else if (state == RuntimeDownload.Installing) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
         }
         if (state is RuntimeDownload.Failed) Text(state.detail, style = MaterialTheme.typography.bodySmall, color = colors.error)

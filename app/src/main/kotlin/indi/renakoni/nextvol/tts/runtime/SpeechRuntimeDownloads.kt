@@ -28,6 +28,13 @@ internal class SpeechRuntimeDownloads @Inject constructor(
     private val availability: OfflineAvailabilityChecker,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // After a process restart only the revision in the current APK can be in use.
+    private val recovery = scope.launch {
+        for (pack in SpeechRuntimePack.entries) {
+            val current = pack.directory
+            pack.root.listFiles()?.forEach { if (it != current) it.deleteRecursively() }
+        }
+    }
     private val jobs = mutableMapOf<SpeechRuntimePack, Job>()
     private val states = MutableStateFlow<Map<SpeechRuntimePack, RuntimeDownload>>(SpeechRuntimePack.entries.associateWith {
         if (it.installed) RuntimeDownload.Installed else RuntimeDownload.Available
@@ -40,6 +47,7 @@ internal class SpeechRuntimeDownloads @Inject constructor(
         set(pack, RuntimeDownload.Downloading(0, pack.archiveBytes))
         val job = scope.launch {
             try {
+                recovery.join()
                 install(pack)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -61,9 +69,7 @@ internal class SpeechRuntimeDownloads @Inject constructor(
         }
     }
 
-    @Synchronized fun cancel(pack: SpeechRuntimePack) {
-        if (states.value[pack] != RuntimeDownload.Installed) jobs[pack]?.cancel()
-    }
+    @Synchronized fun cancel(pack: SpeechRuntimePack) { jobs[pack]?.cancel() }
 
     private suspend fun install(pack: SpeechRuntimePack) {
         val root = pack.root.apply { mkdirs() }
@@ -82,15 +88,12 @@ internal class SpeechRuntimeDownloads @Inject constructor(
                     nextProgressAt = now + 100
                 }
             }) throw IOException("Empty runtime download")
-            task.ensureActive()
             set(pack, RuntimeDownload.Installing)
-            staging.deleteRecursively()
             check(staging.mkdir()) { "Cannot create runtime staging directory" }
             val prefix = staging.canonicalPath + File.separator
             ZipFile(archive).use { zip ->
                 val buffer = ByteArray(64 * 1024)
                 for (entry in zip.entries()) {
-                    task.ensureActive()
                     if (entry.isDirectory) continue
                     val file = File(staging, entry.name).canonicalFile
                     require(file.path.startsWith(prefix)) { "Invalid runtime archive path" }
@@ -115,8 +118,6 @@ internal class SpeechRuntimeDownloads @Inject constructor(
                 if (pack == SpeechRuntimePack.Vendor) availability.runtimeInstalled()
                 set(pack, RuntimeDownload.Installed)
             }
-            // An APK update starts a new process; only its pinned revision can be in use.
-            root.listFiles()?.filter { it.isDirectory && it != pack.directory }?.forEach { it.deleteRecursively() }
         } finally {
             archive.delete()
             staging.deleteRecursively()

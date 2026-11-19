@@ -27,6 +27,7 @@ class UpdateArtifactDownloader @Inject constructor(
 
     private val client by lazy {
         OkHttpClient.Builder()
+            .followSslRedirects(false)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .build()
@@ -57,7 +58,6 @@ class UpdateArtifactDownloader @Inject constructor(
     }
 
     internal suspend fun selectDownloadUrl(urls: List<String>): String? {
-        urls.singleOrNull()?.let { return it }
         val results = Channel<String?>(urls.size)
         val calls = urls.map { client.newCall(Request.Builder().url(it).head().build()) }
         val callback = object : Callback {
