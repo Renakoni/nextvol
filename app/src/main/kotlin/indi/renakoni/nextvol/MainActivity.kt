@@ -3,7 +3,6 @@ package indi.renakoni.nextvol
 import android.Manifest.permission.POST_NOTIFICATIONS
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
 import android.os.Bundle
@@ -73,7 +72,7 @@ class MainActivity : AppCompatActivity() {
         observeFormattingSettings()
         externalFiles.accept(intent, initial = true)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { /* Android 13 + */
+        if (savedInstanceState == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(
                     this, arrayOf(POST_NOTIFICATIONS), 0
@@ -217,10 +216,6 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         coroutineScope.cancel()
-    }
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
     }
 
     private fun setReaderActive(active: Boolean) {

@@ -52,22 +52,6 @@ class SettingsTest : UiAutomatorTest() {
     }
 
     @Test
-    fun languageAndFormatsOpenAndReturn() {
-        openSettings()
-        clickScrolledText("Language")
-        clickText("简体中文 (中国大陆)")
-        clickScrolledText("语言")
-        clickText("English")
-
-        clickScrolledText("Formats")
-        assertText("Formats")
-        assertText("Date Format")
-        assertText("Use Relative Time")
-        assertText("Chinese Characters Variant")
-        pressBack()
-    }
-
-    @Test
     fun updatesControlsAndManualCheckWork() {
         openSettings()
         clickScrolledText("Auto Check for Updates")

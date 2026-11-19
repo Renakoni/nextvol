@@ -35,10 +35,13 @@ fun DisplaySettingsList() {
         title = stringResource(R.string.settings_app_language),
         description = stringResource(R.string.settings_app_language_desc),
         options = InterfaceLanguageOptions,
-        selectedOptionKey = InterfaceLanguageOptions.selectedKey(locales),
+        selectedOptionKey = remember(locales) { InterfaceLanguageOptions.selectedKey(locales) },
         onOptionChange = { tag ->
-            locales = LocaleListCompat.forLanguageTags(tag)
-            AppCompatDelegate.setApplicationLocales(locales)
+            val selected = LocaleListCompat.forLanguageTags(tag)
+            if (selected != locales) {
+                AppCompatDelegate.setApplicationLocales(selected)
+                locales = selected
+            }
         },
     )
     SettingsClickableEntry(

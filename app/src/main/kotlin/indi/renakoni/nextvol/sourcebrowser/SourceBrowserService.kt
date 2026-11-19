@@ -5,6 +5,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.*
 import android.webkit.*
+import androidx.core.content.ContextCompat
 import hnovel.network.*
 import indi.renakoni.nextvol.R
 import kotlinx.serialization.encodeToString
@@ -25,7 +26,8 @@ class SourceBrowserService : Service() {
     internal var webView: WebView? = null
     internal var activity: SourceBrowserActivity? = null
     internal val verificationCode get() = job.options.verificationCode
-    internal val pageTitle get() = if (verificationCode) getString(R.string.source_verification_code)
+    private val verificationLabel get() = ContextCompat.getString(this, R.string.source_verification_code)
+    internal val pageTitle get() = if (verificationCode) verificationLabel
         else job.options.title.ifBlank { android.net.Uri.parse(job.request.url).host.orEmpty() }
     @Volatile private var mainResponse: BrokerResponse? = null
     @Volatile private var mainUrl = ""
@@ -178,7 +180,7 @@ class SourceBrowserService : Service() {
                     <body><img id="verification-image" style="max-width:100%"><p><label for="verification-code"></label></p>
                     <input id="verification-code" type="text" maxlength="4096" autocomplete="off"></body></html>""", mainUrl).apply {
                     selectFirst("#verification-image")!!.attr("src", "data:$responseType;base64," + android.util.Base64.encodeToString(response.body, android.util.Base64.NO_WRAP))
-                    selectFirst("label")!!.text(getString(R.string.source_verification_code))
+                    selectFirst("label")!!.text(verificationLabel)
                 }
             } else org.jsoup.Jsoup.parse(response.text(), mainUrl)
             val script = "(function(){var initial=${storage.replace("<", "\\u003c")};Object.keys(initial).forEach(function(k){localStorage.setItem(k,initial[k]);});})();\n" + bootstrap
