@@ -29,6 +29,8 @@ internal fun VoiceEditorScreen(
     showParameters: Boolean = false, showExtensions: Boolean = false, newVoice: Boolean = false,
 ) {
     val draft = state.draft
+    val sovits = draft?.sovits
+    val genericParameters = parametersSupported && sovits == null
     val fontScale = LocalDensity.current.fontScale
     val pickAvatar = rememberSpeechAvatarPicker { avatar -> draft?.let { onEdit(it.copy(avatar = avatar)) } }
     val back = { if (!state.busy || draft == null) onBack() }
@@ -64,21 +66,40 @@ internal fun VoiceEditorScreen(
                             { VoiceChoice(stringResource(R.string.tts_voice_type), draft.type,
                                 mapOf("0" to stringResource(R.string.tts_voice_type_offline)) +
                                     (1..5).associate { it.toString() to stringResource(R.string.tts_voice_type_online, it) },
-                                !state.busy) { onEdit(draft.copy(type = it)) } },
+                                !state.busy && sovits == null) { onEdit(draft.copy(type = it)) } },
                         ) }
-                        item { VoicePair(horizontalPairs,
-                            { VoiceNumber(draft.speed, R.string.tts_voice_speed, !state.busy) { onEdit(draft.copy(speed = it)) } },
-                            { VoiceNumber(draft.volume, R.string.tts_voice_volume, !state.busy) { onEdit(draft.copy(volume = it)) } },
-                        ) }
-                        item { VoicePair(horizontalPairs,
-                            { VoiceNumber(draft.pitch, R.string.tts_pitch, !state.busy) { onEdit(draft.copy(pitch = it)) } },
-                            { VoiceChoice(stringResource(R.string.tts_voice_sample_rate), draft.sampleRate, voiceSampleRates,
-                                !state.busy) { onEdit(draft.copy(sampleRate = it)) } },
-                        ) }
+                        if (sovits != null) {
+                            item { VoicePair(horizontalPairs,
+                                { VoiceNumber(draft.speed, R.string.tts_voice_speed, !state.busy, 0.6f..1.65f) { onEdit(draft.copy(speed = it)) } },
+                                { VoiceChoice(stringResource(R.string.tts_voice_sample_rate), "32000", voiceSampleRates, false) {} },
+                            ) }
+                            item { VoicePair(horizontalPairs,
+                                { VoiceNumber(sovits.temperature, R.string.sovits_temperature, !state.busy, 0f..1f) {
+                                    onEdit(draft.copy(sovits = sovits.copy(temperature = it))) } },
+                                { VoiceNumber(sovits.topK, R.string.sovits_top_k, !state.busy, 1f..100f, integral = true) {
+                                    onEdit(draft.copy(sovits = sovits.copy(topK = it))) } },
+                            ) }
+                            item { VoicePair(horizontalPairs,
+                                { VoiceNumber(sovits.topP, R.string.sovits_top_p, !state.busy, 0f..1f) {
+                                    onEdit(draft.copy(sovits = sovits.copy(topP = it))) } },
+                                { VoiceNumber(sovits.repetitionPenalty, R.string.sovits_repetition_penalty, !state.busy, 1f..2f) {
+                                    onEdit(draft.copy(sovits = sovits.copy(repetitionPenalty = it))) } },
+                            ) }
+                        } else {
+                            item { VoicePair(horizontalPairs,
+                                { VoiceNumber(draft.speed, R.string.tts_voice_speed, !state.busy) { onEdit(draft.copy(speed = it)) } },
+                                { VoiceNumber(draft.volume, R.string.tts_voice_volume, !state.busy) { onEdit(draft.copy(volume = it)) } },
+                            ) }
+                            item { VoicePair(horizontalPairs,
+                                { VoiceNumber(draft.pitch, R.string.tts_pitch, !state.busy) { onEdit(draft.copy(pitch = it)) } },
+                                { VoiceChoice(stringResource(R.string.tts_voice_sample_rate), draft.sampleRate, voiceSampleRates,
+                                    !state.busy) { onEdit(draft.copy(sampleRate = it)) } },
+                            ) }
+                        }
                         item { OutlinedTextField(draft.description, { onEdit(draft.copy(description = it)) }, Modifier.fillMaxWidth(),
                             enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 4,
                             label = { Text(stringResource(R.string.tts_voice_description)) }) }
-                        val controls = if (parametersSupported) state.controls else emptyList()
+                        val controls = if (genericParameters) state.controls else emptyList()
                         if (controls == null && !state.loadingControls) item { Text(stringResource(R.string.tts_voice_extension_invalid), color = MaterialTheme.colorScheme.error) }
                         items(controls.orEmpty().filter { it.name.isNotBlank() }, key = { "control:${it.code}" }) { control ->
                             VoiceChoice(control.name, control.value.content, control.candidates, !state.busy && !state.loadingControls && control.supported) { value ->
@@ -86,13 +107,13 @@ internal fun VoiceEditorScreen(
                             }
                         }
                         val emptyCode = newVoice || state.emptyCode
-                        if (parametersSupported && (showParameters || emptyCode)) {
+                        if (genericParameters && (showParameters || emptyCode)) {
                             item { OutlinedTextField(draft.parameters, { onEdit(draft.copy(parameters = it)) }, Modifier.fillMaxWidth(),
                                 enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 8, label = { Text(stringResource(R.string.tts_voice_parameters)) }) }
                         }
                         item { OutlinedTextField(draft.note, { onEdit(draft.copy(note = it)) }, Modifier.fillMaxWidth(),
                             enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 4, label = { Text(stringResource(R.string.tts_engine_note)) }) }
-                        if (parametersSupported && (showExtensions || emptyCode)) item {
+                        if (genericParameters && (showExtensions || emptyCode)) item {
                             OutlinedTextField(draft.extensions, { onEdit(draft.copy(extensions = it)) }, Modifier.fillMaxWidth(),
                                 enabled = !state.busy, shape = MaterialTheme.shapes.small, maxLines = 8,
                                 label = { Text(stringResource(R.string.tts_voice_extensions)) }, isError = controls == null)
@@ -128,10 +149,15 @@ private fun VoiceText(value: String, label: Int, enabled: Boolean, onChange: (St
 }
 
 @Composable
-private fun VoiceNumber(value: String, label: Int, enabled: Boolean, onChange: (String) -> Unit) {
+private fun VoiceNumber(value: String, label: Int, enabled: Boolean,
+    range: ClosedFloatingPointRange<Float>? = null, integral: Boolean = false, onChange: (String) -> Unit) {
+    val number = value.toFloatOrNull()
     OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), enabled = enabled, singleLine = true, shape = MaterialTheme.shapes.small,
-        label = { Text(stringResource(label)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        isError = enabled && value.toFloatOrNull()?.isFinite() != true)
+        label = { Text(stringResource(label)) },
+        supportingText = range?.let { { Text(if (integral) "${it.start.toInt()}–${it.endInclusive.toInt()}" else "${it.start}–${it.endInclusive}") } },
+        keyboardOptions = KeyboardOptions(keyboardType = if (integral) KeyboardType.Number else KeyboardType.Decimal),
+        isError = enabled && (number == null || !number.isFinite() || (range != null && number !in range) ||
+            (integral && value.toIntOrNull() == null)))
 }
 
 @Composable

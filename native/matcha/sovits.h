@@ -16,9 +16,9 @@ class Voice {
  public:
   Voice(std::filesystem::path model, std::filesystem::path runtime);
   void prepare(const Text& prompt, const std::vector<float>& pcm32, const std::vector<float>& pcm16);
-  std::vector<int64_t> semantics(const Text& text);
+  std::vector<int64_t> semantics(const Text& text, const std::vector<float>& sampling);
   std::vector<float> condition(bool advanced) const;
-  std::vector<int16_t> vocode(const std::vector<int64_t>& phones, const std::vector<int64_t>& tokens);
+  std::vector<int16_t> vocode(const std::vector<int64_t>& phones, const std::vector<int64_t>& tokens, double speed);
   static std::vector<int16_t> pcm(const float* samples, size_t count);
   void cancel() { run_.SetTerminate(); }
 

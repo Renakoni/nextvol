@@ -141,10 +141,11 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
         require(text.isNotBlank() && text.length <= maxInputLength)
         return nativeOperation {
             val input = checkNotNull(frontend).encode(text)
-            val tokens = SovitsNative.semantics(handle, input.phones, input.tokens, input.repeats, input.bertRuns)
+            val tokens = SovitsNative.semantics(handle, input.phones, input.tokens, input.repeats, input.bertRuns,
+                voice.options.samplingValues())
             val accelerated = generation.run { acoustic?.generate(input.phones, tokens) }
             lastProvider = if (accelerated != null) checkNotNull(acoustic).lastProvider else "CPU"
-            accelerated ?: SovitsNative.vocode(handle, input.phones, tokens)
+            accelerated ?: SovitsNative.vocode(handle, input.phones, tokens, voice.options.speed.toDouble())
         }
     }
 

@@ -1,5 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="sovits_temperature">Temperature</string>
+    <string name="sovits_top_k">Top-K</string>
+    <string name="sovits_top_p">Top-P</string>
+    <string name="sovits_repetition_penalty">Repetition penalty</string>
+    <string name="sovits_runtime_unsupported">GPT-SoVITS does not support the current runtime environment.</string>
     <string name="sovits_checkpoint_big_endian">Big-endian weights are not supported.</string>
     <string name="sovits_checkpoint_config_missing">The model configuration is missing. Select complete weights exported by GPT-SoVITS.</string>
     <string name="sovits_checkpoint_empty">The weight file is empty or damaged.</string>

@@ -43,9 +43,10 @@ Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_prepare(JNIEnv* env, jobject,
 
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_semantics(JNIEnv* env, jobject, jlong handle,
-    jlongArray phones, jlongArray tokens, jlongArray repeats, jlongArray runs) {
+    jlongArray phones, jlongArray tokens, jlongArray repeats, jlongArray runs, jfloatArray sampling) {
   try {
-    auto ids = reinterpret_cast<sovits::Voice*>(handle)->semantics({longs(env, phones), longs(env, tokens), longs(env, repeats), longs(env, runs)});
+    auto ids = reinterpret_cast<sovits::Voice*>(handle)->semantics(
+        {longs(env, phones), longs(env, tokens), longs(env, repeats), longs(env, runs)}, floats(env, sampling));
     auto result = env->NewLongArray(ids.size());
     if (result) env->SetLongArrayRegion(result, 0, ids.size(), reinterpret_cast<const jlong*>(ids.data()));
     return result;
@@ -70,8 +71,8 @@ static jbyteArray bytes(JNIEnv* env, const std::vector<int16_t>& pcm) {
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
-Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_vocode(JNIEnv* env, jobject, jlong handle, jlongArray phones, jlongArray tokens) {
-  try { return bytes(env, reinterpret_cast<sovits::Voice*>(handle)->vocode(longs(env, phones), longs(env, tokens))); }
+Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_vocode(JNIEnv* env, jobject, jlong handle, jlongArray phones, jlongArray tokens, jdouble speed) {
+  try { return bytes(env, reinterpret_cast<sovits::Voice*>(handle)->vocode(longs(env, phones), longs(env, tokens), speed)); }
   catch (const std::exception& e) { fail(env, e); return nullptr; }
 }
 

@@ -137,7 +137,7 @@ internal fun OfflineSpeechSourceRow(
         onClick = { onSelect(voice) }, avatar = {
             SpeechAvatar(voice.metadata.avatar, voice.configuration?.gender ?: 0,
                 Modifier.size(40.dp), state.avatars[voice.reference.id])
-        }, onPreview = { onPreview(voice) }, description = voice.metadata.description.ifBlank { voice.configuration?.code.orEmpty() },
+        }, onPreview = { onPreview(voice) }, description = voice.metadata.description,
         problem = status?.takeUnless { it.canRun }?.let { stringResource(it.message, it.detail) }, actions = {
             Box {
                 IconButton(onClick = { actions = true }) {

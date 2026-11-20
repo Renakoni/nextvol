@@ -7,6 +7,9 @@ import hnovel.speech.*
 import indi.renakoni.nextvol.tts.SpeechEngineRepository
 import indi.renakoni.nextvol.tts.orderSpeechVoices
 import indi.renakoni.nextvol.tts.offline.googleVoiceCatalog
+import indi.renakoni.nextvol.tts.sovits.sovitsModelCode
+import indi.renakoni.nextvol.tts.sovits.sovitsOptions
+import indi.renakoni.nextvol.tts.sovits.withSovitsOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -262,9 +265,13 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
                         task.ensureActive()
                         val previous = read()
                         val reference = OfflineVoiceRef(UUID.randomUUID().toString(), UUID.randomUUID().toString())
+                        val prefix = sovitsModelCode(normalized).substringBefore('.') + "-"
+                        val usedCodes = previous.mapNotNull { it.configuration?.takeIf { it.engine == "gpt-sovits" }?.code }.toSet()
+                        val number = generateSequence(1) { it + 1 }.first { "$prefix$it" !in usedCodes }
+                        val numbered = normalized.copy(code = "$prefix$number")
                         val metadata = OfflineVoiceMetadata(avatar = avatar)
-                        val voice = InstalledOfflineVoice(reference, name.trim(), sizes, configuration = normalized, metadata = metadata,
-                            defaults = OfflineVoiceDefaults(name.trim(), normalized, metadata))
+                        val voice = InstalledOfflineVoice(reference, name.trim(), sizes, configuration = numbered, metadata = metadata,
+                            defaults = OfflineVoiceDefaults(name.trim(), numbered, metadata))
                         val target = directory(reference)
                         check(target.parentFile!!.mkdirs() && stage.renameTo(target))
                         try { write(previous + voice) }
@@ -449,7 +456,10 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
 
 /** Package defaults precede speaker overrides. Segment/role overrides will be applied by the plan layer. */
 internal fun normalizeOfflineVoice(configuration: OfflineVoiceConfig, paths: Collection<String>): OfflineVoiceConfig {
-    if (configuration.engine == "gpt-sovits") indi.renakoni.nextvol.tts.sovits.validateSovitsConfiguration(configuration, paths)
+    if (configuration.engine == "gpt-sovits") {
+        indi.renakoni.nextvol.tts.sovits.validateSovitsConfiguration(configuration, paths)
+        return configuration.withSovitsOptions(sovitsOptions(configuration))
+    }
     require(configuration.speed.isFinite() && configuration.speed >= 0 && configuration.pitch.isFinite() && configuration.pitch > 0)
     require(configuration.volume.isFinite() && configuration.volume >= 0 && configuration.sampleRate >= 0)
     val raw = configuration.rawParameters ?: configuration.parameters

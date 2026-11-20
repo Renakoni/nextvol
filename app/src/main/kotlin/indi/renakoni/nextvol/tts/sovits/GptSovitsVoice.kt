@@ -17,6 +17,7 @@ data class GptSovitsVoice(
     val referenceText: String,
     val runtime: File = File(root, "RuntimeAssets"),
     val referenceLanguage: SovitsReferenceLanguage = SovitsReferenceLanguage.detect(referenceText),
+    val options: SovitsSynthesisOptions = SovitsSynthesisOptions(),
 ) {
     init {
         require(character.isNotBlank() && character !in setOf(".", "..") &&
@@ -27,11 +28,11 @@ data class GptSovitsVoice(
 }
 
 internal fun validateSovitsConfiguration(configuration: OfflineVoiceConfig, paths: Collection<String>) {
-    require("CharacterModels/${sovitsCharacterPath(configuration.code)}/prompt_wav.json" in paths)
+    require("CharacterModels/${sovitsCharacterPath(sovitsModelCode(configuration))}/prompt_wav.json" in paths)
 }
 
 internal fun installedSovitsVoice(root: File, configuration: OfflineVoiceConfig, runtime: File): GptSovitsVoice {
-    val code = sovitsCharacterPath(configuration.code)
+    val code = sovitsCharacterPath(sovitsModelCode(configuration))
     val version = GptSovitsVersion.entries.single { it.directory == code.substringBefore('/') }
     val character = File(root, "CharacterModels/$code")
     val reference = JSONObject(File(character, "prompt_wav.json").readText()).getJSONObject("Normal")
@@ -39,7 +40,7 @@ internal fun installedSovitsVoice(root: File, configuration: OfflineVoiceConfig,
     val filename = reference.getString("wav")
     require(filename.matches(Regex("reference\\.[a-z0-9]{1,8}")))
     return GptSovitsVoice(root, version, code.substringAfter('/'), File(character, "prompt_wav/$filename"),
-        reference.getString("text"), runtime, SovitsReferenceLanguage.entries.single { it.code == language })
+        reference.getString("text"), runtime, SovitsReferenceLanguage.entries.single { it.code == language }, sovitsOptions(configuration))
 }
 
 private fun sovitsCharacterPath(code: String): String {

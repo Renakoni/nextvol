@@ -172,12 +172,16 @@ void Voice::prepare(const Text& prompt, const std::vector<float>& pcm32, const s
     throw std::runtime_error("Invalid GPT-SoVITS decoder stop flag");
 }
 
-std::vector<int64_t> Voice::semantics(const Text& text) {
+std::vector<int64_t> Voice::semantics(const Text& text, const std::vector<float>& controls) {
+  if (controls.size() != 4 || !std::all_of(controls.begin(), controls.end(), [](float value) { return std::isfinite(value); }) ||
+      controls[0] < 0 || controls[0] > 1 || controls[1] < 1 || controls[1] > 100 || std::floor(controls[1]) != controls[1] ||
+      controls[2] < 0 || controls[2] > 1 || controls[3] < 1 || controls[3] > 2)
+    throw std::invalid_argument("Invalid GPT-SoVITS sampling parameters");
   auto phones = tensor(text.phones, {1, static_cast<int64_t>(text.phones.size())});
   auto features = bert(text);
   auto encoded = evaluate(encoder_, run_, {{"ref_seq", &ref_phones_}, {"text_seq", &phones},
       {"ref_bert", &ref_bert_}, {"text_bert", &features}, {"ssl_content", &ssl_}}, {"x", "prompts"});
-  auto sampling = tensor<float>({1.f, 15.f, 1.f, 1.35f}, {4});
+  auto sampling = tensor(controls, {4});
   Inputs prefill{{"x", &encoded[0]}, {"prompts", &encoded[1]}};
   if (first_sampling_) prefill.emplace_back("sampling", &sampling);
   auto state = evaluate(first_, run_, prefill, first_outputs_);
@@ -220,14 +224,16 @@ std::vector<float> Voice::condition(bool advanced) const {
   return {ptr, ptr + info.GetElementCount()};
 }
 
-std::vector<int16_t> Voice::vocode(const std::vector<int64_t>& ids, const std::vector<int64_t>& tokens) {
+std::vector<int16_t> Voice::vocode(const std::vector<int64_t>& ids, const std::vector<int64_t>& tokens, double speech_speed) {
+  if (!std::isfinite(speech_speed) || speech_speed < static_cast<double>(0.6f) || speech_speed > static_cast<double>(1.65f))
+    throw std::invalid_argument("Invalid GPT-SoVITS speed");
   if (!vits_) {
     vits_ = load(model_ / "vits_fp32.onnx");
     speed_input_ = contains(names(vits_, true), "speed");
   }
   auto phones = tensor(ids, {1, static_cast<int64_t>(ids.size())});
   auto semantic = tensor(tokens, {1, 1, static_cast<int64_t>(tokens.size())});
-  auto speed = tensor<double>({1.0}, {1});
+  auto speed = tensor<double>({speech_speed}, {1});
   Inputs acoustic{{"text_seq", &phones}, {"pred_semantic", &semantic}, {"ge", &ge_}, {"ge_advanced", &advanced_}};
   if (speed_input_) acoustic.emplace_back("speed", &speed);
   auto audio = evaluate(vits_, run_, acoustic, {"audio"});

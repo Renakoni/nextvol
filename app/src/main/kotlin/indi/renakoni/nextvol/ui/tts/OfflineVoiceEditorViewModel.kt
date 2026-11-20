@@ -8,6 +8,8 @@ import hnovel.speech.*
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.matcha.*
+import indi.renakoni.nextvol.tts.sovits.sovitsOptions
+import indi.renakoni.nextvol.tts.sovits.withSovitsOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,8 +21,11 @@ import kotlinx.serialization.json.*
 import javax.inject.Inject
 
 internal fun VoiceFields.applyTo(voice: InstalledOfflineVoice): InstalledOfflineVoice {
-    val original = requireNotNull(voice.configuration)
-    val candidate = original.copy(code = code, locale = locale, rawParameters = parameters, extendUI = extensions,
+    val stored = requireNotNull(voice.configuration)
+    // Capture the model reference before applying an editable speaker code, including legacy imports.
+    val original = if (stored.engine == "gpt-sovits") stored.withSovitsOptions(requireNotNull(sovits)) else stored
+    val candidate = if (stored.engine == "gpt-sovits") original.copy(code = code, locale = locale, gender = gender)
+    else original.copy(code = code, locale = locale, rawParameters = parameters, extendUI = extensions,
         speed = speed, pitch = pitch, volume = volume, sampleRate = sampleRate,
         gender = gender, type = type)
     return voice.copy(name = name, configuration = candidate, enabled = enabled,
@@ -29,9 +34,13 @@ internal fun VoiceFields.applyTo(voice: InstalledOfflineVoice): InstalledOffline
 
 internal fun VoiceDraft.Companion.from(voice: InstalledOfflineVoice): VoiceDraft {
     val config = requireNotNull(voice.configuration)
+    val sovits = if (config.engine == "gpt-sovits") sovitsOptions(config.copy(speed = 1f)) else null
     return VoiceDraft(voice.name, config.code, config.locale, config.rawParameters ?: config.parameters, config.extendUI,
-        config.speed.toString(), config.pitch.toString(), config.volume.toString(), config.sampleRate.takeUnless { it == 0 }?.toString() ?: "16000",
-        config.gender.toString(), config.type.toString(), voice.metadata.note, voice.metadata.description, voice.metadata.avatar, voice.enabled)
+        config.speed.toString(), (if (sovits != null) 1f else config.pitch).toString(), (if (sovits != null) 1f else config.volume).toString(),
+        if (sovits != null) "32000" else config.sampleRate.takeUnless { it == 0 }?.toString() ?: "16000",
+        config.gender.toString(), (if (sovits != null) 0 else config.type).toString(),
+        voice.metadata.note, voice.metadata.description, voice.metadata.avatar, voice.enabled,
+        sovits?.let { SovitsOptionsDraft(it.temperature.toString(), it.topK.toString(), it.topP.toString(), it.repetitionPenalty.toString()) })
 }
 
 @HiltViewModel
@@ -62,8 +71,11 @@ class OfflineVoiceEditorViewModel @Inject constructor(
                         locale = java.util.Locale.getDefault().let { "${it.language}-${it.country}" }))
                 else repository.voices().single { it.reference.id == id }
                 val original = installed.copy(configuration = (installed.configuration ?: repository.configuration(installed)).copy(engineParameters = ""))
+                val initial = VoiceDraft.from(original)
                 val draft = restored?.let { runCatching { Json.decodeFromString<VoiceDraft>(it) }.getOrNull() }
-                    ?: VoiceDraft.from(original).let { if (newVoice) it.copy(name = "", note = "", description = "", avatar = "", enabled = true)
+                    ?.let { if (initial.sovits == null) it else it.copy(sovits = it.sovits ?: initial.sovits,
+                        pitch = initial.pitch, volume = initial.volume, sampleRate = initial.sampleRate, type = initial.type) }
+                    ?: initial.let { if (newVoice) it.copy(name = "", note = "", description = "", avatar = "", enabled = true)
                         else if (copyPattern == null) it else it.copy(name = String.format(copyPattern, it.name)) }
                 original to VoiceEditorState(draft, emptyCode = original.configuration?.code.isNullOrEmpty(), busy = true,
                     packageAvatar = repository.avatar(original)?.path,
