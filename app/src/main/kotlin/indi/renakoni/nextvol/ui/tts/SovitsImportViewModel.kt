@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.ui.tts
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.webkit.MimeTypeMap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,14 +19,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-internal enum class SovitsImportField(val extension: String?) {
-    Gpt("ckpt"), Sovits("pth"), Audio(null);
-
-    // OpenDocument filters by the provider's MIME type. Unmapped weight extensions share the binary type.
-    val mimeType: String get() = if (extension == null) "audio/*"
-        else MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
-}
-
 internal data class SovitsImportState(
     val draft: SovitsImportDraft = SovitsImportDraft(),
     val picking: Boolean = false,
@@ -38,10 +29,6 @@ internal data class SovitsImportState(
     val completed: Boolean = false,
 ) {
     fun withPickedFile(field: SovitsImportField, file: SovitsImportFile): SovitsImportState {
-        val extension = field.extension
-        if (extension != null && !file.name.endsWith(".$extension", ignoreCase = true)) {
-            return copy(error = SovitsImportMessage(R.string.sovits_choose_extension, ".$extension"))
-        }
         val updated = when (field) {
             SovitsImportField.Gpt -> draft.copy(gpt = file)
             SovitsImportField.Sovits -> draft.copy(sovits = file)

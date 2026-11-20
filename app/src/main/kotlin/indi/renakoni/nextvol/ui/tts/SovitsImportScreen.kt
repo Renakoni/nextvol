@@ -32,6 +32,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.sovits.SovitsImportDraft
+import indi.renakoni.nextvol.tts.sovits.SovitsImportField
 import indi.renakoni.nextvol.tts.sovits.SovitsImportFile
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
@@ -106,11 +107,11 @@ internal fun SovitsImportForm(state: SovitsImportState, onEdit: (SovitsImportDra
                 }
                 Spacer(Modifier.height(24.dp))
                 SettingsCategory {
-                    SovitsFileRow(stringResource(R.string.sovits_gpt_weight), draft.gpt, enabled) { onPick(SovitsImportField.Gpt) }
-                    SovitsFileRow(stringResource(R.string.sovits_sovits_weight), draft.sovits, enabled) { onPick(SovitsImportField.Sovits) }
+                    SovitsFileRow(stringResource(R.string.sovits_gpt_weight), SovitsImportField.Gpt, draft.gpt, enabled, onPick)
+                    SovitsFileRow(stringResource(R.string.sovits_sovits_weight), SovitsImportField.Sovits, draft.sovits, enabled, onPick)
                 }
                 SettingsCategory {
-                    SovitsFileRow(stringResource(R.string.sovits_reference_audio), draft.audio, enabled) { onPick(SovitsImportField.Audio) }
+                    SovitsFileRow(stringResource(R.string.sovits_reference_audio), SovitsImportField.Audio, draft.audio, enabled, onPick)
                 }
                 val transcriptLabel = stringResource(R.string.sovits_reference_text)
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -126,15 +127,19 @@ internal fun SovitsImportForm(state: SovitsImportState, onEdit: (SovitsImportDra
 }
 
 @Composable
-private fun SovitsFileRow(label: String, file: SovitsImportFile?, enabled: Boolean, onClick: () -> Unit) {
+private fun SovitsFileRow(label: String, field: SovitsImportField, file: SovitsImportFile?, enabled: Boolean, onPick: (SovitsImportField) -> Unit) {
     Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)
-        .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        .clickable(enabled = enabled, role = Role.Button) { onPick(field) }
         .heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            if (file != null) Text(file.name, maxLines = 1, overflow = TextOverflow.MiddleEllipsis,
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (file != null) {
+                if (field.accepts(file)) Text(file.name, maxLines = 1, overflow = TextOverflow.MiddleEllipsis,
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else Text(stringResource(R.string.sovits_choose_extension, ".${field.extension}"),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
         }
         if (file == null) Text(stringResource(R.string.sovits_choose_file), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary)

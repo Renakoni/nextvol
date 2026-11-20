@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.tts.sovits
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.webkit.MimeTypeMap
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.speech.OfflineVoiceConfig
 import indi.renakoni.nextvol.R
@@ -19,6 +20,17 @@ import javax.inject.Inject
 
 internal data class SovitsImportFile(val uri: Uri, val name: String)
 
+internal enum class SovitsImportField(val extension: String?) {
+    Gpt("ckpt"), Sovits("pth"), Audio(null);
+
+    // OpenDocument filters by the provider's MIME type. Unmapped weight extensions share the binary type.
+    val mimeType: String get() = if (extension == null) "audio/*"
+        else MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+
+    fun accepts(file: SovitsImportFile?) = file != null &&
+        (extension == null || file.name.endsWith(".$extension", ignoreCase = true))
+}
+
 internal data class SovitsImportDraft(
     val name: String = "",
     val gpt: SovitsImportFile? = null,
@@ -27,7 +39,8 @@ internal data class SovitsImportDraft(
     val text: String = "",
     val avatar: String = "",
 ) {
-    val ready get() = name.isNotBlank() && name.length <= 80 && gpt != null && sovits != null && audio != null && text.isNotBlank()
+    val ready get() = name.isNotBlank() && name.length <= 80 && text.isNotBlank() && audio != null &&
+        SovitsImportField.Gpt.accepts(gpt) && SovitsImportField.Sovits.accepts(sovits)
 }
 
 internal class SovitsWeightImport @Inject constructor(
