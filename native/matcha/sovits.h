@@ -8,7 +8,7 @@
 namespace sovits {
 
 struct Text {
-  std::vector<int64_t> phones, tokens, repeats;
+  std::vector<int64_t> phones, tokens, repeats, bert_runs;
 };
 
 // One voice owns one session. Only cancel() may overlap prepare() or generate().
@@ -25,6 +25,7 @@ class Voice {
  private:
   Ort::Session load(const std::filesystem::path& path);
   Ort::Value bert(const Text& text);
+  Ort::Value mandarin_bert(const std::vector<int64_t>& ids, const std::vector<int64_t>& repeats, size_t phones);
   std::filesystem::path model_, runtime_;
   Ort::SessionOptions options_;
   Ort::RunOptions run_;

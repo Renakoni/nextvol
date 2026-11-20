@@ -6,7 +6,20 @@ import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import org.json.JSONObject
 import java.io.File
 
-internal class SovitsText(val phones: LongArray, val tokens: LongArray, val repeats: LongArray)
+internal class SovitsText(val phones: LongArray, val tokens: LongArray, val repeats: LongArray,
+    // Positive lengths are Mandarin token sequences (including CLS/SEP); negative lengths are zero-BERT phone spans.
+    val bertRuns: LongArray = longArrayOf(),
+) {
+    companion object {
+        fun combine(parts: List<SovitsText>): SovitsText {
+            if (parts.size == 1) return parts.single()
+            val phones = parts.flatMap { it.phones.asList() }.toLongArray()
+            return SovitsText(phones, parts.flatMap { it.tokens.asList() }.toLongArray(),
+                parts.flatMap { it.repeats.asList() }.toLongArray(),
+                parts.map { if (it.tokens.isEmpty()) -it.phones.size.toLong() else it.tokens.size.toLong() }.toLongArray())
+        }
+    }
+}
 
 internal class SovitsMandarin(dictionary: File, runtime: File) {
     constructor(runtime: File) : this(File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/chinese_g2p"), runtime)
@@ -16,7 +29,9 @@ internal class SovitsMandarin(dictionary: File, runtime: File) {
     private val vocab = JSONObject(File(runtime, "roberta-wwm-ext-large-onnx/roberta_tokenizer/tokenizer.json")
         .readText()).getJSONObject("model").getJSONObject("vocab")
 
-    fun encode(text: String): SovitsText {
+    fun encode(text: String): SovitsText = requireNotNull(encodeChunk(text)) { "Empty GPT-SoVITS text" }
+
+    fun encodeChunk(text: String): SovitsText? {
         val normalizedText = normalizeText(text)
         val phones = mutableListOf<Long>()
         val repeats = mutableListOf<Long>()
@@ -49,7 +64,8 @@ internal class SovitsMandarin(dictionary: File, runtime: File) {
                 }
             }
         }
-        require(phones.isNotEmpty() && tokens.size < 512) { "Empty or oversized GPT-SoVITS text" }
+        if (phones.isEmpty()) return null
+        require(tokens.size < 512) { "Empty or oversized GPT-SoVITS text" }
         tokens += vocab.getLong("[SEP]")
         return SovitsText(phones.toLongArray(), tokens.toLongArray(), repeats.toLongArray())
     }

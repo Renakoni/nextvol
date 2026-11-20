@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <stdexcept>
 
 namespace sovits {
@@ -75,17 +76,52 @@ Ort::Session Voice::load(const std::filesystem::path& path) {
 }
 
 Tensor Voice::bert(const Text& text) {
-  const int64_t tokens = text.tokens.size(), phones = text.phones.size();
-  if (!phones || tokens < 3 || tokens > 512 || text.repeats.size() + 2 != text.tokens.size())
+  const size_t phones = text.phones.size();
+  if (text.bert_runs.empty()) return mandarin_bert(text.tokens, text.repeats, phones);
+  Ort::AllocatorWithDefaultOptions allocator;
+  const int64_t shape[] = {static_cast<int64_t>(phones), 1024};
+  auto output = Tensor::CreateTensor<float>(allocator, shape, 2);
+  auto dst = output.GetTensorMutableData<float>();
+  size_t phone = 0, token = 0, repeat = 0;
+  for (int64_t length : text.bert_runs) {
+    if (length < 0 && length >= -static_cast<int64_t>(phones - phone)) {
+      // English and Japanese use the same phones-by-1024 shape, filled with zeros.
+      size_t count = static_cast<size_t>(-length);
+      std::fill_n(dst + phone * 1024, count * 1024, 0.f);
+      phone += count;
+    } else {
+      if (length < 3 || length > 512 || static_cast<size_t>(length) > text.tokens.size() - token ||
+          static_cast<size_t>(length - 2) > text.repeats.size() - repeat)
+        throw std::invalid_argument("Invalid Mandarin feature span");
+      std::vector<int64_t> ids(text.tokens.begin() + token, text.tokens.begin() + token + length);
+      std::vector<int64_t> counts(text.repeats.begin() + repeat, text.repeats.begin() + repeat + length - 2);
+      const int64_t size = std::accumulate(counts.begin(), counts.end(), int64_t{0});
+      if (size <= 0 || static_cast<size_t>(size) > phones - phone)
+        throw std::invalid_argument("Invalid Mandarin phone count");
+      auto features = mandarin_bert(ids, counts, size);
+      std::copy_n(features.GetTensorData<float>(), size * 1024, dst + phone * 1024);
+      phone += size;
+      token += length;
+      repeat += length - 2;
+    }
+  }
+  if (phone != phones || token != text.tokens.size() || repeat != text.repeats.size())
+    throw std::invalid_argument("Unaligned multilingual phone features");
+  return output;
+}
+
+Tensor Voice::mandarin_bert(const std::vector<int64_t>& input, const std::vector<int64_t>& counts, size_t phones) {
+  const int64_t tokens = input.size();
+  if (!phones || tokens < 3 || tokens > 512 || counts.size() + 2 != input.size())
     throw std::invalid_argument("Invalid GPT-SoVITS text features");
-  auto ids = tensor(text.tokens, {1, tokens});
+  auto ids = tensor(input, {1, tokens});
   auto mask = tensor(std::vector<int64_t>(tokens, 1), {1, tokens});
-  auto repeats = tensor(text.repeats, {tokens - 2});
+  auto repeats = tensor(counts, {tokens - 2});
   auto result = evaluate(roberta_, run_, {{"input_ids", &ids}, {"attention_mask", &mask}, {"repeats", &repeats}},
                          {"phone_features"});
   auto info = result[0].GetTensorTypeAndShapeInfo();
   auto shape = info.GetShape();
-  if (shape != std::vector<int64_t>{phones, 1024}) throw std::runtime_error("Unexpected RoBERTa phone features");
+  if (shape != std::vector<int64_t>{static_cast<int64_t>(phones), 1024}) throw std::runtime_error("Unexpected RoBERTa phone features");
   if (info.GetElementType() == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) return std::move(result[0]);
   if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16) throw std::runtime_error("Invalid RoBERTa precision");
   Ort::AllocatorWithDefaultOptions allocator;

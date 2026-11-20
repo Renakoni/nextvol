@@ -40,7 +40,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     private var handle = 0L
     private var ownsPermit = false
     private var preparing: Job? = null
-    private var frontend: SovitsMandarin? = null
+    private var frontend: SovitsFrontend? = null
 
     override suspend fun open(settings: SpeechSettings): String {
         check(opened.compareAndSet(false, true))
@@ -75,15 +75,16 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     private suspend fun prepare(settings: SpeechSettings) {
         prepareSovitsFiles(voice)
         val (pcm32, pcm16) = readSovitsReference(voice.referenceAudio)
-        val mandarin = SovitsMandarin(voice.runtime)
-        val prompt = mandarin.encode(voice.referenceText)
         nativeOperation {
+            val languageFrontend = SovitsFrontend(voice.runtime)
+            frontend = languageFrontend
+            val prompt = languageFrontend.encode(voice.referenceText, voice.referenceLanguage)
             synchronized(lifecycle) {
                 generation.checkCancelled()
                 handle = SovitsNative.create(voice.model.absolutePath.encodeToByteArray(),
                     voice.runtime.absolutePath.encodeToByteArray())
             }
-            SovitsNative.prepare(handle, prompt.phones, prompt.tokens, prompt.repeats, pcm32, pcm16)
+            SovitsNative.prepare(handle, prompt.phones, prompt.tokens, prompt.repeats, prompt.bertRuns, pcm32, pcm16)
             try {
                 acoustic = SovitsAcoustic(voice, SovitsNative.condition(handle, false), SovitsNative.condition(handle, true))
                 acoustic?.prepare(context)
@@ -94,7 +95,6 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                 acoustic = null
                 android.util.Log.w("NextVolSoVITS", "Accelerated voice unavailable", failure)
             }
-            frontend = mandarin
             audioParameters = SpeechAudioParameters(settings.rate.coerceAtLeast(0.1f), settings.pitch, settings.volume)
         }
     }
@@ -141,7 +141,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
         require(text.isNotBlank() && text.length <= maxInputLength)
         return nativeOperation {
             val input = checkNotNull(frontend).encode(text)
-            val tokens = SovitsNative.semantics(handle, input.phones, input.tokens, input.repeats)
+            val tokens = SovitsNative.semantics(handle, input.phones, input.tokens, input.repeats, input.bertRuns)
             val accelerated = generation.run { acoustic?.generate(input.phones, tokens) }
             lastProvider = if (accelerated != null) checkNotNull(acoustic).lastProvider else "CPU"
             accelerated ?: SovitsNative.vocode(handle, input.phones, tokens)
@@ -206,8 +206,10 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                     acoustic = null
                     if (handle != 0L) SovitsNative.close(handle)
                     handle = 0
-                    frontend = null
-                    if (ownsPermit) { ownsPermit = false; permit.release() }
+                    try { frontend?.close() } finally {
+                        frontend = null
+                        if (ownsPermit) { ownsPermit = false; permit.release() }
+                    }
                 }
             }
         }

@@ -77,39 +77,22 @@ internal class SpeechRuntimeDownloads @Inject constructor(
         val staging = File(root, "unpacking")
         try {
             val task = currentCoroutineContext()
-            val expectedBytes = pack.archiveBytes
-            var nextProgressAt = 0L
-            val url = downloader.selectDownloadUrl(pack.downloadUrls)
-                ?: throw IOException(SpeechLibraries.context.getString(R.string.tts_runtime_sources_unreachable))
-            if (!downloader.downloadFile(url, archive) { copied, total ->
-                val now = SystemClock.elapsedRealtime()
-                if (now >= nextProgressAt || copied == total) {
-                    set(pack, RuntimeDownload.Downloading(copied, if (total > 0) total else expectedBytes))
-                    nextProgressAt = now + 100
-                }
-            }) throw IOException("Empty runtime download")
-            set(pack, RuntimeDownload.Installing)
             check(staging.mkdir()) { "Cannot create runtime staging directory" }
-            val prefix = staging.canonicalPath + File.separator
-            ZipFile(archive).use { zip ->
-                val buffer = ByteArray(64 * 1024)
-                for (entry in zip.entries()) {
-                    if (entry.isDirectory) continue
-                    val file = File(staging, entry.name).canonicalFile
-                    require(file.path.startsWith(prefix)) { "Invalid runtime archive path" }
-                    file.parentFile!!.mkdirs()
-                    zip.getInputStream(entry).use { input ->
-                        file.outputStream().use { output ->
-                            while (true) {
-                                task.ensureActive()
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                output.write(buffer, 0, read)
-                            }
-                        }
+            var installedBytes = 0L
+            for (part in pack.archives) {
+                var nextProgressAt = 0L
+                val url = downloader.selectDownloadUrl(part.urls)
+                    ?: throw IOException(SpeechLibraries.context.getString(R.string.tts_runtime_sources_unreachable))
+                if (!downloader.downloadFile(url, archive) { copied, _ ->
+                    val now = SystemClock.elapsedRealtime()
+                    if (now >= nextProgressAt || copied == part.bytes) {
+                        set(pack, RuntimeDownload.Downloading(installedBytes + copied, pack.archiveBytes))
+                        nextProgressAt = now + 100
                     }
-                    check(file.setReadOnly()) { "Cannot protect installed runtime" }
-                }
+                } || archive.length() != part.bytes) throw IOException("Incomplete runtime download")
+                if (part == pack.archives.last()) set(pack, RuntimeDownload.Installing)
+                unpack(archive, staging)
+                installedBytes += part.bytes
             }
             // A cancel and a completed installation must agree on which happened first.
             synchronized(this) {
@@ -121,6 +104,31 @@ internal class SpeechRuntimeDownloads @Inject constructor(
         } finally {
             archive.delete()
             staging.deleteRecursively()
+        }
+    }
+
+    private suspend fun unpack(archive: File, staging: File) {
+        val task = currentCoroutineContext()
+        val prefix = staging.canonicalPath + File.separator
+        ZipFile(archive).use { zip ->
+            val buffer = ByteArray(64 * 1024)
+            for (entry in zip.entries()) {
+                if (entry.isDirectory) continue
+                val file = File(staging, entry.name).canonicalFile
+                require(file.path.startsWith(prefix)) { "Invalid runtime archive path" }
+                file.parentFile!!.mkdirs()
+                zip.getInputStream(entry).use { input ->
+                    file.outputStream().use { output ->
+                        while (true) {
+                            task.ensureActive()
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                        }
+                    }
+                }
+                check(file.setReadOnly()) { "Cannot protect installed runtime" }
+            }
         }
     }
 

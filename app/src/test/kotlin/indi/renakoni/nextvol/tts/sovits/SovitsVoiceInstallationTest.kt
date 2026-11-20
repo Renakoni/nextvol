@@ -42,7 +42,7 @@ class SovitsVoiceInstallationTest {
             val character = File(stage, "CharacterModels/v2ProPlus/voice")
             File(character, "prompt_wav").mkdirs()
             File(character, "prompt_wav/reference.wav").writeText("reference")
-            File(character, "prompt_wav.json").writeText("""{"Normal":{"wav":"reference.wav","text":"参考原文"}}""")
+            File(character, "prompt_wav.json").writeText("""{"Normal":{"wav":"reference.wav","text":"参考原文","language":"ja"}}""")
             configuration
         }
         val reopened = OfflineSpeechRepository(root)
@@ -51,6 +51,7 @@ class SovitsVoiceInstallationTest {
             val voice = installedSovitsVoice(lease.directory, lease.configuration, runtime)
             assertEquals(GptSovitsVersion.V2ProPlus, voice.version)
             assertEquals("参考原文", voice.referenceText)
+            assertEquals(SovitsReferenceLanguage.Japanese, voice.referenceLanguage)
             assertEquals("reference", voice.referenceAudio.readText())
         }
     }

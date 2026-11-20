@@ -48,7 +48,14 @@
     <string name="sovits_sovits_weight">SoVITS 權重（.pth）</string>
     <string name="sovits_reference_audio">參考音頻</string>
     <string name="sovits_reference_text">參考音頻原文</string>
-    <string name="sovits_reference_text_invalid">請輸入模型可朗讀的中文原文，正規化後最多 510 個字。</string>
+    <string name="sovits_reference_language">參考音訊語言</string>
+    <string name="sovits_use_filename">擷取檔名</string>
+    <string name="sovits_language_auto">自動判斷</string>
+    <string name="sovits_language_detected">自動（%1$s）</string>
+    <string name="sovits_language_zh">中文</string>
+    <string name="sovits_language_ja">日文</string>
+    <string name="sovits_language_en">英文</string>
+    <string name="sovits_reference_text_invalid">請輸入所選參考語言能朗讀的原文。</string>
     <string name="sovits_voice_name">音色名稱</string>
     <string name="sovits_choose_file">選擇文件</string>
     <string name="sovits_choose_extension">請選擇%1$s檔案</string>

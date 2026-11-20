@@ -7,7 +7,7 @@ and publishes a 32 kHz mono PCM16 WAV at a new destination. Cancel the calling
 coroutine to stop generation. For the clip API, close the synthesizer after use.
 
 `GptSovitsVoice` takes a local root, a V2 Pro or V2 Pro Plus character ID, a
-reference recording (up to 30 seconds) and its Mandarin transcript. The backend supports Android 10
+reference recording (up to 30 seconds) and its transcript in Chinese, Japanese or English. The backend supports Android 10
 or newer. MuMu's x86 Houdini translator cannot load the runtime's thread-local
 state during model initialization, so this backend reports unavailable there.
 The Mandarin frontend uses the Voicebox normalization, segmentation,
@@ -81,6 +81,18 @@ the separate Microsoft QNN 1.27.0 runtime by absolute path and passes float
 buffers across runtime boundaries. The same downloadable ZIP contains its matching Qualcomm
 2.42.0 libraries from Maven Central; the installed app works offline.
 
+The JNI bridge, including Open JTalk, is compiled with the APK. The on-demand
+runtime installer includes the English pronunciation data and Japanese dictionary. Release
+builds distribute them inside the existing GitHub/website runtime ZIP. Builds
+pinned to the earlier published core fetch `reference-languages.zip` (29,142,223
+bytes) as part of the same installation. An installation of the former
+Mandarin-only runtime needs to be updated once. Converted voices live separately.
+
+The English CMU/name lexicons, homograph tagger, fallback G2P model and Japanese
+Open JTalk frontend follow Voicebox. The source archive preserves the original
+Open JTalk/MeCab sources and licenses from its Android model module. The data
+archive includes the dictionaries' and models' notices.
+
 The Mandarin frontend and dictionaries follow Voicebox. The OpenCPOP syllable mapping and V2 symbol
 indices come from GPT-SoVITS commit `6d51ffceafbf240145619af4c92408a6e54b7924`.
 The asset directory includes the third-party notices. The model layout and reference
@@ -91,7 +103,13 @@ conditioning follow the V2 flow in Voicebox. Speaker weights are supplied locall
 Installing the speech runtime pins a GPT-SoVITS tab immediately after System speech,
 including when it has no voices. Its menu opens the weight importer. Enter a voice
 name, select the matching GPT `.ckpt`, SoVITS `.pth` and reference audio in the
-system document picker, then enter the Mandarin transcript. Android filters by
+system document picker, then enter the transcript or use the audio filename
+without its final extension. Automatic reference language detection uses the
+transcript (kana, Han characters, then Latin letters). Select Japanese manually
+for a Japanese transcript written entirely in kanji. The selected language is
+saved with the voice. Chapter text defaults to Chinese, including Chinese
+number and measurement readings. English words use English phones. English and
+Japanese phones receive zero BERT features alongside the Chinese RoBERTa spans. Android filters by
 MIME type and can offer both binary weight files in either picker. Each pick
 replaces the file in its field. A mismatched extension shows the required suffix
 in the filename line and disables import until corrected. The app
@@ -108,11 +126,12 @@ encoders in `runtime-models.json` are downloaded (about 1 GB), SHA-256 checked
 and prepared under `noBackupFilesDir/sovits/RuntimeAssets`. Later imports reuse
 these files. The converter applies the template's FP16 rounding while writing
 each FP32 tensor directly to the file used by its graph. The reference audio
-must decode successfully and the Mandarin frontend must accept the transcript
+must decode successfully and the selected reference frontend must accept the transcript
 before the catalog publishes the voice. Cancellation or failure removes the
 staged speaker. Successfully downloaded shared files can be reused on retry.
 Converted voices use normal offline selection, audition, editing, copying,
 deletion and resource leases.
 
+- https://github.com/Renakoni/Voicebox/tree/071110d052e5ffb66be4f53d6c13b663123c1b05/Android/model/gptsovits/src/main
 - https://github.com/RVC-Boss/GPT-SoVITS/tree/6d51ffceafbf240145619af4c92408a6e54b7924/GPT_SoVITS/text
 - https://github.com/Renakoni/Voicebox/tree/7963c3511b92271bab89f5dacd39eb4a3ab71b9a/Android/app/src/main/java/dev/rinstel/genie_tts/inference
