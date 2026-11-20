@@ -59,7 +59,7 @@ class LocalBookRelinkUiTest {
         val state = state(LocalBookRelinkMatch.Exact)
         var linked = 0
         activity.get().setContent { NextVolTheme(darkMode = "Disabled", isDynamicColor = false, lightThemeName = "light_default",
-            darkThemeName = "dark_default", appLocale = "en-US") {
+            darkThemeName = "dark_default") {
             LocalBookImportDialog(LocalBookImportState(bookKey = "restored", title = "Saved book", preview = state.preview?.parsed),
                 onDismiss = {}, onTitleChange = {}, onEncodingChange = {}, onRuleChange = {}, onImport = { linked++ },
                 relinkState = state)
@@ -71,7 +71,7 @@ class LocalBookRelinkUiTest {
     @Test fun missingFileRecordExplainsWhyRelinkIsUnavailable() {
         val state = state(LocalBookRelinkMatch.MissingManifest)
         activity.get().setContent { NextVolTheme(darkMode = "Disabled", isDynamicColor = false, lightThemeName = "light_default",
-            darkThemeName = "dark_default", appLocale = "en-US") {
+            darkThemeName = "dark_default") {
             LocalBookImportDialog(LocalBookImportState(title = "Saved book"),
                 onDismiss = {}, onTitleChange = {}, onEncodingChange = {}, onRuleChange = {}, onImport = {}, relinkState = state)
         } }

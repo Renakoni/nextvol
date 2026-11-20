@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
-import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Density
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.get
@@ -32,7 +31,6 @@ import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.book.ChapterContent
 import io.nightfish.lightnovelreader.api.content.builder.ContentBuilder
 import io.nightfish.lightnovelreader.api.content.builder.simpleText
-import io.nightfish.lightnovelreader.api.ui.LocalTextLocaleList
 import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.*
@@ -58,7 +56,6 @@ class ScrollContentEquivalenceTest {
     private var fontSize by mutableStateOf(15f)
     private var width by mutableStateOf(320)
     private var density by mutableStateOf(1f)
-    private var locales by mutableStateOf(LocaleList("en-US"))
     private var prepared: PreparedScrollChapter? = null
     private var preparations = 0
     private var publications = 0
@@ -83,7 +80,7 @@ class ScrollContentEquivalenceTest {
         env.scope.launch { env.loader.load("chapter", "book").collect { publications++; content = it.get() } }
         env.runCurrent()
         compose.runOnUiThread { activity.get().setContent {
-            CompositionLocalProvider(LocalDensity provides Density(density), LocalTextLocaleList provides locales) {
+            CompositionLocalProvider(LocalDensity provides Density(density)) {
                 Box(Modifier.background(color)) {
                     val next = rememberPreparedScrollChapter(content, rememberReaderTextLayout(settings), width, 480)
                     SideEffect { if (next != null && next !== prepared) { prepared = next; preparations++ } }
@@ -119,7 +116,6 @@ class ScrollContentEquivalenceTest {
         compose.runOnIdle { fontSize = 20f }; awaitPreparation(5)
         compose.runOnIdle { width = 260 }; awaitPreparation(6)
         compose.runOnIdle { density = 1.2f }; awaitPreparation(7)
-        compose.runOnIdle { locales = LocaleList("ja-JP") }; awaitPreparation(8)
         assertEquals(4, publications)
         assertEquals(4, decodeNanos.size)
         assertTrue(prepared!!.blocks.any { it.text != null })

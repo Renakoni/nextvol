@@ -178,7 +178,7 @@
     <string name="settings_theme_dynamic_colors_desc_unavailable">從系統主題套用動態配色 (需要 Android 12+)</string>
     <string name="settings_theme_dynamic_colors_desc">從系統主題套用動態配色</string>
     <string name="settings_formats">格式</string>
-    <string name="settings_formats_desc">設定日期或文字格式</string>
+    <string name="settings_formats_desc">設定日期與時間格式</string>
     <string name="date_time_formats_settings">日期和時間</string>
     <string name="settings_formats_date_format">日期格式</string>
     <string name="settings_formats_date_show_year">顯示年份</string>
@@ -187,12 +187,8 @@
     <string name="settings_formats_date_order_desc">選擇日期中年、月、日的排列順序</string>
     <string name="settings_formats_duration_format">時長格式</string>
     <string name="settings_formats_relative_time_format">使用相對時間</string>
-    <string name="settings_advanced">進階</string>
-    <string name="settings_formats_characters_variant_note">漢字變體只對閱讀器生效，並且需要字型支援。</string>
     <string name="settings_app_language">語言</string>
     <string name="settings_app_language_desc">設定應用程式語言</string>
-    <string name="settings_characters_variant">漢字變體</string>
-    <string name="settings_characters_variant_desc">使用指定語言的漢字變體，需要系統字型支援</string>
     <string name="paper_settings">紙張</string>
     <string name="settings_theme_bg_image">背景圖片</string>
     <string name="settings_theme_bg_image_desc">自訂閱讀器背景圖片</string>
@@ -467,8 +463,6 @@
     <string name="key_dark_theme_default">預設</string>
     <string name="key_dark_theme_obsidian">黑曜石</string>
     <string name="key_dark_theme_designer">設計者</string>
-    <!-- Experimental Locale -->
-    <string name="key_locale_none">無</string>
     <!-- Flip Animation -->
     <string name="key_flip_animation_none">無</string>
     <string name="key_flip_animation_scroll">捲動</string>

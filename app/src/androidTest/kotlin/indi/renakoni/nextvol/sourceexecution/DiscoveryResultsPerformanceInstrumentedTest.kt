@@ -52,7 +52,7 @@ class DiscoveryResultsPerformanceInstrumentedTest {
         val accounts = SourceSessionManager()
         var current by mutableStateOf<DiscoveryResultsViewModel?>(null)
         compose.setContent {
-            NextVolTheme("Disabled", false, "light_default", "dark_default", "en") {
+            NextVolTheme("Disabled", false, "light_default", "dark_default") {
                 current?.let { model -> key(model) {
                     val state by model.state.collectAsState()
                     DiscoveryResultsScreen(state, model::filter, model::loadMore, model::refresh,

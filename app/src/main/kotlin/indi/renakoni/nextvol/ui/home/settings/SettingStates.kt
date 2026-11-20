@@ -18,7 +18,6 @@ class SettingState(
     val distributionPlatformKeyUserData = userDataRepository.stringUserData(UserDataPath.Settings.App.DistributionPlatform.path)
     val distributionPlatformKey by distributionPlatformKeyUserData.asState(UpdatePlatform.default.key)
     val checkUpdateUserData = userDataRepository.booleanUserData(UserDataPath.Settings.App.AutoCheckUpdate.path)
-    val appLocaleKeyUserData = userDataRepository.stringUserData(UserDataPath.Settings.Display.AppLocale.path)
     val enableSimplifiedTraditionalTransformUserData = userDataRepository.booleanUserData(
         UserDataPath.Reader.EnableSimplifiedTraditionalTransform.path)
     val dateFormatUserData = userDataRepository.stringUserData(UserDataPath.Settings.Display.DateStyle.path)
@@ -27,7 +26,6 @@ class SettingState(
     val useRelativeTimeUserData = userDataRepository.booleanUserData(UserDataPath.Settings.Display.RelativeTimeStyle.path)
 
     val checkUpdate by checkUpdateUserData.asState(true)
-    val appLocaleKey by appLocaleKeyUserData.asState("none")
     val enableSimplifiedTraditionalTransform by enableSimplifiedTraditionalTransformUserData.safeAsState(false)
     val dateFormat by dateFormatUserData.safeAsState(DateFormat.NUMERIC.key)
     val dateShowYear by dateShowYearUserData.asState(true)

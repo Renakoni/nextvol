@@ -18,8 +18,6 @@ import androidx.core.view.WindowCompat
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.ui.LocalDarkColorScheme
 import indi.renakoni.nextvol.ui.LocalLightColorScheme
-import io.nightfish.lightnovelreader.api.ui.LocalTextLocaleList
-import io.nightfish.lightnovelreader.api.ui.appLocaleToTextLocaleList
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
 
 data class AppTheme(
@@ -33,7 +31,6 @@ fun NextVolTheme(
     isDynamicColor: Boolean = true,
     lightThemeName: String,
     darkThemeName: String,
-    appLocale: String,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -74,10 +71,6 @@ fun NextVolTheme(
         AppTheme(isDark = isDark, colorScheme = colorScheme)
     }
 
-    val textLocaleList = remember(appLocale) {
-        appLocaleToTextLocaleList(appLocale)
-    }
-
     @Suppress("deprecation")
     DisposableEffect(view, isDark) {
         val window = (view.context as Activity).window
@@ -96,7 +89,6 @@ fun NextVolTheme(
         LocalAppTheme provides appTheme,
         LocalLightColorScheme provides lightColorScheme,
         LocalDarkColorScheme provides darkColorScheme,
-        LocalTextLocaleList provides textLocaleList
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

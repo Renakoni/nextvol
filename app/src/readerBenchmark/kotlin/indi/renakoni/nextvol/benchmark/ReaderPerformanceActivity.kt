@@ -110,7 +110,7 @@ class ReaderPerformanceActivity : ComponentActivity() {
             opened = true
         }
         setContent {
-            NextVolTheme("Disabled", false, "Default", "Default", "en-US") {
+            NextVolTheme("Disabled", false, "Default", "Default") {
                 val settings = model.readerSettings
                 val layout = rememberReaderTextLayout(settings)
                 CompositionLocalProvider(

@@ -12,7 +12,6 @@ import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.createFontFamilyResolver
-import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -57,7 +56,7 @@ class ScrollTextMeasurementTest {
         for (density in listOf(Density(1f), Density(3f, 1.3f))) for (direction in LayoutDirection.entries) {
             val measurer = TextMeasurer(resolver, density, direction, cacheSize = 0)
             for (font in listOf(FontFamily.Default, FontFamily.Serif)) {
-                val style = settings.textStyle(font, LocaleList("zh-CN,en-US,ar"))
+                val style = settings.textStyle(font)
                 for (width in listOf(1, 90, 620)) for (height in listOf(1, 160, 600)) {
                     val original = layoutReaderText(sources, width, height, 9) { text, maxWidth ->
                         measurer.measure(text, style, constraints = Constraints(maxWidth = maxWidth))

@@ -186,7 +186,7 @@
     <string name="settings_theme_dynamic_colors_desc">Apply system-generated dynamic colors (Android 12+ required)</string>
 
     <string name="settings_formats">Formats</string>
-    <string name="settings_formats_desc">Set date or text format</string>
+    <string name="settings_formats_desc">Set date and time formats</string>
     <string name="date_time_formats_settings">Date &amp; Time</string>
     <string name="settings_formats_date_format">Date Format</string>
     <string name="settings_formats_date_show_year">Show Year</string>
@@ -195,13 +195,9 @@
     <string name="settings_formats_date_order_desc">Choose how dates are ordered</string>
     <string name="settings_formats_duration_format">Duration Format</string>
     <string name="settings_formats_relative_time_format">Use Relative Time</string>
-    <string name="settings_advanced">Advanced</string>
-    <string name="settings_formats_characters_variant_note">Chinese character variants only apply in the reader and require font support.</string>
 
     <string name="settings_app_language">Language</string>
     <string name="settings_app_language_desc">Set the app language</string>
-    <string name="settings_characters_variant">Chinese Characters Variant</string>
-    <string name="settings_characters_variant_desc">Set Chinese character variants for different language regions</string>
     <string name="paper_settings">Paper</string>
     <string name="settings_theme_bg_image">Background Image</string>
     <string name="settings_theme_bg_image_desc">Customize reader background image</string>
@@ -485,15 +481,10 @@
     <string name="key_dark_theme_default">Default</string>
     <string name="key_dark_theme_obsidian">Obsidian</string>
     <string name="key_dark_theme_designer">Designer</string>
-    <!-- Experimental Locale -->
-    <string name="key_locale_none">Not set</string>
+    <!-- Interface languages -->
     <string name="key_locale_en" translatable="false">English</string>
     <string name="key_locale_zh_cn" translatable="false">简体中文 (中国大陆)</string>
-    <string name="key_locale_zh_hk" translatable="false">繁體中文 (香港)</string>
     <string name="key_locale_zh_tw" translatable="false">繁體中文 (台灣)</string>
-    <string name="key_locale_ja_jp" translatable="false">日本語</string>
-    <string name="key_locale_ko_kr" translatable="false">한국어 (대한민국)</string>
-    <string name="key_locale_ko_kp" translatable="false">한국어 (조선민주주의인민공화국)</string>
     <!-- Flip Animation -->
     <string name="key_flip_animation_none">None</string>
     <string name="key_flip_animation_scroll">Scroll</string>

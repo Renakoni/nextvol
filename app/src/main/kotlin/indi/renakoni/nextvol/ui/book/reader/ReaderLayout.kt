@@ -10,13 +10,11 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
-import io.nightfish.lightnovelreader.api.ui.LocalTextLocaleList
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
 
 /** Units and validation belong to the reader, independently of storage and Compose controls. */
@@ -49,13 +47,12 @@ internal data class ReaderLayoutSettings(
     val start: Float,
     val end: Float,
 ) {
-    fun textStyle(fontFamily: FontFamily?, locales: LocaleList): TextStyle =
+    fun textStyle(fontFamily: FontFamily?): TextStyle =
         AppTypography.bodyMedium.copy(
             fontSize = fontSize.sp,
             fontWeight = FontWeight(fontWeight.toInt()),
             lineHeight = (fontSize + lineSpacing).sp,
             fontFamily = fontFamily ?: FontFamily.Default,
-            localeList = locales,
             textAlign = TextAlign.Start,
             lineBreak = LineBreak.Simple,
             platformStyle = PlatformTextStyle(includeFontPadding = false),
@@ -93,10 +90,9 @@ internal fun rememberReaderTextLayout(settings: ReaderSettings): ReaderTextLayou
 @Composable
 internal fun rememberReaderTextLayout(layout: ReaderLayoutSettings): ReaderTextLayoutInput {
     val font = remember(layout.fontUri) { loadReaderFontFamilySafe(layout.fontUri) }
-    val locales = LocalTextLocaleList.current
     val measurer = rememberTextMeasurer()
     val spacing = with(LocalDensity.current) { layout.paragraphSpacing.sp.roundToPx() }
-    return remember(layout, font, locales, measurer, spacing) {
-        ReaderTextLayoutInput(layout, layout.textStyle(font, locales), measurer, spacing)
+    return remember(layout, font, measurer, spacing) {
+        ReaderTextLayoutInput(layout, layout.textStyle(font), measurer, spacing)
     }
 }

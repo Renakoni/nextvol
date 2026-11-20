@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.ui.book.reader.content.flip
 
 import android.net.Uri
-import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import indi.renakoni.nextvol.ui.book.reader.ReaderBodyGeometry
@@ -25,7 +24,6 @@ internal data class FlipPaginationInput(
     val fontLineHeight: Float,
     val fontWeight: Float,
     val fontFamilyUri: Uri,
-    val textLocaleList: LocaleList,
     val textLayout: ReaderTextLayoutInput? = null,
 )
 

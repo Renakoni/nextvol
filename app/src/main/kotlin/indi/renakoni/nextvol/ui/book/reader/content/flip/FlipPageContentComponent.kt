@@ -86,7 +86,6 @@ import indi.renakoni.nextvol.utils.showSnackbar
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
-import io.nightfish.lightnovelreader.api.ui.LocalTextLocaleList
 import indi.renakoni.nextvol.ui.book.reader.bookmark.LocalReaderBookmarks
 import indi.renakoni.nextvol.ui.book.reader.bookmark.ReaderBookmarkPosition
 import indi.renakoni.nextvol.ui.book.reader.bookmark.RegisterBookmarkCapture
@@ -166,7 +165,6 @@ private fun SimpleFlipPageTextComponent(
     var contentSize by remember { mutableStateOf(IntSize.Zero) }
     val readerStyle = LocalReaderStyle.current
     val textLayout = LocalReaderTextLayout.current
-    val textLocaleList = LocalTextLocaleList.current
     val layoutResult = resolveReaderBodyLayout(contentSize, paddingValues, ReaderMode.Flip,
         preference = settingState.pageLayout,
         supportsDoublePage = chapterContent.content.all { it is SimpleTextComponent || it is ImageComponent })
@@ -183,7 +181,6 @@ private fun SimpleFlipPageTextComponent(
         fontLineHeight = textLayout?.settings?.lineSpacing ?: readerStyle.fontLineHeight,
         fontWeight = textLayout?.settings?.fontWeight ?: readerStyle.fontWeight,
         fontFamilyUri = settingState.fontFamilyUri,
-        textLocaleList = textLocaleList,
         textLayout = textLayout,
     )
     val layoutStatus = LocalReaderLayoutResult.current

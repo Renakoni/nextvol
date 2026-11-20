@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.ui.home.settings.formats
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -18,9 +17,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.components.SectionDescription
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.components.SettingsSwitchEntry
 import indi.renakoni.nextvol.ui.home.settings.SettingState
@@ -93,26 +90,6 @@ fun SettingsList(settingState: SettingState) {
             booleanUserData = settingState.useRelativeTimeUserData
         )
     }
-
-    SettingsCategory(
-        title = stringResource(R.string.settings_advanced),
-    ) {
-        SettingsMenuEntry(
-            modifier = Modifier.background(colorScheme.surfaceContainer),
-            painter = painterResource(R.drawable.translate_24px),
-            title = stringResource(R.string.settings_characters_variant),
-            description = stringResource(R.string.settings_characters_variant_desc),
-            options = SettingsMenuOptions.AppLocaleOptions,
-            selectedOptionKey = settingState.appLocaleKey,
-            onOptionChange = settingState.appLocaleKeyUserData::asynchronousSet
-        )
-    }
-
-    SectionDescription(
-        modifier = Modifier.padding(horizontal = 24.dp),
-        text = stringResource(R.string.settings_formats_characters_variant_note)
-    )
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
