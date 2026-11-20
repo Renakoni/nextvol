@@ -10,7 +10,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.createFontFamilyResolver
-import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -52,7 +51,7 @@ class ReaderLayoutInstrumentedTest {
     @Test fun softBreakAtPageBoundaryKeepsMeasuredHeightAndSourceOffsets() {
         val source = ReaderTextSource(0, "A soft\u2028line break and a final paragraph.\n")
         val measurer = TextMeasurer(createFontFamilyResolver(context), Density(1.5f), LayoutDirection.Ltr)
-        val style = ReaderLayoutSettings.from(settings).textStyle(FontFamily.Default, LocaleList("zh-CN,en-US"))
+        val style = ReaderLayoutSettings.from(settings).textStyle(FontFamily.Default)
         val pages = layoutReaderText(listOf(source), 90, 100, 13, style, measurer)
         val fragments = pages.flatten()
         assertEquals(source.text, fragments.joinToString("") { source.text.substring(it.start, it.end) })
@@ -81,7 +80,7 @@ class ReaderLayoutInstrumentedTest {
     @Test fun paperSubpageReturnsToReadingSettingsBeforeClosingTheSheet() {
         var dismissed = false
         compose.setContent {
-            NextVolTheme("Disabled", false, "light_default", "dark_default", "zh-CN") {
+            NextVolTheme("Disabled", false, "light_default", "dark_default") {
                 SettingsBottomSheet(
                     rememberBottomSheetState(initialValue = SheetValue.Expanded),
                     onDismissRequest = { dismissed = true }, settingState = settings, onClickThemeSettings = {},
@@ -105,7 +104,7 @@ class ReaderLayoutInstrumentedTest {
     @Test fun externalPaperSubpagePreservesSelectionAndParentScrollPosition() {
         var leftTheme = false
         compose.setContent {
-            NextVolTheme("Disabled", false, "light_default", "dark_default", "zh-CN") {
+            NextVolTheme("Disabled", false, "light_default", "dark_default") {
                 ThemeScreen(settings, settings, onClickBack = { leftTheme = true },
                     onClickChangeTextColor = {}, onClickChangeBackgroundColor = {})
             }

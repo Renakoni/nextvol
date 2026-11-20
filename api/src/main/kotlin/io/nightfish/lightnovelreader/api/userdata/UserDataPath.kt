@@ -139,8 +139,6 @@ sealed class UserDataPath(
             data object DarkMode : UserDataPath("dark_mode", Display)
             /** 动态颜色设置 @since Api 2 */
             data object DynamicColors : UserDataPath("dynamic_color", Display)
-            /** 应用语言设置 @since Api 2 */
-            data object AppLocale : UserDataPath("app_locale", Display)
             /** 浅色主题名称 @since Api 2 */
             data object LightThemeName : UserDataPath("light_theme_name", Display)
             /** 深色主题名称 @since Api 2 */

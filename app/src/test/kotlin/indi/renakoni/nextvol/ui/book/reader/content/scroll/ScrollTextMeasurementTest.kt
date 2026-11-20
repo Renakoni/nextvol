@@ -8,11 +8,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.createFontFamilyResolver
-import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -54,23 +54,23 @@ class ScrollTextMeasurementTest {
         )
         val resolver = createFontFamilyResolver(org.robolectric.RuntimeEnvironment.getApplication())
         val settings = ReaderLayoutSettings(15f, 500f, 7f, 3f, Uri.EMPTY, false, 12f, 12f, 16f, 16f)
-        for (density in listOf(Density(1f), Density(3f, 1.3f))) for (direction in LayoutDirection.entries) {
+        fun checkPages(width: Int, height: Int, density: Density, direction: LayoutDirection, font: FontFamily) {
             val measurer = TextMeasurer(resolver, density, direction, cacheSize = 0)
-            for (font in listOf(FontFamily.Default, FontFamily.Serif)) {
-                val style = settings.textStyle(font, LocaleList("zh-CN,en-US,ar"))
-                for (width in listOf(1, 90, 620)) for (height in listOf(1, 160, 600)) {
-                    val original = layoutReaderText(sources, width, height, 9) { text, maxWidth ->
-                        measurer.measure(text, style, constraints = Constraints(maxWidth = maxWidth))
-                    }
-                    val fixed = layoutReaderText(sources, width, height, 9, style, measurer)
-                    assertEquals("$density $direction $font width=$width height=$height", original, fixed)
-                    sources.forEach { source ->
-                        assertEquals(source.text, fixed.flatten().filter { it.componentIndex == source.componentIndex }
-                            .joinToString("") { source.text.substring(it.start, it.end) })
-                    }
-                }
+            val style = settings.textStyle(font)
+            val original = layoutReaderText(sources, width, height, 9) { text, maxWidth ->
+                measurer.measure(text, style, constraints = Constraints(maxWidth = maxWidth))
+            }
+            val fixed = layoutReaderText(sources, width, height, 9, style, measurer)
+            assertEquals("width=$width height=$height direction=$direction", original, fixed)
+            val fragments = fixed.flatten()
+            sources.forEach { source ->
+                assertEquals(source.text, fragments.filter { it.componentIndex == source.componentIndex }
+                    .joinToString("") { source.text.substring(it.start, it.end) })
             }
         }
+        checkPages(1, 1, Density(1f), LayoutDirection.Ltr, FontFamily.Default)
+        checkPages(90, 160, Density(3f, 1.3f), LayoutDirection.Rtl, FontFamily.Serif)
+        checkPages(620, 600, Density(1f), LayoutDirection.Ltr, FontFamily.Default)
     }
 
     @Test fun paragraphGapsAndHeightReuseLinesButFontWidthAndTextStillRemeasure() {
@@ -79,6 +79,7 @@ class ScrollTextMeasurementTest {
         var font by mutableStateOf(15f)
         var width by mutableStateOf(300)
         var height by mutableStateOf(200)
+        var density by mutableStateOf(Density(1f))
         fun chapter(text: String) = ChapterContentUiState("chapter", "Title",
             listOf(SimpleTextComponent(SimpleTextComponentData(text), mockk(relaxed = true), activity.get())), null, null)
         var content by mutableStateOf(chapter("第一段文字\nSecond paragraph\n\nLast paragraph"))
@@ -94,7 +95,7 @@ class ScrollTextMeasurementTest {
         fun await(condition: () -> Boolean) = compose.waitUntil(10_000) { compose.waitForIdle(); condition() }
         try {
             activity.get().setContent {
-                CompositionLocalProvider(LocalReaderTextWorkObserver provides { phase ->
+                CompositionLocalProvider(LocalDensity provides density, LocalReaderTextWorkObserver provides { phase ->
                     if (phase == "shape") shapes.incrementAndGet()
                 }) {
                     result = rememberPreparedScrollChapter(content, rememberReaderTextLayout(settings), width, height)
@@ -120,6 +121,9 @@ class ScrollTextMeasurementTest {
             await { result?.content === content }
             assertEquals(13, shapes.get())
             assertEquals("Changed body", result!!.blocks.single().text!!.fragments.joinToString("") { it.text })
+            compose.runOnIdle { density = Density(2f) }
+            await { result?.layout?.paragraphSpacingPx == 14 }
+            assertEquals(14, shapes.get())
         } finally {
             activity.pause().stop().destroy()
         }

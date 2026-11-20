@@ -23,7 +23,6 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.createFontFamilyResolver
-import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
@@ -82,7 +81,7 @@ class ReaderSpacingInstrumentedTest {
         val measurer = TextMeasurer(createFontFamilyResolver(context), Density(1f), LayoutDirection.Ltr)
         val layout = ReaderLayoutSettings.from(settings)
         val pages = paginateReaderComponents(listOf(text("A"), text("B"), image, text("C")), 400, 300,
-            ReaderTextLayoutInput(layout, layout.textStyle(FontFamily.Default, LocaleList("en-US")), measurer, 12))
+            ReaderTextLayoutInput(layout, layout.textStyle(FontFamily.Default), measurer, 12))
         assertEquals(3, pages.size)
         assertEquals(listOf(0, 1), (pages[0] as ReaderPage).ranges.map { it.componentIndex })
         assertSame(image.data, pages[1].data)
@@ -92,7 +91,7 @@ class ReaderSpacingInstrumentedTest {
     @Test fun renderedTextUsesTheSameStyleLineBreaksAndHeightAsPagination() {
         val density = Density(context.resources.displayMetrics.density, context.resources.configuration.fontScale)
         val measurer = TextMeasurer(createFontFamilyResolver(context), density, LayoutDirection.Ltr)
-        val style = ReaderLayoutSettings.from(settings).textStyle(FontFamily.Default, LocaleList("en-US"))
+        val style = ReaderLayoutSettings.from(settings).textStyle(FontFamily.Default)
         val width = with(density) { 220.dp.roundToPx() }
         val fragments = layoutReaderText(listOf(ReaderTextSource(0,
             "A paragraph long enough to wrap across several lines in the reader. ".repeat(3) + "\nShort paragraph.")),

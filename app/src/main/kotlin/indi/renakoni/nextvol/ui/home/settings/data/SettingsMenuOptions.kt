@@ -42,16 +42,6 @@ object SettingsMenuOptions {
         }
     }
 
-    data object AppLocaleOptions: MenuOptions(
-        Option("none", R.string.key_locale_none),
-        Option("zh-CN", R.string.key_locale_zh_cn),
-        Option("zh-HK", R.string.key_locale_zh_hk),
-        Option("zh-TW", R.string.key_locale_zh_tw),
-        Option("ja-JP", R.string.key_locale_ja_jp),
-        Option("ko-kr", R.string.key_locale_ko_kr),
-        Option("ko-kp", R.string.key_locale_ko_kp)
-    )
-
     data object LogLevelOptions: MenuOptions(
         Option("none", R.string.key_log_level_none),
         Option("error", R.string.key_log_level_error),

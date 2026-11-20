@@ -3,7 +3,6 @@ package indi.renakoni.nextvol
 import android.Manifest.permission.POST_NOTIFICATIONS
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Resources
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -52,9 +51,6 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var sourceVerification: indi.renakoni.nextvol.data.web.rules.SourceVerificationCoordinator
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
-    private var appLocale by mutableStateOf(
-        Resources.getSystem().configuration.locales[0].let { "${it.language}-${it.country}" }
-    )
     private var darkMode by mutableStateOf("FollowSystem")
     private var dynamicColor by mutableStateOf(false)
     private var lightThemeName by mutableStateOf("light_default")
@@ -111,7 +107,6 @@ class MainActivity : AppCompatActivity() {
             ))
             NextVolTheme(
                 darkMode = darkMode,
-                appLocale = appLocale,
                 isDynamicColor = dynamicColor,
                 lightThemeName = lightThemeName,
                 darkThemeName = darkThemeName
@@ -156,16 +151,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun observeDisplaySettings() {
-        coroutineScope.launch(Dispatchers.IO) {
-            userDataRepository.stringUserData(UserDataPath.Settings.Display.AppLocale.path)
-                .getFlow()
-                .collect { value ->
-                    val locale = Resources.getSystem().configuration.locales[0]
-                    val systemLocale = "${locale.language}-${locale.country}"
-                    appLocale = if (value.isNullOrBlank() || value == "none") systemLocale
-                    else value
-                }
-        }
         coroutineScope.launch(Dispatchers.IO) {
             userDataRepository.stringUserData(UserDataPath.Settings.Display.DarkMode.path).getFlow().collect {
                 it?.let { darkMode = it }

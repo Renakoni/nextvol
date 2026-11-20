@@ -49,7 +49,7 @@ class DiscoveryLayoutInstrumentedTest {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                NextVolTheme(if (dark) "Enabled" else "Disabled", false, "light_default", "dark_default", "zh-CN") {
+                NextVolTheme(if (dark) "Enabled" else "Disabled", false, "light_default", "dark_default") {
                     ExploreHomeScreen(DiscoveryPageState(listOf(source), id,
                         mapOf(id to DiscoveryPageContent(loading = true, sections = sections))), {}, { _, _ -> }, {},
                         { opened = it }, {}, {}, {}, { _, _ -> }, { _, _ -> }, {}, onRetryPreview = { retried = it })

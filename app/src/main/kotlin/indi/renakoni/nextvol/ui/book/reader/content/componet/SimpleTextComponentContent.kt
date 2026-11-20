@@ -14,7 +14,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
-import io.nightfish.lightnovelreader.api.ui.LocalTextLocaleList
 import indi.renakoni.nextvol.ui.book.reader.content.LocalReaderSelectionState
 
 @Composable
@@ -27,8 +26,6 @@ fun SimpleTextComponentContent(
     fontFamily: FontFamily?,
     color: Color
 ) {
-    val localeList = LocalTextLocaleList.current
-
     val readerSelection = LocalReaderSelectionState.current
     val selectionState = rememberSelectionState()
     DisposableEffect(readerSelection, selectionState) {
@@ -40,9 +37,7 @@ fun SimpleTextComponentContent(
             modifier = modifier.fillMaxSize(),
             text = text,
             textAlign = TextAlign.Start,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                localeList = localeList
-            ),
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = fontWeight,
             fontSize = fontSize,
             fontFamily = fontFamily,
