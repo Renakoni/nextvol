@@ -243,7 +243,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
     suspend fun delete(reference: OfflineVoiceRef) = delete(setOf(reference))
 
     /** Publish converted weights through the same catalog and resource leases as other offline voices. */
-    internal suspend fun installSovits(name: String, prepare: suspend (File) -> OfflineVoiceConfig): InstalledOfflineVoice =
+    internal suspend fun installSovits(name: String, avatar: String = "", prepare: suspend (File) -> OfflineVoiceConfig): InstalledOfflineVoice =
         withContext(Dispatchers.IO) {
             lock.withLock { read() }
             installing.withLock {
@@ -262,8 +262,9 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
                         task.ensureActive()
                         val previous = read()
                         val reference = OfflineVoiceRef(UUID.randomUUID().toString(), UUID.randomUUID().toString())
-                        val voice = InstalledOfflineVoice(reference, name.trim(), sizes, configuration = normalized,
-                            defaults = OfflineVoiceDefaults(name.trim(), normalized, OfflineVoiceMetadata()))
+                        val metadata = OfflineVoiceMetadata(avatar = avatar)
+                        val voice = InstalledOfflineVoice(reference, name.trim(), sizes, configuration = normalized, metadata = metadata,
+                            defaults = OfflineVoiceDefaults(name.trim(), normalized, metadata))
                         val target = directory(reference)
                         check(target.parentFile!!.mkdirs() && stage.renameTo(target))
                         try { write(previous + voice) }

@@ -26,7 +26,9 @@
     <string name="tts_voice_speed">语速</string>
     <string name="tts_voice_female">女</string>
     <string name="tts_voice_male">男</string>
-    <string name="tts_voice_avatar_failed">无法保留图片读取权限，请重新选择。</string>
+    <string name="tts_voice_avatar_failed">无法打开相机或读取照片。</string>
+    <string name="tts_avatar_camera">拍照</string>
+    <string name="tts_avatar_gallery">从相册选择</string>
     <string name="tts_voice_code">代码</string>
     <string name="tts_voice_type_offline">离线</string>
     <string name="tts_voice_type_online">在线%1$d</string>

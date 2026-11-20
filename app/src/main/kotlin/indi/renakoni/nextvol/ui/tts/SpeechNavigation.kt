@@ -55,6 +55,9 @@ object SpeechDiagnosticsRoute
 data class HttpSpeechSourcesRoute(val voiceKey: String? = null, val configureCredentials: Boolean = false, val schemeId: String? = null)
 
 @Serializable
+internal object SovitsImportRoute
+
+@Serializable
 object SpeechEnginesRoute
 
 @Serializable
@@ -327,7 +330,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
         var deletingHttp by remember { mutableStateOf<List<SavedHttpSpeechSource>>(emptyList()) }
         var addingToPool by remember { mutableStateOf<List<SpeechVoiceRef>>(emptyList()) }
         var backgroundMusic by rememberSaveable { mutableStateOf(false) }
-        var importingWeights by rememberSaveable { mutableStateOf(false) }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let { viewModel.preview(it) { file ->
                 nav.navigate(SpeechPackagePreviewRoute(file.toString(), settings.settings.schemeId)) { launchSingleTop = true }
@@ -360,7 +362,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onAddToPool = { addingToPool = it },
             onBackgroundMusic = { backgroundMusic = true },
             sovitsInstalled = runtimeStates[SpeechRuntimePack.Sovits] == RuntimeDownload.Installed,
-            onImportWeights = { importingWeights = true },
+            onImportWeights = { nav.navigate(SovitsImportRoute) { launchSingleTop = true } },
             offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
                 playback = playback,
                 onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
@@ -383,7 +385,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
                     })
             })
         if (backgroundMusic) BackgroundMusicDialog { backgroundMusic = false }
-        if (importingWeights) SovitsImportDialog { importingWeights = false }
         if (addingToPool.isNotEmpty()) SpeechAddToPoolDialog(settings.settings, state.busy, state.error,
             onDismiss = { addingToPool = emptyList() }, onAdd = { group ->
                 viewModel.addToPool(group, addingToPool) { count ->
@@ -402,6 +403,11 @@ fun NavGraphBuilder.speechSettingsDestination() {
                     Text(stringResource(R.string.confirm))
                 } }, dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } })
         }
+    }
+    composable<SovitsImportRoute> { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        SovitsImportScreen(onBack = { if (nav.currentBackStackEntry == entry) nav.popBackStack() })
     }
     dialog<OfflineVoiceEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
         HideReadAloudOverlay()

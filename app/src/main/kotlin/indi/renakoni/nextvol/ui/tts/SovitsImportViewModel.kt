@@ -19,11 +19,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-internal enum class SovitsImportField { Gpt, Sovits, Audio }
+internal enum class SovitsImportField(val suffix: String?) { Gpt(".ckpt"), Sovits(".pth"), Audio(null) }
 
 internal data class SovitsImportState(
     val draft: SovitsImportDraft = SovitsImportDraft(),
     val picking: Boolean = false,
+    val invalidFile: SovitsImportField? = null,
     val busy: Boolean = false,
     val cancelling: Boolean = false,
     val progress: SovitsImportMessage? = null,
@@ -54,15 +55,14 @@ internal class SovitsImportViewModel @Inject constructor(
                         if (it.moveToFirst()) it.getString(0) else null
                     } ?: uri.lastPathSegment.orEmpty().substringAfterLast('/')
                 }
-                val extension = when (field) { SovitsImportField.Gpt -> ".ckpt"; SovitsImportField.Sovits -> ".pth"; else -> null }
-                if (extension != null && !name.endsWith(extension, ignoreCase = true)) {
-                    mutableState.update { it.copy(error = SovitsImportMessage(R.string.sovits_choose_extension, extension)) }
-                } else mutableState.update { current ->
-                    val file = SovitsImportFile(uri, name)
+                val file = SovitsImportFile(uri, name)
+                val accepted = field.suffix == null || file.hasSuffix(field.suffix)
+                mutableState.update { current ->
+                    val picked = file.takeIf { accepted }
                     val draft = current.draft
-                    current.copy(draft = when (field) {
-                        SovitsImportField.Gpt -> draft.copy(gpt = file)
-                        SovitsImportField.Sovits -> draft.copy(sovits = file, name = draft.name.ifBlank { name.substringBeforeLast('.').take(80) })
+                    current.copy(invalidFile = if (!accepted) field else current.invalidFile?.takeUnless { it == field }, draft = when (field) {
+                        SovitsImportField.Gpt -> draft.copy(gpt = picked)
+                        SovitsImportField.Sovits -> draft.copy(sovits = picked)
                         SovitsImportField.Audio -> draft.copy(audio = file)
                     })
                 }
@@ -95,7 +95,4 @@ internal class SovitsImportViewModel @Inject constructor(
         importing?.cancel()
     }
 
-    fun reset() {
-        if (!state.value.busy && !state.value.picking) mutableState.value = SovitsImportState()
-    }
 }

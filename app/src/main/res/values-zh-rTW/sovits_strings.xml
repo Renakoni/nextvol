@@ -50,14 +50,12 @@
     <string name="sovits_weight_object_unsupported">不支持的權重對象。</string>
     <string name="sovits_import_weights">導入權重</string>
     <string name="sovits_empty">目前僅支援 V2 Pro、V2 Pro Plus\n請導入相關權重</string>
-    <string name="sovits_import_description">支持 V2 Pro、V2 Pro Plus 中文聽書，權重在本機轉換。首次導入需下載約 1 GB 共享模型，之后可離線使用。參考音頻須在 30 秒、32 MB 以內。</string>
     <string name="sovits_gpt_weight">GPT 權重（.ckpt）</string>
     <string name="sovits_sovits_weight">SoVITS 權重（.pth）</string>
     <string name="sovits_reference_audio">參考音頻</string>
     <string name="sovits_reference_text">參考音頻原文</string>
-    <string name="sovits_voice_name">音源名稱</string>
+    <string name="sovits_voice_name">音色名稱</string>
     <string name="sovits_choose_file">選擇文件</string>
-    <string name="sovits_convert_import">轉換并導入</string>
     <string name="sovits_cancelling">正在取消…</string>
     <string name="sovits_choose_extension">請選擇 %1$s 文件。</string>
     <string name="sovits_file_unreadable">無法讀取文件，請重新選擇。</string>

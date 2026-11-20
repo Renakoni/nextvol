@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.ui.tts
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -15,7 +16,9 @@ import java.io.File
 internal fun SpeechAvatar(avatar: String, gender: Int, modifier: Modifier = Modifier, packageAvatar: String? = null,
     contentDescription: String? = null) {
     val fallback = painterResource(if (gender == 1) R.drawable.speech_avatar_male else R.drawable.speech_avatar_female)
-    val model = if (avatar.startsWith("content://")) avatar else packageAvatar?.takeIf { avatar.isNotBlank() }?.let(::File)
+    val model = remember(avatar, packageAvatar) {
+        if (avatar.startsWith("content://")) avatar else avatarThumbnail(avatar) ?: packageAvatar?.takeIf { avatar.isNotBlank() }?.let(::File)
+    }
     key(gender) {
         AsyncImage(model, contentDescription, modifier.clip(CircleShape), placeholder = fallback, error = fallback,
             fallback = fallback, contentScale = ContentScale.Crop)

@@ -17,7 +17,9 @@ import java.io.File
 import java.io.InputStream
 import javax.inject.Inject
 
-internal data class SovitsImportFile(val uri: Uri, val name: String)
+internal data class SovitsImportFile(val uri: Uri, val name: String) {
+    fun hasSuffix(suffix: String) = name.endsWith(suffix, ignoreCase = true)
+}
 
 internal data class SovitsImportDraft(
     val name: String = "",
@@ -25,8 +27,10 @@ internal data class SovitsImportDraft(
     val sovits: SovitsImportFile? = null,
     val audio: SovitsImportFile? = null,
     val text: String = "",
+    val avatar: String = "",
 ) {
-    val ready get() = name.isNotBlank() && name.length <= 80 && gpt != null && sovits != null && audio != null && text.isNotBlank()
+    val ready get() = name.isNotBlank() && name.length <= 80 && gpt?.hasSuffix(".ckpt") == true &&
+        sovits?.hasSuffix(".pth") == true && audio != null && text.isNotBlank()
 }
 
 internal class SovitsWeightImport @Inject constructor(
@@ -41,7 +45,7 @@ internal class SovitsWeightImport @Inject constructor(
         val task = currentCoroutineContext()
         fun open(file: SovitsImportFile): InputStream = context.contentResolver.openInputStream(file.uri)
             ?: errorSovits(SovitsImportMessage(R.string.sovits_file_unreadable))
-        voices.installSovits(draft.name) { stage ->
+        voices.installSovits(draft.name, draft.avatar) { stage ->
             progress(SovitsImportMessage(R.string.sovits_checking_reference))
             val audio = requireNotNull(draft.audio)
             val extension = audio.name.substringAfterLast('.', "").lowercase()

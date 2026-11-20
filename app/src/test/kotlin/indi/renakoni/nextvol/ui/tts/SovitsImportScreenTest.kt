@@ -5,10 +5,14 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import indi.renakoni.nextvol.R
+import hnovel.speech.OfflineVoiceConfig
+import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
+import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import indi.renakoni.nextvol.tts.sovits.SovitsImportDraft
 import indi.renakoni.nextvol.tts.sovits.SovitsImportFile
 import org.junit.After
@@ -41,12 +45,14 @@ class SovitsImportScreenTest {
     @Test fun installedRuntimePinsEmptyTabAfterSystemAndScopesWeightImportToThatTab() {
         val installed = mutableStateOf(false)
         val groups = mutableStateOf(mapOf("vendor" to "Vendor"))
+        val voices = mutableStateOf(emptyList<InstalledOfflineVoice>())
         var weightImports = 0
         var sourceImports = 0
         activity.get().setContent {
             MaterialTheme {
                 HttpSpeechSourcesScreen(HttpSpeechSourcesState(loaded = true), {}, { sourceImports++ },
                     {}, {}, {}, {}, { _, _, _, _ -> }, offlineGroups = groups.value,
+                    offlineVoices = voices.value, offlineRow = { voice, _ -> Text(voice.name) },
                     sovitsInstalled = installed.value, onImportWeights = { weightImports++ })
             }
         }
@@ -67,6 +73,13 @@ class SovitsImportScreenTest {
         compose.runOnIdle { groups.value = emptyMap() }
         sovits.assertIsSelected()
         compose.onNodeWithText(label(R.string.sovits_empty)).assertIsDisplayed()
+        compose.runOnIdle {
+            voices.value = listOf(InstalledOfflineVoice(OfflineVoiceRef("voice", "revision"), "Imported voice", emptyMap(),
+                configuration = OfflineVoiceConfig("gpt-sovits", "v2Pro.voice")))
+        }
+        compose.onNodeWithText("Imported voice").assertIsDisplayed()
+        compose.onNodeWithText(label(R.string.sovits_empty)).assertDoesNotExist()
+        compose.onNodeWithText(label(R.string.sovits_import_weights)).assertDoesNotExist()
         system.performClick()
         compose.onNodeWithContentDescription(label(R.string.tts_library_actions)).performClick()
         compose.onNodeWithText(label(R.string.tts_import_sources)).performClick()
@@ -75,16 +88,16 @@ class SovitsImportScreenTest {
 
     @Test fun referenceTranscriptIsRequiredAndConversionShowsProgressWithCancellation() {
         val file = SovitsImportFile(Uri.parse("content://test/file"), "selected file")
-        val state = mutableStateOf(SovitsImportState(draft = SovitsImportDraft("Voice", file, file, file)))
+        val state = mutableStateOf(SovitsImportState(draft = SovitsImportDraft("Voice", file.copy(name = "voice.CKPT"), file.copy(name = "voice.pth"), file)))
         var cancelled = false
         activity.get().setContent {
             MaterialTheme {
-                SovitsImportForm(state.value, onEdit = { state.value = state.value.copy(draft = it) }, onPick = {},
-                    onImport = { state.value = state.value.copy(busy = true) }, onCancel = { cancelled = true }, onDismiss = {})
+                SovitsImportForm(state.value, onEdit = { state.value = state.value.copy(draft = it) }, onAvatar = {}, onPick = {},
+                    onImport = { state.value = state.value.copy(busy = true) }, onCancel = { cancelled = true }, onBack = {})
             }
         }
         compose.onNodeWithTag("sovits-import-confirm").assertIsNotEnabled()
-        compose.onNodeWithText(label(R.string.sovits_reference_text)).performTextInput("参考音频原文")
+        compose.onNodeWithContentDescription(label(R.string.sovits_reference_text)).performTextInput("参考音频原文")
         compose.onNodeWithTag("sovits-import-confirm").assertIsEnabled().performClick()
         compose.onNodeWithTag("sovits-import-confirm").assertDoesNotExist()
         compose.onNodeWithText(label(R.string.cancel)).performClick()
