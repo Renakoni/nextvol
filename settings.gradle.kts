@@ -28,6 +28,10 @@ dependencyResolutionManagement {
                 includeVersion("org.codehaus.groovy", "groovy", "3.0.22")
                 includeVersion("org.jetbrains.kotlin", "kotlin-reflect", "2.2.10")
                 includeVersion("org.jetbrains.kotlin", "kotlin-stdlib", "2.2.10")
+                listOf("asm", "asm-commons", "asm-tree", "asm-analysis").forEach { module ->
+                    includeVersion("org.ow2.asm", module, "9.9")
+                }
+                includeVersion("org.ow2", "ow2", "1.5.1")
                 includeVersion("org.apache.httpcomponents", "httpclient", "4.5.6")
                 // HttpClient inherits its dependency versions from these parent POMs.
                 includeVersion("org.apache.httpcomponents", "httpcomponents-client", "4.5.6")
