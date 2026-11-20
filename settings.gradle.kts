@@ -25,6 +25,14 @@ dependencyResolutionManagement {
                     includeModule("sh.calvin.reorderable", "reorderable$suffix")
                     includeModule("org.jetbrains.compose.ui", "ui-backhandler$suffix")
                 }
+                includeVersion("org.codehaus.groovy", "groovy", "3.0.22")
+                includeVersion("org.jetbrains.kotlin", "kotlin-reflect", "2.2.10")
+                includeVersion("org.jetbrains.kotlin", "kotlin-stdlib", "2.2.10")
+                includeVersion("org.apache.httpcomponents", "httpclient", "4.5.6")
+                // HttpClient inherits its dependency versions from these parent POMs.
+                includeVersion("org.apache.httpcomponents", "httpcomponents-client", "4.5.6")
+                includeVersion("org.apache.httpcomponents", "httpcomponents-parent", "10")
+                includeVersion("org.apache", "apache", "18")
             }
         }
         google()
