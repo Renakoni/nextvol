@@ -22,12 +22,9 @@ internal class SovitsAcoustic(
     private var split = false
     private var gpuAvailable = true
     private var htp: V2HtpVocoder? = null
-    var lastProvider = "CPU"
-        private set
 
-    fun prepare(context: Context, useNpu: Boolean) {
+    fun prepare(context: Context, runtime: File?) {
         val directory = voice.model
-        val runtime = if (useNpu) DeviceAcceleration.detect(context) else null
         val layout = try {
             SplitVocoderAssets.prepare(voice, runtime != null)
         } catch (failure: Exception) {
@@ -57,7 +54,6 @@ internal class SovitsAcoustic(
     }
 
     fun generate(phones: LongArray, tokens: LongArray): ByteArray? {
-        lastProvider = "CPU"
         if (!gpuAvailable && !split) return null
         val inputs = mutableMapOf<String, OnnxTensor>()
         try {
@@ -75,7 +71,7 @@ internal class SovitsAcoustic(
                     val speaker = inputs.getValue("ge")
                     try {
                         htp?.generate(value, speaker)?.let {
-                            return@use SovitsNative.pcm(it).also { lastProvider = "QNN" }
+                            return@use SovitsNative.pcm(it)
                         }
                     } catch (failed: Exception) {
                         GenerationContext.checkCurrent()
@@ -115,7 +111,7 @@ internal class SovitsAcoustic(
         require(count in 1..MAX_SOVITS_PCM_SAMPLES.toLong())
         val audio = FloatArray(count.toInt())
         value.floatBuffer.get(audio)
-        return SovitsNative.pcm(audio).also { lastProvider = if (gpuAvailable) "WebGPU" else "CPU" }
+        return SovitsNative.pcm(audio)
     }
 
     override fun close() {

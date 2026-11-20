@@ -92,7 +92,7 @@ internal class SpeechRuntimeDownloads @Inject constructor(
                         set(pack, RuntimeDownload.Downloading(installedBytes + copied, pack.archiveBytes))
                         nextProgressAt = now + 100
                     }
-                } || archive.length() != part.bytes) throw IOException("Incomplete runtime download")
+                }) throw IOException("Incomplete runtime download")
                 if (part == pack.archives.last()) set(pack, RuntimeDownload.Installing)
                 if (part.path == null) unpack(archive, staging)
                 else {

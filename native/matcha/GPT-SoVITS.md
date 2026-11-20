@@ -1,10 +1,7 @@
 # GPT-SoVITS offline speech
 
-The app exposes `SpeechSynthesizers.gptSovits(voice)` for individual clips and
-`downloadGptSovitsChapter(voice, chapter, output)` for a complete chapter. The
-chapter writer takes a processed `SpeechChapter`, reuses a single model session,
-and publishes a 32 kHz mono PCM16 WAV at a new destination. Cancel the calling
-coroutine to stop generation. For the clip API, close the synthesizer after use.
+Imported voices use the normal `SpeechSynthesizers.synthesizer()` and reader
+playback pipeline, including its settings, PCM processing and cancellation.
 
 `GptSovitsVoice` takes a local root, a V2 Pro or V2 Pro Plus character ID, a
 reference recording (up to 30 seconds) and its transcript in Chinese, Japanese or English. The backend supports Android 10
@@ -13,8 +10,7 @@ The Mandarin frontend uses the Voicebox normalization, segmentation,
 contextual pronunciation, tone sandhi and erhua before RoBERTa alignment.
 On arm64 the default is CPU + WebGPU. Reference encoding and autoregressive
 decoding use the CPU provider in the bundled ORT 1.27 build. The acoustic stage uses
-WebGPU, with CPU fallback if the adapter or graph fails. Both the clip
-and chapter entry points use this policy.
+WebGPU, with CPU fallback if the adapter or graph fails.
 
 ```text
 <root>/
@@ -25,12 +21,12 @@ and chapter entry points use this policy.
     t2s_stage_decoder_fp32.onnx
     vits_fp32.onnx
     <external weights referenced by these graphs>
-  RuntimeAssets/
-    chinese-hubert-base/chinese-hubert-base.onnx
-    chinese-hubert-base/chinese-hubert-base_weights.bin
-    speaker_encoder.onnx
-    roberta-wwm-ext-large-onnx/model.onnx
-    roberta-wwm-ext-large-onnx/roberta_tokenizer/tokenizer.json
+<shared-models>/
+  chinese-hubert-base/chinese-hubert-base.onnx
+  chinese-hubert-base/chinese-hubert-base_weights.bin
+  speaker_encoder.onnx
+  roberta-wwm-ext-large-onnx/model.onnx
+  roberta-wwm-ext-large-onnx/roberta_tokenizer/tokenizer.json
 ```
 
 Use a separate model directory for each installed revision. Standard packed FP16

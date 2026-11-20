@@ -86,13 +86,6 @@ internal object SpeechLibraries {
 
     // Startup probes and synthesis share the APK's inference backends.
     fun loadSovitsBridge() {
-        System.loadLibrary("ortwebgpu")
         System.loadLibrary("nextvol-sovits")
-    }
-
-    // ORT's Java binding and NextVol's bridge link the same renamed WebGPU core.
-    @JvmStatic fun loadSovits(name: String) {
-        System.loadLibrary("ortwebgpu")
-        System.loadLibrary(name)
     }
 }

@@ -1,7 +1,3 @@
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.ClassWriter
-import org.objectweb.asm.tree.ClassNode
-import org.objectweb.asm.tree.MethodInsnNode
 import java.util.zip.*
 import java.security.MessageDigest
 import java.security.DigestInputStream
@@ -235,22 +231,7 @@ android {
     }
 }
 
-// Keep the Java API in the app's class loader. ORT's Android loader otherwise searches only the APK.
-fun sovitsJavaLoader(original: ByteArray): ByteArray {
-    val api = ClassNode()
-    ClassReader(original).accept(api, 0)
-    val load = api.methods.single { it.name == "load" && it.desc == "(Ljava/lang/String;)V" }
-    val calls = load.instructions.filterIsInstance<MethodInsnNode>().filter {
-        it.owner == "java/lang/System" && it.name == "loadLibrary" && it.desc == load.desc
-    }
-    check(calls.isNotEmpty()) { "ORT's Android library loader has changed" }
-    calls.forEach {
-        it.owner = "indi/renakoni/nextvol/tts/runtime/SpeechLibraries"
-        it.name = "loadSovits"
-    }
-    return ClassWriter(0).also(api::accept).toByteArray()
-}
-
+// Keep the Java API available to host tests without packaging Android native libraries there.
 val webGpuAar = rootProject.file("native/sovits/onnxruntime-webgpu.aar")
 val webGpuApi = tasks.register("prepareSovitsJavaApi") {
     inputs.file(webGpuAar)
@@ -258,21 +239,9 @@ val webGpuApi = tasks.register("prepareSovitsJavaApi") {
     outputs.file(output)
     doLast {
         ZipFile(webGpuAar).use { aar ->
-            ZipInputStream(aar.getInputStream(aar.getEntry("classes.jar"))).use { input ->
-                val jar = output.get().asFile
-                jar.parentFile.mkdirs()
-                ZipOutputStream(jar.outputStream()).use { out ->
-                    var entry = input.nextEntry
-                    while (entry != null) {
-                        out.putNextEntry(ZipEntry(entry.name).apply { time = 0 })
-                        if (entry.name == "ai/onnxruntime/OnnxRuntime.class") {
-                            out.write(sovitsJavaLoader(input.readBytes()))
-                        } else input.copyTo(out)
-                        out.closeEntry()
-                        entry = input.nextEntry
-                    }
-                }
-            }
+            val jar = output.get().asFile
+            jar.parentFile.mkdirs()
+            aar.getInputStream(aar.getEntry("classes.jar")).use { input -> jar.outputStream().use(input::copyTo) }
         }
     }
 }
