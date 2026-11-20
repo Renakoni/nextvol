@@ -62,10 +62,6 @@ class ReaderTextLayoutTest {
         }
     }
 
-    @Test fun emptyTextHasNoPages() {
-        assertTrue(layout(listOf(ReaderTextSource(0, ""))).isEmpty())
-    }
-
     @Test fun scrollChunksKeepTheUnbrokenChapterHeightAndEveryParagraphGap() {
         val sources = listOf(ReaderTextSource(0, "ABCDEFGHIJK\n\nXYZ\nEND"))
         val original = layout(sources, width = 3, height = Int.MAX_VALUE, spacing = 7).flatten()

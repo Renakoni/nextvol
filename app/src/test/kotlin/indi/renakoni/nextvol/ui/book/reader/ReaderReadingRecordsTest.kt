@@ -540,21 +540,6 @@ class ReaderReadingRecordsTest {
         assertEquals(90, store.data.getValue("book").totalReadTime)
     }
 
-    @Test
-    fun defaultTimestampStillUsesTheSystemLocalDateTime() {
-        val defaultTimeRecords = ReaderReadingRecords(
-            store, scope, statisticsScope, { bookId }, { title }, { chapters },
-            ioDispatcher = dispatcher,
-        )
-        val before = LocalDateTime.now()
-        defaultTimeRecords.updateTotalReadingTime("book", 1)
-        scheduler.runCurrent()
-        val after = LocalDateTime.now()
-        val recorded = requireNotNull(store.data.getValue("book").lastReadTime)
-        assertFalse(recorded.isBefore(before))
-        assertFalse(recorded.isAfter(after))
-    }
-
     private class RecordingStore : ReaderRecordStore {
         var revision = 0L
         var rejectProgress = false

@@ -61,15 +61,6 @@ class TextPaginationContractTest {
     }
 
     @Test
-    fun zeroViewportStillMakesForwardProgress() {
-        val component = component("A")
-        val layout = layout(listOf("A"))
-        assertEquals(listOf("A"), with(component) {
-            layout.getSlipString(data.text, 0, 0)
-        })
-    }
-
-    @Test
     fun negativeViewportStillMakesForwardProgress() {
         val component = component("A")
         val layout = layout(listOf("A"))

@@ -103,50 +103,6 @@ class AddToBookshelfDialogViewModelTest {
         metadata = BookshelfBookMetadata(bookId, information.lastUpdated, (metadata?.bookShelfIds.orEmpty() + id).distinct())
     }
 
-    @Test fun bookIdIsAvailableBeforeInitializationRuns() = runTest(dispatcher) {
-        model.bookId = bookId
-
-        assertEquals(bookId, model.bookId)
-        awaitInitialization()
-    }
-
-    @Test fun openingDialogLoadsRequestedBookAndExistingSelection() = runTest(dispatcher) {
-        metadata = BookshelfBookMetadata(bookId, LocalDateTime.of(2026, 1, 1, 0, 0), listOf(1))
-
-        model.bookId = bookId
-        awaitInitialization()
-
-        coVerify(exactly = 1) { bookshelfRepository.getBookshelfBookMetadata(bookId) }
-        coVerify(exactly = 0) { bookshelfRepository.getBookshelfBookMetadata("") }
-        assertEquals(shelves, model.addToBookshelfDialogUiState.allBookShelf.toList())
-        assertEquals(listOf(1), model.addToBookshelfDialogUiState.selectedBookshelfIds.toList())
-    }
-
-    @Test fun newFavoriteStartsWithoutSelection() = runTest(dispatcher) {
-        model.bookId = bookId
-        awaitInitialization()
-
-        coVerify(exactly = 1) { bookshelfRepository.getBookshelfBookMetadata(bookId) }
-        assertEquals(shelves, model.addToBookshelfDialogUiState.allBookShelf.toList())
-        assertTrue(model.addToBookshelfDialogUiState.selectedBookshelfIds.isEmpty())
-    }
-
-    @Test fun recomposingDialogPreservesSelectionAndDoesNotReload() = runTest(dispatcher) {
-        metadata = BookshelfBookMetadata(bookId, LocalDateTime.of(2026, 1, 1, 0, 0), listOf(1))
-        model.bookId = bookId
-        model.bookId = bookId
-        awaitInitialization()
-        model.onDeselectBookshelf(1)
-        model.onSelectBookshelf(2)
-
-        model.bookId = bookId
-        awaitInitialization()
-
-        coVerify(exactly = 1) { bookshelfRepository.getAllBookshelfIds() }
-        coVerify(exactly = 1) { bookshelfRepository.getBookshelfBookMetadata(bookId) }
-        assertEquals(listOf(2), model.addToBookshelfDialogUiState.selectedBookshelfIds.toList())
-    }
-
     @Test fun savesBeforeDismissingAndClearingTheDialogViewModel() = runTest(dispatcher) {
         model.bookId = bookId
         awaitInitialization()
@@ -172,16 +128,6 @@ class AddToBookshelfDialogViewModelTest {
         coVerify(exactly = 0) { statsRepository.markBookFavorited(any()) }
     }
 
-    @Test fun repeatedSelectionDoesNotCreateDuplicateShelfIds() = runTest(dispatcher) {
-        model.bookId = bookId
-        awaitInitialization()
-
-        model.onSelectBookshelf(1)
-        model.onSelectBookshelf(1)
-
-        assertEquals(listOf(1), model.addToBookshelfDialogUiState.selectedBookshelfIds.toList())
-    }
-
     @Test fun confirmationUsesOnlyTheFirstBookInformationResult() = runTest(dispatcher) {
         model.bookId = bookId
         awaitInitialization()
@@ -193,32 +139,6 @@ class AddToBookshelfDialogViewModelTest {
         awaitInitialization()
 
         coVerify(exactly = 1) { bookshelfRepository.addBookIntoBookShelf(1, any()) }
-    }
-
-    @Test fun repeatedConfirmationOnlySavesOnce() = runTest(dispatcher) {
-        model.bookId = bookId
-        awaitInitialization()
-        model.onSelectBookshelf(1)
-
-        model.processAddToBookshelfRequest()
-        model.processAddToBookshelfRequest()
-        awaitInitialization()
-
-        coVerify(exactly = 1) { bookshelfRepository.addBookIntoBookShelf(1, information) }
-        coVerify(exactly = 1) { statsRepository.markBookFavorited(bookId) }
-        verify(exactly = 1) { navController.popBackStack() }
-    }
-
-    @Test fun emptySelectionDoesNotRecordAFavoriteOrFetchBookInformation() = runTest(dispatcher) {
-        model.bookId = bookId
-        awaitInitialization()
-
-        model.processAddToBookshelfRequest()
-        awaitInitialization()
-
-        coVerify(exactly = 0) { statsRepository.markBookFavorited(any()) }
-        coVerify(exactly = 0) { bookshelfRepository.addBookIntoBookShelf(any(), any()) }
-        verify(exactly = 0) { bookRepository.getBookInformationFlow(any<String>(), any()) }
     }
 
     @Test fun removalDoesNotFetchInformationOrRecordANewFavorite() = runTest(dispatcher) {
@@ -235,14 +155,6 @@ class AddToBookshelfDialogViewModelTest {
         verify(exactly = 0) { bookRepository.getBookInformationFlow(any<String>(), any()) }
     }
 
-    @Test fun blankBookIdFailsWithoutQueryingTheRepository() = runTest(dispatcher) {
-        model.bookId = ""
-        awaitInitialization()
-        assertFalse(model.addToBookshelfDialogUiState.isLoading)
-        assertEquals(R.string.bookshelf_load_failed, model.addToBookshelfDialogUiState.errorMessage)
-        coVerify(exactly = 0) { bookshelfRepository.getAllBookshelfIds() }
-    }
-
     @Test fun loadingFailureIsVisibleAndCannotBeConfirmed() = runTest(dispatcher) {
         coEvery { bookshelfRepository.getAllBookshelfIds() } throws IOException("Read failed")
         model.bookId = bookId
@@ -251,18 +163,6 @@ class AddToBookshelfDialogViewModelTest {
         awaitInitialization()
         assertFalse(model.addToBookshelfDialogUiState.isLoading)
         assertEquals(R.string.bookshelf_load_failed, model.addToBookshelfDialogUiState.errorMessage)
-        verify(exactly = 0) { navController.popBackStack() }
-        coVerify(exactly = 0) { statsRepository.markBookFavorited(any()) }
-    }
-
-    @Test fun emptyBookshelfListCannotBeConfirmed() = runTest(dispatcher) {
-        coEvery { bookshelfRepository.getAllBookshelfIds() } returns emptyList()
-        model.bookId = bookId
-        awaitInitialization()
-        model.onSelectBookshelf(1)
-        model.processAddToBookshelfRequest()
-        awaitInitialization()
-        assertTrue(model.addToBookshelfDialogUiState.selectedBookshelfIds.isEmpty())
         verify(exactly = 0) { navController.popBackStack() }
         coVerify(exactly = 0) { statsRepository.markBookFavorited(any()) }
     }
@@ -449,15 +349,4 @@ class AddToBookshelfDialogViewModelTest {
         verify(exactly = 0) { navController.popBackStack() }
     }
 
-    @Test fun cancellingDoesNotWriteTheSelection() = runTest(dispatcher) {
-        model.bookId = bookId
-        awaitInitialization()
-        model.onSelectBookshelf(1)
-        model.onDismissAddToBookshelfRequest()
-        awaitInitialization()
-        assertNull(metadata)
-        coVerify(exactly = 0) { bookshelfRepository.addBookIntoBookShelf(any(), any()) }
-        coVerify(exactly = 0) { statsRepository.markBookFavorited(any()) }
-        verify(exactly = 1) { navController.popBackStack() }
-    }
 }

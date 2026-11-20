@@ -39,12 +39,13 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 
 | Changed scope | JVM tasks | Debug devices | Minified runtime | Lint / Release APK |
 | --- | --- | --- | --- | --- |
-| Independent UI: bookshelf, explore/search, statistics, Bangumi, about/licenses/logcat screens; `data/bangumi` | Corresponding feature and reviewed consumers | Skip | Skip | Run |
-| Discovery and categories UI | Discovery/categories, explore, navigation and discovery routing consumers | Skip | Source runtime smoke (uses categories/discovery) | Run |
-| Reader UI and text-formatting settings UI | Reader, content, directory/detail, formatting/settings/font and speech-control consumers | API 24 reader panel/layout/spacing; API 35 wide reader position/spread | Skip | Run |
+| Independent UI: bookshelf, explore/search, statistics, Bangumi, logcat screens; `data/bangumi` | Corresponding data/state consumers | Skip | Skip | Run |
+| About/licenses UI | Skip | Skip | Skip | Run |
+| Discovery and categories UI | Discovery/categories, explore and discovery routing consumers | Skip | Source runtime smoke (uses categories/discovery) | Run |
+| Reader UI and text-formatting settings UI | Reader, content, directory/detail and formatting consumers | API 24 reader panel/layout/spacing; API 35 wide reader position/spread | Skip | Run |
 | Speech implementation (`tts`) | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
 | Speech UI (`ui/tts`) | App speech + reader tests | Skip | Read-aloud smoke | Run |
-| App updates: `data/update`, dedicated update settings and available-update dialog | App update tests and `SettingsHierarchyTest` | Skip | Skip | Run |
+| App updates: `data/update`, dedicated update settings and available-update dialog | App update tests | Skip | Skip | Run |
 | EPUB export implementation, dedicated sharing/Worker/entry files and `epub/src/main` | `:epub:test` and App export consumers | API 24 EPUB sharing | Skip | Run |
 | Backup implementation, dedicated import/export dialogs and backup Workers | App backup, persistence and shared-file consumers | Skip | Skip | Run |
 | Storage queries/cleanup/ownership and dedicated book/storage management UI | App storage, downloads, local books and reading-record consumers | API 24 download persistence and local import | Skip | Run |
@@ -81,8 +82,7 @@ checks. Resource contract tests and the actual resource scan run here once for
 full/helper scope; translation resources select full scope.
 
 The update scope includes source parsing, query/download failures and Android
-interaction through `data.update.*`, plus the update settings consumer in
-`SettingsHierarchyTest`. Source revision updates and `CheckUpdateWork` (book
+interaction through `data.update.*`. Source revision updates and `CheckUpdateWork` (book
 chapter updates) are different responsibilities and retain their broader checks.
 MainActivity, global settings, shared navigation, resources and Manifest changes
 still select full checks. App filters use positive unions, preserving existing
@@ -101,9 +101,9 @@ test changes retain the test-input policy instead of launching App/device work.
 
 Backup selects `data.backup.*` plus `SourceIdentityRoomTest`, `ReadingBookmarkTest`,
 `BookDownloadTest`, `HostMultiSourceIntegrationTest`, `LocalBookRelinkTest`,
-`ExternalFilesTest`, `ExternalFileViewModelTest` and `ReaderBookmarksUiTest`.
+`ExternalFilesTest`, `ExternalFileViewModelTest` and `ReaderBookmarkFingerprintTest`.
 These retain restore transactions, pre-NextVol archives, cross-source associations,
-download/local-file ownership, bookmark selection and Worker file handoff.
+download/local-file ownership, bookmark fingerprints and Worker file handoff.
 `ExportDataWork`, `ImportDataWork`, `SaveBookshelfWork` and the dedicated backup
 dialogs/error message are allowed production entries. Shared external-file
 dispatch, settings/navigation, database schemas/DAOs and UserData remain broad.
@@ -112,10 +112,10 @@ archives, are test inputs: they select backup consumers without production Lint
 or Release.
 No separate backup device group is introduced.
 
-Storage selects download and local-book JVM suites, book/download/local-book UI,
+Storage selects download and local-book JVM suites and their ViewModel consumers,
 `SourceIdentityRoomTest`, `UserReadingDataTransactionTest`, `BookWorkIdentityTest`,
 `BackupRestoreTransactionTest`, `ReaderReadingRecordsTest`,
-`ReaderDirectoryProgressTest` and `SettingsHierarchyTest`. In particular,
+`ReaderDirectoryProgressTest`. In particular,
 `BookDownloadTest` exercises orphan attribution, both Worker cancellations,
 failure/cancellation boundaries and retained reading records; `LocalBookStoreTest`
 exercises metadata recovery before storage queries and clearing imported content.
@@ -189,17 +189,19 @@ full scope or reviewed CI-helper changes, even when no Android work is selected.
 
 ## JVM test coverage
 
-UI filters select `bookshelf`, `explore`, `catalog`, `stats`, `bangumi`, `about`
-(including licenses), or `logs`. Bookshelf also includes its home lifecycle test;
-catalog includes explore, MainNavigation and DiscoveryRouting tests; Bangumi
-includes its data package and Wenku8 search consumers; about/logs
-retain SettingsHierarchy, with LoggerRepository for logs. The manual `ui` filter
-is the union of these feature sets. Shared components, navigation and theme inputs
+UI filters select `bookshelf`, `explore`, `catalog`, `stats`, `bangumi`, or `logs`.
+They retain data processing and asynchronous state tests. Bookshelf selects shelf
+submission and book-repository operations. Catalog includes explore
+and DiscoveryRouting tests; Bangumi includes its data package and Wenku8 search
+consumers; logs selects LoggerRepository. About/licenses-only changes skip JVM
+execution and retain Lint/Release checks. Mixed changes select the other scopes'
+JVM consumers. The manual `ui` filter is the union of the remaining feature sets.
+Shared components, navigation and theme inputs
 remain full, and new test packages without a matching group keep the App suite.
 
 Reader includes detail/directory consumers, chapter read-state persistence,
-SettingsHierarchy (the font-license entry) and SpeechControls (ReaderTopBar), as
-well as reader/content/mixed-source and formatting tests. Speech unions that set with
+text pagination, position conversion, content/mixed-source and formatting tests.
+Speech unions that set with
 `tts.*` and `ui.tts.*`; its API 24 services and minified read-aloud smoke remain.
 Speech UI selects the same App union without source-speech or Debug devices.
 All feature and business sets use positive unions; none exclude another group's

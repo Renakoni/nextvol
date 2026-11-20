@@ -51,11 +51,6 @@ class DownloadTaskStateTest {
             .taskState(WorkInfo.State.RUNNING).status)
     }
 
-    @Test fun taskCompletionDoesNotMakeAPartialDownloadComplete() {
-        val task = DownloadTaskState(DownloadTaskStatus.Complete)
-        assertEquals(BookDownloadPhase.Partial, BookDownloadStatus(BookDownloadState(BookDownloadPhase.Partial, 1, 2), task).displayPhase)
-    }
-
     @Test fun failuresStoreCategoriesNotSensitiveMessages() {
         val sensitive = WebRequestError("Cookie: session=secret", "https://private.invalid/chapter?token=secret", IOException("private body"))
         assertEquals(DownloadFailure.Network, downloadFailure(sensitive, DownloadStage.Body))

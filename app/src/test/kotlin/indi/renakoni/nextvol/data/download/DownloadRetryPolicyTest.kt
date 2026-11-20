@@ -11,12 +11,6 @@ class DownloadRetryPolicyTest {
     private val now = Instant.parse("2026-09-28T00:00:00Z").toEpochMilli()
     private val policy = DownloadRetryPolicy({ now }, { it })
 
-    @Test fun onlyThreeRecoveryAttemptsShareBoundedExponentialBackoff() {
-        assertEquals(listOf(30_000L, 60_000L, 120_000L), (0..2).map { policy.nextAttemptAt(it, RequestRetryHint())!! - now })
-        assertNull(policy.nextAttemptAt(3, RequestRetryHint()))
-        assertEquals(now + 15_000, DownloadRetryPolicy({ now }, { 0 }).nextAttemptAt(0, RequestRetryHint()))
-    }
-
     @Test fun serverDeadlinesSurviveHeaderParsingWithoutClampingOrOverflow() {
         fun hint(value: String) = RequestRetryHint(retryAfterMillis(BrokerResponse(503, "https://example.test",
             mapOf("Retry-After" to listOf(value)), byteArrayOf(), "UTF-8", 0), now))

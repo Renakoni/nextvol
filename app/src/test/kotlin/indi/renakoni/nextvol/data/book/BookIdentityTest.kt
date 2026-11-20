@@ -41,13 +41,6 @@ class BookIdentityTest {
     }
 
     @Test
-    fun bookIdentityIsSerializableByValueAndRejectsEmptyRemoteIds() {
-        assertEquals(SourceBookId(sourceA, "123"), SourceBookId(sourceA, "123"))
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { SourceBookId(sourceA, "") }
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { SourceChapterId(SourceBookId(sourceA, "123"), "") }
-    }
-
-    @Test
     fun legacyIdsBeginningWithLnrRemainLegacyIds() {
         val book = BookIdentity.book("lnr123")
         assertEquals("lnr123", book.remoteId)

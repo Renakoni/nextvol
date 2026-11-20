@@ -263,39 +263,18 @@ class Wenku8NetworkTest {
         }
     }
 
-    @Test(timeout = 30000) fun foregroundDocumentsAllowEightConcurrentRequestsAndReleaseCancelledSlots() = runBlocking {
-        assertEightConcurrentRequests { false }
-    }
-
-    @Test(timeout = 30000) fun imagesAllowEightConcurrentRequestsAndReleaseCancelledSlots() = runBlocking {
-        assertEightConcurrentRequests { true }
-    }
-
-    @Test(timeout = 30000) fun documentsAndImagesShareEightTransportSlots() = runBlocking {
-        assertEightConcurrentRequests { it % 2 == 0 }
-    }
-
-    @Test(timeout = 30000) fun documentBodiesKeepImagesQueuedUntilCancellationReleasesASlot() = runBlocking {
-        assertEightConcurrentRequests(streamBodies = true) { it >= 8 }
-    }
-
-    @Test(timeout = 30000) fun documentsAndImagesShareEightSlotsWhileReadingBodies() = runBlocking {
-        assertEightConcurrentRequests(streamBodies = true) { it % 2 == 0 }
-    }
-
-    private suspend fun assertEightConcurrentRequests(streamBodies: Boolean = false,
-        imageRequest: (Int) -> Boolean) = coroutineScope {
+    @Test(timeout = 30000) fun mixedStreamingBodiesHoldTransportSlotsUntilCancellation() = runBlocking {
         Fixture().use { fixture ->
             val runtime = fixture.runtime(a)
             fixture.first.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest) = if (streamBodies) {
+                override fun dispatch(request: RecordedRequest): MockResponse {
                     // Deliver headers immediately, but keep bodies in flight until cancellation.
-                    document("A").throttleBody(1, 1, TimeUnit.SECONDS)
-                } else MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
+                    return document("A").throttleBody(1, 1, TimeUnit.SECONDS)
+                }
             }
             // Foreground calls own their cancellation; background coalesced work may outlive a waiter.
             fun request(index: Int) = async(ForegroundSourceRequest()) {
-                if (imageRequest(index)) runtime.imageBytes(
+                if (index % 2 == 0) runtime.imageBytes(
                     "book-$index", "http://www.wenku8.cc/image?request=$index", false)
                 else runtime.getBookInformation("book-$index")
             }

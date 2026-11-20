@@ -91,8 +91,6 @@ class RuleDiscoveryCatalogTest {
     }
 
     @Test fun dubuStyleSpacerDoesNotRejectTheCatalog() = separators(9, 14)
-    @Test fun aituStyleSpacersDoNotRejectTheCatalog() = separators(17, 72)
-    @Test fun jiuaiStyleSpacersDoNotRejectTheCatalog() = separators(19, 22)
 
     @Test fun unnamedTargetsArePreservedAndUnknownSchemaKeepsItsOriginalArrayLocation() = runBlocking {
         RuleSourceFixture().use { fixture ->

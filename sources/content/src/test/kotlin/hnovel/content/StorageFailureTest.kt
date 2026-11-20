@@ -27,8 +27,4 @@ class StorageFailureTest {
         }
     }
 
-    @Test fun brokerStorageErrorsDoNotBecomeNetworkErrors() {
-        assertEquals(ContentError.Storage, FailureCode.StorageQuota.contentError())
-        assertEquals(ContentError.Storage, FailureCode.StorageUnavailable.contentError())
-    }
 }

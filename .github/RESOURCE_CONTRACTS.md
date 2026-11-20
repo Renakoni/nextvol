@@ -33,9 +33,3 @@ contain only parameters, punctuation, units, or percentages (`source_page_*`,
 `sources_import_problem`, `sources_check_summary`, `tts_factor`,
 `update_notification_progress`). These are explicit resources, not English
 fallback. Do not copy English interface sentences to satisfy coverage.
-
-`DirectorySearchResourcesTest` checks search prompts and chapter counts in all
-supported languages. Bookmark resource tests also check integer/string formatting.
-Compose tests cover representative long translated
-source controls at 320dp with 1.6× font size; this does not assert that every
-screen or device configuration has been visually tested.

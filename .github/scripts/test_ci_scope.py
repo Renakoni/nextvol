@@ -173,11 +173,22 @@ class ScopeTests(unittest.TestCase):
             with self.subTest(path=path):
                 plan = self.select(MAIN + path)
                 self.assertEqual(scope, plan['scopes'])
-                self.assertEqual(':app:testDebugUnitTest -PciTestScope=' + scope, plan['gradle-args'])
-                for check in ('jvm', 'lint', 'release'):
+                self.assertEqual('' if scope == 'about' else
+                                 ':app:testDebugUnitTest -PciTestScope=' + scope, plan['gradle-args'])
+                self.assertEqual(scope != 'about', plan['jvm'])
+                for check in ('lint', 'release'):
                     self.assertTrue(plan[check])
                 for check in ('device-24', 'device-35', 'minified'):
                     self.assertFalse(plan[check])
+        self.assertEqual(':app:testDebugUnitTest -PciTestScope=logs', self.select(
+            MAIN + 'ui/home/settings/about/AboutSettingsScreen.kt',
+            MAIN + 'ui/home/settings/logcat/LogcatScreen.kt')['gradle-args'])
+        mixed = self.select(MAIN + 'ui/home/settings/licenses/LicensesScreen.kt',
+                            'sources/rules/src/test/kotlin/hnovel/rules/RuleEvaluatorTest.kt')
+        self.assertNotIn(':app:testDebugUnitTest', mixed['gradle-args'])
+        self.assertIn(':source-rules:test', mixed['gradle-args'])
+        self.assertTrue(mixed['lint'])
+        self.assertTrue(mixed['release'])
 
     def test_reader_splits_minimum_api_layout_from_wide_behavior_without_source_browser_tests(self):
         plan = self.select(MAIN + 'ui/book/reader/ReaderScreen.kt')
@@ -324,11 +335,13 @@ class ScopeTests(unittest.TestCase):
                 self.assertEqual(ci_scope.plan({'full'}), self.select(
                     'sources/content/src/main/kotlin/hnovel/content/RuleSource.kt', path))
 
-    def test_new_settings_tests_and_shared_ui_inputs_keep_app_coverage(self):
+    def test_new_ui_tests_without_package_filters_and_shared_inputs_keep_app_coverage(self):
         for relative in ('ui/home/settings/about/NewAboutTest.kt',
                          'ui/home/settings/licenses/NewLicenseTest.kt',
                          'ui/home/settings/logcat/NewLogTest.kt',
-                         'ui/home/settings/SettingsHierarchyTest.kt'):
+                         'ui/home/settings/NewSharedSettingsTest.kt',
+                         'ui/home/bookshelf/NewBookshelfTest.kt',
+                         'ui/bangumi/NewBangumiTest.kt'):
             plan = self.select(ci_scope.KOTLIN_ROOTS[1] + relative)
             self.assertNotIn('-PciTestScope', plan['gradle-args'])
             self.assertFalse(plan['release'])
@@ -390,8 +403,8 @@ class ScopeTests(unittest.TestCase):
         cases += [(test_root + relative, ':app:testDebugUnitTest', scope) for relative, scope in (
             ('data/download/BookDownloadTest.kt', 'storage'),
             ('data/localbook/TxtBookParserTest.kt', 'storage'),
-            ('ui/localbook/LocalBookRelinkUiTest.kt', 'storage'),
-            ('ui/book/download/BookDownloadScreenTest.kt', 'storage'),
+            ('ui/localbook/LocalBookImportViewModelTest.kt', 'storage'),
+            ('ui/book/download/BookDownloadViewModelTest.kt', 'storage'),
             ('data/content/ContentDecodingContractTest.kt', 'reader'),
             ('data/format/FormatRepositoryTest.kt', 'reader'),
             ('ui/book/detail/DetailDirectoryPagingTest.kt', 'reader'))]

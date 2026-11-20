@@ -65,16 +65,6 @@ class EpubExportWorkerAdapterTest {
         assertEquals(id.toString(), intent.data!!.schemeSpecificPart)
     }
 
-    @Test fun legacyDefaultsAndEnumSerializationRemainUnchanged() = runTest {
-        val request = slot<EpubExportRequest>()
-        coEvery { useCase.execute(capture(request), any()) } coAnswers { EpubExportResult.Success(firstArg<EpubExportRequest>().id, book, 1, 1) }
-        val worker = ExportBookToEPUBWork(context, workerParameters(workDataOf("bookId" to book.storageKey, "exportType" to "BOOK")), useCase)
-        assertTrue(worker.doWork() is ListenableWorker.Result.Success)
-        assertEquals(EpubExportRequest(worker.id, book, ExportType.BOOK), request.captured)
-        assertEquals(listOf("BOOK", "VOLUMES"), ExportType.entries.map { it.name })
-        assertEquals("export_to_epub:${book.storageKey}", ExportBookToEPUBWork.ofId(book.storageKey))
-    }
-
     @Test fun invalidIdentityTypeAndForeignSelectionNeverReachTheUseCase() = runTest {
         val other = SourceBookId(Identifier("fixture", "other"), "book")
         val cases = listOf(

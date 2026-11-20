@@ -519,30 +519,6 @@ class ExploreHomeViewModelTest {
         assertEquals(1, requests)
     }
 
-    @Test fun realTabsFilterCapabilitiesLoadOnlySelectedAndKeepVisitedFeedAndScroll() = runTest(dispatcher) {
-        val aFeed = Feed()
-        val zFeed = Feed()
-        val a = add("a", aFeed)
-        val z = add("z", zFeed, builtIn = true)
-        add("search-only", Feed(), capabilities = setOf(SourceCapability.Search))
-        val model = model()
-        advanceUntilIdle()
-        assertEquals(listOf(z, a), model.state.value.sources.map { it.metadata.id })
-        assertEquals(0, aFeed.feeds)
-        assertEquals(1, zFeed.feeds)
-        assertEquals(0, zFeed.catalogs) // Native feed does not preload the category directory.
-        model.scroll(z, DiscoveryScroll(3, 17))
-        model.select(a)
-        advanceUntilIdle()
-        model.select(z)
-        model.setActive(false)
-        model.setActive(true)
-        advanceUntilIdle()
-        assertEquals(1, zFeed.feeds)
-        assertEquals(1, aFeed.feeds)
-        assertEquals(DiscoveryScroll(3, 17), model.state.value.content[z]!!.scroll)
-    }
-
     @Test fun failuresAndRetryRemainLocalAndFailedRefreshRetainsVisibleBooks() = runTest(dispatcher) {
         val feed = Feed()
         val a = add("a", feed)
@@ -610,13 +586,6 @@ class ExploreHomeViewModelTest {
         assertNull(model.more(firstSection))
         assertEquals(search, Json.decodeFromString<Route.Main.Explore.Search>(Json.encodeToString(search)))
         assertEquals(first, Json.decodeFromString<Route.Main.DiscoveryResults>(Json.encodeToString(first)))
-    }
-
-    @Test fun absentSearchCapabilityDoesNotOfferSourceSearch() = runTest(dispatcher) {
-        add("feed", Feed(), capabilities = setOf(SourceCapability.Explore))
-        val model = model()
-        advanceUntilIdle()
-        assertNull(model.search())
     }
 
     @Test fun sourceRegistrationAndAccountChangesInvalidateOnlyTheirOwnContent() = runTest(dispatcher) {

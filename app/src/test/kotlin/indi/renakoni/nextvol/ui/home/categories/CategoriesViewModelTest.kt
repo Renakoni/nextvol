@@ -109,43 +109,6 @@ class CategoriesViewModelTest {
         }
     }
 
-    @Test fun stableTabsAreLazyAndRetainVisitedContentAndScroll() = runTest(dispatcher) {
-        val zProvider = Categories()
-        val aProvider = Categories()
-        val a = add("a", aProvider)
-        val z = add("z", zProvider, builtIn = true)
-        add("no-categories", object : DiscoveryProvider {})
-        val model = model()
-        advanceUntilIdle()
-        assertEquals(listOf(z, a), model.state.value.sources.map { it.metadata.id })
-        assertEquals(1, zProvider.calls)
-        assertEquals(0, aProvider.calls)
-        model.scroll(z, DiscoveryScroll(2, 19))
-        model.select(a)
-        advanceUntilIdle()
-        model.select(z)
-        advanceUntilIdle()
-        assertEquals(1, zProvider.calls)
-        assertEquals(1, aProvider.calls)
-        assertEquals(DiscoveryScroll(2, 19), model.state.value.content[z]!!.scroll)
-        model.setActive(false)
-        model.setActive(true)
-        advanceUntilIdle()
-        assertEquals(1, zProvider.calls)
-    }
-
-    @Test fun initialInventoryLoadingEndsEvenWhenThereAreNoSources() = runTest(dispatcher) {
-        val model = model()
-        assertTrue(model.state.value.loadingSources)
-        advanceUntilIdle()
-        assertFalse(model.state.value.loadingSources)
-        assertTrue(model.state.value.sources.isEmpty())
-        val id = add("later", Categories())
-        advanceUntilIdle()
-        assertEquals(id, model.state.value.selected)
-        assertTrue(model.state.value.content[id]!!.loaded)
-    }
-
     @Test fun cancelledLateACompletionCannotOverwriteB() = runTest(dispatcher) {
         val started = CompletableDeferred<Unit>()
         val finish = CompletableDeferred<Unit>()

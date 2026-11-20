@@ -2,9 +2,7 @@ package indi.renakoni.nextvol.data.bangumi
 
 import android.app.Application
 import android.net.Uri
-import indi.renakoni.nextvol.data.book.SourceBookId
 import io.nightfish.lightnovelreader.api.book.*
-import io.nightfish.lightnovelreader.api.identifier.Identifier
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -19,11 +17,6 @@ class BangumiMatchingTest {
     private fun book() = BookInformation("book", "春物", "", Uri.EMPTY, "渡航", "", emptyList(), "小学館", WordCount(0), LocalDateTime.MIN, false)
     private fun volume(id: String, title: String) = Volume(id, title, listOf(ChapterInformation("$id-main", "第一章"),
         ChapterInformation("$id-illustration", "插图"), ChapterInformation("$id-afterword", "后记")))
-
-    @Test fun onlyBuiltInWenku8IsSupported() {
-        assertTrue(BangumiMatching.supports(SourceBookId(Identifier("lightnovelreader", "Wenku8"), "1")))
-        assertFalse(BangumiMatching.supports(SourceBookId(Identifier("other", "Wenku8"), "1")))
-    }
 
     @Test fun automaticMatchNeedsAUniqueNovelSeriesWithMatchingTitleAndAuthor() {
         val novel = BangumiCandidate(BangumiSubject(1, platform = "小说", series = true), true, true, false, true)

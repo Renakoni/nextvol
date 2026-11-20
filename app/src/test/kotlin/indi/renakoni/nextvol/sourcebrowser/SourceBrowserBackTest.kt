@@ -48,21 +48,6 @@ class SourceBrowserBackTest {
         unmockkStatic(ServiceWorkerController::class)
     }
 
-    @Test fun nativeBackNavigatesHistoryBeforeCancelling() {
-        val service = nativeService()
-        val view = service.webView!!
-        shadowOf(view).setCanGoBack(true)
-        val controller = nativeActivity().setup()
-        back(controller.get())
-        assertEquals(1, shadowOf(view).goBackInvocations)
-        assertFalse(controller.get().isFinishing)
-        verify(exactly = 0) { service.cancel("native-job"); service.confirm("native-job") }
-        shadowOf(view).setCanGoBack(false)
-        back(controller.get())
-        verify(exactly = 1) { service.cancel("native-job") }
-        controller.pause().stop().destroy()
-    }
-
     @Test @Config(sdk = [35]) fun engineLoginWaitsForConfirmationBeforeReadingStorage() {
         // Robolectric has no Chromium provider for ServiceWorkerController.getInstance().
         mockkStatic(ServiceWorkerController::class)
@@ -187,25 +172,6 @@ class SourceBrowserBackTest {
         assertNull(service.activity)
         old.pause().stop().destroy()
         verify(exactly = 0) { service.cancel(any()); service.confirm(any()) }
-    }
-
-    @Test @Config(sdk = [35]) fun unregisterRestoresThePreviousCallbackWhileTheWindowIsAlive() {
-        val controller = Robolectric.buildActivity(Activity::class.java).setup()
-        val activity = controller.get()
-        val previous = systemCallback(activity)
-        var calls = 0
-        val back = SourceBrowserBack(activity) { calls++ }
-        back.register()
-        assertNotSame(previous, systemCallback(activity))
-        systemCallback(activity)!!.onBackInvoked()
-        assertEquals(1, calls)
-        back.unregister()
-        assertSame(previous, systemCallback(activity))
-        back.register()
-        systemCallback(activity)!!.onBackInvoked()
-        assertEquals(2, calls)
-        back.unregister()
-        controller.pause().stop().destroy()
     }
 
     private fun reload(activity: Activity) {

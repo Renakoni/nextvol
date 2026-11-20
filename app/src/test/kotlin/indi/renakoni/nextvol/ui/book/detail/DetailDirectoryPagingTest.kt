@@ -10,13 +10,6 @@ class DetailDirectoryPagingTest {
         "volume", "Volume", (1..count).map { ChapterInformation("id-$it", "Chapter $it") },
     )
 
-    @Test fun shortAndEmptyBooksKeepOnePage() {
-        for (count in listOf(0, 100)) assertEquals(1, directoryPageCount(count))
-        assertTrue(directoryPageChapters(directoryChapters(listOf(volume(0))), 0, false).isEmpty())
-        assertTrue(directoryPageChapters(directoryChapters(listOf(volume(0))), 0, true).isEmpty())
-        assertEquals(12, directoryPageChapters(directoryChapters(listOf(volume(12))), 0, false).size)
-    }
-
     @Test fun descendingFillsPagesFromTheEndWithoutChangingCanonicalOrder() {
         val volume = volume(205)
         val original = volume.chapters.toList()

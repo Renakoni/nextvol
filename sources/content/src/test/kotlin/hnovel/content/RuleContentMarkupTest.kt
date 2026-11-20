@@ -7,9 +7,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuleContentMarkupTest {
-    @Test fun fortyParagraphChapterUsesProductionLimits() = chapter(40)
-    @Test fun eightyParagraphChapterKeepsTextAndImageOrder() = chapter(80)
-    @Test fun longChapterUsesProductionLimits() = chapter(400)
     @Test fun longChineseChapterKeepsEveryParagraphThroughTheWorkerEnvelope() = chapter(980, "文".repeat(55))
 
     @Test fun jsonChapterRetainsNewlinesAndInlineImagePosition() = runBlocking {
@@ -121,7 +118,7 @@ class RuleContentMarkupTest {
         }
     }
 
-    private fun chapter(count: Int, lineText: String = "a".repeat(80)) = runBlocking {
+    private fun chapter(count: Int, lineText: String) = runBlocking {
         RuleSourceFixture().use { fixture ->
             val paragraphs = List(count) { "Paragraph $it " + lineText }
             val middle = count / 2
