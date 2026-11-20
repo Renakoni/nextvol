@@ -9,6 +9,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -41,13 +42,15 @@ class ExportBookToEPUBWork @AssistedInject constructor(
     }
 
     private val notificationManager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val labels by lazy { ContextCompat.getContextForLanguage(applicationContext).resources }
+    private val notificationTitle by lazy { labels.getString(R.string.export_book_started, inputData.getString("title").orEmpty()) }
     private var notification: Notification? = null
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 "BookEpubExport",
-                applicationContext.getString(R.string.epub_export_notification_channel_name),
+                labels.getString(R.string.epub_export_notification_channel_name),
                 NotificationManager.IMPORTANCE_HIGH
             )
             notificationManager.createNotificationChannel(channel)
@@ -56,20 +59,19 @@ class ExportBookToEPUBWork @AssistedInject constructor(
 
     private fun showProgressNotification() {
         notification = NotificationCompat.Builder(applicationContext, "BookEpubExport")
-            .setContentTitle(applicationContext.getString(R.string.export_book_started, inputData.getString("title") ?: ""))
-            .setContentText(applicationContext.getString(R.string.epub_export_notification_preparing))
+            .setContentTitle(notificationTitle)
+            .setContentText(labels.getString(R.string.epub_export_notification_preparing))
             .setSmallIcon(R.drawable.file_export_24px)
             .setProgress(100, 0, true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
-    private fun updateFailureNotification(failure: EpubExportResult.Failure) {
-
+    private fun updateFailureNotification(failure: EpubExportResult.Failure, message: String = failureMessage(failure)) {
         notification = NotificationCompat.Builder(applicationContext, "BookEpubExport")
-            .setContentTitle(applicationContext.getString(R.string.export_book_started, inputData.getString("title") ?: ""))
-            .setContentText(failureMessage(failure))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(failureMessage(failure)))
+            .setContentTitle(notificationTitle)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setSmallIcon(R.drawable.file_export_24px)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setProgress(0, 0, false)
@@ -81,8 +83,8 @@ class ExportBookToEPUBWork @AssistedInject constructor(
 
     private fun updateCompletionNotification(bookId: String) {
         notification = NotificationCompat.Builder(applicationContext, "BookEpubExport")
-            .setContentTitle(applicationContext.getString(R.string.export_book_started, inputData.getString("title") ?: ""))
-            .setContentText(applicationContext.getString(R.string.epub_export_share_ready))
+            .setContentTitle(notificationTitle)
+            .setContentText(labels.getString(R.string.epub_export_share_ready))
             .setContentIntent(PendingIntent.getActivity(applicationContext, 0,
                 EpubShareActivity.intent(applicationContext, id), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -103,7 +105,7 @@ class ExportBookToEPUBWork @AssistedInject constructor(
         val text = "$stage $currentVolumeTitle / $currentChapterTitle"
 
         notification = NotificationCompat.Builder(applicationContext, "BookEpubExport")
-            .setContentTitle(applicationContext.getString(R.string.export_book_started, inputData.getString("title") ?: "") + " ($progress%)")
+            .setContentTitle("$notificationTitle ($progress%)")
             .setContentText(text)
             .setSmallIcon(R.drawable.file_export_24px)
             .setProgress(100, progress, false)
@@ -141,7 +143,7 @@ class ExportBookToEPUBWork @AssistedInject constructor(
                     EpubExportProgress.Phase.IMAGES -> R.string.epub_export_notification_stage_images
                 }
                 buildProgressNotification(progress.percent,
-                    applicationContext.getString(label, progress.completed, progress.total),
+                    labels.getString(label, progress.completed, progress.total),
                     progress.volume, progress.chapter)
             }
         } catch (cancelled: CancellationException) {
@@ -165,12 +167,13 @@ class ExportBookToEPUBWork @AssistedInject constructor(
                     "completedVolumes" to result.completedVolumes, "totalVolumes" to result.totalVolumes))
             }
             is EpubExportResult.Failure -> {
-                updateFailureNotification(result)
+                val message = failureMessage(result)
+                updateFailureNotification(result, message)
                 Result.failure(workDataOf(
                     "reason" to result.reason, "bookId" to result.book.storageKey, "stage" to result.stage,
                     "volume" to result.volume.take(160), "chapter" to result.chapter.take(160),
                     "completedVolumes" to result.completedVolumes, "totalVolumes" to result.totalVolumes,
-                    "message" to failureMessage(result),
+                    "message" to message,
                 ))
             }
         }
@@ -186,8 +189,8 @@ class ExportBookToEPUBWork @AssistedInject constructor(
             "cache_failed" -> R.string.epub_export_error_cache
             else -> R.string.epub_export_notification_failed
         }
-        return applicationContext.getString(R.string.epub_export_failure_detail,
-            applicationContext.getString(reason),
+        return labels.getString(R.string.epub_export_failure_detail,
+            labels.getString(reason),
             listOf(failure.volume, failure.chapter).filter(String::isNotBlank).joinToString(" / ").take(240),
             failure.completedVolumes, failure.totalVolumes)
     }
