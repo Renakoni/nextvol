@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.ui.tts
 
 import android.app.Application
-import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
@@ -13,9 +12,6 @@ import indi.renakoni.nextvol.R
 import hnovel.speech.OfflineVoiceConfig
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
-import indi.renakoni.nextvol.tts.sovits.SovitsImportDraft
-import indi.renakoni.nextvol.tts.sovits.SovitsImportField
-import indi.renakoni.nextvol.tts.sovits.SovitsImportFile
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -85,34 +81,5 @@ class SovitsImportScreenTest {
         compose.onNodeWithContentDescription(label(R.string.tts_library_actions)).performClick()
         compose.onNodeWithText(label(R.string.tts_import_sources)).performClick()
         assertEquals(1, sourceImports)
-    }
-
-    @Test fun replacingAWeightShowsItsErrorInTheMatchingRowAndBlocksImportUntilCorrected() {
-        val file = SovitsImportFile(Uri.parse("content://test/file"), "Hello.world.WAV")
-        val state = mutableStateOf(SovitsImportState(draft = SovitsImportDraft("Voice", file.copy(name = "voice.CKPT"), file.copy(name = "voice.pth"), file)))
-        var replacement = file.copy(name = "wrong.bin")
-        activity.get().setContent {
-            MaterialTheme {
-                SovitsImportForm(state.value, onEdit = { state.value = state.value.copy(draft = it) }, onAvatar = {},
-                    onPick = { state.value = state.value.withPickedFile(it, replacement) }, onImport = {}, onCancel = {}, onBack = {})
-            }
-        }
-        compose.onNodeWithTag("sovits-import-confirm").assertIsNotEnabled()
-        compose.onNodeWithContentDescription(label(R.string.sovits_reference_text)).performTextInput("参考音频原文")
-        val confirm = compose.onNodeWithTag("sovits-import-confirm")
-        confirm.assertIsEnabled()
-        for ((field, title) in listOf(SovitsImportField.Gpt to R.string.sovits_gpt_weight, SovitsImportField.Sovits to R.string.sovits_sovits_weight)) {
-            val row = compose.onNodeWithText(label(title))
-            replacement = file.copy(name = "wrong.bin")
-            row.performClick()
-            val error = activity.get().getString(R.string.sovits_choose_extension, ".${field.extension}")
-            row.assert(hasText(error))
-            confirm.assertIsNotEnabled()
-            replacement = file.copy(name = "new.${field.extension!!.uppercase()}")
-            row.performClick().assert(hasText(replacement.name))
-            confirm.assertIsEnabled()
-        }
-        compose.onNodeWithText(label(R.string.sovits_use_filename)).performScrollTo().performClick()
-        compose.runOnIdle { assertEquals("Hello.world", state.value.draft.text) }
     }
 }

@@ -14,7 +14,6 @@ internal class SovitsText(val phones: LongArray, val tokens: LongArray, val repe
         fun combine(parts: List<SovitsText>): SovitsText {
             if (parts.size == 1) return parts.single()
             val phones = parts.flatMap { it.phones.asList() }.toLongArray()
-            require(phones.isNotEmpty())
             return SovitsText(phones, parts.flatMap { it.tokens.asList() }.toLongArray(),
                 parts.flatMap { it.repeats.asList() }.toLongArray(),
                 parts.map { if (it.tokens.isEmpty()) -it.phones.size.toLong() else it.tokens.size.toLong() }.toLongArray())

@@ -19,7 +19,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -60,7 +59,7 @@ internal fun SovitsImportScreen(onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SovitsImportForm(state: SovitsImportState, onEdit: (SovitsImportDraft) -> Unit,
+private fun SovitsImportForm(state: SovitsImportState, onEdit: (SovitsImportDraft) -> Unit,
     onAvatar: () -> Unit, onPick: (SovitsImportField) -> Unit, onImport: () -> Unit, onCancel: () -> Unit, onBack: () -> Unit) {
     val draft = state.draft
     val enabled = !state.busy && !state.picking
@@ -69,8 +68,7 @@ internal fun SovitsImportForm(state: SovitsImportState, onEdit: (SovitsImportDra
         SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.sovits_import_weights, onBack, titleText = null) {
             if (state.busy) TextButton(onClick = onCancel, enabled = !state.cancelling) {
                 Text(stringResource(if (state.cancelling) R.string.sovits_cancelling else R.string.cancel))
-            } else TextButton(onClick = { focus.clearFocus(); onImport() }, enabled = enabled && draft.ready,
-                modifier = Modifier.testTag("sovits-import-confirm")) {
+            } else TextButton(onClick = { focus.clearFocus(); onImport() }, enabled = enabled && draft.ready) {
                 Text(stringResource(R.string.tts_package_import))
             }
         }

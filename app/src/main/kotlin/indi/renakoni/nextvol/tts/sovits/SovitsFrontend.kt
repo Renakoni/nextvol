@@ -18,9 +18,10 @@ enum class SovitsReferenceLanguage(val code: String) {
     }
 }
 
-internal class SovitsFrontend(private val mandarin: SovitsMandarin, private val languages: File) : AutoCloseable {
-    constructor(runtime: File) : this(SovitsMandarin(runtime), File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/languages"))
+internal class SovitsFrontend(mandarin: () -> SovitsMandarin, private val languages: File) : AutoCloseable {
+    constructor(runtime: File) : this({ SovitsMandarin(runtime) }, File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/languages"))
 
+    private val mandarin by lazy(mandarin)
     private val english = lazy { EnglishG2p(File(languages, "english")) }
     private val japanese = JapaneseTextFeatureExtractor { text ->
         OpenJtalk.labelsNative(File(languages, "japanese").absolutePath, text.encodeToByteArray()).asList()
@@ -46,7 +47,8 @@ internal class SovitsFrontend(private val mandarin: SovitsMandarin, private val 
     private fun mixed(text: String): SovitsText {
         val parts = mutableListOf<SovitsText>()
         fun chinese(start: Int, end: Int) {
-            if (start < end) mandarin.encodeChunk(text.substring(start, end))?.let(parts::add)
+            val chunk = text.substring(start, end)
+            if (chunk.isNotBlank()) mandarin.encodeChunk(chunk)?.let(parts::add)
         }
         var start = -1
         var end = 0
@@ -70,7 +72,7 @@ internal class SovitsFrontend(private val mandarin: SovitsMandarin, private val 
     }
 
     private fun unconditioned(symbols: List<String>): SovitsText {
-        val phones = symbols.mapNotNull(GenieSymbols.symbolToId::get).map(Int::toLong).toLongArray()
+        val phones = symbols.mapNotNull { GenieSymbols.symbolToId[it]?.toLong() }.toLongArray()
         require(phones.isNotEmpty())
         return SovitsText(phones, longArrayOf(), longArrayOf(), longArrayOf(-phones.size.toLong()))
     }

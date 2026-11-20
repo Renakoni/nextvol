@@ -95,7 +95,7 @@ internal class SovitsWeightImport @Inject constructor(
             runtime.prepare(progress)
             progress(SovitsImportMessage(R.string.sovits_preparing_models))
             try { SovitsFrontend(runtime.directory).use { it.encode(transcript, language) } }
-            catch (_: UnsatisfiedLinkError) { errorSovits(SovitsImportMessage(R.string.tts_offline_runtime_missing, "GPT-SoVITS")) }
+            catch (_: LinkageError) { errorSovits(SovitsImportMessage(R.string.tts_offline_runtime_missing, "GPT-SoVITS")) }
             catch (_: SpeechException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
             catch (_: IllegalArgumentException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
             prepareSovitsSharedEncoder(runtime.directory)

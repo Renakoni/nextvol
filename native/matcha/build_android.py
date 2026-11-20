@@ -73,9 +73,7 @@ def main():
     jni.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(library, jni / library.name)
     sovits = build / 'libnextvol-sovits.so'
-    # Keep the unstripped bridge in the build tree.
-    strip = llvm / ('llvm-strip.exe' if os.name == 'nt' else 'llvm-strip')
-    run([strip, '--strip-unneeded', '-o', jni / sovits.name, sovits])
+    shutil.copyfile(sovits, jni / sovits.name)
     espeak = build / 'libnextvol-espeak.so'
     shutil.copyfile(espeak, jni / espeak.name)
     shutil.copyfile(runtime / 'install/lib/libonnxruntime.so', jni / 'libonnxruntime.so')

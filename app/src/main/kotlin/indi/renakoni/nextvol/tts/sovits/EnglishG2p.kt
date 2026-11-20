@@ -38,7 +38,7 @@ internal class EnglishG2p(private val root: File) : AutoCloseable {
                     else listOf("P", "R", "EH1", "Z", "AH0", "N", "T", "S")
                 else -> query(original)
             }
-        }.filterNot { it in setOf(" ", "<pad>", "UW", "</s>", "<s>") }.map { if (it == "<unk>") "UNK" else it }
+        }.map { if (it == "<unk>") "UNK" else it }
     }
 
     private fun query(original: String): List<String> {
@@ -46,7 +46,7 @@ internal class EnglishG2p(private val root: File) : AutoCloseable {
         cmu[word]?.let { return it }
         if (original.firstOrNull()?.isUpperCase() == true) names[word]?.let { return it }
         if (word.endsWith("'s") && word.length > 2) {
-            val base = query(word.dropLast(2))
+            val base = query(original.dropLast(2))
             val suffix = when (base.lastOrNull()) {
                 "S", "Z", "SH", "ZH", "CH", "JH" -> listOf("AH0", "Z")
                 "P", "T", "K", "F", "TH" -> listOf("S")
@@ -54,7 +54,7 @@ internal class EnglishG2p(private val root: File) : AutoCloseable {
             }
             return base + suffix
         }
-        if ('-' in word) return word.split('-').filter { it.isNotEmpty() }.flatMap(::query)
+        if ('-' in word) return original.split('-').flatMap(::query)
         return predictor.value.predict(word)
     }
 
