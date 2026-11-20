@@ -8,6 +8,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.speech.OfflineVoiceConfig
 import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import indi.renakoni.nextvol.tts.runtime.speechProcessAbis
+import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
 import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
@@ -88,9 +89,9 @@ class OfflineAvailabilityChecker internal constructor(
     internal fun inspect(configuration: OfflineVoiceConfig, paths: Set<String>, open: (String) -> InputStream): OfflineAvailability {
         if (configuration.engine == "gpt-sovits") {
             if (device.api < 29) return OfflineAvailability(R.string.tts_offline_android, "29", false)
-            if ("arm64-v8a" !in device.abis) return OfflineAvailability(R.string.tts_offline_abi, "arm64-v8a", false)
-            if (!matchaEnabled || !SpeechRuntimePack.Sovits.installed)
-                return OfflineAvailability(R.string.sovits_runtime_required, canRun = false)
+            if (!DeviceAcceleration.supportsProcess(device.abis)) return OfflineAvailability(R.string.tts_offline_abi, "arm64-v8a", false)
+            if (!matchaEnabled) return OfflineAvailability(R.string.tts_offline_runtime_missing, "GPT-SoVITS", false)
+            if (!SpeechRuntimePack.Sovits.installed) return OfflineAvailability(R.string.sovits_runtime_required, canRun = false)
             return OfflineAvailability()
         }
         val required = offlineLibraries(configuration)
