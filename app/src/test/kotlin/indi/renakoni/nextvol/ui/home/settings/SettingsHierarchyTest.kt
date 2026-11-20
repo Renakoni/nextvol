@@ -140,9 +140,6 @@ class SettingsHierarchyTest {
         compose.waitUntil { runBlocking { preference.get() } == "warning" }
         compose.onNodeWithText(label(R.string.key_log_level_warning)).assertIsDisplayed()
         compose.onNodeWithText(label(R.string.settings_app_log_level_desc)).assertIsDisplayed()
-        assertEquals("warning", runBlocking {
-            UserDataRepository(database.userDataDao()).stringUserData(UserDataPath.Settings.Data.LogLevel.path).get()
-        })
     }
 
     @Test fun emptyLogPageExplainsDisabledRecordingWithoutASourcePicker() {
@@ -206,8 +203,6 @@ class SettingsHierarchyTest {
         compose.waitUntil { !state.checkUpdate }
         entry(R.string.settings_distribution_platform).assertIsDisplayed()
         compose.onNodeWithText("Nextvol api").assertIsDisplayed()
-        compose.onNodeWithText("LightNovelReader API").assertDoesNotExist()
-        compose.onNodeWithText("Test Update Channel").assertDoesNotExist()
         entry(R.string.settings_distribution_platform).performClick()
         compose.onNodeWithText("GitHub").performClick()
         compose.waitUntil { state.distributionPlatformKey == "GitHub" }

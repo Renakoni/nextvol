@@ -319,15 +319,7 @@ fun SettingsMenuEntry(
     onOptionChange: (String) -> Unit
 ) {
     var expanded by remember(disabled) { mutableStateOf(false) }
-    var pickedKey by remember { mutableStateOf<String?>(null) }
     val selectedOption = remember(options, selectedOptionKey) { options.getOrNull(selectedOptionKey) }
-    pickedKey?.let { key ->
-        // Changing the app language can recreate the Activity. Remove the popup before committing.
-        LaunchedEffect(key) {
-            pickedKey = null
-            onOptionChange(key)
-        }
-    }
 
     Row(
         modifier = Modifier
@@ -378,7 +370,7 @@ fun SettingsMenuEntry(
                     IntOffset(0, 20)
                 }
             ) {
-                if (disabled || pickedKey != null) return@Box
+                if (disabled) return@Box
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false }
@@ -391,7 +383,7 @@ fun SettingsMenuEntry(
                                 Modifier,
                             onClick = {
                                 expanded = false
-                                pickedKey = option.key
+                                onOptionChange(option.key)
                             },
                             text = {
                                 Text(
