@@ -28,7 +28,7 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
     onImport: () -> Unit, onRefresh: (() -> Unit)?, title: Int = R.string.tts_sources,
     searchLabel: Int = R.string.tts_voice_search, onAdd: (() -> Unit)? = null,
     onManage: (() -> Unit)? = null, selectedCount: Int? = null, onExitManagement: () -> Unit = {},
-    onBackgroundMusic: (() -> Unit)? = null) {
+    onBackgroundMusic: (() -> Unit)? = null, importLabel: Int = R.string.tts_import_sources) {
     var menu by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -85,7 +85,7 @@ internal fun SpeechSourcesTopBar(query: String, onQuery: (String) -> Unit, searc
                 if (onManage != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_manage_voices)) },
                     leadingIcon = { Icon(painterResource(R.drawable.checklist_24px), null) }, enabled = !busy,
                     onClick = { menu = false; onManage() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.tts_import_sources)) }, enabled = !busy,
+                DropdownMenuItem(text = { Text(stringResource(importLabel)) }, enabled = !busy,
                     leadingIcon = { Icon(painterResource(R.drawable.input_24px), null) },
                     onClick = { menu = false; onImport() })
                 if (onRefresh != null) DropdownMenuItem(text = { Text(stringResource(R.string.tts_refresh)) }, enabled = !busy,

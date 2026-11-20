@@ -26,7 +26,9 @@
     <string name="tts_voice_speed">Speed</string>
     <string name="tts_voice_female">Female</string>
     <string name="tts_voice_male">Male</string>
-    <string name="tts_voice_avatar_failed">Could not keep access to this image. Please select it again.</string>
+    <string name="tts_voice_avatar_failed">Could not open the camera or read the photo.</string>
+    <string name="tts_avatar_camera">Take photo</string>
+    <string name="tts_avatar_gallery">Choose from gallery</string>
     <string name="tts_voice_code">Code</string>
     <string name="tts_voice_type_offline">Offline</string>
     <string name="tts_voice_type_online">Online %1$d</string>

@@ -20,6 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -78,6 +79,8 @@ internal fun HttpSpeechSourcesScreen(
     configureCredentials: Boolean = false,
     onAddToPool: (List<SpeechVoiceRef>) -> Unit = {},
     onBackgroundMusic: (() -> Unit)? = null,
+    sovitsInstalled: Boolean = false,
+    onImportWeights: () -> Unit = {},
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -138,7 +141,9 @@ internal fun HttpSpeechSourcesScreen(
         ?: source.category?.let { "category:$it" } ?: "custom"
     val httpGroups = state.sources.groupBy(::groupId)
     val groups = listOf("system" to stringResource(R.string.tts_system_speech)) +
-        offlineGroups.map { (code, name) -> "offline:$code" to name } +
+        (if (sovitsInstalled || "gpt-sovits" in offlineGroups)
+            listOf("offline:gpt-sovits" to stringResource(R.string.tts_runtime_sovits)) else emptyList()) +
+        offlineGroups.filterKeys { it != "gpt-sovits" }.map { (code, name) -> "offline:$code" to name } +
         httpGroups.map { (id, sources) -> "http:$id" to (sources.first().category ?: onlineTitle) }
     // Pager's count and key callbacks must observe the same asynchronously loaded catalog.
     val pagerGroups by rememberUpdatedState(groups)
@@ -206,7 +211,9 @@ internal fun HttpSpeechSourcesScreen(
     }
     Scaffold(topBar = {
         SpeechSourcesTopBar(query, { query = it }, searching, { searching = true }, closeSearch, onBack, state.busy,
-            onImport, onRefresh, onManage = if (currentGroup != "system") ({ managing = true }) else null,
+            if (currentGroup == "offline:gpt-sovits") onImportWeights else onImport, onRefresh,
+            importLabel = if (currentGroup == "offline:gpt-sovits") R.string.sovits_import_weights else R.string.tts_import_sources,
+            onManage = if (currentGroup != "system") ({ managing = true }) else null,
             selectedCount = if (managing) visibleChecked.size else null, onExitManagement = exitManagement,
             onBackgroundMusic = onBackgroundMusic)
     }, bottomBar = {
@@ -279,6 +286,19 @@ internal fun HttpSpeechSourcesScreen(
                             }
                         }
                         else -> {
+                            if (group == "offline:gpt-sovits" && ordered.isEmpty() && searchQuery.isEmpty()) item {
+                                Column(Modifier.fillParentMaxSize().padding(horizontal = 28.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                                    horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(stringResource(R.string.sovits_empty), style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                    TextButton(onClick = onImportWeights, enabled = !state.busy) {
+                                        Icon(painterResource(R.drawable.input_24px), null, Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(stringResource(R.string.sovits_import_weights))
+                                    }
+                                }
+                            }
                             if (ordered.isEmpty() && searchQuery.isNotEmpty() && !state.busy) item {
                                 Text(stringResource(R.string.search_no_results), Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }

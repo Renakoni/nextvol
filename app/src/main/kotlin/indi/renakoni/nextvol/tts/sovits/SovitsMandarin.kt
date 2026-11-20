@@ -2,12 +2,14 @@ package indi.renakoni.nextvol.tts.sovits
 
 import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechException
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import org.json.JSONObject
 import java.io.File
 
 internal class SovitsText(val phones: LongArray, val tokens: LongArray, val repeats: LongArray)
 
 internal class SovitsMandarin(dictionary: File, runtime: File) {
+    constructor(runtime: File) : this(File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/chinese_g2p"), runtime)
     private val resources = ChineseG2pAssetRepository.load(dictionary)
     private val toneSandhi = ToneSandhiProcessor()
     private val erhua = ErhuaProcessor()

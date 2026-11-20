@@ -1,9 +1,6 @@
 package indi.renakoni.nextvol.ui.tts
 
-import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,18 +29,8 @@ internal fun VoiceEditorScreen(
     showParameters: Boolean = false, showExtensions: Boolean = false, newVoice: Boolean = false,
 ) {
     val draft = state.draft
-    val context = LocalContext.current
     val fontScale = LocalDensity.current.fontScale
-    var avatarError by remember { mutableStateOf(false) }
-    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && draft != null) {
-            try {
-                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                onEdit(draft.copy(avatar = uri.toString()))
-                avatarError = false
-            } catch (_: SecurityException) { avatarError = true }
-        }
-    }
+    val pickAvatar = rememberSpeechAvatarPicker { avatar -> draft?.let { onEdit(it.copy(avatar = avatar)) } }
     val back = { if (!state.busy || draft == null) onBack() }
     BackHandler(onBack = back)
     Surface(Modifier.padding(16.dp).widthIn(max = 560.dp).fillMaxWidth(), shape = MaterialTheme.shapes.large) {
@@ -53,7 +39,7 @@ internal fun VoiceEditorScreen(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(if (newVoice) R.string.tts_engine_add_speaker else if (copy) R.string.tts_voice_copy else R.string.tts_edit_source),
                     Modifier.weight(1f), style = MaterialTheme.typography.displayMedium)
-                if (draft != null) IconButton(onClick = { avatarPicker.launch(arrayOf("image/*")) }, enabled = !state.busy,
+                if (draft != null) IconButton(onClick = pickAvatar, enabled = !state.busy,
                     modifier = Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
                     SpeechAvatar(draft.avatar, draft.gender.toIntOrNull() ?: 0, Modifier.fillMaxSize(),
                         state.packageAvatar, stringResource(R.string.tts_voice_avatar))
@@ -66,7 +52,6 @@ internal fun VoiceEditorScreen(
                     if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                     state.error?.let { item { Text(stringResource(it), color = MaterialTheme.colorScheme.error) } }
                     if (draft != null) {
-                        if (avatarError) item { Text(stringResource(R.string.tts_voice_avatar_failed), color = MaterialTheme.colorScheme.error) }
                         item { VoiceText(draft.code, R.string.tts_voice_code, !state.busy) { onEdit(draft.copy(code = it)) } }
                         item { VoicePair(horizontalPairs,
                             { VoiceText(draft.locale, R.string.tts_voice_locale, !state.busy) { onEdit(draft.copy(locale = it)) } },

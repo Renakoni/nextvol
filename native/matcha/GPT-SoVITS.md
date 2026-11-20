@@ -84,7 +84,35 @@ buffers across runtime boundaries. The same downloadable ZIP contains its matchi
 The Mandarin frontend and dictionaries follow Voicebox. The OpenCPOP syllable mapping and V2 symbol
 indices come from GPT-SoVITS commit `6d51ffceafbf240145619af4c92408a6e54b7924`.
 The asset directory includes the third-party notices. The model layout and reference
-conditioning follow the V2 flow in Voicebox. Model weights are supplied locally.
+conditioning follow the V2 flow in Voicebox. Speaker weights are supplied locally.
+
+## Importing a voice
+
+Installing the speech runtime pins a GPT-SoVITS tab immediately after System speech,
+including when it has no voices. Its menu opens the weight importer. Enter a voice
+name, select the matching GPT `.ckpt`, SoVITS `.pth` and reference audio in the
+system document picker, then enter the Mandarin transcript. Android filters by
+MIME type and can offer both binary weight files in either picker. Each pick
+replaces the file in its field. A mismatched extension shows the required suffix
+in the filename line and disables import until corrected. The app
+validates and converts V2 Pro / V2 Pro Plus checkpoints locally using the Voicebox
+checkpoint reader, tensor conversion and graph templates from the commit below.
+Other architectures, including V5, are rejected before template access.
+The reader retains Zip4j 2.11.5: Android's standard `ZipFile` rejects some real
+PyTorch ZIP64 checkpoints with `invalid CEN header`.
+
+The app packages four common ONNX graphs under `assets/gpt-sovits/graphs` and
+a VITS graph and tensor manifest per variant under `checkpoint-v2pro{,plus}`.
+The installed speech runtime supplies the GPU and HTP graphs. On first import, the pinned shared
+encoders in `runtime-models.json` are downloaded (about 1 GB), SHA-256 checked
+and prepared under `noBackupFilesDir/sovits/RuntimeAssets`. Later imports reuse
+these files. The converter applies the template's FP16 rounding while writing
+each FP32 tensor directly to the file used by its graph. The reference audio
+must decode successfully and the Mandarin frontend must accept the transcript
+before the catalog publishes the voice. Cancellation or failure removes the
+staged speaker. Successfully downloaded shared files can be reused on retry.
+Converted voices use normal offline selection, audition, editing, copying,
+deletion and resource leases.
 
 - https://github.com/RVC-Boss/GPT-SoVITS/tree/6d51ffceafbf240145619af4c92408a6e54b7924/GPT_SoVITS/text
 - https://github.com/Renakoni/Voicebox/tree/7963c3511b92271bab89f5dacd39eb4a3ab71b9a/Android/app/src/main/java/dev/rinstel/genie_tts/inference

@@ -18,8 +18,10 @@ internal object DeviceAcceleration {
 
     @ChecksSdkIntAtLeast(api = 29)
     fun supportsRuntime(context: Context): Boolean =
-        BuildConfig.MATCHA_NATIVE && Build.VERSION.SDK_INT >= 29 && "arm64-v8a" in speechProcessAbis(context) &&
-            (Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a" || !usesMuMuHoudini)
+        BuildConfig.MATCHA_NATIVE && Build.VERSION.SDK_INT >= 29 && supportsProcess(speechProcessAbis(context))
+
+    fun supportsProcess(abis: List<String>): Boolean = "arm64-v8a" in abis &&
+        (Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a" || !usesMuMuHoudini)
 
     private var checked = false
     private var htp: File? = null

@@ -27,7 +27,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 internal class GptSovitsSynthesizer(private val context: Context, private val voice: GptSovitsVoice) : SpeechSynthesizer {
-    override val maxInputLength = 120
+    override val maxInputLength = SPEECH_SOVITS_INPUT_LIMIT
     override var audioParameters = SpeechAudioParameters()
         private set
     private val opened = AtomicBoolean()
@@ -75,7 +75,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     private suspend fun prepare(settings: SpeechSettings) {
         prepareSovitsFiles(voice)
         val (pcm32, pcm16) = readSovitsReference(voice.referenceAudio)
-        val mandarin = SovitsMandarin(File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/chinese_g2p"), voice.runtime)
+        val mandarin = SovitsMandarin(voice.runtime)
         val prompt = mandarin.encode(voice.referenceText)
         nativeOperation {
             synchronized(lifecycle) {

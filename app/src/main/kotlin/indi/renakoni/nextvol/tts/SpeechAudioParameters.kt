@@ -19,7 +19,9 @@ data class SpeechAudioSettings(
 data class SpeechAudioParameters(val speed: Float = 1f, val pitch: Float = 1f, val volume: Float = 1f)
 
 internal fun offlineAudioParameters(voice: OfflineVoiceConfig, settings: SpeechSettings) =
-    SpeechAudioParameters(voice.speed, voice.pitch * settings.pitch, voice.volume)
+    if (voice.engine == "gpt-sovits") SpeechAudioParameters(voice.speed * settings.rate,
+        voice.pitch * settings.pitch, voice.volume * settings.volume)
+    else SpeechAudioParameters(voice.speed, voice.pitch * settings.pitch, voice.volume)
 
 internal fun httpAudioParameters(source: HttpSpeechDefinition, settings: SpeechSettings): SpeechAudioParameters {
     val voice = httpVoiceParameters(source)

@@ -467,6 +467,8 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation("me.zhanghai.android.libarchive:library:1.1.6")
+    // Android's ZipFile rejects some real PyTorch ZIP64 checkpoints (invalid CEN header).
+    implementation("net.lingala.zip4j:zip4j:2.11.5")
     // Desugaring
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     // Android lib

@@ -34,6 +34,8 @@ import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
+import indi.renakoni.nextvol.tts.runtime.RuntimeDownload
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import io.nightfish.lightnovelreader.api.Route
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
 import indi.renakoni.nextvol.utils.isResumed
@@ -51,6 +53,9 @@ object SpeechDiagnosticsRoute
 
 @Serializable
 data class HttpSpeechSourcesRoute(val voiceKey: String? = null, val configureCredentials: Boolean = false, val schemeId: String? = null)
+
+@Serializable
+internal object SovitsImportRoute
 
 @Serializable
 object SpeechEnginesRoute
@@ -300,6 +305,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val viewModel = hiltViewModel<HttpSpeechSourcesViewModel>()
         val settingsViewModel = hiltViewModel<SpeechSettingsViewModel>()
         val offlineViewModel = hiltViewModel<OfflineSpeechSourcesViewModel>()
+        val runtimeDownloads = hiltViewModel<SpeechRuntimeViewModel>().downloads
+        val runtimeStates by runtimeDownloads.changes.collectAsStateWithLifecycle()
         val offline by offlineViewModel.state.collectAsStateWithLifecycle()
         val settings by settingsViewModel.state.collectAsStateWithLifecycle()
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -354,6 +361,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onDeleteHttp = { deletingHttp = it }, onDeleteOffline = { deleting = it },
             onAddToPool = { addingToPool = it },
             onBackgroundMusic = { backgroundMusic = true },
+            sovitsInstalled = runtimeStates[SpeechRuntimePack.Sovits] == RuntimeDownload.Installed,
+            onImportWeights = { nav.navigate(SovitsImportRoute) { launchSingleTop = true } },
             offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
                 playback = playback,
                 onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
@@ -394,6 +403,11 @@ fun NavGraphBuilder.speechSettingsDestination() {
                     Text(stringResource(R.string.confirm))
                 } }, dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } })
         }
+    }
+    composable<SovitsImportRoute> { entry ->
+        HideReadAloudOverlay()
+        val nav = LocalNavController.current
+        SovitsImportScreen(onBack = { if (nav.currentBackStackEntry == entry) nav.popBackStack() })
     }
     dialog<OfflineVoiceEditorRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false)) { entry ->
         HideReadAloudOverlay()
