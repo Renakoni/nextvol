@@ -1,7 +1,5 @@
 package indi.renakoni.nextvol.ui.tts
 
-import android.net.Uri
-import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -43,33 +41,17 @@ internal fun SovitsImportScreen(onBack: () -> Unit) {
     val viewModel = hiltViewModel<SovitsImportViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val pickAvatar = rememberSpeechAvatarPicker { viewModel.edit(viewModel.state.value.draft.copy(avatar = it)) }
-    val audio = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(viewModel::pickAudio) }
-    var weightField by rememberSaveable { mutableStateOf<SovitsImportField?>(null) }
-    var folders by rememberSaveable { mutableStateOf(arrayListOf<Uri>()) }
-    val chooseFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
-        if (tree != null) folders = arrayListOf(DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)))
-        else if (folders.isEmpty()) weightField = null
+    var pickingField by rememberSaveable { mutableStateOf<SovitsImportField?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val field = pickingField
+        pickingField = null
+        if (uri != null && field != null) viewModel.pickFile(field, uri)
     }
     LaunchedEffect(state.completed) { if (state.completed) onBack() }
-    val field = weightField
-    val directory = folders.lastOrNull()
-    if (field != null && directory != null) {
-        SovitsWeightPicker(directory, requireNotNull(field.suffix), onFolder = { folders = ArrayList(folders + it) },
-            onChangeFolder = { chooseFolder.launch(directory) }, onBack = {
-                if (folders.size > 1) folders = ArrayList(folders.dropLast(1)) else weightField = null
-            }, onPick = { file ->
-                val draft = viewModel.state.value.draft
-                viewModel.edit(if (field == SovitsImportField.Gpt) draft.copy(gpt = file) else draft.copy(sovits = file))
-                weightField = null
-            })
-        return
-    }
     SovitsImportForm(state, onEdit = viewModel::edit, onAvatar = pickAvatar,
-        onPick = { slot ->
-            if (slot == SovitsImportField.Audio) audio.launch(arrayOf("audio/*")) else {
-                weightField = slot
-                if (folders.isEmpty()) chooseFolder.launch(null)
-            }
+        onPick = { field ->
+            pickingField = field
+            picker.launch(arrayOf(field.mimeType))
         }, onImport = viewModel::install, onCancel = viewModel::cancel, onBack = onBack)
 }
 

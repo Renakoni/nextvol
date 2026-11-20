@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.ui.tts
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +20,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-internal enum class SovitsImportField(val suffix: String?) { Gpt(".ckpt"), Sovits(".pth"), Audio(null) }
+internal enum class SovitsImportField(private val extension: String?) {
+    Gpt("ckpt"), Sovits("pth"), Audio(null);
+
+    // OpenDocument filters by the provider's MIME type. Unmapped weight extensions share the binary type.
+    val mimeType: String get() = if (extension == null) "audio/*"
+        else MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+}
 
 internal data class SovitsImportState(
     val draft: SovitsImportDraft = SovitsImportDraft(),
@@ -44,7 +51,7 @@ internal class SovitsImportViewModel @Inject constructor(
         if (!state.value.busy && !state.value.picking) mutableState.update { it.copy(draft = draft, error = null) }
     }
 
-    fun pickAudio(uri: Uri) {
+    fun pickFile(field: SovitsImportField, uri: Uri) {
         if (state.value.busy || state.value.picking) return
         mutableState.update { it.copy(picking = true, error = null) }
         viewModelScope.launch {
@@ -54,7 +61,15 @@ internal class SovitsImportViewModel @Inject constructor(
                         if (it.moveToFirst()) it.getString(0) else null
                     } ?: uri.lastPathSegment.orEmpty().substringAfterLast('/')
                 }
-                mutableState.update { it.copy(draft = it.draft.copy(audio = SovitsImportFile(uri, name))) }
+                val file = SovitsImportFile(uri, name)
+                mutableState.update { current ->
+                    val draft = when (field) {
+                        SovitsImportField.Gpt -> current.draft.copy(gpt = file)
+                        SovitsImportField.Sovits -> current.draft.copy(sovits = file)
+                        SovitsImportField.Audio -> current.draft.copy(audio = file)
+                    }
+                    current.copy(draft = draft)
+                }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableState.update { it.copy(error = SovitsImportMessage(R.string.sovits_file_unreadable)) } }
             finally { mutableState.update { it.copy(picking = false) } }

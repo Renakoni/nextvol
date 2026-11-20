@@ -19,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -92,10 +93,15 @@ internal fun rememberSpeechAvatarPicker(onAvatar: (String) -> Unit): () -> Unit 
         selected = null
         choosing = false
     }
-    if (choosing) ModalBottomSheet(onDismissRequest = { if (selected == null) choosing = false }) {
+    if (choosing) ModalBottomSheet(
+        onDismissRequest = { if (selected == null) choosing = false },
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
         if (selected != null) LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp))
         else {
+            val rowColors = ListItemDefaults.colors(containerColor = Color.Transparent)
             ListItem(headlineContent = { Text(stringResource(R.string.tts_avatar_camera)) },
+                colors = rowColors,
                 modifier = Modifier.clickable {
                     try {
                         val file = File.createTempFile("voice-avatar-", ".jpg", context.cacheDir)
@@ -104,6 +110,7 @@ internal fun rememberSpeechAvatarPicker(onAvatar: (String) -> Unit): () -> Unit 
                     } catch (_: Exception) { capturePath?.let { File(it).delete() }; capturePath = null; failed() }
                 })
             ListItem(headlineContent = { Text(stringResource(R.string.tts_avatar_gallery)) },
+                colors = rowColors,
                 modifier = Modifier.clickable {
                     try {
                         if (ActivityResultContracts.PickVisualMedia.isPhotoPickerAvailable(context))

@@ -57,10 +57,6 @@
     <string name="sovits_voice_name">音色名稱</string>
     <string name="sovits_choose_file">選擇文件</string>
     <string name="sovits_cancelling">正在取消…</string>
-    <string name="sovits_pick_weight_file">選擇 %1$s 檔案</string>
-    <string name="sovits_change_folder">更換資料夾</string>
-    <string name="sovits_folder_empty">資料夾是空的</string>
-    <string name="sovits_folder_unreadable">無法開啟此資料夾，請更換資料夾。</string>
     <string name="sovits_file_unreadable">無法讀取文件，請重新選擇。</string>
     <string name="sovits_import_failed">導入失敗，請檢查文件、可用存儲空間和網絡后重試。</string>
     <string name="sovits_runtime_required">請先安裝 GPT-SoVITS 語音運行庫。</string>

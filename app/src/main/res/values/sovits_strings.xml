@@ -57,10 +57,6 @@
     <string name="sovits_voice_name">Voice name</string>
     <string name="sovits_choose_file">Choose file</string>
     <string name="sovits_cancelling">Cancelling…</string>
-    <string name="sovits_pick_weight_file">Choose %1$s file</string>
-    <string name="sovits_change_folder">Change folder</string>
-    <string name="sovits_folder_empty">This folder is empty.</string>
-    <string name="sovits_folder_unreadable">Cannot open this folder. Choose another folder.</string>
     <string name="sovits_file_unreadable">Cannot read this file. Select it again.</string>
     <string name="sovits_import_failed">Import failed. Check the files, available storage and network, then retry.</string>
     <string name="sovits_runtime_required">Install the GPT-SoVITS speech runtime first.</string>
