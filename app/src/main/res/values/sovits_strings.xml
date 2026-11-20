@@ -6,6 +6,7 @@
     <string name="sovits_acceleration_checking">Checking</string>
     <string name="sovits_acceleration_supported">Supported</string>
     <string name="sovits_acceleration_unsupported">Not supported</string>
+    <string name="sovits_acceleration_unknown_device">Unknown model</string>
     <string name="sovits_gpu_unsupported">GPT-SoVITS requires a device that supports GPU acceleration.</string>
     <string name="sovits_requires_gpu">Enable GPU acceleration first</string>
     <string name="sovits_disable_gpu">Turn off GPU acceleration</string>

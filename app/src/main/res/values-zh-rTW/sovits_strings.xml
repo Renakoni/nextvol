@@ -6,6 +6,7 @@
     <string name="sovits_acceleration_checking">檢測中</string>
     <string name="sovits_acceleration_supported">支援</string>
     <string name="sovits_acceleration_unsupported">不支援</string>
+    <string name="sovits_acceleration_unknown_device">型號未知</string>
     <string name="sovits_gpu_unsupported">GPT-SoVITS 需要支援 GPU 加速的裝置。</string>
     <string name="sovits_requires_gpu">請先開啟 GPU 加速</string>
     <string name="sovits_disable_gpu">關閉 GPU 加速</string>

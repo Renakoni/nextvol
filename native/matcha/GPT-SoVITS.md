@@ -55,6 +55,15 @@ on WebGPU and Qualcomm HTP with CPU fallback disabled. The graph and inference
 backends are in the APK; no runtime download is needed. An earlier speech request
 shares the same probe. Results persist in app-private, non-backed-up storage
 across app updates. Unsupported GPUs disable GPT downloads and hide its tab.
+Device labels are read once from Vulkan physical-device properties and the bundled
+QNN backend's `deviceGetPlatformInfo` (HTP architecture), then cached alongside
+the probe results. An existing capability cache only needs the metadata query;
+it does not repeat inference. Missing metadata displays an unknown model and does
+not change support. Android product/SoC strings are never used as accelerator names.
+Vulkan labels describe the devices exposed by the driver, not an ORT adapter handle.
+`acceleration_info.cpp` uses only the metadata ABI prefix from QNN 2.42.0.251225
+(core API 2.32); its declarations must be checked against the SDK when upgrading
+the bundled backend. Other ABI versions return unknown metadata.
 Supported GPU and NPU backends default to enabled. Playback settings can disable
 NPU, or disable GPU after a warning and allow CPU synthesis. Compatible voices with
 `v2-htp-{stem,body,head}.onnx`

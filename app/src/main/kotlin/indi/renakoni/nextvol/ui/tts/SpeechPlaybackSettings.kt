@@ -189,7 +189,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                 item {
                     val supported = state.acceleration.gpu
                     SpeechTextEntry(R.drawable.tts_speed, R.string.sovits_gpu_acceleration,
-                        "WebGPU · ${stringResource(when (supported) {
+                        "${state.acceleration.gpuInfo?.takeIf { it.isNotBlank() } ?: stringResource(R.string.sovits_acceleration_unknown_device)} · ${stringResource(when (supported) {
                             null -> R.string.sovits_acceleration_checking
                             false -> R.string.sovits_acceleration_unsupported
                             true -> R.string.sovits_acceleration_supported
@@ -204,7 +204,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     val supported = state.acceleration.npu
                     val enabled = supported == true && state.audio.sovitsGpu
                     SpeechTextEntry(R.drawable.tts_speed, R.string.sovits_device_acceleration,
-                        "Qualcomm HTP · ${stringResource(when {
+                        "${state.acceleration.npuInfo?.takeIf { it.isNotBlank() } ?: stringResource(R.string.sovits_acceleration_unknown_device)} · ${stringResource(when {
                             supported == null -> R.string.sovits_acceleration_checking
                             !supported -> R.string.sovits_acceleration_unsupported
                             !state.audio.sovitsGpu -> R.string.sovits_requires_gpu
