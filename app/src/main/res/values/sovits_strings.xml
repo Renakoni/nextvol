@@ -56,6 +56,7 @@
     <string name="sovits_reference_text">Reference transcript</string>
     <string name="sovits_voice_name">Voice name</string>
     <string name="sovits_choose_file">Choose file</string>
+    <string name="sovits_choose_extension">Select a %1$s file.</string>
     <string name="sovits_cancelling">Cancelling…</string>
     <string name="sovits_file_unreadable">Cannot read this file. Select it again.</string>
     <string name="sovits_import_failed">Import failed. Check the files, available storage and network, then retry.</string>

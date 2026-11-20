@@ -56,6 +56,7 @@
     <string name="sovits_reference_text">参考音频原文</string>
     <string name="sovits_voice_name">音色名称</string>
     <string name="sovits_choose_file">选择文件</string>
+    <string name="sovits_choose_extension">请选择%1$s文件</string>
     <string name="sovits_cancelling">正在取消…</string>
     <string name="sovits_file_unreadable">无法读取文件，请重新选择。</string>
     <string name="sovits_import_failed">导入失败，请检查文件、可用存储空间和网络后重试。</string>

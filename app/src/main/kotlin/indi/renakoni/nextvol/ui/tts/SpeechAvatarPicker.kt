@@ -95,6 +95,7 @@ internal fun rememberSpeechAvatarPicker(onAvatar: (String) -> Unit): () -> Unit 
     }
     if (choosing) ModalBottomSheet(
         onDismissRequest = { if (selected == null) choosing = false },
+        dragHandle = null,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         if (selected != null) LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp))

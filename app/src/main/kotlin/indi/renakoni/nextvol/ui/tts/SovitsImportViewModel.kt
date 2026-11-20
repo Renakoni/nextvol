@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-internal enum class SovitsImportField(private val extension: String?) {
+internal enum class SovitsImportField(val extension: String?) {
     Gpt("ckpt"), Sovits("pth"), Audio(null);
 
     // OpenDocument filters by the provider's MIME type. Unmapped weight extensions share the binary type.
@@ -36,7 +36,20 @@ internal data class SovitsImportState(
     val progress: SovitsImportMessage? = null,
     val error: SovitsImportMessage? = null,
     val completed: Boolean = false,
-)
+) {
+    fun withPickedFile(field: SovitsImportField, file: SovitsImportFile): SovitsImportState {
+        val extension = field.extension
+        if (extension != null && !file.name.endsWith(".$extension", ignoreCase = true)) {
+            return copy(error = SovitsImportMessage(R.string.sovits_choose_extension, ".$extension"))
+        }
+        val updated = when (field) {
+            SovitsImportField.Gpt -> draft.copy(gpt = file)
+            SovitsImportField.Sovits -> draft.copy(sovits = file)
+            SovitsImportField.Audio -> draft.copy(audio = file)
+        }
+        return copy(draft = updated, error = null)
+    }
+}
 
 @HiltViewModel
 internal class SovitsImportViewModel @Inject constructor(
@@ -62,14 +75,7 @@ internal class SovitsImportViewModel @Inject constructor(
                     } ?: uri.lastPathSegment.orEmpty().substringAfterLast('/')
                 }
                 val file = SovitsImportFile(uri, name)
-                mutableState.update { current ->
-                    val draft = when (field) {
-                        SovitsImportField.Gpt -> current.draft.copy(gpt = file)
-                        SovitsImportField.Sovits -> current.draft.copy(sovits = file)
-                        SovitsImportField.Audio -> current.draft.copy(audio = file)
-                    }
-                    current.copy(draft = draft)
-                }
+                mutableState.update { it.withPickedFile(field, file) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableState.update { it.copy(error = SovitsImportMessage(R.string.sovits_file_unreadable)) } }
             finally { mutableState.update { it.copy(picking = false) } }

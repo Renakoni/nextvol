@@ -92,8 +92,9 @@ Installing the speech runtime pins a GPT-SoVITS tab immediately after System spe
 including when it has no voices. Its menu opens the weight importer. Enter a voice
 name, select the matching GPT `.ckpt`, SoVITS `.pth` and reference audio in the
 system document picker, then enter the Mandarin transcript. Android filters by
-MIME type, so providers that report both weights as generic binary files allow
-either extension in both weight fields. The app
+MIME type and can offer both binary weight files in either picker. On return,
+the app checks the filename extension for the selected field and keeps the previous
+selection if the extension is wrong. The app
 validates and converts V2 Pro / V2 Pro Plus checkpoints locally using the Voicebox
 checkpoint reader, tensor conversion and graph templates from the commit below.
 Other architectures, including V5, are rejected before template access.
