@@ -45,5 +45,5 @@ file(ARCHIVE_EXTRACT INPUT "${SOVITS_AAR}" DESTINATION "${CMAKE_CURRENT_BINARY_D
 add_library(sovits-ort SHARED IMPORTED)
 set_target_properties(sovits-ort PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/sovits-ort/jni/arm64-v8a/libortwebgpu.so")
 include(open-jtalk.cmake)
-add_library(nextvol-sovits SHARED sovits.cc sovits_jni.cc qnn_session.cpp japanese_frontend.cpp)
-target_link_libraries(nextvol-sovits PRIVATE open-jtalk sovits-ort log dl)
+add_library(nextvol-sovits SHARED sovits.cc sovits_jni.cc qnn_session.cpp acceleration_info.cpp japanese_frontend.cpp)
+target_link_libraries(nextvol-sovits PRIVATE open-jtalk sovits-ort log dl vulkan)

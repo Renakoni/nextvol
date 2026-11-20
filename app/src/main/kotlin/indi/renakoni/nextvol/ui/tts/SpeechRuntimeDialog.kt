@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.runtime.*
+import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
 import javax.inject.Inject
 
 @HiltViewModel
@@ -27,6 +28,7 @@ internal class SpeechRuntimeViewModel @Inject constructor(val downloads: SpeechR
 internal fun SpeechRuntimeDialog(onDismiss: () -> Unit) {
     val downloads = hiltViewModel<SpeechRuntimeViewModel>().downloads
     val states by downloads.changes.collectAsStateWithLifecycle()
+    val acceleration by DeviceAcceleration.status.collectAsStateWithLifecycle()
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
@@ -38,7 +40,8 @@ internal fun SpeechRuntimeDialog(onDismiss: () -> Unit) {
                 }
                 for (pack in SpeechRuntimePack.entries) {
                     if (pack != SpeechRuntimePack.entries.first()) HorizontalDivider()
-                    RuntimeRow(pack, states.getValue(pack), onStart = { downloads.start(pack) }, onCancel = { downloads.cancel(pack) })
+                    RuntimeRow(pack, states.getValue(pack), if (pack == SpeechRuntimePack.Vendor) true else acceleration.gpu,
+                        onStart = { downloads.start(pack) }, onCancel = { downloads.cancel(pack) })
                 }
             }
         }
@@ -46,7 +49,7 @@ internal fun SpeechRuntimeDialog(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun RuntimeRow(pack: SpeechRuntimePack, state: RuntimeDownload, onStart: () -> Unit, onCancel: () -> Unit) {
+private fun RuntimeRow(pack: SpeechRuntimePack, state: RuntimeDownload, supported: Boolean?, onStart: () -> Unit, onCancel: () -> Unit) {
     val vendor = pack == SpeechRuntimePack.Vendor
     val colors = MaterialTheme.colorScheme
     val transfer = state as? RuntimeDownload.Downloading
@@ -58,7 +61,11 @@ private fun RuntimeRow(pack: SpeechRuntimePack, state: RuntimeDownload, onStart:
                     contentDescription = null, modifier = Modifier.padding(8.dp).size(20.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text(stringResource(if (vendor) R.string.tts_runtime_vendor else R.string.tts_runtime_sovits),
+                Text(stringResource(when (pack) {
+                    SpeechRuntimePack.Vendor -> R.string.tts_runtime_vendor
+                    SpeechRuntimePack.Sovits -> R.string.tts_runtime_sovits
+                    SpeechRuntimePack.SovitsModels -> R.string.sovits_shared_models
+                }),
                     style = MaterialTheme.typography.titleMedium)
                 val detail = when {
                     transfer != null -> "${megabytes(transfer.copied)} / ${megabytes(transfer.total)}"
@@ -67,7 +74,10 @@ private fun RuntimeRow(pack: SpeechRuntimePack, state: RuntimeDownload, onStart:
                 }
                 Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
-            when (state) {
+            if (supported != true) FilledTonalButton(onClick = {}, enabled = false,
+                contentPadding = PaddingValues(horizontal = 12.dp)) {
+                Text(stringResource(if (supported == null) R.string.sovits_acceleration_checking else R.string.sovits_acceleration_unsupported))
+            } else when (state) {
                 RuntimeDownload.Available, is RuntimeDownload.Failed -> FilledTonalButton(onClick = onStart,
                     contentPadding = PaddingValues(horizontal = 12.dp)) {
                     Text(stringResource(if (state == RuntimeDownload.Available) R.string.tts_runtime_download else R.string.tts_retry))

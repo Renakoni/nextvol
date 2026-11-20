@@ -29,6 +29,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
+import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
+import indi.renakoni.nextvol.tts.sovits.SovitsAccelerationStatus
 import indi.renakoni.nextvol.tts.names.SpeechNewWordDiscovery
 import indi.renakoni.nextvol.data.setting.AbstractSettingState
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
@@ -57,6 +59,7 @@ data class SpeechPlaybackSettingsState(
     val audio: SpeechAudioSettings = SpeechAudioSettings(),
     val backgroundMusicEnabled: Boolean = false,
     val diagnosticLogging: Boolean = false,
+    val acceleration: SovitsAccelerationStatus = SovitsAccelerationStatus(),
 )
 
 @HiltViewModel
@@ -70,6 +73,9 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
     val state = mutableState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            DeviceAcceleration.status.collect { status -> mutableState.update { it.copy(acceleration = status) } }
+        }
         viewModelScope.launch {
             repository.changes.collect { settings -> mutableState.update {
                 it.copy(settings = settings.text, allowMultipleVoices = settings.allowMultipleVoices,
@@ -154,6 +160,7 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
     onAutoAssign: (Boolean) -> Unit, onCacheLimit: (Int) -> Unit,
     onDiagnosticLogging: (Boolean) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
+    var confirmingGpuOff by rememberSaveable { mutableStateOf(false) }
     var editingContext by rememberSaveable { mutableStateOf(false) }
     var contextPattern by rememberSaveable { mutableStateOf("") }
     var contextError by remember { mutableStateOf(false) }
@@ -179,6 +186,34 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
                     color = MaterialTheme.colorScheme.error)
             } }
             state.settings?.let { settings ->
+                item {
+                    val supported = state.acceleration.gpu
+                    SpeechTextEntry(R.drawable.tts_speed, R.string.sovits_gpu_acceleration,
+                        "${state.acceleration.gpuInfo?.takeIf { it.isNotBlank() } ?: stringResource(R.string.sovits_acceleration_unknown_device)} · ${stringResource(when (supported) {
+                            null -> R.string.sovits_acceleration_checking
+                            false -> R.string.sovits_acceleration_unsupported
+                            true -> R.string.sovits_acceleration_supported
+                        })}", Modifier.toggleable(state.audio.sovitsGpu && supported == true, enabled = supported == true,
+                            role = Role.Switch, onValueChange = {
+                                if (it) onAudioSettings(state.audio.copy(sovitsGpu = true)) else confirmingGpuOff = true
+                            })) {
+                        PlaybackSwitch(state.audio.sovitsGpu && supported == true, enabled = supported == true)
+                    }
+                }
+                item {
+                    val supported = state.acceleration.npu
+                    val enabled = supported == true && state.audio.sovitsGpu
+                    SpeechTextEntry(R.drawable.tts_speed, R.string.sovits_device_acceleration,
+                        "${state.acceleration.npuInfo?.takeIf { it.isNotBlank() } ?: stringResource(R.string.sovits_acceleration_unknown_device)} · ${stringResource(when {
+                            supported == null -> R.string.sovits_acceleration_checking
+                            !supported -> R.string.sovits_acceleration_unsupported
+                            !state.audio.sovitsGpu -> R.string.sovits_requires_gpu
+                            else -> R.string.sovits_acceleration_supported
+                        })}", Modifier.toggleable(state.audio.sovitsNpu && enabled, enabled = enabled, role = Role.Switch,
+                            onValueChange = { onAudioSettings(state.audio.copy(sovitsNpu = it)) })) {
+                        PlaybackSwitch(state.audio.sovitsNpu && enabled, enabled = enabled)
+                    }
+                }
                 item { SpeechTextSwitch(R.drawable.tts_text_dialogue, R.string.tts_text_dialogue, R.string.tts_text_dialogue_description,
                     settings.dialogue) { onUpdate { old -> old.copy(dialogue = it) } } }
                 item { SpeechTextSwitch(R.drawable.tts_text_multiple_voices, R.string.tts_voice_multiple,
@@ -338,12 +373,12 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_hide_parameters),
-                    trailingContent = { PlaybackSwitch(!preferences.showParameters) { preferences.parametersData.asynchronousSet(!it) } },
+                    trailingContent = { PlaybackSwitch(!preferences.showParameters, onCheckedChange = { preferences.parametersData.asynchronousSet(!it) }) },
                     onClick = { preferences.parametersData.asynchronousSet(!preferences.showParameters) })
             }
             item {
                 SettingsClickableEntry(title = stringResource(R.string.tts_voice_hide_extensions),
-                    trailingContent = { PlaybackSwitch(!preferences.showExtensions) { preferences.extensionsData.asynchronousSet(!it) } },
+                    trailingContent = { PlaybackSwitch(!preferences.showExtensions, onCheckedChange = { preferences.extensionsData.asynchronousSet(!it) }) },
                     onClick = { preferences.extensionsData.asynchronousSet(!preferences.showExtensions) })
             }
             item {
@@ -379,6 +414,14 @@ internal fun SpeechPlaybackSettingsScreen(state: SpeechPlaybackSettingsState, pr
             }
         }
     }
+    if (confirmingGpuOff) AlertDialog(onDismissRequest = { confirmingGpuOff = false },
+        title = { Text(stringResource(R.string.sovits_disable_gpu)) },
+        text = { Text(stringResource(R.string.sovits_disable_gpu_warning)) },
+        confirmButton = { TextButton(onClick = {
+            onAudioSettings(state.audio.copy(sovitsGpu = false))
+            confirmingGpuOff = false
+        }) { Text(stringResource(R.string.sovits_disable_gpu)) } },
+        dismissButton = { TextButton(onClick = { confirmingGpuOff = false }) { Text(stringResource(R.string.cancel)) } })
     if (editingPause) AlertDialog(onDismissRequest = { editingPause = false },
         title = { Text(stringResource(R.string.tts_paragraph_pause)) },
         text = { OutlinedTextField(pauseText, { pauseText = it }, singleLine = true,
@@ -499,9 +542,9 @@ internal fun SpeechTextSlider(@DrawableRes icon: Int, @StringRes title: Int, val
 }
 
 @Composable
-private fun PlaybackSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)? = null) {
+private fun PlaybackSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)? = null, enabled: Boolean = true) {
     val colors = MaterialTheme.colorScheme
-    Switch(checked, onCheckedChange, modifier = Modifier.scale(0.65f), colors = SwitchDefaults.colors(
+    Switch(checked, onCheckedChange, enabled = enabled, modifier = Modifier.scale(0.65f), colors = SwitchDefaults.colors(
         checkedThumbColor = colors.primary,
         checkedTrackColor = colors.primary.copy(alpha = 0.24f),
         checkedBorderColor = Color.Transparent,

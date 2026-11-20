@@ -15,6 +15,9 @@ import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
+import indi.renakoni.nextvol.tts.sovits.GptSovitsSynthesizer
+import indi.renakoni.nextvol.tts.sovits.installedSovitsVoice
 import io.mockk.*
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -26,6 +29,47 @@ import java.io.IOException
 
 class SpeechSynthesizersTest {
     @get:Rule val files = TemporaryFolder()
+
+    @Test fun sovitsWaitsForItsStartupProbeInsteadOfRejectingThePendingStatus() = runBlocking {
+        val configuration = OfflineVoiceConfig("gpt-sovits", "v2ProPlus-1")
+        val reference = OfflineVoiceRef("sovits", "1")
+        val voice = InstalledOfflineVoice(reference, "Voice", emptyMap(), configuration = configuration)
+        val offline = mockk<OfflineSpeechRepository>()
+        coEvery { offline.voices() } returns listOf(voice)
+        every { offline.engineConfiguration(voice) } returns null
+        every { offline.configuration(voice, null) } returns configuration
+        val lease = mockk<OfflineSpeechRepository.Lease>(relaxed = true)
+        every { lease.voice } returns voice
+        every { lease.configuration } returns configuration
+        every { lease.directory } returns files.root
+        every { offline.acquire(reference) } returns lease
+        val availability = mockk<OfflineAvailabilityChecker>(relaxed = true)
+        every { availability.inspect(configuration, any(), any()) } returns
+            OfflineAvailability(indi.renakoni.nextvol.R.string.sovits_acceleration_checking, canRun = false)
+        mockkStatic(android.util.Log::class)
+        mockkStatic(::installedSovitsVoice)
+        mockkObject(SpeechRuntimePack.SovitsModels)
+        mockkConstructor(GptSovitsSynthesizer::class)
+        try {
+            every { android.util.Log.d(any(), any()) } returns 0
+            every { SpeechRuntimePack.SovitsModels.directory } returns files.root
+            every { installedSovitsVoice(files.root, configuration, files.root) } returns mockk(relaxed = true)
+            coEvery { anyConstructed<GptSovitsSynthesizer>().open(any()) } returns "Voice"
+            every { anyConstructed<GptSovitsSynthesizer>().maxInputLength } returns 1000
+            every { anyConstructed<GptSovitsSynthesizer>().close() } just Runs
+            val engine = SpeechSynthesizers(mockk(), mockk(), StorageCipher.Plain, ExecutionAuthority(), mockk(),
+                offline, mockk(), availability, mockk()).synthesizer()
+            try {
+                assertEquals("Voice", engine.open(SpeechSettings(offlineVoice = reference)))
+                coVerify(exactly = 1) { anyConstructed<GptSovitsSynthesizer>().open(any()) }
+            } finally { engine.close() }
+        } finally {
+            unmockkConstructor(GptSovitsSynthesizer::class)
+            unmockkObject(SpeechRuntimePack.SovitsModels)
+            unmockkStatic(::installedSovitsVoice)
+            unmockkStatic(android.util.Log::class)
+        }
+    }
 
     @Test fun httpWorkLeavesTheCallerThreadAndCleanupSurvivesFailure() = runBlocking {
         mockkStatic(android.util.Log::class)

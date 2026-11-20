@@ -8,14 +8,14 @@ enum class GptSovitsVersion(internal val directory: String) {
     V2Pro("v2Pro"), V2ProPlus("v2ProPlus")
 }
 
-/** A prepared local voice. Shared encoders live in RuntimeAssets alongside CharacterModels. */
+/** An installed voice references the separately installed shared encoders. */
 data class GptSovitsVoice(
     val root: File,
     val version: GptSovitsVersion,
     val character: String,
     val referenceAudio: File,
     val referenceText: String,
-    val runtime: File = File(root, "RuntimeAssets"),
+    val runtime: File,
     val referenceLanguage: SovitsReferenceLanguage = SovitsReferenceLanguage.detect(referenceText),
     val options: SovitsSynthesisOptions = SovitsSynthesisOptions(),
 ) {

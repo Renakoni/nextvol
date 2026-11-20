@@ -139,7 +139,7 @@ internal fun HttpSpeechSourcesScreen(
         ?: source.category?.let { "category:$it" } ?: "custom"
     val httpGroups = state.sources.groupBy(::groupId)
     val groups = listOf("system" to stringResource(R.string.tts_system_speech)) +
-        (if (sovitsInstalled || "gpt-sovits" in offlineGroups)
+        (if (sovitsInstalled)
             listOf("offline:gpt-sovits" to stringResource(R.string.tts_runtime_sovits)) else emptyList()) +
         offlineGroups.filterKeys { it != "gpt-sovits" }.map { (code, name) -> "offline:$code" to name } +
         httpGroups.map { (id, sources) -> "http:$id" to (sources.first().category ?: onlineTitle) }

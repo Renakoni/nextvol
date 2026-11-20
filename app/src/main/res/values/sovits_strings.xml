@@ -1,5 +1,16 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="sovits_shared_models">GPT-SoVITS shared models</string>
+    <string name="sovits_gpu_acceleration">GPU acceleration</string>
+    <string name="sovits_device_acceleration">Device acceleration (NPU)</string>
+    <string name="sovits_acceleration_checking">Checking</string>
+    <string name="sovits_acceleration_supported">Supported</string>
+    <string name="sovits_acceleration_unsupported">Not supported</string>
+    <string name="sovits_acceleration_unknown_device">Unknown model</string>
+    <string name="sovits_gpu_unsupported">GPT-SoVITS requires a device that supports GPU acceleration.</string>
+    <string name="sovits_requires_gpu">Enable GPU acceleration first</string>
+    <string name="sovits_disable_gpu">Turn off GPU acceleration</string>
+    <string name="sovits_disable_gpu_warning">GPT-SoVITS will use the CPU, which may make speech generation much slower. We recommend keeping GPU acceleration on.</string>
     <string name="sovits_temperature">Temperature</string>
     <string name="sovits_top_k">Top-K</string>
     <string name="sovits_top_p">Top-P</string>
@@ -67,10 +78,8 @@
     <string name="sovits_cancelling">Cancelling…</string>
     <string name="sovits_file_unreadable">Cannot read this file. Select it again.</string>
     <string name="sovits_import_failed">Import failed. Check the files, available storage and network, then retry.</string>
-    <string name="sovits_runtime_required">Install the GPT-SoVITS speech runtime first.</string>
+    <string name="sovits_runtime_required">Install the GPT-SoVITS runtime and shared models in Speech runtimes first.</string>
     <string name="sovits_checking_reference">Checking reference audio…</string>
     <string name="sovits_reference_audio_invalid">Cannot use this reference audio. Choose playable audio within 30 seconds that contains speech.</string>
     <string name="sovits_preparing_models">Preparing models for local speech…</string>
-    <string name="sovits_downloading_shared">Downloading shared models %1$d/%2$d · %3$d%%</string>
-    <string name="sovits_shared_invalid">The shared model download is incomplete or damaged. Retry the import.</string>
 </resources>

@@ -1,21 +1,16 @@
 # GPT-SoVITS offline speech
 
-The app exposes `SpeechSynthesizers.gptSovits(voice)` for individual clips and
-`downloadGptSovitsChapter(voice, chapter, output)` for a complete chapter. The
-chapter writer takes a processed `SpeechChapter`, reuses a single model session,
-and publishes a 32 kHz mono PCM16 WAV at a new destination. Cancel the calling
-coroutine to stop generation. For the clip API, close the synthesizer after use.
+Imported voices use the normal `SpeechSynthesizers.synthesizer()` and reader
+playback pipeline, including its settings, PCM processing and cancellation.
 
 `GptSovitsVoice` takes a local root, a V2 Pro or V2 Pro Plus character ID, a
 reference recording (up to 30 seconds) and its transcript in Chinese, Japanese or English. The backend supports Android 10
-or newer. MuMu's x86 Houdini translator cannot load the runtime's thread-local
-state during model initialization, so this backend reports unavailable there.
+or newer and a working GPU backend, established by the first-start inference probe.
 The Mandarin frontend uses the Voicebox normalization, segmentation,
 contextual pronunciation, tone sandhi and erhua before RoBERTa alignment.
 On arm64 the default is CPU + WebGPU. Reference encoding and autoregressive
 decoding use the CPU provider in the bundled ORT 1.27 build. The acoustic stage uses
-WebGPU, with CPU fallback if the adapter or graph fails. Both the clip
-and chapter entry points use this policy.
+WebGPU, with CPU fallback if the adapter or graph fails.
 
 ```text
 <root>/
@@ -26,12 +21,12 @@ and chapter entry points use this policy.
     t2s_stage_decoder_fp32.onnx
     vits_fp32.onnx
     <external weights referenced by these graphs>
-  RuntimeAssets/
-    chinese-hubert-base/chinese-hubert-base.onnx
-    chinese-hubert-base/chinese-hubert-base_weights.bin
-    speaker_encoder.onnx
-    roberta-wwm-ext-large-onnx/model.onnx
-    roberta-wwm-ext-large-onnx/roberta_tokenizer/tokenizer.json
+<shared-models>/
+  chinese-hubert-base/chinese-hubert-base.onnx
+  chinese-hubert-base/chinese-hubert-base_weights.bin
+  speaker_encoder.onnx
+  roberta-wwm-ext-large-onnx/model.onnx
+  roberta-wwm-ext-large-onnx/roberta_tokenizer/tokenizer.json
 ```
 
 Use a separate model directory for each installed revision. Standard packed FP16
@@ -40,7 +35,9 @@ expanded beside their graphs on first open, so these directories must be writabl
 when preparation is needed. The speech encoder, first decoder, cached decoder and
 vocoder use the V2 ONNX graph inputs and outputs. Both decoder exports with fixed
 sampling and exports with a `sampling` input are supported. A vocoder exposing
-`speed` receives unit speed before NextVol's audio processing.
+`speed` receives the voice speed multiplied by the reading rate mapped from
+`0 / 1 / 2` to `0.6 / 1 / 1.65`, clamped to `0.6..1.65`. Reading pitch is ignored;
+volume remains a PCM gain adjustment.
 
 ## GPU and NPU
 
@@ -53,9 +50,22 @@ CPU and the FP32 HiFiGAN runs on WebGPU. For an original unsplit export the
 backend requests WebGPU on the original VITS graph. On a provider failure the
 CPU vocoder reuses the semantic tokens already produced for that segment.
 
-After the first frame of the app, an IO worker runs the Qualcomm HTP arithmetic
-probe with CPU fallback disabled. An earlier speech request shares the same
-probe. The result is cached against the system build, APK update and installed pack digest. Compatible voices with
+After the first frame of the app, an IO worker runs a 234-byte arithmetic graph
+on WebGPU and Qualcomm HTP with CPU fallback disabled. The graph and inference
+backends are in the APK; no runtime download is needed. An earlier speech request
+shares the same probe. Results persist in app-private, non-backed-up storage
+across app updates. Unsupported GPUs disable GPT downloads and hide its tab.
+Device labels are read once from Vulkan physical-device properties and the bundled
+QNN backend's `deviceGetPlatformInfo` (HTP architecture), then cached alongside
+the probe results. An existing capability cache only needs the metadata query;
+it does not repeat inference. Missing metadata displays an unknown model and does
+not change support. Android product/SoC strings are never used as accelerator names.
+Vulkan labels describe the devices exposed by the driver, not an ORT adapter handle.
+`acceleration_info.cpp` uses only the metadata ABI prefix from QNN 2.42.0.251225
+(core API 2.32); its declarations must be checked against the SDK when upgrading
+the bundled backend. Other ABI versions return unknown metadata.
+Supported GPU and NPU backends default to enabled. Playback settings can disable
+NPU, or disable GPU after a warning and allow CPU synthesis. Compatible voices with
 `v2-htp-{stem,body,head}.onnx`
 automatically use the NPU for latents of at least 192 frames. Shorter utterances
 continue on GPU. HTP uses 64-frame windows with eight frames of context and
@@ -71,22 +81,20 @@ python native/sovits/split_vits_acoustic.py --model-dir <tts_models>
 python native/sovits/split_v2_htp.py <tts_models>
 ```
 
-The on-demand GPT-SoVITS pack includes the arm64 runtime from Voicebox's V2 WebGPU build of ORT
+The APK includes the arm64 runtime from Voicebox's V2 WebGPU build of ORT
 1.27.0 (input AAR SHA-256
 `db6d7eba5c8c2f1debc61874b2e9abafd6b581a35c679ff5390b0442de89e698`).
 `native/sovits/package_webgpu.py` reproduces the slim AAR from that build and
 the matching ORT source notices. It gives WebGPU its own library name so the
 existing CPU runtime and Java WebGPU binding can coexist. The HTP bridge opens
 the separate Microsoft QNN 1.27.0 runtime by absolute path and passes float
-buffers across runtime boundaries. The same downloadable ZIP contains its matching Qualcomm
-2.42.0 libraries from Maven Central; the installed app works offline.
+buffers across runtime boundaries. The APK also contains the matching Qualcomm
+2.42.0 SDK libraries from Maven Central. Device drivers alone do not replace these
+libraries. Probes and synthesis share the same backends.
 
 The JNI bridge, including Open JTalk, is compiled with the APK. The on-demand
-runtime installer includes the English pronunciation data and Japanese dictionary. Release
-builds distribute them inside the existing GitHub/website runtime ZIP. Builds
-pinned to the earlier published core fetch `reference-languages.zip` (29,142,223
-bytes) as part of the same installation. An installation of the former
-Mandarin-only runtime needs to be updated once. Converted voices live separately.
+runtime installer includes graph templates and pronunciation data, including the
+English and Japanese dictionaries, in one 34 MB ZIP. Converted voices live separately.
 
 The English CMU/name lexicons, homograph tagger, fallback G2P model and Japanese
 Open JTalk frontend follow Voicebox. The source archive preserves the original
@@ -100,7 +108,8 @@ conditioning follow the V2 flow in Voicebox. Speaker weights are supplied locall
 
 ## Importing a voice
 
-Installing the speech runtime pins a GPT-SoVITS tab immediately after System speech,
+Installing both the speech runtime and GPT-SoVITS base models on a GPU-supported
+device pins a GPT-SoVITS tab immediately after System speech,
 including when it has no voices. Its menu opens the weight importer. Enter a voice
 name, select the matching GPT `.ckpt`, SoVITS `.pth` and reference audio in the
 system document picker, then enter the transcript or use the audio filename
@@ -121,14 +130,15 @@ PyTorch ZIP64 checkpoints with `invalid CEN header`.
 
 The app packages four common ONNX graphs under `assets/gpt-sovits/graphs` and
 a VITS graph and tensor manifest per variant under `checkpoint-v2pro{,plus}`.
-The installed speech runtime supplies the GPU and HTP graphs. On first import, the pinned shared
-encoders in `runtime-models.json` are downloaded (about 1 GB), SHA-256 checked
-and prepared under `noBackupFilesDir/sovits/RuntimeAssets`. Later imports reuse
-these files. The converter applies the template's FP16 rounding while writing
+The installed speech runtime supplies the GPU and HTP graphs. The separate base-model
+entry in Speech runtimes installs the five files pinned in `runtime-models.json`
+(about 973 MB), SHA-256 checked and atomically published under
+`noBackupFilesDir/speech-runtimes/sovits-models`. Imports reuse these files and
+never download shared models. The converter applies the template's FP16 rounding while writing
 each FP32 tensor directly to the file used by its graph. The reference audio
 must decode successfully and the selected reference frontend must accept the transcript
 before the catalog publishes the voice. Cancellation or failure removes the
-staged speaker. Successfully downloaded shared files can be reused on retry.
+staged speaker. Installed base models remain available for later imports.
 Converted voices use normal offline selection, audition, editing, copying,
 deletion and resource leases.
 

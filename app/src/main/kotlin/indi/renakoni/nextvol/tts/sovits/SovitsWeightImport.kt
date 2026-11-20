@@ -50,11 +50,15 @@ internal data class SovitsImportDraft(
 internal class SovitsWeightImport @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val voices: OfflineSpeechRepository,
-    private val runtime: SovitsRuntimeModels,
 ) {
     suspend fun install(draft: SovitsImportDraft, progress: (SovitsImportMessage) -> Unit): InstalledOfflineVoice = withContext(Dispatchers.IO) {
         require(draft.ready)
-        requireSovits(SpeechRuntimePack.Sovits.installed) { SovitsImportMessage(R.string.sovits_runtime_required) }
+        DeviceAcceleration.detect(context)
+        requireSovits(DeviceAcceleration.status.value.gpu == true) { SovitsImportMessage(R.string.sovits_gpu_unsupported) }
+        requireSovits(SpeechRuntimePack.Sovits.installed && SpeechRuntimePack.SovitsModels.installed) {
+            SovitsImportMessage(R.string.sovits_runtime_required)
+        }
+        val runtime = SpeechRuntimePack.SovitsModels.directory
         if (Build.VERSION.SDK_INT < 29) errorSovits(SovitsImportMessage(R.string.tts_offline_android, "29"))
         val task = currentCoroutineContext()
         fun open(file: SovitsImportFile): InputStream = context.contentResolver.openInputStream(file.uri)
@@ -92,13 +96,12 @@ internal class SovitsWeightImport @Inject constructor(
             val language = draft.referenceLanguage ?: SovitsReferenceLanguage.detect(transcript)
             File(result.character, "prompt_wav.json").writeText(JSONObject().put("Normal",
                 JSONObject().put("wav", reference.name).put("text", transcript).put("language", language.code)).toString())
-            runtime.prepare(progress)
             progress(SovitsImportMessage(R.string.sovits_preparing_models))
-            try { SovitsFrontend(runtime.directory).use { it.encode(transcript, language) } }
+            try { SovitsFrontend(runtime).use { it.encode(transcript, language) } }
             catch (_: LinkageError) { errorSovits(SovitsImportMessage(R.string.tts_offline_runtime_missing, "GPT-SoVITS")) }
             catch (_: SpeechException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
             catch (_: IllegalArgumentException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
-            prepareSovitsSharedEncoder(runtime.directory)
+            prepareSovitsSharedEncoder(runtime)
             val model = "${result.architecture}.${result.character.name}"
             OfflineVoiceConfig("gpt-sovits", model, parameters = JSONObject().put("model", model).toString(),
                 locale = "zh-CN", sampleRate = 32000)

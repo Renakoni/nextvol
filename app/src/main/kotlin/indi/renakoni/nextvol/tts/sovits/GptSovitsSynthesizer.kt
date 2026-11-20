@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.annotation.RequiresApi
 import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import indi.renakoni.nextvol.tts.*
-import indi.renakoni.nextvol.tts.audio.PcmAudioProcessor
 import indi.renakoni.nextvol.tts.audio.SpeechWaveFile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -19,8 +18,6 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
@@ -35,12 +32,11 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     private val lifecycle = Any()
     private val generation = GenerationContext()
     private var acoustic: SovitsAcoustic? = null
-    internal var lastProvider: String = "CPU"
-        private set
     private var handle = 0L
     private var ownsPermit = false
     private var preparing: Job? = null
     private var frontend: SovitsFrontend? = null
+    private var options = voice.options
 
     override suspend fun open(settings: SpeechSettings): String {
         check(opened.compareAndSet(false, true))
@@ -50,14 +46,16 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                     val job = currentCoroutineContext().job
                     synchronized(lifecycle) { generation.checkCancelled(); preparing = job }
                     try {
-                        if (!DeviceAcceleration.supportsRuntime(context) || !SpeechRuntimePack.Sovits.directory.isDirectory)
+                        val npuRuntime = DeviceAcceleration.detect(context)
+                        if (!DeviceAcceleration.supportsRuntime(context) || DeviceAcceleration.status.value.gpu != true ||
+                            !SpeechRuntimePack.Sovits.installed || !SpeechRuntimePack.SovitsModels.installed)
                             throw SpeechException(SpeechError.OfflineUnavailable)
                         permit.acquire()
                         synchronized(lifecycle) {
                             ownsPermit = true
                             generation.checkCancelled()
                         }
-                        prepare(settings)
+                        prepare(settings, npuRuntime.takeIf { settings.audio.sovitsNpu })
                     } finally { synchronized(lifecycle) { preparing = null } }
                 }
             }
@@ -72,7 +70,8 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     }
 
     @RequiresApi(29)
-    private suspend fun prepare(settings: SpeechSettings) {
+    private suspend fun prepare(settings: SpeechSettings, npuRuntime: File?) {
+        options = voice.options.withReadingRate(settings.rate)
         prepareSovitsFiles(voice)
         val (pcm32, pcm16) = readSovitsReference(voice.referenceAudio)
         nativeOperation {
@@ -86,8 +85,10 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
             }
             SovitsNative.prepare(handle, prompt.phones, prompt.tokens, prompt.repeats, prompt.bertRuns, pcm32, pcm16)
             try {
-                acoustic = SovitsAcoustic(voice, SovitsNative.condition(handle, false), SovitsNative.condition(handle, true))
-                acoustic?.prepare(context)
+                if (settings.audio.sovitsGpu) {
+                    acoustic = SovitsAcoustic(voice.copy(options = options), SovitsNative.condition(handle, false), SovitsNative.condition(handle, true))
+                    acoustic?.prepare(context, npuRuntime)
+                }
             } catch (failure: Throwable) {
                 if (failure !is Exception && failure !is LinkageError) throw failure
                 generation.checkCancelled()
@@ -95,7 +96,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                 acoustic = null
                 android.util.Log.w("NextVolSoVITS", "Accelerated voice unavailable", failure)
             }
-            audioParameters = SpeechAudioParameters(settings.rate.coerceAtLeast(0.1f), settings.pitch, settings.volume)
+            audioParameters = SpeechAudioParameters(volume = settings.volume)
         }
     }
 
@@ -104,48 +105,14 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
         return emptyList()
     }
 
-    suspend fun downloadChapter(chapter: SpeechChapter, output: File) {
-        val task = currentCoroutineContext()
-        val settings = SpeechSettings()
-        val plan = prepareSpeechPlan(chapter, settings, maxInputLength = maxInputLength, checkCancelled = task::ensureActive)
-        if (plan.segments.isEmpty()) throw SpeechException(SpeechError.UnsupportedContent)
-        try {
-            open(settings)
-            writeWave(output) { wave ->
-                for (segment in plan.segments) {
-                    task.ensureActive()
-                    val pause = segment.pauseMs
-                    if (pause != null) {
-                        wave.appendSilence(pause, task::ensureActive)
-                        continue
-                    }
-                    val bytes = pcm(segment.text)
-                    val controls = segment.audioParameters
-                    if (controls == SpeechAudioParameters()) wave.append(bytes)
-                    else {
-                        val input = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-                        PcmAudioProcessor(32000, 32000, speed = controls.speed, pitch = controls.pitch,
-                            volume = controls.volume).use { processor ->
-                            wave.append(processor.process(ShortArray(input.remaining()).also { input.get(it) }))
-                            wave.append(processor.finish())
-                        }
-                    }
-                }
-            }
-        } finally {
-            withContext(NonCancellable + Dispatchers.IO) { close() }
-        }
-    }
-
     private suspend fun pcm(text: String): ByteArray {
         require(text.isNotBlank() && text.length <= maxInputLength)
         return nativeOperation {
             val input = checkNotNull(frontend).encode(text)
             val tokens = SovitsNative.semantics(handle, input.phones, input.tokens, input.repeats, input.bertRuns,
-                voice.options.samplingValues())
+                options.samplingValues())
             val accelerated = generation.run { acoustic?.generate(input.phones, tokens) }
-            lastProvider = if (accelerated != null) checkNotNull(acoustic).lastProvider else "CPU"
-            accelerated ?: SovitsNative.vocode(handle, input.phones, tokens, voice.options.speed.toDouble())
+            accelerated ?: SovitsNative.vocode(handle, input.phones, tokens, options.speed.toDouble())
         }
     }
 

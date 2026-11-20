@@ -308,6 +308,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val offlineViewModel = hiltViewModel<OfflineSpeechSourcesViewModel>()
         val runtimeDownloads = hiltViewModel<SpeechRuntimeViewModel>().downloads
         val runtimeStates by runtimeDownloads.changes.collectAsStateWithLifecycle()
+        val acceleration by indi.renakoni.nextvol.tts.sovits.DeviceAcceleration.status.collectAsStateWithLifecycle()
         val offline by offlineViewModel.state.collectAsStateWithLifecycle()
         val settings by settingsViewModel.state.collectAsStateWithLifecycle()
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -362,7 +363,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onDeleteHttp = { deletingHttp = it }, onDeleteOffline = { deleting = it },
             onAddToPool = { addingToPool = it },
             onBackgroundMusic = { backgroundMusic = true },
-            sovitsInstalled = runtimeStates[SpeechRuntimePack.Sovits] == RuntimeDownload.Installed,
+            sovitsInstalled = acceleration.gpu == true && runtimeStates[SpeechRuntimePack.Sovits] == RuntimeDownload.Installed &&
+                runtimeStates[SpeechRuntimePack.SovitsModels] == RuntimeDownload.Installed,
             onImportWeights = { nav.navigate(SovitsImportRoute) { launchSingleTop = true } },
             offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
                 playback = playback,

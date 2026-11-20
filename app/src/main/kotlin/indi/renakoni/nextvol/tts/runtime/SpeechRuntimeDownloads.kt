@@ -4,6 +4,7 @@ import android.os.SystemClock
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.update.UpdateArtifactDownloader
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
+import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +43,7 @@ internal class SpeechRuntimeDownloads @Inject constructor(
     val changes = states.asStateFlow()
 
     @Synchronized fun start(pack: SpeechRuntimePack) {
+        if (pack != SpeechRuntimePack.Vendor && DeviceAcceleration.status.value.gpu != true) return
         val state = states.value[pack]
         if (state != RuntimeDownload.Available && state !is RuntimeDownload.Failed) return
         set(pack, RuntimeDownload.Downloading(0, pack.archiveBytes))
@@ -83,22 +85,28 @@ internal class SpeechRuntimeDownloads @Inject constructor(
                 var nextProgressAt = 0L
                 val url = downloader.selectDownloadUrl(part.urls)
                     ?: throw IOException(SpeechLibraries.context.getString(R.string.tts_runtime_sources_unreachable))
-                if (!downloader.downloadFile(url, archive) { copied, _ ->
+                if (!downloader.downloadFile(url, archive, part.sha256) { copied, _ ->
+                    if (copied > part.bytes) throw IOException("Unexpected runtime download size")
                     val now = SystemClock.elapsedRealtime()
                     if (now >= nextProgressAt || copied == part.bytes) {
                         set(pack, RuntimeDownload.Downloading(installedBytes + copied, pack.archiveBytes))
                         nextProgressAt = now + 100
                     }
-                } || archive.length() != part.bytes) throw IOException("Incomplete runtime download")
+                }) throw IOException("Incomplete runtime download")
                 if (part == pack.archives.last()) set(pack, RuntimeDownload.Installing)
-                unpack(archive, staging)
+                if (part.path == null) unpack(archive, staging)
+                else {
+                    val target = File(staging, part.path)
+                    check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
+                    check(archive.renameTo(target)) { "Cannot install shared model" }
+                }
                 installedBytes += part.bytes
             }
             // A cancel and a completed installation must agree on which happened first.
             synchronized(this) {
                 task.ensureActive()
                 check(staging.renameTo(pack.directory)) { "Cannot install runtime" }
-                if (pack == SpeechRuntimePack.Vendor) availability.runtimeInstalled()
+                availability.runtimeInstalled()
                 set(pack, RuntimeDownload.Installed)
             }
         } finally {

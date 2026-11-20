@@ -1,7 +1,3 @@
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.ClassWriter
-import org.objectweb.asm.tree.ClassNode
-import org.objectweb.asm.tree.MethodInsnNode
 import java.util.zip.*
 import java.security.MessageDigest
 import java.security.DigestInputStream
@@ -235,22 +231,7 @@ android {
     }
 }
 
-// Keep the Java API in the app's class loader. ORT's Android loader otherwise searches only the APK.
-fun sovitsJavaLoader(original: ByteArray): ByteArray {
-    val api = ClassNode()
-    ClassReader(original).accept(api, 0)
-    val load = api.methods.single { it.name == "load" && it.desc == "(Ljava/lang/String;)V" }
-    val calls = load.instructions.filterIsInstance<MethodInsnNode>().filter {
-        it.owner == "java/lang/System" && it.name == "loadLibrary" && it.desc == load.desc
-    }
-    check(calls.isNotEmpty()) { "ORT's Android library loader has changed" }
-    calls.forEach {
-        it.owner = "indi/renakoni/nextvol/tts/runtime/SpeechLibraries"
-        it.name = "loadSovits"
-    }
-    return ClassWriter(0).also(api::accept).toByteArray()
-}
-
+// Keep the Java API available to host tests without packaging Android native libraries there.
 val webGpuAar = rootProject.file("native/sovits/onnxruntime-webgpu.aar")
 val webGpuApi = tasks.register("prepareSovitsJavaApi") {
     inputs.file(webGpuAar)
@@ -258,21 +239,9 @@ val webGpuApi = tasks.register("prepareSovitsJavaApi") {
     outputs.file(output)
     doLast {
         ZipFile(webGpuAar).use { aar ->
-            ZipInputStream(aar.getInputStream(aar.getEntry("classes.jar"))).use { input ->
-                val jar = output.get().asFile
-                jar.parentFile.mkdirs()
-                ZipOutputStream(jar.outputStream()).use { out ->
-                    var entry = input.nextEntry
-                    while (entry != null) {
-                        out.putNextEntry(ZipEntry(entry.name).apply { time = 0 })
-                        if (entry.name == "ai/onnxruntime/OnnxRuntime.class") {
-                            out.write(sovitsJavaLoader(input.readBytes()))
-                        } else input.copyTo(out)
-                        out.closeEntry()
-                        entry = input.nextEntry
-                    }
-                }
-            }
+            val jar = output.get().asFile
+            jar.parentFile.mkdirs()
+            aar.getInputStream(aar.getEntry("classes.jar")).use { input -> jar.outputStream().use(input::copyTo) }
         }
     }
 }
@@ -289,14 +258,9 @@ if (matchaNative) {
         add(sovitsQnn.name, "com.microsoft.onnxruntime:onnxruntime-android-qnn:1.27.0@aar")
         add(sovitsQnn.name, "com.qualcomm.qti:qnn-runtime:2.42.0@aar")
     }
-    val packageSovitsRuntime by tasks.registering(Zip::class) {
-        archiveFileName.set(sovitsZip.get().asFile.name)
-        destinationDirectory.set(sovitsZip.get().asFile.parentFile)
-        isPreserveFileTimestamps = false
-        isReproducibleFileOrder = true
+    val prepareSovitsBackends by tasks.registering(Sync::class) {
+        into(layout.buildDirectory.dir("sovits-backends"))
         duplicatesStrategy = DuplicatesStrategy.FAIL
-        from(rootProject.file("native/sovits/assets")) { into("assets") }
-        from(zipTree(rootProject.file("native/sovits/reference-languages.zip")))
         from(zipTree(webGpuAar)) {
             include("jni/**", "assets/**")
             eachFile { path = path.replaceFirst(Regex("^jni/"), "jniLibs/") }
@@ -309,6 +273,18 @@ if (matchaNative) {
             includeEmptyDirs = false
         }
     }
+    android.sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("sovits-backends/jniLibs").get().asFile)
+    android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("sovits-backends/assets").get().asFile)
+    tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareSovitsBackends) }
+}
+val packageSovitsRuntime by tasks.registering(Zip::class) {
+    archiveFileName.set(sovitsZip.get().asFile.name)
+    destinationDirectory.set(sovitsZip.get().asFile.parentFile)
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    from(rootProject.file("native/sovits/assets")) { into("assets") }
+    from(zipTree(rootProject.file("native/sovits/reference-languages.zip")))
 }
 val prepareSpeechRuntimeCatalog by tasks.registering {
     inputs.file(vendorSpec)

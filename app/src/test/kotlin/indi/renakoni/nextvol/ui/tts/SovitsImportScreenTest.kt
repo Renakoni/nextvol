@@ -81,5 +81,10 @@ class SovitsImportScreenTest {
         compose.onNodeWithContentDescription(label(R.string.tts_library_actions)).performClick()
         compose.onNodeWithText(label(R.string.tts_import_sources)).performClick()
         assertEquals(1, sourceImports)
+        compose.runOnIdle {
+            groups.value = mapOf("gpt-sovits" to "GPT-SoVITS")
+            installed.value = false
+        }
+        compose.onNode(tabs and hasText(label(R.string.tts_runtime_sovits))).assertDoesNotExist()
     }
 }

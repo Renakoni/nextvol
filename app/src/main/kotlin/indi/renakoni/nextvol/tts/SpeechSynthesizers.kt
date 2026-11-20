@@ -16,8 +16,8 @@ import indi.renakoni.nextvol.tts.matcha.modelKey
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRuntimeInfo
 import indi.renakoni.nextvol.tts.sovits.GptSovitsSynthesizer
-import indi.renakoni.nextvol.tts.sovits.GptSovitsVoice
 import indi.renakoni.nextvol.tts.sovits.installedSovitsVoice
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import indi.renakoni.nextvol.tts.offline.offlineSpeechExclusiveGroup
@@ -50,13 +50,6 @@ class SpeechSynthesizers @Inject constructor(
     /** Development entry for an already installed Sherpa model. */
     fun matcha(resources: MatchaResources): SpeechSynthesizer = MatchaSpeechSynthesizer(resources)
 
-    /** Backend entry for a locally provisioned V2 Pro or V2 Pro Plus voice. */
-    fun gptSovits(voice: GptSovitsVoice): SpeechSynthesizer =
-        ProcessingSpeechSynthesizer(GptSovitsSynthesizer(context, voice))
-
-    suspend fun downloadGptSovitsChapter(voice: GptSovitsVoice, chapter: SpeechChapter, output: File) =
-        withContext(Dispatchers.IO) { GptSovitsSynthesizer(context, voice).downloadChapter(chapter, output) }
-
     fun synthesizer(): SpeechSynthesizer = ProcessingSpeechSynthesizer(CachedSpeechSynthesizer(caches, create = { settings ->
         when {
             settings.offlineVoice != null -> {
@@ -88,15 +81,18 @@ class SpeechSynthesizers @Inject constructor(
                     lease = offline.acquire(requireNotNull(settings.offlineVoice))
                     val active = checkNotNull(lease)
                     audioParameters = offlineAudioParameters(active.configuration, settings)
-                    val status = availability.inspect(active.configuration, active.voice.sizes.keys) {
-                        File(active.directory, it).inputStream()
+                    // GPT-SoVITS waits for the shared startup probe in open(), then checks its runtime packs.
+                    if (active.configuration.engine != "gpt-sovits") {
+                        val status = availability.inspect(active.configuration, active.voice.sizes.keys) {
+                            File(active.directory, it).inputStream()
+                        }
+                        if (!status.canRun) throw SpeechException(SpeechError.OfflineUnavailable)
                     }
-                    if (!status.canRun) throw SpeechException(SpeechError.OfflineUnavailable)
                     attempted = true
                     delegate = when (active.configuration.engine) {
                         "sherpa" -> MatchaSpeechSynthesizer(active.resources)
                         "gpt-sovits" -> GptSovitsSynthesizer(context, installedSovitsVoice(active.directory,
-                            active.configuration, File(context.noBackupFilesDir, "sovits/RuntimeAssets")))
+                            active.configuration, SpeechRuntimePack.SovitsModels.directory))
                         else -> OfflineSpeechSynthesizer(context, active.directory, active.configuration)
                     }
                 }
