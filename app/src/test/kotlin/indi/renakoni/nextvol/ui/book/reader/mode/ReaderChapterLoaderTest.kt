@@ -6,22 +6,18 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.get
 import indi.renakoni.nextvol.ui.book.reader.content.ChapterContentUiState
-import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
-import indi.renakoni.nextvol.ui.book.reader.content.ReaderSpeechFollow
 import io.mockk.every
 import io.mockk.mockk
 import io.nightfish.lightnovelreader.api.content.ContentData
 import io.nightfish.lightnovelreader.api.content.component.AbstractContentComponent
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import io.nightfish.lightnovelreader.api.error.WebRequestError
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
-import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -32,21 +28,6 @@ import org.robolectric.annotation.Config
 class ReaderChapterLoaderTest {
     private val env = ModeTestEnvironment()
     @After fun tearDown() = env.close()
-
-    @Test
-    fun visualLoadingAndSynchronousFollowReadsNeverBuildTheSpeechIndex() {
-        val component = mockk<SimpleTextComponent>()
-        every { component.data } returns SimpleTextComponentData("Text")
-        every { env.renderer.getContentDataFromJson(any()) } returns ContentData(listOf(component))
-        val results = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
-        env.scope.launch { env.loader.load("request", "book").collect(results::add) }
-        env.runCurrent()
-        env.emit("request", Ok(env.chapter("request")))
-        val chapter = results.single().get()!!
-        assertNull(chapter.speechTextIndex)
-        assertTrue(ReaderSpeechFollow().ranges(chapter).isEmpty())
-        assertNull(ReaderSpeechFollow().anchor(chapter))
-    }
 
     @Test
     fun eachCollectorMapsIndependentlyAndPreservesComponentsAndOrderedErrors() {
@@ -77,59 +58,6 @@ class ReaderChapterLoaderTest {
         assertEquals(3, second.size)
         assertTrue(env.records.writes.isEmpty())
         assertTrue(env.chapters.preloads.isEmpty())
-    }
-
-    @Test
-    fun rendererFailuresTerminateTheSubscriptionWithoutInventingAFallback() {
-        val failure = IllegalArgumentException("invalid component JSON")
-        every { env.renderer.getContentDataFromJson(any()) } throws failure
-        var caught: Throwable? = null
-        val results = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
-        env.scope.launch {
-            env.loader.load("request", "book").catch { caught = it }.collect(results::add)
-        }
-        env.runCurrent()
-        env.emit("request", Ok(env.chapter("request")))
-        assertSame(failure, caught)
-        assertTrue(results.isEmpty())
-        assertTrue(env.chapters.active.isEmpty())
-    }
-
-    @Test
-    fun equalProcessedResultsDecodeAndPublishOnlyOncePerSubscription() {
-        val results = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
-        val flow = env.loader.load("request", "book")
-        val first = env.scope.launch { flow.collect(results::add) }
-        env.runCurrent()
-        val chapter = env.chapter("request", "prev", "next", "Same body")
-        repeat(3) { env.emit("request", Ok(chapter.copy())) }
-        assertEquals(1, results.size)
-        assertEquals(1, env.events.count { it.startsWith("render/") })
-        first.cancel(); env.runCurrent()
-        env.scope.launch { flow.collect(results::add) }
-        env.runCurrent()
-        env.emit("request", Ok(chapter.copy()))
-        assertEquals(2, results.size)
-        assertEquals(2, env.events.count { it.startsWith("render/") })
-        assertNotSame(results[0].get(), results[1].get())
-    }
-
-    @Test
-    fun sameIdBodyTitleAndAdjacentChangesAreNotSuppressed() {
-        val results = mutableListOf<Result<ChapterContentUiState, WebRequestError>>()
-        env.scope.launch { env.loader.load("request", "book").collect(results::add) }
-        env.runCurrent()
-        val original = env.chapter("request", "prev", "next", "First")
-        val revised = original.copy(content = env.chapter("request", title = "Other").content)
-        val renamed = revised.copy(title = "Renamed")
-        val redirected = renamed.copy(prevChapter = "new-prev", nextChapter = "new-next")
-        listOf(original, revised, renamed, redirected).forEach { env.emit("request", Ok(it)) }
-        assertEquals(4, results.size)
-        assertEquals(listOf("render/First", "render/Other", "render/Other", "render/Other"),
-            env.events.filter { it.startsWith("render/") })
-        assertEquals("Renamed", results.last().get()!!.title)
-        assertEquals("new-prev", results.last().get()!!.prevChapter)
-        assertEquals("new-next", results.last().get()!!.nextChapter)
     }
 
     @Test

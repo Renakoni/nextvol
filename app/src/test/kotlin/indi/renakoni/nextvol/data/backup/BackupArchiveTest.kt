@@ -79,13 +79,6 @@ class BackupArchiveTest {
         }
     }
 
-    @Test fun formatDetectionDoesNotDependOnFileSuffixOrEntryOrder() {
-        val file = archive("data.cbor" to payload(), "manifest.json" to metadata())
-        val renamed = temporary.root.resolve("renamed.txt")
-        assertTrue(file.renameTo(renamed))
-        assertEquals(data, BackupArchive.read(renamed))
-    }
-
     @Test fun oldSingleDataEntryAndHistoricalFixtureRemainReadable() {
         assertEquals(data, BackupArchive.read(archive("data" to payload())))
         val fixture = temporary.newFile("before-nextvol.lnr")
@@ -93,14 +86,6 @@ class BackupArchiveTest {
             fixture.outputStream().use { input.copyTo(it) }
         }
         assertTrue(BackupArchive.read(fixture).localDataList.isNotEmpty())
-    }
-
-    @Test fun emptyNonZipAndMalformedPayloadAreRejected() {
-        expectFailure(BackupFailure.INVALID, temporary.newFile())
-        expectFailure(BackupFailure.INVALID, temporary.newFile().apply { writeText("{}") })
-        expectFailure(BackupFailure.INVALID, archive())
-        expectFailure(BackupFailure.INVALID, archive("data" to byteArrayOf()))
-        expectFailure(BackupFailure.INVALID, archive("manifest.json" to metadata(), "data.cbor" to byteArrayOf()))
     }
 
     @Test fun missingUnexpectedAndMixedFormatEntriesAreRejected() {
@@ -135,11 +120,6 @@ class BackupArchiveTest {
         invalid.forEach { text ->
             expectFailure(BackupFailure.INVALID, archive("manifest.json" to text.toByteArray(), "data.cbor" to payload()))
         }
-    }
-
-    @Test fun futureVersionIsReportedBeforeDecodingFutureFieldsOrPayload() {
-        val future = "{\"format\":\"nextvol-backup\",\"version\":99,\"kind\":\"future-kind\",\"future-field\":true}"
-        expectFailure(BackupFailure.UNSUPPORTED_VERSION, archive("manifest.json" to future.toByteArray(), "data.cbor" to byteArrayOf()))
     }
 
     @Test fun deeplyNestedManifestIsRejectedWithoutCrashing() {

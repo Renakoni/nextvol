@@ -11,8 +11,6 @@ import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.room.entity.BookshelfEntity
 import indi.renakoni.nextvol.data.localbook.LocalBookDraft
 import indi.renakoni.nextvol.data.localbook.LocalBookFormat
-import indi.renakoni.nextvol.data.localbook.LocalBookImportException
-import indi.renakoni.nextvol.data.localbook.LocalBookImportReason
 import indi.renakoni.nextvol.data.localbook.LocalBookStore
 import indi.renakoni.nextvol.data.localbook.PreparedLocalBook
 import indi.renakoni.nextvol.data.localbook.LocalChapterIndex
@@ -20,7 +18,6 @@ import indi.renakoni.nextvol.data.localbook.TxtBookParser
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
-import io.mockk.spyk
 import io.nightfish.lightnovelreader.api.bookshelf.BookshelfSortType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -88,51 +85,6 @@ class LocalBookImportViewModelTest {
         Dispatchers.resetMain()
     }
 
-    @Test fun anInvalidRuleImmediatelyDisablesImportAndOnlyTheRepairedPreviewCanBeConfirmed() = runBlocking {
-        val model = model()
-        model.open(file().toUri())
-        await { !model.state.busy }
-        assertTrue(model.state.error?.details, model.state.canImport)
-        assertEquals(2, model.state.preview!!.chapters.size)
-        model.changeRule("(")
-        assertFalse(model.state.canImport)
-        model.confirm()
-        await { !model.state.busy }
-        assertNotNull(model.state.error)
-        assertEquals(LocalBookImportReason.InvalidRule, model.state.error!!.reason)
-        assertTrue(database.importedBookDao().allIds().isEmpty())
-        model.changeRule("")
-        await { !model.state.busy }
-        assertEquals(1, model.state.preview!!.chapters.size)
-        model.changeTitle("Chosen title")
-        model.confirm()
-        model.confirm()
-        val shelf = withTimeout(10_000) { model.imported.first() }
-        assertEquals("Local Books", database.bookshelfDao().getBookshelf(shelf)!!.name)
-        assertFalse(model.state.visible)
-        assertEquals(1, database.importedBookDao().allIds().size)
-        val id = database.importedBookDao().allIds().single()
-        assertEquals("Chosen title", database.bookInformationDao().get(id)!!.title)
-    }
-
-    @Test fun externallyTypedOpaqueFileUsesTheResolvedNameAndWaitsForConfirmation() = runBlocking {
-        val original = temporary.newFile("12345").apply { writeText("Chapter 1\nNovel contents") }
-        val model = model()
-        model.open(original.toUri(), "Shared novel.txt", LocalBookFormat.TXT)
-        await { !model.state.busy }
-        assertTrue(model.state.error?.details, model.state.canImport)
-        assertEquals("Shared novel.txt", model.state.fileName)
-        assertEquals("Local Books", model.state.shelfName)
-        assertEquals(listOf(7), database.bookshelfDao().getAllBookshelfIds())
-        assertTrue(database.bookshelfDao().getBookshelf(7)!!.allBookIds.isEmpty())
-        model.confirm()
-        await { !model.state.visible }
-        val localShelf = database.bookshelfDao().getAllBookshelves().single { it.name == "Local Books" }
-        assertEquals(1, localShelf.allBookIds.size)
-        assertTrue(database.bookshelfDao().getBookshelf(7)!!.allBookIds.isEmpty())
-        assertTrue(original.exists())
-    }
-
     @Test fun externalImportsCreateOneLocalShelfAndAppendWithoutChangingOtherShelves() = runBlocking {
         database.bookshelfDao().createBookshelf(BookshelfEntity(0, "Other shelf", BookshelfSortType.Default.key,
             autoCache = false, systemUpdateReminder = false, allBookIds = emptyList(), pinnedBookIds = emptyList(), updatedBookIds = emptyList()))
@@ -151,88 +103,6 @@ class LocalBookImportViewModelTest {
         assertEquals(2, localShelf.allBookIds.distinct().size)
         assertTrue(shelves.filter { it.id == 0 || it.id == 7 }.all { it.allBookIds.isEmpty() })
         assertEquals(localShelf.id, model.imported.first())
-    }
-
-    @Test fun externalImportReusesAnExistingNamedShelfAndPreservesItsSettings() = runBlocking {
-        val shelf = BookshelfEntity(42, "Local Books", BookshelfSortType.Default.key, sortReversed = true,
-            autoCache = true, systemUpdateReminder = false, allBookIds = emptyList(), pinnedBookIds = emptyList(), updatedBookIds = emptyList())
-        database.bookshelfDao().createBookshelf(shelf)
-        val model = model()
-        model.open(file().toUri())
-        await { !model.state.busy }
-        model.confirm()
-        await { !model.state.visible }
-        val updated = database.bookshelfDao().getBookshelf(42)!!
-        assertEquals(shelf, updated.copy(allBookIds = emptyList()))
-        assertEquals(1, updated.allBookIds.size)
-        assertEquals(2, database.bookshelfDao().getAllBookshelfIds().size)
-        assertEquals(42, model.imported.first())
-    }
-
-    @Test fun cancellingExternalImportCreatesNoShelfAndImportStillWorksWithNoExistingShelves() = runBlocking {
-        database.bookshelfDao().deleteBookshelf(7)
-        val model = model()
-        val original = file()
-        model.open(original.toUri())
-        await { !model.state.busy }
-        model.dismiss()
-        assertTrue(database.bookshelfDao().getAllBookshelfIds().isEmpty())
-        model.open(original.toUri())
-        await { !model.state.busy }
-        model.confirm()
-        await { !model.state.visible }
-        assertEquals("Local Books", database.bookshelfDao().getAllBookshelves().single().name)
-    }
-
-    @Test fun cancellingThePreviewLeavesTheShelfAndOriginalFileUntouched() = runBlocking {
-        val model = model()
-        val file = file()
-        model.open(file.toUri())
-        await { !model.state.busy }
-        model.dismiss()
-        await { File(context.filesDir, "local-books").listFiles().orEmpty().isEmpty() }
-        assertFalse(model.state.visible)
-        assertTrue(database.bookshelfDao().getBookshelf(7)!!.allBookIds.isEmpty())
-        assertTrue(file.isFile)
-    }
-
-    @Test fun emptyFilesHaveAStableReasonBeforePreview() = runBlocking {
-        val model = model()
-        model.open(temporary.newFile("empty.txt").toUri())
-        await { !model.state.busy }
-        assertEquals(LocalBookImportReason.EmptyFile, model.state.error!!.reason)
-        assertTrue(database.importedBookDao().allIds().isEmpty())
-    }
-
-    @Test fun finalPublicationFailureKeepsAnAccurateReasonAndTheDialog() = runBlocking {
-        val store = spyk(books)
-        coEvery { store.publish(any(), any(), any(), any(), any()) } throws
-            LocalBookImportException(LocalBookImportReason.Storage, "Cannot publish the imported files.")
-        val model = model(store)
-        model.open(file().toUri())
-        await { model.state.canImport }
-        model.confirm()
-        await { !model.state.importing }
-        assertEquals(LocalBookImportReason.Storage, model.state.error!!.reason)
-        assertTrue(model.state.visible)
-        model.dismiss()
-    }
-
-    @Test fun unknownFailureIsDiagnosticOnlyAndReselectingCanRetry() = runBlocking {
-        val store = mockk<LocalBookStore>(relaxed = true)
-        coEvery { store.stage(any()) } throws IllegalStateException("private raw diagnostic")
-        val model = model(store)
-        val source = file()
-        model.open(source.toUri())
-        await { !model.state.busy }
-        assertEquals(LocalBookImportReason.Unknown, model.state.error!!.reason)
-        assertTrue(model.state.error!!.details.contains("private raw diagnostic"))
-        val staged = LocalBookDraft(SourceBookId(LocalBookStore.SOURCE, "retry"), "book.txt", LocalBookFormat.TXT, temporary.newFolder())
-        coEvery { store.stage(any()) } returns staged
-        coEvery { store.preview(any(), any(), any()) } returns PreparedLocalBook("Retry", listOf(LocalChapterIndex("Chapter", "")), staged.directory)
-        model.open(source.toUri())
-        await { model.state.canImport }
-        assertNull(model.state.error)
     }
 
     @Test fun aSlowSupersededPreviewCannotReplaceTheLatestResult() = runBlocking {

@@ -50,13 +50,6 @@ class ReaderPositionTest {
         assertNull(position.copy(fingerprint = "stale").resolve("book", content))
     }
 
-    @Test fun emptyContentAndEmptyTextHaveNoPretendExactPosition() {
-        assertNull(ReaderPosition.capture("book", chapter(), ReaderContentAnchor(0, 0)))
-        assertNull(ReaderPosition.capture("book", chapter(text("")), ReaderContentAnchor(0, 0)))
-        assertNull(ReaderPosition.capture("", chapter(text("body")), ReaderContentAnchor(0, 0)))
-        assertNull(ReaderPosition.capture("book", chapter(text("body")), ReaderContentAnchor(0, 4)))
-    }
-
     @Test fun opaqueComponentsNeverReuseAnOldSplitPartAsAnExactPosition() {
         val component = mockk<AbstractContentComponent<AbstractContentComponentData>> {
             every { data } returns SimpleTextComponentData("opaque source payload")

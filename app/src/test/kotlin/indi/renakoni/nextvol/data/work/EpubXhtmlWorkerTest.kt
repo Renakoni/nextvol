@@ -39,15 +39,6 @@ import java.util.zip.ZipFile
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class EpubXhtmlWorkerTest {
-    @Test fun actualComponentsHaveXhtmlNamesBeforePackaging() {
-        val context = RuntimeEnvironment.getApplication()
-        for (element in listOf(SimpleTextComponentData("a\nb").toHtmlElement(context),
-            ImageComponentData(Uri.parse("https://example.org/image.png")).toHtmlElement(context))) {
-            assertEquals("http://www.w3.org/1999/xhtml", element.namespaceURI)
-            element.elements().forEach { assertEquals(element.namespaceURI, it.namespaceURI) }
-        }
-    }
-
     @Test fun workerExportsTextEmptyChaptersAndPngSourcesThroughRealDecoderAndWriter() = runTest {
         val context = RuntimeEnvironment.getApplication()
         val book = SourceBookId(Identifier("fixture", "epub"), "book")

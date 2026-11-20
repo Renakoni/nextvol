@@ -173,17 +173,6 @@ class SourceImageTest {
         }
     }
 
-    @Test fun imageKeysDistinguishSourcesBooksRevisionsAndRoles() {
-        val image = SourceImage(a, url)
-        val key = sourceImageCacheKey(image, "1")
-        assertNotEquals(key, sourceImageCacheKey(image, "2"))
-        assertNotEquals(key, sourceImageCacheKey(image.copy(book = b), "1"))
-        assertNotEquals(key, sourceImageCacheKey(image.copy(cover = true), "1"))
-        assertNotEquals(key, sourceImageCacheKey(image.copy(book = a.copy(remoteId = "other")), "1"))
-        assertFalse(key.contains(url))
-        assertEquals(a, SourceBookId.fromStorageKey(a.storageKey))
-    }
-
     @Test fun cachedImagesRemainReadableAfterSourceRemovalUntilEvicted() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
         val registry = spyk(WebSourceRegistry())

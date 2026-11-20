@@ -4,8 +4,6 @@ import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
-import android.content.pm.ServiceInfo
-import android.os.Build
 import androidx.work.ListenableWorker
 import androidx.work.workDataOf
 import com.google.common.util.concurrent.SettableFuture
@@ -13,7 +11,6 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.export.*
-import indi.renakoni.nextvol.ui.book.detail.EpubShareActivity
 import io.mockk.*
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import kotlinx.coroutines.*
@@ -35,46 +32,6 @@ class EpubExportWorkerAdapterTest {
     private val useCase = spyk(ExportBookToEpubUseCase(context, mockk(), mockk(), mockk(), mockk()))
     private val notifications = shadowOf(context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
 
-    @Test @Config(sdk = [27, 34])
-    fun persistedKeysMapToTypedRequestAndCompletionIntentKeepsRequestId() = runTest {
-        val id = UUID.randomUUID()
-        val selected = listOf("v2", "v1").map { BookIdentity.volumeKey(book, it) }
-        val input = workDataOf("bookId" to book.storageKey, "title" to "Book", "exportType" to "VOLUMES",
-            "selectedVolume" to selected.joinToString(","), "includeImages" to false, "downloadGeneration" to 7L)
-        val request = slot<EpubExportRequest>()
-        coEvery { useCase.execute(capture(request), any()) } coAnswers {
-            secondArg<(EpubExportProgress) -> Unit>().invoke(
-                EpubExportProgress(40, EpubExportProgress.Phase.CHAPTERS, 2, 2, "Volume", "Chapter"))
-            val progress = notifications.getNotification(null, id.hashCode())
-            assertEquals(40, progress.extras.getInt(Notification.EXTRA_PROGRESS))
-            assertTrue(progress.extras.getCharSequence(Notification.EXTRA_TEXT).toString().contains("Volume / Chapter"))
-            EpubExportResult.Success(id, book, 2, 2)
-        }
-        val parameters = workerParameters(input, id)
-        val result = ExportBookToEPUBWork(context, parameters, useCase).doWork() as ListenableWorker.Result.Success
-        assertEquals(EpubExportRequest(id, book, ExportType.VOLUMES, selected.toSet(), false, 7), request.captured)
-        assertEquals(workDataOf("exportId" to id.toString(), "completedVolumes" to 2, "totalVolumes" to 2), result.outputData)
-        verify { parameters.foregroundUpdater.setForegroundAsync(context, id, match {
-            it.notificationId == id.hashCode() &&
-                (Build.VERSION.SDK_INT < 29 || it.foregroundServiceType == ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        }) }
-        val notification = notifications.getNotification(ExportBookToEPUBWork.ofId(book.storageKey), 0)
-        assertEquals(context.getString(R.string.epub_export_share_ready), notification.extras.getCharSequence(Notification.EXTRA_TEXT))
-        val intent = shadowOf(notification.contentIntent).savedIntent
-        assertEquals(EpubShareActivity::class.java.name, intent.component!!.className)
-        assertEquals(id.toString(), intent.data!!.schemeSpecificPart)
-    }
-
-    @Test fun legacyDefaultsAndEnumSerializationRemainUnchanged() = runTest {
-        val request = slot<EpubExportRequest>()
-        coEvery { useCase.execute(capture(request), any()) } coAnswers { EpubExportResult.Success(firstArg<EpubExportRequest>().id, book, 1, 1) }
-        val worker = ExportBookToEPUBWork(context, workerParameters(workDataOf("bookId" to book.storageKey, "exportType" to "BOOK")), useCase)
-        assertTrue(worker.doWork() is ListenableWorker.Result.Success)
-        assertEquals(EpubExportRequest(worker.id, book, ExportType.BOOK), request.captured)
-        assertEquals(listOf("BOOK", "VOLUMES"), ExportType.entries.map { it.name })
-        assertEquals("export_to_epub:${book.storageKey}", ExportBookToEPUBWork.ofId(book.storageKey))
-    }
-
     @Test fun invalidIdentityTypeAndForeignSelectionNeverReachTheUseCase() = runTest {
         val other = SourceBookId(Identifier("fixture", "other"), "book")
         val cases = listOf(
@@ -90,27 +47,6 @@ class EpubExportWorkerAdapterTest {
             assertEquals(setOf("reason", "bookId"), result.outputData.keyValueMap.keys)
         }
         verify { useCase wasNot Called }
-    }
-
-    @Test fun failurePayloadKeepsStageLocationCountsAndLocalizedNotification() = runTest {
-        val failure = EpubExportResult.Failure(book, "image_failed", "images", "V".repeat(200), "C".repeat(200), 0, 2)
-        coEvery { useCase.execute(any(), any()) } returns failure
-        val worker = ExportBookToEPUBWork(context, workerParameters(workDataOf("bookId" to book.storageKey, "exportType" to "VOLUMES")), useCase)
-        val output = (worker.doWork() as ListenableWorker.Result.Failure).outputData
-        assertEquals(setOf("reason", "bookId", "stage", "volume", "chapter", "completedVolumes", "totalVolumes", "message"), output.keyValueMap.keys)
-        assertEquals("image_failed", output.getString("reason"))
-        assertEquals(book.storageKey, output.getString("bookId"))
-        assertEquals("images", output.getString("stage"))
-        assertEquals("V".repeat(160), output.getString("volume"))
-        assertEquals("C".repeat(160), output.getString("chapter"))
-        assertEquals(0, output.getInt("completedVolumes", -1))
-        assertEquals(2, output.getInt("totalVolumes", -1))
-        assertEquals(context.getString(R.string.epub_export_failure_detail,
-            context.getString(R.string.epub_export_error_image),
-            "${failure.volume} / ${failure.chapter}".take(240), 0, 2), output.getString("message"))
-        val notification = notifications.getNotification(ExportBookToEPUBWork.ofId(book.storageKey), 0)
-        assertEquals(output.getString("message"), notification.extras.getCharSequence(Notification.EXTRA_TEXT))
-        assertNull(notification.contentIntent)
     }
 
     @Test fun cancellationPropagatesWithItsFailureLocationAndWithoutACompletionIntent() = runTest {

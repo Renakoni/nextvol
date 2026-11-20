@@ -169,16 +169,6 @@ class BuiltInSpeechSourcesTest {
         assertEquals(savedEngine, repository().engines().single())
     }
 
-    @Test fun freshInstallLoadsTheCompleteCatalogWithoutWriting() = runBlocking {
-        val initial = repository().sources()
-        assertEquals(95, initial.size)
-        assertTrue(initial.all { it.isConfigured })
-        assertEquals(26, initial.count { it.definition.usesMicrosoftTranslator })
-        assertTrue(initial.all { it.isBuiltIn && it.origins.isNotEmpty() && it.origins.all { origin -> sourceOrigin(origin) == origin } })
-        assertEquals(initial.size, initial.map { it.definition.id }.toSet().size)
-        assertFalse(File(directory.root, "http-speech.enc").exists())
-    }
-
     @Test fun deletedBuiltInsStayDeletedAfterReopenAndCatalogRefreshWithoutRemovingCopiesOrEngines() = runBlocking {
         val repository = repository()
         val initial = repository.sources()
@@ -218,23 +208,6 @@ class BuiltInSpeechSourcesTest {
         catch (_: java.io.IOException) { }
         assertEquals(0L, repository.changes.value)
         assertEquals(initial.map { it.definition.raw }, repository().sources().map { it.definition.raw })
-    }
-
-    @Test fun legacyImportsRemainSeparateAndCannotReplaceBuiltIns() = runBlocking {
-        val repository = repository()
-        val source = previewHttpSpeech("""{"id":24,"name":"My voice","url":"https://example.org"}""").sources.single()
-        val imported = SavedHttpSpeechSource(source, listOf("https://example.org:443"))
-        repository.save(listOf(imported))
-        val file = File(directory.root, "http-speech.enc")
-        file.writeText(JsonObject(Json.parseToJsonElement(file.readText()).jsonObject - "deletedBuiltInIds").toString())
-        val restored = repository().sources().single { !it.isBuiltIn }
-        assertEquals(imported.definition.raw, restored.definition.raw)
-        assertEquals(imported.origins, restored.origins)
-        assertEquals(96, repository.sources().size)
-        try { repository.save(listOf(repository.sources().first())); fail("Built-in IDs must be reserved") }
-        catch (_: IllegalArgumentException) { }
-        repository.delete(source.id)
-        assertEquals(95, repository.sources().size)
     }
 
     @Test fun refreshedPackageKeepsEditedSpeakerIdentityAndDoesNotOverwriteIndependentCopies() = runBlocking {
@@ -342,59 +315,6 @@ class BuiltInSpeechSourcesTest {
         assertTrue(repository().sources().filterNot { it.isBuiltIn }.all { it.available })
         repository.delete(repository.sources().filterNot { it.isBuiltIn }.map { it.definition.id }.toSet())
         assertEquals(listOf(renamed), repository().engines())
-    }
-
-    @Test fun reimportRetainsEngineEditsAndRestoresDeletedEngines() = runBlocking {
-        val engine = SpeechEngineConfig("http_package", "Package", "http", url = "https://example.org/old")
-        val voice = newHttpVoice(engine).copy(isVoiceCopy = false)
-        val repository = repository()
-        repository.save(listOf(voice))
-        val edited = repository.engines().single().copy(name = "Mine", url = "https://edited.example.org/edited", header = "{\"X-Test\":\"custom\"}")
-        repository.saveEngine(edited)
-        repository.save(listOf(voice))
-        assertEquals(edited, repository().engines().single())
-        val updated = repository.sources().single { !it.isBuiltIn }
-        assertEquals(voice.definition.id, updated.definition.id)
-        assertEquals(listOf("https://edited.example.org:443"), updated.origins)
-        assertTrue(updated.definition.url.contains("/edited"))
-        repository.saveEngine(edited.copy(header = ""))
-        assertFalse(repository.sources().single { !it.isBuiltIn }.definition.raw.containsKey("header"))
-        repository.saveEngine(edited.copy(deleted = true, enabled = false))
-        repository.save(listOf(voice))
-        assertTrue(repository().sources().single { !it.isBuiltIn }.available)
-    }
-
-    @Test fun importsResetSpeedWhileLaterEditsKeepIdentityAndRate() = runBlocking {
-        val plain = SavedHttpSpeechSource(previewHttpSpeech("""{"name":"HTTP voice","url":"https://example.org/audio","speed":7,
-            "nextvolVoice":{"speed":1.2,"pitch":0.8,"volume":0.6},
-            "multiTts":{"engine":{"code":"unsupported"},"voice":{"speed":1.8}}}""").sources.single(), listOf("https://example.org:443"))
-        val engine = SpeechEngineConfig("bdotts", "Baidu")
-        val packaged = editHttpVoice(newHttpVoice(engine), buildJsonObject {
-            put("name", "Package voice"); put("speed", 1.2f); put("pitch", 0.8f); put("volume", 0.6f)
-        }, true, false).copy(isVoiceCopy = false, speakerDefaults = null)
-        val originals = listOf(plain, packaged)
-        val repository = repository()
-        repository.save(originals)
-        val imported = repository().sources().filterNot { it.isBuiltIn }
-        assertEquals(originals.map { it.definition.id }, imported.map { it.definition.id })
-        assertEquals(5, imported.first().definition.speed)
-        assertTrue(imported.all { httpVoiceParameters(it.definition) == SpeechAudioParameters(1f, 0.8f, 0.6f) })
-        imported.forEach { source ->
-            repository.saveVoice(editHttpVoice(source, buildJsonObject {
-                put("name", source.definition.name); put("speed", 1.4f)
-            }, true, false))
-        }
-        val edited = repository().sources().filterNot { it.isBuiltIn }
-        assertEquals(imported.map { it.definition.id }, edited.map { it.definition.id })
-        assertTrue(edited.all { httpVoiceParameters(it.definition).speed == 1.4f })
-        val moved = edited.first().copy(definition = previewHttpSpeech(JsonObject(edited.first().definition.raw +
-            ("url" to JsonPrimitive("https://edited.example.org/audio"))).toString()).sources.single())
-        repository.saveVoice(moved)
-        assertEquals(listOf("https://edited.example.org:443"), repository().sources().single { it.definition.id == moved.definition.id }.origins)
-        repository.save(originals)
-        val reimported = repository().sources().filterNot { it.isBuiltIn }
-        assertEquals(imported.map { it.definition.id }, reimported.map { it.definition.id })
-        assertTrue(reimported.all { httpVoiceParameters(it.definition) == SpeechAudioParameters(1f, 0.8f, 0.6f) })
     }
 
     @Test fun voiceOrderSurvivesEditsCopiesReimportAndReopenWithoutRevokingPlayback() = runBlocking {

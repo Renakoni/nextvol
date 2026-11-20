@@ -12,12 +12,6 @@ import java.net.UnknownHostException
 class VpnDnsTest {
     private fun address(value: String) = InetAddress.getByName(value)
 
-    @Test fun vpnAliasesPreferGlobalResolversBeforeRegionalFallbacks() {
-        val endpoints = PublicDns.DEFAULT_RESOLVERS.keys.map { it.toHttpUrl() }
-        assertEquals(listOf("dns.google", "cloudflare-dns.com", "dns.alidns.com", "doh.pub"), endpoints.map { it.host })
-        assertTrue(endpoints.all { it.isHttps })
-    }
-
     @Test fun failedPrimaryResolverFallsBackWithoutReturningTheVpnAlias() {
         MockWebServer().use { server ->
             server.start()

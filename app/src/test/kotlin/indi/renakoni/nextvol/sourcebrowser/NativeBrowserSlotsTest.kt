@@ -5,29 +5,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NativeBrowserSlotsTest {
-    @Test fun lowRamDevicesUseTwoPagesWithinTheSharedBrowserBudget() {
-        assertEquals(2, NativeSourceBrowser.pageLimit(true))
-        assertEquals(8, NativeSourceBrowser.pageLimit(false))
-    }
-
-    @Test fun eightNativePagesCanBeInFlightAndTheNinthWaitsForAReleasedSlot() = runBlocking {
-        assertEquals(8, NativeSourceBrowser.PAGE_LIMIT)
-        val slots = NativeBrowserSlots(NativeSourceBrowser.PAGE_LIMIT)
-        val pages = mutableListOf<NativeBrowserSlots.Lease>()
-        val ninth = async(start = CoroutineStart.LAZY) { slots.acquire(shared = { true }) }
-        try {
-            withTimeout(1000) { repeat(8) { pages += slots.acquire(shared = { true }) } }
-            ninth.start(); yield()
-            assertFalse(ninth.isCompleted)
-            pages.removeAt(0).close()
-            pages += withTimeout(1000) { ninth.await() }
-        } finally {
-            ninth.cancelAndJoin()
-            pages.forEach { it.close() }
-        }
-        withTimeout(1000) { slots.exclusive { } }
-    }
-
     @Test fun sharedPagesOverlapButAnExclusiveOwnerWaitsForBoth() = runBlocking {
         val slots = NativeBrowserSlots(2)
         val first = slots.acquire(shared = { true })

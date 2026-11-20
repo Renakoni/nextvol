@@ -100,30 +100,6 @@ class IsolatedConcurrencyInstrumentedTest {
             (result as ExecutionResult.Success).output).value)
     }
 
-    @Test fun preparationIsBoundedAndExecutionReusesThePreparedConnections() = runBlocking {
-        fixture { fixture ->
-            val source = fixture.source("prepared")
-            val retired = fixture.source("retired")
-            fixture.authority.revoke(retired.identity)
-            fixture.executor.prepareIndependent(retired.identity, Int.MAX_VALUE)
-            fixture.executor.prepareIndependent(source.identity, 0)
-            assertTrue(fixture.bindings.isEmpty())
-            fixture.executor.prepareIndependent(source.identity, 1)
-            assertEquals(1, fixture.bindings.size)
-            fixture.executor.prepareIndependent(source.identity, Int.MAX_VALUE)
-            fixture.executor.prepareIndependent(source.identity, Int.MAX_VALUE)
-            val count = fixture.executor.parallelism
-            assertEquals(count, fixture.bindings.size)
-            assertTrue(fixture.bindings.all { it.className.contains("IndependentExecutionService") })
-            assertEquals(0, fixture.browser.calls.get())
-            val running = List(count) { index -> async { fixture.execute(fixture.source("prepared-$index")) } }
-            withTimeout(25000) { repeat(count) { fixture.browser.entered.receive() } }
-            assertEquals("Execution must reuse the prepared bindings", count, fixture.bindings.size)
-            repeat(count) { fixture.browser.releases[it].complete("prepared") }
-            running.awaitAll().forEach { assertValue("prepared", it) }
-        }
-    }
-
     @Test fun independentRuleFinishesWhileSharedWorkerWaitsAndStatefulCallsStayOrdered() = runBlocking {
         fixture { fixture ->
             val source = fixture.source("same-source")

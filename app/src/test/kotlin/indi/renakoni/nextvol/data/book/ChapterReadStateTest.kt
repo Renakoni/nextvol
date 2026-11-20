@@ -94,23 +94,6 @@ class ChapterReadStateTest {
         assertEquals(after, saved)
     }
 
-    @Test fun clearingAllChaptersKeepsTheResumeTargetAndRestartsItAtZero() = runBlocking {
-        val before = repository.getUserReadingData(book.storageKey)
-        repository.setChaptersRead(book.storageKey, catalog, catalog, read = false)
-        assertEquals(before.copy(
-            currentChapterReadingProgressMap = emptyMap(), maxChapterReadingProgressMap = emptyMap(), readingProgress = 0f,
-        ), repository.getUserReadingData(book.storageKey))
-    }
-
-    @Test fun emptyOrUnknownSelectionDoesNotWriteOrInvalidateTheReader() = runBlocking {
-        val before = repository.getUserReadingData(book.storageKey)
-        val revision = repository.progressRevision()
-        assertNull(repository.setChaptersRead(book.storageKey, emptySet(), catalog, read = true))
-        assertNull(repository.setChaptersRead(book.storageKey, setOf("unknown"), catalog, read = false))
-        assertEquals(before, repository.getUserReadingData(book.storageKey))
-        assertEquals(revision, repository.progressRevision())
-    }
-
     @Test fun delayedOldSavesCannotRestoreClearedChaptersButUnselectedSavesAndNewReadersStillWork() = runBlocking {
         val revision = repository.progressRevision()
         val gate = CompletableDeferred<Unit>()

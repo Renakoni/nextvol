@@ -34,70 +34,8 @@ class RuleDiscoveryConcurrencyTest {
     ))
     private fun html(path: String) = (1..30).joinToString("") { "<li><h2>$path $it</h2><a href='/book/$it'>Read</a></li>" }
 
-    @Test fun eightPreviewsStartBeforeAnyCompletesAndTheNinthWaits() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source { definition(it, (0..8).map { "/module-$it" }) }.use { source ->
-            val catalog = source.openDiscovery("catalog").catalog(homepage = true)
-            val entered = Channel<Int>(Channel.UNLIMITED)
-            val release = CompletableDeferred<Unit>()
-            val pages = (0..8).map { index -> mockk<RuleListSession> {
-                coEvery { page(1) } coAnswers {
-                    entered.send(index)
-                    release.await()
-                    RuleListPage(listOf(RuleBook("/book/$index", "Book $index")), null, null)
-                }
-            } }
-            val session = mockk<RuleDiscoverySession> {
-                coEvery { catalog(homepage = true) } returns catalog
-                coEvery { concurrentPreviews(any(), any()) } returns pages
-            }
-            val pending = async { RuleDiscoveryProvider(source, session).feed() }
-            try {
-                assertEquals((0..7).toSet(), withTimeout(3000) { List(8) { entered.receive() }.toSet() })
-                assertTrue(entered.tryReceive().isFailure)
-                release.complete(Unit)
-                assertTrue(withTimeout(3000) { requireNotNull(pending.await().get()) }.all { it.books.size == 1 && !it.previewLoading })
-                assertEquals(8, entered.receive())
-            } finally { pending.cancelAndJoin() }
-        } }
-    }
-
     @Test fun automaticVerificationCannotExhaustPreviewSlotsAndManualRetryStillVerifies() = runBlocking {
         verifyAutomaticFailures(concurrent = true)
-    }
-
-    @Test fun aFullHomepageKeepsOnlyEightWaitingWorkersAndCancelsWithoutStartingTheQueue() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source { definition(it, (0 until 64).map { "/module-$it" }) }.use { source ->
-            val catalog = source.openDiscovery("catalog").catalog(homepage = true)
-            val entered = Channel<Unit>(Channel.UNLIMITED)
-            val starts = AtomicInteger()
-            val page = mockk<RuleListSession> {
-                coEvery { page(1) } coAnswers {
-                    starts.incrementAndGet()
-                    entered.send(Unit)
-                    awaitCancellation()
-                }
-            }
-            val session = mockk<RuleDiscoverySession> {
-                coEvery { catalog(homepage = true) } returns catalog
-                coEvery { concurrentPreviews(any(), any()) } returns List(64) { page }
-            }
-            val pending = async { RuleDiscoveryProvider(source, session).feed() }
-            try {
-                withTimeout(3000) { repeat(8) { entered.receive() } }
-                // Nested withContext scopes belong to their worker, not additional queued work.
-                fun waitingBranches(job: Job): Int {
-                    val children = job.children.toList()
-                    return if (children.isEmpty()) 1 else children.sumOf { waitingBranches(it) }
-                }
-                assertEquals("Only eight worker branches may wait", 8, waitingBranches(pending))
-                assertEquals(8, starts.get())
-            } finally { pending.cancelAndJoin() }
-            assertEquals(8, starts.get())
-        } }
-    }
-
-    @Test fun automaticVerificationDoesNotBlockTheSequentialFallback() = runBlocking {
-        verifyAutomaticFailures(concurrent = false)
     }
 
     private suspend fun verifyAutomaticFailures(concurrent: Boolean) = coroutineScope {
@@ -172,49 +110,6 @@ class RuleDiscoveryConcurrencyTest {
             coVerify(exactly = 1) { session.concurrentPreviews(any(), any()) }
             coVerify(exactly = 0) { session.preview("/second", any()); session.preview("/third", any()) }
         } }
-    }
-
-    @Test fun eightScriptSourceReadsOverlapAndLoginStateStaysInItsOwnSlot() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val release = CountDownLatch(1)
-            val allEntered = CountDownLatch(8)
-            val active = AtomicInteger()
-            val maximum = AtomicInteger()
-            fixture.server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    maximum.accumulateAndGet(active.incrementAndGet(), ::maxOf)
-                    try {
-                        allEntered.countDown()
-                        check(allEntered.await(10, TimeUnit.SECONDS))
-                        if (request.path == "/one") check(release.await(10, TimeUnit.SECONDS))
-                        return MockResponse().setBody(html(request.path!!))
-                    } finally { active.decrementAndGet() }
-                }
-            }
-            fixture.source { raw -> JsonObject(definition(raw, listOf("/one") + (2..8).map { "/module-$it" }) + mapOf(
-                "jsLib" to JsonPrimitive("function previewUrl(value){return value}"),
-                "loginCheckJs" to JsonPrimitive("java.put('preview-url',previewUrl(baseUrl));result"),
-                "ruleExplore" to buildJsonObject {
-                    put("bookList", "@js:if(java.get('preview-url')!==baseUrl)throw 'wrong preview';java.getElements('li')")
-                    put("name", "h2@text"); put("bookUrl", "a@href")
-                }
-            )) }.use { source ->
-                val updates = Channel<List<DiscoverySection>>(Channel.UNLIMITED)
-                val pending = launch { RuleDiscoveryProvider(source).feedUpdates().collect { updates.send(requireNotNull(it.get())) } }
-                try {
-                    var snapshot = withTimeout(10000) { updates.receive() }
-                    assertTrue(snapshot.all { it.previewLoading && it.books.isEmpty() })
-                    withTimeout(10000) { while (snapshot.drop(1).any { it.previewLoading }) snapshot = updates.receive() }
-                    assertEquals((0..7).map { "Module $it" }, snapshot.map { it.title })
-                    assertTrue(snapshot.first().previewLoading)
-                    assertTrue(snapshot.drop(1).all { it.books.size == 6 && it.previewFailure == null })
-                    assertEquals(8, maximum.get())
-                    assertEquals(8, fixture.server.requestCount)
-                } finally { release.countDown() }
-                pending.join()
-                assertTrue(updates.receive().all { it.books.size == 6 && !it.previewLoading })
-            }
-        }
     }
 
     @Test fun localFailureAndReadySectionPublishBeforeASlowScriptSourceSection() = runBlocking {

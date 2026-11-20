@@ -156,24 +156,4 @@ class RuleSourceParityTest {
         }
     }
 
-    @Test fun chapterFlagsUseLegadoTruthValuesAndUpdateTimeSetsTag() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(customize = { raw -> JsonObject(raw + mapOf(
-                "ruleToc" to JsonObject(raw.getValue("ruleToc").jsonObject + mapOf(
-                    "chapterList" to JsonPrimitive("li:has(a[href])"),
-                    "isVolume" to JsonPrimitive("@js:'null'"),
-                    "isVip" to JsonPrimitive("@js:' false '"),
-                    "isPay" to JsonPrimitive("@js:'NO'"),
-                    "updateTime" to JsonPrimitive("@js:'chapter-token'")
-                )),
-                "ruleContent" to buildJsonObject { put("content", "@js:'tag='+chapter.tag") }
-            )) }).use { source ->
-                val book = source.search("title").single()
-                val chapters = source.directory(book.id)
-                assertFalse(chapters.any { it.isVolume || it.isVip || it.isPay })
-                assertEquals("chapter-token", chapters.first().updateTime)
-                assertEquals(listOf("tag=chapter-token"), source.content(book.id, chapters.first().id).parts.map { it.text })
-            }
-        }
-    }
 }

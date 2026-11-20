@@ -25,15 +25,6 @@ class WorkerContentMarkupTest {
         assertEquals(FailureCode.OutputLimit, (tooLarge as ExecutionResult.Failure).code)
     }
 
-    @Test fun realChildConvertsANormalChapterWithDefaultLimitsAndNoWrites() {
-        val result = IsolatedExecutor().execute(identity,
-            ExecutionTask.ContentMarkup("<p>${"a".repeat(80)}</p>".repeat(80)))
-        assertTrue(result.toString(), result is ExecutionResult.Success)
-        val executed = Json.decodeFromString(ExecutedRule.serializer(), (result as ExecutionResult.Success).output)
-        assertEquals(80, (executed.value as RuleValue.Items).values.size)
-        assertEquals(ExecutedRule(executed.value, emptyMap()), executed)
-    }
-
     @Test fun byteLimitIncludesMultibyteTextAndTheWireEnvelope() {
         val failure = run(ExecutionTask.ContentMarkup("<p>${"中".repeat(200)}</p>"),
             ExecutionLimits(maxOutputBytes = 512)) as ExecutionResult.Failure

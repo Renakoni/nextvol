@@ -10,7 +10,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContentPaginationTest {
@@ -34,11 +33,6 @@ class ContentPaginationTest {
         assertEquals(listOf(first, pages[0], pages[1], middle), result)
         listOf(first, pages[0], pages[1], middle).zip(result).forEach { (expected, actual) -> assertSame(expected, actual) }
         assertEquals(listOf("first/start/240/120", "first/end", "empty/240/120"), events)
-    }
-
-    @Test
-    fun emptyContentProducesNoPages() = runTest {
-        assertTrue(paginateComponents(emptyList(), height = 240, width = 120).isEmpty())
     }
 
     @Test

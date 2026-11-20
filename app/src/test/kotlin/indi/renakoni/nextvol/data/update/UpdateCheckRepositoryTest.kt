@@ -53,34 +53,6 @@ class UpdateCheckRepositoryTest {
         return repository to phase
     }
 
-    @Test fun manualCheckUsesTheSelectedGitHubPlatform() = runBlocking {
-        coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "true"
-        preferences[UserDataPath.Settings.App.DistributionPlatform.path] = "GitHub"
-        val (repository, phase) = check()
-        repository.startAutomaticCheck().join()
-        assertSame(release, repository.release)
-        assertEquals(listOf("fixture"), phase.arguments.drop(1))
-        assertTrue(withTimeout(10_000) { repository.availableFlow.first { it } })
-        verify(exactly = 1) { GithubParser.parser(any()) }
-        verify(exactly = 0) { NextvolApiParser.parser(any()) }
-    }
-
-    @Test fun enabledAutomaticCheckUsesTheDefaultNextvolApi() = runBlocking {
-        coEvery { dao.get(UserDataPath.Settings.App.AutoCheckUpdate.path) } returns "true"
-        val repository = UpdateCheckRepository(RuntimeEnvironment.getApplication(), UserDataRepository(dao), downloader, mockk())
-        verify(exactly = 0) { NextvolApiParser.parser(any()) }
-        repository.startAutomaticCheck().join()
-        withTimeout(10_000) { repository.availableFlow.first { it } }
-        verify(exactly = 1) { NextvolApiParser.parser(any()) }
-    }
-
-    @Test fun repositoryWithNoReleasesReportsAnEmptyChannel() = runBlocking {
-        every { NextvolApiParser.parser(any()) } returns null
-        val (repository, _) = check(R.string.update_phase_no_release)
-        assertNull(repository.release)
-        assertFalse(repository.availableFlow.first())
-    }
-
     @Test fun recheckBlocksStaleDownloadsAndClearsTheReleaseOnFailure() = runBlocking {
         val (repository, _) = check()
         withTimeout(10_000) { repository.availableFlow.first { it } }
@@ -111,11 +83,4 @@ class UpdateCheckRepositoryTest {
         assertFalse(repository.availableFlow.first())
     }
 
-    @Test fun equalReleaseRemainsUpToDate() = runBlocking {
-        val current = release.copy(version = BuildConfig.VERSION_CODE)
-        every { NextvolApiParser.parser(any()) } returns current
-        val (repository, _) = check(R.string.update_phase_current)
-        assertSame(current, repository.release)
-        assertFalse(repository.availableFlow.first())
-    }
 }

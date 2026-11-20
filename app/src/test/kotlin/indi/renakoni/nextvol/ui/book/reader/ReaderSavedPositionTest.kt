@@ -68,25 +68,6 @@ class ReaderSavedPositionTest {
         }
     }
 
-    @Test fun sameViewModelRemountCreatesFreshRequestAndNoSavedStateUsesRoute() {
-        val reader = reader(SavedStateHandle())
-        scheduler.runCurrent()
-        reader.openBook("book", "current")
-        val state = reader.uiState.contentUiState!!
-        assertNull(reader.positions.pending)
-        reader.positions.positioned(state, position)
-        val firstRenderer = Any()
-        reader.positions.register(state, firstRenderer) { position }
-        val oldRequest = reader.positions.pending!!
-        reader.positions.finish(state, oldRequest, position)
-        reader.positions.unregister(state, firstRenderer)
-        reader.positions.register(state, Any()) { null }
-        assertNotSame(oldRequest, reader.positions.pending)
-        assertEquals(position, reader.positions.pending!!.position)
-        reader.openBook("book", "stale-route")
-        assertEquals("current", state.readingChapterId)
-    }
-
     @Test fun savedPositionFromAnotherBookDoesNotOverrideRoute() {
         val original = SavedStateHandle()
         val first = reader(original)

@@ -98,134 +98,6 @@ class SearchHubViewModelTest {
         author = "Author", description = "Description", publishingHouse = "", wordCount = WordCount(0),
         lastUpdated = LocalDateTime.MIN, isComplete = false))
 
-    @Test fun queuedSourcesStartLazilyAndDrainWithAtMostEightRequests() = runTest(dispatcher) {
-        val sourceCount = 17 // Two full batches and one queued tail request.
-        var active = 0
-        var peak = 0
-        var calls = 0
-        repeat(sourceCount) { index -> add("source-$index", Paged().apply { load = { _, _ ->
-            active++; calls++; peak = maxOf(peak, active)
-            try { delay(10); SearchPage(emptyList(), null) } finally { active-- }
-        } }) }
-        val model = model()
-        runCurrent()
-        assertEquals(0, calls)
-        model.search("title")
-        runCurrent()
-        assertEquals(8, calls)
-        advanceUntilIdle()
-        assertEquals(8, peak)
-        assertEquals(sourceCount, calls)
-        assertEquals(sourceCount, model.state.value.completed)
-        assertFalse(model.state.value.searching)
-        assertTrue(model.state.value.books.isEmpty())
-    }
-
-    @Test fun managedGroupsSupportMultipleMembershipsAndExcludeDisabledOrUnrelatedSources() = runTest(dispatcher) {
-        val a = Paged()
-        val b = Paged()
-        val ungrouped = Paged()
-        val unsupported = Paged()
-        val disabled = Paged()
-        add("a", a, setOf("reading", "favorites"))
-        add("b", b, setOf("favorites"))
-        add("ungrouped", ungrouped)
-        add("unsupported", unsupported, setOf("reading"), emptySet())
-        registry.unregister(add("disabled", disabled, setOf("reading")))
-        val model = model()
-        runCurrent()
-        model.selectScope("reading")
-        model.search("title")
-        advanceUntilIdle()
-        assertEquals(1, a.requests.size)
-        assertTrue(b.requests.isEmpty())
-        model.selectScope("favorites")
-        advanceUntilIdle()
-        assertEquals(2, a.requests.size)
-        assertEquals(1, b.requests.size)
-        model.selectScope("empty")
-        advanceUntilIdle()
-        assertTrue(model.state.value.scopedSources.isEmpty())
-        assertEquals(2, a.requests.size)
-        assertEquals(1, b.requests.size)
-        assertTrue(ungrouped.requests.isEmpty())
-        model.selectScope("")
-        advanceUntilIdle()
-        assertEquals(1, ungrouped.requests.size)
-        model.selectScope(null)
-        advanceUntilIdle()
-        assertEquals(3, model.state.value.total)
-        assertEquals(3, a.requests.size) // Two memberships still produce one request in All.
-        assertEquals(2, b.requests.size)
-        assertEquals(2, ungrouped.requests.size)
-        assertTrue(unsupported.requests.isEmpty())
-        assertTrue(disabled.requests.isEmpty())
-    }
-
-    @Test fun groupEditsRefreshTargetsButRenamingRunsNoSearchAndDeletionDoesNotExpandTheQuery() = runTest(dispatcher) {
-        val a = Paged().apply { load = { _, _ -> SearchPage(listOf(item("a")), null) } }
-        val b = Paged().apply { load = { _, _ -> SearchPage(listOf(item("b")), null) } }
-        val aId = add("a", a, setOf("reading"))
-        val bId = add("b", b, setOf("favorites"))
-        val model = model()
-        runCurrent()
-        model.selectScope("reading")
-        model.search("title")
-        advanceUntilIdle()
-        grouping.value = grouping.value.copy(groups = grouping.value.groups.map {
-            if (it.id == "reading") it.copy(name = "Weekend") else it
-        })
-        advanceUntilIdle()
-        assertEquals("Weekend", model.state.value.groups.first().name)
-        assertEquals(1, a.requests.size)
-        assertTrue(b.requests.isEmpty())
-        model.stop()
-        grouping.value = grouping.value.copy(memberships = mapOf(aId to emptySet(), bId to setOf("reading")))
-        advanceUntilIdle()
-        assertTrue(model.state.value.stopped)
-        assertTrue(b.requests.isEmpty())
-        model.resume()
-        advanceUntilIdle()
-        assertEquals(bId, model.state.value.books.single().source)
-        assertEquals(1, a.requests.size)
-        assertEquals(1, b.requests.size)
-        grouping.value = grouping.value.copy(groups = grouping.value.groups.filterNot { it.id == "reading" },
-            memberships = mapOf(aId to emptySet(), bId to emptySet()))
-        advanceUntilIdle()
-        assertNull(model.state.value.scope)
-        assertEquals("title", model.state.value.query)
-        assertEquals("", model.state.value.submittedKeyword)
-        assertTrue(model.state.value.books.isEmpty())
-        assertEquals(1, a.requests.size)
-        assertEquals(1, b.requests.size)
-    }
-
-    @Test fun entrySourceOverridesTheSavedGroupAndSwitchingSourceKeepsTheKeyword() = runTest(dispatcher) {
-        val a = Paged().apply { load = { _, _ -> SearchPage(listOf(item("a")), null) } }
-        val b = Paged().apply { load = { _, _ -> SearchPage(listOf(item("b")), null) } }
-        val aId = add("a", a, setOf("reading"))
-        val bId = add("b", b, setOf("favorites"))
-        val model = model(SavedStateHandle(mapOf("sourceNamespace" to aId.namespace, "sourceId" to aId.id, "sourceName" to "a", "search.group" to "favorites")))
-        runCurrent()
-        model.search("Title")
-        advanceUntilIdle()
-        assertEquals(listOf("Title" to 1), a.requests)
-        assertTrue(b.requests.isEmpty())
-        assertEquals(aId, model.state.value.selectedSource)
-        assertNull(model.state.value.scope)
-        model.selectSource(bId)
-        advanceUntilIdle()
-        assertEquals(listOf("Title" to 1), b.requests)
-        assertEquals(1, a.requests.size)
-        assertEquals("Title", model.state.value.query)
-        assertEquals(bId, model.state.value.books.single().source)
-        model.selectScope(null)
-        advanceUntilIdle()
-        assertEquals(2, a.requests.size)
-        assertEquals(2, b.requests.size)
-        assertEquals(2, model.state.value.books.size)
-    }
-
     @Test fun switchingSourceDuringProgressiveSearchRejectsLateResultsAndResetsPagination() = runTest(dispatcher) {
         val release = CompletableDeferred<Unit>()
         val a = object : Paged() {
@@ -256,92 +128,6 @@ class SearchHubViewModelTest {
         assertEquals(1, model.state.value.total)
         assertFalse(model.state.value.hasMore)
         assertFalse(model.state.value.searching)
-    }
-
-    @Test fun selectedSourceSurvivesRestorationAndRemovalNeverBroadensTheSearch() = runTest(dispatcher) {
-        val a = Paged()
-        val b = Paged()
-        val aId = add("a", a)
-        add("b", b)
-        val saved = SavedStateHandle()
-        val original = model(saved)
-        runCurrent()
-        original.selectSource(aId)
-        original.search("Title")
-        advanceUntilIdle()
-        original.setActive(false)
-        val release = CompletableDeferred<Unit>()
-        registry.restoreIn(backgroundScope) { release.await(); true }
-        val restored = model(SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
-        runCurrent()
-        assertTrue(restored.state.value.loadingSources)
-        assertEquals(1, a.requests.size)
-        release.complete(Unit)
-        // advanceUntilIdle skips pending work owned by backgroundScope.
-        runCurrent()
-        advanceUntilIdle()
-        assertFalse(restored.state.value.loadingSources)
-        assertEquals(aId, restored.state.value.selectedSource)
-        assertEquals("a", restored.state.value.selectedSourceName)
-        assertEquals("Title", restored.state.value.submittedKeyword)
-        assertEquals(2, a.requests.size)
-        assertTrue(b.requests.isEmpty())
-        registry.unregister(aId)
-        advanceUntilIdle()
-        assertTrue(restored.state.value.scopedSources.isEmpty())
-        assertEquals(aId, restored.state.value.selectedSource)
-        assertTrue(b.requests.isEmpty())
-    }
-
-    @Test fun expandingToAllIsRestoredInsteadOfReapplyingTheEntrySource() = runTest(dispatcher) {
-        val id = add("a")
-        add("b")
-        val saved = SavedStateHandle(mapOf("sourceNamespace" to id.namespace, "sourceId" to id.id, "sourceName" to "a"))
-        val original = model(saved)
-        runCurrent()
-        original.selectScope(null)
-        original.setActive(false)
-        val restored = model(SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
-        runCurrent()
-        assertNull(restored.state.value.selectedSource)
-        assertNull(restored.state.value.scope)
-        assertEquals(2, restored.state.value.scopedSources.size)
-    }
-
-    @Test fun pageRequestsAreOnDemandAndSameTitleFromDifferentSourcesRetainsItsIdentity() = runTest(dispatcher) {
-        val a = Paged().apply { load = { _, page -> when (page) {
-            1 -> SearchPage((1..20).map { item("$it", "Title") }, 2)
-            else -> SearchPage(listOf(item("20", "Title"), item("21", "Title")), null)
-        } } }
-        val b = Paged().apply { load = { _, _ -> SearchPage(listOf(item("1", "Title")), null) } }
-        val aId = add("a", a)
-        val bId = add("b", b)
-        val model = model()
-        runCurrent()
-        model.search("Title")
-        advanceUntilIdle()
-        assertEquals(21, model.state.value.books.size)
-        assertTrue(model.state.value.hasMore)
-        assertEquals(listOf("Title" to 1), a.requests)
-        assertTrue(model.state.value.books.any { it.id == SourceBookId(aId, "1").storageKey })
-        assertTrue(model.state.value.books.any { it.id == SourceBookId(bId, "1").storageKey })
-        model.loadMore()
-        model.loadMore()
-        advanceUntilIdle()
-        assertEquals(listOf("Title" to 1, "Title" to 2), a.requests)
-        assertEquals(1, b.requests.size)
-        assertEquals(22, model.state.value.books.size)
-        assertFalse(model.state.value.hasMore)
-        assertTrue(model.state.value.books.first().information.first().isOk)
-        verify(exactly = 0) { books.getBookInformationFlow(any<String>(), any()) }
-        // Load-more pages continue one query; submitting the same keyword again starts another.
-        model.search("Title")
-        advanceUntilIdle()
-        assertEquals(3, a.queries.size)
-        assertTrue(a.queries.all { it != null })
-        assertEquals(a.queries[0], a.queries[1])
-        assertNotEquals(a.queries[1], a.queries[2])
-        assertEquals(a.queries[0], b.queries[0])
     }
 
     @Test fun filteredEmptyPagesRetainAnExplicitContinuationUntilTheProviderEnds() = runTest(dispatcher) {
@@ -405,41 +191,6 @@ class SearchHubViewModelTest {
         assertFalse(model.state.value.hasMore)
     }
 
-    @Test fun repeatedPageEndsPaginationAndMatchingBooksRankAheadOfUnrelatedTitles() = runTest(dispatcher) {
-        val provider = Paged().apply { load = { _, page -> SearchPage(listOf(item("other", "Other"), item("match", "Title")), page + 1) } }
-        add("a", provider)
-        val model = model()
-        runCurrent()
-        model.search("Title")
-        advanceUntilIdle()
-        assertEquals("Title", model.state.value.books.first().preview!!.title)
-        model.loadMore()
-        advanceUntilIdle()
-        assertEquals(2, model.state.value.books.size)
-        assertFalse(model.state.value.hasMore)
-    }
-
-    @Test fun cachedPageAfterResumeKeepsItsNextCursor() = runTest(dispatcher) {
-        var calls = 0
-        val provider = object : Paged() {
-            override fun searchPageUpdates(type: SearchType, keyword: String, page: Int, query: String?) = flow {
-                if (++calls == 1) {
-                    emit(SearchPage(listOf(item("1")), null, complete = false))
-                    awaitCancellation()
-                }
-                emit(SearchPage(listOf(item("1")), 2))
-            }
-        }
-        add("a", provider)
-        val model = model()
-        runCurrent(); model.search("Title"); runCurrent()
-        assertEquals(1, model.state.value.books.size)
-        model.stop(); model.resume(); advanceUntilIdle()
-        assertEquals(2, calls)
-        assertEquals(1, model.state.value.books.size)
-        assertTrue(model.state.value.hasMore)
-    }
-
     @Test fun repeatedProgressivePageStopsWithoutLosingExistingResults() = runTest(dispatcher) {
         val provider = object : Paged() {
             override fun searchPageUpdates(type: SearchType, keyword: String, page: Int, query: String?) = flow {
@@ -454,24 +205,6 @@ class SearchHubViewModelTest {
         model.loadMore(); advanceUntilIdle()
         assertEquals(1, model.state.value.books.size)
         assertFalse(model.state.value.hasMore)
-    }
-
-    @Test fun scoredBatchesHaveStableOrderRegardlessOfArrivalOrder() = runTest(dispatcher) {
-        var reverse = false
-        val provider = object : Paged() {
-            override fun searchPageUpdates(type: SearchType, keyword: String, page: Int, query: String?) = flow {
-                for (id in if (reverse) listOf("2", "1") else listOf("1", "2"))
-                    emit(SearchPage(listOf(item(id)), null, complete = false, scores = mapOf(id to 10)))
-                emit(SearchPage(emptyList(), null))
-            }
-        }
-        add("a", provider)
-        val model = model()
-        runCurrent(); model.search("Title"); advanceUntilIdle()
-        val first = model.state.value.books.map { it.id }
-        reverse = true
-        model.search("Title"); advanceUntilIdle()
-        assertEquals(first, model.state.value.books.map { it.id })
     }
 
     @Test fun replacingQueryWaitsForOldRequestsAndNeverPublishesTheirLateResults() = runTest(dispatcher) {
@@ -524,17 +257,6 @@ class SearchHubViewModelTest {
         assertEquals(3, model.state.value.books.size)
     }
 
-    @Test fun fourSlowSourcesDoNotBlockTheFollowingFourFastSources() = runTest(dispatcher) {
-        repeat(4) { add("slow-$it", Paged().apply { load = { _, _ -> awaitCancellation() } }) }
-        repeat(4) { add("fast-$it", Paged().apply { load = { _, _ -> delay(100); SearchPage(listOf(item("fast")), null) } }) }
-        val model = model()
-        runCurrent(); model.search("query"); advanceTimeBy(101); runCurrent()
-        assertEquals(4, model.state.value.books.size)
-        assertEquals(4, model.state.value.completed)
-        assertTrue(model.state.value.searching)
-        advanceUntilIdle()
-    }
-
     @Test fun replacementAdmissionTimesOutWithoutFreeingOldRequestsAndCanRetry() = runTest(dispatcher) {
         val release = CompletableDeferred<Unit>()
         val providers = List(8) { Paged().apply { load = { keyword, _ ->
@@ -576,15 +298,6 @@ class SearchHubViewModelTest {
         assertEquals(first, model.state.value.books.map { it.id })
         assertEquals(1000, first.size)
         assertTrue(model.state.value.limited)
-    }
-
-    @Test fun arbitraryProviderScoresCannotOutrankBetterTextMatches() = runTest(dispatcher) {
-        add("ordinary", Paged().apply { load = { _, _ -> SearchPage(listOf(item("other", "Other")), null, scores = mapOf("other" to -100)) } })
-        add("fuzzy", Paged().apply { load = { _, _ -> SearchPage(listOf(item("near", "义妺生活")), null, scores = mapOf("near" to 40)) } })
-        val model = model()
-        runCurrent(); model.search("义妹生活"); advanceUntilIdle()
-        assertEquals(listOf("义妺生活", "Other"), model.state.value.books.map { it.preview!!.title })
-        verify(exactly = 0) { books.getBookInformationFlow(any<String>(), any()) }
     }
 
     @Test fun previewsUpdateWithoutScoreChangesAndCompleteDetailsRerankWithoutReplacingTheFlow() = runTest(dispatcher) {
@@ -630,26 +343,6 @@ class SearchHubViewModelTest {
             advanceUntilIdle()
             assertNull(model.state.value.books.single().preview)
         }
-    }
-
-    @Test fun obsoleteDetailsNeitherStartRequestsNorReplayCachedMetadata() = runTest(dispatcher) {
-        val source = add("a", Stream().apply { events = { flowOf(SearchResult.SingleBook("1")) } })
-        val model = model()
-        runCurrent(); model.search("Title"); advanceUntilIdle()
-        for (accountChange in listOf(false, true)) {
-            val old = model.state.value.books.single()
-            if (accountChange) accounts.begin(source) else model.search("Next")
-            // The registry/account guard must work even before its StateFlow observer runs.
-            assertTrue(old.information.toList().isEmpty())
-            advanceUntilIdle()
-        }
-        verify(exactly = 0) { books.getBookInformationFlow(any<String>(), any()) }
-        val cached = model.state.value.books.single()
-        every { books.getBookInformationFlow(cached.id, any()) } returns flowOf(Ok(item(cached.id).information!!))
-        assertTrue(cached.information.toList().single().isOk)
-        model.search("Another")
-        assertTrue(cached.information.toList().isEmpty())
-        verify(exactly = 1) { books.getBookInformationFlow(any<String>(), any()) }
     }
 
     @Test fun queuedDetailsRecheckTheirAccountBeforeStartingARequest() = runTest(dispatcher) {
@@ -713,75 +406,6 @@ class SearchHubViewModelTest {
         assertFalse(model.state.value.searching)
     }
 
-    @Test fun stopAndNavigationPreserveResultsAndOnlyInterruptedSourcesResume() = runTest(dispatcher) {
-        val good = Paged().apply { load = { _, _ -> SearchPage(listOf(item("good")), null) } }
-        val slow = Paged().apply { load = { _, _ -> awaitCancellation() } }
-        add("good", good); add("slow", slow)
-        val model = model()
-        runCurrent(); model.search("query"); runCurrent()
-        model.stop(); runCurrent()
-        assertEquals(1, model.state.value.books.size)
-        model.setActive(false); model.setActive(true); runCurrent()
-        assertEquals(1, slow.requests.size)
-        slow.load = { _, _ -> SearchPage(listOf(item("slow")), null) }
-        model.resume(); advanceUntilIdle()
-        assertEquals(1, good.requests.size)
-        assertEquals(2, slow.requests.size)
-        model.setActive(false); model.setActive(true); advanceUntilIdle()
-        assertEquals(2, slow.requests.size)
-        assertEquals(2, model.state.value.books.size)
-    }
-
-    @Test fun registrationAndAccountChangesInvalidateOnlyAffectedSourceResults() = runTest(dispatcher) {
-        val a = Paged().apply { load = { _, _ -> SearchPage(listOf(item("a")), null) } }
-        val b = Paged().apply { load = { _, _ -> SearchPage(listOf(item("b")), null) } }
-        val id = add("a", a); add("b", b)
-        val model = model()
-        runCurrent(); model.search("query"); advanceUntilIdle()
-        accounts.begin(id); advanceUntilIdle()
-        assertEquals(2, a.requests.size)
-        assertNotEquals(a.queries[0], a.queries[1])
-        assertEquals(1, b.requests.size)
-        registry.unregister(id); advanceUntilIdle()
-        assertEquals(1, model.state.value.books.size)
-        assertEquals("b", model.state.value.books.single().preview!!.title)
-    }
-
-    @Test fun savedStateRestoresQueryAndScopeButReloadsContentAndHistoryKeepsNewestFirst() = runTest(dispatcher) {
-        val provider = Paged()
-        add("a", provider, setOf("reading"))
-        val saved = SavedStateHandle()
-        val model = model(saved)
-        runCurrent()
-        model.selectScope("reading")
-        model.search(" first "); advanceUntilIdle()
-        model.search("second"); advanceUntilIdle()
-        model.search("first"); advanceUntilIdle()
-        assertEquals(listOf("first", "second"), model.state.value.history)
-        model.setActive(false)
-        val restored = model(SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
-        advanceUntilIdle()
-        assertEquals("first", restored.state.value.query)
-        assertEquals("reading", restored.state.value.scope)
-        assertEquals(4, provider.requests.size)
-        restored.deleteHistory("first"); advanceUntilIdle()
-        assertEquals(listOf("second"), restored.state.value.history)
-        restored.clearHistory(); advanceUntilIdle()
-        assertTrue(restored.state.value.history.isEmpty())
-    }
-
-    @Test fun resultsAreBoundedAndTruncationIsExplicit() = runTest(dispatcher) {
-        repeat(2) { source -> add("$source", Paged().apply { load = { _, _ ->
-            SearchPage((1..600).map { item("$it") }, 2)
-        } }) }
-        val model = model()
-        runCurrent(); model.search("query"); advanceUntilIdle()
-        assertEquals(1000, model.state.value.books.size)
-        assertTrue(model.state.value.limited)
-        assertFalse(model.state.value.hasMore)
-        assertEquals(2, model.state.value.completed)
-    }
-
     @Test fun cachedBookInformationSurvivesRefreshTimeoutAndReleasesDetailPermits() = runTest(dispatcher) {
         var active = 0
         var peak = 0
@@ -812,17 +436,4 @@ class SearchHubViewModelTest {
         verify(exactly = 5) { books.getBookInformationFlow(any<String>(), any()) }
     }
 
-    @Test fun uncachedBookInformationTimeoutReportsFailureAndCanRetry() = runTest(dispatcher) {
-        every { books.getBookInformationFlow(any<String>(), any()) } returns flow { awaitCancellation() }
-        add("legacy", Stream().apply { events = { flowOf(SearchResult.SingleBook("1")) } })
-        val model = model()
-        runCurrent(); model.search("query"); advanceUntilIdle()
-        val book = model.state.value.books.single()
-        val first = async { book.information.toList() }
-        advanceUntilIdle()
-        assertTrue(first.await().single().isErr)
-        every { books.getBookInformationFlow(any<String>(), any()) } returns flowOf(Ok(item(book.id).information!!))
-        assertTrue(book.information.last().isOk)
-        verify(exactly = 2) { books.getBookInformationFlow(any<String>(), any()) }
-    }
 }

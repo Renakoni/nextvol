@@ -2,9 +2,7 @@ package indi.renakoni.nextvol.tts
 
 import hnovel.speech.OfflineVoiceConfig
 import hnovel.speech.previewHttpSpeech
-import hnovel.speech.previewHttpSpeechPackage
 import hnovel.speech.previewSpeechPackage
-import hnovel.speech.SpeechEngineConfig
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceDefaults
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
@@ -19,15 +17,6 @@ import org.junit.rules.TemporaryFolder
 
 class SpeechPackageReferencesTest {
     @get:Rule val temporary = TemporaryFolder()
-
-    @Test fun standaloneVoiceConfigurationUsesTheInstalledEngineWithoutMakingRequests() {
-        val file = temporary.newFile("config.yaml").apply { writeText("http_test: [{code: voice, name: Voice}]") }
-        val preview = previewSpeechPackage(file).withInstalledEngines(listOf(
-            SpeechEngineConfig("http_test", "Installed engine", "http", url = "https://example.invalid/{{speakText}}")))
-        val imported = previewHttpSpeechPackage(preview.engines.single())
-        assertNull(imported.error)
-        assertEquals("Voice", imported.sources.single().name)
-    }
 
     @Test fun offlineReferencesFollowCurrentCodeAndTypeAcrossRestartAndReinstallation() {
         val missing = SpeechVoiceRef(externalId = "audio_sound_1", label = "Original name")

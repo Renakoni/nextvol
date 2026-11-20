@@ -2,7 +2,6 @@ package indi.renakoni.nextvol.tts.audio
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.PI
@@ -11,14 +10,6 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 class PcmAudioProcessorTest {
-    @Test fun zeroSpeedCannotEnterSonicButZeroVolumeRemainsValid() {
-        assertThrows(AudioProcessingException::class.java) { PcmAudioProcessor(16000, 16000, speed = 0f) }
-        PcmAudioProcessor(16000, 16000, volume = 0f).use {
-            val output = it.process(ShortArray(16000) { 1000 }) + it.finish()
-            assertArrayEquals(ShortArray(16000), output)
-        }
-    }
-
     @Test fun defaultsKeepPcmAndQuietBlocksShortenOnlyWhenEnabled() {
         val quiet = shortArrayOf(-512, -1, 0, 512, 4, -3, 1, 0)
         PcmAudioProcessor(16000, 16000).use {

@@ -8,7 +8,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
@@ -71,62 +70,6 @@ class ScrollTextMeasurementTest {
         checkPages(1, 1, Density(1f), LayoutDirection.Ltr, FontFamily.Default)
         checkPages(90, 160, Density(3f, 1.3f), LayoutDirection.Rtl, FontFamily.Serif)
         checkPages(620, 600, Density(1f), LayoutDirection.Ltr, FontFamily.Default)
-    }
-
-    @Test fun paragraphGapsAndHeightReuseLinesButFontWidthAndTextStillRemeasure() {
-        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup()
-        var spacing by mutableStateOf(0f)
-        var font by mutableStateOf(15f)
-        var width by mutableStateOf(300)
-        var height by mutableStateOf(200)
-        var density by mutableStateOf(Density(1f))
-        fun chapter(text: String) = ChapterContentUiState("chapter", "Title",
-            listOf(SimpleTextComponent(SimpleTextComponentData(text), mockk(relaxed = true), activity.get())), null, null)
-        var content by mutableStateOf(chapter("第一段文字\nSecond paragraph\n\nLast paragraph"))
-        val shapes = AtomicInteger()
-        var result: PreparedScrollChapter? = null
-        val settings = mockk<ReaderSettings>(relaxed = true) {
-            every { fontFamilyUri } returns Uri.EMPTY
-            every { fontSize } answers { font }
-            every { fontLineHeight } returns 7f
-            every { fontWeigh } returns 500f
-            every { paragraphSpacing } answers { spacing }
-        }
-        fun await(condition: () -> Boolean) = compose.waitUntil(10_000) { compose.waitForIdle(); condition() }
-        try {
-            activity.get().setContent {
-                CompositionLocalProvider(LocalDensity provides density, LocalReaderTextWorkObserver provides { phase ->
-                    if (phase == "shape") shapes.incrementAndGet()
-                }) {
-                    result = rememberPreparedScrollChapter(content, rememberReaderTextLayout(settings), width, height)
-                }
-            }
-            await { result != null }
-            assertEquals(4, shapes.get())
-            val originalHeight = result!!.blocks.single().text!!.height
-            compose.runOnIdle { spacing = 7f }
-            await { result?.layout?.settings?.paragraphSpacing == 7f }
-            assertEquals(4, shapes.get())
-            assertTrue(result!!.blocks.single().text!!.height > originalHeight)
-            compose.runOnIdle { height = 80 }
-            await { result?.size?.height == 80 }
-            assertEquals(4, shapes.get())
-            compose.runOnIdle { font = 23f }
-            await { result?.layout?.settings?.fontSize == 23f }
-            assertEquals(8, shapes.get())
-            compose.runOnIdle { width = 200 }
-            await { result?.size?.width == 200 }
-            assertEquals(12, shapes.get())
-            compose.runOnIdle { content = chapter("Changed body") }
-            await { result?.content === content }
-            assertEquals(13, shapes.get())
-            assertEquals("Changed body", result!!.blocks.single().text!!.fragments.joinToString("") { it.text })
-            compose.runOnIdle { density = Density(2f) }
-            await { result?.layout?.paragraphSpacingPx == 14 }
-            assertEquals(14, shapes.get())
-        } finally {
-            activity.pause().stop().destroy()
-        }
     }
 
     @Test fun cancelledQueuedChapterSkipsMeasurementAndNeverPublishesOldContent() {

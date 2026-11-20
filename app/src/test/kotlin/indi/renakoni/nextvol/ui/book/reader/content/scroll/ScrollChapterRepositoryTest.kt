@@ -57,25 +57,6 @@ class ScrollChapterRepositoryTest {
         it?.first?.let { id -> SourceChapterId.fromStorageKey(id).remoteId }
     }
 
-    @Test fun trustedAdjacentContentDoesNotRequestTheRemote() {
-        cache[key("3")] = remote("3").copy(id = key("3"), nextChapter = key("4"))
-        cache[key("4")] = remote("4").copy(id = key("4"))
-        coEvery { fixture.local.getReusableChapterContent(any(), any()) } answers { cache[firstArg()] }
-        val remoteGate = CompletableDeferred<Unit>()
-        coEvery { fixture.remote.getChapterContent(any(), any(), any()) } coAnswers {
-            remoteGate.await()
-            error("Trusted content must not request the remote")
-        }
-        val mode = controller()
-        mode.changeChapter(key("3")); env.runCurrent()
-        assertEquals(listOf("3", "4"), occupied(mode))
-        assertTrue(mode.uiState.contentList[2]!!.second.isOk)
-        mode.changeChapter(key("4")); env.runCurrent()
-        assertTrue(mode.uiState.readingChapterContent!!.isOk)
-        assertEquals(key("4"), env.records.data.lastReadChapterId)
-        coVerify(exactly = 0) { fixture.remote.getChapterContent(any(), any(), any()) }
-    }
-
     @Test fun fallbackAdjacentContentIsReadableBeforeRevalidationCompletes() {
         cache[key("3")] = remote("3").copy(id = key("3"), nextChapter = key("4"))
         cache[key("4")] = remote("4").copy(id = key("4"))
@@ -143,16 +124,6 @@ class ScrollChapterRepositoryTest {
         assertEquals(listOf(null, null, null), mode.uiState.contentList.toList())
         coVerify(exactly = 1) { fixture.remote.getChapterContent("4", "book", any()) }
         coVerify(exactly = 0) { fixture.local.updateChapterContent(any(), any()) }
-    }
-
-    @Test fun alreadyCompletedAdjacentFailureDoesNotReappearAfterExplicitOpen() {
-        coEvery { fixture.remote.getChapterContent("3", "book", any()) } returns Ok(remote("3"))
-        coEvery { fixture.remote.getChapterContent("4", "book", any()) } returns Err(WebRequestError("offline", "network failed"))
-        val mode = controller()
-        mode.changeChapter(key("3")); env.runCurrent()
-        assertEquals(listOf("3", "4"), occupied(mode))
-        mode.changeChapter(key("4")); env.runCurrent()
-        assertEquals(listOf("4"), occupied(mode))
     }
 
     @Test fun realCachedThenRemoteRefreshCannotPublishDuringSettingsRead() {

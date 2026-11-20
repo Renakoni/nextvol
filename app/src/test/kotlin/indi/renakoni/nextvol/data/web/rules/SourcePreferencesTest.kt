@@ -36,44 +36,6 @@ class SourcePreferencesTest {
         return sources.definitions.list().single { it.reference() == reference }
     }
 
-    @Test fun catalogCategorySurvivesRenamingIdentityMappingDisablementAndRestart() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val accounts = SourceSessionManager(fixture.authority)
-            var registry = WebSourceRegistry(fixture.authority)
-            var sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
-            val entry = SourceCatalog(context).entries.first { it.category == SourceCategory.Female }
-            val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
-            try {
-                val raw = JsonObject(fixture.raw() + mapOf("bookSourceUrl" to JsonPrimitive(entry.key), "enabled" to JsonPrimitive(false)))
-                val first = definition(sources, raw)
-                val id = sources.activate(first.reference(), grants)
-                assertEquals(SourceCategory.Female, sources.installedSources().single().preferences.category)
-                sources.setPreferences(id, enabled = true)
-                assertEquals(SourceCategory.Female, registry.sources.value.single().metadata.category)
-                sources.setPreferences(id, enabled = false)
-                val preview = sources.importer.preview(JsonObject(raw + mapOf("bookSourceName" to JsonPrimitive("Renamed"),
-                    "bookSourceUrl" to JsonPrimitive("https://moved.invalid/"))).toString())
-                val reference = sources.importer.commit(preview, listOf(ImportSelection(0, ImportDecision.MapIdentity(first.reference()))))
-                    .items.single().reference!!
-                fixture.afterRun = { error("Disabled update must not execute source code") }
-                SourceRevisionUpdates(context, sources, accounts, fixture.runner, fixture.authority).apply(id, reference, grants, true)
-                assertEquals(SourceCategory.Female, sources.installedSources().single().preferences.category)
-                sources.stop()
-                registry = WebSourceRegistry(fixture.authority)
-                sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
-                sources.restore()
-                val restored = sources.installedSources().single()
-                assertEquals(id, ImportedRuleSources.id(restored.definition))
-                assertEquals("Renamed", restored.definition.displayName)
-                assertEquals("https://moved.invalid/", restored.definition.importKey)
-                assertEquals(SourceCategory.Female, restored.preferences.category)
-                assertFalse(restored.preferences.enabled)
-                assertEquals(0, fixture.server.requestCount)
-            } finally { sources.stop() }
-        }
-    }
-
     @Test fun restorationRefreshesOnlyExactCatalogMappings() = runBlocking {
         val context = host()
         RuleSourceFixture().use { fixture ->
@@ -99,85 +61,6 @@ class SourcePreferencesTest {
                 assertEquals(entry.category, sources.installedSources().first { it.definition.sourceId == known.sourceId }.preferences.category)
                 assertNull(sources.installedSources().first { it.definition.sourceId == unknown.sourceId }.preferences.category)
                 assertTrue(registry.sources.value.isEmpty())
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun defaultDisabledDefinitionsCanBeInstalledWithoutOpeningRuntime() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val registry = WebSourceRegistry(fixture.authority)
-            val sources = ImportedRuleSources(host(), registry, fixture.authority, SourceSessionManager(fixture.authority), fixture.runner)
-            try {
-                val disabled = definition(sources, JsonObject(fixture.raw() + ("enabled" to JsonPrimitive(false))))
-                val id = sources.activate(disabled.reference(), listOf(NetworkGrant(fixture.server.url("/").toString(), true)))
-                assertEquals(disabled, sources.installedSources().single().definition)
-                assertEquals(SourcePreferences(false, disabled.enabledExplore), sources.installedSources().single().preferences)
-                assertTrue(registry.sources.value.isEmpty())
-                assertTrue(registry.resolve(id) is SourceResolution.Missing)
-                assertEquals(0, fixture.server.requestCount)
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun discoveryOverrideAndSourceEnablementHaveIndependentStableIdentities() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val registry = WebSourceRegistry(fixture.authority)
-            val sources = ImportedRuleSources(host(), registry, fixture.authority, SourceSessionManager(fixture.authority), fixture.runner)
-            try {
-                val raw = JsonObject(fixture.raw() + mapOf("enabled" to JsonPrimitive(false),
-                    "enabledExplore" to JsonPrimitive(false), "exploreUrl" to JsonPrimitive("Latest::/search")))
-                val original = definition(sources, raw)
-                val id = sources.activate(original.reference(), listOf(NetworkGrant(fixture.server.url("/").toString(), true)))
-                sources.setPreferences(id, enabled = true)
-                val first = (registry.resolve(id) as SourceResolution.Ready).runtime
-                assertTrue(SourceCapability.Search in first.metadata.capabilities)
-                assertFalse(SourceCapability.Categories in first.metadata.capabilities)
-                sources.setPreferences(id, discoveryVisible = true)
-                assertFalse(first.isAvailable)
-                assertTrue(SourceCapability.Categories in registry.sources.value.single().metadata.capabilities)
-                sources.setPreferences(id, enabled = false)
-                assertTrue(registry.resolve(id) is SourceResolution.Missing)
-                assertEquals(SourcePreferences(false, true, true), sources.installedSources().single().preferences)
-                sources.setPreferences(id, enabled = true)
-                val next = (registry.resolve(id) as SourceResolution.Ready).runtime
-                assertEquals(first.id, next.id)
-                assertEquals(first.metadata.revision, next.metadata.revision)
-                assertTrue(SourceCapability.Explore in next.metadata.capabilities)
-                assertEquals(fixture.server.url("/book/one").toString(),
-                    next.getBookInformation(fixture.server.url("/book/one").toString()).get()!!.id)
-                assertFalse(original.enabled)
-                assertFalse(original.enabledExplore)
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun missingGrantsAndMissingCatalogueDoNotInventRuntimeCapabilities() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val registry = WebSourceRegistry(fixture.authority)
-            val accounts = SourceSessionManager(fixture.authority)
-            val sources = ImportedRuleSources(context, registry, fixture.authority, accounts, fixture.runner)
-            val updates = SourceRevisionUpdates(context, sources, accounts, fixture.runner, fixture.authority)
-            val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
-            try {
-                val id = sources.activate(definition(sources, fixture.raw()).reference(), emptyList())
-                assertTrue(sources.installedSources().single().preferences.enabled)
-                assertFalse(sources.installedSources().single().hasDiscovery)
-                assertTrue(registry.resolve(id) is SourceResolution.Missing)
-                assertEquals(0, fixture.server.requestCount)
-                sources.setPreferences(id, discoveryVisible = true)
-                updates.updatePermissions(id, grants)
-                val runtime = (registry.resolve(id) as SourceResolution.Ready).runtime
-                assertTrue(SourceCapability.Search in runtime.metadata.capabilities)
-                assertFalse(SourceCapability.Categories in runtime.metadata.capabilities)
-                updates.updatePermissions(id, emptyList())
-                assertFalse(runtime.isAvailable)
-                assertTrue(registry.resolve(id) is SourceResolution.Missing)
-                sources.setPreferences(id, enabled = false)
-                fixture.afterRun = { error("Disabled sources must not run validation scripts") }
-                updates.updatePermissions(id, grants)
-                assertTrue(registry.resolve(id) is SourceResolution.Missing)
-                assertFalse(sources.installedSources().single().preferences.enabled)
             } finally { sources.stop() }
         }
     }

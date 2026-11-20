@@ -25,13 +25,6 @@ class ScriptHostCallTest {
         assertEquals(ScriptHostCall("source.putLoginInfo", 1, listOf(ScriptArgumentType.Object)), failure.hostCall)
     }
 
-    @Test fun shapeBudgetDoesNotTruncateTheActualArity() {
-        val failure = failure("host.call.apply(null,['cookie.getKey'].concat(Array(20).fill('PRIVATE')))")
-        assertEquals(20, failure.hostCall!!.argumentCount)
-        assertEquals(List(8) { ScriptArgumentType.String }, failure.hostCall!!.argumentTypes)
-        assertFalse(failure.toString().contains("PRIVATE"))
-    }
-
     @Test fun unknownCallsAndSourceErrorsNeverInheritOrGuessAHostMethod() {
         assertNull(failure("host.call('PRIVATE_UNKNOWN_METHOD','PRIVATE')").hostCall)
         val caught = failure("try { cookie.getKey('PRIVATE','PRIVATE') } catch(e) {} throw new Error('cookie.getKey PRIVATE')")

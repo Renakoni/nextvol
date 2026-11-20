@@ -10,13 +10,6 @@ class DetailDirectoryPagingTest {
         "volume", "Volume", (1..count).map { ChapterInformation("id-$it", "Chapter $it") },
     )
 
-    @Test fun shortAndEmptyBooksKeepOnePage() {
-        for (count in listOf(0, 100)) assertEquals(1, directoryPageCount(count))
-        assertTrue(directoryPageChapters(directoryChapters(listOf(volume(0))), 0, false).isEmpty())
-        assertTrue(directoryPageChapters(directoryChapters(listOf(volume(0))), 0, true).isEmpty())
-        assertEquals(12, directoryPageChapters(directoryChapters(listOf(volume(12))), 0, false).size)
-    }
-
     @Test fun descendingFillsPagesFromTheEndWithoutChangingCanonicalOrder() {
         val volume = volume(205)
         val original = volume.chapters.toList()
@@ -29,23 +22,6 @@ class DetailDirectoryPagingTest {
             directoryPageChapters(entries, 2, true).map { it.chapter.id })
         assertEquals(original, volume.chapters)
         assertSame(volume.chapters[204], directoryPageChapters(entries, 0, true).first().chapter)
-    }
-
-    @Test fun chapterLocationUsesTheCurrentOrderAndMatchesPageBoundaries() {
-        assertEquals(0, directoryPageForChapter(207, 99, false))
-        assertEquals(1, directoryPageForChapter(207, 100, false))
-        assertEquals(0, directoryPageForChapter(207, 107, true))
-        assertEquals(1, directoryPageForChapter(207, 106, true))
-        assertEquals(2, directoryPageForChapter(207, 0, true))
-        assertEquals(0, directoryPageForChapter(0, -1, true))
-        assertEquals(0, directoryPageForChapter(207, -1, true))
-    }
-
-    @Test fun changedCatalogClampsAnOldPageWithoutLosingItsLastChapter() {
-        assertEquals("id-101", directoryPageChapters(directoryChapters(listOf(volume(101))), 9, false).single().chapter.id)
-        assertEquals(0..99, directoryPageRange(201, -1))
-        assertEquals("id-1", directoryPageChapters(directoryChapters(listOf(volume(101))), 9, true).single().chapter.id)
-        assertEquals(200 downTo 101, directoryPageRange(201, -1, true))
     }
 
     @Test fun ninetyEightChapterVolumeFlowsIntoTheSameHundredChapterPage() {

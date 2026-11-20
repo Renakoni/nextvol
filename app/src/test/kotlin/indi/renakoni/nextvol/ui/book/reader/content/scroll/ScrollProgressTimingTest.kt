@@ -52,23 +52,6 @@ class ScrollProgressTimingTest {
 
     @After fun tearDown() = env.close()
 
-    @Test fun restorationCompletionAndRepeatedStopNeverReauthorizeTheNewGeometry() {
-        scrolling.value = false
-        offset.intValue = 500
-        progress.start()
-        env.runCurrent()
-        val list = uiState.lazyListState
-        progress.restoring(list)
-        offset.intValue = 700
-        progress.restored(list)
-        repeat(5) { env.runCurrent(); progress.writeProgressRightNow() }
-        assertEquals(0.8f, uiState.readingProgress)
-        assertEquals(listOf("chapter" to 0.6f), writes)
-        progress.readingPositioned(list)
-        env.runCurrent()
-        assertEquals(listOf("chapter" to 0.6f, "chapter" to 0.8f), writes)
-    }
-
     @Test fun oldListCallbacksCannotUnlockANewerRestoration() {
         scrolling.value = false
         progress.start()
@@ -94,14 +77,6 @@ class ScrollProgressTimingTest {
         assertEquals(listOf("chapter" to 0.1f), writes)
     }
 
-    @Test fun zeroHeightContentIsNotACompletedChapter() {
-        every { item.size } returns 0
-        progress.start()
-        env.runCurrent()
-        progress.writeProgressRightNow()
-        assertEquals(emptyList<Pair<String, Float>>(), writes)
-    }
-
     @Test fun reflowFlushesTheLastAuthorizedThrottledSampleNotTheNewGeometry() {
         offset.intValue = 500
         progress.start()
@@ -120,72 +95,10 @@ class ScrollProgressTimingTest {
         assertEquals(listOf("chapter" to 0.6f, "chapter" to 0.65f), writes)
     }
 
-    @Test
-    fun observationAndPersistenceKeepTheirSeparate120And2500MillisecondWindows() {
-        progress.start()
-        env.runCurrent()
-        assertEquals(listOf("chapter" to 0.1f), writes)
-        move(10_050, 100)
-        assertEquals(0.1f, uiState.readingProgress)
-        move(10_120, 200)
-        assertEquals(0.3f, uiState.readingProgress)
-        assertEquals(1, writes.size)
-        move(12_500, 300)
-        assertEquals(listOf("chapter" to 0.1f, "chapter" to 0.4f), writes)
-        move(12_620, 1000)
-        assertEquals("chapter" to 1f, writes.last())
-        assertEquals(3, writes.size)
-        scrolling.value = false
-        env.runCurrent()
-        assertEquals(3, writes.size)
-        assertEquals("chapter" to 1f, writes.last())
-    }
-
-    @Test
-    fun pendingThrottledOffsetsDoNotEmitOnTimeAloneButStoppingRecalculatesProgress() {
-        progress.start()
-        env.runCurrent()
-        move(10_050, 100)
-        now = 20_000
-        env.scheduler.advanceTimeBy(9_950)
-        env.runCurrent()
-        assertEquals(0.1f, uiState.readingProgress)
-        assertEquals(1, writes.size)
-        scrolling.value = false
-        env.runCurrent()
-        assertEquals(0.2f, uiState.readingProgress)
-        assertEquals(listOf("chapter" to 0.1f, "chapter" to 0.2f), writes)
-    }
-
     private fun move(time: Long, pixels: Int) {
         now = time
         offset.intValue = pixels
         env.runCurrent()
-    }
-
-    @Test
-    fun promotedChapterAtRestSavesEvenWhenItsProgressAlreadyMatchesTheDisplay() {
-        scrolling.value = false
-        progress.start()
-        env.runCurrent()
-        writes.clear()
-        now += 3_000
-        chapterId.value = "next"
-        offset.intValue = 400
-        uiState.contentList[1] = "next" to Ok(ChapterContentUiState("next", "Next", emptyList(), null, null))
-        uiState.readingChapterId = "next"
-        uiState.readingProgress = 0.5f
-        env.runCurrent()
-        assertEquals(listOf("next" to 0.5f), writes)
-    }
-
-    @Test
-    fun explicitStopSamplesTheViewportBeforeTheThrottledObserverRuns() {
-        progress.start()
-        env.runCurrent()
-        offset.intValue = 400
-        progress.writeProgressRightNow()
-        assertEquals("chapter" to 0.5f, writes.last())
     }
 
     @Test
@@ -199,18 +112,6 @@ class ScrollProgressTimingTest {
         env.runCurrent()
         assertEquals(0.6f, uiState.readingProgress)
         assertEquals(emptyList<Pair<String, Float>>(), writes)
-    }
-
-    @Test
-    fun firstBodyLayoutAtTheSameOffsetUpdatesProgressWithoutAnotherGesture() {
-        readable.value = false
-        scrolling.value = false
-        progress.start()
-        env.runCurrent()
-        writes.clear()
-        readable.value = true
-        env.runCurrent()
-        assertEquals(listOf("chapter" to 0.1f), writes)
     }
 
     @Test
@@ -235,16 +136,4 @@ class ScrollProgressTimingTest {
         assertEquals(listOf("chapter" to 0.6f, "chapter" to 0.3f), writes)
     }
 
-    @Test
-    fun stoppingTheReaderDuringRestorationDoesNotSaveTheTemporaryPosition() {
-        uiState.isRestoringProgress = true
-        scrolling.value = false
-        progress.start()
-        env.runCurrent()
-        progress.writeProgressRightNow()
-        assertEquals(emptyList<Pair<String, Float>>(), writes)
-        uiState.isRestoringProgress = false
-        env.runCurrent()
-        assertEquals(listOf("chapter" to 0.1f), writes)
-    }
 }

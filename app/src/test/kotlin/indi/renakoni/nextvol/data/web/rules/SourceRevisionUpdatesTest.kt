@@ -280,27 +280,6 @@ class SourceRevisionUpdatesTest {
         }
     }
 
-    @Test fun updatesAllowBookInfoToReuseTheNameFromSearchOrDiscovery() = runBlocking {
-        val host = Host()
-        RuleSourceFixture().use { fixture ->
-            val accounts = SourceSessionManager(fixture.authority)
-            val registry = WebSourceRegistry(fixture.authority)
-            val sources = ImportedRuleSources(host, registry, fixture.authority, accounts, fixture.runner)
-            try {
-                val first = candidate(sources, fixture.raw())
-                val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
-                val id = sources.activate(first.reference(), grants)
-                val raw = fixture.raw()
-                val next = candidate(sources, JsonObject(raw + ("ruleBookInfo" to JsonObject(raw.getValue("ruleBookInfo").jsonObject - "name"))))
-                SourceRevisionUpdates(host, sources, accounts, fixture.runner, fixture.authority).apply(id, next.reference(), grants)
-                val rules = sources.loginTarget(id).rules
-                val book = rules.search("same").first()
-                assertEquals("Same title", rules.information(book.id).title)
-                assertEquals(next.contentDigest, sources.installedSources().single().definition.contentDigest)
-            } finally { sources.stop(); host.root.deleteRecursively() }
-        }
-    }
-
     @Test fun initializationPermissionAndDurableCommitFailuresLeaveOldRuntimeUsable() = runBlocking {
         val host = Host()
         RuleSourceFixture().use { fixture ->

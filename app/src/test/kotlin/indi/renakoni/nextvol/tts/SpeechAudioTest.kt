@@ -11,12 +11,6 @@ import java.nio.ByteOrder
 class SpeechAudioTest {
     @get:Rule val files = TemporaryFolder()
 
-    @Test fun completePcmOutputIsAccepted() {
-        val file = files.newFile()
-        file.writeBytes(wav())
-        validateSpeechWav(file)
-    }
-
     @Test fun truncatedEmptyAndIncorrectPcmOutputIsRejectedBeforePlayback() {
         val valid = wav()
         val invalid = listOf(

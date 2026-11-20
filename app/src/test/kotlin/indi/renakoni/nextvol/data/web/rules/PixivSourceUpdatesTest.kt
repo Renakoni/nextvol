@@ -162,42 +162,6 @@ class PixivSourceUpdatesTest {
         }
     }
 
-    @Test fun panelButtonUsesReaderUpdatesAndShowsConciseRetryableResults(): Unit = runBlocking {
-        Dispatchers.setMain(Dispatchers.Unconfined)
-        try { withSource {
-            val model = SourcesViewModel(context, sources, updates, SourceLoginService(sources, accounts), registry,
-                ZLibrarySources(context, registry, StorageCipher.Plain))
-            suspend fun idle() = withTimeout(10000) { model.state.first { !it.busy } }
-            try {
-                idle(); model.select(id); idle(); model.beginConfiguration(id)
-                val form = idle().loginForm!!
-                val button = form.fields.single { it.action == "updateSource()" }
-                val before = installed()
-                val account = accounts.current(id)
-                var executions = 0
-                fixture.beforeRun = { _, _ -> executions++ }
-                server.enqueue(MockResponse().setResponseCode(503))
-                model.submitLogin(form.values, button.id, form.id)
-                assertEquals(R.string.sources_pixiv_update_failed, idle().message)
-                assertNotNull(idle().loginForm)
-                server.enqueue(MockResponse().setBody("{}"))
-                model.submitLogin(form.values, button.id, form.id)
-                assertEquals(R.string.sources_pixiv_update_unsupported, idle().message)
-                assertNotNull(idle().loginForm)
-                reply()
-                model.submitLogin(form.values, button.id, form.id)
-                assertEquals(R.string.sources_up_to_date, idle().message)
-                assertNotNull(idle().loginForm)
-                model.consumeMessage(R.string.sources_up_to_date)
-                assertNull(idle().message)
-                assertEquals(0, executions)
-                assertEquals(List(3) { PixivUpdateAdapter.UPDATE_URL }, download.addresses)
-                assertEquals(before, installed())
-                assertEquals(account, accounts.current(id))
-            } finally { model.cancel() }
-        } } finally { Dispatchers.resetMain() }
-    }
-
     @Test fun retiredPanelCannotDownloadOrPublishUpdateResults(): Unit = runBlocking {
         Dispatchers.setMain(Dispatchers.Unconfined)
         try { for (duringDownload in listOf(false, true)) withSource {

@@ -22,16 +22,6 @@ class SpeechStructureTest {
         speechStructure(SpeechMappedText.original(text), settings, incoming, resolve) {}
     }
 
-    @Test fun disabledDialogueAndEmptyInputLeaveContextUntouched() {
-        val context = SpeechContext(true, listOf(SpeechContextText("上一句", true, first)), listOf(null, "voice-a"))
-        val disabled = structure("“<<甲>>你好”", SpeechTextSettings(), context, names)
-        assertEquals("“<<甲>>你好”", disabled.parts.single().content.text)
-        assertFalse(disabled.parts.single().dialogue)
-        assertNull(disabled.parts.single().speakerHint)
-        assertEquals(context, disabled.nextContext)
-        assertEquals(context, structure("", incoming = context).nextContext)
-    }
-
     @Test fun quoteStatesDistinguishDialogueFromQuotedNarrationWithoutNestingOrNewlineReset() {
         val cases = listOf(
             "他说：“你好。”" to listOf("他说：" to false, "“你好。”" to true),

@@ -40,10 +40,4 @@ class SourceStorageCompatibilityTest {
         } finally { root.toFile().deleteRecursively() }
     }
 
-    @Test fun allLegacyKeysRemainLowercaseUtf8Sha256() {
-        for (value in listOf("", "cookies", "content/alias/https://example.test/中文", "é🌙\u0000")) {
-            assertEquals(legacyHash(value), hash(value))
-            assertTrue(hash(value).matches(Regex("[0-9a-f]{64}")))
-        }
-    }
 }

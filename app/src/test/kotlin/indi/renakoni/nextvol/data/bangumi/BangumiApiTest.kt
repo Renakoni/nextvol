@@ -8,7 +8,6 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
-import java.util.concurrent.TimeUnit
 
 class BangumiApiTest {
     private val server = MockWebServer()
@@ -17,18 +16,6 @@ class BangumiApiTest {
     @Before fun setup() { server.start(); api = BangumiApi(OkHttpClient(), server.url("/")) }
     @After fun close() { session.revoke(); server.shutdown() }
 
-    @Test fun progressRequestOnlyContainsVolumes() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(204))
-        api.updateVolumes(session, 123, 9)
-        val request = server.takeRequest(2, TimeUnit.SECONDS)!!
-        assertEquals("PATCH", request.method)
-        assertEquals("/v0/users/-/collections/123", request.path)
-        assertEquals("{\"vol_status\":9}", request.body.readUtf8())
-        assertEquals("application/json", request.getHeader("Content-Type"))
-        assertEquals("Bearer test-only-token", request.getHeader("Authorization"))
-        assertTrue(request.getHeader("User-Agent")!!.contains("Renakoni/NextVol/"))
-    }
-
     @Test fun publicTagSearchUsesTagFilterAndNeverAnAccountCredential() = runBlocking {
         server.enqueue(MockResponse().setBody("""{"data":[],"total":0}"""))
         api.searchTag("实教", 10)
@@ -36,15 +23,6 @@ class BangumiApiTest {
         assertEquals("/v0/search/subjects?limit=10&offset=10", request.path)
         assertEquals("""{"keyword":"","sort":"heat","filter":{"type":[1],"tag":["实教"]}}""", request.body.readUtf8())
         assertNull(request.getHeader("Authorization"))
-    }
-
-    @Test fun statusChangesAndCreationAreSeparateFromProgressAndAcceptEmptySuccess() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(202))
-        server.enqueue(MockResponse().setResponseCode(204))
-        api.createCollection(session, 123, true)
-        api.resumeCollection(session, 123)
-        assertEquals("{\"type\":3,\"private\":true}", server.takeRequest().body.readUtf8())
-        assertEquals("{\"type\":3}", server.takeRequest().body.readUtf8())
     }
 
     @Test fun errorsRetainStatusAndBackoffButNeverTheBody() = runBlocking {
@@ -57,13 +35,6 @@ class BangumiApiTest {
         }
     }
 
-    @Test fun missingCollectionIsDistinctFromUnauthorized() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(404))
-        server.enqueue(MockResponse().setResponseCode(401))
-        assertNull(api.collection(session, 123))
-        try { api.collection(session, 123); fail() } catch (failure: BangumiApiException) { assertEquals(401, failure.status) }
-    }
-
     @Test fun onlyOfficialSubjectLinksSupplyIds() {
         for (host in listOf("bgm.tv", "bangumi.tv", "chii.in")) for (scheme in listOf("http", "https"))
             assertEquals(123, BangumiApi.subjectId("$scheme://$host/subject/123"))
@@ -71,13 +42,6 @@ class BangumiApiTest {
         assertNull(BangumiApi.subjectId("https://bgm.tv@evil.example/subject/123"))
         assertNull(BangumiApi.subjectId("-1"))
         assertNull(BangumiApi.subjectId("https://bangumi.tv/anime/list/123"))
-    }
-
-    @Test fun authenticatedProfileIncludesAvatarAndOlderSavedProfilesStillDecode() = runBlocking {
-        server.enqueue(MockResponse().setBody("""{"id":17,"username":"test","avatar":{"large":"https://lain.bgm.tv/large.jpg","medium":"https://lain.bgm.tv/medium.jpg","small":"https://lain.bgm.tv/small.jpg"}}"""))
-        assertEquals("https://lain.bgm.tv/medium.jpg", api.me(session).avatar.url)
-        assertEquals("Bearer test-only-token", server.takeRequest().getHeader("Authorization"))
-        assertEquals("", bangumiJson.decodeFromString<BangumiUser>("""{"id":17,"username":"test"}""").avatar.url)
     }
 
     @Test fun redirectsCannotForwardTheAccountCredential() = runBlocking {

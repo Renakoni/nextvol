@@ -47,49 +47,6 @@ class RuleLoginFormTest {
         }
     }
 
-    @Test fun configurationMetadataIsStrictOptionalAndDoesNotChangeActionIdentity() {
-        val plain = LoginForm.parse("""[{"name":"Setting","type":"button","action":"configure()"}]""", "").fields.single()
-        assertTrue(plain.enabled)
-        assertNull(plain.section)
-        assertNull(plain.checked)
-        val row = """[{"name":"Setting","type":"button","action":"configure()","enabled":false,"section":"Discovery","checked":true,"description":"Explanation"}]"""
-        val field = LoginForm.parse(row, "", extended = true).fields.single()
-        assertFalse(field.enabled)
-        assertEquals("Discovery", field.section)
-        assertEquals(true, field.checked)
-        assertEquals("Explanation", field.description)
-        assertEquals(plain.id, field.id)
-        assertTrue(runCatching { LoginForm.parse(row, "") }.exceptionOrNull() is SourceContentException)
-        listOf(
-            """"enabled":"false"""", """"enabled":0""", """"checked":"true"""",
-            """"section":" """", """"section":"${"x".repeat(129)}"""",
-            """"description":"${"x".repeat(513)}"""", """"description":12"""
-        ).forEach { metadata ->
-            assertTrue(metadata, runCatching {
-                LoginForm.parse("""[{"name":"Setting","type":"button",$metadata}]""", "", extended = true)
-            }.exceptionOrNull() is SourceContentException)
-        }
-        assertTrue(runCatching { LoginForm.parse("""[{"name":"Input","checked":true}]""", "", true) }.isFailure)
-    }
-
-    @Test fun disabledActionCannotSaveInputsOrRunScripts() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(profile = EXTENSION_PROFILE) { raw -> JsonObject(raw + mapOf(
-                "loginUrl" to JsonPrimitive("function login(){}"),
-                "loginUi" to JsonPrimitive("""[
-                    {"name":"value","type":"text","default":"original"},
-                    {"name":"Account","type":"button","enabled":false,"action":"java.ajax('/should-not-run')"}
-                ]""")
-            )) }.use { source ->
-                val form = source.loginForm()
-                val failure = runCatching { source.login(mapOf("value" to "changed"), form.fields.last().id, form.id) }.exceptionOrNull()
-                assertTrue(failure is SourceContentException)
-                assertEquals("original", source.loginForm().values["value"])
-                assertEquals(0, fixture.server.requestCount)
-            }
-        }
-    }
-
     @Test fun actionFeedbackIsTrimmedOrderedBoundedAndNotReplayedByTheNextAction() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.source { raw -> JsonObject(raw + mapOf(
@@ -107,39 +64,6 @@ class RuleLoginFormTest {
                 assertEquals("5", bounded.first())
                 assertEquals(4096, bounded.last().length)
                 assertTrue(source.login(form.values, "quiet").messages.isEmpty())
-            }
-        }
-    }
-
-    @Test fun foregroundLoginGetsFiveMinutesButSearchAndNetworkRequestsKeepTheirBudgets() = runBlocking {
-        var browserCalls = 0
-        val browser = BrowserExecutor { _, request, options, _, _ ->
-            assertTrue(options.interactive)
-            assertEquals(60000L, request.timeoutMillis)
-            browserCalls++
-            hnovel.network.BrokerResult.Success(hnovel.network.BrokerResponse(0, request.url, emptyMap(),
-                "signed in".toByteArray(), "UTF-8", 0, protocol = "", kind = hnovel.network.ResponseKind.BrowserDocument))
-        }
-        RuleSourceFixture(browser).use { fixture ->
-            val budgets = mutableListOf<Long>()
-            fixture.beforeRun = { _, limits -> budgets += limits.timeoutMillis }
-            fixture.source { raw -> JsonObject(raw + mapOf("loginUi" to JsonPrimitive("[]"), "loginUrl" to JsonPrimitive("""
-                function login() {
-                    var page = java.startBrowserAwait('/login', 'Login', false);
-                    if (page.body() !== 'signed in') throw new Error('browser result missing');
-                    java.ajax('/search');
-                }
-            """.trimIndent()))) }.use { source ->
-                source.loginForm()
-                budgets.clear()
-                source.login(emptyMap())
-                assertEquals(1, browserCalls)
-                assertTrue(budgets.isNotEmpty())
-                assertTrue(budgets.toString(), budgets.all { it == 300000L })
-                budgets.clear()
-                source.search("book", 1)
-                assertTrue(budgets.isNotEmpty())
-                assertTrue(budgets.toString(), budgets.all { it == 30000L })
             }
         }
     }

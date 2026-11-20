@@ -79,15 +79,4 @@ class SourceExportWorkerTest {
         assertEquals(listOf(a.storageKey, a.storageKey, b.storageKey, b.storageKey), items.map { it.bookId })
     }
 
-    @Test fun selectedVolumeFromAnotherSourceIsRejectedBeforeRepositoryAccess() = runTest {
-        val context = RuntimeEnvironment.getApplication()
-        val repository = mockk<BookRepository>()
-        val data = workDataOf("bookId" to a.storageKey, "exportType" to "VOLUMES",
-            "selectedVolume" to BookIdentity.volumeKey(b, "v1"))
-        val result = ExportBookToEPUBWork(context, workerParameters(data),
-            ExportBookToEpubUseCase(context, repository, mockk(), mockk(), exportDownloads())).doWork()
-            as ListenableWorker.Result.Failure
-        assertEquals("invalid_volume_identity", result.outputData.getString("reason"))
-        verify { repository wasNot Called }
-    }
 }

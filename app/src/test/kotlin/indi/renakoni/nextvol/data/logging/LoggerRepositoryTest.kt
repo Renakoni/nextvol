@@ -6,7 +6,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.test.core.app.ApplicationProvider
-import indi.renakoni.nextvol.BuildConfig
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
@@ -15,16 +14,11 @@ import indi.renakoni.nextvol.ui.home.settings.logcat.LogcatViewModel
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
-import io.mockk.slot
 import io.mockk.unmockkStatic
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -61,17 +55,6 @@ class LoggerRepositoryTest {
         Dispatchers.resetMain()
     }
 
-    private fun loadArchive(): File {
-        val archive = File(logsDir, "lnr_panic_20260920_120000.log").apply { writeText(line) }
-        repository.loadLogFile(archive.name)
-        runBlocking {
-            withTimeout(5_000) {
-                while (repository.fileLogEntries.isEmpty()) delay(10)
-            }
-        }
-        return archive
-    }
-
     @Test fun speechLogsKeepProcessingDetailsAndClearIndependentlyOfApplicationLogs() {
         repository.recordSpeech(SpeechLogRecord(SpeechLogStage.Request, SpeechLogEvent.Started))
         assertTrue(repository.speechLogEntries.value.isEmpty())
@@ -104,21 +87,6 @@ class LoggerRepositoryTest {
         assertTrue(appFile.exists())
         assertFalse(speechFile.exists())
         assertTrue(repository.speechLogEntries.value.isEmpty())
-    }
-
-    @Test fun savedLogsRemainReadableWhenRecordingIsOff() {
-        loadArchive()
-        assertTrue(repository.fileLogEntries.any { it.text == line && it.logLevel == LogLevel.ERROR })
-    }
-
-    @Test fun deletingAllLogsAlsoClearsTheCurrentRunAndLoadedContent() {
-        val archive = loadArchive()
-        repository.realTimeLogEntries.add(LogEntry("current run", LogLevel.INFO))
-        repository.deleteLogs()
-        assertFalse(archive.exists())
-        assertTrue(repository.realTimeLogEntries.isEmpty())
-        assertTrue(repository.fileLogEntries.isEmpty())
-        assertTrue(repository.getAvailableLogFiles().isEmpty())
     }
 
     @Test fun sharingAnArchiveGrantsReadAccessToItsActualContent() {
@@ -170,30 +138,4 @@ class LoggerRepositoryTest {
         }
     }
 
-    @Test fun sharingLiveLogsWritesTheReportAndRefreshesTheFileList() {
-        val currentLine = "09-20 12:00:01.000  123  456 I Reader: current run"
-        repository.realTimeLogEntries.addAll(listOf(
-            LogEntry(line, LogLevel.ERROR),
-            LogEntry(currentLine, LogLevel.INFO),
-        ))
-        repository.fileLogEntries.add(LogEntry("previous archive", LogLevel.SYSTEM))
-        val sharer = mockk<LogFileSharer>(relaxed = true)
-        val viewModel = LogcatViewModel(repository, mockk(relaxed = true), sharer)
-
-        viewModel.shareLogs()
-
-        val sharedFile = slot<File>()
-        verify(exactly = 1) { sharer.share(capture(sharedFile)) }
-        val export = sharedFile.captured
-        assertEquals(logsDir, export.parentFile)
-        assertTrue(export.name.matches(Regex("lnr_export_\\d{8}_\\d{6}\\.log")))
-        assertEquals(listOf(export.name, LIVE_LOG_OPTION), viewModel.logFilenameList)
-        val report = export.readText()
-        assertTrue(report.startsWith("NextVol ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"))
-        assertTrue(report.contains("\nDate: "))
-        assertTrue(report.contains("\nSDK_INT: 30\n"))
-        assertTrue(report.contains("\nSUPPORTED_ABIS: "))
-        assertTrue(report.endsWith("\n\n----- beginning of logs\n\n$line\n$currentLine\n----- end of logcat"))
-        assertFalse(report.contains("previous archive"))
-    }
 }

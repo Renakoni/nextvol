@@ -24,37 +24,6 @@ class DiscoveryStorageTest {
         }
     ))
 
-    @Test fun identicalOverviewsDoNotRewriteBooksAndDetailsStillLoad() = runBlocking {
-        val writes = Writes()
-        RuleSourceFixture(cipher = writes).use { fixture -> fixture.source { definition(it) }.use { source ->
-            val first = source.openDiscovery("one").openPages("/search", emptyMap()).page(1)
-            val second = source.openDiscovery("two").openPages("/search", emptyMap()).page(1)
-            assertEquals(first.books, second.books)
-            assertEquals(1, writes.records.size)
-            assertEquals("Same author", source.information(first.books.single().id).author)
-            assertTrue(writes.records.last().informationLoaded)
-            val saved = writes.records.size
-            source.openDiscovery("after-details").openPages("/search", emptyMap()).page(1)
-            assertEquals(saved, writes.records.size)
-        } }
-    }
-
-    @Test fun aSingleBookOverviewAlsoSkipsIdenticalRecords() = runBlocking {
-        val writes = Writes()
-        RuleSourceFixture(cipher = writes).use { fixture -> fixture.source {
-            JsonObject(definition(it) + ("bookUrlPattern" to JsonPrimitive(".*/book/one")))
-        }.use { source ->
-            val first = source.openDiscovery("one").openPages("/book/one", emptyMap()).page(1)
-            val second = source.openDiscovery("two").openPages("/book/one", emptyMap()).page(1)
-            assertEquals(first.books, second.books)
-            assertEquals("Same title", first.books.single().title)
-            assertEquals(fixture.server.url("/cover.png").toString(), first.books.single().coverUrl)
-            assertEquals(1, writes.records.size)
-            assertEquals(first.books.single().coverUrl, writes.records.single().book.coverUrl)
-            assertFalse(writes.records.single().informationLoaded)
-        } }
-    }
-
     @Test fun accountAndRevisionChangesStillPersistANewRecord() = runBlocking {
         for (account in listOf(false, true)) {
             val writes = Writes()

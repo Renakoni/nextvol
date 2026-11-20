@@ -6,7 +6,6 @@
         <activity android:name=".tts.matcha.MatchaProbeActivity" android:exported="true"
             android:permission="android.permission.DUMP" />
         <activity android:name=".reader.ReaderLayoutTestActivity" android:exported="false" />
-        <activity android:name=".reader.ReaderSpreadTestActivity" android:exported="false" />
         <activity android:name=".sourcebrowser.BrowserTestHostActivity" android:exported="false" />
         <activity android:name=".sourcebrowser.VerificationTestHostActivity" android:exported="false" />
         <service

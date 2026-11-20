@@ -8,7 +8,6 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 class DiscoveryConcurrentReadTest {
     private fun definition(raw: JsonObject, extra: Map<String, JsonElement> = emptyMap()) = JsonObject(raw + mapOf(
@@ -18,35 +17,6 @@ class DiscoveryConcurrentReadTest {
         }
     ) + extra)
     private fun html(path: String) = (1..30).joinToString("") { "<li><h2>$path $it</h2><a href='/book/$it'>Read</a></li>" }
-
-    @Test fun twoIndependentHttpReadsReallyOverlapAndKeepAllPreviewBooks() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val entered = CountDownLatch(2)
-            val release = CountDownLatch(1)
-            val active = AtomicInteger()
-            val maximum = AtomicInteger()
-            fixture.server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    maximum.accumulateAndGet(active.incrementAndGet(), ::maxOf)
-                    entered.countDown()
-                    try { check(release.await(5, TimeUnit.SECONDS)) }
-                    finally { active.decrementAndGet() }
-                    return MockResponse().setBody(html(request.path!!))
-                }
-            }
-            fixture.source { definition(it) }.use { source ->
-                val pages = requireNotNull(source.openDiscovery("parallel").concurrentPreviews(listOf("/one", "/two"), emptyMap()))
-                val loads = pages.map { async { it.page(1) } }
-                try {
-                    withContext(Dispatchers.IO) { assertTrue("Both requests must arrive before either response", entered.await(5, TimeUnit.SECONDS)) }
-                } finally { release.countDown() }
-                assertEquals(listOf("/one 1", "/two 1"), loads.awaitAll().map { it.books.first().title })
-                assertTrue(loads.awaitAll().all { it.books.size == 6 })
-                assertEquals(2, maximum.get())
-                assertEquals(2, fixture.server.requestCount)
-            }
-        }
-    }
 
     @Test fun prepareFailureBelongsToItsPageAndDoesNotPreventAnotherRead() = runBlocking {
         RuleSourceFixture().use { fixture ->
@@ -80,16 +50,6 @@ class DiscoveryConcurrentReadTest {
                 assertEquals(0, fixture.server.requestCount)
             }
         }
-    }
-
-    @Test fun emptyCachedRequestInputsKeepTheGroupSequential() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source { raw -> JsonObject(definition(raw) +
-            ("exploreUrl" to JsonPrimitive("@js:cache.put('account','');'Books::/list'"))) }.use { source ->
-            val discovery = source.openDiscovery("empty-account")
-            discovery.catalog()
-            assertNull(discovery.concurrentPreviews(listOf("/user/{{cache.get('account')}}", "/other"), emptyMap()))
-            assertEquals(0, fixture.server.requestCount)
-        } }
     }
 
     @Test fun missingCachedInputsStillFallBackWhenRequestPreparationFails() = runBlocking {

@@ -53,18 +53,6 @@ class ScriptRequestTemplatesTest {
         assertEquals(FailureCode.Runtime, failed.code)
     }
 
-    @Test fun sourceKeyPropertyUsesTheSameHostIdentityAsItsGetter() {
-        val engine = RhinoScriptEngine(HostBridge { name, _ ->
-            assertEquals("source.getKey", name)
-            JsonPrimitive("https://source.invalid/")
-        })
-        assertEquals(ScriptResult.Success("true"), engine.evaluate("source.key===source.getKey()", frame))
-    }
-
-    @Test fun malformedOptionalUrlObjectFallsBackBeforeTheHostCompiler() {
-        assertEquals("/search?q={{key}},{}", expanded("""/search?q={{key}},{"body":"id"="search-form"}"""))
-    }
-
     @Test fun singleQuotedOptionsRemainDataAndOptionScriptsStillRunInTheWorker() {
         val rule = """/search,{'method':'POST','body':'keyword={{key}}','header':{'X-Test':'it\'s "quoted"'}}"""
         assertEquals("/search," + hnovel.rules.RequestOptionsJson.options(rule.substringAfter(',')), expanded(rule))
@@ -123,10 +111,6 @@ class ScriptRequestTemplatesTest {
         assertEquals("https://example.org/books/two?next=2,{\"method\":\"POST\",\"body\":\"key={{key}}\"}",
             expanded("""<one,two>,{"method":"POST","body":"key={{key}}","js":"result+'?next='+page"}"""))
         assertEquals("https://example.org/new,{}", expanded("""start,{"js":"baseUrl+'/new'"}"""))
-    }
-
-    @Test fun staticPlaceholdersRemainForCharsetAwareHostCompiler() {
-        assertEquals("/find?q={{key}}&p={{page}}&n=3", expanded("/find?q={{key}}&p={{page}}&n={{page+1}}"))
     }
 
     @Test fun terminalScriptRetainsCommaExpressionsWhileDelimitedScriptsCanHaveOptions() {

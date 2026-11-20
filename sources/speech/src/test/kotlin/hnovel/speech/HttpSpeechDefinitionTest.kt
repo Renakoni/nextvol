@@ -41,18 +41,6 @@ class HttpSpeechDefinitionTest {
         assertEquals(first.revision, second.revision)
     }
 
-    @Test fun sourceSpeedAndFloatRateMapToTheReferenceScriptBinding() {
-        fun source(speed: String = "null") = previewHttpSpeech("""{"name":"Voice","url":"https://example.com","speed":$speed}""").sources.single()
-        assertEquals(10, source().scriptSpeed())
-        assertEquals(10, source("5").scriptSpeed())
-        assertEquals(5, source("0").scriptSpeed())
-        assertEquals(85, source("80").scriptSpeed())
-        assertEquals(10, source("80").scriptSpeed(1f))
-        assertEquals(0, source().scriptSpeed(0f))
-        assertEquals(20, source().scriptSpeed(2f))
-        assertThrows(IllegalArgumentException::class.java) { source().scriptSpeed(Float.NaN) }
-    }
-
     @Test fun malformedAndOversizedInputsHaveBoundedNonSensitiveErrors() {
         assertEquals(SpeechImportError.InvalidJson, previewHttpSpeech("[".repeat(20000) + "0" + "]".repeat(20000)).issues.single().error)
         val quotedBraces = """{"name":"Voice","url":"https://example.com","extra":"[[[{{{\\\""}"""

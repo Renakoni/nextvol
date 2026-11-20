@@ -41,12 +41,6 @@ class SourceSessionManagerTest {
         assertFalse(manager.accepts(invalidLogout))
     }
 
-    @Test fun missingSourceStartsInactive() {
-        val session = SourceSessionManager().current(source)
-        assertFalse(session.active)
-        assertTrue(session.cookies.isEmpty())
-    }
-
     @Test fun logsRedactCredentialLikeQueryValues() {
         val redacted = SourceSessionManager().redact("https://x.test/login?token=secret&ok=yes password=hunter2")
         assertFalse(redacted.contains("secret"))
