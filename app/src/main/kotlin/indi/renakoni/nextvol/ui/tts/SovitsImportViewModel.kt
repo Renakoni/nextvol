@@ -24,7 +24,6 @@ internal enum class SovitsImportField(val suffix: String?) { Gpt(".ckpt"), Sovit
 internal data class SovitsImportState(
     val draft: SovitsImportDraft = SovitsImportDraft(),
     val picking: Boolean = false,
-    val invalidFile: SovitsImportField? = null,
     val busy: Boolean = false,
     val cancelling: Boolean = false,
     val progress: SovitsImportMessage? = null,
@@ -45,7 +44,7 @@ internal class SovitsImportViewModel @Inject constructor(
         if (!state.value.busy && !state.value.picking) mutableState.update { it.copy(draft = draft, error = null) }
     }
 
-    fun pick(field: SovitsImportField, uri: Uri) {
+    fun pickAudio(uri: Uri) {
         if (state.value.busy || state.value.picking) return
         mutableState.update { it.copy(picking = true, error = null) }
         viewModelScope.launch {
@@ -55,17 +54,7 @@ internal class SovitsImportViewModel @Inject constructor(
                         if (it.moveToFirst()) it.getString(0) else null
                     } ?: uri.lastPathSegment.orEmpty().substringAfterLast('/')
                 }
-                val file = SovitsImportFile(uri, name)
-                val accepted = field.suffix == null || file.hasSuffix(field.suffix)
-                mutableState.update { current ->
-                    val picked = file.takeIf { accepted }
-                    val draft = current.draft
-                    current.copy(invalidFile = if (!accepted) field else current.invalidFile?.takeUnless { it == field }, draft = when (field) {
-                        SovitsImportField.Gpt -> draft.copy(gpt = picked)
-                        SovitsImportField.Sovits -> draft.copy(sovits = picked)
-                        SovitsImportField.Audio -> draft.copy(audio = file)
-                    })
-                }
+                mutableState.update { it.copy(draft = it.draft.copy(audio = SovitsImportFile(uri, name))) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutableState.update { it.copy(error = SovitsImportMessage(R.string.sovits_file_unreadable)) } }
             finally { mutableState.update { it.copy(picking = false) } }

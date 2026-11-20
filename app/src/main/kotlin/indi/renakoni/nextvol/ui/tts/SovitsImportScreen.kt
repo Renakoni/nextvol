@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.ui.tts
 
-import android.webkit.MimeTypeMap
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -13,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -41,24 +43,35 @@ internal fun SovitsImportScreen(onBack: () -> Unit) {
     val viewModel = hiltViewModel<SovitsImportViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val pickAvatar = rememberSpeechAvatarPicker { viewModel.edit(viewModel.state.value.draft.copy(avatar = it)) }
-    val gpt = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { viewModel.pick(SovitsImportField.Gpt, it) } }
-    val sovits = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { viewModel.pick(SovitsImportField.Sovits, it) } }
-    val audio = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let { viewModel.pick(SovitsImportField.Audio, it) } }
+    val audio = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(viewModel::pickAudio) }
+    var weightField by rememberSaveable { mutableStateOf<SovitsImportField?>(null) }
+    var folders by rememberSaveable { mutableStateOf(arrayListOf<Uri>()) }
+    val chooseFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree != null) folders = arrayListOf(DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)))
+        else if (folders.isEmpty()) weightField = null
+    }
     LaunchedEffect(state.completed) { if (state.completed) onBack() }
+    val field = weightField
+    val directory = folders.lastOrNull()
+    if (field != null && directory != null) {
+        SovitsWeightPicker(directory, requireNotNull(field.suffix), onFolder = { folders = ArrayList(folders + it) },
+            onChangeFolder = { chooseFolder.launch(directory) }, onBack = {
+                if (folders.size > 1) folders = ArrayList(folders.dropLast(1)) else weightField = null
+            }, onPick = { file ->
+                val draft = viewModel.state.value.draft
+                viewModel.edit(if (field == SovitsImportField.Gpt) draft.copy(gpt = file) else draft.copy(sovits = file))
+                weightField = null
+            })
+        return
+    }
     SovitsImportForm(state, onEdit = viewModel::edit, onAvatar = pickAvatar,
-        onPick = { field ->
-            when (field) {
-                SovitsImportField.Gpt -> gpt.launch(weightMimeTypes("ckpt"))
-                SovitsImportField.Sovits -> sovits.launch(weightMimeTypes("pth"))
-                SovitsImportField.Audio -> audio.launch(arrayOf("audio/*"))
+        onPick = { slot ->
+            if (slot == SovitsImportField.Audio) audio.launch(arrayOf("audio/*")) else {
+                weightField = slot
+                if (folders.isEmpty()) chooseFolder.launch(null)
             }
         }, onImport = viewModel::install, onCancel = viewModel::cancel, onBack = onBack)
 }
-
-// DocumentsUI filters by MIME type. The provider's display name is checked again on return.
-private fun weightMimeTypes(extension: String) = listOfNotNull(
-    MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension), "application/octet-stream", "application/x-pytorch",
-).distinct().toTypedArray()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,10 +124,8 @@ internal fun SovitsImportForm(state: SovitsImportState, onEdit: (SovitsImportDra
                 }
                 Spacer(Modifier.height(24.dp))
                 SettingsCategory {
-                    SovitsFileRow(stringResource(R.string.sovits_gpt_weight), draft.gpt, enabled,
-                        errorSuffix = state.invalidFile?.takeIf { it == SovitsImportField.Gpt }?.suffix) { onPick(SovitsImportField.Gpt) }
-                    SovitsFileRow(stringResource(R.string.sovits_sovits_weight), draft.sovits, enabled,
-                        errorSuffix = state.invalidFile?.takeIf { it == SovitsImportField.Sovits }?.suffix) { onPick(SovitsImportField.Sovits) }
+                    SovitsFileRow(stringResource(R.string.sovits_gpt_weight), draft.gpt, enabled) { onPick(SovitsImportField.Gpt) }
+                    SovitsFileRow(stringResource(R.string.sovits_sovits_weight), draft.sovits, enabled) { onPick(SovitsImportField.Sovits) }
                 }
                 SettingsCategory {
                     SovitsFileRow(stringResource(R.string.sovits_reference_audio), draft.audio, enabled) { onPick(SovitsImportField.Audio) }
@@ -133,15 +144,13 @@ internal fun SovitsImportForm(state: SovitsImportState, onEdit: (SovitsImportDra
 }
 
 @Composable
-private fun SovitsFileRow(label: String, file: SovitsImportFile?, enabled: Boolean, errorSuffix: String? = null, onClick: () -> Unit) {
+private fun SovitsFileRow(label: String, file: SovitsImportFile?, enabled: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)
         .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
         .heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            if (errorSuffix != null) Text(stringResource(R.string.sovits_choose_extension, errorSuffix),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             if (file != null) Text(file.name, maxLines = 1, overflow = TextOverflow.MiddleEllipsis,
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

@@ -17,9 +17,7 @@ import java.io.File
 import java.io.InputStream
 import javax.inject.Inject
 
-internal data class SovitsImportFile(val uri: Uri, val name: String) {
-    fun hasSuffix(suffix: String) = name.endsWith(suffix, ignoreCase = true)
-}
+internal data class SovitsImportFile(val uri: Uri, val name: String)
 
 internal data class SovitsImportDraft(
     val name: String = "",
@@ -29,8 +27,7 @@ internal data class SovitsImportDraft(
     val text: String = "",
     val avatar: String = "",
 ) {
-    val ready get() = name.isNotBlank() && name.length <= 80 && gpt?.hasSuffix(".ckpt") == true &&
-        sovits?.hasSuffix(".pth") == true && audio != null && text.isNotBlank()
+    val ready get() = name.isNotBlank() && name.length <= 80 && gpt != null && sovits != null && audio != null && text.isNotBlank()
 }
 
 internal class SovitsWeightImport @Inject constructor(
