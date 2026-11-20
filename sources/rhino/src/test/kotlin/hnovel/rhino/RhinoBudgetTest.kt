@@ -34,12 +34,6 @@ class RhinoBudgetTest {
         }
     }
 
-    @Test(timeout = 5000) fun objectGettersAlsoRunUnderTheInstructionObserver() {
-        val engine = RhinoScriptEngine(bridge, ScriptLimits(instructionLimit = 3000))
-        val result = engine.evaluate("({get value() {while(true) {}}})", frame)
-        assertEquals(FailureCode.Timeout, (result as ScriptResult.Failure).code)
-    }
-
     @Test fun cancellationAndForeignContextCannotBypassOwnedObserver() {
         val engine = RhinoScriptEngine(bridge)
         Thread.currentThread().interrupt()

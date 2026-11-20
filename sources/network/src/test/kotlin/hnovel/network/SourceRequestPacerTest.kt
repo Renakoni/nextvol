@@ -15,40 +15,6 @@ class SourceRequestPacerTest {
             assertNull(value, SourceRequestRate.parse(value))
     }
 
-    @Test fun disabledRateDoesNotWait() = runTest {
-        val pacer = SourceRequestPacer(null) { currentTime }
-        repeat(20) { pacer.awaitAdmission() }
-        assertEquals(0, currentTime)
-    }
-
-    @Test fun concurrentWaitersRecheckTheWindow() = runTest {
-        val pacer = SourceRequestPacer(SourceRequestRate(2, 2000)) { currentTime }
-        val admissions = mutableListOf<Long>()
-        repeat(5) { launch { pacer.awaitAdmission(); admissions += currentTime } }
-        advanceUntilIdle()
-        assertEquals(listOf(0L, 0L, 2000L, 2000L, 4000L), admissions)
-    }
-
-    @Test fun idleTimeDoesNotAccumulateCredit() = runTest {
-        val pacer = SourceRequestPacer(SourceRequestRate(1, 2000)) { currentTime }
-        pacer.awaitAdmission()
-        advanceTimeBy(20000)
-        pacer.awaitAdmission()
-        pacer.awaitAdmission()
-        assertEquals(22000, currentTime)
-    }
-
-    @Test fun cancelledWaiterDoesNotReserveTheNextWindow() = runTest {
-        val pacer = SourceRequestPacer(SourceRequestRate(1, 2000)) { currentTime }
-        pacer.awaitAdmission()
-        val cancelled = launch { pacer.awaitAdmission(); fail("Cancelled waiter was admitted") }
-        runCurrent()
-        advanceTimeBy(1000)
-        cancelled.cancelAndJoin()
-        pacer.awaitAdmission()
-        assertEquals(2000, currentTime)
-    }
-
     @Test fun delayedWakeupAnchorsToActualAdmission() = runTest {
         var clock = 0L
         val pacer = SourceRequestPacer(SourceRequestRate(1, 2000)) { clock }

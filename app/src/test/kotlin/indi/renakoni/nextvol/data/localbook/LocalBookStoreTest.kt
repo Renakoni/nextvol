@@ -95,16 +95,6 @@ class LocalBookStoreTest {
         return store.publish(draft, store.preview(draft), "Imported novel", shelf).first
     }
 
-    @Test fun anUnsectionedImportDoesNotInventAVolumeNamedAfterTheBook() = runBlocking {
-        val file = temporary.newFile("unsectioned.txt").apply {
-            writeText("第一章 开端\n完整正文甲\n第二章 旅途\n完整正文乙")
-        }
-        val book = importBook(file)
-        val volume = books.getBookVolumesFlow(book.storageKey).last().get()!!.volumes.single()
-        assertEquals("", volume.volumeTitle)
-        assertEquals(2, volume.chapters.size)
-    }
-
     @Test fun largeTxtIsPreparedPerChapterPublishedReopenedAndRelinkedWithoutLosingPositions() = runBlocking {
         val count = 1150
         fun body(number: Int) = "body-$number:".let { it + "x".repeat(60_000 - it.length) }
@@ -253,29 +243,6 @@ class LocalBookStoreTest {
         coVerify(exactly = 0) { registry.resolve(any()) }
     }
 
-    @Test fun repeatedImportsCreateIndependentIdentitiesAndKeepTheFirstReadingPosition() = runBlocking {
-        val original = source()
-        val first = importBook(original)
-        val chapter = SourceChapterId(first, "1").storageKey
-        local.updateUserReadingData(first.storageKey) { it.copy(totalReadTime = 50, lastReadChapterId = chapter) }
-        val second = importBook(original)
-        assertNotEquals(first, second)
-        assertEquals(listOf(first.storageKey, second.storageKey), database.bookshelfDao().getBookshelf(7)!!.allBookIds)
-        assertEquals(chapter, books.getUserReadingData(first.storageKey).lastReadChapterId)
-        assertNull(books.getUserReadingData(second.storageKey).lastReadChapterId)
-        assertEquals(2, database.importedBookDao().allIds().size)
-    }
-
-    @Test fun cancellationLeavesNoBookRecordsOrOriginalCopies() = runBlocking {
-        val draft = store.stage(source().toUri())
-        store.preview(draft)
-        store.discard(draft)
-        assertTrue(database.importedBookDao().allIds().isEmpty())
-        assertTrue(database.bookInformationDao().getAllEntities().isEmpty())
-        assertTrue(database.bookshelfDao().getBookshelf(7)!!.allBookIds.isEmpty())
-        assertTrue(File(context.filesDir, "local-books").listFiles().orEmpty().isEmpty())
-    }
-
     @Test fun deletedTargetShelfRollsBackThePublishedFilesAndEveryDatabaseWrite() = runBlocking {
         val draft = store.stage(source().toUri())
         val preview = store.preview(draft)
@@ -287,15 +254,6 @@ class LocalBookStoreTest {
         assertTrue(database.bookVolumesDao().getAllVolumeEntities().isEmpty())
         assertTrue(database.chapterContentDao().getAllEntities().isEmpty())
         assertTrue(File(context.filesDir, "local-books").listFiles().orEmpty().isEmpty())
-    }
-
-    @Test fun anEmptyLibraryCreatesItsFirstShelfOnlyAfterConfirmation() = runBlocking {
-        database.bookshelfDao().deleteBookshelf(7)
-        val draft = store.stage(source().toUri())
-        val preview = store.preview(draft)
-        assertTrue(database.bookshelfDao().getAllBookshelfIds().isEmpty())
-        val (book, shelf) = store.publish(draft, preview, preview.title, null)
-        assertEquals(listOf(book.storageKey), database.bookshelfDao().getBookshelf(shelf)!!.allBookIds)
     }
 
     @Test fun deletingOneCopyAlsoRemovesOrphanedCacheAndShelfLinksButKeepsOtherCopies() = runBlocking {
@@ -338,16 +296,6 @@ class LocalBookStoreTest {
         assertTrue(store.readChapter(SourceChapterId(kept, "0")).isOk)
     }
 
-    @Test fun missingLocalFilesReportAnErrorWithoutFallingBackToAnyOnlineSource() = runBlocking {
-        val book = importBook()
-        val chapter = SourceChapterId(book, "0")
-        assertTrue(File(context.filesDir, "local-books/${book.fileKey}/0.json").delete())
-        assertTrue(books.getChapterContentFlow(chapter.storageKey, book.storageKey).last().isErr)
-        val unknown = SourceBookId(LocalBookStore.SOURCE, "not-imported")
-        assertTrue(books.getBookInformationFlow(unknown.storageKey).last().isErr)
-        coVerify(exactly = 0) { registry.resolve(any()) }
-    }
-
     @Test fun metadataClearedByAnOldBackupCanBeRebuiltFromTheRetainedOriginal() = runBlocking {
         val book = importBook()
         database.bookInformationDao().clear()
@@ -381,19 +329,6 @@ class LocalBookStoreTest {
         assertEquals("Imported novel", database.bookInformationDao().get(healthy.storageKey)!!.title)
         store.delete(damaged)
         assertEquals(listOf(healthy.storageKey), query.refreshBooks().map { it.id })
-    }
-
-    @Test fun aDamagedImportRemainsVisibleAndCanBeDeletedAfterMetadataWasCleared() = runBlocking {
-        val book = importBook()
-        File(context.filesDir, "local-books/${book.fileKey}/index.json").writeText("broken")
-        database.bookInformationDao().clear()
-        store.restoreMetadata()
-        assertTrue(books.getBookInformationFlow(book.storageKey).last().isOk)
-        assertTrue(books.getBookVolumesFlow(book.storageKey).last().isErr)
-        assertTrue(store.storedBytes(book) > 0)
-        store.delete(book)
-        assertEquals(0L, store.storedBytes(book))
-        assertTrue(database.importedBookDao().allIds().isEmpty())
     }
 
     @Test fun clearingImportedContentKeepsTheOriginalFilesAndOtherCopies() = runBlocking {

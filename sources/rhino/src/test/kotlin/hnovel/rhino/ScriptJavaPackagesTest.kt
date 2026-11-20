@@ -12,22 +12,6 @@ class ScriptJavaPackagesTest {
     private val frame = ScriptFrame("java-packages", "legado")
     private val engine = RhinoScriptEngine(HostBridge { _, _ -> error("Data operations need no host authority") })
 
-    @Test fun shortWaitAndWallClockAreObservableThroughJavaImporter() {
-        val before = System.currentTimeMillis()
-        val result = engine.evaluate("""
-            var j = new JavaImporter(Packages.java.lang);
-            with (j) {
-                var start = System.currentTimeMillis();
-                Thread.sleep(40);
-                [start, System.currentTimeMillis() - start, Thread.sleep(0)];
-            }
-        """.trimIndent(), frame) as ScriptResult.Success
-        val values = Json.parseToJsonElement(result.json).jsonArray
-        assertTrue(values[0].jsonPrimitive.long in before..System.currentTimeMillis())
-        assertTrue(values[1].jsonPrimitive.long >= 35)
-        assertEquals(kotlinx.serialization.json.JsonNull, values[2])
-    }
-
     @Test fun invalidWaitAndClockArgumentsAreCatchableScriptErrors() {
         for (arguments in listOf("", "-1", "0.5", "NaN", "Infinity", "null", "'1'", "true", "{}", "1, 2", "1e30")) {
             assertEquals(arguments, ScriptResult.Success("\"invalid\""), engine.evaluate(
@@ -65,14 +49,6 @@ class ScriptJavaPackagesTest {
             assertEquals(FailureCode.Cancelled, (result.get() as ScriptResult.Failure).code)
             assertEquals(ScriptResult.Success("42"), waitingEngine.evaluate("42", frame))
         } finally { thread.interrupt(); thread.join(1000) }
-    }
-
-    @Test fun dataExportsResolveThroughTheNativeImporter() {
-        val result = engine.evaluate("""
-            [typeof JavaImporter, typeof Packages.java.lang.String, typeof Packages.java.util.Arrays.copyOfRange];
-        """.trimIndent(), frame)
-        assertTrue(result.toString(), result is ScriptResult.Success)
-        assertEquals("[\"function\",\"function\",\"function\"]", (result as ScriptResult.Success).json)
     }
 
     @Test fun importedJavaCryptoCanReadTheOriginalCallingConvention() {

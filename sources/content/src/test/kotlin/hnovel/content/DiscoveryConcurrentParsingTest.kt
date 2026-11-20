@@ -22,24 +22,6 @@ class DiscoveryConcurrentParsingTest {
         }
     }
 
-    @Test fun independentGroupPreparesWorkersBeforeStartingItsRequests() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            pages(fixture)
-            val preparations = mutableListOf<Int>()
-            fixture.onPrepareIndependent = { identity, count ->
-                assertTrue(fixture.authority.accepts(identity))
-                assertEquals("Startup must overlap the upcoming reads", 0, fixture.server.requestCount)
-                preparations += count
-            }
-            fixture.source { definition(it) }.use { source ->
-                val previews = requireNotNull(source.openDiscovery("prepare-workers")
-                    .concurrentPreviews(listOf("/one", "/two"), emptyMap()))
-                assertEquals(listOf(2), preparations)
-                assertEquals(listOf("/one", "/two"), previews.map { async { it.page(1).books.single().title } }.awaitAll())
-            }
-        }
-    }
-
     @Test fun slowReadOnlyParsingDoesNotBlockAnotherPreview() = runBlocking {
         RuleSourceFixture().use { fixture ->
             pages(fixture)

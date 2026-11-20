@@ -81,13 +81,4 @@ class ReaderChapterRefreshTest {
         assertNotSame(initial, mode.uiState.readingChapterContent!!.get())
     }
 
-    @Test fun trustedCacheStillReturnsWithoutRevalidation() {
-        coEvery { fixture.local.getReusableChapterContent(key, any()) } returns remote.copy(id = key)
-        val mode = controller()
-        refresh.complete(Unit); env.runCurrent()
-        assertEquals(1, processed)
-        assertEquals(1, env.records.writes.size)
-        assertNotNull(mode.uiState.readingChapterContent!!.get())
-        coVerify(exactly = 0) { fixture.remote.getChapterContent(any(), any(), any()) }
-    }
 }

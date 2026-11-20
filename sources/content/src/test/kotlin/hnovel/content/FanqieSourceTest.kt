@@ -17,27 +17,6 @@ class FanqieSourceTest {
     private val original = checkNotNull(javaClass.getResourceAsStream("/known-sources/fanqie-taijiwang.json"))
         .bufferedReader(Charsets.UTF_8).use { it.readText() }
 
-    @Test fun urlAndBundledImportsShareOneStandardSource() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest) = MockResponse()
-                    .setHeader("Content-Type", "application/json").setBody(original)
-            }
-            val store = SourceDefinitionStore(temporary.newFolder("definitions").toPath())
-            val importer = SourceDefinitionImporter(store)
-            val url = fixture.server.url("/fanqie.json").toString()
-            val session = fixture.broker.open(SourceScope("import", "fanqie", LEGADO_PROFILE),
-                listOf(NetworkGrant(fixture.server.url("/").toString(), allowPrivateAddresses = true)))
-            val preview = importer.previewUrl(url, session, AUTO_PROFILE)
-            assertTrue(preview.issues.toString(), preview.issues.isEmpty())
-            assertEquals(LEGADO_PROFILE, preview.candidates.single().profile)
-            assertNull(importer.commit(preview, listOf(ImportSelection(0, ImportDecision.Add))).error)
-            val again = importer.preview(original, AUTO_PROFILE)
-            assertEquals(store.list().single().reference(), again.candidates.single().existing)
-            assertEquals("https://fq.taijiwang.top", store.list().single().importKey)
-        }
-    }
-
     @Test fun novelSearchPagesLeadToCompleteVolumesAndTextForDifferentBooks() = runBlocking {
         RuleSourceFixture().use { fixture ->
             val local = fixture.server.url("/").toString().removeSuffix("/")

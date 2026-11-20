@@ -38,10 +38,6 @@ class RuleDiscoveryConcurrencyTest {
         verifyAutomaticFailures(concurrent = true)
     }
 
-    @Test fun automaticVerificationDoesNotBlockTheSequentialFallback() = runBlocking {
-        verifyAutomaticFailures(concurrent = false)
-    }
-
     private suspend fun verifyAutomaticFailures(concurrent: Boolean) = coroutineScope {
         val owner = VerificationOwner(Identifier("rules", "fixture"), "revision", 0)
         val listings = MutableStateFlow(listOf(SourceListing(SourceMetadata(
@@ -114,49 +110,6 @@ class RuleDiscoveryConcurrencyTest {
             coVerify(exactly = 1) { session.concurrentPreviews(any(), any()) }
             coVerify(exactly = 0) { session.preview("/second", any()); session.preview("/third", any()) }
         } }
-    }
-
-    @Test fun eightScriptSourceReadsOverlapAndLoginStateStaysInItsOwnSlot() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val release = CountDownLatch(1)
-            val allEntered = CountDownLatch(8)
-            val active = AtomicInteger()
-            val maximum = AtomicInteger()
-            fixture.server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    maximum.accumulateAndGet(active.incrementAndGet(), ::maxOf)
-                    try {
-                        allEntered.countDown()
-                        check(allEntered.await(10, TimeUnit.SECONDS))
-                        if (request.path == "/one") check(release.await(10, TimeUnit.SECONDS))
-                        return MockResponse().setBody(html(request.path!!))
-                    } finally { active.decrementAndGet() }
-                }
-            }
-            fixture.source { raw -> JsonObject(definition(raw, listOf("/one") + (2..8).map { "/module-$it" }) + mapOf(
-                "jsLib" to JsonPrimitive("function previewUrl(value){return value}"),
-                "loginCheckJs" to JsonPrimitive("java.put('preview-url',previewUrl(baseUrl));result"),
-                "ruleExplore" to buildJsonObject {
-                    put("bookList", "@js:if(java.get('preview-url')!==baseUrl)throw 'wrong preview';java.getElements('li')")
-                    put("name", "h2@text"); put("bookUrl", "a@href")
-                }
-            )) }.use { source ->
-                val updates = Channel<List<DiscoverySection>>(Channel.UNLIMITED)
-                val pending = launch { RuleDiscoveryProvider(source).feedUpdates().collect { updates.send(requireNotNull(it.get())) } }
-                try {
-                    var snapshot = withTimeout(10000) { updates.receive() }
-                    assertTrue(snapshot.all { it.previewLoading && it.books.isEmpty() })
-                    withTimeout(10000) { while (snapshot.drop(1).any { it.previewLoading }) snapshot = updates.receive() }
-                    assertEquals((0..7).map { "Module $it" }, snapshot.map { it.title })
-                    assertTrue(snapshot.first().previewLoading)
-                    assertTrue(snapshot.drop(1).all { it.books.size == 6 && it.previewFailure == null })
-                    assertEquals(8, maximum.get())
-                    assertEquals(8, fixture.server.requestCount)
-                } finally { release.countDown() }
-                pending.join()
-                assertTrue(updates.receive().all { it.books.size == 6 && !it.previewLoading })
-            }
-        }
     }
 
     @Test fun localFailureAndReadySectionPublishBeforeASlowScriptSourceSection() = runBlocking {

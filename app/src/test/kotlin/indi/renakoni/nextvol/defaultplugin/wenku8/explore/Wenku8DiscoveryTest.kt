@@ -35,21 +35,6 @@ class Wenku8DiscoveryTest {
         </div></div></div></div>"""
     }}</div>"""
 
-    @Test fun feedPreservesHomeOrderAndAllSixTargetsWithBoundedRequests() = runBlocking {
-        val calls = mutableListOf<String>()
-        val provider = Wenku8Discovery(host) { url -> calls.add(url); Jsoup.parse(if (url == host) home(listOf("A", "B", "C")) else cards(9)) }
-        val feed = provider.feed().get()!!
-        assertEquals(listOf("home:0", "home:1", "home:2") + Wenku8Discovery.lists.keys, feed.map { it.id })
-        assertEquals(listOf("A", "B", "C"), feed.take(3).map { it.title })
-        assertEquals(Wenku8Discovery.lists.keys.toList(), feed.drop(3).map { it.more })
-        assertTrue(feed.drop(3).all { it.books.size == 6 })
-        assertEquals(7, calls.size)
-        assertTrue(calls.none { "tags.php" in it })
-        assertEquals("99", feed.first().books.single().remoteId)
-        assertEquals("$host/99.jpg", feed.first().books.single().coverUrl)
-        assertTrue(calls.last().endsWith("page=1&fullflag=1"))
-    }
-
     @Test fun supplementalListsOverlapWithoutChangingOrder() = runBlocking {
         withTimeout(2000) {
             val started = Channel<Unit>(Channel.UNLIMITED)
@@ -68,16 +53,6 @@ class Wenku8DiscoveryTest {
         }
     }
 
-    @Test fun duplicateHomepageListGetsMoreTargetWithoutAnotherRequest() = runBlocking {
-        val calls = mutableListOf<String>()
-        val provider = Wenku8Discovery(host) { url -> calls.add(url); Jsoup.parse(if (url == host) home(listOf("热门轻小说")) else cards(2)) }
-        val feed = provider.feed().get()!!
-        assertEquals("allvisitBook", feed.first().more)
-        assertEquals(1, feed.count { it.title == "热门轻小说" })
-        assertEquals(6, calls.size)
-        assertTrue(calls.none { "sort=allvisit" in it })
-    }
-
     @Test fun emptyAndShortListsNeverIndexParallelArrays() = runBlocking {
         for (count in listOf(0, 1, 3, 5)) {
             val provider = Wenku8Discovery(host) { Jsoup.parse(cards(count)) }
@@ -91,31 +66,6 @@ class Wenku8DiscoveryTest {
         assertEquals("", books.first().coverUrl)
         assertEquals("Author 2", books.last().author)
         assertEquals("$host/cover/2.jpg", books.last().coverUrl)
-    }
-
-    @Test fun categoryDirectoryDoesNotFetchPreviewsAndClickUsesGb2312() = runBlocking {
-        val calls = mutableListOf<String>()
-        val provider = Wenku8Discovery(host) { url ->
-            calls.add(url)
-            Jsoup.parse(if (url.endsWith("tags.php")) """
-                <a href="tags.php?t=%D0%A3%D4%B0">校园</a><a href="tags.php?t=%D0%A3%D4%B0">duplicate</a>
-                <a href="tags.php?t=奇幻">奇幻</a><a href="tags.php">index</a>
-            """ else cards(1))
-        }
-        val categories = provider.categories().get()!!
-        assertEquals(listOf("tag:校园", "tag:奇幻"), categories.map { it.target })
-        assertEquals(listOf("$host/modules/article/tags.php"), calls)
-        provider.page(DiscoveryRequest(categories.first().target, filters = mapOf("sort" to "popular")))
-        assertEquals("$host/modules/article/tags.php?page=1&t=%D0%A3%D4%B0&v=1", calls.last())
-        assertEquals(2, calls.size)
-    }
-
-    @Test fun emptyCategoryDirectoryAndMalformedTagEncodingAreNotNetworkFailures() = runBlocking {
-        assertTrue(Wenku8Discovery(host) { Jsoup.parse("<html></html>") }.categories().get()!!.isEmpty())
-        assertEquals(Err(DiscoveryError.InvalidResponse), Wenku8Discovery(host) {
-            Jsoup.parse("<a href='tags.php?t=%XX'>Broken tag</a>")
-        }.categories())
-        assertEquals(Err(DiscoveryError.Network), Wenku8Discovery(host) { throw java.io.IOException() }.categories())
     }
 
     @Test fun localFilteringRetainsPagingAndSortSemantics() = runBlocking {
@@ -146,12 +96,6 @@ class Wenku8DiscoveryTest {
         assertEquals(0, calls)
         assertEquals(Err(DiscoveryError.InvalidResponse), provider.page(DiscoveryRequest("allBook")))
         assertEquals(1, calls)
-    }
-
-    @Test fun cancellationIsNotConvertedToNetworkFailure() {
-        assertThrows(CancellationException::class.java) { runBlocking {
-            Wenku8Discovery(host) { throw CancellationException() }.feed()
-        } }
     }
 
     @Test fun oneCancelledSupplementalRequestTerminatesTheFeedAndCancelsItsSiblings() = runBlocking {

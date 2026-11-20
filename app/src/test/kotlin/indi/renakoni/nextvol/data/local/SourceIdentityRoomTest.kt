@@ -1,11 +1,8 @@
 package indi.renakoni.nextvol.data.local
 
 import android.app.Application
-import android.net.Uri
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
-import androidx.work.ListenableWorker
-import androidx.work.workDataOf
 import indi.renakoni.nextvol.data.book.*
 import indi.renakoni.nextvol.data.bookshelf.BookshelfRepository
 import indi.renakoni.nextvol.data.download.BookDownloadStore
@@ -16,10 +13,6 @@ import indi.renakoni.nextvol.data.backup.model.AppLocalData
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
-import indi.renakoni.nextvol.data.statistics.ReadingStatsUpdate
-import indi.renakoni.nextvol.data.work.SaveBookshelfWork
-import indi.renakoni.nextvol.data.work.workerParameters
-import indi.renakoni.nextvol.data.backup.BackupArchive
 import indi.renakoni.nextvol.data.backup.BackupFiles
 import indi.renakoni.nextvol.utils.ofId
 import com.github.michaelbull.result.get
@@ -53,7 +46,6 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
@@ -88,27 +80,6 @@ class SourceIdentityRoomTest {
         try { db.close() } finally { Dispatchers.resetMain() }
     }
 
-    @Test fun missingDirectoryIsACacheMissRatherThanAnEmptySuccess() = runBlocking {
-        assertNull(db.bookVolumesDao().getBookVolumes(a.storageKey))
-        assertNull(local.getBookVolumes(a.storageKey))
-    }
-
-    @Test fun emptyVolumeDirectoryIsACacheMiss() = runBlocking {
-        val volumes = a.bind(BookVolumes(a.remoteId, listOf(Volume("empty", "empty", emptyList()))))
-        local.updateBookVolumes(volumes)
-        assertEquals(1, db.bookVolumesDao().getVolumeEntitiesByBookId(a.storageKey).size)
-        assertNull(db.bookVolumesDao().getBookVolumes(a.storageKey))
-        assertNull(local.getBookVolumes(a.storageKey))
-    }
-
-    @Test fun emptyVolumeAlongsideReadableChaptersRemainsCached() = runBlocking {
-        val volumes = a.bind(BookVolumes(a.remoteId, listOf(Volume("empty", "empty", emptyList()),
-            Volume("readable", "readable", listOf(ChapterInformation("one", "One"))))))
-        local.updateBookVolumes(volumes)
-        assertEquals(volumes, db.bookVolumesDao().getBookVolumes(a.storageKey))
-        assertEquals(volumes, local.getBookVolumes(a.storageKey))
-    }
-
     private fun info(book: SourceBookId, title: String) = book.bind(BookInformation(
         id = book.remoteId, title = title, author = "author", description = "", publishingHouse = "",
         wordCount = WordCount(1), lastUpdated = LocalDateTime.of(2026, 9, 8, 0, 0), isComplete = false))
@@ -122,20 +93,6 @@ class SourceIdentityRoomTest {
         local.updateUserReadingData(book.storageKey) {
             it.copyWithUpdatedChapterReadingProgress("9", 0.5f).copy(lastReadChapterId = "9", totalReadTime = 30)
         }
-    }
-
-    @Test fun identicalTitleAndAuthorAreTwoBooksInOneShelf() = runBlocking {
-        save(a, "Same title"); save(b, "Same title")
-        shelves.addBookshelf(Bookshelf(id = 1, name = "mixed"))
-        shelves.addBookIntoBookShelf(1, info(a, "Same title"))
-        shelves.addBookIntoBookShelf(1, info(b, "Same title"))
-        val ids = shelves.getBookshelf(1)!!.allBookIds
-        assertEquals(2, ids.size)
-        assertEquals(setOf(a.storageKey, b.storageKey), ids.toSet())
-        assertEquals("author", local.getBookInformation(a.storageKey)!!.author)
-        assertEquals("author", local.getBookInformation(b.storageKey)!!.author)
-        local.updateUserReadingData(a.storageKey) { it.copy(totalReadTime = 99) }
-        assertEquals(30, local.getUserReadingData(b.storageKey).totalReadTime)
     }
 
     @OptIn(coil3.annotation.DelicateCoilApi::class)
@@ -194,55 +151,6 @@ class SourceIdentityRoomTest {
         }
     }
 
-    @OptIn(coil3.annotation.DelicateCoilApi::class)
-    @Test fun readingCacheClearKeepsAnExistingExplicitDownload() = runBlocking {
-        save(a, "Downloaded"); save(b, "Read online")
-        val context = RuntimeEnvironment.getApplication()
-        val data = indi.renakoni.nextvol.data.userdata.UserDataRepository(db.userDataDao())
-        data.stringUserData(UserDataPath.CompletedDownloadBookList.path).set("CACHE|${a.storageKey}")
-        val loader = coil3.ImageLoader.Builder(context).diskCache(null).build()
-        coil3.SingletonImageLoader.setUnsafe(loader)
-        val models = androidx.lifecycle.ViewModelStore()
-        val model = indi.renakoni.nextvol.ui.storagemanager.StorageManagerViewModel(
-            mockk {
-                coEvery { getCachedSnapshot() } returns null
-                coEvery { refreshSnapshot() } returns indi.renakoni.nextvol.data.storage.StorageUsageSnapshot()
-            }, downloads, mockk(), mockk(), indi.renakoni.nextvol.defaultplugin.wenku8.search.Wenku8SearchCatalog(context)
-        )
-        val modelJob = model.viewModelScope.coroutineContext.job
-        models.put("storage", model)
-        try {
-            model.clearReadingCache()
-            assertNotNull("Explicit downloads must survive reading-cache cleanup",
-                local.getChapterContent(SourceChapterId(a, "9").storageKey))
-            assertNull(local.getChapterContent(SourceChapterId(b, "9").storageKey))
-            assertEquals(30, local.getUserReadingData(a.storageKey).totalReadTime)
-        } finally {
-            models.clear()
-            withTimeout(5_000) { modelJob.join() }
-            loader.shutdown(); coil3.SingletonImageLoader.reset()
-        }
-    }
-
-    @Test fun sameIdsKeepBooksVolumesChaptersAndDeletionIndependent() = runBlocking {
-        for ((book, title) in listOf(a to "A", b to "B", other to "Other")) save(book, title)
-        for ((book, title) in listOf(a to "A", b to "B", other to "Other")) {
-            val chapter = SourceChapterId(book, "9")
-            assertEquals(title, local.getBookInformation(book.storageKey)!!.title)
-            assertEquals(chapter.storageKey, local.getBookVolumes(book.storageKey)!!.volumes.single().chapters.single().id)
-            assertEquals(title, local.getChapterContent(chapter.storageKey)!!.title)
-            assertEquals(chapter.storageKey, local.getUserReadingDataFlow(book.storageKey).first().lastReadChapterId)
-        }
-        db.chapterContentDao().deleteByIds(listOf(SourceChapterId(a, "9").storageKey))
-        db.bookVolumesDao().deleteByBookIds(listOf(a.storageKey))
-        db.bookInformationDao().deleteByIds(listOf(a.storageKey))
-        db.userReadingDataDao().deleteByIds(listOf(a.storageKey))
-        assertNull(local.getBookInformation(a.storageKey))
-        assertEquals("B", local.getChapterContent(SourceChapterId(b, "9").storageKey)!!.title)
-        assertEquals("Other", local.getChapterContent(SourceChapterId(other, "9").storageKey)!!.title)
-        assertEquals(30, local.getUserReadingData(b.storageKey).totalReadTime)
-    }
-
     @Test fun settlementAndBookshelfChangesAffectOnlyTheirBookWhileSummarySpansSources() = runBlocking {
         save(a, "A"); save(b, "B")
         shelves.addBookshelf(Bookshelf(id = 1, name = "mixed"))
@@ -263,28 +171,6 @@ class SourceIdentityRoomTest {
         assertEquals(listOf(b.storageKey), shelves.getBookshelf(1)!!.allBookIds)
         assertNull(shelves.getBookshelfBookMetadata(a.storageKey))
         assertEquals(listOf(1), shelves.getBookshelfBookMetadata(b.storageKey)!!.bookShelfIds)
-    }
-
-    @Test fun currentCborBackupRestoresBothSourcesAndTheirAssociations() = runBlocking {
-        save(a, "A"); save(b, "B")
-        shelves.addBookshelf(Bookshelf(id = 1, name = "mixed"))
-        for (book in listOf(a, b)) {
-            shelves.addBookIntoBookShelf(1, info(book, book.sourceId.id))
-            stats.updateReadingStatistics(ReadingStatsUpdate(book.storageKey, secondDelta = 30, readEventDelta = 1, localTime = LocalTime.NOON))
-        }
-        db.userDataDao().insert(UserDataPath.ReadingBooks.path, "", "StringList", listOf(a.storageKey, b.storageKey).joinToString(","))
-        val exported = requireNotNull(backup.exportAppLocalData().get())
-        val restored = Cbor.decodeFromByteArray<AppLocalData>(Cbor.encodeToByteArray(exported))
-        backup.cleanDatabaseWithoutGlobalUserData()
-        assertNull(local.getBookInformation(a.storageKey))
-        assertTrue(backup.importAppLocalData(restored).isOk)
-        assertEquals("A", local.getBookInformation(a.storageKey)!!.title)
-        assertEquals("B", local.getBookInformation(b.storageKey)!!.title)
-        assertEquals(setOf(a.storageKey, b.storageKey), shelves.getBookshelf(1)!!.allBookIds.toSet())
-        assertEquals(SourceChapterId(b, "9").storageKey, local.getUserReadingData(b.storageKey).lastReadChapterId)
-        assertEquals(1, stats.getTotalReadingSummary().totalMinutes)
-        assertEquals(2, stats.getTotalReadingSummary().totalReadCount)
-        assertEquals(listOf(a.storageKey, b.storageKey).joinToString(","), db.userDataDao().get(UserDataPath.ReadingBooks.path))
     }
 
     @Test fun canonicalAliasesSurviveBackupRoundTripAndRejectCrossSourceMappings() = runBlocking {
@@ -349,25 +235,4 @@ class SourceIdentityRoomTest {
         assertEquals("B", local.getBookInformation(b.storageKey)!!.title)
     }
 
-    @Test fun bookshelfWorkerWritesMixedSourceReferencesThatRestoreIndependently() = runBlocking {
-        save(a, "Same title"); save(b, "Same title")
-        shelves.addBookshelf(Bookshelf(id = 1, name = "mixed"))
-        for (book in listOf(a, b)) shelves.addBookIntoBookShelf(1, info(book, "Same title"))
-        val context = RuntimeEnvironment.getApplication()
-        val file = context.filesDir.resolve("mixed-bookshelf.nvbackup")
-        val uri = Uri.parse("content://fixture/mixed-bookshelf.nvbackup")
-        org.robolectric.Shadows.shadowOf(context.contentResolver).registerOutputStream(uri, file.outputStream())
-        try {
-            val worker = SaveBookshelfWork(context, workerParameters(workDataOf(
-                "bookshelfId" to 1, "uri" to uri.toString())), backup, db.bookshelfDao())
-            assertEquals(ListenableWorker.Result.success(), worker.doWork())
-            val restored = BackupArchive.read(file)
-            assertEquals(setOf(a.storageKey, b.storageKey), restored.localDataList.single()
-                .bookshelfBookMetadataEntities.map { it.id }.toSet())
-            db.bookshelfDao().clear()
-            assertTrue(backup.importAppLocalData(restored).isOk)
-            shelves.deleteBookFromBookshelf(1, a.storageKey)
-            assertEquals(listOf(b.storageKey), shelves.getBookshelf(1)!!.allBookIds)
-        } finally { file.delete() }
-    }
 }

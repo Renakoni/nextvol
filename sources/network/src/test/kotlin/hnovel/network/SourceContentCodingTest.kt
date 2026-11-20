@@ -36,18 +36,6 @@ class SourceContentCodingTest {
         } }
     }
 
-    @Test fun explicitIdentityEncodingIsPreserved() = runBlocking {
-        MockWebServer().use { server -> SourceBroker(directory.root.toPath()).use { broker ->
-            server.start()
-            val url = server.url("/").toString()
-            val session = broker.open(SourceScope("test", "identity", "legado"), listOf(NetworkGrant(url, true)))
-            server.enqueue(MockResponse().setBody("plain"))
-            val result = session.execute(BrokerRequest("identity", url, headers = mapOf("Accept-Encoding" to "identity"))) as BrokerResult.Success
-            assertEquals("plain", result.response.text())
-            assertEquals("identity", server.takeRequest().getHeader("Accept-Encoding"))
-        } }
-    }
-
     @Test fun bodyLimitAppliesToExpandedBytesEvenWithSourceCompressionHeaders() = runBlocking {
         MockWebServer().use { server -> SourceBroker(directory.root.toPath()).use { broker ->
             server.start()

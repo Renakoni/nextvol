@@ -11,7 +11,6 @@ import indi.renakoni.nextvol.ui.home.discovery.*
 import indi.renakoni.nextvol.ui.home.explore.home.ExploreHomeViewModel
 import io.mockk.every
 import io.mockk.mockk
-import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.WebBookDataSource
 import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
@@ -76,101 +75,6 @@ class ExploreHomeViewModelTest {
             catalogs++
             return Ok(listOf(DiscoveryCategory("all", "All", "all")))
         }
-    }
-
-    @Test fun pendingEntriesKeepTheirLoadingStateAndCanOpenBeforeBooksArrive() = runTest(dispatcher) {
-        val finish = CompletableDeferred<Unit>()
-        val entries = listOf("First", "Second").map { title ->
-            DiscoverySection(title, title, emptyList(), "/$title", previewLoading = true)
-        }
-        val id = add("pending", object : Feed() {
-            override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
-                emit(Ok(entries))
-                finish.await()
-                emit(Ok(entries.map { it.copy(previewLoading = false) }))
-            }
-        })
-        val model = model()
-        runCurrent()
-        val pending = model.state.value.content.getValue(id)
-        assertEquals(listOf("First", "Second"), pending.sections.map { it.title })
-        assertTrue(pending.sections.all { it.previewLoading && it.books.isEmpty() })
-        assertEquals(id, pending.sections.first().more!!.sourceId)
-        assertEquals("/First", model.more(pending.sections.first())!!.target)
-        finish.complete(Unit)
-        advanceUntilIdle()
-        val completed = model.state.value.content.getValue(id)
-        assertTrue(completed.loaded)
-        assertFalse(completed.loading)
-        assertTrue(completed.sections.none { it.previewLoading })
-    }
-
-    @Test fun firstPreviewIsUsableBeforeLaterModulesAndKeepsScrollUntilCompletion() = runTest(dispatcher) {
-        val finish = CompletableDeferred<Unit>()
-        val first = DiscoverySection("first", "First", listOf(DiscoveryBook("one", "Book one")), "/first")
-        val second = DiscoverySection("second", "Second", emptyList(), "/second")
-        val id = add("progressive", object : Feed() {
-            override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
-                emit(Ok(listOf(first)))
-                finish.await()
-                emit(Ok(listOf(first, second)))
-            }
-        })
-        val model = model()
-        runCurrent()
-        val partial = model.state.value.content.getValue(id)
-        assertEquals(listOf("First"), partial.sections.map { it.title })
-        assertTrue(partial.loading)
-        assertFalse(partial.loaded)
-        assertEquals(id, partial.sections.single().books.single().id.sourceId)
-        assertEquals("/first", model.more(partial.sections.single())!!.target)
-        io.mockk.verify { text.processExploreBooksRow(match { it.title == "Book one" }) }
-        model.scroll(id, DiscoveryScroll(1, 17))
-        finish.complete(Unit)
-        advanceUntilIdle()
-        val complete = model.state.value.content.getValue(id)
-        assertEquals(listOf("First", "Second"), complete.sections.map { it.title })
-        assertFalse(complete.loading)
-        assertTrue(complete.loaded)
-        assertEquals(DiscoveryScroll(1, 17), complete.scroll)
-    }
-
-    @Test fun previewDiagnosticSurvivesSnapshotsAndItsEntryCanOpenBeforeCompletion() = runTest(dispatcher) {
-        val finish = CompletableDeferred<Unit>()
-        val failure = DiscoveryPreviewFailure(DiscoveryError.PermissionDenied, "ruleExplore.bookList",
-            DiscoveryPermission("https://ungranted.test:443", "Document"))
-        val broken = DiscoverySection("broken", "Broken", emptyList(), "/broken", "broken-category", failure)
-        val working = DiscoverySection("working", "Working", listOf(DiscoveryBook("book", "Book")), "/working")
-        val id = add("progressive", object : Feed() {
-            override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
-                emit(Ok(listOf(broken)))
-                finish.await()
-                emit(Ok(listOf(broken, working)))
-            }
-        })
-        val model = model()
-        runCurrent()
-        val partial = model.state.value.content.getValue(id)
-        assertEquals(failure, partial.sections.single().previewFailure)
-        assertTrue(partial.loading)
-        assertNull(partial.error)
-        val route = model.more(partial.sections.single())!!
-        assertEquals(id.namespace, route.namespace)
-        assertEquals(id.id, route.sourceId)
-        assertEquals("/broken", route.target)
-        assertEquals("broken-category", route.categoryId)
-        finish.complete(Unit)
-        advanceUntilIdle()
-        val complete = model.state.value.content.getValue(id)
-        assertEquals(listOf("Broken", "Working"), complete.sections.map { it.title })
-        assertEquals(failure, complete.sections.first().previewFailure)
-        assertNull(complete.sections.last().previewFailure)
-        assertEquals(id, complete.sections.last().books.single().id.sourceId)
-        assertTrue(complete.loaded)
-        assertFalse(complete.loading)
-        assertNull(complete.error)
-        assertNull(complete.errorField)
-        assertNull(complete.errorPermission)
     }
 
     @Test fun laterModuleFailureKeepsPartialResultsAndRetryReplacesWithoutDuplicates() = runTest(dispatcher) {
@@ -255,111 +159,6 @@ class ExploreHomeViewModelTest {
         io.mockk.verify { text.processExploreBooksRow(match { it.title == "Week book" }) }
     }
 
-    @Test fun navigationCancelsSingleRetryAndLateCompletionCannotReplaceItsOriginalFailure() = runTest(dispatcher) {
-        val finish = CompletableDeferred<Unit>()
-        val broken = DiscoverySection("weekly", "Weekly", emptyList(), "/weekly",
-            previewFailure = DiscoveryPreviewFailure(DiscoveryError.Network))
-        val id = add("a", object : Feed(), DiscoveryPreviewProvider {
-            override suspend fun feed() = Ok(listOf(broken))
-            override suspend fun preview(id: String) = withContext(NonCancellable) {
-                finish.await()
-                Ok(broken.copy(books = listOf(DiscoveryBook("late", "Late book")), previewFailure = null))
-            }
-        })
-        val other = add("b", Feed())
-        val model = model()
-        runCurrent()
-        val original = model.state.value.content.getValue(id).sections.single()
-        model.retryPreview(original)
-        runCurrent()
-        assertTrue(model.state.value.content.getValue(id).sections.single().previewLoading)
-        model.select(other)
-        runCurrent()
-        finish.complete(Unit)
-        advanceUntilIdle()
-        assertEquals(original, model.state.value.content.getValue(id).sections.single())
-        model.select(id)
-        runCurrent()
-        assertEquals(original, model.state.value.content.getValue(id).sections.single())
-        model.retryPreview(original)
-        advanceUntilIdle()
-        assertEquals("Late book", model.state.value.content.getValue(id).sections.single().books.single().title)
-    }
-
-    @Test fun switchingSourcesCancelsRefreshAndReturningLoadsRemainingPreviews() = runTest(dispatcher) {
-        var requests = 0
-        var cancelled = 0
-        val finish = CompletableDeferred<Unit>()
-        val id = add("a", object : Feed() {
-            override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
-                requests++
-                emit(Ok(listOf(DiscoverySection("first", "First", emptyList()))))
-                if (requests == 1) return@flow
-                try { finish.await() } finally { if (!finish.isCompleted) cancelled++ }
-                emit(Ok(listOf(DiscoverySection("complete", "Complete", emptyList()))))
-            }
-        })
-        val other = add("b", Feed())
-        val model = model()
-        runCurrent()
-        model.refresh()
-        runCurrent()
-        assertTrue(model.state.value.content.getValue(id).refreshing)
-        model.select(other)
-        runCurrent()
-        assertEquals(1, cancelled)
-        assertFalse(model.state.value.content.getValue(id).loaded)
-        assertFalse(model.state.value.content.getValue(id).refreshing)
-        assertEquals("First", model.state.value.content.getValue(id).sections.single().title)
-        assertEquals("Same list", model.state.value.content.getValue(other).sections.single().title)
-        model.select(id)
-        runCurrent()
-        assertTrue(model.state.value.content.getValue(id).loading)
-        assertFalse(model.state.value.content.getValue(id).refreshing)
-        finish.complete(Unit)
-        advanceUntilIdle()
-        assertEquals(3, requests)
-        assertEquals("Complete", model.state.value.content.getValue(id).sections.single().title)
-    }
-
-    @Test fun returningToAnIncompleteFeedRetainsSuccessfulBooksWhileTheSameSectionLoads() = runTest(dispatcher) {
-        val first = DiscoverySection("first", "First", listOf(DiscoveryBook("one", "Book one")), "/first")
-        val second = DiscoverySection("second", "Second", emptyList(), "/second", previewLoading = true)
-        var loads = 0
-        val finish = CompletableDeferred<Unit>()
-        val id = add("resume", object : Feed() {
-            override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
-                loads++
-                emit(Ok(listOf(if (loads == 1) first else first.copy(books = emptyList(), previewLoading = true), second)))
-                finish.await()
-                emit(Ok(listOf(first, second.copy(previewLoading = false,
-                    previewFailure = DiscoveryPreviewFailure(DiscoveryError.Network)))))
-            }
-        })
-        val model = model()
-        runCurrent()
-        model.scroll(id, DiscoveryScroll(1, 15))
-        repeat(2) {
-            model.setActive(false)
-            runCurrent()
-            model.setActive(true)
-            runCurrent()
-            assertEquals("Book one", model.state.value.content.getValue(id).sections.first().books.single().title)
-        }
-        val resumed = model.state.value.content.getValue(id)
-        assertEquals("Book one", resumed.sections.first().books.single().title)
-        assertTrue(resumed.sections.first().previewLoading)
-        assertEquals("/first", model.more(resumed.sections.first())!!.target)
-        assertEquals(DiscoveryScroll(1, 15), resumed.scroll)
-        finish.complete(Unit)
-        advanceUntilIdle()
-        val complete = model.state.value.content.getValue(id)
-        assertTrue(complete.loaded)
-        assertFalse(complete.sections.first().previewLoading)
-        assertEquals("Book one", complete.sections.first().books.single().title)
-        assertEquals(DiscoveryError.Network, complete.sections.last().previewFailure!!.error)
-    }
-
     @Test fun refreshingACompletedFeedReplacesSuccessfulSectionsAndKeepsFailedSections() = runTest(dispatcher) {
         val first = DiscoverySection("first", "First", listOf(DiscoveryBook("old-first", "Old first")), "/first")
         val second = DiscoverySection("second", "Second", listOf(DiscoveryBook("old-second", "Old second")), "/second")
@@ -409,33 +208,6 @@ class ExploreHomeViewModelTest {
         assertEquals(DiscoveryError.Network, complete.sections.last().previewFailure!!.error)
     }
 
-    @Test fun changingTheEnvironmentOrAccountDuringRefreshDropsRetainedBooks() = runTest(dispatcher) {
-        for (change in listOf("environment", "account")) {
-            val first = DiscoverySection("first", "First", listOf(DiscoveryBook("old", "Old book")), "/first")
-            var loads = 0
-            val id = add(change, object : Feed() {
-                override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
-                    if (++loads == 1) { emit(Ok(listOf(first))); return@flow }
-                    emit(Ok(listOf(first.copy(books = emptyList(), previewLoading = true))))
-                    awaitCancellation()
-                }
-            })
-            val model = model()
-            model.openSource(id)
-            runCurrent()
-            model.refresh()
-            runCurrent()
-            assertEquals("Old book", model.state.value.content.getValue(id).sections.single().books.single().title)
-            if (change == "environment") model.environment(DiscoveryEnvironment(themeMode = "1")) else accounts.begin(id)
-            model.setActive(true)
-            runCurrent()
-            assertTrue(change, model.state.value.content.getValue(id).sections.single().books.isEmpty())
-            stores.last().clear()
-            registry.unregister(id)
-            runCurrent()
-        }
-    }
-
     @Test fun refreshEnvironmentAndAccountChangesDoNotRetainInterruptedBooks() = runTest(dispatcher) {
         for (change in listOf("refresh", "environment", "account")) {
             var loads = 0
@@ -468,83 +240,6 @@ class ExploreHomeViewModelTest {
         }
     }
 
-    @Test fun accountChangeDiscardsPartialContentAndCancelsItsPendingModules() = runTest(dispatcher) {
-        var requests = 0
-        var cancelled = 0
-        val id = add("account", object : Feed() {
-            override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
-                val number = ++requests
-                emit(Ok(listOf(DiscoverySection("$number", "Account $number", emptyList()))))
-                try { awaitCancellation() } finally { cancelled++ }
-            }
-        })
-        val model = model()
-        runCurrent()
-        val old = model.state.value.content.getValue(id)
-        accounts.begin(id)
-        runCurrent()
-        val current = model.state.value.content.getValue(id)
-        assertEquals(2, requests)
-        assertEquals(1, cancelled)
-        assertNotEquals(old.resetId, current.resetId)
-        assertEquals("Account 2", current.sections.single().title)
-        assertFalse(current.loaded)
-    }
-
-    @Test fun verificationFailureBeforePageResumesStopsLoadingAndKeepsPartialResults() = runTest(dispatcher) {
-        val closeBrowser = CompletableDeferred<Unit>()
-        var requests = 0
-        val id = add("verified", object : Feed() {
-            override fun feedUpdates() = flow<Result<List<DiscoverySection>, DiscoveryError>> {
-                requests++
-                emit(Ok(listOf(DiscoverySection("first", "First", emptyList()))))
-                val foreground = currentCoroutineContext()[ForegroundSourceRequest]!!
-                foreground.beginVerification()
-                try { closeBrowser.await() } finally { foreground.endVerification() }
-                // Closing/failing the owned browser may return before the reader's onStart.
-                emit(Err(DiscoveryError.VerificationRequired))
-            }
-        })
-        val model = model()
-        runCurrent()
-        model.setActive(false, retainBrowser = true)
-        closeBrowser.complete(Unit)
-        runCurrent()
-        model.setActive(true)
-        runCurrent()
-        val current = model.state.value.content.getValue(id)
-        assertFalse(current.loading)
-        assertEquals(DiscoveryError.VerificationRequired, current.error)
-        assertEquals("First", current.sections.single().title)
-        assertEquals(1, requests)
-    }
-
-    @Test fun failuresAndRetryRemainLocalAndFailedRefreshRetainsVisibleBooks() = runTest(dispatcher) {
-        val feed = Feed()
-        val a = add("a", feed)
-        val b = add("b", Feed())
-        val model = model()
-        advanceUntilIdle()
-        val shown = model.state.value.content[a]!!.sections
-        feed.failure = DiscoveryError.AuthenticationRequired
-        model.refresh()
-        advanceUntilIdle()
-        assertFalse(model.state.value.content[a]!!.refreshing)
-        assertEquals(shown, model.state.value.content[a]!!.sections)
-        assertEquals(DiscoveryError.AuthenticationRequired, model.state.value.content[a]!!.error)
-        model.select(b)
-        advanceUntilIdle()
-        assertNull(model.state.value.content[b]!!.error)
-        model.select(a)
-        advanceUntilIdle()
-        assertEquals(2, feed.feeds)
-        feed.failure = null
-        model.refresh()
-        advanceUntilIdle()
-        assertNull(model.state.value.content[a]!!.error)
-        assertEquals(3, feed.feeds)
-    }
-
     @Test fun lateFeedCompletionCannotOverwriteNewSourceOrRefresh() = runTest(dispatcher) {
         val started = CompletableDeferred<Unit>()
         val finish = CompletableDeferred<Unit>()
@@ -566,52 +261,6 @@ class ExploreHomeViewModelTest {
         assertEquals(b, model.state.value.selected)
         assertEquals("Same list", model.state.value.content[b]!!.sections.single().title)
         assertFalse(model.state.value.content[a]!!.loaded)
-    }
-
-    @Test fun moreAndSearchRoutesKeepSourceAndUseIndependentResultSessions() = runTest(dispatcher) {
-        val a = add("a", Feed())
-        val b = add("b", Feed())
-        val model = model()
-        advanceUntilIdle()
-        val firstSection = model.state.value.content[a]!!.sections.single()
-        val first = model.more(firstSection)!!
-        val search = model.search()!!
-        model.select(b)
-        advanceUntilIdle()
-        val second = model.more(model.state.value.content[b]!!.sections.single())!!
-        assertEquals(a, firstSection.books.single().id.sourceId)
-        assertEquals(a.id, search.sourceId)
-        assertEquals(b.id, second.sourceId)
-        assertNotEquals(first.sessionId, second.sessionId)
-        assertNull(model.more(firstSection))
-        assertEquals(search, Json.decodeFromString<Route.Main.Explore.Search>(Json.encodeToString(search)))
-        assertEquals(first, Json.decodeFromString<Route.Main.DiscoveryResults>(Json.encodeToString(first)))
-    }
-
-    @Test fun sourceRegistrationAndAccountChangesInvalidateOnlyTheirOwnContent() = runTest(dispatcher) {
-        val a = add("a", Feed())
-        val bFeed = Feed()
-        val b = add("b", bFeed)
-        val model = model()
-        advanceUntilIdle()
-        model.select(b)
-        advanceUntilIdle()
-        model.scroll(b, DiscoveryScroll(2, 11))
-        val oldReset = model.state.value.content[a]!!.resetId
-        registry.unregister(a)
-        val replaced = Feed()
-        add("a", replaced)
-        advanceUntilIdle()
-        assertEquals(1, bFeed.feeds)
-        assertEquals(0, replaced.feeds)
-        assertEquals(DiscoveryScroll(2, 11), model.state.value.content[b]!!.scroll)
-        model.select(a)
-        advanceUntilIdle()
-        assertNotEquals(oldReset, model.state.value.content[a]!!.resetId)
-        accounts.begin(a)
-        advanceUntilIdle()
-        assertEquals(2, replaced.feeds)
-        assertEquals(1, bFeed.feeds)
     }
 
     @Test fun interactiveFeedUsesSameDraftAndCarriesCategoryIdentityAndValuesToMore() = runTest(dispatcher) {

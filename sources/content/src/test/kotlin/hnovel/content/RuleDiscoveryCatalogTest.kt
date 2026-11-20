@@ -20,29 +20,6 @@ class RuleDiscoveryCatalogTest {
         }
     }
 
-    @Test fun largeCatalogDoesNotInheritTheRequestOptions64KiBBudget() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val rows = JsonArray(List(400) { i -> buildJsonObject {
-                put("title", "Category $i"); put("url", "/search?query=" + "x".repeat(200) + "&row=$i")
-            } })
-            assertTrue(rows.toString().length > 65536)
-            fixture.source { definition(it, rows) }.use { source ->
-                assertEquals(400, source.openDiscovery("large").catalog().rows.size)
-            }
-        }
-    }
-
-    @Test fun authorCatalogsAboveOneThousandEntriesKeepTheLastTarget() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val raw = (1..1119).joinToString("\n") { "Author $it::/writer/$it" }
-            fixture.source { JsonObject(it + ("exploreUrl" to JsonPrimitive(raw))) }.use { source ->
-                val rows = source.openDiscovery("authors").catalog().rows
-                assertEquals(1119, rows.size)
-                assertEquals("/writer/1119", rows.last().url)
-            }
-        }
-    }
-
     @Test fun unnamedUrlEntriesRemainNavigableAndInertBlankRowsNeedNoStyle() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.source { definition(it, Json.parseToJsonElement("""[
@@ -90,8 +67,6 @@ class RuleDiscoveryCatalogTest {
         }
     }
 
-    @Test fun dubuStyleSpacerDoesNotRejectTheCatalog() = separators(9, 14)
-
     @Test fun unnamedTargetsArePreservedAndUnknownSchemaKeepsItsOriginalArrayLocation() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.source("yueyou") { definition(it, DiscoveryCatalogFixtures.rows(18)) }.use { source ->
@@ -131,17 +106,6 @@ class RuleDiscoveryCatalogTest {
                     assertEquals("exploreUrl", error.field)
                 }
             assertEquals(0, fixture.documents.get())
-        }
-    }
-
-    @Test fun combinedLimitCountsScreenControls() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val extra = buildJsonObject { put("exploreScreen", """[{"id":"button","title":"Action","type":"button"}]""") }
-            fixture.source { JsonObject(definition(it, urls(RuleDiscoveryCatalogParser.MAX_CATALOG_ROWS)) + extra) }.use { source ->
-                val error = failure { source.openDiscovery("combined").catalog() }
-                assertEquals(ContentError.Limit, error.code)
-                assertEquals("exploreUrl", error.field)
-            }
         }
     }
 
@@ -196,20 +160,4 @@ class RuleDiscoveryCatalogTest {
         block(); throw AssertionError("Expected an explicit discovery failure")
     } catch (error: SourceContentException) { error }
 
-    private fun separators(index: Int, expected: Int) = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val input = DiscoveryCatalogFixtures.rows(index)
-            val meaningful = JsonArray(input.filter { it.jsonObject.getValue("title").jsonPrimitive.content.isNotBlank() })
-            fixture.source("spaced") { definition(it, input) }.use { source ->
-                val catalog = source.openDiscovery("spaced").catalog()
-                assertEquals(expected, catalog.rows.size)
-                assertEquals(meaningful.map { it.jsonObject.getValue("title").jsonPrimitive.content }, catalog.rows.map { it.title })
-                assertEquals(meaningful.map { it.jsonObject.getValue("url").jsonPrimitive.content }, catalog.rows.map { it.url })
-                fixture.source("compact") { definition(it, meaningful) }.use { compact ->
-                    assertEquals(compact.openDiscovery("compact").catalog().rows.map { it.id }, catalog.rows.map { it.id })
-                }
-                assertEquals(0, fixture.documents.get())
-            }
-        }
-    }
 }

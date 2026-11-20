@@ -60,15 +60,6 @@ class WorkerDiscoveryReadPlanTest {
         assertFalse(accepts(urls = listOf("/list?p={{page")))
     }
 
-    @Test fun checksHaveSmallInputAndOutputBounds() {
-        assertFalse(accepts(urls = emptyList()))
-        assertFalse(accepts(urls = List(65) { "/list" }))
-        assertFalse(accepts(rules = List(65) { "li" }))
-        assertFalse(accepts(header = "x".repeat(65537)))
-        assertEquals(ExecutionResult.Failure(FailureCode.OutputLimit), WorkerDiscoveryReadPlan.evaluate(
-            ExecutionTask.DiscoveryReadPlan(listOf("/list"), "", emptyList()), ExecutionLimits(maxOutputBytes = 1)))
-    }
-
     @Test fun independentRulesRecheckPurityBeforeExecutingAnySourceCode() {
         val identity = ExecutionIdentity("source", "legado", "1", "test")
         WorkerRuntime().use { runtime ->

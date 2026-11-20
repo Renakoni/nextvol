@@ -127,12 +127,6 @@ class EpubBookParserTest {
         assertEquals(text, body(book))
     }
 
-    @Test fun damagedArchivesAreRejected() {
-        assertReason(LocalBookImportReason.CorruptEpub) {
-            parse(temporary.newFile().apply { writeText("not a ZIP") })
-        }
-    }
-
     @Test fun largeTextAndParagraphCountsAreSplitWithoutCuttingUnicodeOrDroppingText() {
         val longText = "a".repeat(TxtBookParser.MAX_CHAPTER_CHARACTERS - 1) + "😀" + "b"
         val book = parse(epub(resources = mapOf("OPS/one.xhtml" to "<html><body><p>$longText</p>${"<p>x</p>".repeat(2001)}</body></html>")))

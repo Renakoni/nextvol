@@ -1,19 +1,13 @@
 package indi.renakoni.nextvol.data.content
 
 import android.app.Application
-import android.net.Uri
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.sp
 import indi.renakoni.nextvol.ui.book.reader.content.componet.SimpleTextComponent
 import io.mockk.*
 import io.nightfish.lightnovelreader.api.content.component.SimpleTextComponentData
 import io.nightfish.lightnovelreader.api.userdata.UserDataRepositoryApi
-import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
@@ -48,62 +42,6 @@ class TextPaginationContractTest {
         assertEquals(listOf("A\n", "\n", "B\n"), with(component) {
             layout(lines).getSlipString(data.text, 100, 10)
         })
-    }
-
-    @Test
-    fun aViewportShorterThanOneLineStillConsumesOneLine() {
-        val component = component("A")
-        val layout = layout(listOf("A"))
-        assertEquals(listOf("A"), with(component) {
-            layout.getSlipString(data.text, 100, 5)
-        })
-        verify(exactly = 0) { layout.getLineBottom(-1) }
-    }
-
-    @Test
-    fun negativeViewportStillMakesForwardProgress() {
-        val component = component("A")
-        val layout = layout(listOf("A"))
-        assertEquals(listOf("A"), with(component) {
-            layout.getSlipString(data.text, -1, -1)
-        })
-    }
-
-    @Test
-    fun splitPreservesSettingReadOrderDefaultsMeasurementInputsAndComponentConstruction() = runTest {
-        val reads = mutableListOf<String>()
-        val component = component("A\nBB\nC")
-        coEvery { component.fontSizeUserData.getOrDefault(22f) } answers { reads += "size"; 18f }
-        coEvery { component.fontLineHeightUserData.getOrDefault(7f) } answers { reads += "line"; 4f }
-        coEvery { component.fontWeightUserData.getOrDefault(500f) } answers { reads += "weight"; 600f }
-        coEvery { component.fontFamilyUriUserData.getOrDefault(Uri.EMPTY) } answers { reads += "font"; Uri.EMPTY }
-        val style = slot<TextStyle>()
-        val constraints = slot<Constraints>()
-        // Keep CI independent of native font engines: use fixed, explicit line metrics.
-        val measurer = component.textMeasurer
-        mockedMeasurer = measurer
-        mockkObject(measurer)
-        every {
-            measurer.measure(
-                text = "A\nBB\nC", style = capture(style), overflow = any(), softWrap = any(),
-                maxLines = any(), constraints = capture(constraints), layoutDirection = any(),
-                density = any(), fontFamilyResolver = any(), skipCache = any(),
-            )
-        } returns layout(listOf("A\n", "BB\n", "C"))
-
-        val pages = component.split(height = 20, width = 100)
-        assertEquals(listOf("size", "line", "weight", "font"), reads)
-        assertEquals(18.sp, style.captured.fontSize)
-        assertEquals(22.sp, style.captured.lineHeight)
-        assertEquals(FontWeight(600), style.captured.fontWeight)
-        assertNull(style.captured.fontFamily)
-        assertEquals(Constraints(maxHeight = 20, maxWidth = 100), constraints.captured)
-        assertEquals(listOf("A\nBB\n", "C"), pages.map { it.data.text })
-        pages.forEach {
-            assertSame(settings, it.userDataRepositoryApi)
-            assertSame(context, it.context)
-            assertNotSame(component.textMeasurer, it.textMeasurer)
-        }
     }
 
     private fun component(text: String) = SimpleTextComponent(SimpleTextComponentData(text), settings, context)

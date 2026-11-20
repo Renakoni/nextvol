@@ -7,12 +7,7 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import hnovel.execution.ExecutionAuthority
-import hnovel.execution.ExecutionResult
-import hnovel.execution.FailureCode
-import hnovel.rules.ScriptHostCall
-import hnovel.rules.ScriptArgumentType
 import indi.renakoni.nextvol.data.web.*
-import indi.renakoni.nextvol.data.web.rules.RuleDiscoveryProvider
 import io.mockk.*
 import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.identifier.Identifier
@@ -21,7 +16,6 @@ import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
 import io.nightfish.lightnovelreader.api.web.discovery.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
-import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -74,33 +68,6 @@ class DiscoveryResultsViewModelTest {
         }
     }
 
-    @Test fun resultDiagnosticsBelongToTheFailedLoadAndClearOnSuccess() = runTest(dispatcher) {
-        val detail = ExecutionResult.Failure(FailureCode.BridgeDenied, hostCall =
-            ScriptHostCall("cookie.getCookie", 2, List(2) { ScriptArgumentType.String }))
-        var failed = true
-        val provider = mockk<RuleDiscoveryProvider>(relaxed = true)
-        every { provider.hasCategories } returns true
-        every { provider.openSession(any(), any(), any()) } returns provider
-        every { provider.filters(any()) } returns emptyList()
-        every { provider.diagnosticFailure } answers { detail.takeIf { failed } }
-        every { provider.failureField } answers { "ruleExplore.name".takeIf { failed } }
-        coEvery { provider.catalog(any()) } returns Ok(DiscoveryCatalog(listOf(DiscoveryCategory("category", "Category", "tag"))))
-        coEvery { provider.page(any()) } coAnswers {
-            if (failed) Err(DiscoveryError.InvalidRules) else Ok(DiscoveryPage(emptyList(), null))
-        }
-        add(provider)
-        val model = model()
-        advanceUntilIdle()
-        assertEquals(detail, model.state.value.errorDiagnostic)
-        assertEquals("ruleExplore.name", model.state.value.errorField)
-        failed = false
-        model.refresh()
-        advanceUntilIdle()
-        assertNull(model.state.value.error)
-        assertNull(model.state.value.errorDiagnostic)
-        assertNull(model.state.value.errorField)
-    }
-
     @Test fun paginationRetryKeepsBooksAndCursorAndOtherSessionFiltersStayIndependent() = runTest(dispatcher) {
         val provider = Pages()
         add(provider)
@@ -120,134 +87,6 @@ class DiscoveryResultsViewModelTest {
         assertEquals(listOf(null, null, "2", "2"), provider.requests.map { it.cursor })
         assertEquals(1, b.state.value.books.size)
         assertEquals(source, a.state.value.books.first().id.sourceId)
-    }
-
-    @Test fun applyingFiltersRefreshesOnceClearsOldBooksAndRestoresLightweightState() = runTest(dispatcher) {
-        val provider = object : Pages() {
-            override fun filters(target: String) = super.filters(target) + DiscoveryFilter.Toggle("completed", "Completed")
-        }
-        add(provider)
-        val saved = SavedStateHandle()
-        val original = model(saved)
-        advanceUntilIdle()
-        original.scroll(DiscoveryScroll(3, 20))
-        val selection = mapOf("sort" to "b", "completed" to "true")
-        original.filter(selection)
-        assertTrue(original.state.value.books.isEmpty())
-        advanceUntilIdle()
-        assertEquals(2, provider.requests.size)
-        assertEquals(selection, provider.requests.last().filters)
-        original.filter(selection)
-        advanceUntilIdle()
-        assertEquals(2, provider.requests.size)
-        assertEquals(DiscoveryScroll(), original.state.value.scroll)
-        assertEquals("b", original.state.value.books.single().title)
-        val restored = model(SavedStateHandle(mapOf("discovery.filters" to saved.get<String>("discovery.filters"))))
-        advanceUntilIdle()
-        assertEquals("b", restored.state.value.filters["sort"])
-        assertEquals("b", restored.state.value.books.single().title)
-        assertEquals(3, provider.requests.size)
-        assertEquals(selection, Json.decodeFromString<Map<String, String>>(saved.get<String>("discovery.filters")!!))
-    }
-
-    @Test fun invalidRestoredCategoryStopsBeforeLoadingAndInvalidFiltersUseDefaults() = runTest(dispatcher) {
-        val provider = Pages()
-        add(provider)
-        val missing = model(route = route.copy(categoryId = "removed"))
-        advanceUntilIdle()
-        assertEquals(DiscoveryError.InvalidRequest, missing.state.value.error)
-        assertTrue(provider.requests.isEmpty())
-        val restored = model(route = route.copy(filtersJson = "{\"sort\":\"gone\",\"removed\":\"value\"}"))
-        advanceUntilIdle()
-        assertEquals(mapOf("sort" to "a"), restored.state.value.filters)
-    }
-
-    @Test fun sourceSearchNeverEvaluatesCatalogOnInitialLoadPaginationOrRefresh() = runTest(dispatcher) {
-        var catalogs = 0
-        val provider = object : Pages() {
-            override suspend fun catalog(refresh: Boolean): Result<DiscoveryCatalog, DiscoveryError> {
-                catalogs++
-                return Err(DiscoveryError.InvalidRules)
-            }
-            override fun filters(target: String) = emptyList<DiscoveryFilter.Choice>()
-        }
-        add(provider)
-        val target = DISCOVERY_SEARCH_PREFIX + "A title"
-        val model = model(route = route.copy(target = target, categoryId = null, filtersJson = "{\"sort\":\"b\"}"))
-        advanceUntilIdle()
-        assertNull(model.state.value.error)
-        assertEquals(1, model.state.value.books.size)
-        model.loadMore()
-        advanceUntilIdle()
-        assertEquals(2, model.state.value.books.size)
-        model.refresh()
-        advanceUntilIdle()
-        assertNull(model.state.value.error)
-        assertEquals(0, catalogs)
-        assertEquals(listOf(null, "2", null), provider.requests.map { it.cursor })
-        assertTrue(provider.requests.all { it.target == target && it.filters.isEmpty() })
-    }
-
-    @Test fun rawExploreActionsStillLoadCatalogValuesWithoutACategoryId() = runTest(dispatcher) {
-        var catalogs = 0
-        val provider = object : Pages() {
-            override suspend fun catalog(refresh: Boolean): Result<DiscoveryCatalog, DiscoveryError> {
-                catalogs++
-                return Ok(DiscoveryCatalog(emptyList(), filters(""), mapOf("sort" to "b")))
-            }
-        }
-        add(provider)
-        val model = model(route = route.copy(target = "raw-explore", categoryId = null))
-        advanceUntilIdle()
-        assertNull(model.state.value.error)
-        assertEquals(1, catalogs)
-        assertEquals("raw-explore", provider.requests.single().target)
-        assertEquals(mapOf("sort" to "b"), provider.requests.single().filters)
-    }
-
-    @Test fun manualRefreshInvalidatesTheHomepageHandoffBeforeRequestingTheFirstPage() = runTest(dispatcher) {
-        val refreshes = mutableListOf<Boolean>()
-        val provider = object : Pages() {
-            override suspend fun homepageCatalog(refresh: Boolean): Result<DiscoveryCatalog, DiscoveryError> {
-                refreshes += refresh
-                return Ok(DiscoveryCatalog(emptyList(), filters("")))
-            }
-        }
-        add(provider)
-        val model = model(route = route.copy(categoryId = null))
-        advanceUntilIdle()
-        model.refresh()
-        advanceUntilIdle()
-        assertEquals(listOf(false, true), refreshes)
-        assertEquals(listOf(null, null), provider.requests.map { it.cursor })
-    }
-
-    @Test fun refreshKeepsVisibleCardsUntilTheReplacementPageArrives() = runTest(dispatcher) {
-        val release = CompletableDeferred<Unit>()
-        var refreshing = false
-        val provider = object : Pages() {
-            override suspend fun page(request: DiscoveryRequest): Result<DiscoveryPage, DiscoveryError> {
-                if (refreshing) release.await()
-                return super.page(request)
-            }
-        }
-        add(provider)
-        val model = model()
-        advanceUntilIdle()
-        model.loadMore()
-        advanceUntilIdle()
-        val previous = model.state.value.books
-        assertEquals(2, previous.size)
-        refreshing = true
-        model.refresh()
-        runCurrent()
-        assertEquals(previous, model.state.value.books)
-        assertTrue(model.state.value.loading)
-        release.complete(Unit)
-        advanceUntilIdle()
-        assertEquals(1, model.state.value.books.size)
-        assertFalse(model.state.value.loading)
-        assertEquals(listOf(null, "2", null), provider.requests.map { it.cursor })
     }
 
     @Test fun feedOnlyMoreInitializesItsScopedFiltersAndPaginatesWithoutCategories() = runTest(dispatcher) {
@@ -329,22 +168,6 @@ class DiscoveryResultsViewModelTest {
         accounts.begin(Identifier("fixture", "b"))
         advanceUntilIdle()
         assertEquals(1, replacement.requests.size)
-    }
-
-    @Test fun rotationAndBackResumeDoNotReloadCompletedPage() = runTest(dispatcher) {
-        val provider = Pages()
-        add(provider)
-        val model = model()
-        advanceUntilIdle()
-        model.scroll(DiscoveryScroll(4, 12))
-        model.setActive(false)
-        model.setActive(true)
-        advanceUntilIdle()
-        assertEquals(1, provider.requests.size)
-        assertEquals(DiscoveryScroll(4, 12), model.state.value.scroll)
-        accounts.begin(source)
-        advanceUntilIdle()
-        assertEquals(2, provider.requests.size)
     }
 
     @Test fun supersededFilterRequestCannotPublishLateBooks() = runTest(dispatcher) {

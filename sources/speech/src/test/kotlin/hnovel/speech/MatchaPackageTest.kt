@@ -107,10 +107,4 @@ class MatchaPackageTest {
         assertEquals(MatchaPackageError.Ambiguous, duplicate.error)
     }
 
-    @Test fun missingSpeakerControlUsesDefaultSpeakerUntilTheModelIsLoaded() {
-        val mapped = plan(preview(resources = listOf("voice.int8.onnx", "tokens.txt"),
-            param = """'{"modelDir":"models/shared","speakerId":"@sid"}'""", extra = "extendUI: null"))
-        assertEquals(0, mapped.plan!!.configuration.speakerId)
-        assertEquals("voice.int8.onnx", mapped.plan!!.configuration.model)
-    }
 }

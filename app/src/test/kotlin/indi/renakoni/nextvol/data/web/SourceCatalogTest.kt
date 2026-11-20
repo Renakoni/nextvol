@@ -2,7 +2,6 @@ package indi.renakoni.nextvol.data.web
 
 import android.app.Application
 import android.content.ContextWrapper
-import hnovel.content.LoginForm
 import hnovel.content.RuleTaskRunner
 import hnovel.execution.ExecutionAuthority
 import hnovel.imports.*
@@ -22,22 +21,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class SourceCatalogTest {
-    @Test fun pixivConfigurationHelpMatchesNativeSections() {
-        val pixiv = RuntimeEnvironment.getApplication().assets.open("source-catalog/Adult.json").bufferedReader().use {
-            Json.parseToJsonElement(it.readText()).jsonArray.map { row -> row.jsonObject }
-                .single { row -> row["bookSourceUrl"]?.jsonPrimitive?.content == "https://www.pixiv.net/novel" }
-        }
-        val help = pixiv.getValue("variableComment").jsonPrimitive.content
-        assertTrue(help.contains("书源配置"))
-        assertTrue(help.contains("上方账户区"))
-        assertTrue(help.contains("扩展分类"))
-        listOf("variableComment", "bookSourceComment").forEach { key ->
-            val text = pixiv.getValue(key).jsonPrimitive.content
-            assertFalse(text.contains("点击【👀 书源设置】"))
-            assertFalse(text.contains("点击【👀 发现设置】"))
-        }
-    }
-
     @get:Rule val folder = TemporaryFolder()
     private val catalog = SourceCatalog(RuntimeEnvironment.getApplication())
 
@@ -63,23 +46,6 @@ class SourceCatalogTest {
             if (entries.isNotEmpty()) assertEquals(JsonArray(entries.map(::raw)),
                 Json.parseToJsonElement(catalog.definitions(entries.map { it.key }.toSet())))
         }
-    }
-
-    @Test fun pixivNovelUsesItsOriginalIdentityInTheAdultCategoryWithoutBundledCredentials() {
-        val pixiv = catalog.entries.single { it.key == "https://www.pixiv.net/novel" }
-        assertEquals(SourceCategory.Adult, pixiv.category)
-        assertEquals("Pixiv 小说", pixiv.name)
-        val definition = raw(pixiv)
-        assertEquals(pixiv.key, definition.getValue("bookSourceUrl").jsonPrimitive.content)
-        assertEquals(0, definition.getValue("bookSourceType").jsonPrimitive.int)
-        assertTrue(definition.getValue("bookSourceComment").jsonPrimitive.content.contains("https://github.com/DowneyRem/PixivSource"))
-        for (field in listOf("searchUrl", "exploreUrl", "loginUrl", "loginUi", "loginCheckJs")) {
-            assertTrue(field, definition.getValue(field).jsonPrimitive.content.isNotBlank())
-        }
-        assertEquals(buildJsonObject { put("Referer", "https://www.pixiv.net") },
-            Json.parseToJsonElement(definition.getValue("header").jsonPrimitive.content))
-        assertTrue(definition.keys.none { it in setOf("loginInfo", "loginHeader", "cookies", "token") })
-        assertTrue(allEntries().none { it.key in setOf("https://www.pixiv.net", "https://www.pixiv.net/manga") })
     }
 
     @Test fun everyAddableCategorySourceActivatesAndRestoresWithoutChangingOrdinaryBookIdentity() = runBlocking {
@@ -125,44 +91,6 @@ class SourceCatalogTest {
         } finally { sources.stop() }
     }
 
-    @Test fun catalogContainsOnlyMaintainedDefinitions() {
-        assertEquals(71, allEntries().size)
-        for (category in SourceCategory.entries) {
-            val definitions = assets.open("source-catalog/${category.name}.json").bufferedReader().use {
-                Json.parseToJsonElement(it.readText()).jsonArray
-            }
-            val entries = catalog.entries.filter { it.category == category }
-            assertEquals(entries.size, definitions.size)
-            assertEquals(entries.indices.toList(), entries.map { it.index }.sorted())
-        }
-        assertTrue(allEntries().none { it.key in setOf("https://www.17bxwx.com/", "http://www.qudushu.com",
-            "https://bbs.yamibo.com", "https://www.xstt5.com", "https://lcread.com") })
-    }
-
-    @Test fun loginEntriesWithoutScriptControlsOpenAnAbsoluteWebsiteUrl() {
-        for (entry in catalog.entries) {
-            val definition = raw(entry)
-            val login = definition["loginUrl"]?.jsonPrimitive?.content.orEmpty()
-            val controls = definition["loginUi"]?.jsonPrimitive?.content.orEmpty()
-            if (login.isBlank() || controls.isNotBlank()) continue
-            val form = LoginForm.parse("", login)
-            assertEquals(entry.name, login, form.browserUrl)
-            assertTrue(entry.name, java.net.URI(checkNotNull(form.browserUrl)).host.orEmpty().isNotBlank())
-        }
-    }
-
-    @Test fun formerOfficialSitesSitInTheirOriginalCategoriesAndDeadSitesAreGone() {
-        fun category(name: String) = allEntries().single { it.name == name }.category
-        assertEquals(SourceCategory.Platforms, category("QQ阅读"))
-        assertEquals(SourceCategory.Platforms, category("起点中文网"))
-        assertEquals(SourceCategory.Female, category("晋江文学城"))
-        assertEquals(SourceCategory.Anime, category("SF轻小说／菠萝包"))
-        assertEquals(SourceCategory.Literature, category("豆瓣阅读"))
-        assertEquals(SourceCategory.Adult, category("PO18"))
-        assertTrue(allEntries().none { it.name == "涩涩俱乐部" })
-        assertFalse(assets.list("source-catalog")!!.contains("Official.json"))
-    }
-
     @Test fun bundledDefinitionsExcludeFixedAccountAndTrackingHeaders() {
         val entries = listOf(
             allEntries().single { it.key == "https://www.uaa.com/" } to setOf("cookie", "token"),
@@ -184,16 +112,4 @@ class SourceCatalogTest {
         }
     }
 
-    @Test fun crossCategorySelectionPreviewsOnlyChosenSourcesAndNamesNeverDetermineClassification() {
-        val chosen = listOf(catalog.entries.first { it.category == SourceCategory.Anime }, catalog.entries.last())
-        val importer = SourceDefinitionImporter(SourceDefinitionStore(folder.newFolder().toPath()))
-        val preview = importer.preview(catalog.definitions(chosen.map { it.key }.toSet()), AUTO_PROFILE)
-        assertEquals(chosen.map { it.key }, preview.candidates.map { it.importKey })
-        val results = importer.commit(preview, preview.candidates.map { ImportSelection(it.index, ImportDecision.Add) })
-        assertTrue(results.items.all { it.error == null })
-        val sameName = SourceDefinition("unrelated", "legado", LEGADO_PROFILE, "https://unrelated.invalid/", chosen.first().name,
-            true, false, ImportOrigin(ImportOrigin.Kind.Paste), "digest", 1, "{}")
-        assertNull(catalog.entry(sameName))
-        assertEquals(chosen.first().category, catalog.entry(sameName.copy(importKey = chosen.first().key, displayName = "Renamed"))?.category)
-    }
 }

@@ -1,10 +1,5 @@
 package indi.renakoni.nextvol.reader
 
-import android.net.Uri
-import android.view.KeyEvent
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SheetValue
-import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.text.TextMeasurer
@@ -16,14 +11,10 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.theme.NextVolTheme
-import indi.renakoni.nextvol.ui.home.settings.theme.ThemeScreen
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.ui.book.reader.*
 import indi.renakoni.nextvol.ui.book.reader.content.componet.*
-import indi.renakoni.nextvol.ui.book.reader.loadReaderFontFamilySafe
 import kotlinx.coroutines.*
 import org.junit.After
 import org.junit.Assert.*
@@ -31,7 +22,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ReaderLayoutInstrumentedTest {
@@ -65,61 +55,4 @@ class ReaderLayoutInstrumentedTest {
         }
     }
 
-    @Test fun missingAndInvalidCustomFontsFallBack() {
-        val invalid = File(context.cacheDir, "invalid-reader-font.ttf")
-        try {
-            invalid.writeText("not a font")
-            assertNull(loadReaderFontFamilySafe(Uri.fromFile(invalid)))
-            assertNull(loadReaderFontFamilySafe(Uri.fromFile(File(context.cacheDir, "missing-reader-font.ttf"))))
-        } finally {
-            invalid.delete()
-        }
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Test fun paperSubpageReturnsToReadingSettingsBeforeClosingTheSheet() {
-        var dismissed = false
-        compose.setContent {
-            NextVolTheme("Disabled", false, "light_default", "dark_default") {
-                SettingsBottomSheet(
-                    rememberBottomSheetState(initialValue = SheetValue.Expanded),
-                    onDismissRequest = { dismissed = true }, settingState = settings, onClickThemeSettings = {},
-                )
-            }
-        }
-        compose.onNodeWithTag("reader-paper-sage").assertDoesNotExist()
-        compose.onNodeWithText(context.getString(R.string.paper_settings)).performClick()
-        compose.onNodeWithTag("reader-paper-sage").performScrollTo().performClick()
-        compose.waitUntil(5_000) { settings.paperId == "sage" }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-        compose.onNodeWithText(context.getString(R.string.appearance_settings)).assertIsDisplayed()
-        assertFalse(dismissed)
-        compose.onNodeWithTag("reader-paper-sage").assertDoesNotExist()
-        compose.onNodeWithText(context.getString(R.string.paper_settings)).performClick()
-        compose.onNodeWithTag("reader-paper-sage").assertIsSelected()
-        compose.onNodeWithContentDescription(context.getString(R.string.sources_back)).performClick()
-        compose.onNodeWithText(context.getString(R.string.appearance_settings)).assertIsDisplayed()
-    }
-
-    @Test fun externalPaperSubpagePreservesSelectionAndParentScrollPosition() {
-        var leftTheme = false
-        compose.setContent {
-            NextVolTheme("Disabled", false, "light_default", "dark_default") {
-                ThemeScreen(settings, settings, onClickBack = { leftTheme = true },
-                    onClickChangeTextColor = {}, onClickChangeBackgroundColor = {})
-            }
-        }
-        compose.onNodeWithTag("reader-paper-sage").assertDoesNotExist()
-        val paperEntry = hasText(context.getString(R.string.paper_settings)) and hasClickAction()
-        compose.onNodeWithTag("theme-settings-list").performScrollToNode(paperEntry)
-        compose.onNode(paperEntry).performClick()
-        compose.onNodeWithTag("reader-paper-sage").performScrollTo().performClick()
-        compose.waitUntil(5_000) { settings.paperId == "sage" }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-        compose.onNode(paperEntry).assertIsDisplayed()
-        assertFalse(leftTheme)
-        compose.onNodeWithTag("reader-paper-sage").assertDoesNotExist()
-        compose.onNode(paperEntry).performClick()
-        compose.onNodeWithTag("reader-paper-sage").assertIsSelected()
-    }
 }

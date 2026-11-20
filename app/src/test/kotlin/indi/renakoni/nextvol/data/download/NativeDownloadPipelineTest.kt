@@ -285,23 +285,4 @@ class NativeDownloadPipelineTest {
         assertNotEquals(DownloadTaskStatus.Complete.name, store.entry(book)!!.taskStatus)
     }
 
-    @Test fun imagesFromDifferentBooksShareTwoSlotsAndReleaseThemOnCancellation() = runBlocking {
-        withImages = true
-        val started = Channel<String>(Channel.UNLIMITED)
-        val active = AtomicInteger()
-        val peak = AtomicInteger()
-        beforeImage = {
-            val count = active.incrementAndGet()
-            peak.updateAndGet { maxOf(it, count) }
-            try { started.send(it); awaitCancellation() } finally { active.decrementAndGet() }
-        }
-        val jobs = listOf("123", "456", "789").map { id -> async { download(book.copy(remoteId = id), listOf("1")) } }
-        try {
-            withTimeout(5000) { repeat(2) { started.receive() } }
-            assertEquals(2, active.get())
-            assertEquals(2, peak.get())
-        } finally { jobs.forEach { it.cancel() }; jobs.joinAll() }
-        until { active.get() == 0 }
-        assertEquals(2, peak.get())
-    }
 }

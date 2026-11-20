@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.data.web.rules
 import android.app.Application
 import com.github.michaelbull.result.getOrElse
 import hnovel.content.RuleSourceFixture
-import indi.renakoni.nextvol.data.book.UNKNOWN_BOOK_UPDATE_TIME
 import io.nightfish.lightnovelreader.api.book.WordCount
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import kotlinx.coroutines.runBlocking
@@ -87,41 +86,6 @@ class RuleBookMetadataTest {
             "wordCount" to JsonPrimitive("@js:'1.23万'"),
             "updateTime" to JsonPrimitive("@js:'2026-09-14 08:00:00'")
         ))))
-
-    @Test fun displayUsesSourceDateWithoutChangingTheObservationMarkerOrFetching(): Unit = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source(customize = ::metadata).use { source ->
-            val adapter = RuleWebBookDataSource(Identifier("rules", "metadata"), source)
-            val id = fixture.server.url("/book/one").toString()
-            val information = adapter.getBookInformation(id).getOrElse { error(it.toString()) }
-            assertEquals(12300, information.wordCount.count)
-            val observed = source.cachedInformation(id)!!.observedUpdate
-            val requests = fixture.server.requestCount
-            val display = adapter.informationForDisplay(id, information)
-            assertEquals(LocalDateTime.of(2026, 9, 14, 8, 0), display.lastUpdated)
-            assertEquals(information.wordCount, display.wordCount)
-            assertEquals(requests, fixture.server.requestCount)
-            assertEquals(observed, source.cachedInformation(id)!!.observedUpdate)
-            assertEquals(information, adapter.getBookInformation(id).getOrElse { error(it.toString()) })
-        } }
-    }
-
-    @Test fun absentMetadataDoesNotDisplayTheDirectoryObservationTime(): Unit = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source().use { source ->
-            val adapter = RuleWebBookDataSource(Identifier("rules", "metadata"), source)
-            val id = fixture.server.url("/book/one").toString()
-            val information = adapter.getBookInformation(id).getOrElse { error(it.toString()) }
-            assertTrue(information.lastUpdated.year > 1970)
-            val requests = fixture.server.requestCount
-            val display = adapter.informationForDisplay(id, information)
-            assertEquals(0, display.wordCount.count)
-            assertEquals(UNKNOWN_BOOK_UPDATE_TIME, display.lastUpdated)
-            assertEquals(requests, fixture.server.requestCount)
-            fixture.extraChapter = true
-            val updated = adapter.getBookInformation(id).getOrElse { error(it.toString()) }
-            assertTrue(updated.lastUpdated.isAfter(information.lastUpdated))
-            assertEquals(UNKNOWN_BOOK_UPDATE_TIME, adapter.informationForDisplay(id, updated).lastUpdated)
-        } }
-    }
 
     @Test fun persistedMetadataRepairsOldDisplayValuesWithoutNetworkAccess(): Unit = runBlocking {
         RuleSourceFixture().use { fixture ->

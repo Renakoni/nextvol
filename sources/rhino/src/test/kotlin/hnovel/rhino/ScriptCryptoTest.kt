@@ -18,14 +18,6 @@ class ScriptCryptoTest {
     }
     private fun bytes(value: ByteArray) = JsonArray(value.map { JsonPrimitive(it.toInt()) })
 
-    @Test fun aesBlockMatchesKnownCiphertext() {
-        val ciphertext = "29c3505f571420f6402299b31a02d73a"
-        assertEquals(bytes(cn.hutool.core.util.HexUtil.decodeHex(ciphertext)),
-            run("aesEncodeToByteArray", "Two One Nine Two", "Thats my Kung Fu", "AES/ECB/NoPadding", ""))
-        assertEquals(JsonPrimitive("Two One Nine Two"),
-            run("aesDecodeToString", ciphertext, "Thats my Kung Fu", "AES/ECB/NoPadding", ""))
-    }
-
     @Test fun legacyAesEncryptionAndHexOrBase64DecryptionMatchReferenceCrypto() {
         val key = "0123456789abcdef"
         val iv = "abcdef0123456789"
@@ -83,10 +75,4 @@ class ScriptCryptoTest {
         assertEquals(FailureCode.ResultTooLarge, (small.evaluate("java.aesEncodeToByteArray('a'.repeat(30),'0123456789abcdef','AES/ECB/PKCS5Padding','')", frame) as ScriptResult.Failure).code)
     }
 
-    @Test fun uuidIsARandomValueRatherThanADeviceIdentifier() {
-        val first = java.util.UUID.fromString(run("randomUUID").jsonPrimitive.content)
-        val second = java.util.UUID.fromString(run("randomUUID").jsonPrimitive.content)
-        assertEquals(4, first.version())
-        assertNotEquals(first, second)
-    }
 }

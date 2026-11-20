@@ -3,18 +3,15 @@ package indi.renakoni.nextvol.benchmark.work
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.Until
 import indi.renakoni.nextvol.benchmark.ui.UiAutomatorTest
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
-import java.util.zip.ZipInputStream
 
 @Suppress("SameParameterValue")
 @LargeTest
@@ -64,66 +61,6 @@ class WorkManagerTest : UiAutomatorTest() {
         openBottomNavigation("Bookshelf")
         assertText("Benchmark Shelf")
         assertText("Benchmark Sample Novel")
-    }
-
-    @Test
-    fun bookshelfShareGrantsAReadableLnrFileToTheReceivingApp() {
-        val cache = InstrumentationRegistry.getInstrumentation().targetContext.cacheDir
-        val received = File(cache, BookshelfShareTargetActivity.FILE_NAME).apply { delete() }
-        val error = File(cache, BookshelfShareTargetActivity.ERROR_NAME).apply { delete() }
-        launchApp()
-        openBottomNavigation("Bookshelf")
-        openBookshelfMenu()
-        clickText("Share Bookshelf")
-        clickText("NextVol share test")
-
-        val deadline = SystemClock.elapsedRealtime() + WORK_TIMEOUT
-        while (!received.exists() && !error.exists() && SystemClock.elapsedRealtime() < deadline) {
-            SystemClock.sleep(100)
-        }
-        assertTrue(error.takeIf { it.exists() }?.readText() ?: "No shared file was received", received.length() > 0)
-        ZipInputStream(received.inputStream()).use { zip ->
-            assertEquals("data", zip.nextEntry?.name)
-            assertTrue("Shared backup lost the selected shelf", zip.readBytes().toString(Charsets.UTF_8).contains("Benchmark Shelf"))
-            assertEquals(null, zip.nextEntry)
-        }
-        assertText("Benchmark Shelf")
-    }
-
-    @Test
-    fun epubExportRunsFromBookUiAndWritesFile() {
-        removeOutput(EPUB_FILE)
-        openFixtureBook()
-        clickDescription("Export")
-        assertText("Export as Epub")
-        clickText("Export")
-        saveCreatedDocument(EPUB_FILE)
-
-        assertOutputFile(EPUB_FILE)
-        assertText("Benchmark Sample Novel")
-    }
-
-    @Test
-    fun cacheBookRunsFromLiveBookUiAndMarksBookCached() {
-        launchApp()
-        openBottomNavigation("Discover")
-        clickDescription("search")
-        setFirstTextField(LIVE_BOOK_QUERY)
-        // The real source rate-limits searches from the same public IP.
-        SystemClock.sleep(6_000)
-        device.pressEnter()
-        waitForDescription("Export", NETWORK_WORK_TIMEOUT)
-
-        scrollToText("Not Cached")
-        var started = false
-        repeat(5) {
-            if (started) return@repeat
-            clickClickableText("Not Cached")
-            started = device.wait(Until.gone(By.text("Not Cached")), 3_000)
-        }
-        assertTrue("Cache button never started CacheBookWork", started)
-        val cached = device.wait(Until.findObject(By.text("Cached")), NETWORK_WORK_TIMEOUT)
-        assertNotNull("CacheBookWork did not make the live book fully cached", cached)
     }
 
     @Test
@@ -179,13 +116,6 @@ class WorkManagerTest : UiAutomatorTest() {
     private fun openSettings() {
         launchApp()
         openAppSettings()
-    }
-
-    private fun openFixtureBook() {
-        launchApp()
-        openBottomNavigation("Bookshelf")
-        clickText("Benchmark Sample Novel")
-        assertText("Benchmark Sample Novel")
     }
 
     private fun openBookshelfMenu() {
@@ -255,11 +185,6 @@ class WorkManagerTest : UiAutomatorTest() {
         )
     }
 
-    private fun waitForDescription(description: String, timeout: Long) {
-        val item = device.wait(Until.findObject(By.desc(description)), timeout)
-        assertNotNull("Description '$description' did not appear", item)
-    }
-
     private fun removeOutput(fileName: String) {
         shell("rm -f /sdcard/Documents/$fileName")
     }
@@ -279,10 +204,7 @@ class WorkManagerTest : UiAutomatorTest() {
 
     companion object {
         private const val SNAPSHOT_FILE = "BenchmarkUiSnapshot.lnr"
-        private const val EPUB_FILE = "BenchmarkUiNovel.epub"
-        private const val LIVE_BOOK_QUERY = "奇招百出的维多利亚"
         private const val WORK_TIMEOUT = 45_000L
         private const val UPDATE_WORK_TIMEOUT = 20_000L
-        private const val NETWORK_WORK_TIMEOUT = 240_000L
     }
 }

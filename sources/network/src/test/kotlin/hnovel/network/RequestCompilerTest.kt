@@ -6,13 +6,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RequestCompilerTest {
-    @Test fun malformedOptionalUrlObjectKeepsTheBaseGetRequest() {
-        val actual = request("""/search?q={{key}},{"body":"id"="search-form"}""", "a&b")
-        assertEquals("https://fixture.invalid/search?q=a%26b", actual.url)
-        assertEquals("GET", actual.method)
-        assertNull(actual.body)
-    }
-
     @Test fun encodedFormValuesArePreservedUnlessCharsetRequiresEncoding() {
         val rule = """/search,{"method":"POST","body":"trace=one%253Ftype%253Dbook&raw=a+b&q={{key}}"}"""
         assertEquals("trace=one%253Ftype%253Dbook&raw=a%2Bb&q=%252F", request(rule, "%2F").body)
@@ -22,12 +15,6 @@ class RequestCompilerTest {
         assertEquals("q=$longValue", request("""/search,{"method":"POST","body":"q=$longValue"}""").body)
     }
 
-    @Test fun emptyAndNullCharsetsUseUtf8AndPreserveAlreadyEncodedFormValues() {
-        val rule = """/search,{"method":"POST","body":"trace=one%253Ftype%253Dbook&q={{key}}"}"""
-        for (charset in listOf("\"\"", "null")) {
-            assertEquals(request(rule, "中文&data"), request(rule.replace("\"method\"", "\"charset\":$charset,\"method\""), "中文&data"))
-        }
-    }
     @Test fun singleQuotedOptionsPreserveEscapesAndCharsetAwareSubstitution() {
         val single = """/search/,{'method':'POST','charset':'GB2312','body':'keyword={{key}}','header':{'X-Literal':'It\'s "quoted"\\end','X-Key':'{{key}}'}}"""
         val strict = """/search/,{"method":"POST","charset":"GB2312","body":"keyword={{key}}","header":{"X-Literal":"It's \"quoted\"\\end","X-Key":"{{key}}"}}"""

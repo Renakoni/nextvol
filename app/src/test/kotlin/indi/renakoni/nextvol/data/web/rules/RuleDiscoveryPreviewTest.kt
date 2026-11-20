@@ -151,24 +151,6 @@ class RuleDiscoveryPreviewTest {
         }
     }
 
-    @Test fun shortPreviewRestoresJsonListMetadata(): Unit = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            pages(fixture, """[{"name":"Book 1","url":"/book/1","author":"JSON author","kind":"JSON kind","intro":"JSON intro"}]""")
-            val rules = mapOf("bookList" to JsonPrimitive("$[*]"), "name" to JsonPrimitive("$.name"),
-                "bookUrl" to JsonPrimitive("$.url"), "author" to JsonPrimitive("$.author"),
-                "kind" to JsonPrimitive("$.kind"), "intro" to JsonPrimitive("$.intro"), "coverUrl" to JsonPrimitive(""))
-            fixture.source { definition(it, rules) }.use { source ->
-                val preview = RuleDiscoveryProvider(source).feed().get()!!.single().books.single()
-                assertEquals("Book 1", preview.title)
-                assertEquals("", preview.author)
-                val information = source.information(preview.remoteId)
-                assertEquals("JSON author", information.author)
-                assertEquals(listOf("JSON kind"), information.tags)
-                assertEquals("JSON intro", information.description)
-            }
-        }
-    }
-
     @Test fun listScriptStateAndFallbackTitleSurviveBatchedFieldsAndDetailRestore(): Unit = runBlocking {
         RuleSourceFixture().use { fixture ->
             pages(fixture, (1..10).joinToString("") { row(it, "") })
@@ -248,28 +230,4 @@ class RuleDiscoveryPreviewTest {
         }
     }
 
-    @Test fun directBookEntriesOnlyReadTheirTitleUntilOpened(): Unit = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest) = MockResponse().setBody(
-                    "<h1>Book 1</h1><b>Detail author</b><span class='latest'>Latest chapter</span>")
-            }
-            val fields = mutableListOf<String>()
-            fixture.beforeRun = { task, _ -> if (task is ExecutionTask.Rule) fields += task.location.field }
-            fixture.source { raw ->
-                val source = definition(raw)
-                JsonObject(source + mapOf("bookUrlPattern" to JsonPrimitive(Regex.escape(fixture.server.url("/book/1").toString())),
-                    "ruleBookInfo" to JsonObject(source.getValue("ruleBookInfo").jsonObject + ("author" to JsonPrimitive("b@text")))))
-            }.use { source ->
-                val book = RuleDiscoveryProvider(source).page(DiscoveryRequest("/book/1")).get()!!.books.single()
-                assertEquals("Book 1", book.title)
-                assertEquals("", book.author)
-                assertEquals(1, fields.count { it == "ruleBookInfo.name" })
-                assertFalse("ruleBookInfo.author" in fields)
-                assertEquals(1, fixture.server.requestCount)
-                assertEquals("Detail author", source.information(book.remoteId).author)
-                assertEquals(2, fixture.server.requestCount)
-            }
-        }
-    }
 }

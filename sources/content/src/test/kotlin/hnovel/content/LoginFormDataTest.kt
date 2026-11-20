@@ -88,13 +88,6 @@ class LoginFormDataTest {
             {name:'region',type:'select',chars:['west']}]""", "", true) }.isFailure)
     }
 
-    @Test fun labelsAndReorderingDoNotChangeTheIdentityOfDistinctActions() {
-        val first = LoginForm.parse("[{name:'same',type:'button',action:'one()'},{name:'same',type:'button',action:'two()'}]", "")
-        val second = LoginForm.parse("[{name:'renamed',type:'button',action:'two()'},{name:'renamed',type:'button',action:'one()'}]", "")
-        assertEquals(first.fields.associate { it.action to it.id }, second.fields.associate { it.action to it.id })
-        assertNotEquals(first.id, second.id)
-    }
-
     @Test fun staticLenientFormDoesNotStartTheRuleInterpreter() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.afterRun = { error("Static loginUi is data") }

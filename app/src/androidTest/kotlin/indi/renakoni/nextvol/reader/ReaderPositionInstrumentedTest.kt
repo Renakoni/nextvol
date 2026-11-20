@@ -12,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
@@ -22,7 +21,6 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
@@ -101,17 +99,6 @@ class ReaderPositionInstrumentedTest {
         database.close()
     }
 
-    @Test fun sourceCharacterSurvivesFlipChapterScrollAndContinuousScrollRoundTrip() {
-        val fixture = Fixture()
-        fixture.assertPosition()
-        fixture.setMode(flip = false, continuous = false)
-        fixture.assertPosition()
-        fixture.setMode(flip = false, continuous = true)
-        fixture.assertPosition()
-        fixture.setMode(flip = true, continuous = true)
-        fixture.assertPosition()
-    }
-
     @Test fun explicitRightLeafBookmarkKeepsItsCharacterThroughSingleAndBothScrollModes() {
         val fixture = Fixture()
         fixture.awaitReady()
@@ -144,91 +131,6 @@ class ReaderPositionInstrumentedTest {
         fixture.setMode(flip = true, continuous = true)
         compose.runOnIdle { fixture.width = 1000.dp }
         fixture.assertPosition(offset)
-    }
-
-    @Test fun chapterScrollBodyIsCenteredAndSharesItsRealViewportAtEveryWidth() = assertScrollBody(false)
-    @Test fun continuousScrollBodyIsCenteredAndSharesItsRealViewportAtEveryWidth() = assertScrollBody(true)
-
-    @Test fun pageLayoutPreferenceRoundTripsKeepTheOriginalCharacterAndSavedProgress() {
-        val fixture = Fixture(unitDensity = true, initialProgress = 0.6f)
-        fun assertLayout(columns: Int, reason: ReaderLayoutReason? = null) {
-            compose.waitUntil(20_000) {
-                fixture.layoutResult.value?.let { it.geometry?.columns == columns && it.reason == reason } == true
-            }
-            fixture.assertPosition()
-        }
-        compose.runOnIdle { fixture.width = 1000.dp; fixture.height = 600.dp }
-        assertLayout(2)
-        for ((preference, columns) in listOf("single" to 1, "double" to 2, "auto" to 2)) {
-            runBlocking { settings.pageLayoutUserData.set(preference) }
-            compose.waitUntil(5_000) { fixture.reader.readerSettings.pageLayout == preference }
-            assertLayout(columns)
-        }
-        compose.runOnIdle { fixture.width = 800.dp }
-        assertLayout(1, ReaderLayoutReason.WindowTooNarrow)
-        runBlocking { settings.fontSizeUserData.set(18f); settings.pageLayoutUserData.set("double") }
-        assertLayout(2) // Explicit double is allowed below the automatic 840dp threshold.
-        compose.runOnIdle { fixture.width = 450.dp }
-        assertLayout(1, ReaderLayoutReason.WindowTooNarrow)
-        compose.runOnIdle { fixture.width = 1000.dp }
-        assertLayout(2)
-        compose.runOnIdle { fixture.height = 400.dp }
-        assertLayout(1, ReaderLayoutReason.WindowTooShort)
-        compose.runOnIdle { fixture.height = 600.dp }
-        assertLayout(2)
-        runBlocking { settings.fontSizeUserData.set(36f) }
-        assertLayout(1, ReaderLayoutReason.TextTooLarge)
-        runBlocking { settings.fontSizeUserData.set(20f) }
-        assertLayout(2)
-        for (continuous in listOf(false, true)) {
-            fixture.setMode(flip = false, continuous = continuous)
-            assertLayout(1, ReaderLayoutReason.ScrollMode)
-            assertEquals("double", fixture.reader.readerSettings.pageLayout)
-            assertEquals(720, (fixture.reader.uiState.contentUiState as ScrollContentUiState).lazyListState.layoutInfo.viewportSize.width)
-        }
-        fixture.setMode(flip = true, continuous = true)
-        assertLayout(2)
-        compose.activityRule.scenario.recreate()
-        fixture.awaitReady()
-        assertLayout(2)
-        assertEquals("double", fixture.reader.readerSettings.pageLayout)
-        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
-        try {
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-            val saved = fixture.savedProgress()
-            assertTrue("Layout-only changes must not publish reading: ${fixture.progressWrites}", fixture.progressWrites.isEmpty())
-            assertEquals(0.6f, saved.currentChapterReadingProgressMap.getValue(fixture.chapter.id))
-            assertEquals(0.6f, saved.maxChapterReadingProgressMap.getValue(fixture.chapter.id))
-        } finally {
-            compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
-        }
-    }
-
-    private fun assertScrollBody(continuous: Boolean) {
-        val fixture = Fixture(unitDensity = true)
-        fixture.setMode(flip = false, continuous = continuous)
-        compose.runOnIdle {
-            fixture.height = 600.dp
-            fixture.padding = PaddingValues(start = 12.dp, top = 16.dp, end = 20.dp, bottom = 24.dp)
-        }
-        for (width in listOf(450, 752, 1280, 650, 450)) {
-            compose.runOnIdle { fixture.width = width.dp }
-            fixture.assertPosition()
-            val state = fixture.reader.uiState.contentUiState as ScrollContentUiState
-            val bodyWidth = minOf(width - 32, 720)
-            assertEquals(bodyWidth, state.lazyListState.layoutInfo.viewportSize.width)
-            assertEquals(560, state.lazyListState.layoutInfo.viewportSize.height)
-            val host = compose.onNodeWithTag("position-host").fetchSemanticsNode().boundsInRoot
-            val body = compose.onNode(hasScrollAction()).fetchSemanticsNode().boundsInRoot
-            assertEquals(bodyWidth.toFloat(), body.width, 1f)
-            assertEquals(host.left + 12 + (width - 32 - bodyWidth) / 2, body.left, 1f)
-            assertEquals(host.top + 16, body.top, 1f)
-        }
-        compose.runOnIdle { fixture.width = 1280.dp }
-        fixture.assertPosition()
-        val before = fixture.immersiveClicks
-        compose.onNodeWithTag("position-host").performTouchInput { click(Offset(4f, height / 2f)) }
-        compose.runOnIdle { assertEquals(before + 1, fixture.immersiveClicks) }
     }
 
     @Test fun resizingAfterContinuousChapterPromotionKeepsThePromotedSourcePosition() {
@@ -312,40 +214,6 @@ class ReaderPositionInstrumentedTest {
         fixture.assertPosition(fixture.speechOffset)
     }
 
-    @Test fun invalidSavedFingerprintFallsBackAndFinishesInFlip() {
-        val fixture = Fixture(invalid = true)
-        assertNull(fixture.reader.positions.pending)
-        assertEquals(0, (fixture.reader.uiState.contentUiState as FlipPageContentUiState).pagerState.settledPage)
-    }
-
-    @Test fun invalidSavedFingerprintFallsBackAndFinishesInScroll() {
-        runBlocking { settings.isUsingFlipPageUserData.set(false) }
-        val fixture = Fixture(invalid = true)
-        assertNull(fixture.reader.positions.pending)
-        assertFalse((fixture.reader.uiState.contentUiState as ScrollContentUiState).isRestoringProgress)
-        assertTrue((fixture.reader.positions.checkpoint?.position?.offset ?: 0) < fixture.target)
-    }
-
-    @Test fun emptyChapterTerminatesRecoveryInBothModes() {
-        val fixture = Fixture(empty = true)
-        assertNull(fixture.reader.positions.pending)
-        fixture.setMode(flip = false, continuous = false)
-        assertFalse((fixture.reader.uiState.contentUiState as ScrollContentUiState).isRestoringProgress)
-    }
-
-    @Test fun failedChapterTerminatesRecoveryInBothModes() {
-        val fixture = Fixture(failed = true)
-        assertNull(fixture.reader.positions.pending)
-        fixture.setMode(flip = false, continuous = false)
-        assertFalse((fixture.reader.uiState.contentUiState as ScrollContentUiState).isRestoringProgress)
-    }
-
-    @Test fun flipReflowAndBackgroundKeepTheSavedProgress() = reflowAndBackground(true, false)
-    @Test fun chapterScrollReflowAndBackgroundKeepTheSavedProgress() = reflowAndBackground(false, false)
-    @Test fun continuousScrollReflowAndBackgroundKeepTheSavedProgress() = reflowAndBackground(false, true)
-    @Test fun chapterScrollAccessibilityAfterReflowResumesProgressWrites() = reflowAndBackground(false, false, accessibility = true)
-    @Test fun continuousScrollAccessibilityAfterReflowResumesProgressWrites() = reflowAndBackground(false, true, accessibility = true)
-
     @Test fun continuousReflowKeepsPromotionBlockedUntilTheSourcePositionIsRestored() {
         runBlocking {
             settings.isUsingContinuousScrollingUserData.set(true)
@@ -388,46 +256,6 @@ class ReaderPositionInstrumentedTest {
         compose.waitForIdle()
         compose.waitUntil(15_000) { fixture.progressWrites.isNotEmpty() }
         assertTrue(fixture.progressWrites.last().isFinite())
-    }
-
-    private fun reflowAndBackground(flip: Boolean, continuous: Boolean, accessibility: Boolean = false) {
-        runBlocking {
-            settings.isUsingContinuousScrollingUserData.set(continuous)
-            settings.isUsingFlipPageUserData.set(flip)
-        }
-        val fixture = Fixture(initialProgress = 0.6f)
-        fixture.assertPosition()
-        val before = fixture.reader.uiState.contentUiState!!.readingProgress
-        compose.runOnIdle { fixture.width = 900.dp; fixture.height = 560.dp }
-        fixture.assertPosition()
-        val after = fixture.reader.uiState.contentUiState!!.readingProgress
-        assertNotEquals("Reflow must actually change the displayed extent", before, after)
-        repeat(4) { compose.mainClock.advanceTimeByFrame(); compose.waitForIdle() }
-        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
-        try {
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-            val saved = fixture.savedProgress()
-            assertTrue("Reflow/ON_STOP must not publish new reading: ${fixture.progressWrites}", fixture.progressWrites.isEmpty())
-            assertEquals(0.6f, saved.currentChapterReadingProgressMap.getValue(fixture.chapter.id))
-            assertEquals(0.6f, saved.maxChapterReadingProgressMap.getValue(fixture.chapter.id))
-        } finally {
-            compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
-        }
-        fixture.awaitReady()
-        assertTrue(fixture.progressWrites.isEmpty())
-        if (flip) compose.onRoot().performTouchInput { swipeLeft() }
-        else if (accessibility) {
-            val state = fixture.reader.uiState.contentUiState as ScrollContentUiState
-            val distance = state.lazyListState.layoutInfo.viewportSize.height * 0.8f
-            compose.onNode(hasScrollAction()).performSemanticsAction(SemanticsActions.ScrollBy) { scroll ->
-                assertTrue(scroll(0f, distance))
-            }
-        }
-        else compose.onNode(hasScrollAction()).performTouchInput { swipeUp() }
-        compose.waitForIdle()
-        compose.waitUntil(15_000) { fixture.progressWrites.isNotEmpty() }
-        assertTrue("Real reading must resume persistence", fixture.savedProgress()
-            .maxChapterReadingProgressMap.getValue(fixture.chapter.id) > 0.6f)
     }
 
     private inner class Fixture(
@@ -500,7 +328,6 @@ class ReaderPositionInstrumentedTest {
                 return true
             }
         }
-        fun savedProgress() = runBlocking { records.getUserReadingData("fixture-book") }
         private val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {

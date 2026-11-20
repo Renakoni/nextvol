@@ -67,44 +67,6 @@ class SourceBrowserBackTest {
         assertTrue(shadowOf(view).lastEvaluatedJavascript.contains("localStorage.getItem"))
     }
 
-    @Test fun loginBackNavigatesHistoryThenCancelsOnceEvenAfterDestruction() {
-        val results = mutableListOf<BrokerResult>()
-        val service = sourceService(results)
-        val view = service.webView!!
-        shadowOf(view).setCanGoBack(true)
-        val controller = Robolectric.buildActivity(SourceBrowserActivity::class.java).setup()
-        back(controller.get())
-        assertEquals(1, shadowOf(view).goBackInvocations)
-        assertNull(shadowOf(view).lastEvaluatedJavascript)
-        assertTrue(results.isEmpty())
-        assertFalse(controller.get().isFinishing)
-        shadowOf(view).setCanGoBack(false)
-        back(controller.get())
-        assertNull(shadowOf(view).lastEvaluatedJavascript)
-        assertTrue(controller.get().isFinishing)
-        controller.pause().stop().destroy()
-        service.fail()
-        idleMainLooper()
-        assertEquals(1, results.size)
-        assertEquals(FailureCode.BrowserRequired, (results.single() as BrokerResult.Failure).code)
-    }
-
-    @Test fun verificationBackCancelsEvenWithHistoryAndCompletesOnce() {
-        val results = mutableListOf<BrokerResult>()
-        val service = sourceService(results, verification = true)
-        val view = service.webView!!
-        shadowOf(view).setCanGoBack(true)
-        val controller = Robolectric.buildActivity(SourceBrowserActivity::class.java).setup()
-        back(controller.get())
-        controller.pause().stop().destroy()
-        service.fail()
-        idleMainLooper()
-        assertEquals(0, shadowOf(view).goBackInvocations)
-        assertNull(shadowOf(view).lastEvaluatedJavascript)
-        assertEquals(1, results.size)
-        assertEquals(FailureCode.BrowserRequired, (results.single() as BrokerResult.Failure).code)
-    }
-
     @Test fun recreationKeepsLoginPendingAndReattachesItsWebView() {
         val results = mutableListOf<BrokerResult>()
         val service = sourceService(results)

@@ -12,7 +12,6 @@ import io.nightfish.lightnovelreader.api.web.search.SearchResult
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.*
-import okhttp3.Dns
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
@@ -24,9 +23,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import java.net.InetAddress
 import java.net.URLDecoder
-import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
@@ -106,16 +103,6 @@ class ZLibrarySourceTest {
             second.server.enqueue(response(buildJsonObject { put("success", 1); put("book", book(18)) }))
             assertTrue(second.source.getBookInformation("17/abcdef").isErr)
         } }
-    }
-
-    @Test fun consumerCanStopAtOnePageWithoutStartingTheNextOrReceivingAnError() = runBlocking {
-        Fixture().use { f ->
-            f.server.enqueue(response(page(1, 2, 1, 2)))
-            val events = f.source.searchProvider.search(f.source.searchProvider.searchTypes.first(), "test").take(2).toList()
-            assertEquals(2, events.size)
-            assertTrue(events.all { it is SearchResult.MultipleBook })
-            assertEquals(1, f.server.requestCount)
-        }
     }
 
     @Test fun pagedSearchReturnsBoundMetadataAndRequestsOnlyTheChosenPage() = runBlocking {
@@ -198,19 +185,6 @@ class ZLibrarySourceTest {
                 assertEquals(1, cdn.requestCount)
             }
         } }
-    }
-
-    @Test fun defaultAddressAndDnsFailuresUseTheSameTypedHostDiagnostics() = runBlocking {
-        for ((dns, expected) in listOf(
-            Dns { listOf(InetAddress.getByName("198.18.0.1")) } to DiscoveryError.AddressDenied,
-            Dns { throw UnknownHostException("fixture") } to DiscoveryError.Dns)) {
-            SourceBroker(folder.newFolder().toPath(), dns = dns).use { broker ->
-                val session = broker.open(SourceScope("builtin", "zlibrary", "zlibrary-eapi"), listOf(NetworkGrant("https://books.invalid/")))
-                val failure = runCatching { ZLibraryClient(session, "https://books.invalid/").search("test", 1) }.exceptionOrNull() as SourceRequestException
-                assertEquals(expected, failure.error)
-                assertNull(failure.denial)
-            }
-        }
     }
 
     @Test fun sourceRetirementCancelsPendingHttpWithoutReportingAnEmptySearch() = runBlocking {

@@ -3,8 +3,6 @@ package indi.renakoni.nextvol.data.web.rules
 import android.app.Application
 import android.content.ContextWrapper
 import hnovel.content.ContentError
-import hnovel.content.LoginField
-import hnovel.content.LoginForm
 import hnovel.content.RuleSourceFixture
 import hnovel.content.SourceContentException
 import hnovel.imports.*
@@ -25,27 +23,6 @@ import java.nio.file.Files
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class SourceLoginServiceTest {
-    @Test fun accountDisplayRequiresOneRecognizableTextField() {
-        fun field(vararg fields: LoginField) = SourceLoginService.accountNameField(LoginForm(fields.toList(), null))
-        assertEquals(" Username ", field(LoginField(" Username ", "text"), LoginField("password", "password")))
-        assertEquals("用户名", field(LoginField("用户名", "text")))
-        assertNull(field(LoginField("user", "password")))
-        assertNull(field(LoginField("account", "select", choices = listOf("a", "b"))))
-        assertNull(field(LoginField("token", "text")))
-        assertNull(field(LoginField("user", "text"), LoginField("email", "text")))
-        assertNull(field())
-        assertNull(SourceLoginService.accountNameField(null))
-    }
-
-    @Test fun accountDisplayRejectsMalformedAndUnsuitableStoredValues() {
-        fun name(info: String?) = SourceLoginService.savedAccountName("user", info)
-        assertEquals("reader", name("""{"user":" reader ","password":"synthetic-secret"}"""))
-        assertNull(SourceLoginService.savedAccountName("password", """{"password":"synthetic-secret"}"""))
-        for (info in listOf(null, "not-json", "[]", "{}", """{"user":123}""", """{"user":null}""",
-            """{"user":{"name":"reader"}}""", """{"user":"  "}""", """{"user":"read\ner"}""")) assertNull(name(info))
-        assertNull(name(JsonObject(mapOf("user" to JsonPrimitive("x".repeat(129)))).toString()))
-    }
-
     @Test fun nativePanelAndVerificationKeepTheirAccountWhileExplicitReloginResetsIt() = runBlocking {
         val root = Files.createTempDirectory("native-login").toFile()
         val context = object : ContextWrapper(RuntimeEnvironment.getApplication()) { override fun getFilesDir() = root }

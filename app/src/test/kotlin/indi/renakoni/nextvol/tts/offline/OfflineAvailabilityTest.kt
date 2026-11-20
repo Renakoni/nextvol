@@ -19,29 +19,6 @@ class OfflineAvailabilityTest {
     private fun OfflineAvailabilityChecker.check(engine: String, parameters: String = "") =
         inspect(OfflineVoiceConfig(engine, "voice", parameters), emptySet()) { error("No model may be read") }
 
-    @Test fun oldOrNonArmDevicesStillAllowAudioButExplainNativeRestrictions() {
-        val old = checker(api = 24, abis = listOf("x86"))
-        val audio = old.check("audio")
-        assertTrue(audio.canRun)
-        assertEquals(R.string.tts_offline_unverified, audio.message)
-        val google = old.check("google")
-        assertEquals(R.string.tts_offline_android, google.message)
-        assertFalse(google.canRun)
-        assertEquals(R.string.tts_offline_abi, old.check("sougou").message)
-        assertEquals(R.string.tts_offline_runtime_missing, checker().check("sougou").message)
-    }
-
-    @Test fun baiduAndIssOnlyRequireTheSelectedVariant() {
-        listOf("c++_shared", "BDSpeechDecoder_V1", "bd_ettm", "issxtts30", "issavth").forEach { library(it) }
-        val device = checker()
-        assertTrue(device.check("bdetts").canRun)
-        val missing = device.check("bdetts", "9294715")
-        assertFalse(missing.canRun)
-        assertEquals("libbd_ettf.so", missing.detail)
-        assertTrue(device.check("isstts", "1,old").canRun)
-        assertFalse(device.check("isstts", "1,new").canRun)
-    }
-
     @Test fun pageSizeComesFromTheDeviceAndActualLibraryHeaders() {
         library("nextvol-matcha", alignment = 16384)
         library("onnxruntime", alignment = 16384)

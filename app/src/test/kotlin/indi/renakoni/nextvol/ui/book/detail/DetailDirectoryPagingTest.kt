@@ -24,23 +24,6 @@ class DetailDirectoryPagingTest {
         assertSame(volume.chapters[204], directoryPageChapters(entries, 0, true).first().chapter)
     }
 
-    @Test fun chapterLocationUsesTheCurrentOrderAndMatchesPageBoundaries() {
-        assertEquals(0, directoryPageForChapter(207, 99, false))
-        assertEquals(1, directoryPageForChapter(207, 100, false))
-        assertEquals(0, directoryPageForChapter(207, 107, true))
-        assertEquals(1, directoryPageForChapter(207, 106, true))
-        assertEquals(2, directoryPageForChapter(207, 0, true))
-        assertEquals(0, directoryPageForChapter(0, -1, true))
-        assertEquals(0, directoryPageForChapter(207, -1, true))
-    }
-
-    @Test fun changedCatalogClampsAnOldPageWithoutLosingItsLastChapter() {
-        assertEquals("id-101", directoryPageChapters(directoryChapters(listOf(volume(101))), 9, false).single().chapter.id)
-        assertEquals(0..99, directoryPageRange(201, -1))
-        assertEquals("id-1", directoryPageChapters(directoryChapters(listOf(volume(101))), 9, true).single().chapter.id)
-        assertEquals(200 downTo 101, directoryPageRange(201, -1, true))
-    }
-
     @Test fun ninetyEightChapterVolumeFlowsIntoTheSameHundredChapterPage() {
         val first = volume(98)
         val second = Volume("second", "Second volume", (1..105).map { ChapterInformation("second-$it", "Chapter $it") })

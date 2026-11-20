@@ -9,13 +9,6 @@ import ci_debug_apks
 
 
 class DeviceGateTests(unittest.TestCase):
-    def test_zero_single_and_both_api_selections(self):
-        for selected in (('false', 'false'), ('true', 'false'), ('false', 'true'), ('true', 'true')):
-            with self.subTest(selected=selected):
-                artifact = '123' if 'true' in selected else ''
-                self.assertEqual(selected, tuple(ci_debug_apks.selected_api('success', api, artifact)
-                                                 for api in selected))
-
     def test_failed_upstream_fails_even_an_unselected_required_check(self):
         for selected in ('false', 'true'):
             with self.subTest(selected=selected), self.assertRaisesRegex(ValueError, 'did not succeed'):

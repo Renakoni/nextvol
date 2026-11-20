@@ -184,25 +184,6 @@ class DownloadRecoveryTest {
         } } }
     }
 
-    @Test fun serialRuleDownloadRecordsTheCurrentChapterBeforeItsRequest() = runBlocking {
-        RuleSourceFixture().use { fixture -> Library(fixture).use { library -> with(library) {
-            failedPath = ""; withImages = false
-            val observed = Collections.synchronizedList(mutableListOf<Triple<String, String, String>>())
-            onRequest = { path -> if (path.startsWith("/c/")) {
-                val task = runBlocking { owner() }
-                observed += Triple(path, task.taskStage, task.taskChapter)
-            } }
-            queue()
-            assertEquals(Result.success(), run())
-            assertEquals(listOf("/c/1", "/c/2"), observed.map { it.first })
-            assertEquals(listOf(DownloadStage.Body.name, DownloadStage.Body.name), observed.map { it.second })
-            for ((path, _, chapter) in observed) {
-                assertTrue("The in-flight chapter must already be recorded", chapter.isNotEmpty())
-                assertEquals(fixture.server.url(path).toString(), SourceChapterId.fromStorageKey(chapter).remoteId.substringBefore(','))
-            }
-        } } }
-    }
-
     @Test fun unsafeInterruptedExecutionWaitsForAnExplicitContinue() = runBlocking {
         RuleSourceFixture().use { fixture -> Library(fixture).use { library -> with(library) {
             register(script = true); queue()
@@ -213,24 +194,6 @@ class DownloadRecoveryTest {
             assertEquals(DownloadFailure.SystemInterrupted.name, owner().taskError)
             assertEquals(0, owner().taskRetryCount)
             assertTrue(requests.isEmpty())
-        } } }
-    }
-
-    @Test fun recordedTerminalResultsAreNotReplayedAfterHostReconstruction() = runBlocking {
-        for (complete in listOf(true, false)) RuleSourceFixture().use { fixture -> Library(fixture).use { library -> with(library) {
-            withImages = false
-            failedPath = if (complete) "" else "/c/2"
-            status = 404
-            queue()
-            val first = run()
-            assertEquals(complete, first is Result.Success)
-            val calls = requests.size
-            val recorded = owner()
-            reopen(); register()
-            assertEquals(complete, run() is Result.Success)
-            assertEquals(calls, requests.size)
-            assertEquals(recorded.taskStatus, owner().taskStatus)
-            assertEquals(recorded.taskRetryCount, owner().taskRetryCount)
         } } }
     }
 

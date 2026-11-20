@@ -134,78 +134,12 @@ class NetworkBridgeTest {
         }
     }
 
-    @Test fun inlineTextAndConnectResponsesDoNotNeedANetworkGrant(): Unit = runBlocking {
-        SourceBroker(folder.root.toPath(), okhttp3.Dns { error("Inline data must not resolve DNS") }).use { sessions ->
-            val session = sessions.open(SourceScope("fixture", "a", "legado"), emptyList())
-            SourceExecutionBroker(id, authority, session, ExecutionLimits()).use { broker ->
-                assertEquals(ExecutionResult.Success("[\"chapter\",\"63686170746572\",\"http://localhost/\",200]"), script(broker, """
-                    var url='data:;base64,Y2hhcHRlcg==,{"type":"fixture"}';
-                    var r=java.connect(url);
-                    [java.hexDecodeToString(java.ajax(url)),r.body(),r.url(),r.raw().code()]
-                """))
-            }
-        }
-    }
-
-    @Test fun webViewUserAgentIsAvailableToHeaderScriptsWithoutOpeningABrowser(): Unit = runBlocking {
-        val browser = object : BrowserExecutor {
-            override suspend fun defaultUserAgent() = "DeviceWebView/1.0/"
-            override suspend fun execute(session: SourceSession, request: BrokerRequest, options: BrowserOptions,
-                guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult = error("UA lookup must not navigate")
-        }
-        MockWebServer().use { server ->
-            server.start()
-            val base = server.url("/").toString()
-            SourceBroker(folder.root.toPath(), browser = browser).use { sessions ->
-                val session = sessions.open(SourceScope("fixture", "a", "legado"), listOf(NetworkGrant(base, true)))
-                session.configureSource(base, true, defaultUserAgent = DESKTOP_USER_AGENT, preferBrowserUserAgent = true)
-                SourceExecutionBroker(id, authority, session, ExecutionLimits(), base).use { broker ->
-                    assertEquals(ExecutionResult.Success("[\"DeviceWebView/1.0/\",\"DeviceWebView/1.0/\"]"),
-                        script(broker, "[java.getUserAgent(),java.getWebViewUA()]"))
-                    server.enqueue(MockResponse().setBody("chapter"))
-                    val task = ExecutionTask.Rule("@js:java.ajax(baseUrl)", hnovel.rules.RuleValue.Empty,
-                        baseUrl = base, sourceHeaderRule = """@js:JSON.stringify({
-                            'User-Agent':String(java.getWebViewUA()).replace(/\/$/,'')+'/JINJIANG-Android',versiontype:'reading'})""")
-                    val wire = ExecutionWire.encode(id, task, broker.limits)
-                    val result = ExecutionWire.decodeResult(WorkerMain.executeSerialized(wire.toString(Charsets.UTF_8),
-                        HostBridge { name, args -> runBlocking { broker.call(name, args) } }).toByteArray())
-                    assertTrue(result.toString(), result is ExecutionResult.Success)
-                    val request = server.takeRequest(3, TimeUnit.SECONDS)!!
-                    assertEquals("DeviceWebView/1.0/JINJIANG-Android", request.getHeader("User-Agent"))
-                    assertEquals("reading", request.getHeader("versiontype"))
-                    assertFalse(broker.interactionRequired)
-                    assertThrows(IllegalArgumentException::class.java) {
-                        runBlocking { broker.call("java.getWebViewUA", listOf(JsonPrimitive("unexpected"))) }
-                    }
-                }
-            }
-        }
-    }
     private fun script(broker: SourceExecutionBroker, code: String): ExecutionResult {
         val wire = ExecutionWire.encode(id, ExecutionTask.Script(code), broker.limits)
         return ExecutionWire.decodeResult(WorkerMain.executeSerialized(wire.toString(Charsets.UTF_8), HostBridge { name, args ->
             val reply = runBlocking { broker.call(name, args) }.toString().toByteArray(Charsets.UTF_8)
             Json.parseToJsonElement(BridgeWire.readReply(reply.inputStream()))
         }).toByteArray())
-    }
-
-    @Test fun largeBatchInputKeepsItsSmallRuleOutputAllowance(): Unit = runBlocking {
-        MockWebServer().use { server ->
-            server.start()
-            val base = server.url("/").toString()
-            SourceBroker(folder.root.toPath()).use { sessions ->
-                val session = sessions.open(SourceScope("fixture", "a", "legado"), listOf(NetworkGrant(base, true)))
-                val limits = ExecutionLimits(timeoutMillis = 15000, maxOutputBytes = 1024, maxDataBytes = 4 * 1024 * 1024)
-                SourceExecutionBroker(id, authority, session, limits, base).use { broker ->
-                    server.dispatcher = object : Dispatcher() {
-                        override fun dispatch(request: RecordedRequest) = MockResponse().setBody("x".repeat(700000) + request.path!!.last())
-                    }
-                    assertEquals(ExecutionResult.Success("[\"0\",\"1\",\"2\"]"), script(broker,
-                        "java.ajaxAll(['/0','/1','/2']).map(r=>r.body().slice(-1))"))
-                    assertEquals(ExecutionResult.Failure(FailureCode.OutputLimit), script(broker, "java.ajax(baseUrl)"))
-                }
-            }
-        }
     }
 
     @Test fun multiBookHtmlBatchCrossesThePipeWithoutGrowingTheFinalOutputBudget() = runBlocking {

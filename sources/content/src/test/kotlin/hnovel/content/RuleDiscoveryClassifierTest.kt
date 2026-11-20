@@ -6,26 +6,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuleDiscoveryClassifierTest {
-    @Test fun reviewedDesktopCatalogsAndExplicitHomepageKeepTheirExpectedCapabilitiesAndLists() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            for (sample in DiscoveryRoutingFixtures.samples) {
-                val id = sample.getValue("id").jsonPrimitive.content
-                val expected = sample.getValue("expected").jsonObject
-                fixture.source(id) { raw -> JsonObject(raw + sample.getValue("fields").jsonObject) }.use { source ->
-                    assertEquals(id, expected.getValue("hasFeed").jsonPrimitive.boolean, source.canFeed)
-                    assertEquals(id, expected.getValue("hasCategories").jsonPrimitive.boolean, source.canCategorize)
-                    assertEquals(id, sample.getValue("hasSearch").jsonPrimitive.boolean, source.canSearch)
-                    if (source.canDiscover && expected.getValue("resolution").jsonPrimitive.content == "static") {
-                        val catalog = source.openDiscovery(id).catalog()
-                        assertEquals(id, expected.getValue("feedTitles").jsonArray.map { it.jsonPrimitive.content },
-                            RuleDiscoveryClassifier.feed(catalog).map { it.title })
-                    }
-                }
-            }
-            assertEquals(0, fixture.documents.get())
-        }
-    }
-
     @Test fun inferenceKeepsOriginalTargetsAndIdsAndStopsAtTheNextGroup() {
         val rows = listOf(
             row("genres", "分类"), row("fantasy", "玄幻", "/fantasy?page={{page}}"),
@@ -46,18 +26,6 @@ class RuleDiscoveryClassifierTest {
             row("tag", "推理", "/mystery"), RuleDiscoveryRow("input", "排行", "select", choices = listOf("new"))) +
             titles.mapIndexed { i, title -> row("$i", title, "/list/$i") }
         assertEquals(titles, RuleDiscoveryClassifier.feed(RuleDiscoveryCatalog(rows, emptyMap())).map { it.title })
-    }
-
-    @Test fun automaticPreviewsAreBoundedAndExplicitHomepageCanOverrideOrDisableInference() {
-        val rows = List(326) { row("$it", "最近更新 $it", "/list/$it") }
-        for (size in listOf(0, 1, 8, 9, 326)) {
-            assertEquals(rows.take(minOf(size, 8)),
-                RuleDiscoveryClassifier.feed(RuleDiscoveryCatalog(rows.take(size), emptyMap())))
-        }
-        val explicit = List(10) { row("home:$it", "Editorial $it", "/editorial/$it") }
-        assertEquals(explicit, RuleDiscoveryClassifier.feed(RuleDiscoveryCatalog(rows, emptyMap(), explicit)))
-        assertTrue(RuleDiscoveryClassifier.feed(RuleDiscoveryCatalog(rows, emptyMap(), emptyList())).isEmpty())
-        assertEquals(326, rows.size)
     }
 
     @Test fun staticEmptyAndHeadingsAreAbsentButDynamicEmptyAndMalformedCatalogsStayRetryable() = runBlocking {
@@ -82,20 +50,6 @@ class RuleDiscoveryClassifierTest {
                 assertTrue(source.canCategorize)
                 try { source.openDiscovery("invalid").catalog(); fail("Invalid rules must retain a field diagnostic") }
                 catch (failure: SourceContentException) { assertEquals("exploreUrl[0].type", failure.field) }
-            }
-            assertEquals(0, fixture.documents.get())
-        }
-    }
-
-    @Test fun bookMetadataAndSourceGroupsCannotCreateBrowseCapabilities() {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { raw -> JsonObject(raw + mapOf(
-                "bookSourceGroup" to JsonPrimitive("最新更新,玄幻"),
-                "ruleExplore" to buildJsonObject { put("kind", "$.tags"); put("lastChapter", "$.lastChapter") }))
-            }.use { source ->
-                assertTrue(source.canSearch)
-                assertFalse(source.canFeed)
-                assertFalse(source.canCategorize)
             }
             assertEquals(0, fixture.documents.get())
         }

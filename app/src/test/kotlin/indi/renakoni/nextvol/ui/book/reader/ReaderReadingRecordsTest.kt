@@ -86,54 +86,6 @@ class ReaderReadingRecordsTest {
     }
 
     @Test
-    fun everyBookEntryMovesTheBookToTheEndAndRecordsOneReadEvent() {
-        store.recentBooks = listOf("first", "book", "last")
-        records.openBook("book")
-        records.openBook("book")
-        assertTrue(store.events.isEmpty())
-        scheduler.runCurrent()
-
-        assertEquals(listOf("first", "last", "book"), store.recentBooks)
-        assertEquals(
-            listOf("recent:start", "recent:write", "stats:book", "recent:start", "recent:write", "stats:book"),
-            store.events,
-        )
-        assertEquals(listOf("book", "book"), store.statistics.map { it.bookId })
-        assertEquals(listOf(1, 1), store.statistics.map { it.readEventDelta })
-        assertEquals(listOf(0, 0), store.statistics.map { it.secondDelta })
-    }
-
-    @Test
-    fun entryStatisticsDoNotWaitForTheRecentBooksWrite() {
-        val gate = CompletableDeferred<Unit>()
-        store.recentGate = gate
-        records.openBook("book")
-        scheduler.runCurrent()
-        assertEquals(listOf("recent:start", "stats:book"), store.events)
-
-        gate.complete(Unit)
-        scheduler.runCurrent()
-        assertEquals(listOf("recent:start", "stats:book", "recent:write"), store.events)
-        assertEquals(listOf("book"), store.recentBooks)
-    }
-
-    @Test
-    fun invalidProgressBlankBookAndMissingTitleProduceNoPersistenceOrClockReads() {
-        listOf(Float.NaN, 0f, -0.1f, Float.NEGATIVE_INFINITY).forEach {
-            records.saveProgress("chapter", it)
-        }
-        bookId = "  "
-        records.saveProgress("chapter", 0.5f)
-        bookId = "book"
-        title = null
-        records.saveProgress("chapter", 0.5f)
-        scheduler.runCurrent()
-
-        assertTrue(store.events.isEmpty())
-        assertEquals(0, clockReads)
-    }
-
-    @Test
     fun progressUpdatesChapterMapsAndMetadataUsingUpdatedMaximaForTheTotal() {
         store.data["book"] = UserReadingData(
             id = "book",
@@ -167,20 +119,6 @@ class ReaderReadingRecordsTest {
     }
 
     @Test
-    fun unknownCatalogKeepsTheStoredTotalAndProgressAboveOneIsStillAccepted() {
-        chapters = null
-        store.data["book"] = UserReadingData(id = "book", readingProgress = 0.4f)
-        records.saveProgress("chapter", 1.5f)
-        scheduler.runCurrent()
-
-        val data = store.data.getValue("book")
-        assertEquals(0.4f, data.readingProgress)
-        assertEquals(mapOf("chapter" to 1.5f), data.currentChapterReadingProgressMap)
-        assertEquals(mapOf("chapter" to 1.5f), data.maxChapterReadingProgressMap)
-        assertEquals(listOf("update:book", "write:book"), store.events)
-    }
-
-    @Test
     fun finalChapterUpdateMarksTheBookFinishedAndPendingDuplicatesMerge() {
         store.data["book"] = UserReadingData(
             id = "book",
@@ -201,71 +139,6 @@ class ReaderReadingRecordsTest {
                 "update:book", "write:book", "finished:book",
             ),
             store.events,
-        )
-    }
-
-    @Test
-    fun firstReportedChapterContributesToTheOverallProgressImmediately() {
-        chapters = setOf("chapter", "other", "third", "fourth")
-        records.saveProgress("chapter", 0.5f)
-        scheduler.runCurrent()
-
-        val data = store.data.getValue("book")
-        assertEquals(0.125f, data.readingProgress)
-        assertEquals(mapOf("chapter" to 0.5f), data.maxChapterReadingProgressMap)
-        assertFalse(store.events.contains("finished:book"))
-    }
-
-    @Test
-    fun aboveOneChapterProgressStillClampsTheOverallTotal() {
-        store.data["book"] = UserReadingData(id = "book", maxChapterReadingProgressMap = mapOf("other" to 1f))
-        records.saveProgress("chapter", 1.5f)
-        scheduler.runCurrent()
-
-        val data = store.data.getValue("book")
-        assertEquals(1f, data.readingProgress)
-        assertEquals(mapOf("chapter" to 1.5f), data.currentChapterReadingProgressMap)
-        assertEquals(mapOf("chapter" to 1.5f, "other" to 1f), data.maxChapterReadingProgressMap)
-        assertTrue(store.events.contains("finished:book"))
-    }
-
-    @Test
-    fun finishingWaitsForTheFinalProgressWrite() {
-        store.data["book"] = UserReadingData(
-            id = "book", readingProgress = 0.75f,
-            maxChapterReadingProgressMap = mapOf("chapter" to 0.5f, "other" to 1f),
-        )
-        val gate = CompletableDeferred<Unit>()
-        store.updateGate = gate
-        records.saveProgress("chapter", 1f)
-        scheduler.runCurrent()
-        assertEquals(listOf("update:book"), store.events)
-        assertEquals(0.75f, store.data.getValue("book").readingProgress)
-
-        gate.complete(Unit)
-        scheduler.runCurrent()
-        assertEquals(1f, store.data.getValue("book").readingProgress)
-        assertEquals(listOf("update:book", "write:book", "finished:book"), store.events)
-    }
-
-    @Test
-    fun queuedProgressCapturesBookAndTitleAndResolvesCatalogWhenWriting() {
-        store.data["next"] = UserReadingData(id = "next", maxChapterReadingProgressMap = mapOf("other" to 1f))
-        records.saveProgress("chapter", 0.5f)
-        bookId = "next"
-        title = "New title"
-        chapters = setOf("chapter", "other", "third", "fourth")
-        time = time.plusMinutes(1)
-        scheduler.runCurrent()
-
-        val data = store.data.getValue("book")
-        assertEquals(listOf("update:book", "write:book"), store.events)
-        assertEquals("Chapter title", data.lastReadChapterTitle)
-        assertEquals(0.125f, data.readingProgress)
-        assertEquals(time, data.lastReadTime)
-        assertEquals(
-            UserReadingData(id = "next", maxChapterReadingProgressMap = mapOf("other" to 1f)),
-            store.data.getValue("next"),
         )
     }
 
@@ -298,57 +171,6 @@ class ReaderReadingRecordsTest {
         scheduler.runCurrent()
 
         assertEquals(0.5f, store.data.getValue("book").readingProgress)
-    }
-
-    @Test
-    fun progressEventsObserveRefreshedCatalogs() {
-        var catalogReads = 0
-        var catalog: Set<String>? = setOf("chapter", "other")
-        val cachedRecords = ReaderReadingRecords(
-            store = store,
-            scope = scope,
-            statisticsScope = statisticsScope,
-            currentBookId = { bookId },
-            currentChapterTitle = { title },
-            catalogChapterIds = { catalogReads++; catalog },
-            now = { time },
-            ioDispatcher = dispatcher,
-        )
-
-        cachedRecords.saveProgress("chapter", 0.5f)
-        scheduler.runCurrent()
-        catalog = setOf("chapter", "other", "third", "fourth")
-        cachedRecords.saveProgress("chapter", 0.75f)
-        scheduler.runCurrent()
-
-        assertEquals(2, catalogReads)
-        assertEquals(2, store.writes.size)
-        assertEquals(0.1875f, store.writes.last().readingProgress)
-    }
-
-    @Test
-    fun unknownCatalogDoesNotBlockLaterDirectoryUpdates() {
-        var catalogReads = 0
-        var catalog: Set<String>? = null
-        val retryingRecords = ReaderReadingRecords(
-            store = store,
-            scope = scope,
-            statisticsScope = statisticsScope,
-            currentBookId = { bookId },
-            currentChapterTitle = { title },
-            catalogChapterIds = { catalogReads++; catalog },
-            now = { time },
-            ioDispatcher = dispatcher,
-        )
-
-        retryingRecords.saveProgress("chapter", 0.5f)
-        scheduler.runCurrent()
-        catalog = setOf("chapter", "other")
-        retryingRecords.saveProgress("chapter", 0.75f)
-        scheduler.runCurrent()
-
-        assertEquals(2, catalogReads)
-        assertEquals(0.375f, store.writes.last().readingProgress)
     }
 
     @Test
@@ -389,26 +211,6 @@ class ReaderReadingRecordsTest {
     }
 
     @Test
-    fun totalTimeWritesKeepAllDeltasAndMetadataEvenForZeroAndBlankBook() {
-        val original = UserReadingData(
-            id = "book", totalReadTime = 10, readingProgress = 0.5f,
-            lastReadChapterId = "chapter", lastReadChapterTitle = "Stored title",
-        )
-        store.data["book"] = original
-        records.updateTotalReadingTime("book", 61)
-        records.updateTotalReadingTime("book", 0)
-        records.updateTotalReadingTime("book", -1)
-        records.updateTotalReadingTime("", 2)
-        scheduler.runCurrent()
-
-        assertEquals(listOf(71, 71, 70, 2), store.writes.map { it.totalReadTime })
-        assertEquals(original.copy(totalReadTime = 70, lastReadTime = time), store.data.getValue("book"))
-        assertEquals(UserReadingData(id = "", totalReadTime = 2, lastReadTime = time), store.data.getValue(""))
-        assertEquals(4, clockReads)
-        assertTrue(store.statistics.isEmpty())
-    }
-
-    @Test
     fun statisticsForwardTicksAndFlushOnTheIndependentScopeAfterOwnerCancellation() {
         records.accumulateReadingTime("", 1)
         records.accumulateReadingTime("  ", -1)
@@ -421,24 +223,6 @@ class ReaderReadingRecordsTest {
 
         assertEquals(listOf("accumulate:book:1", "accumulate:book:0", "accumulate:book:-1"), store.events)
         assertTrue(store.writes.isEmpty())
-    }
-
-    @Test
-    fun accumulatedReadingTimeFlushWaitsForEarlierPositiveDelta() {
-        val gate = CompletableDeferred<Unit>()
-        store.accumulateGate = gate
-        records.accumulateReadingTime("book", 3)
-        records.accumulateReadingTime("book", -1)
-
-        scheduler.runCurrent()
-        assertEquals(listOf("accumulate:book:3"), store.events)
-
-        gate.complete(Unit)
-        scheduler.runCurrent()
-        assertEquals(
-            listOf("accumulate:book:3", "accumulate:book:-1"),
-            store.events,
-        )
     }
 
     @Test

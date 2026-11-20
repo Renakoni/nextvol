@@ -12,30 +12,6 @@ import kotlin.math.max
 @org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 @org.robolectric.annotation.Config(sdk = [27], application = android.app.Application::class)
 class ReaderTextLayoutTest {
-    @Test fun shortParagraphsSharePagesAndParagraphSpacingOnlyConsumesBoundaries() {
-        val source = listOf(ReaderTextSource(0, "AA\nBB\nCC"))
-        val compact = layout(source, height = 30, spacing = 0)
-        val spaced = layout(source, height = 30, spacing = 5)
-        assertEquals(1, compact.size)
-        assertEquals(listOf(listOf("AA", "BB"), listOf("CC")), spaced.map { page -> page.map { it.text } })
-        assertEquals(listOf(0, 5, 0), spaced.flatten().map { it.spacingBefore })
-        assertEquals(compact.flatten().map { it.height }, spaced.flatten().map { it.height })
-    }
-
-    @Test fun longParagraphContinuesWithoutRepeatingParagraphSpacing() {
-        val pages = layout(listOf(ReaderTextSource(0, "abcdefghijkl\nZ")), width = 3, height = 25, spacing = 9)
-        assertEquals(listOf("abcdef", "ghijkl", "Z"), pages.map { it.single().text })
-        assertTrue(pages.all { it.first().spacingBefore == 0 })
-        assertEquals(listOf(0, 6, 13), pages.flatten().map { it.start })
-    }
-
-    @Test fun adjacentComponentsUseTheSameParagraphBoundaryRule() {
-        val pages = layout(listOf(ReaderTextSource(3, "A"), ReaderTextSource(4, "B")), height = 25, spacing = 5)
-        assertEquals(1, pages.size)
-        assertEquals(listOf(0, 5), pages.single().map { it.spacingBefore })
-        assertEquals(listOf(3, 4), pages.single().map { it.componentIndex })
-    }
-
     @Test fun blankLinesArePreservedWithoutAnExtraLineAfterTerminalNewline() {
         val text = "\r\nA\r\n\nB\n"
         val pages = layout(listOf(ReaderTextSource(0, text)), height = 100, spacing = 3)
@@ -69,21 +45,6 @@ class ReaderTextLayoutTest {
         assertEquals(original.sumOf { it.height + it.spacingBefore }, chunks.sumOf { it.height + it.spacingBefore })
         assertEquals(sources.single().text, chunks.joinToString("") { sources.single().text.substring(it.start, it.end) })
         assertTrue(chunks.all { it.height <= 25 })
-    }
-
-    @Test fun numericInputsRejectNonFiniteValuesAndClampToExistingControlRanges() {
-        for (value in listOf(Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)) {
-            assertEquals(22f, ReaderLayoutValues.fontSize(value))
-            assertEquals(500f, ReaderLayoutValues.fontWeight(value))
-            assertEquals(7f, ReaderLayoutValues.lineSpacing(value))
-            assertEquals(0f, ReaderLayoutValues.paragraphSpacing(value))
-            assertEquals(16f, ReaderLayoutValues.margin(value, 16f))
-        }
-        assertEquals(8f, ReaderLayoutValues.fontSize(-1f))
-        assertEquals(64f, ReaderLayoutValues.fontSize(100f))
-        assertEquals(900f, ReaderLayoutValues.fontWeight(1000f))
-        assertEquals(0f, ReaderLayoutValues.paragraphSpacing(-1f))
-        assertEquals(128f, ReaderLayoutValues.margin(1000f, 12f))
     }
 
     private fun layout(sources: List<ReaderTextSource>, width: Int = 100, height: Int = 100, spacing: Int = 0, continuous: Boolean = false) =

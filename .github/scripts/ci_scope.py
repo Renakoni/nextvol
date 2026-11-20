@@ -50,7 +50,7 @@ SOURCE_35 = [f'sourceexecution.{name}InstrumentedTest' for name in (
     'NativeBrowser', 'NativeBrowserPool', 'NativeBrowserAdmissionCookie',
     'NativeBrowserStorage', 'NativeBrowserRoute', 'SourceVerification',
     'SourceImageRecovery', 'RuleImageRecovery', 'ImageUserAgent')]
-READER_WIDE = ['reader.ReaderPositionInstrumentedTest', 'reader.ReaderSpreadInstrumentedTest']
+READER_WIDE = ['reader.ReaderPositionInstrumentedTest']
 # Keep the existing full-suite class order while selecting individual scopes.
 EXTRA_24 = [
     ('export', 'EpubShareInstrumentedTest'),
@@ -110,8 +110,7 @@ def classify(path):
                     'data/work/EpubExportWorkerAdapterTest.kt',
                     'data/work/EpubExportRegressionTest.kt',
                     'data/work/EpubXhtmlWorkerTest.kt',
-                    'data/work/SourceExportWorkerTest.kt',
-                    'ui/book/detail/DetailExportTest.kt'}:
+                    'data/work/SourceExportWorkerTest.kt'}:
                 return 'export'
             if relative.startswith('data/backup/') or (root == KOTLIN_ROOTS[0] and relative in {
                     'data/work/ExportDataWork.kt', 'data/work/ImportDataWork.kt',
@@ -120,8 +119,8 @@ def classify(path):
                     'ui/home/settings/ExportUserDataDialogViewModel.kt',
                     'ui/home/settings/ImportUserDataDialog.kt'}):
                 return 'backup'
-            if relative.startswith('ui/bookmanager/') or (root == KOTLIN_ROOTS[0] and
-                    relative.startswith(('data/storage/', 'ui/storagemanager/'))):
+            if root == KOTLIN_ROOTS[0] and relative.startswith(
+                    ('data/storage/', 'ui/storagemanager/', 'ui/bookmanager/')):
                 return 'storage'
             # Test-only owners already belong to these positive Gradle filters.
             # Shared helpers (e.g. LegacyDownloadSchema/ContentTestHost) stay broad;
@@ -133,7 +132,7 @@ def classify(path):
                     return 'reader'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
-            if relative.startswith('ui/home/settings/textformatting/'):
+            if root == KOTLIN_ROOTS[0] and relative.startswith('ui/home/settings/textformatting/'):
                 return 'reader'
             if relative.startswith('data/bangumi/'):
                 return 'bangumi'

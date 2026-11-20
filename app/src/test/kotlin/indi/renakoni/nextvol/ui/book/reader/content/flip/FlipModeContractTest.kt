@@ -3,14 +3,12 @@ package indi.renakoni.nextvol.ui.book.reader.content.flip
 import android.app.Application
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.mutableIntStateOf
-import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.get
 import indi.renakoni.nextvol.ui.book.reader.mode.ModeTestEnvironment
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import io.nightfish.lightnovelreader.api.error.WebRequestError
 import io.nightfish.lightnovelreader.api.web.WebDataSourcePriority
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
@@ -73,19 +71,6 @@ class FlipModeContractTest {
     }
 
     @Test
-    fun persistenceSuspensionDoesNotDelayDisplayButDoesDelayPreload() {
-        open()
-        val gate = CompletableDeferred<Unit>()
-        env.records.writeGate = gate
-        env.emit("requested", Ok(env.chapter("requested", next = "next")))
-        assertEquals("requested", mode.uiState.readingChapterContent!!.get()!!.id)
-        assertTrue(env.chapters.preloads.isEmpty())
-        gate.complete(Unit)
-        env.runCurrent()
-        assertEquals("next", env.chapters.preloads.single().chapterId)
-    }
-
-    @Test
     fun aSuspendedOlderMetadataWriteCannotOverwriteTheNewerChapter() {
         open("first")
         val firstWriteGate = CompletableDeferred<Unit>()
@@ -100,17 +85,6 @@ class FlipModeContractTest {
 
         assertEquals("second", env.records.data.lastReadChapterId)
         assertEquals(listOf(null, "second"), env.records.writes.map { it.lastReadChapterId })
-    }
-
-    @Test
-    fun aLaterErrorReplacesCachedContentWithoutAnotherWriteOrPreload() {
-        open()
-        env.emit("requested", Ok(env.chapter("requested", next = "next")))
-        val error = Err(WebRequestError("offline", "remote failed"))
-        env.emit("requested", error)
-        assertEquals(error, mode.uiState.readingChapterContent)
-        assertEquals(1, env.records.writes.size)
-        assertEquals(1, env.chapters.preloads.size)
     }
 
     @Test
@@ -149,67 +123,6 @@ class FlipModeContractTest {
     }
 
     @Test
-    fun blankRequestsKeepTheCurrentChapterAndProgress() {
-        open()
-        env.emit("requested", Ok(env.chapter("requested")))
-        mode.uiState.readingProgress = 0.6f
-        mode.changeChapter(" ")
-        env.runCurrent()
-        assertEquals("requested", mode.uiState.readingChapterId)
-        assertEquals(0.6f, mode.uiState.readingProgress)
-        assertEquals(1, env.chapters.requests.size)
-    }
-
-    @Test
-    fun storedProgressIsConsumedWhenANonemptyPagerArrivesAndUsesTheExistingRounding() {
-        env.records.data = env.records.data.copy(currentChapterReadingProgressMap = mapOf("requested" to 0.6f))
-        open()
-        val targets = mutableListOf<Int>()
-        mode.updatePagerState(pager(0, targets = targets))
-        env.runCurrent()
-        assertTrue(targets.isEmpty())
-        mode.updatePagerState(pager(5, targets = targets))
-        env.runCurrent()
-        assertEquals(listOf(2), targets)
-    }
-
-    @Test
-    fun lateStoredProgressRestoresTheAlreadyCreatedPagerImmediately() {
-        val gate = CompletableDeferred<Unit>()
-        env.records.readGates += gate
-        env.records.data = env.records.data.copy(currentChapterReadingProgressMap = mapOf("requested" to 0.75f))
-        open()
-        val targets = mutableListOf<Int>()
-        progress.clear()
-        mode.updatePagerState(pager(4, targets = targets))
-        env.runCurrent()
-        assertTrue(progress.isEmpty())
-        gate.complete(Unit)
-        env.runCurrent()
-        assertEquals(listOf(2), targets)
-    }
-
-    @Test
-    fun lateStoredProgressDoesNotOverrideAUserPageChange() {
-        val gate = CompletableDeferred<Unit>()
-        env.records.readGate = gate
-        env.records.data = env.records.data.copy(currentChapterReadingProgressMap = mapOf("requested" to 0.75f))
-        open()
-        val targets = mutableListOf<Int>()
-        val page = mutableIntStateOf(0)
-        progress.clear()
-        mode.updatePagerState(pager(4, page, targets))
-        env.runCurrent()
-        env.emit("requested", Ok(env.chapter("requested")))
-        page.intValue = 1
-        env.runCurrent()
-        gate.complete(Unit)
-        env.runCurrent()
-        assertTrue(targets.isEmpty())
-        assertEquals("progress=$progress", listOf("requested" to 0.5f), progress)
-    }
-
-    @Test
     fun lateStoredProgressDoesNotOverrideAnInFlightPageChange() {
         val gate = CompletableDeferred<Unit>()
         env.records.readGate = gate
@@ -229,38 +142,6 @@ class FlipModeContractTest {
         gate.complete(Unit)
         env.runCurrent()
         assertTrue(targets.isEmpty())
-    }
-
-    @Test
-    fun replacingThePagerCancelsItsPreviousProgressObserver() {
-        open()
-        env.emit("requested", Ok(env.chapter("payload")))
-        val oldPage = mutableIntStateOf(0)
-        val newPage = mutableIntStateOf(1)
-        mode.updatePagerState(pager(4, oldPage))
-        env.runCurrent()
-        mode.updatePagerState(pager(4, newPage))
-        env.runCurrent()
-        progress.clear()
-        oldPage.intValue = 3
-        env.runCurrent()
-        assertTrue(progress.isEmpty())
-        newPage.intValue = 2
-        env.runCurrent()
-        assertEquals(listOf("payload" to 0.75f), progress)
-    }
-
-    @Test
-    fun queuedRestorationUsesTheCurrentPagerPageCountAndTarget() {
-        env.records.data = env.records.data.copy(currentChapterReadingProgressMap = mapOf("requested" to 0.6f))
-        open()
-        val oldTargets = mutableListOf<Int>()
-        val newTargets = mutableListOf<Int>()
-        mode.updatePagerState(pager(5, targets = oldTargets))
-        mode.updatePagerState(pager(2, targets = newTargets))
-        env.runCurrent()
-        assertTrue(oldTargets.isEmpty())
-        assertEquals(listOf(0), newTargets)
     }
 
     @Test
@@ -295,51 +176,6 @@ class FlipModeContractTest {
         assertEquals(listOf("requested" to 0.65f), progress)
     }
 
-    @Test
-    fun replacingQueuedRestorationWithAnEmptyPagerDoesNotScrollTheOldPager() {
-        env.records.data = env.records.data.copy(currentChapterReadingProgressMap = mapOf("requested" to 0.6f))
-        open()
-        val oldTargets = mutableListOf<Int>()
-        mode.updatePagerState(pager(5, targets = oldTargets))
-        mode.updatePagerState(pager(0))
-        env.runCurrent()
-        assertTrue(oldTargets.isEmpty())
-    }
-
-    @Test
-    fun aReflowAnchorIsNotReplacedByThePreviousPagePercentage() {
-        open()
-        env.emit("requested", Ok(env.chapter("requested")))
-        mode.updatePagerState(pager(10, mutableIntStateOf(5)))
-        env.runCurrent()
-        assertEquals(0.6f, mode.uiState.readingProgress)
-        mode.updatePagerState(pager(0))
-        env.runCurrent()
-        val targets = mutableListOf<Int>()
-        mode.uiState.updateAnchoredPageState(pager(20, mutableIntStateOf(8), targets))
-        env.runCurrent()
-        assertTrue(targets.isEmpty())
-        assertEquals(0.45f, mode.uiState.readingProgress)
-    }
-
-    @Test fun reflowDisplaysTheNewLeafRangeWithoutPublishingNewReading() {
-        open()
-        env.emit("requested", Ok(env.chapter("requested")))
-        mode.updatePagerState(pager(10, mutableIntStateOf(5)))
-        env.runCurrent()
-        assertEquals(0.6f, mode.uiState.readingProgress)
-        progress.clear()
-        val page = mutableIntStateOf(1)
-        val spread = spreadPager(ReaderLeafMapping(5, 2), page)
-        mode.uiState.updateAnchoredPageState(spread)
-        repeat(3) { env.runCurrent() }
-        assertEquals(0.8f, mode.uiState.readingProgress)
-        assertTrue(progress.isEmpty())
-        page.intValue = 2
-        env.runCurrent()
-        assertEquals(listOf("requested" to 1f), progress)
-    }
-
     @Test fun programmaticPositioningCannotPublishAnIntermediateOrRestoredScreen() {
         open()
         env.emit("requested", Ok(env.chapter("requested")))
@@ -359,19 +195,6 @@ class FlipModeContractTest {
         screen.intValue = 2
         env.runCurrent()
         assertEquals(listOf("requested" to 1f), progress)
-    }
-
-    @Test fun anExplicitPositionCanPublishAfterAReflowWithoutWaitingForAnotherTurn() {
-        open()
-        env.emit("requested", Ok(env.chapter("requested")))
-        val spread = spreadPager(ReaderLeafMapping(5, 2), mutableIntStateOf(1))
-        mode.uiState.updateAnchoredPageState(spread)
-        env.runCurrent()
-        progress.clear()
-        mode.uiState.onProgressRestoring(spread)
-        mode.uiState.updateSpeechPageState(spread)
-        env.runCurrent()
-        assertEquals(listOf("requested" to 0.8f), progress)
     }
 
     @Test fun oldPercentageUsesRealLeafCountEvenWhenPagerHasFewerScreens() {

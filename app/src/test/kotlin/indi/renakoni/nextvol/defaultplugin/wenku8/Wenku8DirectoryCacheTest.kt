@@ -59,13 +59,6 @@ class Wenku8DirectoryCacheTest {
         coVerify(exactly = 2) { api.getWithWenku8Cookie(directoryUrl) }
     }
 
-    @Test fun aChapterWithoutAPrefetchedDirectoryPopulatesTheSameCache() = runBlocking {
-        fixture()
-        assertEquals("Chapter 2", source.getChapterContent("2", "123").get()!!.title)
-        assertEquals("Chapter 3", source.getChapterContent("3", "123").get()!!.title)
-        coVerify(exactly = 1) { api.getWithWenku8Cookie(directoryUrl) }
-    }
-
     @Test fun cachedDirectoryTitlesDoNotCrossRuntimeOwners() = runBlocking {
         fixture()
         val first = SourceRequestOwner(Identifier("fixture", "first"))

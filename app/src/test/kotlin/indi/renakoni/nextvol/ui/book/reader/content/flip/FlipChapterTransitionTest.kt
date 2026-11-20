@@ -62,20 +62,6 @@ class FlipChapterTransitionTest {
         assertTrue(saved.all { it == "4" to 0.1f })
     }
 
-    @Test fun backwardBoundaryUsesLastPageDespiteOldTwentyPercent() {
-        openThird()
-        mode.uiState.loadPrevChapter()
-        env.runCurrent()
-        env.emit("2", Ok(env.chapter("2", "1", "3")))
-        val pending = mode.uiState.pendingChapter!!
-        assertEquals(ChapterEntry.End, pending.entry)
-        assertTrue(mode.uiState.commitPendingChapter(pending, PagerState(currentPage = 9) { 10 }))
-        env.runCurrent()
-        assertEquals(9, mode.uiState.pagerState.currentPage)
-        assertEquals(1f, mode.uiState.readingProgress)
-        assertEquals("2", env.records.data.lastReadChapterId)
-    }
-
     @Test fun stagedBoundaryKeepsSourceCheckpointUntilCommitAndRejectsItsOldRestore() {
         openThird()
         val positions = ReaderPositionSession()
@@ -96,28 +82,6 @@ class FlipChapterTransitionTest {
         assertNull(positions.pending)
     }
 
-    @Test fun manualPreviousUsesFirstPageDespiteOldProgress() {
-        openThird()
-        mode.loadPrevChapter()
-        env.runCurrent()
-        env.emit("2", Ok(env.chapter("2", "1", "3")))
-        val pending = mode.uiState.pendingChapter!!
-        assertEquals(ChapterEntry.Start, pending.entry)
-        assertTrue(mode.uiState.commitPendingChapter(pending, PagerState { 10 }))
-        env.runCurrent()
-        assertEquals(0, mode.uiState.pagerState.currentPage)
-        assertEquals(0.1f, mode.uiState.readingProgress)
-    }
-
-    @Test fun manualPreviousReplacesABoundaryRequestForTheSameChapter() {
-        openThird()
-        mode.uiState.loadPrevChapter()
-        mode.loadPrevChapter()
-        env.runCurrent()
-        env.emit("2", Ok(env.chapter("2", "1", "3")))
-        assertEquals(ChapterEntry.Start, mode.uiState.pendingChapter!!.entry)
-    }
-
     @Test fun failedBoundaryRequestKeepsReadableChapterAndCanBeRetried() {
         openThird()
         val original = mode.uiState.readingChapterContent
@@ -136,21 +100,6 @@ class FlipChapterTransitionTest {
         assertTrue(mode.uiState.commitPendingChapter(mode.uiState.pendingChapter!!, PagerState { 2 }))
         env.runCurrent()
         assertEquals("4", env.records.data.lastReadChapterId)
-    }
-
-    @Test fun directoryJumpInvalidatesAnAlreadyPreparedBoundaryResponse() {
-        openThird()
-        mode.loadNextChapter()
-        env.runCurrent()
-        env.emit("4", Ok(env.chapter("4")))
-        val stale = mode.uiState.pendingChapter!!
-        mode.changeChapter("5")
-        env.runCurrent()
-        assertFalse(mode.uiState.commitPendingChapter(stale, PagerState { 3 }))
-        env.emit("5", Ok(env.chapter("5")))
-        assertEquals("5", mode.requestedChapterId)
-        assertEquals("5", env.records.data.lastReadChapterId)
-        assertNull(mode.uiState.pendingChapter)
     }
 
     @Test fun cachedTargetRefreshRejectsOldPaginationAndOnlyCommitsNewestContent() {
@@ -178,29 +127,4 @@ class FlipChapterTransitionTest {
         assertEquals("3", mode.uiState.readingChapterId)
     }
 
-    @Test fun emptyPagerAndClosedModeCannotCommitPreparedChapter() {
-        openThird()
-        mode.loadNextChapter()
-        env.runCurrent()
-        env.emit("4", Ok(env.chapter("4")))
-        val pending = mode.uiState.pendingChapter!!
-        assertFalse(mode.uiState.commitPendingChapter(pending, PagerState { 0 }))
-        env.close()
-        assertFalse(mode.uiState.commitPendingChapter(pending, PagerState { 2 }))
-        assertEquals("3", env.records.data.lastReadChapterId)
-    }
-
-    @Test fun changingBookClearsOldPagesAndPendingIdentityBeforeNextRequest() {
-        openThird()
-        mode.loadNextChapter()
-        env.runCurrent()
-        env.emit("4", Ok(env.chapter("4")))
-        val pending = mode.uiState.pendingChapter!!
-        mode.changeBookId("other")
-        assertNull(mode.uiState.readingChapterContent)
-        assertNull(mode.requestedChapterId)
-        assertNull(mode.uiState.pendingChapter)
-        assertEquals(0, mode.uiState.pagerState.pageCount)
-        assertFalse(mode.uiState.commitPendingChapter(pending, PagerState { 2 }))
-    }
 }

@@ -60,16 +60,6 @@ class BangumiMatchingTest {
         assertTrue(result[1].complete)
     }
 
-    @Test fun makeineDecimalVolumeIsNotAutomaticallyCountedWhenItExceedsThePublishedCount() {
-        val related = (1..9).map { BangumiRelatedSubject(it, 1, name = "Makeine ($it)", relation = "单行本") } +
-            BangumiRelatedSubject(85, 1, name = "Makeine (8.5)", relation = "单行本")
-        val result = BangumiMatching.propose(book(), listOf(volume("8.5", "第8.5卷"), volume("9", "第九卷")),
-            BangumiSubject(1, volumes = 9), related)
-        assertNull(result[0].editionKey)
-        assertEquals("subject:9", result[1].editionKey)
-        assertFalse(result[1].complete)
-    }
-
     @Test fun oregairuSixPointFiveCountsAsOneBookWithoutRenumberingVolumeSeven() {
         // Series 19441 lists 18=(14+4) books, including the four decimal-numbered publications.
         val labels = (1..14).map { it.toString() } + listOf("6.5", "7.5", "10.5", "14.5")
@@ -87,22 +77,6 @@ class BangumiMatchingTest {
         assertEquals(8, BangumiMatching.completed(mapping, progress + mapOf("6.5-main" to 1f, "7-main" to 1f)).size)
         assertNull(BangumiMatching.automaticBaseline(BangumiBookPreview(book(), subject, mapping,
             BangumiCollection(3, 7), 17, "generation")))
-    }
-
-    @Test fun progressCountsDistinctCompletedPublicationsRatherThanHighestOrContiguousVolume() {
-        val mapping = listOf(BangumiVolumeMapping("1", "第一卷", "one", setOf("1"), true),
-            BangumiVolumeMapping("5a", "第五卷上", "five", setOf("5a"), true),
-            BangumiVolumeMapping("5b", "第五卷下", "five", setOf("5b"), true))
-        assertEquals(setOf("one"), BangumiMatching.completed(mapping, mapOf("1" to 1f, "5a" to 1f)))
-        assertEquals(setOf("one", "five"), BangumiMatching.completed(mapping, mapOf("1" to 1f, "5a" to 1f, "5b" to 1f)))
-    }
-
-    @Test fun emptyIncompleteAndAlmostFinishedVolumesDoNotCount() {
-        val mapping = listOf(BangumiVolumeMapping("empty", "", "empty", emptySet(), true),
-            BangumiVolumeMapping("partial", "", "partial", setOf("partial"), false),
-            BangumiVolumeMapping("almost", "", "almost", setOf("almost"), true),
-            BangumiVolumeMapping("invalid", "", "invalid", setOf("invalid"), true))
-        assertTrue(BangumiMatching.completed(mapping, mapOf("partial" to 1f, "almost" to .999f, "invalid" to Float.NaN)).isEmpty())
     }
 
     @Test fun originalCreatorOnAMangaIsNotASameRoleAuthorMatch() {

@@ -153,8 +153,8 @@ narrationVoices JSON
 不要为配置提取扩大 `validated()` 的调用范围，或改变导入与静态预览的非执行边界。
 
 现有回归分工：`SpeechSettingsRepositoryTest` 覆盖方案／runtime／绑定与 `updateAll`；
-`SpeechPlanTest` 保护“文本身份相同但完整计划不能复用”的边界；
-`SpeechVoiceSelectionTest`、`SpeechVoiceRoutingTest`、`SpeechDiagnosticsTest` 保护选择、路由与日志投影；
+`SpeechPlanTest` 保护原文位置恢复、过期书签和分段取消边界；
+`SpeechVoiceRoutingTest`、`SpeechDiagnosticsTest` 保护声音路由与日志投影；
 `SpeechSynthesizerCacheTest` 覆盖单声音切回、版本变化、淘汰及冲突模型；
 `ReadAloudSessionTest` 继续覆盖正式朗读、试听、设置更新、暂停和恢复。
 包导入、预处理 locale 与背景音乐分别由原有 `SpeechConfigurationImportTest`、`SpeechTextPipelineTest`

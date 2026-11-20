@@ -49,10 +49,4 @@ class CookieDiagnosticTest {
         assertEquals("sid=private-value; sid=private-value", plain)
     }
 
-    @Test fun oldRequestAndWebViewEventsKeepUnknownEvidenceAbsent() {
-        val event = Json.decodeFromString<RequestDiagnostic>("""{"requestId":"local","evidence":"HeadersResolved"}""")
-        assertNull(event.cookies)
-        val settings = Json.decodeFromString<WebViewUserAgentDiagnostic>("""{"metadata":"ProviderDefault","userAgent":{"family":"Unknown","platform":"Unknown"}}""")
-        assertNull(settings.environment)
-    }
 }

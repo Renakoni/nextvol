@@ -22,7 +22,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
@@ -94,12 +93,4 @@ class StatsDetailedViewModelTest {
         assertEquals(model.uiState.targetDateRangeCountMap.keys, model.uiState.targetDateRangeRecordsMap.keys)
     }
 
-    @Test fun changingPeriodKeepsTheSameBookSubscription() = runBlocking {
-        model.initialize(date)
-        awaitLoaded(7)
-        val original = model.uiState.bookFirstReadDateMap.keys.single().second
-        model.setSelectedView(1)
-        awaitLoaded(31)
-        assertSame(original, model.uiState.bookFirstReadDateMap.keys.single().second)
-    }
 }

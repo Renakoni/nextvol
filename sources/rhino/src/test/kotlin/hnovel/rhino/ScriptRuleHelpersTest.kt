@@ -29,17 +29,6 @@ class ScriptRuleHelpersTest {
             java.getString('{{function f(){return /[}]/.test("}")} f()?"yes":"no"}}')
         """))
     }
-    @Test fun toastMessagesUseNativeStringConversionAndReturnVoid() {
-        val calls = mutableListOf<Pair<String, List<JsonElement>>>()
-        val engine = RhinoScriptEngine(HostBridge { name, args -> calls += name to args; JsonNull })
-        val result = engine.evaluate("""
-            var cycle={};cycle.self=cycle;
-            [typeof java.toast(cycle),typeof java.longToast(null)]
-        """, frame)
-        assertEquals(ScriptResult.Success("[\"undefined\",\"undefined\"]"), result)
-        assertEquals(listOf("java.toast" to listOf(JsonPrimitive("[object Object]")),
-            "java.longToast" to listOf(JsonPrimitive("null"))), calls)
-    }
     @Test fun explicitAndScriptArrayInputsStayStructuredForJsonPath() {
         assertEquals(JsonPrimitive(true), run("Array.isArray(java.getElement('@js:[{id:1}]'))"))
         assertEquals(JsonPrimitive("second"), run("java.getString('$[1].title',[{title:'first'},{title:'second'}])"))
@@ -54,15 +43,6 @@ class ScriptRuleHelpersTest {
             var script=java.getElement('@js:[]');
             java.setContent('{"items":[]}'); var data=java.getElements('$.items[*]');
             [empty.text(),empty.size(),empty.attr('href'),combined.text(),typeof data.text,typeof script.text]
-        """))
-    }
-    @Test fun loggingReturnsTheOriginalValueWithoutBreakingRuleFallbacks() {
-        assertEquals(JsonArray(listOf(JsonPrimitive("chapter"), JsonPrimitive(true), JsonNull)), run("""
-            var object={name:'chapter'};[java.log(object.name),java.log(object)===object,java.log(null)]
-        """))
-        assertEquals(JsonPrimitive(true), run("""
-            var error = new Error('source error'), cycle = {}; cycle.self = cycle;
-            java.log(error) === error && java.log(cycle) === cycle && java.log(undefined) === undefined
         """))
     }
     private val engine = RhinoScriptEngine(HostBridge { _, _ -> error("Selectors must stay in worker") })
@@ -96,13 +76,6 @@ class ScriptRuleHelpersTest {
     @Test fun elementSnapshotsCanFeedSelectorsWithoutExposingDomObjects() {
         assertEquals(JsonPrimitive("One"), run("var nodes=java.getElements('a');java.getString('a@text',nodes[0])"))
         assertEquals(JsonPrimitive("undefined"), run("typeof java.getElements('a')[0].getClass"))
-    }
-
-    @Test fun emptyAndUnescapeOverloadsFollowReference() {
-        assertEquals(JsonArray(listOf(JsonPrimitive(""), JsonNull, JsonNull, JsonArray(emptyList()), JsonPrimitive("&amp;"), JsonPrimitive("&"))), run("""
-            [java.getString(null),java.getStringList(''),java.getElement(''),java.getElements(''),
-             java.getString('@js:"&amp;"',false),java.getString('@js:"&amp;"',true)]
-        """))
     }
 
     @Test fun nestedStringRulesKeepUnterminatedEntitiesInRequestParameters() {

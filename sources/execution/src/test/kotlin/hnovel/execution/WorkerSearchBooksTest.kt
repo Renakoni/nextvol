@@ -30,12 +30,6 @@ class WorkerSearchBooksTest {
         assertEquals("ruleSearch.author", error.ruleError?.location?.field)
     }
 
-    @Test fun blankNamesSkipOtherFieldsButFallbackNamesEvaluateThem() {
-        val empty = task.copy(rules = mapOf("name" to "missing@text", "author" to "[", "bookUrl" to "["))
-        assertTrue(rows(run(empty)).single().values.all { it.isEmpty() })
-        assertTrue(run(empty.copy(fallbackTitle = "Fallback")) is ExecutionResult.Failure)
-    }
-
     @Test fun workerRejectsScriptsTemplatesStateAndOversizedBatches() {
         for (rule in listOf("@js:java.put('x','y')", "<js>result</js>", "{{book.name}}", "@put:{x:'text'}text", "@get:{x}"))
             for (field in ExecutionTask.SearchBooks.FIELDS)

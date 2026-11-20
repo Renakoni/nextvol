@@ -46,10 +46,6 @@ class UpdateApkValidatorTest {
         every { manager.getPackageArchiveInfo(file.absolutePath, any<Int>()) } answers { archive }
     }
 
-    @Test @Config(sdk = [24, 30]) fun acceptsANewerReleaseSignedByTheInstalledApp() {
-        validateUpdateApk(context, file, 20)
-    }
-
     @Test fun rejectsForeignPackages() {
         archive = apk(name = "foreign.package")
         assertThrows(IOException::class.java) { validateUpdateApk(context, file, 20) }

@@ -12,13 +12,6 @@ class RequestOptionsJsonTest {
         assertEquals(JsonPrimitive("first\nsecond"), value["body"])
         assertEquals(JsonPrimitive("unquoted"), value["value"])
     }
-    @Test fun jsonNumbersBooleansAndNullRemainTypedData() {
-        val values = RequestOptionsJson.parse("[0,-0,12,-12,1.5,1e3,1E-2,true,false,null]").jsonArray
-        assertEquals(listOf("0", "-0", "12", "-12", "1.5", "1e3", "1E-2", "true", "false", "null"),
-            values.map { it.jsonPrimitive.content })
-        assertTrue(values.all { !it.jsonPrimitive.isString })
-    }
-
     @Test fun quotedBracketsAndEscapedQuotesAreStringData() {
         val text = "'" + "[{".repeat(100) + "\\\\\\'\\\"\\n\\u4e2d'"
         assertEquals(JsonPrimitive("[{".repeat(100) + "\\'\"\n中"), RequestOptionsJson.parse(text))

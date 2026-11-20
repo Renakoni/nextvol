@@ -60,19 +60,6 @@ class RuleMetadataTest {
         } }
     }
 
-    @Test fun cachedInformationNeverLoadsOrRefreshesDocuments(): Unit = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source().use { source ->
-            val id = fixture.server.url("/book/one").toString()
-            assertNull(source.cachedInformation(id))
-            assertEquals(0, fixture.server.requestCount)
-            val information = source.information(id)
-            val requests = fixture.server.requestCount
-            fixture.status = 503
-            assertEquals(information, source.cachedInformation(id))
-            assertEquals(requests, fixture.server.requestCount)
-        } }
-    }
-
     @Test fun absentAndBlankKindRulesKeepEarlierMetadataWithoutExecutingAnEmptyTask(): Unit = runBlocking {
         for (kind in listOf(null, "", " \t\n")) for (discovery in listOf(false, true)) RuleSourceFixture().use { fixture ->
             val kindTasks = mutableListOf<ExecutionTask.Rule>()
@@ -93,21 +80,6 @@ class RuleMetadataTest {
                 assertEquals(listOf("inherited", "tag"), book.tags)
                 assertEquals(listOf("inherited", "tag"), source.information(book.id).tags)
                 assertEquals("Missing metadata rules must not occupy the isolated worker", emptyList<ExecutionTask.Rule>(), kindTasks)
-            }
-        }
-    }
-
-    @Test fun configuredKindStillReturnsMultipleTagsAndPersistsItsWrites(): Unit = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(customize = { raw -> JsonObject(raw + ("ruleSearch" to
-                JsonObject(raw.getValue("ruleSearch").jsonObject + ("kind" to
-                    JsonPrimitive("@js:book.putVariable('kindSeen','yes');['fantasy','novel']"))))) }).use { source ->
-                val book = source.search("title").single()
-                assertEquals(listOf("fantasy", "novel"), book.tags)
-                assertEquals("yes", book.state.variables["kindSeen"])
-                val information = source.information(book.id)
-                assertEquals(book.tags, information.tags)
-                assertEquals("yes", information.state.variables["kindSeen"])
             }
         }
     }

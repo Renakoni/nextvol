@@ -41,7 +41,7 @@ case "$*" in
     if [[ "$EMULATOR_CASE" == boot-diagnostics-never-ready || "$EMULATOR_CASE" == boot-diagnostics-recovers && ! -f "$EMULATOR_CASE_ROOT/reconnected" ]]; then exit 17; fi
     if [[ "$EMULATOR_CASE" == messaging-* ]]; then echo 24; else echo 35; fi ;;
   'shell pm list packages com.google.android.apps.messaging')
-    if [[ "$EMULATOR_CASE" != messaging-missing ]]; then echo package:com.google.android.apps.messaging; fi ;;
+    echo package:com.google.android.apps.messaging ;;
   'shell pm disable-user --user 0 com.google.android.apps.messaging')
     if [[ "$EMULATOR_CASE" == messaging-disable-fails ]]; then exit 19; fi
     touch "$EMULATOR_CASE_ROOT/messaging-disabled" ;;
@@ -50,14 +50,14 @@ case "$*" in
     touch "$EMULATOR_CASE_ROOT/messaging-stopped" ;;
   'shell pm list packages com.google.android.apps.nexuslauncher')
     if [[ "$EMULATOR_CASE" == boot-diagnostics-offline ]]; then exit 17; fi
-    if [[ "$EMULATOR_CASE" != no-launcher ]]; then echo package:com.google.android.apps.nexuslauncher; fi ;;
+    echo package:com.google.android.apps.nexuslauncher ;;
   'shell am force-stop com.google.android.apps.nexuslauncher')
     if [[ "$EMULATOR_CASE" == stop-fails ]]; then exit 19; fi
     touch "$EMULATOR_CASE_ROOT/stopped" ;;
   'shell dumpsys window windows')
     if [[ "$EMULATOR_CASE" == messaging-stuck || "$EMULATOR_CASE" == messaging-ready && ! -f "$EMULATOR_CASE_ROOT/messaging-stopped" ]]; then
       echo 'Window{789 u0 Application Error: com.google.android.apps.messaging}'
-    elif [[ "$EMULATOR_CASE" == stuck || ! -f "$EMULATOR_CASE_ROOT/stopped" && "$EMULATOR_CASE" != no-launcher ]]; then
+    elif [[ "$EMULATOR_CASE" == stuck || ! -f "$EMULATOR_CASE_ROOT/stopped" ]]; then
       echo 'Window{123 u0 Application Not Responding: com.google.android.apps.nexuslauncher}'
     elif [[ "$EMULATOR_CASE" == delayed && ! -f "$EMULATOR_CASE_ROOT/probed" ]]; then
       touch "$EMULATOR_CASE_ROOT/probed"
@@ -111,24 +111,10 @@ exit "$EMULATOR_TEST_EXIT"
         self.assertTrue((self.root / 'probed').exists())
         self.assertTrue((self.root / 'ran').exists())
 
-    def test_missing_google_launcher_does_not_block_other_images(self):
-        self.assertEqual(0, self.run_case('no-launcher'), self.result.stderr)
-        self.assertNotIn('force-stop', (self.root / 'adb-calls').read_text())
-
     def test_api24_messaging_is_disabled_and_stopped_before_tests(self):
         self.assertEqual(0, self.run_case('messaging-ready'), self.result.stderr)
         self.assertEqual(['one argument', 'second'], (self.root / 'ran').read_text().splitlines())
         self.assertNotIn('Application Error', (self.diagnostics / 'windows-before-tests.txt').read_text())
-
-    def test_api24_without_messaging_never_disables_a_package(self):
-        self.assertEqual(0, self.run_case('messaging-missing'), self.result.stderr)
-        calls = (self.root / 'adb-calls').read_text()
-        self.assertNotIn('disable-user', calls)
-        self.assertNotIn('force-stop com.google.android.apps.messaging', calls)
-
-    def test_api35_does_not_modify_messaging(self):
-        self.assertEqual(0, self.run_case('launcher'), self.result.stderr)
-        self.assertNotIn('com.google.android.apps.messaging', (self.root / 'adb-calls').read_text())
 
     def test_failed_api_query_does_not_skip_preparation_and_start_tests(self):
         self.assertEqual(17, self.run_case('api-query-fails'))

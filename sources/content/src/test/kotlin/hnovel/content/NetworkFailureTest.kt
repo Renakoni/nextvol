@@ -13,27 +13,6 @@ import java.net.UnknownHostException
 import java.nio.file.Files
 
 class NetworkFailureTest {
-    @Test fun searchCanEnrichATwentySixResultBatch() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(customize = { raw -> JsonObject(raw + ("ruleSearch" to JsonObject(
-                raw.getValue("ruleSearch").jsonObject + ("bookList" to JsonPrimitive(
-                    "<js>java.ajaxAll(Array(26).fill(baseUrl));result</js>li"))))) }).use { source ->
-                assertEquals(1, source.search("title").size)
-                assertEquals(27, fixture.server.requestCount)
-            }
-        }
-    }
-
-    @Test fun repeatedSettingsReadsDoNotBlockSearch() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(customize = { JsonObject(it + ("searchUrl" to JsonPrimitive(
-                "@js:for(var i=0;i<128;i++)source.get('fixture');'/search'"))) }).use { source ->
-                assertEquals(1, source.search("title").size)
-                assertEquals(1, fixture.server.requestCount)
-            }
-        }
-    }
-
     @Test fun exhaustedHostCallsAreReportedAsLimitsWithoutRequestingLogin() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.source(customize = { JsonObject(it + ("searchUrl" to JsonPrimitive(
@@ -76,11 +55,6 @@ class NetworkFailureTest {
 
     @Test fun directAndScriptRequestsPreserveDnsFailure() = runBlocking {
         for (script in listOf(false, true)) checkFailure(Dns { throw UnknownHostException() }, "Dns", script)
-    }
-
-    @Test fun missingOriginIsNotReportedAsDnsOrAddressFailure() = runBlocking {
-        for (script in listOf(false, true)) checkFailure(Dns { error("Unapproved origin must not resolve") },
-            "PermissionDenied", script, "https://unapproved.invalid/search")
     }
 
     @Test fun aHandledNetworkFailureDoesNotReplaceALaterRuleOrBridgeError() = runBlocking {

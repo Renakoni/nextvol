@@ -353,7 +353,7 @@ tasks.withType<Test>().configureEach {
     val readerTests = listOf(
         "ui.book.reader.*", "data.content.*", "data.web.rules.MixedSourceAcceptanceTest",
         "ui.book.detail.*", "data.book.ChapterReadStateTest",
-        "data.format.*", "ui.home.settings.textformatting.*",
+        "data.format.*",
     )
     val scopeTests = uiTests + mapOf(
         "ui" to uiTests.values.flatten(),
@@ -366,7 +366,6 @@ tasks.withType<Test>().configureEach {
             "data.work.EpubXhtmlWorkerTest", "data.work.SourceExportWorkerTest", "data.work.BookWorkIdentityTest",
             "data.download.BookDownloadTest", "data.book.BookRepositoryOperationsTest",
             "data.web.HostMultiSourceIntegrationTest", "data.web.rules.MixedSourceAcceptanceTest",
-            "ui.book.detail.DetailExportTest",
         ),
         "backup" to listOf(
             "data.backup.*", "data.local.SourceIdentityRoomTest", "data.bookmark.ReadingBookmarkTest",
@@ -375,10 +374,10 @@ tasks.withType<Test>().configureEach {
             "ui.book.reader.bookmark.ReaderBookmarkFingerprintTest",
         ),
         "storage" to listOf(
-            "data.download.*", "data.localbook.*", "ui.bookmanager.*", "ui.book.download.*", "ui.localbook.*",
+            "data.download.*", "data.localbook.*", "ui.book.download.*", "ui.localbook.*",
             "data.local.SourceIdentityRoomTest", "data.local.UserReadingDataTransactionTest",
             "data.work.BookWorkIdentityTest", "data.backup.BackupRestoreTransactionTest",
-            "ui.book.reader.ReaderReadingRecordsTest", "ui.book.reader.ReaderDirectoryProgressTest",
+            "ui.book.reader.ReaderReadingRecordsTest",
         ),
     )
     require(scopes.all { it == "full" || it in scopeTests }) { "Unknown ciTestScope: $scopes" }

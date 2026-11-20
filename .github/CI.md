@@ -42,7 +42,7 @@ fails its job. An unavailable base/diff conservatively selects full checks.
 | Independent UI: bookshelf, explore/search, statistics, Bangumi, logcat screens; `data/bangumi` | Corresponding data/state consumers | Skip | Skip | Run |
 | About/licenses UI | Skip | Skip | Skip | Run |
 | Discovery and categories UI | Discovery/categories, explore and discovery routing consumers | Skip | Source runtime smoke (uses categories/discovery) | Run |
-| Reader UI and text-formatting settings UI | Reader, content, directory/detail and formatting consumers | API 24 reader panel/layout/spacing; API 35 wide reader position/spread | Skip | Run |
+| Reader UI and text-formatting settings UI | Reader, content, directory/detail and formatting consumers | API 24 reader measurement/layout; API 35 wide reader position restoration | Skip | Run |
 | Speech implementation (`tts`) | App speech + reader tests and `:source-speech:test` | Reader coverage plus API 24 speech tests | Read-aloud smoke | Run |
 | Speech UI (`ui/tts`) | App speech + reader tests | Skip | Read-aloud smoke | Run |
 | App updates: `data/update`, dedicated update settings and available-update dialog | App update tests | Skip | Skip | Run |
@@ -91,7 +91,7 @@ reduces test execution; App and test compilation still cover the whole App.
 
 Export selects `data.export.*`, the four dedicated export Worker regression
 classes, `BookWorkIdentityTest`, `BookDownloadTest`, `BookRepositoryOperationsTest`,
-`HostMultiSourceIntegrationTest`, `MixedSourceAcceptanceTest` and `DetailExportTest`.
+`HostMultiSourceIntegrationTest` and `MixedSourceAcceptanceTest`.
 These consumers cover actual publication, download reuse/cancellation, source
 identity and WorkManager handoff outside the export directory. API 24 retains
 `EpubShareInstrumentedTest`, including the legacy share Activity entry. Shared
@@ -114,8 +114,7 @@ No separate backup device group is introduced.
 
 Storage selects download and local-book JVM suites and their ViewModel consumers,
 `SourceIdentityRoomTest`, `UserReadingDataTransactionTest`, `BookWorkIdentityTest`,
-`BackupRestoreTransactionTest`, `ReaderReadingRecordsTest`,
-`ReaderDirectoryProgressTest`. In particular,
+`BackupRestoreTransactionTest` and `ReaderReadingRecordsTest`. In particular,
 `BookDownloadTest` exercises orphan attribution, both Worker cancellations,
 failure/cancellation boundaries and retained reading records; `LocalBookStoreTest`
 exercises metadata recovery before storage queries and clearing imported content.
@@ -219,8 +218,8 @@ invalidate its cache when a referenced class is deleted or moved.
 
 Test classes ending in `Test.kt` under `data/download`, `data/localbook`,
 `ui/localbook` and `ui/book/download` use the existing storage group. Those under
-`data/content`, `data/format` and `ui/book/detail` use reader; `DetailExportTest`
-keeps its export group. Helpers such as `LegacyDownloadSchema.kt` and
+`data/content`, `data/format` and `ui/book/detail` use reader.
+Helpers such as `LegacyDownloadSchema.kt` and
 `ContentTestHost.kt` still select the complete App suite because other packages
 consume them. Shared production code in these directories remains broad.
 
@@ -247,28 +246,26 @@ retry, download, and account interactions. Narrow copy, formatting, layout, and
 empty-state variants are not all tested individually. Reader and speech suites,
 download recovery, backup transactions, and source isolation remain covered.
 
-Browser back tests use API 24 and 35 for the legacy and modern callback paths.
-The two stale-window ownership cases run on API 35 only: they do not exercise an
-API-specific back callback. Reader position and spread tests run once on API 35;
-API 24 retains real font/text/layout/spacing coverage. The redundant pager-reflow
-case is merged into the real ViewModel position test, including paragraph spacing;
-unsupported-content page navigation is part of the existing fallback/recovery
-case. Animated turns share the complete five-leaf navigation case instead of
-starting another fixture for the same forward/backward assertions.
+Browser tests retain login confirmation, Activity recreation and stale-window
+ownership. Reader position restoration runs on API 35; API 24 retains native
+soft-break/source-offset and measured-versus-rendered text checks. Mode changes,
+reflow and Activity recreation retain their exact source-position regressions.
+Simple button, page-turn, spread appearance and settings-selection checks are
+removed along with their unused hosts and helpers.
 Text-layout character invariants use seven representative boundary triples
 instead of the 108 width/height/spacing permutations. This reduces repeated work
-while deliberately giving up the second API's full position/spread run.
+while retaining the source-coordinate and cancellation boundaries.
 External-file URI/Manifest compatibility still runs on SDK 27 and 35; name/MIME
 selection and file staging run once. Export Worker foreground service types and
 completion intents retain SDK 27 and 34, while request/error/cancellation logic
-runs once on 34. The listening-cover test follows both a book change and the
-audible chapter during buffering in one fixture.
+runs once on 34. Speech tests retain playback ordering, preview restoration,
+processing offsets, cancellation and native runtime ownership.
 
 Response consumption compares five state-transition sequences with pinned Jsoup
 instead of all 125 operation triples; every operation is still exercised from
-fresh, buffered, parsed and streamed states. Search concurrency uses 17 sources
-(two batches of eight plus a tail), and source selection uses 24 offscreen-capable
-rows instead of 1000. These are behavioral checks, not large-corpus benchmarks.
+fresh, buffered, parsed and streamed states. Search concurrency retains late-result
+rejection, admission recovery and deterministic ranking. Separate assertions of
+fixed concurrency counts, list sizes and defaults are removed.
 Large local-file imports, pagination limits, cookie expiry and process isolation
 retain the sizes or real deadlines needed to cross their regression boundaries.
 Source browsing tests retain cache eviction and cancellation boundaries without
@@ -503,7 +500,7 @@ JVM tests, Lint, and Release assembly do not start an emulator. Device tests cov
 real Binder/isolated processes, WebView, Android UI, and service behavior that a
 host JVM cannot fully validate. API 24 retains minimum-version coverage. Full
 selection runs 18 normal-viewport classes on API 24 and 9 on API 35; API 35 also
-runs the two wide-viewport reader classes. `ci_scope.py` owns these class lists, and
+runs `ReaderPositionInstrumentedTest` with a wide viewport. `ci_scope.py` owns these class lists, and
 `connected-tests.sh` installs the prebuilt APKs only for selected nonempty suites.
 The Minified API 35 check runs only `MinifiedSourceRuntimeTest` and
 `ReadAloudSmokeTest` against a shrunk App; it does not repeat the Debug suite.

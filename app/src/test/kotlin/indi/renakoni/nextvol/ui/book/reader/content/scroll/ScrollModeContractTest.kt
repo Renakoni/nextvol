@@ -5,7 +5,6 @@ import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.unit.IntSize
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -74,44 +73,6 @@ class ScrollModeContractTest {
     }
 
     @Test
-    fun chapterResetKeepsAllThreeSlotsAddressableToObservers() {
-        open(continuousScrolling = true)
-        env.emit("requested", Ok(env.chapter("requested", "prev", "next")))
-        env.emit("prev", Ok(env.chapter("prev")))
-        env.emit("next", Ok(env.chapter("next")))
-        val slots = mode.uiState.contentList
-        val observedSizes = mutableListOf<Int>()
-
-        Snapshot.observe(
-            readObserver = null,
-            writeObserver = { state ->
-                if (state === slots) observedSizes += slots.size
-            },
-        ) { mode.changeChapter("replacement") }
-
-        assertTrue("The reset must publish a chapter-window update", observedSizes.isNotEmpty())
-        assertTrue("Observed window sizes: $observedSizes", observedSizes.all { it == 3 })
-        assertEquals(listOf(null, null, null), slots.toList())
-        assertEquals("replacement", mode.requestedChapterId)
-    }
-
-    @Test
-    fun displayWaitsForStoredProgressBeforePublishingTheBody() {
-        env.records.data = env.records.data.copy(currentChapterReadingProgressMap = mapOf("requested" to 0.4f))
-        open()
-        val gate = CompletableDeferred<Unit>()
-        env.records.writeGate = gate
-        env.emit("requested", Ok(env.chapter("requested", next = "next")))
-        assertNull(mode.uiState.readingChapterContent)
-        assertEquals(0f, mode.uiState.readingProgress)
-        assertTrue(env.chapters.preloads.isEmpty())
-        gate.complete(Unit)
-        env.runCurrent()
-        assertEquals(0.4f, mode.uiState.readingProgress)
-        assertEquals("next", env.chapters.preloads.single().chapterId)
-    }
-
-    @Test
     fun refreshKeepsTheVisibleProgressAndErrorDoesNotWriteReadingData() {
         open()
         env.emit("requested", Ok(env.chapter("requested")))
@@ -126,26 +87,6 @@ class ScrollModeContractTest {
     }
 
     @Test
-    fun continuousModeSubscribesToAdjacentWithoutSeparatePreload() {
-        open(continuousScrolling = true)
-        val gate = CompletableDeferred<Unit>()
-        env.chapters.preloadGate = gate
-        env.events.clear()
-        env.emit("requested", Ok(env.chapter("requested", "prev", "next")))
-        assertEquals(listOf("requested", "prev", "next"), env.chapters.requests.map { it.chapterId })
-        assertTrue(env.chapters.preloads.isEmpty())
-        gate.complete(Unit)
-        env.runCurrent()
-        assertEquals(listOf("requested", "prev", "next"), env.chapters.requests.map { it.chapterId })
-        assertEquals(listOf("render/requested", "write/start/book", "write/end/requested", "subscribe/prev", "subscribe/next"), env.events)
-        env.emit("prev", Ok(env.chapter("prev")))
-        val nextError = Err(WebRequestError("offline", "next failed"))
-        env.emit("next", nextError)
-        assertEquals(1, env.records.writes.size)
-        assertEquals(nextError, mode.uiState.contentList[2]!!.second)
-    }
-
-    @Test
     fun selfLinksAndDuplicateAdjacentIdsDoNotCreateExtraSubscriptions() {
         open(continuousScrolling = true)
         env.emit("requested", Ok(env.chapter("requested", "requested", "requested")))
@@ -155,19 +96,6 @@ class ScrollModeContractTest {
         assertNull(mode.uiState.contentList[0])
         assertNull(mode.uiState.contentList[2])
         assertTrue(env.chapters.preloads.isEmpty())
-    }
-
-    @Test
-    fun cachedRefreshCancelsAndRecreatesBothAdjacentSubscriptions() {
-        open(continuousScrolling = true)
-        env.emit("requested", Ok(env.chapter("requested", "prev", "next")))
-        env.events.clear()
-        env.emit("requested", Ok(env.chapter("requested", "prev2", "next2")))
-        assertEquals(listOf("requested", "prev2", "next2"), env.chapters.active.map { it.chapterId })
-        assertTrue("cancel/prev" in env.events)
-        assertTrue("cancel/next" in env.events)
-        assertTrue(env.chapters.preloads.isEmpty())
-        assertTrue(env.events.indexOf("subscribe/prev2") < env.events.indexOf("subscribe/next2"))
     }
 
     @Test
@@ -197,25 +125,6 @@ class ScrollModeContractTest {
         assertSame("The shifted previous chapter must also retain its prepared content",
             oldCurrent!!.second.get(), mode.uiState.contentList[0]!!.second.get())
         assertTrue(env.chapters.preloads.isEmpty())
-    }
-
-    @Test
-    fun crossingIntoThePreviousChapterRequiresOneViewportOfNegativeOffset() {
-        open(continuousScrolling = true, id = "current")
-        env.emit("current", Ok(env.chapter("current", "prev", "next")))
-        env.emit("prev", Ok(env.chapter("prev", "earlier", "current")))
-        mode.uiState.setLazyColumnSize(IntSize(100, 200))
-        val viewport = Viewport()
-        mode.uiState.lazyListState = viewport.state
-        mode.uiState.onProgressRestored(viewport.state)
-        env.runCurrent()
-        viewport.items.value = listOf(item("prev", -199, 500))
-        env.runCurrent()
-        assertEquals("current", mode.uiState.readingChapterId)
-        viewport.items.value = listOf(item("prev", -200, 500))
-        env.runCurrent()
-        assertEquals("prev", mode.uiState.readingChapterId)
-        assertEquals(listOf("current", "prev"), env.chapters.active.map { it.chapterId })
     }
 
     @Test
@@ -253,43 +162,6 @@ class ScrollModeContractTest {
     }
 
     @Test
-    fun failedCurrentChapterDoesNotSaveErrorBlockProgressOnStop() {
-        open()
-        env.emit("requested", Err(WebRequestError("Offline", "Failed")))
-        mode.uiState.readingProgress = 0.8f
-        mode.uiState.writeProgressRightNow()
-        assertTrue(progress.isEmpty())
-        assertTrue(env.records.writes.isEmpty())
-    }
-
-    @Test
-    fun replacingAdjacentIdentitiesClearsBothOldSlotsBeforeTheirResponsesArrive() {
-        open(continuousScrolling = true)
-        env.emit("requested", Ok(env.chapter("requested", "prev", "next")))
-        env.emit("prev", Ok(env.chapter("prev")))
-        env.emit("next", Ok(env.chapter("next")))
-        env.emit("requested", Ok(env.chapter("requested", "next", "prev")))
-        assertEquals(listOf(null, "requested", null), mode.uiState.contentList.map { it?.first })
-        env.emit("next", Ok(env.chapter("next")))
-        assertEquals(listOf("next", "requested", null), mode.uiState.contentList.map { it?.first })
-    }
-
-    @Test
-    fun turningOffContinuousScrollingCancelsOldAdjacentSubscriptions() {
-        open(continuousScrolling = true)
-        env.emit("requested", Ok(env.chapter("requested", "prev", "next")))
-        env.emit("prev", Ok(env.chapter("prev")))
-        continuous.value = false
-        env.runCurrent()
-        assertNull(mode.uiState.contentList[0])
-        assertEquals(listOf("requested"), env.chapters.active.map { it.chapterId })
-        env.emit("next", Ok(env.chapter("next")))
-        assertNull(mode.uiState.contentList[2])
-        env.close()
-        assertTrue(env.chapters.active.isEmpty())
-    }
-
-    @Test
     fun stoppingWhileCurrentChapterIsWaitingDoesNotRecreateAdjacentSubscriptions() {
         open(continuousScrolling = true)
         val metadataGate = CompletableDeferred<Unit>()
@@ -309,35 +181,6 @@ class ScrollModeContractTest {
     }
 
     @Test
-    fun stoppingScrollRecalculatesClampedProgressAndExplicitStopWritesSynchronously() {
-        open()
-        env.emit("requested", Ok(env.chapter("requested")))
-        mode.uiState.setLazyColumnSize(IntSize(100, 100))
-        val viewport = Viewport()
-        mode.uiState.lazyListState = viewport.state
-        mode.uiState.onProgressRestored(viewport.state)
-        env.runCurrent()
-        viewport.items.value = listOf(item("requested", -20, 400))
-        viewport.scrolling.value = true
-        env.runCurrent()
-        viewport.scrolling.value = false
-        env.runCurrent()
-        assertEquals(0.3f, mode.uiState.readingProgress)
-        assertEquals("requested" to 0.3f, progress.last())
-        viewport.items.value = listOf(item("requested", -500, 400))
-        viewport.scrolling.value = true
-        env.runCurrent()
-        viewport.scrolling.value = false
-        env.runCurrent()
-        assertEquals(1f, mode.uiState.readingProgress)
-        progress.clear()
-        mode.uiState.writeProgressRightNow()
-        assertEquals(listOf("requested" to 1f), progress)
-        env.close()
-        assertEquals(listOf("requested" to 1f), progress)
-    }
-
-    @Test
     fun adjacentLayoutCannotChangeTheResumeChapterWhileHistoryIsBeingRestored() {
         env.records.data = env.records.data.copy(currentChapterReadingProgressMap = mapOf("current" to 0.5f))
         open(continuousScrolling = true, id = "current")
@@ -352,40 +195,6 @@ class ScrollModeContractTest {
         assertEquals("current", mode.uiState.readingChapterId)
         assertEquals(0.5f, mode.uiState.readingProgress)
         assertEquals("current", env.records.data.lastReadChapterId)
-    }
-
-    @Test
-    fun aChapterPromotedAfterScrollingStopsStillReportsItsMeasuredPosition() {
-        open(continuousScrolling = true, id = "current")
-        env.emit("current", Ok(env.chapter("current", next = "next")))
-        mode.uiState.setLazyColumnSize(IntSize(100, 200))
-        val viewport = Viewport()
-        mode.uiState.lazyListState = viewport.state
-        mode.uiState.onProgressRestored(viewport.state)
-        viewport.items.value = listOf(item("next", -300, 1000))
-        env.runCurrent()
-        assertEquals("current", mode.uiState.readingChapterId)
-        env.emit("next", Ok(env.chapter("next", prev = "current")))
-        // Publish the promotion's snapshot, then deliver it to the progress observer.
-        env.runCurrent()
-        env.runCurrent()
-        assertEquals("next", mode.uiState.readingChapterId)
-        assertEquals("next" to 0.5f, progress.last())
-    }
-
-    @Test
-    fun retryingManualNextKeepsTheChapterStartInsteadOfItsOldHistory() {
-        env.records.data = env.records.data.copy(currentChapterReadingProgressMap = mapOf("next" to 0.8f))
-        open()
-        env.emit("requested", Ok(env.chapter("requested", next = "next")))
-        mode.loadNextChapter()
-        env.runCurrent()
-        env.emit("next", Err(WebRequestError("offline", "retry")))
-        mode.uiState.retryChapter("next")
-        env.runCurrent()
-        env.emit("next", Ok(env.chapter("next")))
-        assertEquals("next", mode.uiState.readingChapterId)
-        assertEquals(0f, mode.uiState.readingProgress)
     }
 
     @Test

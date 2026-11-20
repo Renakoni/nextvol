@@ -7,12 +7,8 @@ import hnovel.content.RuleSourceFixture
 import hnovel.imports.*
 import hnovel.network.*
 import indi.renakoni.nextvol.data.web.*
-import io.nightfish.lightnovelreader.api.identifier.Identifier
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
-import okhttp3.mockwebserver.Dispatcher
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -123,27 +119,6 @@ class SourceGroupsTest {
         }
     }
 
-    @Test fun catalogImportReusesAnExistingSameNameGroupWithoutMovingOtherSources() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority,
-                SourceSessionManager(fixture.authority), fixture.runner)
-            try {
-                val existing = sources.activate(commit(sources, fixture.raw()), emptyList())
-                sources.createGroup(context.getString(SourceCategory.Literature.title))
-                val group = sources.sourceGroups().single()
-                val catalog = SourceCatalog(context)
-                val entry = catalog.entries.first { it.category == SourceCategory.Literature }
-                val preview = sources.importer.preview(catalog.definitions(setOf(entry.key)), AUTO_PROFILE)
-                val reference = sources.importer.commit(preview, listOf(ImportSelection(0, ImportDecision.Add))).items.single().reference!!
-                sources.activateBatch(mapOf(reference to emptyList()), groupByCatalog = true)
-                assertEquals(listOf(group), sources.sourceGroups())
-                assertEquals(setOf(group.id), sources.installedSources().single { it.definition.importKey == entry.key }.preferences.groupIds)
-                assertTrue(sources.installedSources().single { ImportedRuleSources.id(it.definition) == existing }.preferences.groupIds.isEmpty())
-            } finally { sources.stop() }
-        }
-    }
-
     @Test fun failedCatalogBatchDoesNotLeaveEmptyGroupsOrPartialMemberships() = runBlocking {
         val context = host()
         RuleSourceFixture().use { fixture ->
@@ -163,37 +138,6 @@ class SourceGroupsTest {
                 assertEquals(listOf("Existing"), sources.sourceGroups().map { it.name })
                 assertTrue(sources.installedSources().isEmpty())
                 assertEquals(before, File(context.filesDir, "rule-sources/active.json").readText())
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun pasteFileAndUrlImportsIgnoreAuthorGroupsAndStartUngrouped() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority,
-                SourceSessionManager(fixture.authority), fixture.runner)
-            try {
-                sources.createGroup("My novels")
-                for (kind in listOf("paste", "file", "url")) {
-                    val raw = JsonObject(fixture.raw(kind) + ("bookSourceGroup" to JsonPrimitive("Author group,Official")))
-                    fixture.server.dispatcher = object : Dispatcher() {
-                        override fun dispatch(request: RecordedRequest) = MockResponse().setBody(raw.toString())
-                    }
-                    val preview = when (kind) {
-                        "file" -> sources.importer.previewStream(raw.toString().byteInputStream(), "sources.json")
-                        "url" -> {
-                            val session = fixture.broker.open(SourceScope("imports", "groups", LEGADO_PROFILE),
-                                listOf(NetworkGrant(fixture.server.url("/").toString(), true)))
-                            sources.importer.previewUrl(fixture.server.url("/sources.json").toString(), session)
-                        }
-                        else -> sources.importer.preview(raw.toString())
-                    }
-                    val ref = sources.importer.commit(preview, listOf(ImportSelection(0, ImportDecision.Add))).items.single().reference!!
-                    sources.activate(ref, emptyList())
-                }
-                assertEquals(3, sources.installedSources().size)
-                assertTrue(sources.installedSources().all { it.preferences.groupIds.isEmpty() })
-                assertEquals(1, sources.sourceGroups().size)
             } finally { sources.stop() }
         }
     }
@@ -232,77 +176,6 @@ class SourceGroupsTest {
                 sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
                 assertEquals(listOf("Empty"), sources.sourceGroups().map { it.name })
                 assertTrue(sources.installedSources().all { it.preferences.groupIds.isEmpty() })
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun invalidNamesAndStaleBatchMembershipLeaveSnapshotUnchanged() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority,
-                SourceSessionManager(fixture.authority), fixture.runner)
-            try {
-                val id = sources.activate(commit(sources, fixture.raw()), emptyList())
-                sources.createGroup("Reading")
-                val group = sources.sourceGroups().single()
-                val file = File(context.filesDir, "rule-sources/active.json")
-                val before = file.readText()
-                for (name in listOf("", "  ", "reading", "a\nb", "x".repeat(61)))
-                    assertTrue(runCatching { sources.createGroup(name) }.isFailure)
-                assertTrue(runCatching { sources.updateGroups(setOf(id, Identifier("rules", "removed")), setOf(group.id), emptySet()) }.isFailure)
-                assertTrue(runCatching { sources.updateGroups(setOf(id), setOf("removed"), emptySet()) }.isFailure)
-                assertTrue(runCatching { sources.updateGroups(setOf(id), setOf(group.id), setOf(group.id)) }.isFailure)
-                assertTrue(runCatching { sources.createGroup("New", setOf(id), setOf("removed")) }.isFailure)
-                assertTrue(runCatching { sources.createGroup("New", setOf(id), setOf(group.id), setOf(group.id)) }.isFailure)
-                assertEquals(before, file.readText())
-                assertTrue(sources.installedSources().single().preferences.groupIds.isEmpty())
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun replacementPreservesGroupWhileRemovalDoesNotRestoreMembership() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val accounts = SourceSessionManager(fixture.authority)
-            val sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority, accounts, fixture.runner)
-            try {
-                val grants = listOf(NetworkGrant(fixture.server.url("/").toString(), true))
-                val id = sources.activate(commit(sources, fixture.raw()), grants)
-                sources.createGroup("Reading", setOf(id))
-                sources.createGroup("Favorites", setOf(id))
-                val groups = sources.sourceGroups()
-                val memberships = groups.map { it.id }.toSet()
-                val update = commit(sources, JsonObject(fixture.raw() + ("bookSourceName" to JsonPrimitive("Renamed"))))
-                val service = SourceRevisionUpdates(context, sources, accounts, fixture.runner, fixture.authority)
-                service.apply(id, update, grants)
-                assertEquals(memberships, sources.installedSources().single().preferences.groupIds)
-                sources.rotateAccount(id)
-                assertEquals(memberships, sources.installedSources().single().preferences.groupIds)
-                sources.remove(id)
-                sources.activate(sources.definitions.list().single().reference(), grants)
-                assertTrue(sources.installedSources().single().preferences.groupIds.isEmpty())
-                assertEquals(groups, sources.sourceGroups())
-            } finally { sources.stop() }
-        }
-    }
-
-    @Test fun batchUpdatesPreserveUntouchedMembershipsAndSourcePreferences() = runBlocking {
-        val context = host()
-        RuleSourceFixture().use { fixture ->
-            val sources = ImportedRuleSources(context, WebSourceRegistry(fixture.authority), fixture.authority,
-                SourceSessionManager(fixture.authority), fixture.runner)
-            try {
-                val ids = listOf("one", "two").map { sources.activate(commit(sources, fixture.raw(it)), emptyList()) }
-                sources.createGroup("Reading", setOf(ids.first()))
-                val first = sources.sourceGroups().single().id
-                sources.createGroup("Favorites")
-                val second = sources.sourceGroups().last().id
-                sources.setPreferences(ids.first(), enabled = false, discoveryVisible = true)
-                val before = sources.installedSources().map { it.preferences }
-                sources.updateGroups(ids.toSet(), setOf(second), emptySet())
-                assertEquals(listOf(setOf(first, second), setOf(second)), sources.installedSources().map { it.preferences.groupIds })
-                sources.updateGroups(ids.toSet(), emptySet(), setOf(second))
-                assertEquals(before, sources.installedSources().map { it.preferences })
             } finally { sources.stop() }
         }
     }

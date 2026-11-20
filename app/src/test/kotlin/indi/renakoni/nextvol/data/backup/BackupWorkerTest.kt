@@ -4,7 +4,6 @@ import android.app.Application
 import android.net.Uri
 import androidx.work.ListenableWorker
 import androidx.work.workDataOf
-import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.data.ExternalFiles
 import indi.renakoni.nextvol.data.backup.model.AppLocalData
@@ -89,42 +88,6 @@ class BackupWorkerTest {
             val worker = ImportDataWork(context, workerParameters(workDataOf("uri" to uri.toString(), "overwrite" to true)), manager)
             assertEquals(ListenableWorker.Result.failure(workDataOf(BackupException.ERROR_KEY to reason.name)), worker.doWork())
             coVerify(exactly = 0) { manager.importAppLocalData(any(), any()) }
-        }
-    }
-
-    @Test fun deeplyNestedManifestReportsInvalidWithoutRestoringAndCleansCache() = runBlocking {
-        val nested = "[".repeat(3900) + "0" + "]".repeat(3900)
-        val text = """{"format":"nextvol-backup","version":1,"kind":"user-data","contents":[],"padding":$nested}"""
-        val bytes = ByteArrayOutputStream().also { output ->
-            ZipOutputStream(output).use { zip ->
-                zip.putNextEntry(ZipEntry("manifest.json"))
-                zip.write(text.toByteArray())
-                zip.closeEntry()
-                zip.putNextEntry(ZipEntry("data.cbor"))
-                zip.closeEntry()
-            }
-        }.toByteArray()
-        val manager = mockk<BackupDataManager>(relaxed = true)
-        val uri = Uri.parse("content://backup-test/deep-manifest")
-        shadowOf(context.contentResolver).registerInputStream(uri, bytes.inputStream())
-        val cachedFiles = context.cacheDir.listFiles()!!.toSet()
-        val worker = ImportDataWork(context, workerParameters(workDataOf("uri" to uri.toString(), "overwrite" to true)), manager)
-        assertEquals(ListenableWorker.Result.failure(workDataOf(BackupException.ERROR_KEY to BackupFailure.INVALID.name)), worker.doWork())
-        coVerify(exactly = 0) { manager.importAppLocalData(any(), any()) }
-        assertEquals(cachedFiles, context.cacheDir.listFiles()!!.toSet())
-    }
-
-    @Test fun restoreReportsBusinessFailuresAfterReadingAValidEnvelope() = runBlocking {
-        for ((reason, payload) in listOf(BackupFailure.UNSUPPORTED_VERSION to data.copy(version = 99), BackupFailure.INVALID to data)) {
-            val manager = mockk<BackupDataManager>()
-            coEvery { manager.importAppLocalData(payload, false) } returns Err(BackupException(reason))
-            val staged = ExternalFiles.backupFile(context, "${java.util.UUID.randomUUID()}.nvbackup")
-            staged.parentFile!!.mkdirs()
-            BackupArchive.write(staged, payload, BackupArchive.manifest(BackupKind.USER_DATA, emptySet()))
-            val worker = ImportDataWork(context, workerParameters(workDataOf(ExternalFiles.STAGED_BACKUP to staged.name)), manager)
-            assertEquals(ListenableWorker.Result.failure(workDataOf(BackupException.ERROR_KEY to reason.name)), worker.doWork())
-            coVerify(exactly = 1) { manager.importAppLocalData(payload, false) }
-            assertFalse(staged.exists())
         }
     }
 

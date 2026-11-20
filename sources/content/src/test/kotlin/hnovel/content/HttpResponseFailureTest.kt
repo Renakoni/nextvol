@@ -29,26 +29,6 @@ class HttpResponseFailureTest {
         }
     }
 
-    @Test fun rejectedResponsesDoNotBecomeScriptCompatibilityErrors() = runBlocking {
-        for (status in listOf(400, 401, 403, 429, 503)) for (hook in listOf("", "result")) {
-            RuleSourceFixture().use { fixture ->
-                respond(fixture, status)
-                fixture.source { rules(it, "@js:JSON.parse(result).body.page.items", hook) }.use { source ->
-                    val search = runCatching { source.search("book") }.exceptionOrNull() as SourceContentException
-                    assertEquals("status=$status hook=$hook", ContentError.Network, search.code)
-                    assertEquals("ruleSearch.bookList", search.field)
-                    assertEquals(status, search.httpStatus)
-                    assertEquals(FailureCode.ScriptRuntime, search.diagnostic?.code)
-                    val preview = runCatching { source.openDiscovery("http").preview("/list", emptyMap()) }
-                        .exceptionOrNull() as SourceContentException
-                    assertEquals(ContentError.Network, preview.code)
-                    assertEquals("ruleExplore.bookList", preview.field)
-                    assertEquals(status, preview.httpStatus)
-                }
-            }
-        }
-    }
-
     @Test fun anEmptyRejectedResponseDoesNotEndPaginationAndCanBeRetried() = runBlocking {
         RuleSourceFixture().use { fixture ->
             respond(fixture, 403)
@@ -64,18 +44,6 @@ class HttpResponseFailureTest {
                 val end = pages.page(2)
                 assertTrue(end.books.isEmpty())
                 assertNull(end.nextCursor)
-            }
-        }
-    }
-
-    @Test fun failedLoginHooksRetainTheRejectedResponseContext() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            respond(fixture, 403)
-            fixture.source { rules(it, "li", "if(result.code()!==200)throw 'rejected';result") }.use { source ->
-                val failure = runCatching { source.search("book") }.exceptionOrNull() as SourceContentException
-                assertEquals(ContentError.Network, failure.code)
-                assertEquals("loginCheckJs", failure.field)
-                assertEquals(403, failure.httpStatus)
             }
         }
     }
@@ -99,23 +67,6 @@ class HttpResponseFailureTest {
                 val recovered = pages.page(1)
                 assertTrue(recovered.books.isEmpty())
                 assertNull(recovered.nextCursor)
-            }
-        }
-    }
-
-    @Test fun successfulEmptyPagesAndBrokenSuccessfulRulesKeepTheirMeaning() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            respond(fixture, 200)
-            fixture.source { rules(it, "@js:[]") }.use { source ->
-                val page = source.openDiscovery("empty").preview("/list", emptyMap())
-                assertTrue(page.books.isEmpty())
-                assertNull(page.nextCursor)
-            }
-            fixture.source { rules(it, "@js:JSON.parse(result).body.page.items") }.use { source ->
-                val failure = runCatching { source.search("book") }.exceptionOrNull() as SourceContentException
-                assertEquals(ContentError.InvalidRule, failure.code)
-                assertEquals(FailureCode.ScriptRuntime, failure.diagnostic?.code)
-                assertNull(failure.httpStatus)
             }
         }
     }

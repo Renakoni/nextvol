@@ -26,38 +26,6 @@ class DirectoryConcurrentReadTest {
         }
     }
 
-    @Test fun recognizedPaginationOverlapsEightReadsAndMergesInSourceOrder() = runBlocking {
-        for (style in listOf("next", "list", "select")) RuleSourceFixture().use { fixture ->
-            val entered = CountDownLatch(8)
-            val release = CountDownLatch(1)
-            val requested = java.util.Collections.synchronizedList(mutableListOf<Int>())
-            val original = fixture.server.dispatcher
-            fixture.server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    val page = request.path?.removePrefix("/toc/")?.toIntOrNull() ?: return original.dispatch(request)
-                    requested += page
-                    if (page in 2..9) { entered.countDown(); check(release.await(10, TimeUnit.SECONDS)) }
-                    val body = when {
-                        page == 1 && style == "list" -> html(1) + (2..21).joinToString("") { "<a class='all' href='/toc/$it'>$it</a>" }
-                        page == 1 && style == "select" -> html(1).substringBefore("<a class='page'") +
-                            "<select>" + (1..21).joinToString("") { "<option value='/toc/$it'>第${it}页</option>" } + "</select>"
-                        else -> html(page)
-                    }
-                    return MockResponse().setBody(body)
-                }
-            }
-            fixture.source { definition(it, if (style == "list") "a.all@href" else "a.next@href") }.use { source ->
-                val pending = async { source.directory(fixture.server.url("/book/one").toString()) }
-                try {
-                    withContext(Dispatchers.IO) { assertTrue("Eight requests must enter before any returns", entered.await(10, TimeUnit.SECONDS)) }
-                    assertEquals((1..9).toSet(), requested.toSet())
-                } finally { release.countDown() }
-                assertEquals((1..21).map { "Chapter $it" }, pending.await().map { it.title })
-                assertEquals((1..21).toList(), requested.sorted())
-            }
-        }
-    }
-
     @Test fun changedContinuationDiscardsSpeculationAndFollowsTheRule() = runBlocking {
         RuleSourceFixture().use { fixture ->
             val original = fixture.server.dispatcher

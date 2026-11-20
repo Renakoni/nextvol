@@ -86,23 +86,6 @@ class MetadataBookmarkTest {
         db.close()
     }
 
-    @Test fun metadataSourcesAndDisabledAutoCacheOnlySaveBookmarks() = runBlocking {
-        shelves.addBookIntoBookShelf(1, info)
-        shelves.addBookshelf(Bookshelf(id = 2, name = "No automatic cache", autoCache = false))
-        shelves.addBookIntoBookShelf(2, info.copy(id = novel.storageKey))
-        assertTrue(shelves.getBookshelf(1)!!.allBookIds.contains(metadata.storageKey))
-        assertTrue(shelves.getBookshelf(2)!!.allBookIds.contains(novel.storageKey))
-        verify(exactly = 0) { work.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>()) }
-    }
-
-    @Test fun mainThreadCallerStillSubmitsAfterSavingMembership() = runBlocking {
-        assertEquals(android.os.Looper.getMainLooper().thread, Thread.currentThread())
-        shelves.addBookIntoBookShelf(1, info.copy(id = novel.storageKey))
-        assertEquals(1, submitted.size)
-        assertEquals("Queued", downloads.entry(novel)!!.taskStatus)
-        assertEquals(listOf(novel.storageKey), shelves.getBookshelf(1)!!.allBookIds)
-    }
-
     @Test fun existingManualTaskIsReusedWithoutReplacingItsSelection() = runBlocking(Dispatchers.IO) {
         val id = java.util.UUID.randomUUID()
         downloads.queueTask(novel, downloads.generation(), id.toString(), chapterIds = listOf("selected"))

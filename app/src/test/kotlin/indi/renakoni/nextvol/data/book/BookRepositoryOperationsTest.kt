@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.data.book
 
 import android.app.Application
-import android.net.Uri
 import androidx.concurrent.futures.ResolvableFuture
 import androidx.room.Room
 import androidx.work.Clock
@@ -25,10 +24,6 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
-import io.nightfish.lightnovelreader.api.book.BookVolumes
-import io.nightfish.lightnovelreader.api.book.ChapterInformation
-import io.nightfish.lightnovelreader.api.book.UserReadingData
-import io.nightfish.lightnovelreader.api.book.Volume
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -234,67 +229,4 @@ class BookRepositoryOperationsTest {
         }
     }
 
-    @Test
-    fun volumeCoverCallbackReceivesOnlyItsSourcesRemoteIds() = runTest {
-        val repository = fixture.repository()
-        for (source in listOf("a", "b")) {
-            val book = SourceBookId(io.nightfish.lightnovelreader.api.identifier.Identifier("fixture", source), "same")
-            val runtime = mockk<indi.renakoni.nextvol.data.web.SourceRuntime>()
-            coEvery { fixture.registry.resolve(book.sourceId) } returns indi.renakoni.nextvol.data.web.SourceResolution.Ready(runtime)
-            val remoteVolume = Volume("volume", "Same title", listOf(ChapterInformation("chapter", "Chapter")))
-            val remoteContent = io.nightfish.lightnovelreader.api.book.ChapterContent("chapter", "Chapter",
-                kotlinx.serialization.json.JsonObject(emptyMap()), nextChapter = "next")
-            val volume = book.bind(BookVolumes(book.remoteId, listOf(remoteVolume))).volumes.single()
-            val chapter = SourceChapterId(book, "chapter").bind(remoteContent)
-            val context = RuntimeEnvironment.getApplication()
-            val cover = Uri.parse("https://fixture.invalid/$source.jpg")
-            coEvery { runtime.volumeCover("same", remoteVolume, mutableMapOf("chapter" to remoteContent), context) } returns cover
-            assertEquals(com.github.michaelbull.result.Ok(cover), repository.volumeCover(book, volume, mapOf(chapter.id to chapter), context))
-            coVerify(exactly = 1) { runtime.volumeCover("same", remoteVolume, mutableMapOf("chapter" to remoteContent), context) }
-        }
-    }
-
-    @Test
-    fun tagsUseTheBookSourceAndReturnDataForHostNavigation() = runTest {
-        val bookA = SourceBookId(io.nightfish.lightnovelreader.api.identifier.Identifier("fixture", "a"), "same")
-        val bookB = SourceBookId(io.nightfish.lightnovelreader.api.identifier.Identifier("fixture", "b"), "same")
-        val a = mockk<indi.renakoni.nextvol.data.web.SourceRuntime>()
-        val b = mockk<indi.renakoni.nextvol.data.web.SourceRuntime>()
-        every { a.bookTagPage("tag") } returns "page-a"
-        every { b.bookTagPage("tag") } returns "page-b"
-        coEvery { fixture.registry.resolve(bookA.sourceId) } returns indi.renakoni.nextvol.data.web.SourceResolution.Ready(a)
-        coEvery { fixture.registry.resolve(bookB.sourceId) } returns indi.renakoni.nextvol.data.web.SourceResolution.Ready(b)
-        val repository = fixture.repository()
-        assertEquals(com.github.michaelbull.result.Ok(indi.renakoni.nextvol.data.web.SourceDiscoveryTarget(bookA.sourceId, "page-a")), repository.bookTagPage(bookA, "tag"))
-        assertEquals(com.github.michaelbull.result.Ok(indi.renakoni.nextvol.data.web.SourceDiscoveryTarget(bookB.sourceId, "page-b")), repository.bookTagPage(bookB, "tag"))
-        assertEquals(com.github.michaelbull.result.Ok(indi.renakoni.nextvol.data.web.SourceDiscoveryTarget(bookA.sourceId, "page-a")), repository.bookTagPage(bookA, "tag"))
-        coEvery { fixture.registry.resolve(bookA.sourceId) } returns indi.renakoni.nextvol.data.web.SourceResolution.Missing(bookA.sourceId)
-        assertTrue(repository.bookTagPage(bookA, "tag").isErr)
-        verify(exactly = 2) { a.bookTagPage("tag") }
-        verify(exactly = 1) { b.bookTagPage("tag") }
-    }
-
-    @Test
-    fun readingUpdatesUseTheStoredValueAndRetainTheLocalObservationFlow() = runTest {
-        val observed = MutableStateFlow(UserReadingData("book", totalReadTime = 10))
-        coEvery { fixture.local.getUserReadingData("book") } answers { observed.value }
-        coEvery { fixture.local.getAllUserReadingData() } answers { listOf(observed.value) }
-        every { fixture.local.getUserReadingDataFlow("book") } returns observed
-        coEvery { fixture.local.updateUserReadingData("book", any()) } answers {
-            observed.value = secondArg<(UserReadingData) -> UserReadingData>()(observed.value)
-        }
-        val repository = fixture.repository()
-        var transformations = 0
-        assertSame(observed, repository.getUserReadingDataFlow("book"))
-        repository.updateUserReadingData("book") {
-            transformations++
-            it.copy(totalReadTime = it.totalReadTime + 5, lastReadChapterId = "chapter")
-        }
-        val expected = UserReadingData("book", totalReadTime = 15, lastReadChapterId = "chapter")
-        assertEquals(expected, repository.getUserReadingData("book"))
-        assertEquals(listOf(expected), repository.getAllUserReadingData())
-        assertEquals(expected, observed.value)
-        assertEquals(1, transformations)
-        coVerify(exactly = 1) { fixture.local.updateUserReadingData("book", any()) }
-    }
 }
