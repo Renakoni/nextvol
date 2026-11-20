@@ -68,8 +68,7 @@ internal class SovitsAcoustic(
                 longArrayOf(1, values.size.toLong(), 1))
             inputs["ge"] = condition(ge)
             inputs["ge_advanced"] = condition(advanced)
-            if ("speed" in encoder.inputNames)
-                inputs["speed"] = OnnxTensor.createTensor(environment, DoubleBuffer.wrap(doubleArrayOf(1.0)), longArrayOf(1))
+            inputs["speed"] = OnnxTensor.createTensor(environment, DoubleBuffer.wrap(doubleArrayOf(voice.options.speed.toDouble())), longArrayOf(1))
             return encoder.runCancellable(inputs).use { result ->
                 val value = result[0] as OnnxTensor
                 if (split) {

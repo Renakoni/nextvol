@@ -10,6 +10,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SpeechAudioParametersTest {
+    @Test fun sovitsSynthesisSpeedIsNotAppliedAgainByThePcmProcessor() {
+        val voice = OfflineVoiceConfig("gpt-sovits", "v2Pro-1", speed = 1.65f, pitch = .5f, volume = .5f)
+        val settings = SpeechSettings(rate = 1.5f, pitch = 2f, volume = .4f)
+        assertEquals(SpeechAudioParameters(1.5f, 2f, .4f), offlineAudioParameters(voice, settings))
+    }
+
     @Test fun offlineSpeakerAdjustmentsReachDspOnceAndGlobalPitchCombinesWithSpeakerPitch() {
         val settings = SpeechSettings(rate = 1.5f, pitch = 2f, volume = .4f)
         val voice = OfflineVoiceConfig("bdetts", "voice", speed = .8f, pitch = .5f, volume = .5f)

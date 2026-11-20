@@ -285,6 +285,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         SpeechEnginesScreen(state, nav::popBackStackIfResumed,
             onEdit = { nav.navigate(SpeechEngineEditorRoute(it?.code.orEmpty(), it?.type ?: "http")) },
             onAddVoice = { if (it.isOnline) nav.navigate(HttpVoiceEditorRoute(engineCode = it.code))
+                else if (it.code == "gpt-sovits") nav.navigate(SovitsImportRoute) { launchSingleTop = true }
                 else nav.navigate(OfflineVoiceEditorRoute(engineCode = it.code, newVoice = true)) },
             onOrder = viewModel::order)
     }

@@ -104,9 +104,7 @@ internal fun HttpSpeechSourcesScreen(
             }, onPreview = onPreview?.let { { it(source.definition.id) } },
             previewEnabled = !state.busy && source.available && source.isConfigured,
             previewPlaying = playback.isActive && playback.previews(SpeechVoiceRef(httpSource = source.definition.id)),
-            description = (metadata["desc"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank {
-                (metadata["code"] as? JsonPrimitive)?.contentOrNull.orEmpty()
-            },
+            description = (metadata["desc"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
             problem = when {
                 source.engineDeleted -> stringResource(R.string.tts_engine_missing)
                 !source.engineEnabled -> stringResource(R.string.tts_engine_disabled)

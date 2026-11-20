@@ -8,6 +8,8 @@ import hnovel.speech.*
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.*
 import indi.renakoni.nextvol.tts.matcha.*
+import indi.renakoni.nextvol.tts.sovits.sovitsOptions
+import indi.renakoni.nextvol.tts.sovits.withSovitsOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,7 +22,9 @@ import javax.inject.Inject
 
 internal fun VoiceFields.applyTo(voice: InstalledOfflineVoice): InstalledOfflineVoice {
     val original = requireNotNull(voice.configuration)
-    val candidate = original.copy(code = code, locale = locale, rawParameters = parameters, extendUI = extensions,
+    val candidate = if (original.engine == "gpt-sovits")
+        original.withSovitsOptions(requireNotNull(sovits)).copy(code = code, locale = locale, gender = gender)
+    else original.copy(code = code, locale = locale, rawParameters = parameters, extendUI = extensions,
         speed = speed, pitch = pitch, volume = volume, sampleRate = sampleRate,
         gender = gender, type = type)
     return voice.copy(name = name, configuration = candidate, enabled = enabled,
@@ -29,9 +33,12 @@ internal fun VoiceFields.applyTo(voice: InstalledOfflineVoice): InstalledOffline
 
 internal fun VoiceDraft.Companion.from(voice: InstalledOfflineVoice): VoiceDraft {
     val config = requireNotNull(voice.configuration)
+    val sovits = if (config.engine == "gpt-sovits") sovitsOptions(config) else null
     return VoiceDraft(voice.name, config.code, config.locale, config.rawParameters ?: config.parameters, config.extendUI,
         config.speed.toString(), config.pitch.toString(), config.volume.toString(), config.sampleRate.takeUnless { it == 0 }?.toString() ?: "16000",
-        config.gender.toString(), config.type.toString(), voice.metadata.note, voice.metadata.description, voice.metadata.avatar, voice.enabled)
+        config.gender.toString(), config.type.toString(),
+        voice.metadata.note, voice.metadata.description, voice.metadata.avatar, voice.enabled,
+        sovits?.let { SovitsOptionsDraft(it.temperature.toString(), it.topK.toString(), it.topP.toString(), it.repetitionPenalty.toString()) })
 }
 
 @HiltViewModel

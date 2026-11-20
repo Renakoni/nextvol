@@ -16,9 +16,9 @@ class Voice {
  public:
   Voice(std::filesystem::path model, std::filesystem::path runtime);
   void prepare(const Text& prompt, const std::vector<float>& pcm32, const std::vector<float>& pcm16);
-  std::vector<int64_t> semantics(const Text& text);
+  std::vector<int64_t> semantics(const Text& text, const std::vector<float>& sampling);
   std::vector<float> condition(bool advanced) const;
-  std::vector<int16_t> vocode(const std::vector<int64_t>& phones, const std::vector<int64_t>& tokens);
+  std::vector<int16_t> vocode(const std::vector<int64_t>& phones, const std::vector<int64_t>& tokens, double speed);
   static std::vector<int16_t> pcm(const float* samples, size_t count);
   void cancel() { run_.SetTerminate(); }
 
@@ -34,6 +34,5 @@ class Voice {
   std::vector<std::string> stage_inputs_, first_outputs_, stage_outputs_;
   std::vector<size_t> first_map_, stage_map_;
   size_t stop_index_, y_index_;
-  bool first_sampling_ = false, stage_sampling_ = false, speed_input_ = false;
 };
 }  // namespace sovits

@@ -89,7 +89,8 @@ class OfflineAvailabilityChecker internal constructor(
     internal fun inspect(configuration: OfflineVoiceConfig, paths: Set<String>, open: (String) -> InputStream): OfflineAvailability {
         if (configuration.engine == "gpt-sovits") {
             if (device.api < 29) return OfflineAvailability(R.string.tts_offline_android, "29", false)
-            if (!DeviceAcceleration.supportsProcess(device.abis)) return OfflineAvailability(R.string.tts_offline_abi, "arm64-v8a", false)
+            if (!DeviceAcceleration.supportsProcess(device.abis))
+                return OfflineAvailability(R.string.sovits_runtime_unsupported, canRun = false)
             if (!matchaEnabled) return OfflineAvailability(R.string.tts_offline_runtime_missing, "GPT-SoVITS", false)
             if (!SpeechRuntimePack.Sovits.installed) return OfflineAvailability(R.string.sovits_runtime_required, canRun = false)
             return OfflineAvailability()

@@ -9,9 +9,10 @@ internal object SovitsNative {
     external fun create(model: ByteArray, runtime: ByteArray): Long
     external fun prepare(handle: Long, phones: LongArray, tokens: LongArray, repeats: LongArray, runs: LongArray,
         pcm32: FloatArray, pcm16: FloatArray)
-    external fun semantics(handle: Long, phones: LongArray, tokens: LongArray, repeats: LongArray, runs: LongArray): LongArray
+    external fun semantics(handle: Long, phones: LongArray, tokens: LongArray, repeats: LongArray, runs: LongArray,
+        sampling: FloatArray): LongArray
     external fun condition(handle: Long, advanced: Boolean): FloatArray
-    external fun vocode(handle: Long, phones: LongArray, tokens: LongArray): ByteArray
+    external fun vocode(handle: Long, phones: LongArray, tokens: LongArray, speed: Double): ByteArray
     external fun pcm(audio: FloatArray): ByteArray
     external fun cancel(handle: Long)
     external fun close(handle: Long)

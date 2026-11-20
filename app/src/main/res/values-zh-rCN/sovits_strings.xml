@@ -1,5 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="sovits_temperature">温度</string>
+    <string name="sovits_top_k">Top-K</string>
+    <string name="sovits_top_p">Top-P</string>
+    <string name="sovits_repetition_penalty">重复惩罚</string>
+    <string name="sovits_runtime_unsupported">GPT-SoVITS 暂不支持当前运行环境。</string>
     <string name="sovits_checkpoint_big_endian">暂不支持大端权重。</string>
     <string name="sovits_checkpoint_config_missing">模型缺少结构配置，请选择 GPT-SoVITS 导出的完整权重。</string>
     <string name="sovits_checkpoint_empty">权重文件为空或已损坏。</string>
