@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -319,21 +318,15 @@ fun SettingsMenuEntry(
     selectedOptionKey: String,
     onOptionChange: (String) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    var selectedOption by remember(options, selectedOptionKey) {
-        mutableStateOf(options.getOrNull(selectedOptionKey))
-    }
+    var expanded by remember(disabled) { mutableStateOf(false) }
+    val selectedOption = remember(options, selectedOptionKey) { options.getOrNull(selectedOptionKey) }
 
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
             .then(modifier)
             .fillMaxWidth()
-            .clickable {
-                if (!disabled) {
-                    expanded = !expanded
-                }
-            }
+            .clickable(enabled = !disabled) { expanded = true }
             .padding(horizontal = 22.dp)
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -377,6 +370,7 @@ fun SettingsMenuEntry(
                     IntOffset(0, 20)
                 }
             ) {
+                if (disabled) return@Box
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false }
@@ -388,12 +382,9 @@ fun SettingsMenuEntry(
                             else
                                 Modifier,
                             onClick = {
-                                selectedOption = option
-                                onOptionChange(option.key)
                                 expanded = false
+                                onOptionChange(option.key)
                             },
-                            enabled = true,
-                            interactionSource = remember { MutableInteractionSource() },
                             text = {
                                 Text(
                                     modifier = Modifier.padding(vertical = 4.dp),

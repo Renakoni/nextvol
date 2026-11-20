@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.export.EpubShareFiles
 import java.util.UUID
@@ -22,14 +23,15 @@ open class EpubShareActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) {
+            val localized = ContextCompat.getContextForLanguage(this)
             try {
                 val id = UUID.fromString(intent.data?.schemeSpecificPart)
                 if (!intent.getBooleanExtra("automatic", false) || !EpubShareFiles.wasShared(this, id)) {
-                    startActivity(EpubShareFiles.chooser(this, id))
+                    startActivity(EpubShareFiles.chooser(localized, id))
                     EpubShareFiles.markShared(this, id)
                 }
             } catch (_: RuntimeException) {
-                Toast.makeText(this, R.string.epub_export_share_failed, Toast.LENGTH_LONG).show()
+                Toast.makeText(this, localized.getText(R.string.epub_export_share_failed), Toast.LENGTH_LONG).show()
             }
         }
         finish()

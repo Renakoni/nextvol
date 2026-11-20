@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="language">繁體中文 (台灣)</string>
     <string name="sources_restoration_failed">來源未能完整還原，請檢查來源設定。</string>
     <string name="language_translators">Mango, yukonisen</string>
     <!-- Navigation Items -->
@@ -192,7 +191,6 @@
     <string name="settings_formats_characters_variant_note">漢字變體只對閱讀器生效，並且需要字型支援。</string>
     <string name="settings_app_language">語言</string>
     <string name="settings_app_language_desc">設定應用程式語言</string>
-    <string name="settings_app_language_desc_unavailable">設定應用程式語言 (需要 Android 13+)</string>
     <string name="settings_characters_variant">漢字變體</string>
     <string name="settings_characters_variant_desc">使用指定語言的漢字變體，需要系統字型支援</string>
     <string name="paper_settings">紙張</string>

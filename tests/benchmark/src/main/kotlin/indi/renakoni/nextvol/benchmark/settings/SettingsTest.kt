@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.benchmark.settings
 
-import android.os.Build
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
@@ -50,30 +49,6 @@ class SettingsTest : UiAutomatorTest() {
 
         clickText("Traditional Chinese Conversion")
         assertText("Traditional Chinese Conversion")
-    }
-
-    @Test
-    fun languageAndFormatsOpenAndReturn() {
-        openSettings()
-        clickScrolledText("Language")
-        device.waitForIdle()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            assertForegroundPackage("com.android.settings")
-            pressBack()
-            assertForegroundPackage(TARGET_PACKAGE)
-            openAppSettings()
-        } else {
-            assertForegroundPackage(TARGET_PACKAGE)
-            scrollToText("Set the app language (Android 13+ required)")
-            scrollToText("Follow System")
-        }
-
-        clickScrolledText("Formats")
-        assertText("Formats")
-        assertText("Date Format")
-        assertText("Use Relative Time")
-        assertText("Chinese Characters Variant")
-        pressBack()
     }
 
     @Test

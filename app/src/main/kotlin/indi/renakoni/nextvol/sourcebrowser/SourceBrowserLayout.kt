@@ -7,6 +7,8 @@ import android.view.MenuItem
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.Toolbar
+import androidx.annotation.StringRes
+import androidx.core.content.ContextCompat
 import indi.renakoni.nextvol.R
 import kotlin.math.roundToInt
 
@@ -15,12 +17,12 @@ internal fun sourceBrowserLayout(
     context: Context,
     title: String,
     browser: View,
-    closeLabel: CharSequence,
     onClose: () -> Unit,
     onReload: () -> Unit,
-    confirmLabel: CharSequence? = null,
-    onConfirm: () -> Unit = {},
+    @StringRes confirmLabel: Int,
+    onConfirm: () -> Unit,
 ): LinearLayout = LinearLayout(context).apply {
+    val labels = ContextCompat.getContextForLanguage(context).resources
     fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
     orientation = LinearLayout.VERTICAL
     fitsSystemWindows = true
@@ -35,22 +37,20 @@ internal fun sourceBrowserLayout(
             contentDescription = label
             setOnClickListener { action() }
         }
-        addView(button(R.drawable.close_24px, closeLabel, onClose), LinearLayout.LayoutParams(dp(48), dp(48)))
-        addView(button(R.drawable.refresh_24px, context.getText(R.string.source_browser_reload), onReload),
+        addView(button(R.drawable.close_24px, labels.getText(android.R.string.cancel), onClose), LinearLayout.LayoutParams(dp(48), dp(48)))
+        addView(button(R.drawable.refresh_24px, labels.getText(R.string.source_browser_reload), onReload),
             LinearLayout.LayoutParams(dp(48), dp(48)))
         addView(Toolbar(context).apply {
-            this.title = title.ifBlank { context.getString(R.string.source_browser_title) }
+            this.title = title.ifBlank { labels.getString(R.string.source_browser_title) }
             setTitleTextColor(context.getColor(R.color.source_browser_foreground))
             setContentInsetsRelative(0, 0)
             contentInsetEndWithActions = 0
-            if (confirmLabel != null) {
-                menu.add(0, android.R.id.button1, 0, confirmLabel).apply {
-                    icon = context.getDrawable(R.drawable.check_24px)?.mutate()?.apply {
-                        setTint(context.getColor(R.color.source_browser_accent))
-                    }
-                    setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-                    setOnMenuItemClickListener { onConfirm(); true }
+            menu.add(0, android.R.id.button1, 0, labels.getText(confirmLabel)).apply {
+                icon = context.getDrawable(R.drawable.check_24px)?.mutate()?.apply {
+                    setTint(context.getColor(R.color.source_browser_accent))
                 }
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+                setOnMenuItemClickListener { onConfirm(); true }
             }
         }, LinearLayout.LayoutParams(0, -1, 1f))
     }, LinearLayout.LayoutParams(-1, dp(56)))
