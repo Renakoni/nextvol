@@ -27,7 +27,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 internal class GptSovitsSynthesizer(private val context: Context, private val voice: GptSovitsVoice) : SpeechSynthesizer {
-    override val maxInputLength = 120
+    override val maxInputLength = SPEECH_SOVITS_INPUT_LIMIT
     override var audioParameters = SpeechAudioParameters()
         private set
     private val opened = AtomicBoolean()

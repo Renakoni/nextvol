@@ -1,5 +1,7 @@
 package indi.renakoni.nextvol.tts.sovits
 
+import hnovel.speech.OfflineVoiceConfig
+import org.json.JSONObject
 import java.io.File
 
 enum class GptSovitsVersion(internal val directory: String) {
@@ -13,6 +15,7 @@ data class GptSovitsVoice(
     val character: String,
     val referenceAudio: File,
     val referenceText: String,
+    val runtime: File = File(root, "RuntimeAssets"),
 ) {
     init {
         require(character.isNotBlank() && character !in setOf(".", "..") &&
@@ -20,5 +23,24 @@ data class GptSovitsVoice(
         require(referenceText.isNotBlank())
     }
     internal val model get() = File(root, "CharacterModels/${version.directory}/$character/tts_models")
-    internal val runtime get() = File(root, "RuntimeAssets")
+}
+
+internal fun validateSovitsConfiguration(configuration: OfflineVoiceConfig, paths: Collection<String>) {
+    require("CharacterModels/${sovitsCharacterPath(configuration.code)}/prompt_wav.json" in paths)
+}
+
+internal fun installedSovitsVoice(root: File, configuration: OfflineVoiceConfig, runtime: File): GptSovitsVoice {
+    val code = sovitsCharacterPath(configuration.code)
+    val version = GptSovitsVersion.entries.single { it.directory == code.substringBefore('/') }
+    val character = File(root, "CharacterModels/$code")
+    val reference = JSONObject(File(character, "prompt_wav.json").readText()).getJSONObject("Normal")
+    val filename = reference.getString("wav")
+    require(filename.matches(Regex("reference\\.[a-z0-9]{1,8}")))
+    return GptSovitsVoice(root, version, code.substringAfter('/'), File(character, "prompt_wav/$filename"),
+        reference.getString("text"), runtime)
+}
+
+private fun sovitsCharacterPath(code: String): String {
+    require(code.matches(Regex("v2Pro(?:Plus)?\\.[a-zA-Z0-9_-]{1,80}")))
+    return code.replace('.', '/')
 }

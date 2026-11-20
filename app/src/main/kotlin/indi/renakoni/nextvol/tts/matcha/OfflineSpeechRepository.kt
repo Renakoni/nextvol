@@ -242,6 +242,39 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
 
     suspend fun delete(reference: OfflineVoiceRef) = delete(setOf(reference))
 
+    /** Publish converted weights through the same catalog and resource leases as other offline voices. */
+    internal suspend fun installSovits(name: String, prepare: suspend (File) -> OfflineVoiceConfig): InstalledOfflineVoice =
+        withContext(Dispatchers.IO) {
+            lock.withLock { read() }
+            installing.withLock {
+                val task = currentCoroutineContext()
+                root.mkdirs()
+                val stage = File(root, ".install-${UUID.randomUUID()}")
+                check(stage.mkdir())
+                try {
+                    val configuration = prepare(stage)
+                    require(configuration.engine == "gpt-sovits")
+                    val sizes = stage.walkTopDown().filter { it.isFile }.associate { it.relativeTo(stage).invariantSeparatorsPath to it.length() }
+                    val normalized = normalizeOfflineVoice(configuration, sizes.keys)
+                    task.ensureActive()
+                    engines?.register(SpeechEngineConfig("gpt-sovits", "GPT-SoVITS"))
+                    lock.withLock {
+                        task.ensureActive()
+                        val previous = read()
+                        val reference = OfflineVoiceRef(UUID.randomUUID().toString(), UUID.randomUUID().toString())
+                        val voice = InstalledOfflineVoice(reference, name.trim(), sizes, configuration = normalized,
+                            defaults = OfflineVoiceDefaults(name.trim(), normalized, OfflineVoiceMetadata()))
+                        val target = directory(reference)
+                        check(target.parentFile!!.mkdirs() && stage.renameTo(target))
+                        try { write(previous + voice) }
+                        catch (failure: Exception) { target.deleteRecursively(); throw failure }
+                        mutableChanges.value++
+                        voice
+                    }
+                } finally { stage.deleteRecursively() }
+            }
+        }
+
     suspend fun delete(references: Set<OfflineVoiceRef>) = withContext(Dispatchers.IO) {
         lock.withLock {
             val previous = read()
@@ -415,6 +448,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
 
 /** Package defaults precede speaker overrides. Segment/role overrides will be applied by the plan layer. */
 internal fun normalizeOfflineVoice(configuration: OfflineVoiceConfig, paths: Collection<String>): OfflineVoiceConfig {
+    if (configuration.engine == "gpt-sovits") indi.renakoni.nextvol.tts.sovits.validateSovitsConfiguration(configuration, paths)
     require(configuration.speed.isFinite() && configuration.speed >= 0 && configuration.pitch.isFinite() && configuration.pitch > 0)
     require(configuration.volume.isFinite() && configuration.volume >= 0 && configuration.sampleRate >= 0)
     val raw = configuration.rawParameters ?: configuration.parameters

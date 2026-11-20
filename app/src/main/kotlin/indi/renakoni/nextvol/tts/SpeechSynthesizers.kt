@@ -17,6 +17,7 @@ import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRuntimeInfo
 import indi.renakoni.nextvol.tts.sovits.GptSovitsSynthesizer
 import indi.renakoni.nextvol.tts.sovits.GptSovitsVoice
+import indi.renakoni.nextvol.tts.sovits.installedSovitsVoice
 import indi.renakoni.nextvol.tts.offline.OfflineSpeechSynthesizer
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import indi.renakoni.nextvol.tts.offline.offlineSpeechExclusiveGroup
@@ -64,6 +65,7 @@ class SpeechSynthesizers @Inject constructor(
                 val configuration = offline.configuration(voice)
                 if (configuration.engine == "sherpa") SpeechRuntime(offline(), "sherpa",
                     MatchaResources(offline.directory(voice.resourceReference), requireNotNull(configuration.sherpa)).modelKey)
+                else if (configuration.engine == "gpt-sovits") SpeechRuntime(offline(), "gpt-sovits")
                 else SpeechRuntime(offline(), offlineSpeechExclusiveGroup(configuration.engine))
             }
             settings.httpSource != null -> {
@@ -92,10 +94,19 @@ class SpeechSynthesizers @Inject constructor(
                     }
                     if (!status.canRun) throw SpeechException(SpeechError.OfflineUnavailable)
                     attempted = true
-                    delegate = if (active.configuration.engine == "sherpa") MatchaSpeechSynthesizer(active.resources)
-                        else OfflineSpeechSynthesizer(context, active.directory, active.configuration)
+                    delegate = when (active.configuration.engine) {
+                        "sherpa" -> MatchaSpeechSynthesizer(active.resources)
+                        "gpt-sovits" -> GptSovitsSynthesizer(context, installedSovitsVoice(active.directory,
+                            active.configuration, File(context.noBackupFilesDir, "sovits/RuntimeAssets")))
+                        else -> OfflineSpeechSynthesizer(context, active.directory, active.configuration)
+                    }
                 }
                 delegate!!.open(settings.copy(httpSource = null, voice = ""))
+                if (lease?.configuration?.engine == "gpt-sovits") {
+                    val config = checkNotNull(lease).configuration
+                    audioParameters = SpeechAudioParameters(config.speed * settings.rate, config.pitch * settings.pitch,
+                        config.volume * settings.volume)
+                }
                 (delegate as? MatchaSpeechSynthesizer)?.let { synthesizer ->
                     withContext(Dispatchers.IO) {
                         val details = synthesizer.describe()

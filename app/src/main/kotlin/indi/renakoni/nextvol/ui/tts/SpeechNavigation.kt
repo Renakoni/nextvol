@@ -34,6 +34,8 @@ import indi.renakoni.nextvol.tts.SavedHttpSpeechSource
 import indi.renakoni.nextvol.tts.SpeechVoiceRef
 import indi.renakoni.nextvol.tts.SpeechError
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
+import indi.renakoni.nextvol.tts.runtime.RuntimeDownload
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import io.nightfish.lightnovelreader.api.Route
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
 import indi.renakoni.nextvol.utils.isResumed
@@ -300,6 +302,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val viewModel = hiltViewModel<HttpSpeechSourcesViewModel>()
         val settingsViewModel = hiltViewModel<SpeechSettingsViewModel>()
         val offlineViewModel = hiltViewModel<OfflineSpeechSourcesViewModel>()
+        val runtimeDownloads = hiltViewModel<SpeechRuntimeViewModel>().downloads
+        val runtimeStates by runtimeDownloads.changes.collectAsStateWithLifecycle()
         val offline by offlineViewModel.state.collectAsStateWithLifecycle()
         val settings by settingsViewModel.state.collectAsStateWithLifecycle()
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -323,6 +327,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         var deletingHttp by remember { mutableStateOf<List<SavedHttpSpeechSource>>(emptyList()) }
         var addingToPool by remember { mutableStateOf<List<SpeechVoiceRef>>(emptyList()) }
         var backgroundMusic by rememberSaveable { mutableStateOf(false) }
+        var importingWeights by rememberSaveable { mutableStateOf(false) }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let { viewModel.preview(it) { file ->
                 nav.navigate(SpeechPackagePreviewRoute(file.toString(), settings.settings.schemeId)) { launchSingleTop = true }
@@ -354,6 +359,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onDeleteHttp = { deletingHttp = it }, onDeleteOffline = { deleting = it },
             onAddToPool = { addingToPool = it },
             onBackgroundMusic = { backgroundMusic = true },
+            sovitsInstalled = runtimeStates[SpeechRuntimePack.Sovits] == RuntimeDownload.Installed,
+            onImportWeights = { importingWeights = true },
             offlineRow = { voice, management -> OfflineSpeechSourceRow(voice, offline, selection = settings.settings, management = management,
                 playback = playback,
                 onSelect = { toggleVoice(false, SpeechVoiceRef(offlineVoice = it.reference, label = it.name)) },
@@ -376,6 +383,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
                     })
             })
         if (backgroundMusic) BackgroundMusicDialog { backgroundMusic = false }
+        if (importingWeights) SovitsImportDialog { importingWeights = false }
         if (addingToPool.isNotEmpty()) SpeechAddToPoolDialog(settings.settings, state.busy, state.error,
             onDismiss = { addingToPool = emptyList() }, onAdd = { group ->
                 viewModel.addToPool(group, addingToPool) { count ->

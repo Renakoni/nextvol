@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "format": "genie_v2proplus_split_v1",
+  "boundary": "/vq_model/Mul_2_output_0",
+  "source_sha256": "621b03ebfd4818f97eaf4c942a2f39435fffa1348bc2c158eca87d8e53109a81",
+  "graphs": {
+    "split-encoder.onnx": "1c074dade2f8802e3d8ac66a0a6f3622b742e849d0b08142408a43d6bc12ab8b",
+    "split-hifigan.onnx": "165cccd2dc86f5808ff5bae82952ce22caf795974252a7d5cbc6f3e1b2438eda"
+  }
+}

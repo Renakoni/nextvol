@@ -6,6 +6,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SpeechVoiceRoutingTest {
+    @Test fun importedSovitsVoiceSplitsLongNarrationBeforeReachingTheBackend() = runBlocking {
+        val reference = SpeechVoiceRef(offlineVoice = OfflineVoiceRef("sovits", "revision"))
+        val settings = SpeechSettings(offlineVoice = reference.offlineVoice,
+            text = SpeechTextSettings(separateEnglish = false, maxSentenceLength = 512))
+        val voice = SpeechResolvedVoice(reference, settings, speechOfflineInputLimit("gpt-sovits"))
+        val text = "长句测试".repeat(100)
+        val plan = prepareSpeechPlan(SpeechChapter("book", "chapter", "", "", text), settings,
+            voices = mapOf(reference.key to voice)) {}
+        assertTrue(plan.segments.size > 1)
+        assertTrue(plan.segments.all { it.text.length <= SPEECH_SOVITS_INPUT_LIMIT })
+        assertEquals(text, plan.segments.joinToString("") { it.text })
+    }
+
     private val narrator = SpeechVoiceRef(engine = "system", voice = "narrator")
     private val alternate = SpeechVoiceRef(httpSource = "alternate")
     private val online = SpeechVoiceRef(httpSource = "person-a")

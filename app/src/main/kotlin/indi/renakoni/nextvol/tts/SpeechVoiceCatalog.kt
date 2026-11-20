@@ -96,8 +96,10 @@ internal fun SpeechSettings.references(): List<SpeechVoiceRef> =
         voiceItems.map { it.value }
 
 internal const val SPEECH_HTTP_INPUT_LIMIT = 65536
+internal const val SPEECH_SOVITS_INPUT_LIMIT = 120
 
 internal fun speechOfflineInputLimit(engine: String?) = when (engine) {
+    "gpt-sovits" -> SPEECH_SOVITS_INPUT_LIMIT
     "sherpa", "vocalizer" -> 200
     "xiaomi" -> 250
     else -> Int.MAX_VALUE
