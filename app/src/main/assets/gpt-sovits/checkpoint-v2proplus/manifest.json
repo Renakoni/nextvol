@@ -6,17 +6,7 @@
     "t2s_first_stage_decoder_fp32.onnx": "303ea6ceb1dd390084c4db701f280054723cd1f46d4b62734618e04ac5cac5ea",
     "t2s_stage_decoder_fp32.onnx": "03b1717b3ff3c4904bc9d2e6a18e521d8416cb12debbbb24c93b44792d2852fa",
     "prompt_encoder_fp32.onnx": "48efa86ffcc9a1a5a34cd7aa5b7de3f5cab2535b7d0ff41a507aa1ccbd1ef444",
-    "vits_fp32.onnx": "c3ee8878f72ba2fb0ffec5d80a7577a6c3798e23c63ceee91128af3f6cbfb4ce",
-    "mobile-prefill.onnx": "81e4afc738ab6ed67e62b06ee795311a9a096ff6363806e945c084b4f8cabf99",
-    "mobile-decoder.onnx": "0434473c113273cc9fc5ff6c2ccfbd578cf29aa240e39f32f39d7bca9cb79b10",
-    "mobile-decoder-shared.onnx": "c48065be59fe4ea32c556927ffdd63a3552af8fa1673ea5f70e58f60665c8276",
-    "split-encoder.onnx": "4307e026d4ce5a5875610a0bdd97f9209ae4c14efe03c0616b6d7a89afd08301",
-    "split-hifigan.onnx": "c810b967ec25caf1e3d11a68626ed0c29a7d153a88d808c676a986342d24dd9a",
-    "mobile-decoder.json": "b3de4c971a9ba7e06f9360eedd73de85dac981a13ce3ddb8d5046061f3c54516",
-    "split-vits.json": "2a74fa05a1bc19140142af097211873031e2f563bbb377b8a3a49a0ae0be9047",
-    "v2-htp-stem.onnx": "2f6910863bc206d7f6530fc293219f5a38b8c64a6798a546e335616d133713f7",
-    "v2-htp-body.onnx": "644029c2e1cfaa67d3cc5995a5e0666fd5b320153c707aa3efdd0c165addd0d4",
-    "v2-htp-head.onnx": "38347cb9b60d25d2187c27085cd513eb385dd4ab3c5a63251c259bcf346ae263"
+    "vits_fp32.onnx": "c3ee8878f72ba2fb0ffec5d80a7577a6c3798e23c63ceee91128af3f6cbfb4ce"
   },
   "groups": [
     {

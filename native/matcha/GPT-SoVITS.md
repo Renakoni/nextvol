@@ -101,13 +101,16 @@ Other architectures, including V5, are rejected before template access.
 The reader retains Zip4j 2.11.5: Android's standard `ZipFile` rejects some real
 PyTorch ZIP64 checkpoints with `invalid CEN header`.
 
-The weight-free conversion templates are packaged with the app under
-`assets/gpt-sovits/checkpoint-v2pro{,plus}`. On first import, the pinned shared
+The app packages four common ONNX graphs under `assets/gpt-sovits/graphs` and
+a VITS graph and tensor manifest per variant under `checkpoint-v2pro{,plus}`.
+The installed speech runtime supplies the GPU and HTP graphs. On first import, the pinned shared
 encoders in `runtime-models.json` are downloaded (about 1 GB), SHA-256 checked
 and prepared under `noBackupFilesDir/sovits/RuntimeAssets`. Later imports reuse
-these files. The importer expands the FP16 external weights before publishing
-the voice through the existing offline catalog. Cancellation or failure removes
-the staged speaker; successfully downloaded shared files can be reused on retry.
+these files. The converter applies the template's FP16 rounding while writing
+each FP32 tensor directly to the file used by its graph. The reference audio
+must decode successfully and the Mandarin frontend must accept the transcript
+before the catalog publishes the voice. Cancellation or failure removes the
+staged speaker. Successfully downloaded shared files can be reused on retry.
 Converted voices use normal offline selection, audition, editing, copying,
 deletion and resource leases.
 

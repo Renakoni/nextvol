@@ -14,7 +14,6 @@
     <string name="sovits_checkpoint_size_limit">Each weight file must be no larger than 2 GB. Select exported model weights.</string>
     <string name="sovits_checkpoint_storage_full">There is not enough storage to save and unpack this model.</string>
     <string name="sovits_checkpoint_structure_mismatch">The weights do not match %1$s: %2$s. Select a matching pair of complete model files.</string>
-    <string name="sovits_checkpoint_truncated">The weight file is truncated.</string>
     <string name="sovits_checkpoint_weight_missing">The weight section is missing. Select an exported GPT-SoVITS model rather than a training snapshot.</string>
     <string name="sovits_checkpoint_zip_invalid">The weight ZIP directory is invalid.</string>
     <string name="sovits_checkpoint_zip_required">Select a .ckpt or .pth weight file in PyTorch ZIP format.</string>
@@ -29,8 +28,6 @@
     <string name="sovits_metadata_truncated">The weight metadata is truncated.</string>
     <string name="sovits_metadata_unsupported">This weight metadata is not supported.</string>
     <string name="sovits_metadata_unterminated">The weight metadata is incomplete.</string>
-    <string name="sovits_model_directory_failed">Could not create the model folder.</string>
-    <string name="sovits_model_template_corrupt">The bundled model template is damaged. Reinstall the app.</string>
     <string name="sovits_pytorch_format_unsupported">This PyTorch save format is not supported.</string>
     <string name="sovits_pytorch_zip_required">Select complete weights in PyTorch ZIP format.</string>
     <string name="sovits_reading_architecture">Reading %1$s model</string>
@@ -38,13 +35,10 @@
     <string name="sovits_reading_sovits">Reading SoVITS weights</string>
     <string name="sovits_reference_extension_missing">The reference audio file needs a valid file extension.</string>
     <string name="sovits_reference_file_invalid">Select a valid reference audio file no larger than 32 MB.</string>
-    <string name="sovits_saving_reference">Saving voice reference</string>
     <string name="sovits_tensor_noncontiguous">Non-contiguous weights are not supported. Use a complete model exported by GPT-SoVITS.</string>
     <string name="sovits_tensor_out_of_bounds">The weight tensor exceeds the file bounds.</string>
     <string name="sovits_tensor_shape_invalid">The weight tensor has invalid dimensions.</string>
-    <string name="sovits_transcript_required">Enter the words spoken in the reference audio.</string>
     <string name="sovits_v2_variant_unsupported">Select complete V2 Pro or V2 Pro Plus weights. Standard V2, diffusion models, and LoRA weights are not supported.</string>
-    <string name="sovits_voice_name_length">Enter a voice name between 1 and 80 characters long.</string>
     <string name="sovits_weight_data_missing">Weight data is missing: %1$s</string>
     <string name="sovits_weight_length_mismatch">Weight data length does not match: %1$s</string>
     <string name="sovits_weight_object_unsupported">This weight object is not supported.</string>
@@ -54,6 +48,7 @@
     <string name="sovits_sovits_weight">SoVITS weights (.pth)</string>
     <string name="sovits_reference_audio">Reference audio</string>
     <string name="sovits_reference_text">Reference transcript</string>
+    <string name="sovits_reference_text_invalid">Enter a Mandarin transcript the speech model can encode (up to 510 normalized characters).</string>
     <string name="sovits_voice_name">Voice name</string>
     <string name="sovits_choose_file">Choose file</string>
     <string name="sovits_choose_extension">Select a %1$s file.</string>

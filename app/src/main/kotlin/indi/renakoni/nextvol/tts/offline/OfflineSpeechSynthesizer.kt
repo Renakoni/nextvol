@@ -20,7 +20,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 internal fun offlineSpeechExclusiveGroup(engine: String): String = when (engine) {
-    "sougou", "bdetts" -> engine
+    "sougou", "bdetts", "gpt-sovits" -> engine
     else -> "legacy"
 }
 

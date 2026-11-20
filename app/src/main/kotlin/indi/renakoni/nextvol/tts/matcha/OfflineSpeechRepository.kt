@@ -245,7 +245,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
     /** Publish converted weights through the same catalog and resource leases as other offline voices. */
     internal suspend fun installSovits(name: String, avatar: String = "", prepare: suspend (File) -> OfflineVoiceConfig): InstalledOfflineVoice =
         withContext(Dispatchers.IO) {
-            lock.withLock { read() }
+            lock.withLock { if (!recovered) read() }
             installing.withLock {
                 val task = currentCoroutineContext()
                 root.mkdirs()
@@ -345,7 +345,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
 
     internal fun matchesResources(configuration: OfflineVoiceConfig, sizes: Map<String, Long>): Boolean = runCatching {
         val normalized = normalizeOfflineVoice(configuration, sizes.keys)
-        if (configuration.engine != "sherpa") offlineResources(normalized, sizes.map { (path, bytes) ->
+        if (configuration.engine != "sherpa" && configuration.engine != "gpt-sovits") offlineResources(normalized, sizes.map { (path, bytes) ->
             SpeechPackageResource("${configuration.engine}/$path", bytes)
         }).also { require(it.isNotEmpty()) }
     }.isSuccess

@@ -14,7 +14,6 @@
     <string name="sovits_checkpoint_size_limit">單個權重文件不能超過 2 GB。請選擇導出的模型權重。</string>
     <string name="sovits_checkpoint_storage_full">存儲空間不足，無法保存并展開此模型。</string>
     <string name="sovits_checkpoint_structure_mismatch">權重結構與 %1$s 不匹配：%2$s。請確認選擇了配套的完整模型。</string>
-    <string name="sovits_checkpoint_truncated">權重文件已截斷。</string>
     <string name="sovits_checkpoint_weight_missing">缺少 weight，請選擇 GPT-SoVITS 導出的模型，而非訓練過程快照。</string>
     <string name="sovits_checkpoint_zip_invalid">權重 ZIP 目錄無效。</string>
     <string name="sovits_checkpoint_zip_required">請選擇 PyTorch ZIP 格式的 .ckpt / .pth 權重。</string>
@@ -29,8 +28,6 @@
     <string name="sovits_metadata_truncated">權重元數據已截斷。</string>
     <string name="sovits_metadata_unsupported">不支持的權重元數據。</string>
     <string name="sovits_metadata_unterminated">權重元數據未完整結束。</string>
-    <string name="sovits_model_directory_failed">無法創建模型目錄。</string>
-    <string name="sovits_model_template_corrupt">內置模型模板損壞，請重新安裝應用。</string>
     <string name="sovits_pytorch_format_unsupported">不支持此 PyTorch 保存格式。</string>
     <string name="sovits_pytorch_zip_required">請選擇 PyTorch ZIP 格式的完整權重。</string>
     <string name="sovits_reading_architecture">讀取 %1$s 模型</string>
@@ -38,13 +35,10 @@
     <string name="sovits_reading_sovits">讀取 SoVITS 權重</string>
     <string name="sovits_reference_extension_missing">參考音頻缺少有效的文件擴展名。</string>
     <string name="sovits_reference_file_invalid">請選擇有效的參考音頻，文件不能超過 32 MB。</string>
-    <string name="sovits_saving_reference">保存音色參考</string>
     <string name="sovits_tensor_noncontiguous">暫不支持非連續存儲的權重，請使用 GPT-SoVITS 導出的完整模型。</string>
     <string name="sovits_tensor_out_of_bounds">權重張量超出文件范圍。</string>
     <string name="sovits_tensor_shape_invalid">權重張量形狀無效。</string>
-    <string name="sovits_transcript_required">請填寫參考音頻對應的原文。</string>
     <string name="sovits_v2_variant_unsupported">當前支持標準 V2 Pro / V2 Pro Plus 完整模型；普通 V2、擴散模型和 LoRA 暫不支持。</string>
-    <string name="sovits_voice_name_length">請填寫 1 至 80 字的音色名稱。</string>
     <string name="sovits_weight_data_missing">權重數據缺失：%1$s</string>
     <string name="sovits_weight_length_mismatch">權重數據長度不匹配：%1$s</string>
     <string name="sovits_weight_object_unsupported">不支持的權重對象。</string>
@@ -54,6 +48,7 @@
     <string name="sovits_sovits_weight">SoVITS 權重（.pth）</string>
     <string name="sovits_reference_audio">參考音頻</string>
     <string name="sovits_reference_text">參考音頻原文</string>
+    <string name="sovits_reference_text_invalid">請輸入模型可朗讀的中文原文，正規化後最多 510 個字。</string>
     <string name="sovits_voice_name">音色名稱</string>
     <string name="sovits_choose_file">選擇文件</string>
     <string name="sovits_choose_extension">請選擇%1$s檔案</string>

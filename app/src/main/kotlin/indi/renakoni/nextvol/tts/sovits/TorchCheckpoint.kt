@@ -8,6 +8,9 @@ import java.io.File
 import java.io.InputStream
 import java.nio.ByteBuffer
 import net.lingala.zip4j.ZipFile
+import net.lingala.zip4j.model.FileHeader
+
+private val storageKey = Regex("[a-zA-Z0-9_]+")
 
 internal data class TorchStorage(val type: String, val key: String, val count: Long) {
     val bytesPerElement: Int get() = when (type) {
@@ -29,7 +32,7 @@ internal data class TorchTensor(
             requireSovits(shape[index] == 1L || stride[index] == contiguous) { SovitsImportMessage(R.string.sovits_tensor_noncontiguous) }
             contiguous = Math.multiplyExact(contiguous, shape[index])
         }
-        requireSovits(offset >= 0 && Math.addExact(offset, elements) <= storage.count) { SovitsImportMessage(R.string.sovits_tensor_out_of_bounds) }
+        requireSovits(offset >= 0 && Math.addExact(offset, contiguous) <= storage.count) { SovitsImportMessage(R.string.sovits_tensor_out_of_bounds) }
     }
 }
 
@@ -83,7 +86,6 @@ internal class TorchPickle(private val bytes: ByteArray) {
     }
     @Suppress("UNCHECKED_CAST")
     fun read(): Map<*, *> {
-        require(bytes.size <= 16 * 1024 * 1024)
         var operations = 0
         while (position < bytes.size) {
             requireSovits(++operations < 2_000_000 && stack.size < 100_000 && memo.size < 1_000_000) { SovitsImportMessage(R.string.sovits_metadata_too_large) }
@@ -132,7 +134,7 @@ internal class TorchPickle(private val bytes: ByteArray) {
                     val type = id[1] as Symbol
                     require(type.module == "torch" && type.name.endsWith("Storage"))
                     val key = id[2] as String; val count = id[4] as Long
-                    require(key.matches(Regex("[a-zA-Z0-9_]+")) && count in 1..1_073_741_824L)
+                    require(storageKey.matches(key) && count in 1..1_073_741_824L)
                     stack.add(TorchStorage(type.name, key, count))
                 }
                 'R'.code -> {
@@ -154,7 +156,11 @@ internal class TorchPickle(private val bytes: ByteArray) {
                 'u'.code -> {
                     val items = marked(); require(items.size % 2 == 0)
                     val map = stack.last() as MutableMap<Any?, Any?>
-                    items.chunked(2).forEach { require(it[0] is String || it[0] is Long); map[it[0]] = it[1] }
+                    for (i in items.indices step 2) {
+                        val key = items[i]
+                        require(key is String || key is Long)
+                        map[key] = items[i + 1]
+                    }
                 }
                 'a'.code -> { val item = pop(); (stack.last() as MutableList<Any?>).add(item) }
                 'e'.code -> { val items = marked(); (stack.last() as MutableList<Any?>).addAll(items) }
@@ -178,17 +184,20 @@ internal class TorchPickle(private val bytes: ByteArray) {
 
 internal class TorchCheckpoint(file: File) : Closeable {
     private val zip = ZipFile(file)
+    private val headers: Map<String, FileHeader>
     private val prefix: String
     val root: Map<*, *>
     val weights: Map<*, *>
     init {
         try {
             val entries = zip.fileHeaders
-            requireSovits(entries.size <= 20_000 && entries.map { it.fileName }.distinct().size == entries.size) { SovitsImportMessage(R.string.sovits_checkpoint_zip_invalid) }
+            requireSovits(entries.size <= 20_000) { SovitsImportMessage(R.string.sovits_checkpoint_zip_invalid) }
+            headers = entries.associateBy { it.fileName }
+            requireSovits(headers.size == entries.size) { SovitsImportMessage(R.string.sovits_checkpoint_zip_invalid) }
             val metadata = entries.singleOrNull { it.fileName.endsWith("/data.pkl") } ?: errorSovits(SovitsImportMessage(R.string.sovits_pytorch_zip_required))
             requireSovits(metadata.uncompressedSize in 1..16 * 1024 * 1024) { SovitsImportMessage(R.string.sovits_metadata_too_large) }
             prefix = metadata.fileName.removeSuffix("data.pkl")
-            zip.getFileHeader(prefix + "byteorder")?.let { entry ->
+            headers[prefix + "byteorder"]?.let { entry ->
                 requireSovits(entry.uncompressedSize in 1..16) { SovitsImportMessage(R.string.sovits_checkpoint_big_endian) }
                 val order = zip.getInputStream(entry).use { input ->
                     ByteArray(entry.uncompressedSize.toInt()).also { DataInputStream(input).readFully(it); require(input.read() == -1) }
@@ -206,12 +215,12 @@ internal class TorchCheckpoint(file: File) : Closeable {
     fun tensor(key: String): TorchTensor = (weights[key] as? TorchTensor
         ?: errorSovits(SovitsImportMessage(R.string.sovits_checkpoint_key_missing, key))).also { tensor ->
         tensor.validate()
-        val entry = zip.getFileHeader(prefix + "data/" + tensor.storage.key) ?: errorSovits(SovitsImportMessage(R.string.sovits_weight_data_missing, key))
+        val entry = headers[prefix + "data/" + tensor.storage.key] ?: errorSovits(SovitsImportMessage(R.string.sovits_weight_data_missing, key))
         requireSovits(entry.uncompressedSize == Math.multiplyExact(tensor.storage.count, tensor.storage.bytesPerElement.toLong())) { SovitsImportMessage(R.string.sovits_weight_length_mismatch, key) }
     }
 
     fun open(tensor: TorchTensor): InputStream {
-        val stream = zip.getInputStream(zip.getFileHeader(prefix + "data/" + tensor.storage.key))
+        val stream = zip.getInputStream(headers.getValue(prefix + "data/" + tensor.storage.key))
         try {
             var remaining = Math.multiplyExact(tensor.offset, tensor.storage.bytesPerElement.toLong())
             while (remaining > 0) {

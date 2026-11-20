@@ -37,13 +37,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 
-private const val JPEG_AVATAR_PREFIX = "data:image/jpeg;base64,"
-
-internal fun avatarThumbnail(value: String): ByteArray? {
-    if (!value.startsWith(JPEG_AVATAR_PREFIX) || value.length > 64 * 1024) return null
-    return try { Base64.decode(value.substring(JPEG_AVATAR_PREFIX.length), Base64.NO_WRAP) }
-    catch (_: IllegalArgumentException) { null }
-}
+internal const val JPEG_AVATAR_PREFIX = "data:image/jpeg;base64,"
 
 // Keep only the thumbnail in the voice draft. Legacy gallery apps grant temporary access to the original.
 private suspend fun readAvatar(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
@@ -101,24 +95,20 @@ internal fun rememberSpeechAvatarPicker(onAvatar: (String) -> Unit): () -> Unit 
         if (selected != null) LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp))
         else {
             val rowColors = ListItemDefaults.colors(containerColor = Color.Transparent)
-            ListItem(headlineContent = { Text(stringResource(R.string.tts_avatar_camera)) },
-                colors = rowColors,
-                modifier = Modifier.clickable {
-                    try {
-                        val file = File.createTempFile("voice-avatar-", ".jpg", context.cacheDir)
-                        capturePath = file.absolutePath
-                        camera.launch(FileProvider.getUriForFile(context, "${context.packageName}.provider", file))
-                    } catch (_: Exception) { capturePath?.let { File(it).delete() }; capturePath = null; failed() }
-                })
-            ListItem(headlineContent = { Text(stringResource(R.string.tts_avatar_gallery)) },
-                colors = rowColors,
-                modifier = Modifier.clickable {
-                    try {
-                        if (ActivityResultContracts.PickVisualMedia.isPhotoPickerAvailable(context))
-                            photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        else gallery.launch(Intent(Intent.ACTION_PICK).setDataAndType(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image/*"))
-                    } catch (_: Exception) { failed() }
-                })
+            ListItem(colors = rowColors, modifier = Modifier.clickable {
+                try {
+                    val file = File.createTempFile("voice-avatar-", ".jpg", context.cacheDir)
+                    capturePath = file.absolutePath
+                    camera.launch(FileProvider.getUriForFile(context, "${context.packageName}.provider", file))
+                } catch (_: Exception) { capturePath?.let { File(it).delete() }; capturePath = null; failed() }
+            }) { Text(stringResource(R.string.tts_avatar_camera)) }
+            ListItem(colors = rowColors, modifier = Modifier.clickable {
+                try {
+                    if (ActivityResultContracts.PickVisualMedia.isPhotoPickerAvailable(context))
+                        photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    else gallery.launch(Intent(Intent.ACTION_PICK).setDataAndType(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image/*"))
+                } catch (_: Exception) { failed() }
+            }) { Text(stringResource(R.string.tts_avatar_gallery)) }
         }
     }
     return { choosing = true }

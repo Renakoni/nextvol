@@ -17,7 +17,8 @@ internal fun SpeechAvatar(avatar: String, gender: Int, modifier: Modifier = Modi
     contentDescription: String? = null) {
     val fallback = painterResource(if (gender == 1) R.drawable.speech_avatar_male else R.drawable.speech_avatar_female)
     val model = remember(avatar, packageAvatar) {
-        if (avatar.startsWith("content://")) avatar else avatarThumbnail(avatar) ?: packageAvatar?.takeIf { avatar.isNotBlank() }?.let(::File)
+        if (avatar.startsWith("content://") || (avatar.length <= 64 * 1024 && avatar.startsWith(JPEG_AVATAR_PREFIX))) avatar
+        else packageAvatar?.takeIf { avatar.isNotBlank() }?.let(::File)
     }
     key(gender) {
         AsyncImage(model, contentDescription, modifier.clip(CircleShape), placeholder = fallback, error = fallback,

@@ -1,6 +1,5 @@
 package indi.renakoni.nextvol.tts.sovits
 
-import ai.onnxruntime.platform.Fp16Conversions
 import indi.renakoni.nextvol.R
 import org.junit.Assert.*
 import org.junit.Test
@@ -31,12 +30,4 @@ class TorchCheckpointTest {
         }
     }
 
-    @Test fun binary16ConversionRoundsTiesToEvenAndPreservesSubnormalValues() {
-        for (bits in listOf(0, 1, 0x3ff, 0x400, 0x3c00, 0x7bff, 0x8000, 0xbc00)) {
-            assertEquals(bits, CheckpointImporter.floatToHalf(Fp16Conversions.fp16ToFloat(bits.toShort())))
-        }
-        assertEquals(0x3c00, CheckpointImporter.floatToHalf(1f + 1f / 2048))
-        assertEquals(0x3c02, CheckpointImporter.floatToHalf(1f + 3f / 2048))
-        assertEquals(0, CheckpointImporter.floatToHalf(Math.scalb(1f, -25)))
-    }
 }

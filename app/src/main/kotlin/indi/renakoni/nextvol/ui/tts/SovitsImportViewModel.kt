@@ -71,7 +71,7 @@ internal class SovitsImportViewModel @Inject constructor(
 
     fun install() {
         val current = state.value
-        if (current.busy || current.picking || !current.draft.ready) return
+        if (current.busy || current.picking) return
         mutableState.update { it.copy(busy = true, error = null, completed = false) }
         importing = viewModelScope.launch {
             try {

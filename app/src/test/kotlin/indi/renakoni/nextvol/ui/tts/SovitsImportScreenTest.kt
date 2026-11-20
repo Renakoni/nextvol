@@ -14,6 +14,7 @@ import hnovel.speech.OfflineVoiceConfig
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import indi.renakoni.nextvol.tts.sovits.SovitsImportDraft
+import indi.renakoni.nextvol.tts.sovits.SovitsImportField
 import indi.renakoni.nextvol.tts.sovits.SovitsImportFile
 import org.junit.After
 import org.junit.Assert.*
@@ -86,21 +87,30 @@ class SovitsImportScreenTest {
         assertEquals(1, sourceImports)
     }
 
-    @Test fun referenceTranscriptIsRequiredAndConversionShowsProgressWithCancellation() {
+    @Test fun replacingAWeightShowsItsErrorInTheMatchingRowAndBlocksImportUntilCorrected() {
         val file = SovitsImportFile(Uri.parse("content://test/file"), "selected file")
         val state = mutableStateOf(SovitsImportState(draft = SovitsImportDraft("Voice", file.copy(name = "voice.CKPT"), file.copy(name = "voice.pth"), file)))
-        var cancelled = false
+        var replacement = file.copy(name = "wrong.bin")
         activity.get().setContent {
             MaterialTheme {
-                SovitsImportForm(state.value, onEdit = { state.value = state.value.copy(draft = it) }, onAvatar = {}, onPick = {},
-                    onImport = { state.value = state.value.copy(busy = true) }, onCancel = { cancelled = true }, onBack = {})
+                SovitsImportForm(state.value, onEdit = { state.value = state.value.copy(draft = it) }, onAvatar = {},
+                    onPick = { state.value = state.value.withPickedFile(it, replacement) }, onImport = {}, onCancel = {}, onBack = {})
             }
         }
         compose.onNodeWithTag("sovits-import-confirm").assertIsNotEnabled()
         compose.onNodeWithContentDescription(label(R.string.sovits_reference_text)).performTextInput("参考音频原文")
-        compose.onNodeWithTag("sovits-import-confirm").assertIsEnabled().performClick()
-        compose.onNodeWithTag("sovits-import-confirm").assertDoesNotExist()
-        compose.onNodeWithText(label(R.string.cancel)).performClick()
-        assertTrue(cancelled)
+        val confirm = compose.onNodeWithTag("sovits-import-confirm")
+        confirm.assertIsEnabled()
+        for ((field, title) in listOf(SovitsImportField.Gpt to R.string.sovits_gpt_weight, SovitsImportField.Sovits to R.string.sovits_sovits_weight)) {
+            val row = compose.onNodeWithText(label(title))
+            replacement = file.copy(name = "wrong.bin")
+            row.performClick()
+            val error = activity.get().getString(R.string.sovits_choose_extension, ".${field.extension}")
+            row.assert(hasText(error))
+            confirm.assertIsNotEnabled()
+            replacement = file.copy(name = "new.${field.extension!!.uppercase()}")
+            row.performClick().assert(hasText(replacement.name))
+            confirm.assertIsEnabled()
+        }
     }
 }

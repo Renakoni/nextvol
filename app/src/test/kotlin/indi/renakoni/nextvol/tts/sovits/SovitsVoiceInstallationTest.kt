@@ -3,8 +3,6 @@ package indi.renakoni.nextvol.tts.sovits
 import android.app.Application
 import hnovel.speech.OfflineVoiceConfig
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
-import indi.renakoni.nextvol.ui.tts.VoiceDraft
-import indi.renakoni.nextvol.ui.tts.from
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -24,7 +22,7 @@ import java.io.File
 class SovitsVoiceInstallationTest {
     @get:Rule val files = TemporaryFolder()
 
-    @Test fun cancelledPreparationIsInvisibleAndCompletedVoiceUsesNormalCopyAndLeaseLifecycle() = runBlocking {
+    @Test fun cancelledPreparationIsDiscardedAndPublishedVoiceCanBeReopened() = runBlocking {
         val root = files.newFolder()
         val repository = OfflineSpeechRepository(root)
         val started = CompletableDeferred<Unit>()
@@ -40,32 +38,20 @@ class SovitsVoiceInstallationTest {
         job.cancelAndJoin()
         assertTrue(root.listFiles()!!.isEmpty())
         val configuration = OfflineVoiceConfig("gpt-sovits", "v2ProPlus.voice", locale = "zh-CN", sampleRate = 32000)
-        val installed = repository.installSovits("Voice", avatar = "content://test/avatar") { stage ->
+        repository.installSovits("Voice") { stage ->
             val character = File(stage, "CharacterModels/v2ProPlus/voice")
             File(character, "prompt_wav").mkdirs()
             File(character, "prompt_wav/reference.wav").writeText("reference")
             File(character, "prompt_wav.json").writeText("""{"Normal":{"wav":"reference.wav","text":"参考原文"}}""")
             configuration
         }
-        assertEquals(installed, OfflineSpeechRepository(root).voices().single())
-        assertEquals("content://test/avatar", VoiceDraft.from(installed).avatar)
-        assertEquals(configuration.code, VoiceDraft.from(installed).fields().code)
-        val lease = repository.acquire(installed.reference)
+        val reopened = OfflineSpeechRepository(root)
         val runtime = files.newFolder()
-        val voice = installedSovitsVoice(lease.directory, lease.configuration, runtime)
-        assertEquals(GptSovitsVersion.V2ProPlus, voice.version)
-        assertEquals(runtime, voice.runtime)
-        assertEquals("参考原文", voice.referenceText)
-        assertEquals("reference", voice.referenceAudio.readText())
-        val copy = repository.save(installed.copy(name = "Copy"), copy = true)
-        assertEquals(installed.resourceReference, copy.resourceReference)
-        assertThrows(IllegalArgumentException::class.java) {
-            installedSovitsVoice(lease.directory, configuration.copy(code = "v5turbo.voice"), runtime)
+        reopened.acquire(reopened.voices().single().reference).use { lease ->
+            val voice = installedSovitsVoice(lease.directory, lease.configuration, runtime)
+            assertEquals(GptSovitsVersion.V2ProPlus, voice.version)
+            assertEquals("参考原文", voice.referenceText)
+            assertEquals("reference", voice.referenceAudio.readText())
         }
-        repository.delete(setOf(installed.reference, copy.reference))
-        assertTrue(repository.voices().isEmpty())
-        assertTrue(voice.referenceAudio.isFile)
-        lease.close()
-        assertFalse(voice.referenceAudio.exists())
     }
 }

@@ -65,7 +65,6 @@ class SpeechSynthesizers @Inject constructor(
                 val configuration = offline.configuration(voice)
                 if (configuration.engine == "sherpa") SpeechRuntime(offline(), "sherpa",
                     MatchaResources(offline.directory(voice.resourceReference), requireNotNull(configuration.sherpa)).modelKey)
-                else if (configuration.engine == "gpt-sovits") SpeechRuntime(offline(), "gpt-sovits")
                 else SpeechRuntime(offline(), offlineSpeechExclusiveGroup(configuration.engine))
             }
             settings.httpSource != null -> {
@@ -102,11 +101,6 @@ class SpeechSynthesizers @Inject constructor(
                     }
                 }
                 delegate!!.open(settings.copy(httpSource = null, voice = ""))
-                if (lease?.configuration?.engine == "gpt-sovits") {
-                    val config = checkNotNull(lease).configuration
-                    audioParameters = SpeechAudioParameters(config.speed * settings.rate, config.pitch * settings.pitch,
-                        config.volume * settings.volume)
-                }
                 (delegate as? MatchaSpeechSynthesizer)?.let { synthesizer ->
                     withContext(Dispatchers.IO) {
                         val details = synthesizer.describe()

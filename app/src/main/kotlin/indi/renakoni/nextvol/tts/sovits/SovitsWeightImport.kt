@@ -7,9 +7,11 @@ import android.webkit.MimeTypeMap
 import dagger.hilt.android.qualifiers.ApplicationContext
 import hnovel.speech.OfflineVoiceConfig
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.tts.SpeechException
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -73,25 +75,29 @@ internal class SovitsWeightImport @Inject constructor(
                     output.write(buffer, 0, count)
                 }
             } }
-            try { readSovitsReference(reference) }
+            try { decodeSovitsReference(reference) }
             catch (failure: Exception) {
                 task.ensureActive()
                 errorSovits(SovitsImportMessage(R.string.sovits_reference_audio_invalid))
             }
             val gpt = requireNotNull(draft.gpt)
             val sovits = requireNotNull(draft.sovits)
-            val result = CheckpointImporter(stage, context.assets::open).import(draft.name,
-                { open(gpt) }, { open(sovits) }, progress, task::ensureActive,
-                CheckpointImporter.Reference(reference, draft.text.trim(), "zh"),
-                gptFilename = gpt.name, sovitsFilename = sovits.name)
-            check(reference.delete())
+            val result = CheckpointImporter(stage, context.assets::open).convert(
+                { open(gpt) }, { open(sovits) }, progress, task::ensureActive)
+            val audioDirectory = File(result.character, "prompt_wav")
+            check(audioDirectory.mkdir() && reference.renameTo(File(audioDirectory, reference.name)))
+            val transcript = draft.text.trim()
+            File(result.character, "prompt_wav.json").writeText(JSONObject().put("Normal",
+                JSONObject().put("wav", reference.name).put("text", transcript).put("language", "zh")).toString())
             runtime.prepare(progress)
             progress(SovitsImportMessage(R.string.sovits_preparing_models))
-            val configuration = OfflineVoiceConfig("gpt-sovits", "${result.architecture}.${result.characterId}",
+            val mandarin = SovitsMandarin(runtime.directory)
+            try { mandarin.encode(transcript) }
+            catch (_: SpeechException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
+            catch (_: IllegalArgumentException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
+            prepareSovitsSharedEncoder(runtime.directory)
+            OfflineVoiceConfig("gpt-sovits", "${result.architecture}.${result.character.name}",
                 locale = "zh-CN", sampleRate = 32000)
-            prepareSovitsFiles(installedSovitsVoice(stage, configuration, runtime.directory))
-            task.ensureActive()
-            configuration
         }
     }
 }
