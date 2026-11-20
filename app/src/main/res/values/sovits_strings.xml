@@ -49,7 +49,7 @@
     <string name="sovits_weight_length_mismatch">Weight data length does not match: %1$s</string>
     <string name="sovits_weight_object_unsupported">This weight object is not supported.</string>
     <string name="sovits_import_weights">Import weights</string>
-    <string name="sovits_empty">Import a matching GPT and SoVITS weight pair, reference audio and its transcript to add a local voice.</string>
+    <string name="sovits_empty">Only V2 Pro and V2 Pro Plus are supported\nImport compatible weights to add a voice</string>
     <string name="sovits_import_description">Supports V2 Pro and V2 Pro Plus for Chinese speech. Weights are converted on this device. The first import downloads about 1 GB of shared models; later use is offline. Reference audio must be within 30 seconds and 32 MB.</string>
     <string name="sovits_gpt_weight">GPT weights (.ckpt)</string>
     <string name="sovits_sovits_weight">SoVITS weights (.pth)</string>

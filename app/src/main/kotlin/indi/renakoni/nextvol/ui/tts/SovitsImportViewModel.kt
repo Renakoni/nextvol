@@ -90,6 +90,7 @@ internal class SovitsImportViewModel @Inject constructor(
     }
 
     fun cancel() {
+        if (!state.value.busy) return
         mutableState.update { it.copy(cancelling = true) }
         importing?.cancel()
     }

@@ -49,7 +49,7 @@
     <string name="sovits_weight_length_mismatch">权重数据长度不匹配：%1$s</string>
     <string name="sovits_weight_object_unsupported">不支持的权重对象。</string>
     <string name="sovits_import_weights">导入权重</string>
-    <string name="sovits_empty">导入配套的 GPT、SoVITS 权重及参考音频和原文，即可添加本地音源。</string>
+    <string name="sovits_empty">当前仅支持 V2 Pro、V2 Pro Plus\n请导入相关权重</string>
     <string name="sovits_import_description">支持 V2 Pro、V2 Pro Plus 中文听书，权重在本机转换。首次导入需下载约 1 GB 共享模型，之后可离线使用。参考音频须在 30 秒、32 MB 以内。</string>
     <string name="sovits_gpt_weight">GPT 权重（.ckpt）</string>
     <string name="sovits_sovits_weight">SoVITS 权重（.pth）</string>

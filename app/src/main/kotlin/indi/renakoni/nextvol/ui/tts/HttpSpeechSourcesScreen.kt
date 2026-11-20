@@ -20,6 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -286,9 +287,14 @@ internal fun HttpSpeechSourcesScreen(
                         }
                         else -> {
                             if (group == "offline:gpt-sovits" && ordered.isEmpty() && searchQuery.isEmpty()) item {
-                                Column(Modifier.padding(horizontal = 28.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Text(stringResource(R.string.sovits_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    FilledTonalButton(onClick = onImportWeights, enabled = !state.busy) {
+                                Column(Modifier.fillParentMaxSize().padding(horizontal = 28.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                                    horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(stringResource(R.string.sovits_empty), style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                    TextButton(onClick = onImportWeights, enabled = !state.busy) {
+                                        Icon(painterResource(R.drawable.input_24px), null, Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
                                         Text(stringResource(R.string.sovits_import_weights))
                                     }
                                 }
