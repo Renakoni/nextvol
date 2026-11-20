@@ -4,10 +4,11 @@ import indi.renakoni.nextvol.data.logging.SpeechLogEvent
 import indi.renakoni.nextvol.data.logging.SpeechLogRecord
 import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.tts.sovits.SovitsSegmentation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -23,24 +24,30 @@ internal class SpeechClipProducer(
     private val preparePlan: suspend (SpeechChapter, SpeechSettings, SpeechContext, Int) -> SpeechPlan,
     private val diagnostics: (SpeechLogRecord) -> Unit,
     private val detailedLogging: () -> Boolean,
+    private val nowMs: () -> Long,
 ) {
     sealed interface Step {
-        data class Ready(val clip: SpeechClip) : Step
+        data class Ready(val clip: SpeechClip, val prefetchShortClips: Boolean = false) : Step
         data class Skipped(val plan: SpeechPlan) : Step
         data class Failed(val error: SpeechError, val request: SpeechRequest, val chapter: SpeechChapter?,
-            val plan: SpeechPlan?, val index: Int, val context: SpeechContext,
+            val plan: SpeechPlan?, val clip: SpeechClip?, val context: SpeechContext,
             val replacementFailure: SpeechReplacementFailure? = null, val roleFailure: SpeechRoleFailure? = null) : Step
     }
 
     suspend fun produce(request: SpeechRequest, directory: File, saved: SpeechBookmark?, synthesis: SpeechSettings,
         reusablePlan: SpeechPlan?, initialContext: SpeechContext, opened: SpeechSettings?, initialLabel: String,
-        maxInputLength: Int, processingKey: String, queue: SendChannel<Step>) {
+        maxInputLength: Int, processingKey: String, remainingMs: () -> Long, send: suspend (Step) -> Unit) {
+        // Streaming PCM can call onReady on its decoder thread. Queue accounting belongs to the session.
+        val sessionContext = currentCoroutineContext().minusKey(Job)
         var activeSettings = opened
         var voiceLabel = initialLabel
         var target = request
         var chapter: SpeechChapter? = null
         var plan: SpeechPlan? = null
-        var position = 0
+        var pending: SpeechClip? = null
+        var splitter: SovitsSegmentation? = null
+        var previousVoice: SpeechResolvedVoice? = null
+        var previousTempo = 1f
         var stage = SpeechLogStage.Analysis
         // A failed chapter load has no fingerprint yet; retain its input seed for another retry.
         var context = saved?.takeIf { !request.isPreview && it.bookId == request.bookId &&
@@ -51,7 +58,7 @@ internal class SpeechClipProducer(
             while (true) {
                 chapter = null
                 plan = null
-                position = 0
+                pending = null
                 stage = SpeechLogStage.Analysis
                 chapter = if (target.isPreview) SpeechChapter("", "", "", "", target.previewText.orEmpty())
                     else loadChapter(target)
@@ -63,49 +70,73 @@ internal class SpeechClipProducer(
                 plan = reusablePlan?.takeIf { it.matches(loaded, synthesis, context, maxInputLength) } ?: withContext(ioDispatcher) {
                     preparePlan(loaded, synthesis, context, maxInputLength)
                 }
-                val (resumed, startIndex) = plan.resumeAt(saved.takeIf { first })
-                plan = resumed
-                val segments = plan.segments
-                if (segments.isEmpty()) {
-                    queue.send(Step.Skipped(plan))
-                }
-                for (index in startIndex..segments.lastIndex) {
-                    val segment = segments[index]
-                    position = index
+                var (index, offset) = plan.resumeAt(saved.takeIf { first })
+                if (plan.segments.isEmpty()) send(Step.Skipped(plan))
+                while (index < plan.segments.size) {
+                    val segment = plan.segments[index]
+                    val selected = segment.selectedVoice
+                    val pause = segment.pauseMs
                     val file = File(directory, UUID.randomUUID().toString() + ".wav")
+                    var clip = SpeechClip(plan, index, file, textStart = offset)
+                    pending = clip
                     var delivered = false
                     try {
-                        if (segment.pauseMs != null) {
-                            queue.send(Step.Ready(SpeechClip(plan, index, file)))
-                            delivered = true
-                            continue
+                        if (pause != null) {
+                            send(Step.Ready(clip.copy(durationMs = pause.toLong())))
+                        } else {
+                            stage = SpeechLogStage.Initialization
+                            selected?.error?.let { throw SpeechException(it) }
+                            val parameters = selected?.settings ?: synthesis
+                            if (activeSettings != parameters) {
+                                voiceLabel = provider.open(parameters)
+                                activeSettings = parameters
+                            }
+                            if (previousVoice != selected || previousTempo != segment.audioParameters.speed) {
+                                splitter = selected?.sovitsSpeed?.takeIf { it in .8f..1.2f }?.let(::SovitsSegmentation)
+                                previousVoice = selected
+                                previousTempo = segment.audioParameters.speed
+                            }
+                            // Opening a new model may have consumed the previous voice's buffered audio.
+                            val policy = splitter
+                            val bufferedMs = if (policy == null) 0L else remainingMs()
+                            if (policy != null) {
+                                val end = policy.nextEnd(segment.text, offset, bufferedMs)
+                                if (end < clip.textEnd) clip = clip.copy(textEnd = end)
+                                pending = clip
+                            }
+                            stage = SpeechLogStage.Request
+                            if (detailedLogging()) diagnostics(SpeechLogRecord(stage, SpeechLogEvent.Started,
+                                voice = selected?.reference?.copy(label = voiceLabel),
+                                processId = plan.logId, segment = index + 1,
+                                details = speechParameterDetails(parameters, selected?.voiceParameters, provider.audioParameters * segment.audioParameters) +
+                                    (R.string.tts_log_final_text to clip.segment.text)))
+                            val started = nowMs()
+                            val timings = provider.synthesize(clip.segment, file) { audio ->
+                                withContext(sessionContext) {
+                                    send(Step.Ready(clip.copy(voiceLabel = voiceLabel, stream = audio)))
+                                    delivered = true
+                                }
+                            }
+                            currentCoroutineContext().ensureActive()
+                            if (!delivered) {
+                                val duration = provider.lastFileDurationMs
+                                if (policy != null) {
+                                    val elapsedMs = nowMs() - started
+                                    val units = clip.segment.text.length
+                                    policy.record(units, elapsedMs, duration)
+                                    if (detailedLogging()) android.util.Log.d("NextVolSoVITS",
+                                        "segment units=$units bufferMs=$bufferedMs generationMs=$elapsedMs audioMs=$duration")
+                                }
+                                send(Step.Ready(clip.copy(timings = timings, voiceLabel = voiceLabel, durationMs = duration),
+                                    prefetchShortClips = policy != null))
+                            }
                         }
-                        stage = SpeechLogStage.Initialization
-                        val selected = segment.selectedVoice
-                        selected?.error?.let { throw SpeechException(it) }
-                        val parameters = selected?.settings ?: synthesis
-                        if (activeSettings != parameters) {
-                            // The router reuses cached voices and releases conflicting backend slots before opening.
-                            voiceLabel = provider.open(parameters)
-                            activeSettings = parameters
-                        }
-                        stage = SpeechLogStage.Request
-                        if (detailedLogging()) diagnostics(SpeechLogRecord(stage, SpeechLogEvent.Started,
-                            voice = selected?.reference?.copy(label = voiceLabel),
-                            processId = plan.logId, segment = index + 1,
-                            details = speechParameterDetails(parameters, selected?.voiceParameters, provider.audioParameters * segment.audioParameters) +
-                                (R.string.tts_log_final_text to segment.text)))
-                        val activePlan = plan
-                        val timings = provider.synthesize(segment, file) { audio ->
-                            queue.send(Step.Ready(SpeechClip(activePlan, index, file, voiceLabel = voiceLabel, stream = audio)))
-                            delivered = true
-                        }
-                        currentCoroutineContext().ensureActive()
-                        if (!delivered) {
-                            queue.send(Step.Ready(SpeechClip(plan, index, file, timings, voiceLabel)))
-                            delivered = true
-                        }
+                        delivered = true
                     } finally { if (!delivered) file.delete() }
+                    if (clip.finishesSegment) {
+                        index++
+                        offset = 0
+                    } else offset = clip.textEnd
                 }
                 val next = chapter.nextId ?: break
                 if (next == chapter.id) throw SpeechException(SpeechError.SourceUnavailable)
@@ -117,15 +148,15 @@ internal class SpeechClipProducer(
             throw cancelled
         } catch (failure: Exception) {
             val error = failure.speechError(SpeechError.SynthesisFailed)
-            val failed = plan?.segments?.getOrNull(position)
+            val failed = pending?.segment
             diagnostics(SpeechLogRecord(if (error == SpeechError.AudioProcessing || error == SpeechError.InvalidAudio)
                 SpeechLogStage.Audio else stage, SpeechLogEvent.Failed, error, failed?.selectedVoice?.reference,
                 subject = (failure as? SpeechReplacementException)?.failure?.ruleName
                     ?: (failure as? SpeechRoleException)?.failure?.ruleName ?: failed?.roleMatch?.ruleName,
-                processId = plan?.logId, segment = failed?.let { position + 1 }))
-            queue.send(Step.Failed(error, target, chapter, plan, position, context,
+                processId = plan?.logId, segment = pending?.index?.plus(1)))
+            send(Step.Failed(error, target, chapter, plan, pending, context,
                 (failure as? SpeechReplacementException)?.failure, (failure as? SpeechRoleException)?.failure))
-        } finally { queue.close() }
+        }
     }
 
     private suspend fun loadChapter(request: SpeechRequest): SpeechChapter = try {

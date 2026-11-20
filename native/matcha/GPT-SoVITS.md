@@ -39,6 +39,40 @@ sampling and exports with a `sampling` input are supported. A vocoder exposing
 `0 / 1 / 2` to `0.6 / 1 / 1.65`, clamped to `0.6..1.65`. Reading pitch is ignored;
 volume remains a PCM gain adjustment.
 
+## Reader segmentation
+
+At an effective model speed of 0.8× through 1.2×, the reader sizes each request
+when the voice is ready. A request stays inside the current routed text segment,
+after replacements, role selection and pause marks. The existing sentence and
+clause rules can group short sentences. A long sentence can break at a pause,
+word or code-point boundary. The model cap remains 120 UTF-16 units.
+
+Cold start assumes five UTF-16 units per second at 1× and an RTF of 0.75.
+With an empty buffer the target is two seconds of speech, about 8 to 12 units
+across the supported adaptive speeds. Playback can begin as soon as the first
+processed WAV is ready. Model opening time is additional.
+
+For later requests, the budget is the duration of ready files and pauses minus
+the current playback position and a 300 ms reserve. Divide that budget by the
+estimated generation milliseconds per unit. For example, two seconds ready at
+1× and RTF 0.75 give about 11 units. Six seconds ready give about 38.
+The target stays between one and twelve seconds of estimated speech. An intact
+word or control mark can exceed the target. Each finished WAV updates both the
+generation cost and the audio duration per unit, averaging the previous
+estimate with the new observation. A voice or tempo change resets the estimate.
+
+One model request runs alongside playback. The usual queue holds two files.
+While less than six seconds of ready audio remain, short GPT-SoVITS clips can
+fill up to six queue slots, plus the playing clip and one producer in flight.
+Playback bookmarks retain the logical segment and its transformed-text offset,
+including when a replacement expands one source character into several clips.
+Other model speeds use the existing chapter segments.
+
+With detailed speech logging enabled, `adb logcat -s NextVolSoVITS:D` reports
+the selected text length, ready audio at selection, generation time through PCM
+processing and final WAV duration. Compare generation time with the buffer
+available at selection to investigate audible gaps on a device.
+
 ## GPU and NPU
 
 For standard V2 Pro and V2 Pro Plus exports the app supplies weight-free graph

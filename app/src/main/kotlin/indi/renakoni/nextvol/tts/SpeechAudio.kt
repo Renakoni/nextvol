@@ -9,6 +9,8 @@ interface SpeechSynthesizer : AutoCloseable {
     val maxInputLength: Int get() = Int.MAX_VALUE
     val audioParameters: SpeechAudioParameters get() = SpeechAudioParameters()
     val supportsStreaming: Boolean get() = false
+    /** Duration after PCM processing of the most recently completed file. */
+    val lastFileDurationMs: Long get() = 0
     suspend fun open(settings: SpeechSettings): String
     /** Returns after complete source audio is committed to [output]; the common decoder processes it next. */
     suspend fun synthesize(text: String, output: File): List<SpeechTiming>

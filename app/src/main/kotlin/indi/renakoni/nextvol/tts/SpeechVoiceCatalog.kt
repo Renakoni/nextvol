@@ -2,6 +2,7 @@ package indi.renakoni.nextvol.tts
 
 import android.speech.tts.TextToSpeech
 import android.content.Context
+import indi.renakoni.nextvol.tts.sovits.sovitsReadingSpeed
 import dagger.hilt.android.qualifiers.ApplicationContext
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
@@ -66,6 +67,8 @@ class SpeechVoiceCatalog @Inject constructor(private val http: HttpSpeechReposit
                             Json.encodeToString(configuration) + it.enabled + offline.engineConfiguration(it)?.enabled) }.orEmpty(),
                         error = if (voice == null || !voice.enabled || offline.engineConfiguration(voice)?.enabled == false)
                             SpeechError.OfflineUnavailable else null,
+                        sovitsSpeed = configuration?.takeIf { it.engine == "gpt-sovits" }?.let {
+                            sovitsReadingSpeed(it.speed, settings.rate) },
                         voiceParameters = if (includeParameters) configuration?.let {
                             SpeechAudioParameters(it.speed, it.pitch, it.volume) } else null)
                 }

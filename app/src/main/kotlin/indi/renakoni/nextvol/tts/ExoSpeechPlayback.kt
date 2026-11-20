@@ -113,6 +113,9 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
         }
     }
 
+    override fun positionMs(clip: SpeechClip): Long =
+        if (player.currentMediaItem?.mediaId == clip.file.name) player.currentPosition else 0L
+
     override fun pause() = player.pause()
     override fun resume() = player.play()
     override fun stop() {

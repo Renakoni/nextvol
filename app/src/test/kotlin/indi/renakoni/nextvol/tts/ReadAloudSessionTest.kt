@@ -5,6 +5,7 @@ import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -45,6 +46,76 @@ class ReadAloudSessionTest {
         runCurrent()
         assertEquals("乙", env.player.started.last().segment.text)
         env.stop()
+    }
+
+    @Test fun sovitsUsesMeasuredGenerationCostAndSubtractsThePlayingFilePosition() = runTest {
+        val env = Environment(this)
+        env.useSovits(1f)
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "", "", "甲".repeat(100)) }
+        env.beforeSynthesis = { delay(env.synthesized.last().length * 100L) } // RTF 0.5 at five units/second
+        env.player.position = { (testScheduler.currentTime - 1000).coerceAtLeast(0) }
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            advanceTimeBy(2400)
+            runCurrent()
+            // At t=2400, 600 ms remain in the first WAV and 2800 ms are ready in the second.
+            assertEquals(listOf(10, 14, 28), env.synthesized.map { it.length })
+            assertEquals(0, env.progress.saved.getValue("book").offset)
+        } finally { env.stop() }
+    }
+
+    @Test fun shortSovitsDialogueCanPrefetchSixFilesWithinItsSpeedRange() = runTest {
+        for (speed in listOf(.8f, 1.2f, 1.3f)) {
+            val env = Environment(this)
+            env.load = { book, chapter -> SpeechChapter(book, chapter, "", "", "嗯。", nextId = (chapter.toInt() + 1).toString()) }
+            env.useSovits(speed)
+            try {
+                env.session.start(SpeechRequest("book", "1"))
+                runCurrent()
+                // One playing, six (or two) queued, and one completed producer waiting to send.
+                assertEquals(if (speed <= 1.2f) 8 else 4, env.audioFiles())
+                assertEquals("1", env.progress.saved.getValue("book").chapterId)
+            } finally { env.stop() }
+            assertEquals(0, env.audioFiles())
+        }
+    }
+
+    @Test fun sovitsRetriesInsideAnExpandedReplacementAndCountsTheWholeChapterForSleep() = runTest {
+        val env = Environment(this)
+        val spoken = "春夏秋冬".repeat(18)
+        env.configuration = SpeechSettings(replacements = listOf(SpeechReplacementRule(source = "甲", target = spoken)))
+        env.useSovits(1f)
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "", "", "甲", nextId = "two".takeIf { chapter == "one" }) }
+        env.beforeSynthesis = { if (env.synthesized.size == 2) throw IOException("generation") }
+        try {
+            env.session.start(SpeechRequest("book", "one"))
+            runCurrent()
+            val first = env.player.started.single()
+            assertEquals(10, first.segment.text.length)
+            assertEquals(0, env.progress.saved.getValue("book").offset)
+            env.player.finish()
+            runCurrent()
+            assertEquals(SpeechPhase.Failed, env.session.state.value.phase)
+            val saved = env.progress.saved.getValue("book")
+            assertEquals(0, saved.offset)
+            assertEquals(first.textEnd, saved.textOffset)
+            env.session.resume()
+            runCurrent()
+            env.session.setChapterSleepTimer(1)
+            val played = StringBuilder(first.segment.text)
+            while (env.session.state.value.phase == SpeechPhase.Playing) {
+                val clip = env.player.started.last()
+                assertEquals("one", clip.chapter.id)
+                assertEquals(played.length, clip.textStart)
+                assertEquals(0, env.session.state.value.position!!.start)
+                played.append(clip.segment.text)
+                env.player.finish()
+                runCurrent()
+            }
+            assertEquals(spoken, played.toString())
+            assertEquals(SpeechPhase.Stopped, env.session.state.value.phase)
+            assertEquals(0, env.audioFiles())
+        } finally { env.stop() }
     }
 
     @Test fun streamingStartsBeforeSynthesisEndsAndStopKeepsTheAudibleBoundary() = runTest {
@@ -1051,6 +1122,11 @@ class ReadAloudSessionTest {
         var streaming: SpeechStream? = null
         var configuration = SpeechSettings()
         var bookSettings = emptyMap<String, SpeechSettings>()
+        private var voices = emptyMap<String, SpeechResolvedVoice>()
+        fun useSovits(speed: Float) {
+            val voice = configuration.voiceReference()
+            voices = mapOf(voice.key to SpeechResolvedVoice(voice, configuration.forVoice(voice), 120, sovitsSpeed = speed))
+        }
         var inputLimit = Int.MAX_VALUE
         val synthesized = mutableListOf<String>()
         val synthesizedSettings = mutableListOf<SpeechSettings>()
@@ -1063,6 +1139,7 @@ class ReadAloudSessionTest {
                 object : SpeechSynthesizer {
                     private var activeSettings = SpeechSettings()
                     override val maxInputLength get() = inputLimit
+                    override val lastFileDurationMs get() = 200L * synthesized.last().length
                     override suspend fun open(settings: SpeechSettings): String {
                         opened += settings
                         activeSettings = settings
@@ -1083,7 +1160,10 @@ class ReadAloudSessionTest {
                     override fun cancel() = onCancel()
                     override fun close() = onClose()
                 }
-            }, player, directory, StandardTestDispatcher(scope.testScheduler))
+            }, player, directory, StandardTestDispatcher(scope.testScheduler),
+            preparePlan = { chapter, settings, context, limit ->
+                prepareSpeechPlan(chapter, settings, context = context, maxInputLength = limit, voices = voices) {}
+            }, nowMs = { scope.testScheduler.currentTime })
         fun audioFiles() = directory.walkTopDown().count { it.isFile }
         fun stop() { session.stop(); scope.runCurrent() }
     }
@@ -1099,6 +1179,8 @@ class ReadAloudSessionTest {
         val started = mutableListOf<SpeechClip>()
         var playing = false
         var startBuffered = false
+        var position: () -> Long = { 0L }
+        override fun positionMs(clip: SpeechClip) = position()
         private var pending: CompletableDeferred<Unit>? = null
         private var callback: ((SpeechPhase, Boolean) -> Unit)? = null
         var rangeCallback: ((SpeechTiming) -> Unit)? = null

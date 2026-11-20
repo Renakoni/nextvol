@@ -11,7 +11,7 @@ private val latinLetter = Pattern.compile("\\p{script=Latin}")
 private val atomicMarks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]")
 private const val speechClosingPunctuation = ",.!?;:，。！？；：…”」»\"’')]}）】》"
 
-private fun speechIsClosingPunctuation(value: Char): Boolean = value in speechClosingPunctuation ||
+internal fun speechIsClosingPunctuation(value: Char): Boolean = value in speechClosingPunctuation ||
     when (Character.getType(value)) {
         Character.END_PUNCTUATION.toInt(), Character.FINAL_QUOTE_PUNCTUATION.toInt(),
         Character.DASH_PUNCTUATION.toInt() -> true
@@ -236,6 +236,12 @@ private fun speechLongSentence(
 internal fun speechHardChunks(
     input: SpeechMappedText, limit: Int, checkCancelled: () -> Unit = {},
 ): List<SpeechMappedText> {
+    return speechRequestChunks(input, limit, hard = true, checkCancelled)
+}
+
+// A timing target can yield to an atomic mark. The enclosing plan already enforces the backend cap.
+internal fun speechRequestChunks(input: SpeechMappedText, limit: Int, hard: Boolean,
+    checkCancelled: () -> Unit): List<SpeechMappedText> {
     require(limit >= 2)
     checkCancelled()
     if (input.text.length <= limit) return listOf(input)
@@ -243,7 +249,7 @@ internal fun speechHardChunks(
     val pauses = if (language == "en" || language == "zh") chineseEnglishSentence else otherSentence
     return speechPunctuationChunks(input, limit, speechSentenceEnd, true, checkCancelled) { sentence ->
         speechPunctuationChunks(sentence, limit, pauses, true, checkCancelled) {
-            speechLongSentence(it, limit, true, checkCancelled)
+            speechLongSentence(it, limit, hard, checkCancelled)
         }
     }
 }

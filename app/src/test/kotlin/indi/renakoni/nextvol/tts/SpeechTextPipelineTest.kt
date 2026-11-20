@@ -39,11 +39,11 @@ class SpeechTextPipelineTest {
         assertEquals(chapter.text, hard.segments.joinToString("") { it.text })
         assertTrue(hard.segments.none { it.text.first().isLowSurrogate() || it.text.last().isHighSurrogate() })
         val saved = hard.bookmark(hard.segments[1].start, 1)
-        assertEquals(1, hard.resumeAt(saved).second)
-        assertEquals(0, soft.resumeAt(saved).second)
+        assertEquals(1, hard.resumeAt(saved).index)
+        assertEquals(0, soft.resumeAt(saved).index)
         val changed = prepareSpeechPlan(chapter, settings.copy(text = settings.text.copy(dialogue = false))) {}
         assertTrue(changed.segments.none { it.dialogue })
-        assertEquals(0, changed.resumeAt(saved).second)
+        assertEquals(0, changed.resumeAt(saved).index)
     }
 
     @Test fun hardLimitKeepsFinalPunctuationWithTextAndOriginalRange() = runBlocking {
@@ -79,11 +79,11 @@ class SpeechTextPipelineTest {
             Locale.setDefault(Locale.ENGLISH)
             val english = prepareSpeechPlan(chapter, settings) {}
             val saved = english.bookmark(english.segments[1].start, 1)
-            assertEquals(1, english.resumeAt(saved).second)
+            assertEquals(1, english.resumeAt(saved).index)
             Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
             val chinese = prepareSpeechPlan(chapter, settings) {}
             assertEquals("[嘿嘿]".repeat(10), chinese.segments.single().text)
-            assertEquals(0, chinese.resumeAt(saved).second)
+            assertEquals(0, chinese.resumeAt(saved).index)
             assertFalse(english.matches(chapter, settings, SpeechContext(), Int.MAX_VALUE))
         } finally { Locale.setDefault(previousLocale) }
     }

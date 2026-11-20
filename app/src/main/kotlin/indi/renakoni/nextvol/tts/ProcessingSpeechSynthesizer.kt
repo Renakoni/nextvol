@@ -16,6 +16,8 @@ internal class ProcessingSpeechSynthesizer(private val delegate: SpeechSynthesiz
     private var settings = SpeechAudioSettings()
     private var parameters = SpeechAudioParameters()
     @Volatile private var work: Job? = null
+    override var lastFileDurationMs = 0L
+        private set
     override val maxInputLength get() = delegate.maxInputLength
     override val supportsStreaming get() = delegate.supportsStreaming
     override val audioParameters get() = parameters
@@ -35,6 +37,7 @@ internal class ProcessingSpeechSynthesizer(private val delegate: SpeechSynthesiz
             val timings = delegate.synthesize(text, raw)
             val processed = processSpeechAudio(raw, output, settings.processor, settings.minimumSampleRate,
                 parameters.speed, parameters.pitch, parameters.volume, settings.checkSilence)
+            lastFileDurationMs = processed.durationMs
             timings.map { it.copy(timeMs = processed.mapTimeMs(it.timeMs)) }
         } finally { raw.delete() }
     }
