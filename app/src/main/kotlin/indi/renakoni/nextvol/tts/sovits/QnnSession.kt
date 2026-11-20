@@ -44,7 +44,7 @@ internal class QnnSession(runtime: File, graph: File, appUpdatedAt: Long) : Auto
 
         /** A real HTP run with CPU fallback disabled; a chip name alone is not proof of support. */
         internal fun probe(runtime: File, model: File) {
-            SpeechLibraries.loadSovits("nextvol-sovits")
+            SpeechLibraries.loadSovitsBridge()
             val handle = create(runtime.absolutePath, model.absolutePath, "")
             try {
                 fun buffer() = java.nio.ByteBuffer.allocateDirect(16).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()

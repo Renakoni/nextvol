@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
@@ -33,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.sovits.SovitsImportDraft
 import indi.renakoni.nextvol.tts.sovits.SovitsImportField
+import indi.renakoni.nextvol.tts.sovits.SovitsReferenceLanguage
 import indi.renakoni.nextvol.tts.sovits.SovitsImportFile
 import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
@@ -112,10 +114,17 @@ internal fun SovitsImportForm(state: SovitsImportState, onEdit: (SovitsImportDra
                 }
                 SettingsCategory {
                     SovitsFileRow(stringResource(R.string.sovits_reference_audio), SovitsImportField.Audio, draft.audio, enabled, onPick)
+                    ReferenceLanguageRow(draft, enabled) { onEdit(draft.copy(referenceLanguage = it)) }
                 }
                 val transcriptLabel = stringResource(R.string.sovits_reference_text)
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(transcriptLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(transcriptLabel, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val filename = draft.transcriptFromFilename
+                        TextButton(onClick = { if (filename != null) onEdit(draft.copy(text = filename)) },
+                            enabled = enabled && filename != null) { Text(stringResource(R.string.sovits_use_filename)) }
+                    }
                     OutlinedTextField(draft.text, { onEdit(draft.copy(text = it)) },
                         Modifier.fillMaxWidth().semantics { contentDescription = transcriptLabel }, enabled = enabled,
                         minLines = 3, maxLines = 6, textStyle = MaterialTheme.typography.bodyLarge, shape = MaterialTheme.shapes.medium,
@@ -145,5 +154,38 @@ private fun SovitsFileRow(label: String, field: SovitsImportField, file: SovitsI
             color = MaterialTheme.colorScheme.primary)
         Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(14.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ReferenceLanguageRow(draft: SovitsImportDraft, enabled: Boolean, select: (SovitsReferenceLanguage?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    fun label(language: SovitsReferenceLanguage) = when (language) {
+        SovitsReferenceLanguage.Chinese -> R.string.sovits_language_zh
+        SovitsReferenceLanguage.Japanese -> R.string.sovits_language_ja
+        SovitsReferenceLanguage.English -> R.string.sovits_language_en
+    }
+    val language = draft.referenceLanguage
+    Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)
+        .clickable(enabled = enabled, role = Role.Button) { expanded = true }
+        .heightIn(min = 56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(R.string.sovits_reference_language), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+        Box {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(if (language == null && draft.text.isNotBlank())
+                    stringResource(R.string.sovits_language_detected, stringResource(label(SovitsReferenceLanguage.detect(draft.text))))
+                else stringResource(language?.let(::label) ?: R.string.sovits_language_auto),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(painterResource(R.drawable.keyboard_arrow_up_24px), null, Modifier.size(18.dp).rotate(180f))
+            }
+            DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.sovits_language_auto)) },
+                    onClick = { expanded = false; select(null) })
+                for (option in SovitsReferenceLanguage.entries) {
+                    DropdownMenuItem(text = { Text(stringResource(label(option))) },
+                        onClick = { expanded = false; select(option) })
+                }
+            }
+        }
     }
 }

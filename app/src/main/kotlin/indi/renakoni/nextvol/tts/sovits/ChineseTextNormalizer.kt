@@ -93,6 +93,8 @@ internal object ChineseTextNormalizer {
         "ml" to "毫升", "m" to "米", "mm" to "毫米", "s" to "秒",
     )
 
+    fun isMeasure(word: String) = word in measureMap
+
     fun normalize(text: String, traditionalToSimplified: Map<Char, String> = emptyMap()): String {
         val filtered = specialCharFilter.replace(text.replace(" ", ""), "")
         val sentences = splitSentences(filtered)

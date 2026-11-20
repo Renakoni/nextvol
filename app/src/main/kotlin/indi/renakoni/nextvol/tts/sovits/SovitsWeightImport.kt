@@ -40,7 +40,9 @@ internal data class SovitsImportDraft(
     val audio: SovitsImportFile? = null,
     val text: String = "",
     val avatar: String = "",
+    val referenceLanguage: SovitsReferenceLanguage? = null,
 ) {
+    val transcriptFromFilename get() = audio?.name?.substringBeforeLast('.')?.takeIf(String::isNotBlank)
     val ready get() = name.isNotBlank() && name.length <= 80 && text.isNotBlank() && audio != null &&
         SovitsImportField.Gpt.accepts(gpt) && SovitsImportField.Sovits.accepts(sovits)
 }
@@ -87,12 +89,13 @@ internal class SovitsWeightImport @Inject constructor(
             val audioDirectory = File(result.character, "prompt_wav")
             check(audioDirectory.mkdir() && reference.renameTo(File(audioDirectory, reference.name)))
             val transcript = draft.text.trim()
+            val language = draft.referenceLanguage ?: SovitsReferenceLanguage.detect(transcript)
             File(result.character, "prompt_wav.json").writeText(JSONObject().put("Normal",
-                JSONObject().put("wav", reference.name).put("text", transcript).put("language", "zh")).toString())
+                JSONObject().put("wav", reference.name).put("text", transcript).put("language", language.code)).toString())
             runtime.prepare(progress)
             progress(SovitsImportMessage(R.string.sovits_preparing_models))
-            val mandarin = SovitsMandarin(runtime.directory)
-            try { mandarin.encode(transcript) }
+            try { SovitsFrontend(runtime.directory).use { it.encode(transcript, language) } }
+            catch (_: UnsatisfiedLinkError) { errorSovits(SovitsImportMessage(R.string.tts_offline_runtime_missing, "GPT-SoVITS")) }
             catch (_: SpeechException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
             catch (_: IllegalArgumentException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
             prepareSovitsSharedEncoder(runtime.directory)

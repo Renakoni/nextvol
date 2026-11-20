@@ -5,11 +5,11 @@ import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
 
 @Keep
 internal object SovitsNative {
-    init { SpeechLibraries.loadSovits("nextvol-sovits") }
+    init { SpeechLibraries.loadSovitsBridge() }
     external fun create(model: ByteArray, runtime: ByteArray): Long
-    external fun prepare(handle: Long, phones: LongArray, tokens: LongArray, repeats: LongArray,
+    external fun prepare(handle: Long, phones: LongArray, tokens: LongArray, repeats: LongArray, runs: LongArray,
         pcm32: FloatArray, pcm16: FloatArray)
-    external fun semantics(handle: Long, phones: LongArray, tokens: LongArray, repeats: LongArray): LongArray
+    external fun semantics(handle: Long, phones: LongArray, tokens: LongArray, repeats: LongArray, runs: LongArray): LongArray
     external fun condition(handle: Long, advanced: Boolean): FloatArray
     external fun vocode(handle: Long, phones: LongArray, tokens: LongArray): ByteArray
     external fun pcm(audio: FloatArray): ByteArray

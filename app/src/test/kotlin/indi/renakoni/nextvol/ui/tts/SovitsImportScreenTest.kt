@@ -88,7 +88,7 @@ class SovitsImportScreenTest {
     }
 
     @Test fun replacingAWeightShowsItsErrorInTheMatchingRowAndBlocksImportUntilCorrected() {
-        val file = SovitsImportFile(Uri.parse("content://test/file"), "selected file")
+        val file = SovitsImportFile(Uri.parse("content://test/file"), "Hello.world.WAV")
         val state = mutableStateOf(SovitsImportState(draft = SovitsImportDraft("Voice", file.copy(name = "voice.CKPT"), file.copy(name = "voice.pth"), file)))
         var replacement = file.copy(name = "wrong.bin")
         activity.get().setContent {
@@ -112,5 +112,7 @@ class SovitsImportScreenTest {
             row.performClick().assert(hasText(replacement.name))
             confirm.assertIsEnabled()
         }
+        compose.onNodeWithText(label(R.string.sovits_use_filename)).performScrollTo().performClick()
+        compose.runOnIdle { assertEquals("Hello.world", state.value.draft.text) }
     }
 }

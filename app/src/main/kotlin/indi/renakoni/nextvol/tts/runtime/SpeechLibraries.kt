@@ -22,14 +22,22 @@ internal enum class SpeechRuntimePack(val id: String) {
     private val spec by lazy {
         SpeechLibraries.context.assets.open("speech-runtimes/$id.json").bufferedReader().use { JSONObject(it.readText()) }
     }
-    val downloadUrls: List<String> get() {
+    internal data class Archive(val sha256: String, val bytes: Long, val urls: List<String>)
+
+    val archives: List<Archive> by lazy {
         val github = spec.getString("url")
         val asset = github.substringAfter("/releases/download/")
-        return listOf(github, "${ProjectLinks.DOWNLOADS}/releases/$asset")
+        val core = Archive(spec.getString("sha256"), spec.getLong("size"),
+            listOf(github, "${ProjectLinks.DOWNLOADS}/releases/$asset"))
+        val extra = spec.optJSONObject("supplement")
+        if (extra == null) listOf(core) else {
+            val urls = extra.getJSONArray("urls")
+            listOf(core, Archive(extra.getString("sha256"), extra.getLong("size"), List(urls.length(), urls::getString)))
+        }
     }
-    val archiveBytes get() = spec.getLong("size")
+    val archiveBytes get() = archives.sumOf { it.bytes }
     val root get() = File(SpeechLibraries.context.noBackupFilesDir, "speech-runtimes/$id")
-    val directory get() = File(root, spec.getString("sha256"))
+    val directory get() = File(root, archives.joinToString("-") { it.sha256 })
     val libraries get() = File(directory, "jniLibs/arm64-v8a")
     val installed get() = directory.isDirectory
 }
@@ -64,6 +72,12 @@ internal object SpeechLibraries {
             loadedVendor.add(fileName)
         }
         load(System.mapLibraryName(name))
+    }
+
+    // The bridge and its JNI signatures are built with the APK. ORT and accelerator libraries stay on demand.
+    fun loadSovitsBridge() {
+        System.load(File(SpeechRuntimePack.Sovits.libraries, "libortwebgpu.so").absolutePath)
+        System.loadLibrary("nextvol-sovits")
     }
 
     // ORT's Java binding and NextVol's bridge link the same renamed WebGPU core.

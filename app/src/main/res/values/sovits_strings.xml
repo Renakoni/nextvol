@@ -48,7 +48,14 @@
     <string name="sovits_sovits_weight">SoVITS weights (.pth)</string>
     <string name="sovits_reference_audio">Reference audio</string>
     <string name="sovits_reference_text">Reference transcript</string>
-    <string name="sovits_reference_text_invalid">Enter a Mandarin transcript the speech model can encode (up to 510 normalized characters).</string>
+    <string name="sovits_reference_language">Reference language</string>
+    <string name="sovits_use_filename">From filename</string>
+    <string name="sovits_language_auto">Automatic</string>
+    <string name="sovits_language_detected">Automatic (%1$s)</string>
+    <string name="sovits_language_zh">Chinese</string>
+    <string name="sovits_language_ja">Japanese</string>
+    <string name="sovits_language_en">English</string>
+    <string name="sovits_reference_text_invalid">Enter a transcript that can be read in the selected reference language.</string>
     <string name="sovits_voice_name">Voice name</string>
     <string name="sovits_choose_file">Choose file</string>
     <string name="sovits_choose_extension">Select a %1$s file.</string>

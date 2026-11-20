@@ -222,7 +222,6 @@ android {
         }
     }
     packaging {
-        jniLibs.excludes += "**/libnextvol-sovits.so"
         jniLibs.useLegacyPackaging = true
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -291,16 +290,13 @@ if (matchaNative) {
         add(sovitsQnn.name, "com.qualcomm.qti:qnn-runtime:2.42.0@aar")
     }
     val packageSovitsRuntime by tasks.registering(Zip::class) {
-        dependsOn("buildMatchaNative")
         archiveFileName.set(sovitsZip.get().asFile.name)
         destinationDirectory.set(sovitsZip.get().asFile.parentFile)
         isPreserveFileTimestamps = false
         isReproducibleFileOrder = true
         duplicatesStrategy = DuplicatesStrategy.FAIL
         from(rootProject.file("native/sovits/assets")) { into("assets") }
-        val bridge = matchaOutput.resolve("jniLibs/arm64-v8a/libnextvol-sovits.so")
-        inputs.file(bridge)
-        from(bridge) { into("jniLibs/arm64-v8a") }
+        from(zipTree(rootProject.file("native/sovits/reference-languages.zip")))
         from(zipTree(webGpuAar)) {
             include("jni/**", "assets/**")
             eachFile { path = path.replaceFirst(Regex("^jni/"), "jniLibs/") }
