@@ -1,0 +1,3 @@
+# These bundled templates are verified byte-for-byte against the upstream manifests.
+app/src/main/assets/gpt-sovits/checkpoint-*/mobile-decoder.json -text whitespace=cr-at-eol
+app/src/main/assets/gpt-sovits/checkpoint-*/split-vits.json -text whitespace=cr-at-eol

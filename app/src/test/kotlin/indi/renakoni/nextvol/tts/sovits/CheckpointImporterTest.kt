@@ -9,6 +9,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
 import java.security.MessageDigest
@@ -28,6 +29,18 @@ class CheckpointImporterTest {
         ],
         "files":{"graph.onnx":"${CheckpointImporter.hex(MessageDigest.getInstance("SHA-256").digest(graph))}"}
     }"""
+
+    @Test fun packagedTemplateBytesMatchTheConversionManifests() {
+        val assets = RuntimeEnvironment.getApplication().assets
+        for (variant in listOf("v2pro", "v2proplus")) {
+            val folder = "gpt-sovits/checkpoint-$variant"
+            val files = assets.open("$folder/manifest.json").bufferedReader().use { JSONObject(it.readText()).getJSONObject("files") }
+            for (name in files.keys()) {
+                val hash = assets.open("$folder/$name").use { MessageDigest.getInstance("SHA-256").digest(it.readBytes()) }
+                assertEquals("$folder/$name", files.getString(name), CheckpointImporter.hex(hash))
+            }
+        }
+    }
 
     @Test fun convertsBothV2VariantsAndSavesReferenceBeforePublishing() {
         val reference = reference()
