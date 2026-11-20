@@ -9,6 +9,7 @@ import indi.renakoni.nextvol.tts.orderSpeechVoices
 import indi.renakoni.nextvol.tts.offline.googleVoiceCatalog
 import indi.renakoni.nextvol.tts.sovits.sovitsModelCode
 import indi.renakoni.nextvol.tts.sovits.sovitsOptions
+import indi.renakoni.nextvol.tts.sovits.validateSovitsConfiguration
 import indi.renakoni.nextvol.tts.sovits.withSovitsOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -351,10 +352,13 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
         }?.let { OfflineSpeechResources(it.resourceReference, it.sizes, it.packageAvatar) }
 
     internal fun matchesResources(configuration: OfflineVoiceConfig, sizes: Map<String, Long>): Boolean = runCatching {
-        val normalized = normalizeOfflineVoice(configuration, sizes.keys)
-        if (configuration.engine != "sherpa" && configuration.engine != "gpt-sovits") offlineResources(normalized, sizes.map { (path, bytes) ->
-            SpeechPackageResource("${configuration.engine}/$path", bytes)
-        }).also { require(it.isNotEmpty()) }
+        if (configuration.engine == "gpt-sovits") validateSovitsConfiguration(configuration, sizes.keys)
+        else {
+            val normalized = normalizeOfflineVoice(configuration, sizes.keys)
+            if (configuration.engine != "sherpa") offlineResources(normalized, sizes.map { (path, bytes) ->
+                SpeechPackageResource("${configuration.engine}/$path", bytes)
+            }).also { require(it.isNotEmpty()) }
+        }
     }.isSuccess
 
     private fun sherpaDirectory(configuration: OfflineVoiceConfig): String =
@@ -457,7 +461,7 @@ class OfflineSpeechRepository internal constructor(root: File, private val engin
 /** Package defaults precede speaker overrides. Segment/role overrides will be applied by the plan layer. */
 internal fun normalizeOfflineVoice(configuration: OfflineVoiceConfig, paths: Collection<String>): OfflineVoiceConfig {
     if (configuration.engine == "gpt-sovits") {
-        indi.renakoni.nextvol.tts.sovits.validateSovitsConfiguration(configuration, paths)
+        validateSovitsConfiguration(configuration, paths)
         return configuration.withSovitsOptions(sovitsOptions(configuration))
     }
     require(configuration.speed.isFinite() && configuration.speed >= 0 && configuration.pitch.isFinite() && configuration.pitch > 0)

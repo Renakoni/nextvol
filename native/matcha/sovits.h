@@ -34,6 +34,5 @@ class Voice {
   std::vector<std::string> stage_inputs_, first_outputs_, stage_outputs_;
   std::vector<size_t> first_map_, stage_map_;
   size_t stop_index_, y_index_;
-  bool first_sampling_ = false, stage_sampling_ = false, speed_input_ = false;
 };
 }  // namespace sovits

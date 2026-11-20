@@ -152,12 +152,12 @@ private fun VoiceText(value: String, label: Int, enabled: Boolean, onChange: (St
 private fun VoiceNumber(value: String, label: Int, enabled: Boolean,
     range: ClosedFloatingPointRange<Float>? = null, integral: Boolean = false, onChange: (String) -> Unit) {
     val number = value.toFloatOrNull()
+    val valid = number != null && (range?.contains(number) ?: number.isFinite()) && (!integral || value.toIntOrNull() != null)
     OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), enabled = enabled, singleLine = true, shape = MaterialTheme.shapes.small,
         label = { Text(stringResource(label)) },
         supportingText = range?.let { { Text(if (integral) "${it.start.toInt()}–${it.endInclusive.toInt()}" else "${it.start}–${it.endInclusive}") } },
         keyboardOptions = KeyboardOptions(keyboardType = if (integral) KeyboardType.Number else KeyboardType.Decimal),
-        isError = enabled && (number == null || !number.isFinite() || (range != null && number !in range) ||
-            (integral && value.toIntOrNull() == null)))
+        isError = enabled && !valid)
 }
 
 @Composable

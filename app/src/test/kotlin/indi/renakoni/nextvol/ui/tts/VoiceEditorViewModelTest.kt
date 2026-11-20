@@ -22,7 +22,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.*
-import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -53,27 +52,6 @@ class VoiceEditorViewModelTest {
         httpEditor.viewModelScope.cancel()
         offlineEditor.viewModelScope.cancel()
         Dispatchers.resetMain()
-    }
-
-    @Test fun restoringALegacySovitsDraftKeepsEditsAndMigratesItsControls() = runTest {
-        val voice = InstalledOfflineVoice(OfflineVoiceRef("voice", "revision"), "Voice", emptyMap(),
-            configuration = OfflineVoiceConfig("gpt-sovits", "v2Pro.imported-voice"))
-        val legacy = VoiceDraft.from(voice).copy(code = "edited-code", speed = "1.2", sovits = null,
-            pitch = "1.5", volume = "0.5", sampleRate = "16000", type = "1")
-        offlineEditor.viewModelScope.cancel()
-        offlineEditor = OfflineVoiceEditorViewModel(offline,
-            SavedStateHandle(mapOf("voice.draft" to Json.encodeToString(legacy))), mockk(), mockk(), operations)
-        coEvery { offline.voices() } returns listOf(voice)
-        offlineEditor.load("voice")
-        val draft = offlineEditor.state.first { !it.busy && it.draft != null }.draft!!
-        assertEquals("edited-code", draft.code)
-        assertEquals("1.2", draft.speed)
-        assertEquals(SovitsOptionsDraft(), draft.sovits)
-        val config = draft.fields().applyTo(voice).configuration!!
-        assertEquals(32000, config.sampleRate)
-        assertEquals(0, config.type)
-        assertEquals(1f, config.pitch)
-        assertEquals(1f, config.volume)
     }
 
     @Test fun httpDisableIgnoresDraftEditsAndClosesOnlyAfterTheOperationFinishes() = runTest {

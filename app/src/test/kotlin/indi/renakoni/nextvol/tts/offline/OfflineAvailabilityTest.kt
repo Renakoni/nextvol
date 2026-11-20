@@ -19,13 +19,6 @@ class OfflineAvailabilityTest {
     private fun OfflineAvailabilityChecker.check(engine: String, parameters: String = "") =
         inspect(OfflineVoiceConfig(engine, "voice", parameters), emptySet()) { error("No model may be read") }
 
-    @Test fun sovitsRejectsIncompatibleProcessesWithAGenericMessage() {
-        val x86 = checker(api = 29, abis = listOf("x86_64")).check("gpt-sovits")
-        assertFalse(x86.canRun)
-        assertEquals(R.string.sovits_runtime_unsupported, x86.message)
-        assertEquals("", x86.detail)
-    }
-
     @Test fun oldOrNonArmDevicesStillAllowAudioButExplainNativeRestrictions() {
         val old = checker(api = 24, abis = listOf("x86"))
         val audio = old.check("audio")

@@ -12,7 +12,8 @@ import org.junit.Test
 class SovitsSynthesisOptionsTest {
     @Test fun editorAcceptsGenieBoundariesAndRejectsInvalidSamplingValues() {
         val voice = InstalledOfflineVoice(OfflineVoiceRef("voice", "revision"), "Voice", emptyMap(),
-            configuration = OfflineVoiceConfig("gpt-sovits", "v2Pro.voice"))
+            configuration = OfflineVoiceConfig("gpt-sovits", "v2Pro-1",
+                parameters = """{"model":"v2Pro.voice"}""", sampleRate = 32000))
         val draft = VoiceDraft.from(voice)
         assertEquals(SovitsSynthesisOptions(.6f, 0f, 1, 0f, 1f),
             draft.copy(speed = ".6", sovits = SovitsOptionsDraft("0", "1", "0", "1")).fields().sovits)
@@ -28,11 +29,8 @@ class SovitsSynthesisOptionsTest {
         ).forEach { invalid -> assertThrows(IllegalArgumentException::class.java) { invalid.fields() } }
     }
 
-    @Test fun editableCodeCannotReplaceOrEscapeTheModelReference() {
-        val config = OfflineVoiceConfig("gpt-sovits", "v2Pro.original").withSovitsOptions(SovitsSynthesisOptions())
-        val changed = config.copy(code = "custom-code")
-        validateSovitsConfiguration(changed, listOf("CharacterModels/v2Pro/original/prompt_wav.json"))
-        val traversal = changed.copy(rawParameters = """{"model":"v2Pro.../outside"}""")
+    @Test fun modelReferenceCannotEscapeItsResourceDirectory() {
+        val traversal = OfflineVoiceConfig("gpt-sovits", "v2Pro-1", parameters = """{"model":"v2Pro.../outside"}""")
         assertThrows(IllegalArgumentException::class.java) {
             validateSovitsConfiguration(traversal, listOf("CharacterModels/v2Pro/../outside/prompt_wav.json"))
         }

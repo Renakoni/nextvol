@@ -14,23 +14,21 @@ data class SovitsSynthesisOptions(
     val repetitionPenalty: Float = 1.35f,
 ) {
     init {
-        require(speed.isFinite() && speed in 0.6f..1.65f)
-        require(temperature.isFinite() && temperature in 0f..1f)
+        require(speed in 0.6f..1.65f)
+        require(temperature in 0f..1f)
         require(topK in 1..100)
-        require(topP.isFinite() && topP in 0f..1f)
-        require(repetitionPenalty.isFinite() && repetitionPenalty in 1f..2f)
+        require(topP in 0f..1f)
+        require(repetitionPenalty in 1f..2f)
     }
 
     fun samplingValues() = floatArrayOf(temperature, topK.toFloat(), topP, repetitionPenalty)
 }
 
 private fun sovitsParameters(configuration: OfflineVoiceConfig): JsonObject =
-    (configuration.rawParameters ?: configuration.parameters).let {
-        if (it.isBlank()) JsonObject(emptyMap()) else Json.parseToJsonElement(it).jsonObject
-    }
+    Json.parseToJsonElement(configuration.parameters).jsonObject
 
 internal fun sovitsModelCode(configuration: OfflineVoiceConfig): String =
-    sovitsParameters(configuration)["model"]?.jsonPrimitive?.content ?: configuration.code
+    sovitsParameters(configuration).getValue("model").jsonPrimitive.content
 
 internal fun sovitsOptions(configuration: OfflineVoiceConfig): SovitsSynthesisOptions =
     Json.decodeFromJsonElement(JsonObject(sovitsParameters(configuration) - "model" +

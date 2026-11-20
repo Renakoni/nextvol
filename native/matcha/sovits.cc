@@ -30,10 +30,6 @@ std::vector<std::string> names(const Ort::Session& session, bool inputs) {
   return result;
 }
 
-bool contains(const std::vector<std::string>& names, const std::string& key) {
-  return std::find(names.begin(), names.end(), key) != names.end();
-}
-
 std::vector<Tensor> evaluate(Ort::Session& graph, const Ort::RunOptions& run,
                              const Inputs& inputs, const std::vector<std::string>& outputs) {
   Ort::IoBinding binding(graph);
@@ -156,9 +152,7 @@ void Voice::prepare(const Text& prompt, const std::vector<float>& pcm32, const s
   encoder_ = load(model_ / "t2s_encoder_fp32.onnx");
   first_ = load(model_ / "t2s_first_stage_decoder_fp32.onnx");
   stage_ = load(model_ / "t2s_stage_decoder_fp32.onnx");
-  first_sampling_ = contains(names(first_, true), "sampling");
   stage_inputs_ = names(stage_, true);
-  stage_sampling_ = contains(stage_inputs_, "sampling");
   stage_inputs_.erase(std::remove(stage_inputs_.begin(), stage_inputs_.end(), "sampling"), stage_inputs_.end());
   first_outputs_ = names(first_, false);
   stage_outputs_ = names(stage_, false);
@@ -173,17 +167,12 @@ void Voice::prepare(const Text& prompt, const std::vector<float>& pcm32, const s
 }
 
 std::vector<int64_t> Voice::semantics(const Text& text, const std::vector<float>& controls) {
-  if (controls.size() != 4 || !std::all_of(controls.begin(), controls.end(), [](float value) { return std::isfinite(value); }) ||
-      controls[0] < 0 || controls[0] > 1 || controls[1] < 1 || controls[1] > 100 || std::floor(controls[1]) != controls[1] ||
-      controls[2] < 0 || controls[2] > 1 || controls[3] < 1 || controls[3] > 2)
-    throw std::invalid_argument("Invalid GPT-SoVITS sampling parameters");
   auto phones = tensor(text.phones, {1, static_cast<int64_t>(text.phones.size())});
   auto features = bert(text);
   auto encoded = evaluate(encoder_, run_, {{"ref_seq", &ref_phones_}, {"text_seq", &phones},
       {"ref_bert", &ref_bert_}, {"text_bert", &features}, {"ssl_content", &ssl_}}, {"x", "prompts"});
   auto sampling = tensor(controls, {4});
-  Inputs prefill{{"x", &encoded[0]}, {"prompts", &encoded[1]}};
-  if (first_sampling_) prefill.emplace_back("sampling", &sampling);
+  Inputs prefill{{"x", &encoded[0]}, {"prompts", &encoded[1]}, {"sampling", &sampling}};
   auto state = evaluate(first_, run_, prefill, first_outputs_);
   encoded.clear();
   size_t completed = 0;
@@ -193,7 +182,7 @@ std::vector<int64_t> Voice::semantics(const Text& text, const std::vector<float>
     Inputs inputs;
     const auto& indices = completed == 0 ? first_map_ : stage_map_;
     for (size_t i = 0; i < indices.size(); ++i) inputs.emplace_back(stage_inputs_[i], &state[indices[i]]);
-    if (stage_sampling_) inputs.emplace_back("sampling", &sampling);
+    inputs.emplace_back("sampling", &sampling);
     state = evaluate(stage_, run_, inputs, stage_outputs_);
     const auto& stop = state[stop_index_];
     ++completed;
@@ -225,17 +214,11 @@ std::vector<float> Voice::condition(bool advanced) const {
 }
 
 std::vector<int16_t> Voice::vocode(const std::vector<int64_t>& ids, const std::vector<int64_t>& tokens, double speech_speed) {
-  if (!std::isfinite(speech_speed) || speech_speed < static_cast<double>(0.6f) || speech_speed > static_cast<double>(1.65f))
-    throw std::invalid_argument("Invalid GPT-SoVITS speed");
-  if (!vits_) {
-    vits_ = load(model_ / "vits_fp32.onnx");
-    speed_input_ = contains(names(vits_, true), "speed");
-  }
+  if (!vits_) vits_ = load(model_ / "vits_fp32.onnx");
   auto phones = tensor(ids, {1, static_cast<int64_t>(ids.size())});
   auto semantic = tensor(tokens, {1, 1, static_cast<int64_t>(tokens.size())});
   auto speed = tensor<double>({speech_speed}, {1});
-  Inputs acoustic{{"text_seq", &phones}, {"pred_semantic", &semantic}, {"ge", &ge_}, {"ge_advanced", &advanced_}};
-  if (speed_input_) acoustic.emplace_back("speed", &speed);
+  Inputs acoustic{{"text_seq", &phones}, {"pred_semantic", &semantic}, {"ge", &ge_}, {"ge_advanced", &advanced_}, {"speed", &speed}};
   auto audio = evaluate(vits_, run_, acoustic, {"audio"});
   auto info = audio[0].GetTensorTypeAndShapeInfo();
   if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT)

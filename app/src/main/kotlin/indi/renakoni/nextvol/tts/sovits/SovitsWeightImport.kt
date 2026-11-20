@@ -99,7 +99,8 @@ internal class SovitsWeightImport @Inject constructor(
             catch (_: SpeechException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
             catch (_: IllegalArgumentException) { errorSovits(SovitsImportMessage(R.string.sovits_reference_text_invalid)) }
             prepareSovitsSharedEncoder(runtime.directory)
-            OfflineVoiceConfig("gpt-sovits", "${result.architecture}.${result.character.name}",
+            val model = "${result.architecture}.${result.character.name}"
+            OfflineVoiceConfig("gpt-sovits", model, parameters = JSONObject().put("model", model).toString(),
                 locale = "zh-CN", sampleRate = 32000)
         }
     }

@@ -45,7 +45,8 @@ class VoiceEditorScreenTest {
 
     @Test fun sovitsEditorSavesAllFiveControlsAndKeepsUnsupportedControlsUnavailable() {
         val voice = InstalledOfflineVoice(OfflineVoiceRef("voice", "revision"), "Voice", emptyMap(),
-            configuration = OfflineVoiceConfig("gpt-sovits", "v2Pro.voice"))
+            configuration = OfflineVoiceConfig("gpt-sovits", "v2Pro-1",
+                parameters = """{"model":"v2Pro.voice"}""", sampleRate = 32000))
         val draft = mutableStateOf(VoiceDraft.from(voice))
         var saved: VoiceFields? = null
         activity.get().setContent { MaterialTheme {
