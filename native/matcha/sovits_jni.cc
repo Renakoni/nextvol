@@ -11,7 +11,7 @@ std::string path(JNIEnv* env, jbyteArray bytes) {
 
 std::vector<int64_t> longs(JNIEnv* env, jlongArray array) {
   std::vector<jlong> values(env->GetArrayLength(array));
-  env->GetLongArrayRegion(array, 0, values.size(), values.data());
+  if (!values.empty()) env->GetLongArrayRegion(array, 0, values.size(), values.data());
   return {values.begin(), values.end()};
 }
 

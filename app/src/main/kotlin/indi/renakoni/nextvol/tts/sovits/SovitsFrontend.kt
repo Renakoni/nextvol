@@ -12,7 +12,7 @@ enum class SovitsReferenceLanguage(val code: String) {
         fun detect(text: String): SovitsReferenceLanguage = when {
             text.any { it in '\u3040'..'\u30ff' || it in '\uff66'..'\uff9d' } -> Japanese
             text.any { it in '\u3400'..'\u9fff' } -> Chinese
-            text.any { it in 'A'..'Z' || it in 'a'..'z' || it in 'Ａ'..'Ｚ' || it in 'ａ'..'ｚ' } -> English
+            text.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.LATIN } -> English
             else -> Chinese
         }
     }
@@ -78,6 +78,7 @@ internal class SovitsFrontend(private val mandarin: SovitsMandarin, private val 
     override fun close() { if (english.isInitialized()) english.value.close() }
 
     private companion object {
-        val englishWord = Regex("[A-Za-z]+(?:['’-][A-Za-z]+)*")
+        private const val word = """\p{IsLatin}[\p{IsLatin}\p{M}]*"""
+        val englishWord = Regex("""$word(?:['’-]$word)*""")
     }
 }

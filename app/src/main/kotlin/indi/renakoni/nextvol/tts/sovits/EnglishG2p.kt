@@ -17,7 +17,7 @@ internal class EnglishG2p(private val root: File) : AutoCloseable {
         lines.associate { line -> line.substringBefore('\t') to line.substringAfter('\t').split(' ') }
     }
     private val cmu = dictionary("dictionary.tsv")
-    private val names = dictionary("names.tsv")
+    private val names by lazy { dictionary("names.tsv") }
     private val tagger by lazy { EnglishPosTagger(root) }
     private val predictor = lazy { EnglishPronunciationModel(root) }
     override fun close() { if (predictor.isInitialized()) predictor.value.close() }
@@ -43,7 +43,6 @@ internal class EnglishG2p(private val root: File) : AutoCloseable {
 
     private fun query(original: String): List<String> {
         val word = original.lowercase(Locale.ROOT)
-        if (original == "A") return listOf("AH0")
         cmu[word]?.let { return it }
         if (original.firstOrNull()?.isUpperCase() == true) names[word]?.let { return it }
         if (word.endsWith("'s") && word.length > 2) {
@@ -85,7 +84,7 @@ internal class EnglishG2p(private val root: File) : AutoCloseable {
             // CMU's entry for "a" is the unstressed article; an initialism needs the letter name.
             acronym.value.toList().joinToString(" ") { if (it == 'A') "ay" else it.toString() }
         }
-        return Regex("([,.!?])\\1+").replace(result, "$1").lowercase(Locale.ROOT)
+        return Regex("([,.!?])\\1+").replace(result, "$1")
     }
 }
 
@@ -138,7 +137,7 @@ internal class EnglishPronunciationModel(private val root: File) : AutoCloseable
     }
     private val encoder = session("encoder.onnx")
     private val decoder = try { session("decoder.onnx") } catch (failure: Throwable) { encoder.close(); throw failure }
-    override fun close() { encoder.close(); decoder.close() }
+    override fun close() { try { decoder.close() } finally { encoder.close() } }
     private val phones = ("<pad> <unk> <s> </s> AA0 AA1 AA2 AE0 AE1 AE2 AH0 AH1 AH2 AO0 AO1 AO2 " +
         "AW0 AW1 AW2 AY0 AY1 AY2 B CH D DH EH0 EH1 EH2 ER0 ER1 ER2 EY0 EY1 EY2 F G HH IH0 IH1 IH2 " +
         "IY0 IY1 IY2 JH K L M N NG OW0 OW1 OW2 OY0 OY1 OY2 P R S SH T TH UH0 UH1 UH2 UW UW0 UW1 UW2 V W Y Z ZH").split(' ')
