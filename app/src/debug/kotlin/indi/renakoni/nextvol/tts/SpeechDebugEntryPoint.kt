@@ -7,4 +7,5 @@ interface SpeechDebugEntryPoint {
     fun controller(): ReadAloudController
     fun voices(): SpeechVoiceCatalog
     fun plans(): SpeechPlanPreparer
+    fun offlineVoices(): indi.renakoni.nextvol.tts.matcha.OfflineSpeechRepository
 }

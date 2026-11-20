@@ -22,10 +22,13 @@ internal suspend fun installTestRuntime(pack: SpeechRuntimePack, availability: O
     OfflineAvailabilityChecker(InstrumentationRegistry.getInstrumentation().targetContext)) {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     assertFalse(pack.installed)
-    if (pack == SpeechRuntimePack.Sovits) assertNull(DeviceAcceleration.detect(context))
+    if (pack != SpeechRuntimePack.Vendor) {
+        DeviceAcceleration.detect(context)
+        assertEquals(true, DeviceAcceleration.status.value.gpu)
+    }
     val downloads = SpeechRuntimeDownloads(UpdateArtifactDownloader(context), availability)
     downloads.start(pack)
-    val result = withTimeout(300_000L) {
+    val result = withTimeout(900_000L) {
         downloads.changes.first { it[pack] is RuntimeDownload.Installed || it[pack] is RuntimeDownload.Failed }
     }
     assertEquals(result.toString(), RuntimeDownload.Installed, result[pack])

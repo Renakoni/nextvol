@@ -289,14 +289,9 @@ if (matchaNative) {
         add(sovitsQnn.name, "com.microsoft.onnxruntime:onnxruntime-android-qnn:1.27.0@aar")
         add(sovitsQnn.name, "com.qualcomm.qti:qnn-runtime:2.42.0@aar")
     }
-    val packageSovitsRuntime by tasks.registering(Zip::class) {
-        archiveFileName.set(sovitsZip.get().asFile.name)
-        destinationDirectory.set(sovitsZip.get().asFile.parentFile)
-        isPreserveFileTimestamps = false
-        isReproducibleFileOrder = true
+    val prepareSovitsBackends by tasks.registering(Sync::class) {
+        into(layout.buildDirectory.dir("sovits-backends"))
         duplicatesStrategy = DuplicatesStrategy.FAIL
-        from(rootProject.file("native/sovits/assets")) { into("assets") }
-        from(zipTree(rootProject.file("native/sovits/reference-languages.zip")))
         from(zipTree(webGpuAar)) {
             include("jni/**", "assets/**")
             eachFile { path = path.replaceFirst(Regex("^jni/"), "jniLibs/") }
@@ -309,6 +304,18 @@ if (matchaNative) {
             includeEmptyDirs = false
         }
     }
+    android.sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("sovits-backends/jniLibs").get().asFile)
+    android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("sovits-backends/assets").get().asFile)
+    tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareSovitsBackends) }
+}
+val packageSovitsRuntime by tasks.registering(Zip::class) {
+    archiveFileName.set(sovitsZip.get().asFile.name)
+    destinationDirectory.set(sovitsZip.get().asFile.parentFile)
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    from(rootProject.file("native/sovits/assets")) { into("assets") }
+    from(zipTree(rootProject.file("native/sovits/reference-languages.zip")))
 }
 val prepareSpeechRuntimeCatalog by tasks.registering {
     inputs.file(vendorSpec)

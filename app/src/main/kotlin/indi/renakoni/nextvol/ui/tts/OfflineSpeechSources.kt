@@ -21,6 +21,7 @@ import indi.renakoni.nextvol.tts.matcha.*
 import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import indi.renakoni.nextvol.tts.SpeechEngineRepository
+import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -58,7 +59,10 @@ class OfflineSpeechSourcesViewModel @Inject constructor(
     init {
         viewModelScope.launch { settings.changes.collect { value -> mutableState.update { it.copy(selected = value.offlineVoice) } } }
         viewModelScope.launch { combine(repository.changes, engines.changes) { _, _ -> Unit }.collect { refresh() } }
-        viewModelScope.launch { availability.changes.drop(1).collect { inspectedEngines.clear(); refreshDetails() } }
+        viewModelScope.launch {
+            combine(availability.changes, DeviceAcceleration.status) { _, _ -> Unit }.drop(1)
+                .collect { inspectedEngines.clear(); refreshDetails() }
+        }
     }
     fun refresh() {
         refreshing?.cancel()

@@ -15,6 +15,9 @@ import indi.renakoni.nextvol.tts.editHttpVoice
 import indi.renakoni.nextvol.tts.matcha.InstalledOfflineVoice
 import indi.renakoni.nextvol.tts.matcha.OfflineVoiceRef
 import indi.renakoni.nextvol.tts.sovits.SovitsSynthesisOptions
+import indi.renakoni.nextvol.tts.sovits.SovitsAccelerationStatus
+import indi.renakoni.nextvol.tts.SpeechTextSettings
+import io.mockk.mockk
 import kotlinx.serialization.json.*
 import org.junit.After
 import org.junit.Assert.*
@@ -42,6 +45,30 @@ class VoiceEditorScreenTest {
         activity.setup()
     }
     @After fun destroy() { activity.pause().stop().destroy() }
+
+    @Test fun gpuDisableRequiresConfirmationAndDisablesTheNpuSwitch() {
+        val state = mutableStateOf(SpeechPlaybackSettingsState(settings = SpeechTextSettings(),
+            acceleration = SovitsAccelerationStatus(true, true)))
+        val preferences = mockk<SpeechPlaybackPreferences>(relaxed = true)
+        activity.get().setContent { MaterialTheme {
+            SpeechPlaybackSettingsScreen(state.value, preferences, {}, onUpdate = {}, onMultipleVoices = {},
+                onContextPattern = {}, onNameTest = {}, onTextAnalysis = {}, onEngineCacheCapacity = {},
+                onAudioSettings = { state.value = state.value.copy(audio = it) }, onBackgroundMusic = {},
+                onAutoAssign = {}, onCacheLimit = {}, onDiagnosticLogging = {})
+        } }
+        val gpu = compose.onNodeWithText(label(R.string.sovits_gpu_acceleration))
+        gpu.performClick()
+        compose.onNodeWithText(label(R.string.sovits_disable_gpu_warning)).assertIsDisplayed()
+        assertTrue(state.value.audio.sovitsGpu)
+        compose.onNodeWithText(label(R.string.cancel)).performClick()
+        assertTrue(state.value.audio.sovitsGpu)
+        gpu.performClick()
+        compose.onNode(hasText(label(R.string.sovits_disable_gpu)) and hasClickAction()).performClick()
+        assertFalse(state.value.audio.sovitsGpu)
+        compose.onNodeWithText(label(R.string.sovits_device_acceleration)).assertIsNotEnabled()
+        compose.runOnIdle { state.value = state.value.copy(acceleration = SovitsAccelerationStatus(false, false)) }
+        gpu.assertIsNotEnabled()
+    }
 
     @Test fun sovitsEditorSavesAllFiveControlsAndKeepsUnsupportedControlsUnavailable() {
         val voice = InstalledOfflineVoice(OfflineVoiceRef("voice", "revision"), "Voice", emptyMap(),

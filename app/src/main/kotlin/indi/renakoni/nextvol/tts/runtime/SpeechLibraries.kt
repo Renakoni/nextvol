@@ -6,7 +6,9 @@ import android.os.Build
 import android.os.Process
 import indi.renakoni.nextvol.ProjectLinks
 import org.json.JSONObject
+import org.json.JSONArray
 import java.io.File
+import java.security.MessageDigest
 
 internal fun speechProcessAbis(context: Context): List<String> {
     if (!Process.is64Bit()) return Build.SUPPORTED_32_BIT_ABIS.toList()
@@ -17,27 +19,35 @@ internal fun speechProcessAbis(context: Context): List<String> {
 }
 
 internal enum class SpeechRuntimePack(val id: String) {
-    Vendor("vendor"), Sovits("sovits");
+    Vendor("vendor"), Sovits("sovits"), SovitsModels("sovits-models");
 
     private val spec by lazy {
         SpeechLibraries.context.assets.open("speech-runtimes/$id.json").bufferedReader().use { JSONObject(it.readText()) }
     }
-    internal data class Archive(val sha256: String, val bytes: Long, val urls: List<String>)
+    internal data class Archive(val sha256: String, val bytes: Long, val urls: List<String>, val path: String? = null)
 
     val archives: List<Archive> by lazy {
+        if (this == SovitsModels) {
+            val files = SpeechLibraries.context.assets.open("gpt-sovits/runtime-models.json").bufferedReader().use { JSONArray(it.readText()) }
+            return@lazy List(files.length()) { index ->
+                val file = files.getJSONObject(index)
+                val urls = file.getJSONArray("urls")
+                Archive(file.getString("sha256"), file.getLong("bytes"), List(urls.length(), urls::getString), file.getString("path"))
+            }
+        }
         val github = spec.getString("url")
         val asset = github.substringAfter("/releases/download/")
-        val core = Archive(spec.getString("sha256"), spec.getLong("size"),
-            listOf(github, "${ProjectLinks.DOWNLOADS}/releases/$asset"))
-        val extra = spec.optJSONObject("supplement")
-        if (extra == null) listOf(core) else {
-            val urls = extra.getJSONArray("urls")
-            listOf(core, Archive(extra.getString("sha256"), extra.getLong("size"), List(urls.length(), urls::getString)))
-        }
+        listOf(Archive(spec.getString("sha256"), spec.getLong("size"),
+            listOf(github, "${ProjectLinks.DOWNLOADS}/releases/$asset")))
     }
     val archiveBytes get() = archives.sumOf { it.bytes }
     val root get() = File(SpeechLibraries.context.noBackupFilesDir, "speech-runtimes/$id")
-    val directory get() = File(root, archives.joinToString("-") { it.sha256 })
+    private val revision by lazy {
+        val hashes = archives.joinToString("-") { it.sha256 }
+        if (this == SovitsModels) MessageDigest.getInstance("SHA-256").digest(hashes.toByteArray())
+            .joinToString("") { "%02x".format(it) } else hashes
+    }
+    val directory get() = File(root, revision)
     val libraries get() = File(directory, "jniLibs/arm64-v8a")
     val installed get() = directory.isDirectory
 }
@@ -74,16 +84,15 @@ internal object SpeechLibraries {
         load(System.mapLibraryName(name))
     }
 
-    // The bridge and its JNI signatures are built with the APK. ORT and accelerator libraries stay on demand.
+    // Startup probes and synthesis share the APK's inference backends.
     fun loadSovitsBridge() {
-        System.load(File(SpeechRuntimePack.Sovits.libraries, "libortwebgpu.so").absolutePath)
+        System.loadLibrary("ortwebgpu")
         System.loadLibrary("nextvol-sovits")
     }
 
     // ORT's Java binding and NextVol's bridge link the same renamed WebGPU core.
     @JvmStatic fun loadSovits(name: String) {
-        val directory = SpeechRuntimePack.Sovits.libraries
-        System.load(File(directory, "libortwebgpu.so").absolutePath)
-        System.load(File(directory, System.mapLibraryName(name)).absolutePath)
+        System.loadLibrary("ortwebgpu")
+        System.loadLibrary(name)
     }
 }

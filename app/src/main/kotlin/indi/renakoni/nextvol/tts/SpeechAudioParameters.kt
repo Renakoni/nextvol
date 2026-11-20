@@ -13,13 +13,15 @@ data class SpeechAudioSettings(
     val minimumSampleRate: Int = 16000,
     val checkSilence: Boolean = false,
     val decodeStream: Boolean = false,
+    val sovitsGpu: Boolean = true,
+    val sovitsNpu: Boolean = true,
 )
 
 /** Only adjustments not already applied by the backend are sent to the common PCM processor. */
 data class SpeechAudioParameters(val speed: Float = 1f, val pitch: Float = 1f, val volume: Float = 1f)
 
 internal fun offlineAudioParameters(voice: OfflineVoiceConfig, settings: SpeechSettings) =
-    if (voice.engine == "gpt-sovits") SpeechAudioParameters(settings.rate, settings.pitch, settings.volume)
+    if (voice.engine == "gpt-sovits") SpeechAudioParameters(volume = settings.volume)
     else SpeechAudioParameters(voice.speed, voice.pitch * settings.pitch, voice.volume)
 
 internal fun httpAudioParameters(source: HttpSpeechDefinition, settings: SpeechSettings): SpeechAudioParameters {

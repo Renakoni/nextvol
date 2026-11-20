@@ -96,7 +96,7 @@ class SpeechSynthesizers @Inject constructor(
                     delegate = when (active.configuration.engine) {
                         "sherpa" -> MatchaSpeechSynthesizer(active.resources)
                         "gpt-sovits" -> GptSovitsSynthesizer(context, installedSovitsVoice(active.directory,
-                            active.configuration, File(context.noBackupFilesDir, "sovits/RuntimeAssets")))
+                            active.configuration, indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack.SovitsModels.directory))
                         else -> OfflineSpeechSynthesizer(context, active.directory, active.configuration)
                     }
                 }

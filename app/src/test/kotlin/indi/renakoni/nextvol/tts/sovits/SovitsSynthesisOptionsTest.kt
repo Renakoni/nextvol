@@ -10,6 +10,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SovitsSynthesisOptionsTest {
+    @Test fun readingRateMapsAroundNormalSpeedThenCombinesWithTheVoice() {
+        val normal = SovitsSynthesisOptions()
+        assertEquals(.6f, normal.withReadingRate(0f).speed, .0001f)
+        assertEquals(1f, normal.withReadingRate(1f).speed, .0001f)
+        assertEquals(1.65f, normal.withReadingRate(2f).speed, .0001f)
+        assertEquals(.96f, normal.copy(speed = 1.2f).withReadingRate(.5f).speed, .0001f)
+        assertEquals(.6f, normal.copy(speed = .6f).withReadingRate(0f).speed, .0001f)
+        assertEquals(1.65f, normal.copy(speed = 1.65f).withReadingRate(2f).speed, .0001f)
+    }
+
     @Test fun editorAcceptsGenieBoundariesAndRejectsInvalidSamplingValues() {
         val voice = InstalledOfflineVoice(OfflineVoiceRef("voice", "revision"), "Voice", emptyMap(),
             configuration = OfflineVoiceConfig("gpt-sovits", "v2Pro-1",

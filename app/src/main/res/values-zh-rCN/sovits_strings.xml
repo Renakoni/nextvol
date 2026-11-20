@@ -1,5 +1,15 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="sovits_shared_models">GPT-SoVITS 基础模型</string>
+    <string name="sovits_gpu_acceleration">GPU 加速</string>
+    <string name="sovits_device_acceleration">设备加速（NPU）</string>
+    <string name="sovits_acceleration_checking">检测中</string>
+    <string name="sovits_acceleration_supported">支持</string>
+    <string name="sovits_acceleration_unsupported">不支持</string>
+    <string name="sovits_gpu_unsupported">GPT-SoVITS 需要支持 GPU 加速的设备。</string>
+    <string name="sovits_requires_gpu">请先开启 GPU 加速</string>
+    <string name="sovits_disable_gpu">关闭 GPU 加速</string>
+    <string name="sovits_disable_gpu_warning">关闭后 GPT-SoVITS 将使用 CPU，语音生成可能明显变慢，建议保持开启。</string>
     <string name="sovits_temperature">温度</string>
     <string name="sovits_top_k">Top-K</string>
     <string name="sovits_top_p">Top-P</string>
@@ -67,10 +77,8 @@
     <string name="sovits_cancelling">正在取消…</string>
     <string name="sovits_file_unreadable">无法读取文件，请重新选择。</string>
     <string name="sovits_import_failed">导入失败，请检查文件、可用存储空间和网络后重试。</string>
-    <string name="sovits_runtime_required">请先安装 GPT-SoVITS 语音运行库。</string>
+    <string name="sovits_runtime_required">请先在语音运行库中安装 GPT-SoVITS 和基础模型。</string>
     <string name="sovits_checking_reference">正在检查参考音频…</string>
     <string name="sovits_reference_audio_invalid">无法使用这段参考音频，请选择 30 秒以内、可播放且包含人声的音频。</string>
     <string name="sovits_preparing_models">正在准备本地合成模型…</string>
-    <string name="sovits_downloading_shared">下载共享模型 %1$d/%2$d · %3$d%%</string>
-    <string name="sovits_shared_invalid">共享模型下载不完整或已损坏，请重新导入。</string>
 </resources>

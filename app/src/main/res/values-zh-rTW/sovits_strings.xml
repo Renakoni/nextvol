@@ -1,5 +1,15 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="sovits_shared_models">GPT-SoVITS 基礎模型</string>
+    <string name="sovits_gpu_acceleration">GPU 加速</string>
+    <string name="sovits_device_acceleration">裝置加速（NPU）</string>
+    <string name="sovits_acceleration_checking">檢測中</string>
+    <string name="sovits_acceleration_supported">支援</string>
+    <string name="sovits_acceleration_unsupported">不支援</string>
+    <string name="sovits_gpu_unsupported">GPT-SoVITS 需要支援 GPU 加速的裝置。</string>
+    <string name="sovits_requires_gpu">請先開啟 GPU 加速</string>
+    <string name="sovits_disable_gpu">關閉 GPU 加速</string>
+    <string name="sovits_disable_gpu_warning">關閉後 GPT-SoVITS 將使用 CPU，語音生成可能明顯變慢，建議保持開啟。</string>
     <string name="sovits_temperature">溫度</string>
     <string name="sovits_top_k">Top-K</string>
     <string name="sovits_top_p">Top-P</string>
@@ -67,10 +77,8 @@
     <string name="sovits_cancelling">正在取消…</string>
     <string name="sovits_file_unreadable">無法讀取文件，請重新選擇。</string>
     <string name="sovits_import_failed">導入失敗，請檢查文件、可用存儲空間和網絡后重試。</string>
-    <string name="sovits_runtime_required">請先安裝 GPT-SoVITS 語音運行庫。</string>
+    <string name="sovits_runtime_required">請先在語音運行庫中安裝 GPT-SoVITS 和基礎模型。</string>
     <string name="sovits_checking_reference">正在檢查參考音頻…</string>
     <string name="sovits_reference_audio_invalid">無法使用這段參考音頻，請選擇 30 秒以內、可播放且包含人聲的音頻。</string>
     <string name="sovits_preparing_models">正在準備本地合成模型…</string>
-    <string name="sovits_downloading_shared">下載共享模型 %1$d/%2$d · %3$d%%</string>
-    <string name="sovits_shared_invalid">共享模型下載不完整或已損壞，請重新導入。</string>
 </resources>

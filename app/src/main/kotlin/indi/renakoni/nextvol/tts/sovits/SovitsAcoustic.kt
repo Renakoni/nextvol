@@ -25,9 +25,9 @@ internal class SovitsAcoustic(
     var lastProvider = "CPU"
         private set
 
-    fun prepare(context: Context) {
+    fun prepare(context: Context, useNpu: Boolean) {
         val directory = voice.model
-        val runtime = DeviceAcceleration.detect(context)
+        val runtime = if (useNpu) DeviceAcceleration.detect(context) else null
         val layout = try {
             SplitVocoderAssets.prepare(voice, runtime != null)
         } catch (failure: Exception) {
