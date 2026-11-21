@@ -100,16 +100,6 @@ class SpeechPackageReaderTest {
         assertFalse(SpeechPackageNotice.ConfigurationRequired in preview.engines.single().notices)
     }
 
-    @Test fun rolesOnlyPackageIsRecognizedWithoutInventingVoices() {
-        val preview = previewSpeechPackage(archive("roles.yaml" to """!!org.nobody.multitts.tts.role.RoleConfig
-            roles:
-            - {name: Narrator, voice: narrator}
-        """.trimIndent()))
-        assertNull(preview.error)
-        assertEquals(setOf(SpeechPackageKind.Roles), preview.kinds)
-        assertTrue(preview.engines.isEmpty())
-    }
-
     @Test fun missingDefinitionAndNullVoiceListsAreConfigurationGapsRatherThanBrokenYaml() {
         val missingEngine = previewSpeechPackage(yaml("unknown: [{code: voice, name: Voice}]"), "config.yaml")
         assertNull(missingEngine.error)

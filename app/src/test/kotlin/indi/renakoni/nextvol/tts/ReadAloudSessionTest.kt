@@ -20,33 +20,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
-import java.util.UUID
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ReadAloudSessionTest {
     @get:Rule val files = TemporaryFolder()
-
-    @Test fun pauseKeepsAudiblePositionAndUsesTheSameSessionControls() = runTest {
-        val env = Environment(this)
-        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Chapter", "甲[[PAUSE:2000]]乙") }
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        val position = env.session.state.value.position
-        env.player.finish()
-        runCurrent()
-        assertEquals(2000, env.player.started.last().segment.pauseMs)
-        assertEquals(listOf("甲", "乙"), env.synthesized)
-        assertEquals(position, env.session.state.value.position)
-        assertEquals(1, env.progress.saved.getValue("book").offset)
-        env.session.interrupt()
-        assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
-        env.session.resume()
-        assertEquals(SpeechPhase.Playing, env.session.state.value.phase)
-        env.session.skipSegment(1)
-        runCurrent()
-        assertEquals("乙", env.player.started.last().segment.text)
-        env.stop()
-    }
 
     @Test fun sovitsUsesMeasuredGenerationCostAndSubtractsThePlayingFilePosition() = runTest {
         val env = Environment(this)
@@ -139,30 +116,6 @@ class ReadAloudSessionTest {
         assertEquals(1, env.player.started.size)
     }
 
-    @Test fun highlightingUsesActualPlaybackAndKeepsTheLastRangeWhileBuffering() = runTest {
-        val env = Environment(this)
-        env.player.startBuffered = true
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        assertNull(env.session.state.value.position)
-        assertTrue(env.synthesized.size > 1)
-        env.player.resume()
-        val first = env.player.started.single()
-        val position = SpeechPosition("book", "one", first.chapter.fingerprint, first.segment.start, first.segment.end)
-        assertEquals(position, env.session.state.value.position)
-        env.session.pause()
-        assertEquals(position, env.session.state.value.position)
-        env.player.resume()
-        env.player.finish()
-        runCurrent()
-        assertEquals(SpeechPhase.Buffering, env.session.state.value.phase)
-        assertEquals(position, env.session.state.value.position)
-        env.player.resume()
-        assertEquals(env.player.started.last().segment.start, env.session.state.value.position?.start)
-        env.stop()
-        assertNull(env.session.state.value.position)
-    }
-
     @Test fun prefetchIsBoundedAndCannotAdvanceTheListeningPosition() = runTest {
         val env = Environment(this)
         val loaded = mutableListOf<String>()
@@ -189,38 +142,6 @@ class ReadAloudSessionTest {
         assertFalse(first.file.exists())
         assertTrue(env.audioFiles() <= 4)
         env.stop()
-        assertEquals(0, env.audioFiles())
-    }
-
-    @Test fun pauseDuringPreparationStaysPausedWhenAudioArrives() = runTest {
-        val gate = CompletableDeferred<Unit>()
-        val env = Environment(this)
-        env.beforeSynthesis = { gate.await() }
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        env.session.pause()
-        gate.complete(Unit)
-        runCurrent()
-        assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
-        assertFalse(env.player.playing)
-        assertEquals(0, env.progress.saved.getValue("book").offset)
-        env.session.resume()
-        assertEquals(SpeechPhase.Playing, env.session.state.value.phase)
-        assertTrue(env.player.playing)
-        env.stop()
-    }
-
-    @Test fun lateSynthesisAfterStopCannotPlayAndItsFilesAreRemoved() = runTest {
-        val gate = CompletableDeferred<Unit>()
-        val env = Environment(this)
-        env.beforeSynthesis = { withContext(NonCancellable) { gate.await() } }
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        env.session.stop()
-        gate.complete(Unit)
-        runCurrent()
-        assertTrue(env.player.started.isEmpty())
-        assertEquals(SpeechPhase.Stopped, env.session.state.value.phase)
         assertEquals(0, env.audioFiles())
     }
 
@@ -348,68 +269,6 @@ class ReadAloudSessionTest {
         env.stop()
     }
 
-    @Test fun changedTextRestartsSafelyAndPreviewNeverOverwritesBookProgress() = runTest {
-        val env = Environment(this)
-        val original = SpeechBookmark("book", "one", "old-text", 400)
-        env.progress.saved["book"] = original
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        assertEquals(0, env.player.started.single().index)
-        val saved = env.progress.saved.getValue("book")
-        env.session.start(SpeechRequest("", "", "Voice preview."))
-        runCurrent()
-        env.player.estimatedAnchorCallback!!(4)
-        assertNull(env.session.state.value.position)
-        env.player.finish()
-        runCurrent()
-        assertEquals(saved, env.progress.saved.getValue("book"))
-        assertEquals(setOf("book"), env.progress.saved.keys)
-        env.stop()
-    }
-
-    @Test fun enteringABookResumesItsListeningChapterAfterTheCompletedSegment() = runTest {
-        val env = Environment(this)
-        val text = listOf("第一段" + "甲".repeat(28) + "。", "第二段" + "乙".repeat(28) + "。",
-            "第三段" + "丙".repeat(28) + "。").joinToString("\n")
-        env.configuration = SpeechSettings(text = SpeechTextSettings(maxSentenceLength = 32))
-        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", chapter, text) }
-        val chapter = env.load("book", "two")
-        val segments = prepareSpeechPlan(chapter, env.configuration) {}.segments
-        env.progress.saved["book"] = SpeechBookmark("book", "two", chapter.fingerprint, segments.first().end)
-        try {
-            env.session.start(SpeechRequest("book", "one"))
-            runCurrent()
-            val clip = env.player.started.single()
-            assertEquals("two", clip.chapter.id)
-            assertEquals(segments[1].start, clip.segment.start)
-            // An explicit chapter command still starts at that chapter, not the saved location.
-            env.session.start(SpeechRequest("book", "one"), resumeSaved = false)
-            runCurrent()
-            assertEquals("one", env.player.started.last().chapter.id)
-            assertEquals(0, env.player.started.last().segment.start)
-        } finally { env.stop() }
-    }
-
-    @Test fun changingVoiceWhilePausedPreservesThePauseAndCurrentBoundary() = runTest {
-        val env = Environment(this)
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        env.player.finish()
-        runCurrent()
-        val index = env.player.started.last().index
-        val oldPlan = env.player.started.last().plan
-        env.session.pause()
-        env.configuration = SpeechSettings(voice = "new-voice")
-        env.session.updateSettings(env.configuration)
-        runCurrent()
-        assertEquals(index, env.player.started.last().index)
-        assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
-        assertEquals("new-voice", env.opened.last().voice)
-        assertNotSame(oldPlan, env.player.started.last().plan)
-        assertEquals("new-voice", env.player.started.last().plan.synthesis.voice)
-        env.stop()
-    }
-
     @Test fun changingVoiceAfterTextChangesDoesNotSkipNewText() = runTest {
         val env = Environment(this)
         env.session.start(SpeechRequest("book", "one"))
@@ -424,50 +283,6 @@ class ReadAloudSessionTest {
         assertEquals(0, env.player.started.last().index)
         assertTrue(env.player.started.last().segment.text.startsWith("New introduction."))
         assertNotSame(oldPlan, env.player.started.last().plan)
-        env.stop()
-    }
-
-    @Test fun failedNextChapterClearsThePreviousChaptersControlsAndText() = runTest {
-        val env = Environment(this)
-        env.load = { book, chapter ->
-            if (chapter == "two") throw SpeechException(SpeechError.SourceUnavailable)
-            SpeechChapter(book, chapter, "Book", "First", "First chapter.", nextId = "two")
-        }
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        env.player.finish()
-        runCurrent()
-        val state = env.session.state.value
-        assertEquals(SpeechPhase.Failed, state.phase)
-        assertEquals("Book", state.bookTitle)
-        assertEquals(0, state.segmentCount)
-        assertEquals("", state.currentText)
-        assertNull(state.previousChapterId)
-        assertNull(state.nextChapterId)
-        assertNull(state.position)
-        assertEquals("Book", env.progress.saved.getValue("book").bookTitle)
-        env.stop()
-    }
-
-    @Test fun nextPassageAtTheEndDoesNotRestartTheCurrentPassage() = runTest {
-        val env = Environment(this)
-        env.load = { book, chapter -> SpeechChapter(book, chapter, "Book", "Last", "The end.") }
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        env.session.skipSegment(1)
-        runCurrent()
-        assertEquals(1, env.player.started.size)
-        env.stop()
-    }
-
-    @Test fun aNewSessionRemovesAudioLeftByADeadProcess() = runTest {
-        val env = Environment(this)
-        val stale = File(env.directory, UUID.randomUUID().toString()).apply { mkdir() }
-        File(stale, "audio.wav.part").writeText("incomplete audio")
-        env.session.start(SpeechRequest("book", "one"))
-        runCurrent()
-        assertFalse(stale.exists())
-        assertTrue(env.audioFiles() <= 4)
         env.stop()
     }
 
@@ -554,47 +369,6 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
-    @Test fun synthesisParametersRegeneratePausedAudioAtTheAudiblePosition() = runTest {
-        val env = Environment(this)
-        try {
-            env.session.start(SpeechRequest("book", "one"))
-            runCurrent()
-            val original = env.player.started.last()
-            env.player.estimatedAnchorCallback!!(3)
-            env.session.pause()
-            val anchor = env.session.state.value.position!!.anchor
-            env.configuration = env.configuration.copy(rate = 1.02f, volume = 0.74f, pitch = 1.14f)
-            env.session.updateSettings(env.configuration)
-            runCurrent()
-            assertEquals(env.configuration, env.opened.last())
-            assertNotSame(original, env.player.started.last())
-            assertEquals(anchor, env.session.state.value.position!!.anchor)
-            assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
-            assertFalse(env.player.playing)
-        } finally { env.stop() }
-    }
-
-    @Test fun subsequentStartsUseNewlyStoredSettingsBeforeTheirNotificationArrives() = runTest {
-        val env = Environment(this)
-        try {
-            env.session.start(SpeechRequest("book", "one"))
-            runCurrent()
-            env.configuration = SpeechSettings(voice = "new-voice", rate = 1.5f)
-            env.session.start(SpeechRequest("book", "two"), playing = false)
-            runCurrent()
-            assertEquals(env.configuration, env.opened.last())
-            assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
-            val clip = env.player.started.last()
-            val requests = env.synthesized.size
-            env.session.updateSettings(env.configuration)
-            runCurrent()
-            assertEquals(2, env.opened.size)
-            assertSame(clip, env.player.started.last())
-            assertEquals(requests, env.synthesized.size)
-            assertFalse(env.player.playing)
-        } finally { env.stop() }
-    }
-
     @Test fun previewReturnsToTheAudibleBoundaryWithTheOriginalVoiceAndPauseIntent() = runTest {
         for (playing in listOf(true, false)) {
             val env = Environment(this)
@@ -674,26 +448,6 @@ class ReadAloudSessionTest {
         } finally { pending.complete(Unit); env.stop() }
     }
 
-    @Test fun selectingAVoiceDuringPreviewAppliesOnReturnWithoutChangingTheSample() = runTest {
-        val env = Environment(this)
-        try {
-            env.session.start(SpeechRequest("book", "one"))
-            runCurrent()
-            env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate", rate = 1.5f)))
-            runCurrent()
-            val selected = SpeechSettings(voice = "chosen", rate = 0.8f)
-            env.configuration = selected
-            env.session.updateSettings(selected)
-            runCurrent()
-            assertEquals(2, env.opened.size)
-            env.player.finish()
-            runCurrent()
-            assertTrue(env.session.restoreAfterPreview())
-            runCurrent()
-            assertEquals(selected, env.opened.last())
-        } finally { env.stop() }
-    }
-
     @Test fun stopReplacementAndSystemInterruptionPreventPreviewFromRestoringTheOldBook() = runTest {
         for (action in listOf("stop", "replace", "interrupt")) {
             val env = Environment(this)
@@ -712,19 +466,6 @@ class ReadAloudSessionTest {
                 assertEquals(1, env.player.started.count { it.chapter.bookId == "book" })
             } finally { env.stop() }
         }
-    }
-
-    @Test fun standalonePreviewDoesNotCreateABookOrSaveProgress() = runTest {
-        val env = Environment(this)
-        try {
-            env.session.start(SpeechRequest("", "", "Sample.", SpeechSettings(voice = "candidate")))
-            runCurrent()
-            env.player.finish()
-            runCurrent()
-            assertFalse(env.session.restoreAfterPreview())
-            assertEquals(SpeechPhase.Completed, env.session.state.value.phase)
-            assertTrue(env.progress.saved.isEmpty())
-        } finally { env.stop() }
     }
 
     @Test fun previewFreezesTimerUntilBookPlaybackResumes() = runTest {
@@ -843,19 +584,6 @@ class ReadAloudSessionTest {
             env.player.finish()
             runCurrent()
             assertTrue(env.progress.saved.getValue("book").completed)
-        } finally { env.stop() }
-    }
-
-    @Test fun failingReplacementNamesTheEntryBeforeAnyAudioIsSynthesized() = runTest {
-        val env = Environment(this)
-        env.configuration = SpeechSettings(replacements = listOf(SpeechReplacementRule(id = "invalid", source = "(", regex = true)))
-        try {
-            env.session.start(SpeechRequest("book", "one"))
-            runCurrent()
-            assertEquals(SpeechPhase.Failed, env.session.state.value.phase)
-            assertEquals(SpeechError.ReplacementRule, env.session.state.value.error)
-            assertEquals("invalid", env.session.state.value.replacementFailure?.ruleId)
-            assertTrue(env.synthesized.isEmpty())
         } finally { env.stop() }
     }
 

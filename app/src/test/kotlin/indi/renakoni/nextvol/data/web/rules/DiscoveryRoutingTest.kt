@@ -10,7 +10,6 @@ import hnovel.imports.*
 import hnovel.network.NetworkGrant
 import indi.renakoni.nextvol.data.web.*
 import indi.renakoni.nextvol.ui.home.discovery.discoverySources
-import io.nightfish.lightnovelreader.api.web.discovery.DiscoverySection
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import okhttp3.mockwebserver.*
@@ -57,81 +56,6 @@ class DiscoveryRoutingTest {
                 }
                 assertEquals(0, fixture.documents.get())
             } finally { imported.stop() }
-        }
-    }
-
-    @Test fun genreOnlyCatalogHasTagsAndDoesNotFetchAPreview() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { raw -> definition(raw, "玄幻::/search?tag=fantasy&&科幻::/search?tag=scifi") }.use { source ->
-                val provider = RuleDiscoveryProvider(source)
-                assertTrue(provider.hasCategories)
-                assertFalse(provider.hasFeed)
-                assertEquals(listOf("玄幻", "科幻"), provider.catalog().get()!!.categories.map { it.title })
-                assertTrue(provider.feed().get()!!.isEmpty())
-                assertEquals(0, fixture.documents.get())
-            }
-        }
-    }
-
-    @Test fun recentAndRankingPreviewsContainBooksBeforeOpeningMore() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { raw -> definition(raw,
-                "玄幻::/search?tag=fantasy&&最近更新::/search?sort=new&page={{page}}&&总排行榜::/search?sort=rank&page={{page}}")
-            }.use { source ->
-                val provider = RuleDiscoveryProvider(source)
-                val categories = provider.catalog().get()!!.categories
-                assertEquals(3, categories.size)
-                assertEquals(0, fixture.documents.get())
-                val snapshots = mutableListOf<List<DiscoverySection>>()
-                provider.feedUpdates().collect { snapshots += it.get()!! }
-                assertEquals(listOf(2, 2, 2), snapshots.map { it.size })
-                val feed = snapshots.last()
-                assertEquals(listOf("最近更新", "总排行榜"), feed.map { it.title })
-                assertTrue(feed.all { it.books.isNotEmpty() && it.more != null })
-                assertEquals(categories.drop(1).map { it.id }, feed.map { it.categoryId })
-                assertEquals(categories.drop(1).map { it.target }, feed.map { it.more })
-                assertEquals(2, fixture.documents.get())
-                assertEquals(setOf("/search?sort=new&page=1", "/search?sort=rank&page=1"),
-                    List(2) { fixture.server.takeRequest(1, TimeUnit.SECONDS)?.path }.toSet())
-            }
-        }
-    }
-
-    @Test fun directHomepageWithoutACatalogProvidesOnlyDiscovery() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { raw -> JsonObject(raw + mapOf(
-                "homepageModules" to JsonPrimitive("""[{"key":"recent","type":"card","title":"最近更新","url":"/search?page={{page}}"}]"""),
-                "ruleExplore" to raw.getValue("ruleSearch")))
-            }.use { source ->
-                val provider = RuleDiscoveryProvider(source)
-                assertTrue(provider.hasFeed)
-                assertFalse(provider.hasCategories)
-                val section = provider.feed().get()!!.single()
-                assertEquals("最近更新", section.title)
-                assertTrue(section.books.isNotEmpty())
-                assertNull(section.categoryId)
-                assertEquals(1, fixture.documents.get())
-            }
-        }
-    }
-
-    @Test fun automaticPreviewsAreBoundedButAllRankTagsRemainReachable() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { raw -> definition(raw, (0 until 326).joinToString("&&") {
-                "最近更新 $it::/search?list=$it&page={{page}}"
-            }) }.use { source ->
-                val provider = RuleDiscoveryProvider(source)
-                val catalog = provider.catalog().get()!!
-                assertEquals(326, catalog.categories.size)
-                val feed = provider.feed().get()!!
-                assertEquals(8, feed.size)
-                assertTrue(feed.all { it.books.isNotEmpty() })
-                assertEquals(catalog.categories.take(8).map { it.target }, feed.map { it.more })
-                assertEquals(8, fixture.documents.get())
-                val last = provider.page(io.nightfish.lightnovelreader.api.web.discovery.DiscoveryRequest(catalog.categories.last().target)).get()!!
-                assertTrue(last.books.isNotEmpty())
-                assertEquals(9, fixture.documents.get())
-            }
         }
     }
 

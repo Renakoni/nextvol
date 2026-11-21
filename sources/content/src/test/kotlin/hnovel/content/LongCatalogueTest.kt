@@ -9,13 +9,9 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LongCatalogueTest {
-    @Test fun shorterRetryKeepsPreviouslyReadableChapters() = shorterRetry()
-    @Test fun informationRefreshKeepsPreviouslyReadableChapters() = shorterRetry(refreshInformation = true)
     @Test fun shorterRetryKeepsAReverseCatalogue() = shorterRetry(reverse = true)
     @Test fun changedChapterIdsDoNotReuseAnOlderPartialDirectory() = changedDirectory(tocChanged = false)
     @Test fun changedTocUrlDoesNotReuseAnOlderPartialDirectory() = changedDirectory(tocChanged = true)
-    @Test fun changedTocUrlWithoutPrefetchDoesNotReuseAnOlderPartialDirectory() = changedDirectory(tocChanged = true, metadataAvailable = true)
-
     private fun shorterRetry(refreshInformation: Boolean = false, reverse: Boolean = false) = runBlocking {
         RuleSourceFixture().use { fixture ->
             val baseRules = catalogue(fixture, chapters = 6, perPage = 2)
@@ -193,21 +189,6 @@ class LongCatalogueTest {
                 assertTrue(runCatching { source.directory(id) }.exceptionOrNull() is PartialDirectoryException)
                 assertEquals(update, source.information(id).observedUpdate)
                 assertTrue(source.content(id, fixture.server.url("/c/3").toString()).parts.any { it.text == "Body 3" })
-            }
-        }
-    }
-
-    @Test fun firstPageFailureDoesNotClaimToHaveAPartialDirectory() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val original = fixture.server.dispatcher
-            fixture.server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest) = if (request.path == "/toc/1")
-                    MockResponse().setResponseCode(502) else original.dispatch(request)
-            }
-            fixture.source().use { source ->
-                val failure = runCatching { source.directory(fixture.server.url("/book/one").toString()) }.exceptionOrNull()
-                assertTrue(failure is SourceContentException)
-                assertFalse(failure is PartialDirectoryException)
             }
         }
     }

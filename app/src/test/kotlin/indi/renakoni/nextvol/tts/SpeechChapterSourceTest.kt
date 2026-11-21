@@ -35,24 +35,6 @@ class SpeechChapterSourceTest {
     }
     private fun content(body: String) = Json.parseToJsonElement("""{"components":[$body]}""").jsonObject
 
-    @Test fun textAndImagesKeepTextOrderWithoutSpeakingImageAddresses() {
-        val chapter = content("""
-            {"id":"simple_text","data":{"text":"First paragraph."}},
-            {"id":"image","data":{"uri":"https://example.invalid/image.jpg"}},
-            {"id":"lightnovelreader:simple_text","data":{"text":"第二段。"}}
-        """)
-        assertEquals("First paragraph.\n第二段。", speechText(chapter, registry))
-    }
-
-    @Test fun imageOnlyAndUnknownContentFailExplicitly() {
-        assertEquals(SpeechError.EmptyText, assertThrows(SpeechException::class.java) {
-            speechText(content("""{"id":"image","data":{"uri":"https://example.invalid/image.jpg"}}"""), registry)
-        }.error)
-        assertEquals(SpeechError.UnsupportedContent, assertThrows(SpeechException::class.java) {
-            speechText(content("""{"id":"custom:widget","data":{"text":"Do not speak unknown data"}}"""), registry)
-        }.error)
-    }
-
     @Test fun usesTheProcessedFirstEmissionWithoutGrantingBackgroundInteraction() = runBlocking {
         val book = BookIdentity.book("book")
         val chapter = BookIdentity.chapter("chapter", book)

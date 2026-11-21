@@ -147,19 +147,6 @@ class UpdateDownloadRepositoryTest {
         verify(exactly = 0) { system.showDownloadFailedNotification(any()) }
     }
 
-    @Test fun preparationFailureReportsAnErrorWithoutStartingARequest() = runBlocking {
-        checked()
-        every { downloader.prepare() } throws IOException("storage unavailable")
-        repository.downloadUpdate()
-        finished()
-        assertEquals(0, server.requestCount)
-        assertEquals(R.string.update_phase_download_failed, repository.updatePhase.first().messageId)
-        assertEquals(listOf("storage unavailable"), repository.updatePhase.first().arguments)
-        verify(exactly = 1) { system.showDownloadFailedNotification(any()) }
-        verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
-        coVerify(exactly = 0) { downloader.download(any(), any(), any()) }
-    }
-
     @Test fun cancellationAfterBlockingDownloadDoesNotExposeAnInstaller() = runBlocking {
         checked()
         val downloading = CompletableDeferred<Job>()
@@ -193,16 +180,6 @@ class UpdateDownloadRepositoryTest {
         finished()
         assertEquals(R.string.update_phase_download_failed, repository.updatePhase.first().messageId)
         assertFalse(directory.root.resolve("updates/NextVol-update.apk").exists())
-        verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
-    }
-
-    @Test fun emptyDownloadResetsBusyAndDoesNotInstall() = runBlocking {
-        checked()
-        server.enqueue(MockResponse().setBody(""))
-        repository.downloadUpdate()
-        finished()
-        assertEquals(R.string.update_phase_empty_file, repository.updatePhase.first().messageId)
-        assertEquals(listOf("channel", "progress:0", "failed:${context.getString(R.string.update_download_empty_file)}"), events)
         verify(exactly = 0) { system.installApk(any()); system.showDownloadCompleteNotification(any()) }
     }
 

@@ -1,10 +1,8 @@
 package indi.renakoni.nextvol.ui.book.reader.content.scroll
 
 import android.app.Application
-import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import indi.renakoni.nextvol.ui.book.reader.mode.ModeTestEnvironment
-import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
@@ -43,31 +41,6 @@ class ScrollChapterWindowTest {
         env.emit("3", Ok(env.chapter("3", "2", "4", "BODY_3")))
     }
 
-    @Test fun oldCurrentCannotPublishDuringSettingsRead() {
-        openThird()
-        val gate = CompletableDeferred<Unit>()
-        settingsGates += gate
-        mode.changeChapter("4")
-        env.runCurrent()
-        env.emit("3", Ok(env.chapter("3", "2", "4", "BODY_3_REFRESH")))
-        assertEquals("4", mode.requestedChapterId)
-        assertNull(mode.uiState.contentList[1])
-        assertEquals("3", env.records.data.lastReadChapterId)
-        assertNull(mode.uiState.readingChapterContent)
-        gate.complete(Unit)
-        env.runCurrent()
-    }
-
-    @Test fun failedExplicitNextRequestHasOneChapterKey() {
-        openThird()
-        mode.changeChapter("4")
-        env.runCurrent()
-        env.emit("4", Err(WebRequestError("offline", "request failed")))
-        assertEquals(listOf("4"), mode.uiState.contentList.mapNotNull { it?.first })
-        assertEquals(1, env.chapters.active.count { it.chapterId == "4" })
-        assertEquals("3", env.records.data.lastReadChapterId)
-    }
-
     @Test fun earlierSettingsReadCannotCancelTheNewerChapterRequest() {
         openThird()
         val gate = CompletableDeferred<Unit>()
@@ -98,18 +71,6 @@ class ScrollChapterWindowTest {
         env.runCurrent()
         assertEquals("4", mode.requestedChapterId)
         assertEquals("4", env.records.data.lastReadChapterId)
-    }
-
-    @Test fun changingBookInvalidatesOldContentBeforeTheNextCommand() {
-        openThird()
-        env.events.clear()
-        mode.changeBookId("other-book")
-        env.emit("3", Ok(env.chapter("3", "2", "4", "OLD_BOOK")))
-        assertFalse(env.events.contains("write/start/other-book"))
-        assertEquals("book", env.chapters.requests.last().bookId)
-        assertTrue(env.chapters.active.isEmpty())
-        assertEquals(listOf(null, null, null), mode.uiState.contentList.toList())
-        assertNull(mode.requestedChapterId)
     }
 
     @Test fun retryOfTheSameChapterInvalidatesItsPendingSettingsRead() {

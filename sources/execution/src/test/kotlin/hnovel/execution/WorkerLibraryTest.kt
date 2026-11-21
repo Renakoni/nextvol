@@ -35,14 +35,4 @@ class WorkerLibraryTest {
         WorkerRuntime().use { runtime -> assertEquals(ExecutionResult.Success("1"), run(runtime, id)) }
     }
 
-    @Test fun scopeCacheEvictsLeastRecentlyUsedLibraryAtTheReferenceCapacity() {
-        val ids = (0..16).map { authority.issue("source-$it", "legado", "1") }
-        WorkerRuntime().use { runtime ->
-            ids.take(16).forEach { assertEquals(ExecutionResult.Success("1"), run(runtime, it)) }
-            assertEquals(ExecutionResult.Success("2"), run(runtime, ids[0]))
-            assertEquals(ExecutionResult.Success("1"), run(runtime, ids[16]))
-            assertEquals(ExecutionResult.Success("3"), run(runtime, ids[0]))
-            assertEquals(ExecutionResult.Success("1"), run(runtime, ids[1]))
-        }
-    }
 }

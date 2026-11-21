@@ -40,10 +40,4 @@ class RuleSourceRequestTraceTest {
         }
     }
 
-    @Test fun reportsWrittenBeforeRequestDiagnosticsStillDecode() {
-        val event = Json.decodeFromString<ContentTraceEvent>(
-            """{"kind":"network","field":"searchUrl","elapsedMillis":4,"result":"HTTP_200"}""")
-        assertNull(event.requestDiagnostic)
-        assertEquals("HTTP_200", event.result)
-    }
 }

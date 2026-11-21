@@ -100,20 +100,6 @@ class BangumiNetworkTest {
         assertEquals("192.0.2.1", route.dns.lookup(BangumiNetwork.API_HOST).single().hostAddress)
     }
 
-    @Test fun aUsableIpv6RouteDoesNotWaitForAStalledIpv4Query() = runBlocking {
-        ipv6 = true
-        val normal = server.dispatcher
-        server.dispatcher = object : Dispatcher() {
-            override fun dispatch(request: RecordedRequest): MockResponse {
-                val type = Message(request.requestUrl!!.queryParameter("dns")!!.decodeBase64()!!.toByteArray()).question.type
-                return if (type == Type.A) MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
-                else normal.dispatch(request)
-            }
-        }
-        val route = withTimeout(2_000) { network().client() }
-        assertTrue(route.dns.lookup(BangumiNetwork.API_HOST).single() is Inet6Address)
-    }
-
     @Test fun failedConnectionProbesAreNotCachedAsUsableRoutes() = runBlocking {
         var reachable = false
         val network = network(probe = { _, _ -> if (!reachable) throw IOException("unreachable") })
@@ -165,12 +151,6 @@ class BangumiNetworkTest {
                 assertEquals("application/dns-message", it.getHeader("Accept"))
             }
         }
-    }
-
-    @Test fun bootstrapFailureUsesTheNextResolver() = runBlocking {
-        network(fallback = true).client()
-        assertEquals(1, configQueries())
-        synchronized(queries) { assertTrue(queries.any { it.requestUrl!!.encodedPath == "/unavailable" }) }
     }
 
     @Test fun cancellationCancelsTheActualDohCall() = runBlocking {

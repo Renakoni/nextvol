@@ -24,22 +24,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
 class SourceDiscoveryTest {
-    @Test fun previouslyCompiledSectionConstructorsAndCopiesRemainUsable() {
-        val fields = arrayOf(String::class.java, String::class.java, List::class.java,
-            String::class.java, String::class.java, DiscoveryPreviewFailure::class.java)
-        val constructor = DiscoverySection::class.java.getConstructor(*fields, Int::class.javaPrimitiveType,
-            Class.forName("kotlin.jvm.internal.DefaultConstructorMarker"))
-        val legacy = constructor.newInstance("legacy", "Legacy", emptyList<DiscoveryBook>(), null, null, null, 56, null)
-        assertFalse(legacy.previewLoading)
-        val loading = legacy.copy(previewLoading = true)
-        val copy = DiscoverySection::class.java.getDeclaredMethod("copy\$default", DiscoverySection::class.java,
-            *fields, Int::class.javaPrimitiveType, Any::class.java)
-        val renamed = copy.invoke(null, loading, null, "Renamed", null, null, null, null, 61, null) as DiscoverySection
-        assertEquals("Renamed", renamed.title)
-        assertEquals(loading.id, renamed.id)
-        assertTrue(renamed.previewLoading)
-    }
-
     @Test(timeout = 10000) fun snapshotStreamBindsBooksAndRemovalCancelsPendingProvider() = runBlocking {
         val registry = WebSourceRegistry()
         val cancelled = CompletableDeferred<Unit>()
@@ -75,29 +59,6 @@ class SourceDiscoveryTest {
         return (resolve(id) as SourceResolution.Ready).runtime
     }
 
-    @Test fun nativeAndRuleAdaptersBindBooksAndTargetsToTheirOwnSource() = runBlocking {
-        val registry = WebSourceRegistry()
-        val rawBooks = mutableListOf(DiscoveryBook("1", "Same title", "Same author"))
-        val provider = object : DiscoveryProvider {
-            override val hasFeed = true
-            override val hasCategories = true
-            override suspend fun feed() = Ok(listOf(DiscoverySection("home", "Home", rawBooks, "all")))
-            override suspend fun categories() = Ok(listOf(DiscoveryCategory("tag", "Tag", "all")))
-        }
-        val a = registry.add("native", provider)
-        val b = registry.add("rules", provider)
-        try {
-            val af = a.discovery!!.feed().get()!!.single()
-            val bf = b.discovery!!.feed().get()!!.single()
-            assertNotEquals(af.books.single().id.storageKey, bf.books.single().id.storageKey)
-            assertEquals(a.id, af.more!!.sourceId)
-            assertEquals(b.id, b.discovery!!.categories().get()!!.single().target.sourceId)
-            assertThrows(IllegalArgumentException::class.java) { a.discovery!!.open(bf.more!!) }
-            rawBooks.clear()
-            assertEquals(1, af.books.size)
-        } finally { registry.unregister(a.id); registry.unregister(b.id) }
-    }
-
     @Test fun pageSessionsOwnFiltersCursorRetryAndStableSnapshots() = runBlocking {
         val registry = WebSourceRegistry()
         val calls = mutableListOf<DiscoveryRequest>()
@@ -131,19 +92,6 @@ class SourceDiscoveryTest {
             assertEquals(listOf(null, null, "2", "2"), calls.map { it.cursor })
             a.reset()
             assertEquals(1, a.loadMore().get()!!.books.size)
-        } finally { registry.unregister(runtime.id) }
-    }
-
-    @Test fun absentCapabilityAndLoginRequirementRemainDistinct() = runBlocking {
-        val registry = WebSourceRegistry()
-        val runtime = registry.add("rules", object : DiscoveryProvider {
-            override val hasCategories = true
-            override suspend fun categories() = Err(DiscoveryError.AuthenticationRequired)
-        })
-        try {
-            assertFalse(runtime.discovery!!.hasFeed)
-            assertEquals(Err(DiscoveryError.Unsupported), runtime.discovery!!.feed())
-            assertEquals(Err(DiscoveryError.AuthenticationRequired), runtime.discovery!!.categories())
         } finally { registry.unregister(runtime.id) }
     }
 

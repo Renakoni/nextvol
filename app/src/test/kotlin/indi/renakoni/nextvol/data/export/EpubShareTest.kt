@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.data.export
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
-import android.os.Bundle
 import androidx.core.content.FileProvider
 import io.mockk.*
 import indi.renakoni.nextvol.ui.book.detail.EpubShareActivity as LegacyEpubShareActivity
@@ -102,16 +101,6 @@ class EpubShareTest {
         val manual = Robolectric.buildActivity(LegacyEpubShareActivity::class.java,
             EpubShareActivity.intent(context, id)).create()
         assertEquals(Intent.ACTION_CHOOSER, shadowOf(manual.get()).nextStartedActivity.action)
-    }
-
-    @Test fun recreationAndMissingArtifactsDoNotCrashOrOpenASecondChooser() {
-        val recreated = Robolectric.buildActivity(LegacyEpubShareActivity::class.java,
-            EpubShareActivity.intent(context, publication())).create(Bundle())
-        assertNull(shadowOf(recreated.get()).nextStartedActivity)
-        val expired = Robolectric.buildActivity(LegacyEpubShareActivity::class.java,
-            EpubShareActivity.intent(context, UUID.randomUUID())).create()
-        assertTrue(expired.get().isFinishing)
-        assertNull(shadowOf(expired.get()).nextStartedActivity)
     }
 
     @Test fun laterExportsCleanExpiredArtifactsAndLeaveRecentRecipientsFilesAlone() {

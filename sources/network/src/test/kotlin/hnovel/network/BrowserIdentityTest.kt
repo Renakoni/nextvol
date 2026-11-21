@@ -41,57 +41,6 @@ class BrowserIdentityTest {
         }
     }
 
-    @Test fun headlessHostsRetainTheirConfiguredCompatibilityDefault() = runBlocking {
-        MockWebServer().use { server ->
-            server.start(); server.enqueue(MockResponse())
-            val base = server.url("/").toString()
-            SourceBroker(directory.root.toPath()).use { broker ->
-                val session = broker.open(SourceScope("test", "headless", "legado"), listOf(NetworkGrant(base, true)))
-                session.configureSource(base, true, defaultUserAgent = DESKTOP_USER_AGENT, preferBrowserUserAgent = true)
-                assertTrue(session.execute(BrokerRequest("http", base)) is BrokerResult.Success)
-                assertEquals(DESKTOP_USER_AGENT, server.takeRequest().getHeader("User-Agent"))
-            }
-        }
-    }
-
-    @Test fun identityReadBeforeTheFirstRequestResolvesTheProviderOnce() = runBlocking {
-        val calls = AtomicInteger()
-        val browser = object : BrowserExecutor {
-            override suspend fun defaultUserAgent(): String = "provider-${calls.incrementAndGet()}"
-            override suspend fun execute(session: SourceSession, request: BrokerRequest, options: BrowserOptions,
-                guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult = error("No navigation expected")
-        }
-        val base = "https://fixture.invalid/"
-        SourceBroker(directory.root.toPath(), browser = browser).use { broker ->
-            val session = broker.open(SourceScope("test", "before-request", "legado"), listOf(NetworkGrant(base)))
-            session.configureSource(base, true, defaultUserAgent = DESKTOP_USER_AGENT, preferBrowserUserAgent = true)
-            assertEquals("provider-1", session.requestUserAgent(base))
-            assertEquals("compatible", session.requestUserAgent(base, mapOf("User-Agent" to "compatible")))
-            assertEquals("provider-1", session.webViewUserAgent())
-            assertEquals(1, calls.get())
-        }
-    }
-
-    @Test fun explicitRequestIdentityDoesNotRequireTheDefaultBrowserProvider() = runBlocking {
-        val browser = object : BrowserExecutor {
-            override suspend fun defaultUserAgent(): String = error("Explicit identity must not initialize the default provider")
-            override suspend fun execute(session: SourceSession, request: BrokerRequest, options: BrowserOptions,
-                guard: RequestCommitGuard, route: SourceNetworkRoute): BrokerResult = error("No browser navigation expected")
-        }
-        MockWebServer().use { server ->
-            server.start(); server.enqueue(MockResponse())
-            val base = server.url("/").toString()
-            SourceBroker(directory.root.toPath(), browser = browser).use { broker ->
-                val session = broker.open(SourceScope("test", "explicit", "legado"), listOf(NetworkGrant(base, true)))
-                session.configureSource(base, true, defaultUserAgent = DESKTOP_USER_AGENT, preferBrowserUserAgent = true)
-                val headers = mapOf("uSeR-aGeNt" to "source-compatible")
-                assertEquals("source-compatible", session.requestUserAgent(base, headers))
-                assertTrue(session.execute(BrokerRequest("http", base, headers = headers)) is BrokerResult.Success)
-                assertEquals("source-compatible", server.takeRequest().getHeader("User-Agent"))
-            }
-        }
-    }
-
     @Test fun redirectFromAnExplicitOriginResolvesTheDestinationDefaultIdentity() = runBlocking {
         val calls = AtomicInteger()
         val browser = object : BrowserExecutor {

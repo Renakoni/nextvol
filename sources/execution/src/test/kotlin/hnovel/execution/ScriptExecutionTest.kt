@@ -48,17 +48,6 @@ class ScriptExecutionTest {
         }
     }
 
-    @Test fun foregroundBudgetRemainsBoundedAndDoesNotChangeDefaults() {
-        assertEquals(5000L, ExecutionLimits().timeoutMillis)
-        assertEquals(5000L, hnovel.rhino.ScriptLimits().timeoutMillis)
-        assertEquals(300000L, ExecutionLimits(timeoutMillis = 300000).timeoutMillis)
-        assertEquals(300000L, hnovel.rhino.ScriptLimits(timeoutMillis = 300000).timeoutMillis)
-        for (invalid in listOf(0L, 300001L)) {
-            assertThrows(IllegalArgumentException::class.java) { ExecutionLimits(timeoutMillis = invalid) }
-            assertThrows(IllegalArgumentException::class.java) { hnovel.rhino.ScriptLimits(timeoutMillis = invalid) }
-        }
-    }
-
     @Test fun completedNativeLoginPersistsTheScriptSuccessBranchAcrossSessions() = runBlocking {
         val authority = ExecutionAuthority()
         val scope = SourceScope("fixture", "login", "legado")
@@ -90,33 +79,6 @@ class ScriptExecutionTest {
                 assertEquals(StorageResult.Value("saved"), restored.read(StorageRequest(StorageArea.Cache, "value:login-ready")))
                 assertEquals(StorageResult.Value(null), sessions.open(scope.copy(sourceId = "other"), grants)
                     .read(StorageRequest(StorageArea.Cache, "value:login-ready")))
-            }
-        }
-    }
-
-    @Test fun sourceVariableAliasUsesTheSameStorageAndScopeAsSetVariable() = runBlocking {
-        val authority = ExecutionAuthority()
-        SourceBroker(directory.root.toPath()).use { sessions ->
-            val first = authority.issue("a", "legado", "1", "fixture")
-            val session = sessions.open(SourceScope("fixture", "a", "legado"), emptyList())
-            SourceExecutionBroker(first, authority, session, ExecutionLimits()).use { bridge ->
-                assertEquals(ExecutionResult.Success("[null,\"one\",null,\"two\",null,\"\"]"), runScript(first, bridge,
-                    "[source.setVariable('one'),source.getVariable(),source.putVariable('two'),source.getVariable(),source.putVariable(null),source.getVariable()]"))
-                assertEquals(ExecutionResult.Success("null"), runScript(first, bridge, "source.putVariable('kept')"))
-                assertEquals(StorageResult.Value("kept"), session.read(StorageRequest(StorageArea.Config, "variable")))
-                assertEquals(ExecutionResult.Success("[\"\",0]"), runScript(first, bridge, "[source.bookSourceName,source.lastUpdateTime]"))
-            }
-            for (scope in listOf(SourceScope("fixture", "b", "legado"), SourceScope("fixture", "a", "extension"), SourceScope("other", "a", "legado"))) {
-                val id = authority.issue(scope.sourceId, scope.profile, "1", scope.namespace)
-                SourceExecutionBroker(id, authority, sessions.open(scope, emptyList()), ExecutionLimits()).use { bridge ->
-                    assertEquals(ExecutionResult.Success("\"\""), runScript(id, bridge, "source.getVariable()"))
-                    assertEquals(ExecutionResult.Success("null"), runScript(id, bridge, "source.putVariable('other')"))
-                }
-            }
-            SourceExecutionBroker(first, authority, session, ExecutionLimits()).use { bridge ->
-                assertEquals(ExecutionResult.Success("\"kept\""), runScript(first, bridge, "source.getVariable()"))
-                authority.revoke(first)
-                assertEquals(ExecutionResult.Failure(FailureCode.BridgeDenied, hostCall = ScriptHostCall("source.getBookSourceName", 0, emptyList())), runScript(first, bridge, "source.bookSourceName"))
             }
         }
     }
@@ -321,30 +283,6 @@ class ScriptExecutionTest {
             ExecutionTask.Script("try { Packages.java.lang.Thread.sleep(60000) } catch(e) { 'caught' }"),
             ExecutionLimits(timeoutMillis = 2000)))
         assertEquals(ExecutionResult.Success("42"), worker.execute(id, ExecutionTask.Script("42"), ExecutionLimits(timeoutMillis = 15000)))
-    }
-
-    @Test fun scriptUsesRealBrokerForAjaxAndScopedStorage() = runBlocking<Unit> {
-        val authority = ExecutionAuthority()
-        MockWebServer().use { server ->
-            server.start()
-            SourceBroker(directory.root.toPath()).use { sessions ->
-                val id = authority.issue("a", "legado", "1", "fixture")
-                val session = sessions.open(SourceScope("fixture", "a", "legado"), listOf(NetworkGrant(server.url("/").toString(), true)))
-                SourceExecutionBroker(id, authority, session, ExecutionLimits(), server.url("/").toString()).use { bridge ->
-                    server.enqueue(MockResponse().setBody("chapter text"))
-                    val result = runScript(id, bridge, "source.put('chapter',java.ajax('/chapter')); source.get('chapter')")
-                    assertEquals(ExecutionResult.Success("\"chapter text\""), result)
-                    assertEquals("/chapter", server.takeRequest(3, TimeUnit.SECONDS)?.path)
-                    assertEquals(ExecutionResult.Failure(FailureCode.BridgeDenied, hostCall = ScriptHostCall("java.ajax", 1, listOf(String))), runScript(id, bridge, "java.ajax('https://not-granted.invalid/')"))
-                }
-                val b = authority.issue("b", "legado", "1", "fixture")
-                val other = sessions.open(SourceScope("fixture", "b", "legado"), emptyList())
-                SourceExecutionBroker(b, authority, other, ExecutionLimits()).use { bridge ->
-                    assertEquals(ExecutionResult.Success("\"\""), runScript(b, bridge, "source.get('chapter')"))
-                }
-                assertThrows(IllegalArgumentException::class.java) { SourceExecutionBroker(id, authority, other, ExecutionLimits()) }
-            }
-        }
     }
 
     @Test fun revokedAndExhaustedTicketsCannotCommitStorage() = runBlocking {

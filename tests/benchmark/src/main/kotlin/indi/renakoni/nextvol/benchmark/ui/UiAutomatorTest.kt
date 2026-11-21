@@ -117,11 +117,6 @@ abstract class UiAutomatorTest {
         device.waitForIdle()
     }
 
-    protected fun longClickText(text: String) {
-        assertText(text).longClick()
-        device.waitForIdle()
-    }
-
     protected fun clickMenuItemAfter(text: String) {
         var item = assertText(text)
         while (!item.isClickable && item.parent != null) {
@@ -135,15 +130,6 @@ abstract class UiAutomatorTest {
     protected fun clickCenter(object2: UiObject2) {
         val bounds: Rect = object2.visibleBounds
         device.click(bounds.centerX(), bounds.centerY())
-    }
-
-    protected fun clickClickableText(text: String) {
-        var target = assertText(text)
-        while (!target.isClickable && target.parent != null) {
-            target = target.parent
-        }
-        if (target.isClickable) target.click() else clickCenter(target)
-        device.waitForIdle()
     }
 
     protected fun scrollToText(
@@ -212,33 +198,6 @@ abstract class UiAutomatorTest {
 
     protected fun assertForegroundPackage(packageName: String) {
         assertEquals(packageName, device.currentPackageName)
-    }
-
-    protected fun setFirstTextField(value: String) {
-        setTextField(0, value)
-    }
-
-    protected fun setTextField(index: Int, value: String) {
-        val fields = device.wait(
-            Until.findObjects(By.clazz("android.widget.EditText")),
-            TIMEOUT,
-        )
-        assertTrue("Editable text field $index was not visible", fields.size > index)
-        fields[index].text = value
-        device.waitForIdle()
-    }
-
-    protected fun assertFirstSwitchChecked(expected: Boolean) {
-        assertCheckableChecked(0, expected)
-    }
-
-    protected fun assertCheckableChecked(index: Int, expected: Boolean) {
-        val checkables = device.wait(
-            Until.findObjects(By.checkable(true)),
-            TIMEOUT,
-        )
-        assertTrue("Checkable control $index was not visible", checkables.size > index)
-        assertEquals("Unexpected checkable state at index $index", expected, checkables[index].isChecked)
     }
 
     protected fun clickFirstCheckable() {

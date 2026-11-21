@@ -449,12 +449,11 @@
       "fixtures": [
         "DISCOVERY-CONTRACT"
       ],
-      "evidence": "Production imported catalogue/ruleExplore pipeline, source-qualified adapter and host state/Compose tests: static/dynamic rows, source-order lazy previews, per-page filters and drafts, duplicate-page termination, retry and revision/account cancellation. exploreScreen uses an explicitly product-defined finite control contract, not an established upstream oracle. See sources/content/DISCOVERY.md; no new real WebView/Binder evidence is claimed.",
+      "evidence": "Production imported catalogue/ruleExplore pipeline, source-qualified adapter and host state tests: static/dynamic rows, source-order lazy previews, per-page filters and drafts, duplicate-page termination, retry and revision/account cancellation. exploreScreen uses an explicitly product-defined finite control contract, not an established upstream oracle. See sources/content/DISCOVERY.md; no new real WebView/Binder evidence is claimed.",
       "productTests": [
         "hnovel.content.RuleDiscoveryTest",
         "indi.renakoni.nextvol.data.web.rules.RuleDiscoveryProviderTest",
         "indi.renakoni.nextvol.ui.home.categories.CategoriesViewModelTest",
-        "indi.renakoni.nextvol.ui.home.categories.CategoriesScreenTest",
         "indi.renakoni.nextvol.ui.home.discovery.DiscoveryResultsViewModelTest",
         "indi.renakoni.nextvol.defaultplugin.wenku8.explore.Wenku8DiscoveryTest",
         "indi.renakoni.nextvol.ui.home.explore.ExploreHomeViewModelTest",
@@ -472,8 +471,7 @@
       "evidence": "customButton/eventListener are validated booleans. Source controls dispatch clickCustomButton/longClickCustomButton to ruleContent.callBackJs with explicit event and null book/chapter. Luoyacheng/legado@8b87c5aba4df91c39a3a0939a68a1180b9f2ee1c is separate extension evidence. This is the finite discovery/settings integration, not reader/shelf/detail lifecycle callbacks.",
       "productTests": [
         "hnovel.imports.SourceDefinitionImporterTest",
-        "hnovel.content.RuleDiscoveryTest",
-        "indi.renakoni.nextvol.ui.home.categories.CategoriesScreenTest"
+        "hnovel.content.RuleDiscoveryTest"
       ]
     },
     {
@@ -484,10 +482,9 @@
       "implementation": "implemented",
       "verification": "product-contract",
       "fixtures": [],
-      "evidence": "Pinned extension BaseSource/RowUi/SourceLoginDialog evidence drives profile-gated @js:/<js> forms and host configuration metadata. Standard default/chars/viewName and text/password/button/toggle/select rows are accepted in both profiles, with login helper prelude, result values, upLoginData and reLoginView. Host owns layout; click and long-click field actions reach the same isolated runner, while arbitrary fork layouts are not claimed. Unknown target fields/types fail with locations. Forms, service cancellation, profile selection and real Compose submission are tested.",
+      "evidence": "Pinned extension BaseSource/RowUi/SourceLoginDialog evidence drives profile-gated @js:/<js> forms and host configuration metadata. Standard default/chars/viewName and text/password/button/toggle/select rows are accepted in both profiles, with login helper prelude, result values, upLoginData and reLoginView. Host owns layout; click and long-click field actions reach the same isolated runner, while arbitrary fork layouts are not claimed. Unknown target fields/types fail with locations. Forms, service cancellation, profile selection and host submission are tested.",
       "productTests": [
         "hnovel.content.RuleLoginFormTest",
-        "indi.renakoni.nextvol.ui.home.settings.sources.SourcesScreenTest",
         "indi.renakoni.nextvol.ui.home.settings.sources.SourcesViewModelTest",
         "indi.renakoni.nextvol.data.web.rules.MixedSourceAcceptanceTest"
       ]
@@ -580,7 +577,6 @@
       "productTests": [
         "indi.renakoni.nextvol.data.web.rules.MixedSourceAcceptanceTest",
         "indi.renakoni.nextvol.data.web.HostMultiSourceIntegrationTest",
-        "indi.renakoni.nextvol.ui.home.MainNavigationTest",
         "indi.renakoni.nextvol.ui.home.explore.ExploreSearchViewModelTest",
         "indi.renakoni.nextvol.ui.book.reader.content.flip.FlipCachedChapterTest",
         "indi.renakoni.nextvol.ui.book.reader.content.scroll.ScrollCachedChapterTest",

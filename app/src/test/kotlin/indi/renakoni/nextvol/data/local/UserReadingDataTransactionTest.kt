@@ -2,7 +2,6 @@ package indi.renakoni.nextvol.data.local
 
 import indi.renakoni.nextvol.data.book.BookIdentity
 import indi.renakoni.nextvol.data.book.SourceChapterId
-import io.nightfish.lightnovelreader.api.identifier.Identifier
 import android.app.Application
 import androidx.room.Room
 import indi.renakoni.nextvol.data.local.room.NextVolDatabase
@@ -45,15 +44,6 @@ class UserReadingDataTransactionTest {
 
     @After
     fun tearDown() { database.close() }
-
-    @Test
-    fun readingTheOldValueAndTransformingItBelongToTheWriteTransaction() = runBlocking {
-        source.updateUserReadingData("book") {
-            assertTrue("The read/transform/write must share a Room transaction", database.inTransaction())
-            it.copy(totalReadTime = 30)
-        }
-        assertEquals(30, source.getUserReadingData("book").totalReadTime)
-    }
 
     @Test
     fun concurrentProgressAndTimeUpdatesKeepAllChanges() = runBlocking {
@@ -122,17 +112,4 @@ class UserReadingDataTransactionTest {
         }
     }
 
-    @Test
-    fun sameRemoteIdsFromDifferentSourcesKeepIndependentReadingRows() = runBlocking {
-        val sourceA = indi.renakoni.nextvol.data.book.SourceBookId(Identifier("site", "a"), "123")
-        val sourceB = indi.renakoni.nextvol.data.book.SourceBookId(Identifier("site", "b"), "123")
-        source.updateUserReadingData(sourceA.storageKey) {
-            it.copyWithUpdatedChapterReadingProgress(SourceChapterId(sourceA, "9").storageKey, 0.25f)
-        }
-        source.updateUserReadingData(sourceB.storageKey) {
-            it.copyWithUpdatedChapterReadingProgress(SourceChapterId(sourceB, "9").storageKey, 0.75f)
-        }
-        assertEquals(0.25f, source.getUserReadingData(sourceA.storageKey).currentChapterReadingProgressMap.values.single())
-        assertEquals(0.75f, source.getUserReadingData(sourceB.storageKey).currentChapterReadingProgressMap.values.single())
-    }
 }

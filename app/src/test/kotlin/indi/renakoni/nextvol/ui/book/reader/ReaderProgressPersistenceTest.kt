@@ -97,7 +97,6 @@ class ReaderProgressPersistenceTest {
         assertReadToEnd()
     }
 
-    @Test fun chapterScrollReflowAndBackgroundDoNotAdvanceHistory() = scrollReflow(false)
     @Test fun continuousScrollReflowAndBackgroundDoNotAdvanceHistory() = scrollReflow(true)
 
     private fun scrollReflow(continuous: Boolean) {

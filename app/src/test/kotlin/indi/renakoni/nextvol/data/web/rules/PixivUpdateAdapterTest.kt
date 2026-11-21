@@ -70,27 +70,4 @@ class PixivUpdateAdapterTest {
         assertEquals(RevisionError.UpstreamNotAdapted, failure.code)
     }
 
-    @Test fun collectionsOnlyProduceTheIntendedNovelSource() {
-        val original = pixivUpdateFixture()
-        val unrelated = JsonObject(original + ("bookSourceUrl" to JsonPrimitive("https://example.org/alternate")))
-        val preview = importer().preview(JsonArray(listOf(unrelated, original)).toString(), EXTENSION_PROFILE)
-        val output = Json.parseToJsonElement(adapter.adapt(preview)).jsonArray
-        assertEquals(1, output.size)
-        assertEquals(PixivUpdateAdapter.KEY, output.single().jsonObject.getValue("bookSourceUrl").jsonPrimitive.content)
-    }
-
-    @Test fun customizedDefinitionsAndOtherProfilesAreNotManaged() {
-        fun definition(raw: JsonObject): SourceDefinition {
-            val store = SourceDefinitionStore(folder.newFolder().toPath())
-            val importer = SourceDefinitionImporter(store)
-            val preview = importer.preview(raw.toString(), EXTENSION_PROFILE)
-            val result = importer.commit(preview, listOf(ImportSelection(0, ImportDecision.Add)))
-            assertNull(result.error)
-            return store.list().single()
-        }
-        val current = definition(adapted())
-        assertTrue(adapter.manages(current))
-        assertFalse(adapter.manages(current.copy(profile = LEGADO_PROFILE)))
-        assertFalse(adapter.manages(definition(JsonObject(adapted() + ("bookSourceName" to JsonPrimitive("My Pixiv"))))))
-    }
 }

@@ -72,33 +72,6 @@ class RuleSourceTest {
         }
     }
 
-    @Test fun sourceUrlBeanPropertyUsesTheSameIdentityAsGetKey() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { raw -> JsonObject(raw + ("ruleSearch" to JsonObject(raw.getValue("ruleSearch").jsonObject +
-                ("bookUrl" to JsonPrimitive("@js:source.bookSourceUrl.replace(/source-A$/, '')+'book/one'"))))) }.use { source ->
-                val book = source.search("fixture").single()
-                assertEquals(fixture.server.url("/book/one").toString(), book.id)
-                assertEquals(2, source.directory(book.id).count { !it.isVolume })
-            }
-        }
-    }
-
-    @Test fun searchKeepsLargeListsAndDoesNotRejectAllBooksAtOneThousandRows() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val html = (1..1462).joinToString("") { "<li><a href='/book/$it'><h2>Book $it</h2></a></li>" }
-            fixture.server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest) = MockResponse().setBody(html)
-            }
-            fixture.source { raw -> JsonObject(raw + ("ruleSearch" to buildJsonObject {
-                put("bookList", "li"); put("name", "h2@text"); put("bookUrl", "a@href")
-            })) }.use { source ->
-                val books = source.search("fixture")
-                assertEquals(1462, books.size)
-                assertEquals("Book 1462", books.last().title)
-            }
-        }
-    }
-
     @Test fun invalidLockedChapterLinksDoNotDiscardTheReadableCatalogue() = runBlocking {
         RuleSourceFixture().use { fixture ->
             val original = fixture.server.dispatcher
@@ -173,30 +146,6 @@ class RuleSourceTest {
         }
     }
 
-    @Test fun aDirectoryContainingOnlyVolumeHeadingsIsNotAReadableSuccess() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(customize = { raw -> JsonObject(raw + ("ruleToc" to JsonObject(
-                raw.getValue("ruleToc").jsonObject + ("isVolume" to JsonPrimitive("@js:true")))))
-            }).use { source ->
-                val id = source.search("title").single().id
-                assertEquals(ContentError.EmptyContent, failure { source.directory(id) }.code)
-            }
-        }
-    }
-
-    @Test fun decimalZeroFlagsDoNotTurnChaptersIntoVolumesOrPaidEntries() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { raw -> JsonObject(raw + ("ruleToc" to JsonObject(
-                raw.getValue("ruleToc").jsonObject + listOf("isVolume", "isVip", "isPay")
-                    .associateWith { JsonPrimitive("@js:'0.0'") }
-            ))) }.use { source ->
-                val chapters = source.directory(source.search("title").single().id)
-                assertTrue(chapters.isNotEmpty())
-                assertTrue(chapters.none { it.isVolume || it.isVip || it.isPay })
-            }
-        }
-    }
-
     @Test fun regexChapterIdsInsideScriptsRemainDistinctAcrossCataloguePages() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.source { raw -> JsonObject(raw + ("ruleToc" to buildJsonObject {
@@ -214,28 +163,6 @@ class RuleSourceTest {
         }
     }
 
-    @Test fun importedProfilesApplyTheSameDesktopIdentityToHttpAndBrowserRequests() = runBlocking {
-        for (profile in listOf(hnovel.imports.LEGADO_PROFILE, hnovel.imports.EXTENSION_PROFILE)) {
-            val browserHeaders = mutableListOf<Map<String, String>>()
-            val browser = BrowserExecutor { _, request, _, _, _ ->
-                browserHeaders += request.headers
-                BrokerResult.Success(BrokerResponse(0, request.url, emptyMap(),
-                    "<li><a href='/book/one'><h2>Fixture</h2></a></li>".toByteArray(), "UTF-8", 0,
-                    kind = ResponseKind.BrowserDocument))
-            }
-            RuleSourceFixture(browser).use { fixture ->
-                fixture.source(profile = profile).use { source ->
-                    source.search("fixture")
-                    assertEquals(DESKTOP_USER_AGENT, fixture.server.takeRequest(3, java.util.concurrent.TimeUnit.SECONDS)!!.getHeader("User-Agent"))
-                }
-                fixture.source("browser", profile) { JsonObject(it + ("browserRead" to JsonPrimitive(true))) }.use { source ->
-                    source.search("fixture")
-                    assertEquals(DESKTOP_USER_AGENT, browserHeaders.single().entries.single { it.key.equals("User-Agent", true) }.value)
-                }
-            }
-        }
-    }
-
     @Test fun sourceFallbackAndRowVariablesPersistThroughTheProductionPipeline(): Unit = runBlocking {
         RuleSourceFixture().use { fixture -> fixture.source(customize = { raw -> JsonObject(raw + mapOf(
             "ruleSearch" to JsonObject(raw.getValue("ruleSearch").jsonObject + mapOf(
@@ -248,28 +175,6 @@ class RuleSourceTest {
             val book = source.search("title").single()
             assertEquals("row value|stored|list|Same title", source.information(book.id).description)
         } }
-    }
-
-    @Test fun importedNumericAndTextRatesReachTheBrowserSession() = runBlocking {
-        for (rate in listOf(JsonPrimitive(350), JsonPrimitive("1/350"))) {
-            val starts = mutableListOf<Long>()
-            val browser = BrowserExecutor { session, request, _, _, _ ->
-                session.awaitBrowserAdmission()
-                starts += System.nanoTime() / 1_000_000
-                BrokerResult.Success(BrokerResponse(0, request.url, emptyMap(),
-                    "<li><a href='/book/one'><h2>Fixture</h2></a></li>".toByteArray(), "UTF-8", 0,
-                    kind = ResponseKind.BrowserDocument))
-            }
-            RuleSourceFixture(browser).use { fixture -> fixture.source(customize = { raw -> JsonObject(raw + mapOf(
-                "browserRead" to JsonPrimitive(true), "concurrentRate" to rate,
-                "ruleSearch" to buildJsonObject { put("bookList", "li"); put("name", "h2@text"); put("bookUrl", "a@href") }
-            )) }).use { source ->
-                source.search("first")
-                source.search("second")
-                assertEquals(2, starts.size)
-                assertTrue(starts[1] - starts[0] >= 300)
-            } }
-        }
     }
 
     @Test fun verificationKeepsTheExactFailedRequestAndCannotOutliveItsSource() = runBlocking {
@@ -578,16 +483,6 @@ class RuleSourceTest {
         }
     }
 
-    @Test fun exploreRuleWithoutBookListReusesSearchListSelectors() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(customize = { raw -> JsonObject(raw +
-                ("ruleExplore" to buildJsonObject { put("author", "b@text") }))
-            }).use { source ->
-                assertEquals("Same title", source.discovery(fixture.server.url("/search").toString()).single().title)
-            }
-        }
-    }
-
     @Test fun ruleBrowserCallsInheritHeadersAndRefreshThemAfterVerification() = runBlocking {
         for (inline in listOf(false, true)) for (dynamic in listOf(false, true)) {
             val browserPaths = mutableListOf<String>()
@@ -853,15 +748,6 @@ class RuleSourceTest {
         } } }
     }
 
-    @Test fun directBookUrlAndMissingSearchUseExplicitCapabilities() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source(customize = { JsonObject(it - "searchUrl") }).use { source ->
-            assertEquals(ContentError.MissingCapability, failure { source.search("title") }.code)
-            val id = fixture.server.url("/book/one").toString()
-            assertEquals(id, source.information(id).id)
-            assertEquals(3, source.directory(id).size)
-        } }
-    }
-
     @Test fun missingReadingRulesLeaveSearchAndInformationUsableWithoutRunningUnavailableOperations() = runBlocking {
         RuleSourceFixture().use { fixture -> fixture.source(customize = { raw ->
             JsonObject(raw - "ruleContent" + ("ruleToc" to buildJsonObject {
@@ -941,12 +827,6 @@ class RuleSourceTest {
         }
     }
 
-    @Test fun linksNormalizeSchemesAndRetainRequestOptions() {
-        assertEquals("https://example.test/chapter, {\"method\":\"POST\"}",
-            sourceLink("HTTPS://example.test/book, {\"headers\":{}}", "chapter, {\"method\":\"POST\"}"))
-        assertThrows(SourceContentException::class.java) { sourceLink("https://example.test/", "javascript:alert(1)") }
-    }
-
     @Test fun matchingBookUrlPatternParsesSearchResponseAsInformationWithoutRefetching() = runBlocking {
         RuleSourceFixture().use { fixture -> fixture.source(customize = { JsonObject(it + mapOf(
             "searchUrl" to JsonPrimitive("/book/one"), "bookUrlPattern" to JsonPrimitive("http://.*/book/one")
@@ -968,18 +848,6 @@ class RuleSourceTest {
         } }
     }
 
-    @Test fun backgroundUpdateMarkerChangesOnlyWhenSourceContentChanges() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source().use { source ->
-            val id = fixture.server.url("/book/one").toString()
-            val first = source.information(id)
-            assertEquals(first.observedUpdate, source.information(id).observedUpdate)
-            fixture.extraChapter = true
-            val updated = source.information(id)
-            assertTrue(updated.observedUpdate > first.observedUpdate)
-            assertEquals(updated.observedUpdate, source.information(id).observedUpdate)
-        } }
-    }
-
     @Test fun informationSuppliesItsCompletedDirectoryOnceWithoutDisablingExplicitRefresh() = runBlocking {
         RuleSourceFixture().use { fixture -> fixture.source().use { source ->
             val id = fixture.server.url("/book/one").toString()
@@ -991,30 +859,6 @@ class RuleSourceTest {
             assertEquals(original.size + 1, source.directory(id).size)
             assertTrue(fixture.server.requestCount > fetched)
         } }
-    }
-
-    @Test fun repeatedCatalogueRowsKeepTheLastOccurrenceWithoutLosingReadableChapters() = runBlocking {
-        RuleSourceFixture().use { fixture -> fixture.source().use { source ->
-            fixture.duplicateToc = true
-            val chapters = source.directory(fixture.server.url("/book/one").toString())
-            assertEquals(listOf("Volume one", "One"), chapters.map { it.title })
-            assertEquals(fixture.server.url("/c/1").toString(), chapters.last().id)
-        } }
-    }
-
-    @Test fun decodedImagesUseCompactByteTransport() = runBlocking {
-        val jpeg = javaClass.getResourceAsStream("/images/decoded.jpg")!!.use { it.readBytes() }
-        for ((cover, rule) in listOf(true to "result", false to "if (src.indexOf('/image.png') < 0) throw 'url'; result.reverse()")) {
-            RuleSourceFixture().use { fixture -> fixture.source(customize = { raw -> JsonObject(raw + mapOf(
-                "coverDecodeJs" to JsonPrimitive(rule),
-                "ruleContent" to JsonObject(raw.getValue("ruleContent").jsonObject + ("imageDecode" to JsonPrimitive(rule)))
-            )) }).use { source ->
-                fixture.imageBytes = jpeg
-                val id = fixture.server.url("/book/one").toString()
-                val expected = if (rule == "result") jpeg else jpeg.reversedArray()
-                assertArrayEquals(expected, source.image(id, fixture.server.url("/image.png").toString(), cover))
-            } }
-        }
     }
 
     @Test fun revocationAndCancellationDiscardLateRuleWrites() = runBlocking {

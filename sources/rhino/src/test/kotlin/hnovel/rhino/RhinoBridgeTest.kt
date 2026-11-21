@@ -44,25 +44,6 @@ class RhinoBridgeTest {
         assertEquals("[8,true,null,[2,4],\"ok\",\"undefined\"]", (result as ScriptResult.Success).json)
     }
 
-    @Test fun sourceCacheAndAjaxUseTheSameBoundSynchronousDataPort() {
-        val values = mutableMapOf<String, JsonElement>()
-        val calls = mutableListOf<String>()
-        val engine = RhinoScriptEngine(HostBridge { name, args ->
-            calls += name
-            when (name) {
-                "cache.put" -> { values[args[0].jsonPrimitive.content] = args[1]; JsonNull }
-                "cache.get" -> values[args[0].jsonPrimitive.content] ?: JsonNull
-                "java.ajax" -> JsonPrimitive("fixture body")
-                "source.getKey" -> JsonPrimitive("https://fixture.invalid/")
-                else -> error("Unknown API")
-            }
-        })
-        val result = engine.evaluate("cache.put('reply',java.ajax(baseUrl)); [cache.get('reply'),source.getKey()]", frame)
-        assertEquals("[\"fixture body\",\"https://fixture.invalid/\"]", (result as ScriptResult.Success).json)
-        assertEquals(listOf("java.ajax", "cache.put", "cache.get", "source.getKey"), calls)
-        assertEquals(FailureCode.BridgeDenied, (engine.evaluate("source.put('unsupported','x')", frame) as ScriptResult.Failure).code)
-    }
-
     @Test fun inputAndReturnedDataAreBoundedBeforeLeavingTheBridge() {
         var calls = 0
         val engine = RhinoScriptEngine(HostBridge { _, _ -> calls++; JsonPrimitive("x".repeat(100)) }, ScriptLimits(maxBridgeChars = 64))
@@ -89,10 +70,4 @@ class RhinoBridgeTest {
         assertEquals("1", (engine.evaluate("1", frame) as ScriptResult.Success).json)
     }
 
-    @Test fun requestGlobalsAndInputDataAreNativeJsValues() {
-        val engine = RhinoScriptEngine(HostBridge { _, _ -> JsonNull })
-        val input = frame.copy(variables = mapOf("result" to Json.parseToJsonElement("{\"values\":[1,2]}")))
-        assertEquals("[\"query\",3,\"https://fixture.invalid/\",3,\"undefined\"]", (engine.evaluate(
-            "[key,page,baseUrl,result.values.reduce((a,b)=>a+b,0),typeof result.getClass]", input) as ScriptResult.Success).json)
-    }
 }

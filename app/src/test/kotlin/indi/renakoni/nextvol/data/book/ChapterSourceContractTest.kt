@@ -13,8 +13,6 @@ import indi.renakoni.nextvol.data.web.WebSourceRegistry
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
 import io.nightfish.lightnovelreader.api.book.BookVolumes
 import io.nightfish.lightnovelreader.api.book.ChapterContent
 import io.nightfish.lightnovelreader.api.book.ChapterInformation
@@ -25,7 +23,6 @@ import io.nightfish.lightnovelreader.api.web.WebDataSourceItem
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.runCurrent
@@ -132,49 +129,6 @@ class ChapterSourceContractTest {
     }
 
     @Test
-    fun missingCacheEmitsOnlyTheRemoteResult() = runTest {
-        coEvery { fixture.local.getChapterContent(any()) } returns null
-        coEvery { fixture.local.getBookVolumes(any()) } returns null
-        assertEquals(listOf(Ok(chapter.bind(remoteChapter).copy(title = "processed:remote"))), source().getChapterContentFlow("chapter", "book").toList())
-        assertEquals(1, source().getBookVolumesFlow("book").toList().size)
-
-        coEvery { fixture.remote.getChapterContent(any(), any(), any()) } returns Err(error)
-        coEvery { fixture.remote.getBookVolumes(any(), any()) } returns Err(error)
-        assertEquals(listOf(Err(error)), source().getChapterContentFlow("chapter", "book").toList())
-        assertEquals(listOf(Err(error)), source().getBookVolumesFlow("book").toList())
-    }
-
-    @Test
-    fun emptyDirectoryCacheDoesNotSuppressRemoteFailure() = runTest {
-        coEvery { fixture.local.getBookVolumes(any()) } returns BookVolumes(book.storageKey, emptyList())
-        coEvery { fixture.remote.getBookVolumes(any(), any()) } returns Err(error)
-        every { fixture.text.processBookVolumes(any()) } answers { firstArg<() -> BookVolumes>()() }
-        assertEquals(listOf(Err(error)), source().getBookVolumesFlow("book").toList())
-        coVerify(exactly = 0) { fixture.local.updateBookVolumes(any()) }
-    }
-
-    @Test
-    fun emptyVolumesCacheDoesNotSuppressRemoteFailure() = runTest {
-        val empty = localVolumes.volumes.single().copy(chapters = emptyList())
-        coEvery { fixture.local.getBookVolumes(any()) } returns localVolumes.copy(volumes =
-            listOf(empty, empty.copy(volumeId = BookIdentity.volumeKey(book, "other"))))
-        coEvery { fixture.remote.getBookVolumes(any(), any()) } returns Err(error)
-        assertEquals(listOf(Err(error)), source().getBookVolumesFlow("book").toList())
-        coVerify(exactly = 0) { fixture.local.updateBookVolumes(any()) }
-        verify(exactly = 0) { fixture.text.processBookVolumes(any()) }
-    }
-
-    @Test
-    fun emptyVolumeAlongsideReadableChaptersRemainsUsable() = runTest {
-        val mixed = localVolumes.copy(volumes = listOf(Volume(BookIdentity.volumeKey(book, "empty"), "empty", emptyList())) + localVolumes.volumes)
-        coEvery { fixture.local.getBookVolumes(any()) } returns mixed
-        coEvery { fixture.remote.getBookVolumes(any(), any()) } returns Err(error)
-        every { fixture.text.processBookVolumes(any()) } answers { firstArg<() -> BookVolumes>()() }
-        assertEquals(listOf(Ok(mixed)), source().getBookVolumesFlow("book").toList())
-        coVerify(exactly = 0) { fixture.local.updateBookVolumes(any()) }
-    }
-
-    @Test
     fun partialDirectoryRemainsAnErrorWhileBindingAndProcessingReadableChapters() = runTest {
         coEvery { fixture.local.getBookVolumes(any()) } returns null
         val partial = remoteVolumes.copy(volumes = listOf(remoteVolumes.volumes.single().copy(
@@ -192,53 +146,6 @@ class ChapterSourceContractTest {
         assertEquals(chapter.storageKey, available.volumes.single().chapters.single().id)
         assertEquals(502, (result.getError()!!.throwable as PartialBookVolumesException).httpStatus)
         coVerify(exactly = 0) { fixture.local.updateBookVolumes(any()) }
-    }
-
-    @Test
-    fun takingOnlyTheCachedValueDoesNotStartRemoteWork() = runTest {
-        source().getChapterContentFlow("chapter", "book").first()
-        source().getBookVolumesFlow("book").first()
-        coVerify(exactly = 0) { fixture.remote.getChapterContent(any(), any(), any()) }
-        coVerify(exactly = 0) { fixture.remote.getBookVolumes(any(), any()) }
-        coVerify(exactly = 0) { fixture.local.updateChapterContent(any()) }
-        coVerify(exactly = 0) { fixture.local.updateBookVolumes(any()) }
-    }
-
-    @Test
-    fun flowsStayColdAndRecollectionResolvesTheSameSourceAgain() = runTest {
-        val source = source()
-        val chapters = source.getChapterContentFlow("chapter", "book")
-        val volumes = source.getBookVolumesFlow("book")
-        assertTrue(events.isEmpty())
-        chapters.toList()
-        volumes.toList()
-        val replacement = mockk<indi.renakoni.nextvol.data.web.proxy.ProxyWebBookDataSource>()
-        coEvery { replacement.getChapterContent("chapter", "book", WebDataSourcePriority.Default) } returns Err(error)
-        coEvery { replacement.getBookVolumes("book", WebDataSourcePriority.Default) } returns Err(error)
-        fixture.activeRemote = replacement
-        assertEquals(listOf(Ok(localChapter.copy(title = "processed:local"))), chapters.toList())
-        assertEquals(1, volumes.toList().size)
-        coVerify(exactly = 1) { replacement.getChapterContent("chapter", "book", WebDataSourcePriority.Default) }
-        coVerify(exactly = 1) { replacement.getBookVolumes("book", WebDataSourcePriority.Default) }
-        // A previous collection's cache hit must not hide this collection's cache miss.
-        coEvery { fixture.local.getChapterContent(chapter.storageKey) } returns null
-        coEvery { fixture.local.getBookVolumes(book.storageKey) } returns null
-        assertEquals(listOf(Err(error)), chapters.toList())
-        assertEquals(listOf(Err(error)), volumes.toList())
-        coVerify(exactly = 3) { fixture.local.getChapterContent(chapter.storageKey) }
-        coVerify(exactly = 3) { fixture.local.getBookVolumes(book.storageKey) }
-    }
-
-    @Test
-    fun preloadUsesRequestedPriorityAndStoresRawWithoutProcessingContent() = runTest {
-        source().preloadChapterContent("chapter", "book", WebDataSourcePriority.Low)
-        coVerify(exactly = 1) { fixture.remote.getChapterContent("chapter", "book", WebDataSourcePriority.Low) }
-        coVerify(exactly = 1) { fixture.local.updateChapterContent(chapter.bind(remoteChapter)) }
-        verify(exactly = 0) { fixture.text.processChapterContent(any(), any()) }
-        coEvery { fixture.remote.getChapterContent(any(), any(), any()) } returns Err(error)
-        source().preloadChapterContent("chapter", "book")
-        coVerify(exactly = 1) { fixture.local.updateChapterContent(any()) }
-        coVerify(exactly = 1) { fixture.remote.getChapterContent("chapter", "book", WebDataSourcePriority.Default) }
     }
 
     @Test

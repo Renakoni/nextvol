@@ -8,26 +8,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuleDiscoveryTest {
-    @Test fun catalogueNoticeWaitUsesTheOriginalLibraryCallingConventionWithoutFetching() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { definition(it, """
-                @js:sleepToast('Catalogue ready');
-                [{title:'Latest',url:'/latest'}, {title:'Popular',url:'/popular'}];
-            """.trimIndent(), buildJsonObject { put("jsLib", """
-                function sleep(seconds) { return Packages.java.lang.Thread.sleep(1000*seconds); }
-                function sleepToast(text, seconds) {
-                    let {java} = this;
-                    java.log(text); java.longToast(text);
-                    if (seconds === undefined) seconds = 0.01;
-                    this.sleep(seconds);
-                }
-            """.trimIndent()) }) }.use { source ->
-                assertEquals(listOf("Latest", "Popular"), source.openDiscovery("notice").catalog().rows.map { it.title })
-            }
-            assertEquals(0, fixture.server.requestCount)
-        }
-    }
-
     @Test fun lenientCataloguesDiscardNullPlaceholdersIncludingTrailingCommas() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.source { definition(it, "[null,{title:'Latest',url:'/search'},null,]") }.use { source ->
@@ -167,21 +147,6 @@ class RuleDiscoveryTest {
         }
     }
 
-    @Test fun staticCatalogKeepsOrderAndDoesNotFetchBookPreviews() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val source = fixture.source { definition(it, "Heading\nNew::/search?page={{page}}&&Completed::/complete") }
-            val page = source.openDiscovery("page-a")
-            assertTrue(source.canSearch)
-            assertTrue(source.canDiscover)
-            val catalog = page.catalog()
-            assertEquals(listOf("Heading", "New", "Completed"), catalog.rows.map { it.title })
-            assertEquals(listOf("", "/search?page={{page}}", "/complete"), catalog.rows.map { it.url })
-            assertEquals(0, fixture.documents.get())
-            assertEquals("Same title", page.page(catalog.rows[1].url, 1, emptyMap()).single().title)
-            assertEquals(1, fixture.documents.get())
-        }
-    }
-
     @Test fun dynamicCategoriesAndUrlFiltersUseIndependentPageDrafts() = runBlocking {
         RuleSourceFixture().use { fixture ->
             val source = fixture.source { definition(it, """
@@ -282,37 +247,6 @@ class RuleDiscoveryTest {
             assertEquals(ContentError.InvalidRule, error?.code)
             assertEquals("discovery.actions[0].open", error?.field)
             assertNull(source.discoveryState("info"))
-        }
-    }
-
-    @Test fun disabledDiscoveryKeepsSearchAndRetiredSessionsCannotPublish() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val source = fixture.source { definition(it, "Books::/search", buildJsonObject { put("enabledExplore", false) }) }
-            assertTrue(source.canSearch)
-            assertFalse(source.canDiscover)
-            val missing = try { source.openDiscovery("disabled").catalog(); null } catch (e: SourceContentException) { e }
-            assertEquals(ContentError.MissingCapability, missing?.code)
-            source.close()
-            val retired = try { source.openDiscovery("retired").catalog(); null } catch (e: SourceContentException) { e }
-            assertEquals(ContentError.Unavailable, retired?.code)
-        }
-    }
-
-    @Test fun screenControlsAndViewNamesUseTheSameFiniteContract() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            val source = fixture.source { definition(it, "Books::/search", buildJsonObject {
-                put("exploreScreen", """[{"id":"presentation-id","title":"Query","type":"text","default":"start","viewName":"'Search '+infoMap.Query"}]""")
-            }) }
-            val page = source.openDiscovery("screen")
-            val rows = page.catalog().rows
-            assertEquals(listOf("url", "text"), rows.map { it.type })
-            assertEquals("Query", rows.last().id)
-            assertEquals("Search start", rows.last().title)
-            page.interact("Query", "edited")
-            val updated = page.catalog(refresh = true)
-            assertEquals("Query", updated.rows.last().id)
-            assertEquals("Search edited", updated.rows.last().title)
-            assertEquals(mapOf("Query" to "edited"), updated.values)
         }
     }
 

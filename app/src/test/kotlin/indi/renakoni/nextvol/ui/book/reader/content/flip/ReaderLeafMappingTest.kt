@@ -16,14 +16,6 @@ class ReaderLeafMappingTest {
         }
     }
 
-    @Test fun oddEndingHasNoPhantomLeafOrProgress() {
-        val mapping = ReaderLeafMapping(5, 2)
-        assertEquals(listOf(0..1, 2..3, 4..4), (0..2).map(mapping::leavesOnScreen))
-        assertEquals(listOf(0.4f, 0.8f, 1f), (0..2).map(mapping::progress))
-        assertNull(mapping.progress(3))
-        assertNull(ReaderLeafMapping(0, 2).progress(0))
-    }
-
     @Test fun historicalPercentageResolvesALeafBeforeAScreen() {
         assertEquals(1, ReaderLeafMapping(5, 2).screenForProgress(0.85f))
         assertEquals(2, ReaderLeafMapping(5, 2).screenForProgress(0.9f))

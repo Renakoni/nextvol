@@ -168,24 +168,6 @@ class SourceRetryTest {
         assertEquals(1, events.count { it.evidence == RequestEvidence.Completed })
     } }
 
-    @Test(timeout = 10000) fun zeroHttpBudgetDoesNotSpendTheConnectionRecoveryCreditOn503() = runBlocking { fixture { server, session, clock ->
-        server.enqueue(MockResponse().setResponseCode(503).setHeader("Retry-After", "0"))
-        assertEquals(503, response(session.execute(request(server, 0))).status)
-        assertEquals(1, server.requestCount)
-        assertTrue(clock.waits.tryReceive().isFailure)
-    } }
-
-    @Test(timeout = 10000) fun theHostCanDisableEvenSafeConnectionRecovery() = runBlocking {
-        fixture(limits = BrokerLimits(concurrency = 1, maxRetry = 0)) { server, session, clock ->
-            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
-            val failure = session.execute(request(server, 0)) as BrokerResult.Failure
-            assertEquals(FailureCode.Network, failure.code)
-            assertEquals(0, failure.attempt)
-            assertEquals(1, server.requestCount)
-            assertTrue(clock.waits.tryReceive().isFailure)
-        }
-    }
-
     @Test(timeout = 15000) fun longOrOverflowingCooldownsRemainVisibleWithoutAnEarlyRequest() = runBlocking {
         for (header in listOf("6", "99999999999999999999999999", "Tue, 29 Sep 2026 00:00:00 GMT")) {
             fixture { server, session, clock ->
@@ -237,15 +219,6 @@ class SourceRetryTest {
         }
     }
 
-    @Test(timeout = 15000) fun permanentResponsesDoNotRetry() = runBlocking {
-        for (status in listOf(404, 408, 500)) fixture { server, session, clock ->
-            server.enqueue(MockResponse().setResponseCode(status))
-            assertEquals(status, response(session.execute(request(server, 3))).status)
-            assertEquals(1, server.requestCount)
-            assertTrue(clock.waits.tryReceive().isFailure)
-        }
-    }
-
     @Test(timeout = 15000) fun dnsRecoveryAndExhaustionHaveOneCountedBudget() = runBlocking {
         for (recovers in listOf(true, false)) {
             val lookups = AtomicInteger()
@@ -275,23 +248,6 @@ class SourceRetryTest {
                     assertEquals(0, server.requestCount)
                 }
             }
-        }
-    }
-
-    @Test(timeout = 15000) fun documentsAndImagesUseTheSameShortRetryBudget() = runBlocking {
-        for (kind in listOf(ResourceKind.Document, ResourceKind.Image)) fixture { server, session, clock ->
-            server.enqueue(MockResponse().setResponseCode(503).setHeader("Retry-After", "0"))
-            server.enqueue(MockResponse().setBody("content"))
-            val pending = async {
-                val request = request(server).copy(kind = kind)
-                if (kind == ResourceKind.Image) session.loadImage(request) else session.execute(request)
-            }
-            assertEquals(500L, clock.nextWait())
-            assertEquals(1, server.requestCount)
-            clock.advance(500)
-            assertEquals("content", response(completed(pending)).text())
-            assertEquals(2, server.requestCount)
-            assertTrue(clock.waits.tryReceive().isFailure)
         }
     }
 

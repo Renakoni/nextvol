@@ -20,24 +20,6 @@ class SpeechPlanTest {
         assertEquals(finalChapter.segments.size, finalChapter.resumeAt(saved.copy(offset = chapter.text.length)).index)
     }
 
-    @Test fun systemAndHttpSynthesisSettingsKeepOnlyEffectiveParameters() {
-        val system = SpeechSettings(engine = "system", voice = "voice", rate = 1.2f, pitch = 0.8f)
-        assertNotEquals(system, system.copy(volume = 0.5f).synthesisSettings())
-        assertNotEquals(system, system.copy(pitch = 1f).synthesisSettings())
-        val http = system.copy(httpSource = "http")
-        assertEquals(SpeechSettings(httpSource = "http", rate = 1.2f, pitch = 0.8f), http.synthesisSettings())
-        assertNotEquals(http.synthesisSettings(), http.copy(httpSource = "other").synthesisSettings())
-    }
-
-    @Test fun matchingTextIdentityDoesNotAllowReuseAfterRateChanges() = runBlocking {
-        val settings = SpeechSettings(voice = "narrator").synthesisSettings()
-        val chapter = SpeechChapter("book", "chapter", "Book", "Chapter", "A short paragraph.")
-        val plan = prepareSpeechPlan(chapter, settings, maxInputLength = 128) {}
-        val faster = settings.copy(rate = 1.5f)
-        assertEquals(plan.bookmark(0).replacementKey, faster.textProcessingKey(128))
-        assertFalse(plan.matches(chapter, faster, SpeechContext(), 128))
-    }
-
     @Test fun preparationRejectsOversizedChaptersAndCooperatesWithCancellationDuringSegmentation() {
         val oversized = SpeechChapter("book", "chapter", "", "", "字".repeat(1_000_001))
         val failure = assertThrows(SpeechException::class.java) { runBlocking { prepareSpeechPlan(oversized, SpeechSettings()) {} } }

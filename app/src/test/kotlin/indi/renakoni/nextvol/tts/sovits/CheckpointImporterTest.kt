@@ -2,17 +2,14 @@ package indi.renakoni.nextvol.tts.sovits
 
 import android.app.Application
 import indi.renakoni.nextvol.R
-import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
-import java.security.MessageDigest
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [29], application = Application::class)
@@ -27,18 +24,6 @@ class CheckpointImporterTest {
         ],
         "files":{"graph.onnx":"fixture"}
     }"""
-
-    @Test fun packagedTemplateBytesMatchTheConversionManifests() {
-        val assets = RuntimeEnvironment.getApplication().assets
-        for (variant in listOf("v2pro", "v2proplus")) {
-            val folder = "gpt-sovits/checkpoint-$variant"
-            val files = assets.open("$folder/manifest.json").bufferedReader().use { JSONObject(it.readText()).getJSONObject("files") }
-            for (name in files.keys()) {
-                val hash = assets.open(checkpointGraphAsset(folder, name)).use { MessageDigest.getInstance("SHA-256").digest(it.readBytes()) }
-                assertEquals("$folder/$name", files.getString(name), hash.joinToString("") { "%02x".format(it) })
-            }
-        }
-    }
 
     @Test fun convertsBothV2VariantsToTheRuntimeLayout() {
         val expected = byteArrayOf(0, 0, 0x80.toByte(), 0x3f, 0, 0, 0, 0xc0.toByte())

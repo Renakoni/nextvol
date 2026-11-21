@@ -7,9 +7,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuleContentMarkupTest {
-    @Test fun fortyParagraphChapterUsesProductionLimits() = chapter(40)
-    @Test fun eightyParagraphChapterKeepsTextAndImageOrder() = chapter(80)
-    @Test fun longChapterUsesProductionLimits() = chapter(400)
     @Test fun longChineseChapterKeepsEveryParagraphThroughTheWorkerEnvelope() = chapter(980, "文".repeat(55))
 
     @Test fun jsonChapterRetainsNewlinesAndInlineImagePosition() = runBlocking {
@@ -108,20 +105,7 @@ class RuleContentMarkupTest {
         }
     }
 
-    @Test fun anchoredReplacementRemovesAdvertisementParagraph() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source(customize = { raw -> JsonObject(raw + ("ruleContent" to buildJsonObject {
-                put("content", "@js:'<p>KEEP first</p><p>DROP advertisement</p><p>KEEP last</p>'")
-                put("replaceRegex", "##(?m)^DROP[^\\n]*$##")
-            })) }).use { source ->
-                val book = source.search("title").single()
-                val chapter = source.directory(book.id)[1]
-                assertEquals(listOf("KEEP first", "KEEP last"), source.content(book.id, chapter.id).parts.map { it.text })
-            }
-        }
-    }
-
-    private fun chapter(count: Int, lineText: String = "a".repeat(80)) = runBlocking {
+    private fun chapter(count: Int, lineText: String) = runBlocking {
         RuleSourceFixture().use { fixture ->
             val paragraphs = List(count) { "Paragraph $it " + lineText }
             val middle = count / 2

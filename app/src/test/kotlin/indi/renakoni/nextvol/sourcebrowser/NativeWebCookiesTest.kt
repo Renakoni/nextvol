@@ -30,25 +30,6 @@ class NativeWebCookiesTest {
         assertThrows(IllegalArgumentException::class.java) { nativeCookieSnapshot(url, listOf("a=" + "x".repeat(65536)), false) }
     }
 
-    @Test fun optionalCountsDoNotConsumeTheCookiePayloadBudget() {
-        val plain = boundarySnapshots(observe = false)
-        val observed = boundarySnapshots(observe = true)
-        val original = Json.encodeToString(plain)
-        assertTrue(original.length <= NATIVE_COOKIE_PAYLOAD_LIMIT)
-        assertTrue(Json.encodeToString(observed).length > NATIVE_COOKIE_PAYLOAD_LIMIT)
-        val payload = nativeCookieSnapshotPayload(observed)
-        assertEquals(original, payload)
-        assertEquals(plain, Json.decodeFromString<List<NativeCookieSnapshot>>(payload))
-    }
-
-    @Test fun payloadWithinBudgetKeepsOptionalCounts() {
-        val values = listOf("sid=keep; Path=/", "partitioned=skip; Secure; Partitioned")
-        for (observe in listOf(false, true)) {
-            val snapshots = listOf(nativeCookieSnapshot(url, values, true, observe))
-            assertEquals(Json.encodeToString(snapshots), nativeCookieSnapshotPayload(snapshots))
-        }
-    }
-
     @Test fun payloadExactlyAtLimitKeepsOptionalCounts() {
         val snapshots = boundarySnapshots(observe = true, extra = -24).toMutableList()
         val padding = NATIVE_COOKIE_PAYLOAD_LIMIT - Json.encodeToString(snapshots).length

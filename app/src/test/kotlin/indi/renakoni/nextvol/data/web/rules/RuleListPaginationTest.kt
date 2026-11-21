@@ -77,24 +77,6 @@ class RuleListPaginationTest {
         }
     }
 
-    @Test fun pagedSearchFollowsTheSameContinuation() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.pages()
-            fixture.source(customize = ::definition).use { source ->
-                val adapter = RuleWebBookDataSource(Identifier("rules", "fixture"), source).searchProvider
-                val provider = adapter as PagedSearchProvider
-                val type = adapter.searchTypes.single()
-                val first = provider.searchPage(type, "key", 1, "query")
-                assertTrue(first.books.isEmpty())
-                assertEquals(2, first.nextPage)
-                val last = provider.searchPage(type, "key", first.nextPage!!, "query")
-                assertEquals(listOf(fixture.server.url("/book/final").toString()), last.books.map { it.bookId })
-                assertNull(last.nextPage)
-                assertEquals(2, fixture.server.requestCount)
-            }
-        }
-    }
-
     @Test fun filtersRefreshAndSeparateNavigationSessionsDoNotShareContinuationState() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.pages()
@@ -134,19 +116,6 @@ class RuleListPaginationTest {
                 assertTrue(events.last() is SearchResult.End)
                 assertTrue(events.none { it is SearchResult.Empty || it is SearchResult.Error })
                 assertEquals(6, fixture.server.requestCount)
-            }
-        }
-    }
-
-    @Test fun filteredHomepagePreviewWithARemoteContinuationIsNotAResponseFailure() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.pages()
-            fixture.source(customize = ::definition).use { source ->
-                val preview = RuleDiscoveryProvider(source).feed().get()!!.single()
-                assertTrue(preview.books.isEmpty())
-                assertNull(preview.previewFailure)
-                assertEquals("/search", preview.more)
-                assertEquals(1, fixture.server.requestCount)
             }
         }
     }

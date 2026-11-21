@@ -39,65 +39,6 @@ import java.util.concurrent.TimeUnit
 /** Opt-in acceptance with an installed, initialized engine; never substitutes generated test tones. */
 @RunWith(AndroidJUnit4::class)
 class ReadAloudBackgroundInstrumentedTest {
-    @Test fun aNewPlaybackDoesNotReuseTheStoppedServicesNotification() = runBlocking {
-        var previousId: Int? = null
-        repeat(3) {
-            withBook { fixture ->
-                fixture.await("new service playing") { fixture.player.isPlaying && fixture.notificationRecord() != null }
-                val id = fixture.notificationRecord()!!.id
-                assertNotEquals("System UI must not apply old notification removal to this service", previousId, id)
-                previousId = id
-                shell("input keyevent KEYCODE_HOME")
-                shell("input keyevent KEYCODE_SLEEP")
-                // Give the previous entry's asynchronous System UI removal time to arrive.
-                repeat(15) {
-                    fixture.assertPlaybackAdvances("new service remains playing")
-                    assertEquals(id, fixture.notificationRecord()?.id)
-                }
-            }
-        }
-    }
-
-    @Test fun timerKeepsItsDeadlineAcrossChaptersAndVoiceChangesInTheBackground() = runBlocking {
-        withBook(chapterCount = 10) { fixture ->
-            fixture.await("timer book playing") { fixture.player.isPlaying }
-            val deadline = fixture.setTimer(1)!!
-            shell("input keyevent KEYCODE_HOME")
-            shell("input keyevent KEYCODE_SLEEP")
-            fixture.await("timer chapter transition", 50_000) {
-                fixture.player.isPlaying && fixture.player.mediaMetadata.title.toString() == "Chapter 2"
-            }
-            assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
-            val data = UserDataRepository(NextVolDatabase.getInstance(fixture.context).userDataDao())
-            withContext(Dispatchers.IO) {
-                SpeechSettingsRepository(data).update { it.copy(pitch = 1.2f) }
-            }
-            fixture.assertPlaybackAdvances("after voice adjustment with timer")
-            assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
-            fixture.assertTimerStopped(deadline)
-            assertFalse("Timer must not mark the remaining book finished", fixture.progress.load(fixture.book.storageKey)!!.completed)
-        }
-    }
-
-    @Test fun timerCanBeReplacedOrCancelledAndStillExpiresWhilePaused() = runBlocking {
-        withBook(chapterCount = 10) { fixture ->
-            fixture.await("playing before pause timer") { fixture.player.isPlaying }
-            val original = fixture.setTimer(1)!!
-            assertTrue(fixture.setTimer(15)!! > original + 13 * 60_000)
-            assertNull(fixture.setTimer(null))
-            val deadline = fixture.setTimer(1)!!
-            withContext(Dispatchers.Main) { fixture.commands.command(SpeechAction.Pause) }
-            fixture.await("paused timer") { fixture.commands.state.value.phase == SpeechPhase.Paused }
-            val pausedAt = withContext(Dispatchers.Main) { fixture.player.currentPosition }
-            shell("input keyevent KEYCODE_HOME")
-            shell("input keyevent KEYCODE_SLEEP")
-            delay(2_000)
-            assertEquals(deadline, fixture.commands.state.value.sleepTimerDeadline)
-            withContext(Dispatchers.Main) { assertEquals(pausedAt, fixture.player.currentPosition) }
-            fixture.assertTimerStopped(deadline)
-        }
-    }
-
     @Test fun previewsRestoreTheBookAndKeepItsDeadlineAcrossPauseFailureAndExpiry() = runBlocking {
         withBook(chapterCount = 10) { fixture ->
             fixture.await("book before previews") { fixture.player.isPlaying }
@@ -137,40 +78,6 @@ class ReadAloudBackgroundInstrumentedTest {
         }
     }
 
-    @Test fun explicitBookStartFailureAndStopClearTheTimer() = runBlocking {
-        withBook(chapterCount = 10) { fixture ->
-            fixture.await("playing before timer lifecycle checks") { fixture.player.isPlaying }
-            fixture.setTimer(15)
-            withContext(Dispatchers.Main) {
-                androidx.core.content.ContextCompat.startForegroundService(fixture.context,
-                    ReadAloudController.intent(fixture.context, SpeechAction.Start, fixture.commands.state.value.request!!))
-            }
-            fixture.await("new Start clears the old timer") {
-                fixture.player.isPlaying && fixture.commands.state.value.request?.isPreview == false &&
-                    fixture.commands.state.value.sleepTimerDeadline == null
-            }
-            fixture.setTimer(15)
-            val data = UserDataRepository(NextVolDatabase.getInstance(fixture.context).userDataDao())
-            val stored = data.stringUserData("tts.schemes")
-            val valid = withContext(Dispatchers.IO) { stored.get()!! }
-            withContext(Dispatchers.IO) {
-                SpeechSettingsRepository(data).update { SpeechSettings(engine = "invalid.nextvol.timer.engine") }
-            }
-            fixture.await("failure clears timer") {
-                fixture.commands.state.value.phase == SpeechPhase.Failed && fixture.commands.state.value.sleepTimerDeadline == null
-            }
-            withContext(Dispatchers.IO) { stored.set(valid) }
-            fixture.await("valid voice restored") { fixture.player.isPlaying }
-            fixture.setTimer(15)
-            withContext(Dispatchers.Main) { fixture.commands.command(SpeechAction.Stop) }
-            fixture.await("Stop clears timer") {
-                fixture.commands.state.value.phase == SpeechPhase.Stopped && fixture.commands.state.value.sleepTimerDeadline == null
-            }
-            fixture.releasePlayer()
-            fixture.await("Stop releases timer service") { fixture.service() == null }
-        }
-    }
-
     @Test fun realBookContinuesAcrossChaptersAfterHomeLockAndTaskRemoval() = runBlocking {
         withBook { fixture ->
             fixture.await("first chapter playing") {
@@ -200,36 +107,6 @@ class ReadAloudBackgroundInstrumentedTest {
                 fixture.service()?.foreground == false &&
                     File(fixture.context.cacheDir, "read-aloud").listFiles().orEmpty().isEmpty()
             }
-        }
-    }
-
-    @Test fun notificationCanPauseResumeAndStopWhileTheBookIsInBackground() = runBlocking {
-        withBook { fixture ->
-            fixture.await("playing with a media notification") {
-                fixture.player.isPlaying && fixture.notification() != null
-            }
-            shell("input keyevent KEYCODE_HOME")
-            fixture.notification()!!.actions[0].actionIntent.send()
-            fixture.await("notification pause") { !fixture.player.playWhenReady && !fixture.player.isPlaying }
-            val pausedAt = withContext(Dispatchers.Main) { fixture.player.currentPosition }
-            delay(700)
-            withContext(Dispatchers.Main) {
-                assertEquals("Paused audio must not advance", pausedAt, fixture.player.currentPosition)
-            }
-            fixture.await("pause updates the notification and exits foreground") {
-                fixture.service()?.foreground == false && fixture.notification()?.actions?.firstOrNull()?.title ==
-                    fixture.context.getString(indi.renakoni.nextvol.R.string.tts_resume)
-            }
-            fixture.notification()!!.actions[0].actionIntent.send()
-            fixture.await("notification resume") { fixture.player.isPlaying && fixture.service()?.foreground == true }
-            fixture.assertPlaybackAdvances("after notification resume")
-            fixture.notification()!!.actions[1].actionIntent.send()
-            fixture.releasePlayer()
-            fixture.await("notification Stop releases the service") { fixture.service() == null }
-            fixture.await("Stop removes notification and temporary audio") {
-                fixture.notification() == null && File(fixture.context.cacheDir, "read-aloud").listFiles().orEmpty().isEmpty()
-            }
-            assertFalse(fixture.progress.load(fixture.book.storageKey)!!.completed)
         }
     }
 

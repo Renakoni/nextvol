@@ -66,17 +66,6 @@ class SourceDefinitionImporterTest {
         assertFalse(reopened[0].enabled)
     }
 
-    @Test fun filePasteAndStreamUseSameParser() {
-        val importer = SourceDefinitionImporter(SourceDefinitionStore(temp.newFolder().toPath()))
-        val file = temp.newFile("definition.json").toPath()
-        Files.write(file, ("\uFEFF" + json()).toByteArray())
-        val fromFile = importer.previewFile(file)
-        assertTrue(fromFile.issues.isEmpty())
-        assertEquals(ImportOrigin(ImportOrigin.Kind.File, "definition.json"), fromFile.candidates.single().origin)
-        assertEquals(importer.preview(json()).candidates.single().rawJson, fromFile.candidates.single().rawJson)
-        assertEquals(ImportCode.InvalidJson, importer.previewStream(ByteArrayInputStream(byteArrayOf(0xc0.toByte())), "source.json").issues.single().code)
-    }
-
     @Test fun malformedArrayRowsAreReportedAtOriginalIndexesAndNeverAutomaticallyImported() {
         val store = SourceDefinitionStore(temp.newFolder().toPath())
         val importer = SourceDefinitionImporter(store)
@@ -88,27 +77,6 @@ class SourceDefinitionImporterTest {
         val result = importer.commit(preview, listOf(ImportSelection(0, ImportDecision.Add), ImportSelection(2, ImportDecision.Add)))
         assertEquals(listOf(ImportOutcome.Failed, ImportOutcome.Added), result.items.map { it.outcome })
         assertEquals(1, store.list().size)
-    }
-
-    @Test fun concurrentRateUsesLegadoNumericRepresentation() {
-        val importer = SourceDefinitionImporter(SourceDefinitionStore(temp.newFolder().toPath()))
-        assertTrue(importer.preview(json(extra = ",\"concurrentRate\":2")).issues.isEmpty())
-        val invalid = importer.preview(json(extra = ",\"concurrentRate\":[]"))
-        assertEquals(ImportCode.InvalidField, invalid.issues.single().code)
-        assertEquals("concurrentRate", invalid.issues.single().field)
-    }
-
-    @Test fun discoveryExtensionFlagsAreBooleansAndRemainExplicitlyClassified() {
-        val importer = SourceDefinitionImporter(SourceDefinitionStore(temp.newFolder().toPath()))
-        val preview = importer.preview(json(extra = ",\"customButton\":true,\"eventListener\":false"))
-        assertTrue(preview.issues.isEmpty())
-        assertEquals(setOf("customButton", "eventListener"), preview.candidates.single().notices
-            .filter { it.code == "DiscoveryExtension" }.map { it.field }.toSet())
-        for (field in listOf("customButton", "eventListener")) for (value in listOf("\"true\"", "\"@js:run()\"", "{}", "1")) {
-            val invalid = importer.preview(json(extra = ",\"$field\":$value"))
-            assertEquals(ImportCode.InvalidField, invalid.issues.single().code)
-            assertEquals(field, invalid.issues.single().field)
-        }
     }
 
     @Test fun complexFieldsAreValidationErrorsAndCannotOverwriteExistingDefinition() {

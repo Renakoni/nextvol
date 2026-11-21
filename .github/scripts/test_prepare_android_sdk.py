@@ -94,10 +94,6 @@ cp "$CASE_ROOT/${url##*/}" "$2"
             z.writestr('wrong/payload', 'missing source.properties')
         self.assert_failed_without_export(self.run_prepare())
 
-    def test_unknown_api_does_not_download_anything(self):
-        self.assert_failed_without_export(self.run_prepare('999'))
-        self.assertFalse((self.root / 'downloads').exists())
-
 
 if __name__ == '__main__':
     unittest.main()

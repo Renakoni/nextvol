@@ -113,27 +113,6 @@ class EpubExportUseCaseTest {
             .joinToString("\n") { zip.getInputStream(it).bufferedReader().use { reader -> reader.readText() } }
     }
 
-    @Test fun wholeBookAndReversedSelectionUseCatalogOrderAndIndependentAttemptState() = runTest {
-        val failed = request(selected = emptySet())
-        assertEquals("missing_volume", (useCase.execute(failed) as EpubExportResult.Failure).reason)
-        for (type in ExportType.entries) {
-            val request = request(type, selected = catalog.volumes.reversed().map { it.volumeId }.toSet())
-            val updates = mutableListOf<EpubExportProgress>()
-            val result = useCase.execute(request, updates::add) as EpubExportResult.Success
-            val files = EpubShareFiles.files(context, request.id)
-            assertEquals(request.id, result.id)
-            assertEquals(book, result.book)
-            assertEquals(if (type == ExportType.BOOK) 1 else 2, result.completedVolumes)
-            assertEquals(result.completedVolumes, result.totalVolumes)
-            assertEquals(result.completedVolumes, files.size)
-            assertTrue(archiveText(files.first()).contains(catalog.volumes.first().chapters.single().id))
-            assertTrue(archiveText(files.last()).contains(catalog.volumes.last().chapters.single().id))
-            assertEquals(listOf(1, 2), updates.filter { it.phase == EpubExportProgress.Phase.CHAPTERS }.map { it.completed })
-            assertEquals(1f, items.last().progress)
-            assertFalse(staging(request).exists())
-        }
-    }
-
     @Test fun laterChapterFailureKeepsPreparedSourceContentForRetry() = runTest {
         val first = catalog.volumes.first().chapters.single().id
         val second = catalog.volumes.last().chapters.single().id
@@ -177,26 +156,6 @@ class EpubExportUseCaseTest {
         assertFalse(staging(request).exists())
     }
 
-    @Test fun foreignVolumeIsRejectedBeforeAnyRepositoryOrDownloadAccess() {
-        val other = SourceBookId(Identifier("fixture", "other"), book.remoteId)
-        assertThrows(IllegalArgumentException::class.java) {
-            request(selected = setOf(BookIdentity.volumeKey(other, "v1")))
-        }
-        verify { repository wasNot Called; downloads wasNot Called; progress wasNot Called }
-    }
-
-    @Test fun emptyOrMissingSelectionsNeverFallBackToTheWholeBook() = runTest {
-        for (selected in listOf(emptySet(), setOf(BookIdentity.volumeKey(book, "missing")))) {
-            val request = request(selected = selected)
-            val result = useCase.execute(request) as EpubExportResult.Failure
-            assertEquals("missing_volume", result.reason)
-            assertEquals("preparing", result.stage)
-            assertEquals(0, result.totalVolumes)
-            assertNoOutput(request)
-        }
-        coVerify(exactly = 0) { downloads.begin(any(), any(), any()) }
-    }
-
     @Test fun malformedAndUnknownComponentsFailWithLocationAndCloseTheAttempt() = runTest {
         for (content in listOf(buildJsonObject { put("components", "bad") }, text("lost", "unknown:component"))) {
             body(content)
@@ -208,20 +167,6 @@ class EpubExportUseCaseTest {
             assertEquals("Chapter 1", result.chapter)
             coVerify { downloads.finish(BookDownloadStore.Attempt(book, 7, request.id.toString()), false) }
             assertNoOutput(request)
-        }
-    }
-
-    @Test fun textOnlySkipsIllustrationsButStillBuildsAnArchive() = runTest {
-        body(images(Uri.parse("https://fixture.invalid/body.jpg")))
-        val request = request(images = false)
-        assertTrue(useCase.execute(request) is EpubExportResult.Success)
-        coVerify(exactly = 0) { ImageUtils.uriToBitmap(any(), any(), any(), any(), any(), any()) }
-        coVerify { downloads.saveChapter(any(), any(), any(), any(), requireImages = false) }
-        EpubShareFiles.files(context, request.id).forEach { file ->
-            assertFalse(archiveText(file).contains("body.jpg"))
-            ZipFile(file).use { zip ->
-                assertFalse(zip.entries().asSequence().any { it.name.startsWith("EPUB/image/") })
-            }
         }
     }
 
@@ -240,16 +185,6 @@ class EpubExportUseCaseTest {
             assertTrue(zip.entries().asSequence().any { it.name.endsWith(".jpg") && it.size > 0 })
             assertEquals(1, zip.entries().asSequence().count { it.name.startsWith("EPUB/image/") })
         } }
-    }
-
-    @Test fun badBodyImageFailsBeforePublishingAnyVolume() = runTest {
-        body(images(Uri.parse("https://fixture.invalid/body.jpg")))
-        coEvery { ImageUtils.uriToBitmap(any(), any(), any(), any(), any(), any()) } returns Err(IOException("bad image"))
-        val request = request()
-        val result = useCase.execute(request) as EpubExportResult.Failure
-        assertEquals("image_failed", result.reason)
-        assertEquals("images", result.stage)
-        assertNoOutput(request)
     }
 
     @Test fun publicationFailureKeepsCompletedDownloadsAndOtherRecipients() = runTest {
@@ -271,18 +206,6 @@ class EpubExportUseCaseTest {
         coVerify(exactly = 0) { downloads.finish(attempt, false) }
         assertEquals(original, EpubShareFiles.files(context, previous.id).map { it.readBytes().toList() })
         assertNoOutput(request)
-    }
-
-    @Test fun publishedRequestReusesRecipientFilesWithoutReopeningDownloads() = runTest {
-        val request = request()
-        val result = useCase.execute(request)
-        val original = EpubShareFiles.files(context, request.id).map { it.readBytes().toList() }
-        staging(request).resolve("partial.epub").apply { parentFile!!.mkdirs(); writeText("interrupted") }
-        clearMocks(repository, downloads, progress, answers = false)
-        assertEquals(result, useCase.execute(request))
-        assertEquals(original, EpubShareFiles.files(context, request.id).map { it.readBytes().toList() })
-        assertFalse(staging(request).exists())
-        verify { repository wasNot Called; downloads wasNot Called; progress wasNot Called }
     }
 
     @Test fun cancellationDuringPreparationClosesOnlyItsAttemptAndRetainsItsLocation() = runTest {

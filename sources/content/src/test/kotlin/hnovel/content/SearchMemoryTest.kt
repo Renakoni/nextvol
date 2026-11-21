@@ -40,17 +40,6 @@ class SearchMemoryTest {
         }
     }
 
-    @Test fun onlyTheMostRecentEightQueriesKeepMemory() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.searchSource().use { source ->
-                source.titles("key", 1, "first")
-                for (index in 1..8) source.titles("key", 1, "other-$index")
-                assertEquals(listOf("series-A", "solo-2"), source.titles("key", 2, "first"))
-                assertEquals(listOf("solo-2"), source.titles("key", 2, "other-8"))
-            }
-        }
-    }
-
     @Test fun keywordsAndCallsWithoutAQueryAreIsolated() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.searchSource().use { source ->

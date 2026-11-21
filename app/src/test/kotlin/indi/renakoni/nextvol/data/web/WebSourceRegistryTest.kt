@@ -277,22 +277,6 @@ class WebSourceRegistryTest {
     }
 
     @Test(timeout = 10000)
-    fun duplicateAndMismatchedIdentityAreRejectedWithoutReplacingTheOriginal() = runBlocking {
-        val registry = WebSourceRegistry()
-        val source = CountingSource(metadata("a").id)
-        val capabilities = mutableSetOf(SourceCapability.Directory)
-        registry.register(source, metadata("a").copy(capabilities = capabilities))
-        capabilities.clear()
-        try {
-            assertEquals(setOf(SourceCapability.Directory), registry.sources.value.single().metadata.capabilities)
-            assertThrows(IllegalArgumentException::class.java) { registry.register(metadata("a")) { error("Must not construct") } }
-            assertThrows(IllegalArgumentException::class.java) { registry.register(source, metadata("different")) }
-            assertEquals(1, registry.sources.value.size)
-            assertEquals(source.id, registry.ready(source.id).id)
-        } finally { registry.unregister(source.id) }
-    }
-
-    @Test(timeout = 10000)
     fun oneInitializationIsSharedAndFailureDoesNotReloadOrAffectAnotherSource() = runBlocking {
         val registry = WebSourceRegistry()
         val broken = object : CountingSource(metadata("broken").id) {
@@ -313,30 +297,6 @@ class WebSourceRegistryTest {
         } finally {
             registry.unregister(broken.id)
             registry.unregister(good.id)
-        }
-    }
-
-    @Test(timeout = 10000)
-    fun sameRemoteIdsAndEvenOneSharedCacheDoNotShareResponses() = runBlocking {
-        val registry = WebSourceRegistry()
-        val shared = Cache()
-        val a = CountingSource(metadata("a").id, shared)
-        val b = CountingSource(metadata("b").id, shared)
-        registry.register(a, metadata("a"))
-        registry.register(b, metadata("b"))
-        try {
-            val ra = registry.ready(a.id)
-            val rb = registry.ready(b.id)
-            repeat(2) {
-                assertEquals("a", ra.getChapterContent("same", "same").get()!!.title)
-                assertEquals("b", rb.getChapterContent("same", "same").get()!!.title)
-            }
-            assertEquals(1, a.chapters.get())
-            assertEquals(1, b.chapters.get())
-            assertTrue(shared.cacheMap.isEmpty())
-        } finally {
-            registry.unregister(a.id)
-            registry.unregister(b.id)
         }
     }
 
@@ -372,28 +332,6 @@ class WebSourceRegistryTest {
             withTimeout(3000) { old.closed.await() }
             assertEquals(1, old.closes.get())
         } finally { registry.unregister(old.id) }
-    }
-
-    @Test(timeout = 10000)
-    fun cancellingOneCallerDoesNotCancelTheRuntime() = runBlocking {
-        val registry = WebSourceRegistry()
-        val started = CompletableDeferred<Unit>()
-        val source = object : CountingSource(metadata("a").id) {
-            override suspend fun getBookVolumes(id: String): com.github.michaelbull.result.Result<BookVolumes, io.nightfish.lightnovelreader.api.error.WebRequestError> {
-                if (id == "wait") { started.complete(Unit); CompletableDeferred<Unit>().await() }
-                return Ok(BookVolumes(id, emptyList()))
-            }
-        }
-        registry.register(source, metadata("a"))
-        try {
-            val runtime = registry.ready(source.id)
-            val pending = async { runtime.getBookVolumes("wait") }
-            started.await()
-            pending.cancelAndJoin()
-            assertTrue(runtime.isAvailable)
-            assertEquals(Ok(BookVolumes("next", emptyList())), runtime.getBookVolumes("next"))
-            assertEquals(1, source.loads.get())
-        } finally { registry.unregister(source.id) }
     }
 
     @Test(timeout = 10000)

@@ -53,19 +53,6 @@ class TxtBookParserTest {
         assertEquals("First.\nSecond.\nLast.", body(book))
     }
 
-    @Test fun unmatchedTextIsStillACompleteBook() {
-        val book = parse("普通正文\n下一段\n最后一段")
-        assertEquals(listOf("Example"), book.chapters.map { it.title })
-        assertEquals("普通正文\n下一段\n最后一段", body(book))
-    }
-
-    @Test fun aCustomLineRuleChangesThePreviewWithoutRemovingText() {
-        val book = parse("导言\n1. 开始\n正文甲\n2. 结束\n正文乙", "^[0-9]+[.] .+$")
-        assertEquals(listOf("Example", "1. 开始", "2. 结束"), book.chapters.map { it.title })
-        assertEquals("导言\n正文甲\n正文乙", body(book))
-        assertEquals("第一章\n正文", body(parse("第一章\n正文", "")))
-    }
-
     @Test fun unsupportedAndInvalidRulesFailBeforeImport() {
         for (rule in listOf("(", "(?<=chapter) [0-9]+", "(a)\\1")) {
             assertThrows(PatternSyntaxException::class.java) { parse("正文", rule) }

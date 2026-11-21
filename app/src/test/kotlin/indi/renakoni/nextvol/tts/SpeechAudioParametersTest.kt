@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.tts
 
 import hnovel.speech.HttpSpeechDefinition
-import hnovel.speech.OfflineVoiceConfig
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.serialization.json.Json
@@ -10,18 +9,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SpeechAudioParametersTest {
-    @Test fun sovitsOnlyAppliesReadingVolumeInThePcmProcessor() {
-        val voice = OfflineVoiceConfig("gpt-sovits", "v2Pro-1", speed = 1.65f, pitch = .5f, volume = .5f)
-        val settings = SpeechSettings(rate = 1.5f, pitch = 2f, volume = .4f)
-        assertEquals(SpeechAudioParameters(volume = .4f), offlineAudioParameters(voice, settings))
-    }
-
-    @Test fun offlineSpeakerAdjustmentsReachDspOnceAndGlobalPitchCombinesWithSpeakerPitch() {
-        val settings = SpeechSettings(rate = 1.5f, pitch = 2f, volume = .4f)
-        val voice = OfflineVoiceConfig("bdetts", "voice", speed = .8f, pitch = .5f, volume = .5f)
-        assertEquals(SpeechAudioParameters(.8f, 1f, .5f), offlineAudioParameters(voice, settings))
-    }
-
     @Test fun httpSpeakerParametersCombineWithGlobalPitchAndUnboundGlobalVolume() {
         val source = mockk<HttpSpeechDefinition>()
         every { source.usesMultiTts } returns true

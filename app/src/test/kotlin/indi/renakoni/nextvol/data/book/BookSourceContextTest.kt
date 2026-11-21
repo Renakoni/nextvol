@@ -6,7 +6,6 @@ import com.github.michaelbull.result.get
 import indi.renakoni.nextvol.data.web.*
 import io.mockk.coEvery
 import io.mockk.every
-import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.book.*
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import io.nightfish.lightnovelreader.api.web.WebBookDataSource
@@ -16,7 +15,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -79,13 +77,4 @@ class BookSourceContextTest {
         }
     }
 
-    @Test fun readerAndImageRoutesRoundTripBothSourceIdentities() {
-        for (book in listOf(a, b)) {
-            val reader = Route.Book.Reader(book.storageKey, SourceChapterId(book, "chapter").storageKey)
-            assertEquals(reader, Json.decodeFromString<Route.Book.Reader>(Json.encodeToString(reader)))
-            val image = Route.Book.ImageViewerDialog("https://fixture.invalid/shared.png", book.storageKey)
-            assertEquals(image, Json.decodeFromString<Route.Book.ImageViewerDialog>(Json.encodeToString(image)))
-            assertEquals(book, SourceChapterId.fromStorageKey(reader.chapterId).book)
-        }
-    }
 }

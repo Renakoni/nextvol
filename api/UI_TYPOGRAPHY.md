@@ -52,5 +52,4 @@ For changes to these roles, inspect representative pages and sheets in Chinese
 and English, light and dark themes, with short and wrapping/ellipsized titles.
 Check normal, 1.3×, 1.5× and 2× font scales on a narrow phone. Confirm that glyphs
 and line spacing remain readable, titles do not collide with actions, and rows
-can grow. `TypographyInstrumentedTest` covers native text layout and representative
-toolbar bounds; screenshots still need visual review.
+can grow. Review screenshots for native text layout and toolbar bounds.

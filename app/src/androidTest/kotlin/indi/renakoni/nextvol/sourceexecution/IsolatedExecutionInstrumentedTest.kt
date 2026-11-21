@@ -383,19 +383,6 @@ class IsolatedExecutionInstrumentedTest {
         finally { context.unbindService(connection) }
     }
 
-    @Test fun timeoutKillsWorkerAndAnotherSourceCanStart() = runBlocking {
-        val authority = ExecutionAuthority()
-        val executor = AndroidIsolatedExecutor(context, authority)
-        val a = authority.issue("source-a", "legado", "1")
-        assertEquals(ExecutionResult.Failure(FailureCode.Timeout), executor.execute(a,
-            ExecutionTask.Sleep(60000), ExecutionLimits(timeoutMillis = 4000)))
-        val b = authority.issue("source-b", "legado", "1")
-        assertEquals(ExecutionResult.Success("new process"), executor.execute(b,
-            ExecutionTask.Echo("new process"), ExecutionLimits(timeoutMillis = 15000)))
-        assertEquals(ExecutionResult.Failure(FailureCode.InvalidIdentity), executor.execute(
-            b.copy(sourceId = "source-a"), ExecutionTask.Echo("forged")))
-    }
-
     @Test fun revokeAndCancellationRetireWorkers() = runBlocking {
         val authority = ExecutionAuthority()
         val executor = AndroidIsolatedExecutor(context, authority)

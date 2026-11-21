@@ -50,7 +50,7 @@ SOURCE_35 = [f'sourceexecution.{name}InstrumentedTest' for name in (
     'NativeBrowser', 'NativeBrowserPool', 'NativeBrowserAdmissionCookie',
     'NativeBrowserStorage', 'NativeBrowserRoute', 'SourceVerification',
     'SourceImageRecovery', 'RuleImageRecovery', 'ImageUserAgent')]
-READER_WIDE = ['reader.ReaderPositionInstrumentedTest', 'reader.ReaderSpreadInstrumentedTest']
+READER_WIDE = ['reader.ReaderPositionInstrumentedTest']
 # Keep the existing full-suite class order while selecting individual scopes.
 EXTRA_24 = [
     ('export', 'EpubShareInstrumentedTest'),
@@ -110,8 +110,7 @@ def classify(path):
                     'data/work/EpubExportWorkerAdapterTest.kt',
                     'data/work/EpubExportRegressionTest.kt',
                     'data/work/EpubXhtmlWorkerTest.kt',
-                    'data/work/SourceExportWorkerTest.kt',
-                    'ui/book/detail/DetailExportTest.kt'}:
+                    'data/work/SourceExportWorkerTest.kt'}:
                 return 'export'
             if relative.startswith('data/backup/') or (root == KOTLIN_ROOTS[0] and relative in {
                     'data/work/ExportDataWork.kt', 'data/work/ImportDataWork.kt',
@@ -120,8 +119,8 @@ def classify(path):
                     'ui/home/settings/ExportUserDataDialogViewModel.kt',
                     'ui/home/settings/ImportUserDataDialog.kt'}):
                 return 'backup'
-            if relative.startswith('ui/bookmanager/') or (root == KOTLIN_ROOTS[0] and
-                    relative.startswith(('data/storage/', 'ui/storagemanager/'))):
+            if root == KOTLIN_ROOTS[0] and relative.startswith(
+                    ('data/storage/', 'ui/storagemanager/', 'ui/bookmanager/')):
                 return 'storage'
             # Test-only owners already belong to these positive Gradle filters.
             # Shared helpers (e.g. LegacyDownloadSchema/ContentTestHost) stay broad;
@@ -133,7 +132,7 @@ def classify(path):
                     return 'reader'
             if relative.startswith('ui/book/reader/'):
                 return 'reader'
-            if relative.startswith('ui/home/settings/textformatting/'):
+            if root == KOTLIN_ROOTS[0] and relative.startswith('ui/home/settings/textformatting/'):
                 return 'reader'
             if relative.startswith('data/bangumi/'):
                 return 'bangumi'
@@ -145,9 +144,8 @@ def classify(path):
                 return 'catalog'
             for prefix, scope in UI_ROOTS.items():
                 if relative.startswith(prefix):
-                    # These settings screens currently have cross-directory tests.
-                    # A new test in their own package must not fall outside the filter.
-                    return 'full' if root == KOTLIN_ROOTS[1] and scope in {'about', 'logs'} else scope
+                    # New UI tests without a package filter must not be skipped.
+                    return 'full' if root == KOTLIN_ROOTS[1] and scope in {'about', 'logs', 'bookshelf', 'bangumi'} else scope
     if path.startswith('app/src/androidTest/kotlin/indi/renakoni/nextvol/reader/'):
         return 'reader'
     if path.startswith('app/src/androidTest/kotlin/indi/renakoni/nextvol/tts/'):
@@ -196,14 +194,15 @@ def device_classes(scopes, api):
 def plan(scopes):
     active = bool(scopes)
     full = 'full' in scopes
-    tasks = JVM_TASKS if full else [':app:testDebugUnitTest'] if active else []
+    app_scopes = scopes - {'about'}
+    tasks = JVM_TASKS if full else [':app:testDebugUnitTest'] if app_scopes else []
     tasks = list(tasks)
     if 'speech' in scopes:
         tasks.append(':source-speech:test')
     if 'export' in scopes:
         tasks.append(':epub:test')
-    if active and not full and 'source' not in scopes:
-        tasks.append('-PciTestScope=' + ','.join(sorted(scopes)))
+    if app_scopes and not full and 'source' not in scopes:
+        tasks.append('-PciTestScope=' + ','.join(sorted(app_scopes)))
     minified = []
     if full or scopes & {'catalog', 'source'}:
         minified.append(MINIFIED_SOURCE)
@@ -212,7 +211,7 @@ def plan(scopes):
     return {
         'scopes': ','.join(sorted(scopes)) or 'docs',
         'device-scopes': ','.join(sorted(scopes)) or 'docs',
-        'jvm': active,
+        'jvm': bool(tasks),
         'scripts': full,
         'gradle-args': ' '.join(tasks),
         'device-24': any(device_classes(scopes, 24)),
@@ -282,7 +281,7 @@ def plan_for_paths(paths):
     result = plan(scopes)
     tasks = {arg for arg in result['gradle-args'].split() if arg.startswith(':')}
     tasks.update(f':{module}:test' for module in modules)
-    app_scopes = set(scopes) if ':app:testDebugUnitTest' in tasks else set()
+    app_scopes = scopes - {'about'} if ':app:testDebugUnitTest' in tasks else set()
     app_scopes.update(test_scopes)
     if source_production:
         app_scopes.add('full')

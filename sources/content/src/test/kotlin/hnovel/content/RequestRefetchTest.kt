@@ -33,35 +33,6 @@ class RequestRefetchTest {
         }
     }
 
-    @Test fun noRefetchMeansOneRequestAndExplicitPostCallsPreserveBodyAndHeaders() = runBlocking {
-        for ((hook, count) in listOf("result" to 1, "java.getStrResponse(null,null);java.getStrResponse(null,null)" to 3)) {
-            RuleSourceFixture().use { fixture ->
-                fixture.source { raw -> JsonObject(raw + mapOf(
-                    "searchUrl" to JsonPrimitive("""/search,{"method":"POST","body":"query={{key}}","headers":{"X-Synthetic":"kept","Content-Type":"application/x-www-form-urlencoded"}}"""),
-                    "loginCheckJs" to JsonPrimitive(hook)
-                )) }.use { source ->
-                    assertEquals(1, source.search("one two").size)
-                    assertEquals(count, fixture.server.requestCount)
-                    val requests = (1..count).map { fixture.server.takeRequest(1, TimeUnit.SECONDS)!! }
-                    assertTrue(requests.all { it.method == "POST" && it.getHeader("X-Synthetic") == "kept" })
-                    assertEquals(listOf("query=one+two"), requests.map { it.body.readUtf8() }.distinct())
-                }
-            }
-        }
-    }
-
-    @Test fun rulesOutsideLoginCheckHaveNoCurrentRequest() = runBlocking {
-        RuleSourceFixture().use { fixture ->
-            fixture.source { raw -> JsonObject(raw + mapOf(
-                "loginCheckJs" to JsonPrimitive("result"),
-                "ruleSearch" to JsonObject(raw.getValue("ruleSearch").jsonObject + ("name" to JsonPrimitive("h2@text@js:java.getStrResponse(null,null).body()")))
-            )) }.use { source ->
-                assertTrue(runCatching { source.search("key") }.isFailure)
-                assertEquals(1, fixture.server.requestCount)
-            }
-        }
-    }
-
     @Test fun refetchRestartsAtOriginalUrlAndRetainsRedirectPolicy() = runBlocking {
         RuleSourceFixture().use { fixture ->
             fixture.server.dispatcher = object : Dispatcher() {

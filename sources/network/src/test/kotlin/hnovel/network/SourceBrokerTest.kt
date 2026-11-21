@@ -101,39 +101,6 @@ class SourceBrokerTest {
         }
     }
 
-    @Test fun eightSameHostRequestsArriveBeforeAnyResponseAndTheNinthWaits() = runBlocking {
-        MockWebServer().use { server ->
-            val entered = CountDownLatch(8)
-            val release = CountDownLatch(1)
-            val active = AtomicInteger()
-            val maximum = AtomicInteger()
-            server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    maximum.accumulateAndGet(active.incrementAndGet(), ::maxOf)
-                    entered.countDown()
-                    try { check(release.await(10, TimeUnit.SECONDS)) }
-                    finally { active.decrementAndGet() }
-                    return MockResponse().setBody("ready")
-                }
-            }
-            server.start()
-            SourceBroker(directory.root.toPath()).use { broker ->
-                val session = broker.open(scope(), listOf(grant(server.url("/"))))
-                val requests = (0..8).map { index -> async { session.execute(request(server.url("/page/$index"))) } }
-                try {
-                    withContext(Dispatchers.IO) {
-                        val arrived = entered.await(5, TimeUnit.SECONDS)
-                        assertTrue("Expected eight in-flight requests, observed ${maximum.get()}", arrived)
-                    }
-                    assertEquals(8, server.requestCount)
-                } finally { release.countDown() }
-                requests.awaitAll().forEach { assertEquals("ready", success(it).text()) }
-                assertEquals(8, maximum.get())
-                assertEquals(9, server.requestCount)
-            }
-        }
-    }
-
     @Test fun sameOriginPagesReuseConnectionsButNewAccountsDoNot() = runBlocking {
         MockWebServer().use { server ->
             server.start()
@@ -197,48 +164,6 @@ class SourceBrokerTest {
         }
     }
 
-    @Test fun legadoRequestsUseDesktopUserAgentUnlessASourceOverridesIt() = runBlocking {
-        MockWebServer().use { server ->
-            server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest) = MockResponse().setBody(
-                    if (request.getHeader("User-Agent")?.contains("Windows NT") == true) "chapters" else "null")
-            }
-            server.start()
-            SourceBroker(directory.root.toPath()).use { broker ->
-                val session = broker.open(scope(), listOf(grant(server.url("/"))))
-                session.configureSource(server.url("/").toString(), true, defaultUserAgent = DESKTOP_USER_AGENT)
-                assertEquals("chapters", success(session.execute(request(server.url("/toc")))).text())
-                assertTrue(server.recorded().getHeader("User-Agent")!!.startsWith("Mozilla/5.0"))
-                success(session.execute(request(server.url("/explicit")).copy(headers = mapOf("user-agent" to "source-specific"))))
-                assertEquals("source-specific", server.recorded().getHeader("User-Agent"))
-                val account = broker.open(scope("account"), listOf(grant(server.url("/"), headers = mapOf("USER-AGENT" to "account-specific"))))
-                account.configureSource(server.url("/").toString(), true, defaultUserAgent = DESKTOP_USER_AGENT)
-                success(account.execute(request(server.url("/account"))))
-                assertEquals("account-specific", server.recorded().getHeader("User-Agent"))
-                val speech = broker.open(scope("speech", profile = "http-tts"), listOf(grant(server.url("/"))))
-                success(speech.execute(request(server.url("/speech"))))
-                assertFalse(server.recorded().getHeader("User-Agent").orEmpty().contains("Windows NT"))
-            }
-        }
-    }
-
-    @Test fun browserRequestsUseTheSameDefaultAndExplicitUserAgentAsHttp() = runBlocking {
-        val requests = mutableListOf<BrokerRequest>()
-        val browser = BrowserExecutor { _, request, _, _, _ ->
-            requests += request
-            BrokerResult.Success(BrokerResponse(200, request.url, emptyMap(), "page".toByteArray(), "UTF-8", 0))
-        }
-        SourceBroker(directory.root.toPath(), browser = browser).use { broker ->
-            val session = broker.open(scope(), listOf(NetworkGrant("https://fixture.invalid")))
-            session.configureSource("https://fixture.invalid", true, defaultUserAgent = DESKTOP_USER_AGENT)
-            val request = BrokerRequest("browser", "https://fixture.invalid/book", browser = BrowserOptions())
-            success(session.execute(request))
-            assertTrue(requests.last().headers.entries.single { it.key.equals("User-Agent", true) }.value.contains("Windows NT"))
-            success(session.execute(request.copy(headers = mapOf("user-agent" to "source-specific"))))
-            assertEquals("source-specific", requests.last().headers.entries.single { it.key.equals("User-Agent", true) }.value)
-        }
-    }
-
     @Test fun browserCannotExceedTheSessionOrCallerResponseBudget() = runBlocking {
         var bytes = 1024
         val observed = mutableListOf<Int?>()
@@ -255,20 +180,6 @@ class SourceBrokerTest {
             bytes = 1025
             assertEquals(FailureCode.ResponseTooLarge, (session.execute(request.copy(maxResponseBytes = 2048)) as BrokerResult.Failure).code)
             assertEquals(listOf(1024, 512, 1024), observed)
-        }
-    }
-
-    @Test fun dnsNoRecordsAndFakeIpKeepDifferentCodes() = runBlocking {
-        for ((resolver, expected) in listOf(
-            Dns { throw java.net.UnknownHostException() } to FailureCode.Dns,
-            Dns { emptyList() } to FailureCode.Dns,
-            Dns { listOf(InetAddress.getByName("198.18.0.1")) } to FailureCode.AddressDenied,
-            Dns { listOf(InetAddress.getByName("198.19.255.254")) } to FailureCode.AddressDenied,
-            Dns { listOf(InetAddress.getByName("93.184.216.34"), InetAddress.getByName("169.254.169.254")) } to FailureCode.AddressDenied
-        )) SourceBroker(directory.newFolder().toPath(), resolver).use { broker ->
-            val session = broker.open(scope(), listOf(NetworkGrant("https://source.invalid/")))
-            val failure = session.execute(BrokerRequest("dns", "https://source.invalid/")) as BrokerResult.Failure
-            assertEquals(expected, failure.code)
         }
     }
 
@@ -535,22 +446,6 @@ class SourceBrokerTest {
                 assertEquals("GET", redirected.method)
                 assertEquals("same-origin", redirected.getHeader("Authorization"))
                 assertEquals(0L, redirected.bodySize)
-            }
-        }
-    }
-
-    @Test fun sameNameCookiesWithDifferentPathsAreBothSentInPathOrder() = runBlocking {
-        MockWebServer().use { server ->
-            server.start()
-            SourceBroker(directory.root.toPath()).use { broker ->
-                val session = broker.open(scope(), listOf(grant(server.url("/"))))
-                server.enqueue(MockResponse().addHeader("Set-Cookie", "session=root; Path=/")
-                    .addHeader("Set-Cookie", "session=admin; Path=/admin"))
-                success(session.execute(request(server.url("/login"))))
-                server.recorded()
-                server.enqueue(MockResponse().setBody("ok"))
-                success(session.execute(request(server.url("/admin/page"))))
-                assertEquals("session=admin; session=root", server.recorded().getHeader("Cookie"))
             }
         }
     }

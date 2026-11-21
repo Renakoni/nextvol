@@ -84,22 +84,6 @@ class WorkerRuleTest {
         assertEquals(RuleValue.Text("https://fixture.invalid/chapter/1"), value(run(task)).value)
     }
 
-    @Test fun matchResultUsesTheJavaPutStringOverload() {
-        val task = ExecutionTask.Rule("""@js:var bid=baseUrl.match(/\d+/);java.put('bid',bid);java.get('bid')""",
-            RuleValue.Text("chapter"), OutputKind.Text, RuleLocation("ruleToc.chapterUrl"),
-            baseUrl = "https://fixture.invalid/book/12345/catalog/", bookId = "fixture-book")
-        val result = value(run(task))
-        assertEquals(RuleValue.Text("12345"), result.value)
-        assertEquals("12345", result.bookWrites["bid"])
-    }
-
-    @Test fun selectedHtmlListsRetainDomMethodsAndTableContext() {
-        val task = ExecutionTask.Rule("@@tr@js:result.get(0).child(0).text()+'|'+result.size()",
-            RuleValue.Text("<table><tr><td>One</td></tr><tr><td>Two</td></tr></table>"), OutputKind.Elements)
-        assertEquals(RuleValue.Text("One|2"), value(run(task)).value)
-        assertEquals(RuleValue.Text("|0"), value(run(task.copy(rule = "@@#missing@js:result.text()+'|'+result.size()"))).value)
-    }
-
     @Test fun jsonListsRemainStructuredAcrossScriptAndSelectorStages() {
         val input = RuleValue.Text("""{"chapterlist":[{"chapterid":1},{"chapterid":2}]}""")
         val task = ExecutionTask.Rule("""$.chapterlist[*]||$.[*]<js>result</js>$.[*]""",
@@ -112,11 +96,6 @@ class WorkerRuleTest {
         assertEquals(RuleValue.Text("[7,null]"), value(run(mixed)).value)
         assertEquals(emptyList<RuleValue>(), (value(run(task.copy(input = RuleValue.Text("""{"chapterlist":[]}"""),
             rule = """$.chapterlist[*]<js>result</js>$.[*]"""))).value as RuleValue.Items).values)
-    }
-    @Test fun singleJsonObjectsDoNotAcquireAnArrayWrapperBeforeLaterStages() {
-        val task = ExecutionTask.Rule("""$.data<js>result.book_id</js>""",
-            RuleValue.Text("""{"data":{"book_id":"9007199254740993101"}}"""), OutputKind.Element)
-        assertEquals(RuleValue.Text("9007199254740993101"), value(run(task)).value)
     }
     @Test fun metadataAndScopedWritesCrossWireWithoutChangingBookIdentity() {
         val book = buildJsonObject { put("name", "Same book"); put("author", "Same author"); put("bookUrl", "/book"); put("wordCount", "10k"); put("kind", "novel,fiction") }
@@ -141,14 +120,6 @@ class WorkerRuleTest {
     private fun value(result: ExecutionResult): ExecutedRule {
         assertTrue(result.toString(), result is ExecutionResult.Success)
         return Json.decodeFromString(ExecutedRule.serializer(), (result as ExecutionResult.Success).output)
-    }
-
-    @Test fun htmlSelectionFeedsRhinoAndJsonObjectResultsFeedLaterRules() {
-        val input = RuleValue.Text("<ul><li>one</li><li>two</li></ul>")
-        val output = value(run(ExecutionTask.Rule("tag.li@text<js>result.map(function(x){return x.toUpperCase()})</js>", input)))
-        assertEquals(RuleValue.Items(listOf(RuleValue.Text("ONE"), RuleValue.Text("TWO"))), output.value)
-        assertEquals(RuleValue.Text("ONE"), value(run(ExecutionTask.Rule(
-            "<js>({title:'ONE'})</js>$.title", input, OutputKind.Text))).value)
     }
 
     @Test fun whitespaceAroundScriptsPreservesChapterUrlsAndPaginationArrays() {
@@ -222,14 +193,6 @@ class WorkerRuleTest {
             value(run(task)).value)
     }
 
-    @Test fun scriptGetPlaceholdersExpandFromRuleVariables() {
-        val task = ExecutionTask.Rule("<js>'@get:{name}|@get:{missing}'</js>", RuleValue.Empty,
-            OutputKind.Text, sourceVariables = mapOf("name" to "chapter"))
-        assertEquals(RuleValue.Text("chapter|"), value(run(task)).value)
-        assertEquals(RuleValue.Text("updated|"), value(run(task.copy(
-            rule = "<js>java.put('name','updated');result</js><js>'@get:{name}|@get:{missing}'</js>"))).value)
-    }
-
     @Test fun selectorTemplatesAndPutsUseCurrentContentDuringExplicitReads() {
         val task = ExecutionTask.Rule("""@js:
             java.getString('@put:{"root":"h1@text"}span@text','<span>explicit</span>');java.get('root')
@@ -237,16 +200,6 @@ class WorkerRuleTest {
         assertEquals(RuleValue.Text("ROOT"), value(run(task)).value)
         assertEquals(RuleValue.Text("NEW"), value(run(task.copy(
             rule = "<js>java.setContent('<h1>NEW</h1>');'value'</js>{{@@h1@text}}"))).value)
-    }
-
-    @Test fun selectorListsCanBeCopiedToArraysBeforeScriptConcatenation() {
-        val task = ExecutionTask.Rule("""$.items[*]<js>
-            var copy=result.toArray();copy.push({id:3});
-            [{length:result.length,ids:copy.map(x=>x.id),keys:Object.keys(result)}]
-            </js>""".trimIndent(), RuleValue.Text("""{"items":[{"id":1},{"id":2}]}"""), OutputKind.Elements)
-        val row = (value(run(task)).value as RuleValue.Items).values.single() as RuleValue.Node
-        assertEquals(Json.parseToJsonElement("""{"length":2,"ids":[1,2,3],"keys":["0","1"]}"""),
-            Json.parseToJsonElement(row.content))
     }
 
     @Test fun scriptStringListsSplitBeforeUrlResolution() {

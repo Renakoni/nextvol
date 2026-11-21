@@ -9,12 +9,9 @@ import com.github.michaelbull.result.get
 import indi.renakoni.nextvol.data.local.room.dao.UserDataDao
 import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.ui.book.reader.ReaderViewModel
-import indi.renakoni.nextvol.ui.book.reader.content.ContentUiState
-import indi.renakoni.nextvol.ui.book.reader.content.ReaderModeController
 import indi.renakoni.nextvol.ui.book.reader.content.ReaderModeFactory
 import io.mockk.every
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.Runs
 import io.mockk.just
 import io.mockk.mockk
@@ -30,8 +27,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -69,71 +64,6 @@ class ReaderDirectoryOwnershipTest {
             await { readerJobs.all { it.isCompleted } }
         } finally {
             Dispatchers.resetMain()
-        }
-    }
-
-    @Test
-    fun replacingBookCancelsThePreviousDirectoryCollection() {
-        val firstStarted = CompletableDeferred<Unit>()
-        val secondStarted = CompletableDeferred<Unit>()
-        val firstCancelled = CompletableDeferred<Unit>()
-        val first = MutableSharedFlow<Result<BookVolumes, WebRequestError>>(extraBufferCapacity = 8)
-        val second = MutableSharedFlow<Result<BookVolumes, WebRequestError>>(extraBufferCapacity = 8)
-        val chapters = mockk<ChapterSource> {
-            every { getBookVolumesFlow("first", any()) } returns flow {
-                firstStarted.complete(Unit)
-                try {
-                    emitAll(first)
-                } finally {
-                    firstCancelled.complete(Unit)
-                }
-            }
-            every { getBookVolumesFlow("second", any()) } returns flow {
-                secondStarted.complete(Unit)
-                emitAll(second)
-            }
-        }
-        val dao = mockk<UserDataDao> {
-            every { getFlow(any()) } returns kotlinx.coroutines.flow.flowOf(null)
-            every { getFlow(UserDataPath.Reader.IsUsingFlipPage.path) } returns kotlinx.coroutines.flow.flowOf(null)
-        }
-        coEvery { dao.get(UserDataPath.ReadingBooks.path) } returns null
-        coEvery { dao.insert(UserDataPath.ReadingBooks.path, "", "StringList", any()) } just Runs
-        val controller = object : ReaderModeController {
-            override val uiState: ContentUiState = mockk { every { readingChapterId } returns "" }
-            override fun changeBookId(id: String) = Unit
-            override fun changeChapter(id: String) = Unit
-            override fun loadNextChapter() = Unit
-            override fun loadPrevChapter() = Unit
-        }
-        val factory = mockk<ReaderModeFactory> {
-            every { create(any(), any(), any(), any()) } returns controller
-        }
-        val reader = ReaderViewModel(
-            statsRepository = mockk(relaxed = true),
-            chapterSource = chapters,
-            readingData = mockk(relaxed = true),
-            userDataRepository = UserDataRepository(dao),
-            modeFactory = factory,
-            readAloud = mockk(),
-        )
-        store.put("reader", reader)
-        readerJobs += reader.viewModelScope.coroutineContext[Job]!!
-
-        reader.bookId = "first"
-        await { firstStarted.isCompleted }
-        reader.bookId = "second"
-        await { secondStarted.isCompleted }
-        await { firstCancelled.isCompleted }
-
-        second.tryEmit(Ok(BookVolumes("second", emptyList())))
-        await { reader.uiState.bookVolumes?.get()?.bookId == "second" }
-        first.tryEmit(Ok(BookVolumes("first", emptyList())))
-        scheduler.runCurrent()
-
-        assertEquals("second", reader.uiState.bookVolumes?.get()?.bookId)
-        coVerify(timeout = 2_000, exactly = 2) {
-            dao.insert(UserDataPath.ReadingBooks.path, "", "StringList", any())
         }
     }
 

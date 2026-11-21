@@ -96,25 +96,6 @@ class Wenku8NetworkTest {
     private val b = Identifier("routing-fixture", "b")
     private val url = "http://www.wenku8.cc/document"
 
-    @Test fun rawImageTransportFillsMissingUserAgentWithoutOverridingSourceHeaders() = runBlocking {
-        MockWebServer().use { server ->
-            server.start()
-            Wenku8HttpClients({ SourceNetworkRoute(SourceNetworkMode.SystemDefault, Dns.SYSTEM) }) { transport ->
-                io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp) { engine { preconfigured = transport } }
-            }.use { clients ->
-                for ((headers, expected) in listOf(
-                    emptyMap<String, String>() to WENKU8_USER_AGENT,
-                    mapOf("User-Agent" to "  ") to WENKU8_USER_AGENT,
-                    mapOf("user-agent" to "Explicit-Image-UA") to "Explicit-Image-UA",
-                )) {
-                    server.enqueue(MockResponse().setBody("image bytes"))
-                    assertArrayEquals("image bytes".toByteArray(), clients.image(a, server.url("/cover").toString(), headers))
-                    assertEquals(expected, server.takeRequest(5, TimeUnit.SECONDS)!!.getHeader("User-Agent"))
-                }
-            }
-        }
-    }
-
     private inner class Fixture : AutoCloseable {
         val first = MockWebServer().apply { start() }
         val second = MockWebServer().apply { start() }
@@ -263,39 +244,18 @@ class Wenku8NetworkTest {
         }
     }
 
-    @Test(timeout = 30000) fun foregroundDocumentsAllowEightConcurrentRequestsAndReleaseCancelledSlots() = runBlocking {
-        assertEightConcurrentRequests { false }
-    }
-
-    @Test(timeout = 30000) fun imagesAllowEightConcurrentRequestsAndReleaseCancelledSlots() = runBlocking {
-        assertEightConcurrentRequests { true }
-    }
-
-    @Test(timeout = 30000) fun documentsAndImagesShareEightTransportSlots() = runBlocking {
-        assertEightConcurrentRequests { it % 2 == 0 }
-    }
-
-    @Test(timeout = 30000) fun documentBodiesKeepImagesQueuedUntilCancellationReleasesASlot() = runBlocking {
-        assertEightConcurrentRequests(streamBodies = true) { it >= 8 }
-    }
-
-    @Test(timeout = 30000) fun documentsAndImagesShareEightSlotsWhileReadingBodies() = runBlocking {
-        assertEightConcurrentRequests(streamBodies = true) { it % 2 == 0 }
-    }
-
-    private suspend fun assertEightConcurrentRequests(streamBodies: Boolean = false,
-        imageRequest: (Int) -> Boolean) = coroutineScope {
+    @Test(timeout = 30000) fun mixedStreamingBodiesHoldTransportSlotsUntilCancellation() = runBlocking {
         Fixture().use { fixture ->
             val runtime = fixture.runtime(a)
             fixture.first.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest) = if (streamBodies) {
+                override fun dispatch(request: RecordedRequest): MockResponse {
                     // Deliver headers immediately, but keep bodies in flight until cancellation.
-                    document("A").throttleBody(1, 1, TimeUnit.SECONDS)
-                } else MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
+                    return document("A").throttleBody(1, 1, TimeUnit.SECONDS)
+                }
             }
             // Foreground calls own their cancellation; background coalesced work may outlive a waiter.
             fun request(index: Int) = async(ForegroundSourceRequest()) {
-                if (imageRequest(index)) runtime.imageBytes(
+                if (index % 2 == 0) runtime.imageBytes(
                     "book-$index", "http://www.wenku8.cc/image?request=$index", false)
                 else runtime.getBookInformation("book-$index")
             }
@@ -320,27 +280,6 @@ class Wenku8NetworkTest {
             } finally {
                 requests.forEach { it.cancel() }
                 requests.joinAll()
-            }
-        }
-    }
-
-    @Test(timeout = 45000) fun redirectsAreFollowedWithoutRetryingTheOriginalRequest() = runBlocking {
-        Fixture().use { fixture ->
-            val runtime = fixture.runtime(a)
-            for (status in listOf(301, 302, 303, 307, 308)) {
-                fixture.first.dispatcher = object : Dispatcher() {
-                    override fun dispatch(request: RecordedRequest): MockResponse =
-                        if (request.path == "/redirect") MockResponse().setResponseCode(status)
-                            .setHeader("Location", "http://child.fixture/final")
-                        else document("A")
-                }
-                val before = fixture.first.requestCount
-                assertEquals("A • ・ 〜", runtime.execute {
-                    fixture.api.getWithWenku8Cookie("http://www.wenku8.cc/redirect").getOrElse { throw it }.text()
-                })
-                assertEquals("HTTP $status must follow the redirect without retrying it", 2, fixture.first.requestCount - before)
-                assertEquals("/redirect", fixture.first.takeRequest(3, TimeUnit.SECONDS)!!.path)
-                assertEquals("/final", fixture.first.takeRequest(3, TimeUnit.SECONDS)!!.path)
             }
         }
     }

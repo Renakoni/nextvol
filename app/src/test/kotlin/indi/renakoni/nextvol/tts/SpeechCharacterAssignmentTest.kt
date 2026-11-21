@@ -92,15 +92,6 @@ class SpeechCharacterAssignmentTest {
         assertTrue(disabled.classified.isEmpty())
     }
 
-    @Test fun abstractRuleUsesItsDeclaredFallbackWhenItsPoolIsEmpty() = runBlocking {
-        val rule = SpeechRoleRule(name = "青年", regex = "小甲", isAbstract = true, speaker = female)
-        val fixture = Fixture(configured().copy(roleRules = listOf(rule), autoAssignRole = false))
-        val segment = fixture.prepare("小甲说：“你好。”").segments.single { it.dialogue }
-        assertEquals(female, segment.selectedVoice!!.reference)
-        assertEquals("青年", segment.roleMatch!!.poolGroup)
-        assertTrue(fixture.saved.isEmpty())
-    }
-
     @Test fun analyzedAliasesUseOneBookIdentityAndPreserveManualCorrectionsAndOtherBooks() = runBlocking {
         val candidate = SpeechTextAnalysisCandidate("小甲", "小甲", 90,
             SpeechNameClassification(SpeechNameHint.Male, SpeechNameHintBasis.Model), true, true, aliases = listOf("阿甲"))

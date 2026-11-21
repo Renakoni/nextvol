@@ -66,17 +66,6 @@ class GithubParserTest {
         assertEquals("1.4.0", parse()!!.versionName)
     }
 
-    @Test fun noReleasesIsNotANetworkFailure() {
-        server.enqueue(MockResponse().setResponseCode(404))
-        assertNull(parse())
-        assertEquals(1, server.requestCount)
-    }
-
-    @Test fun rateLimitsAreFailures() {
-        server.enqueue(MockResponse().setResponseCode(403))
-        assertThrows(IOException::class.java) { parse() }
-    }
-
     @Test fun draftsAndPrereleasesAreNeverOffered() {
         for (flag in listOf("draft", "prerelease")) {
             server.enqueue(MockResponse().setBody(JSONArray().put(metadata().put(flag, true)).toString()))

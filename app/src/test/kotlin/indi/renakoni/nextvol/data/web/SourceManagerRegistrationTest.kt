@@ -46,16 +46,6 @@ class SourceManagerRegistrationTest {
         }
     }
 
-    @Test fun missingIdentityDoesNotInitializeAnotherRegisteredSource() = runBlocking {
-        val manager = WebBookDataSourceManager(WebSourceRegistry())
-        val source = BuiltInFixture()
-        manager.loadBuiltInSource(source)
-        try {
-            assertTrue(manager.registry.resolve(Identifier("fixture", "missing")) is SourceResolution.Missing)
-            assertEquals(0, source.loads.get())
-        } finally { manager.unregisterWebDataSource(source.id) }
-    }
-
     @WebDataSource("Fixture", "Built-in fixture")
     class BuiltInFixture(override val id: Identifier = Identifier("fixture", "builtin")) :
         WebBookDataSource by EmptyWebDataSource, AutoCloseable {

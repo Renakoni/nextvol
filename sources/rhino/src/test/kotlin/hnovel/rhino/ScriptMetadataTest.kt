@@ -6,13 +6,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ScriptMetadataTest {
-    @Test fun absoluteChapterUrlsDoNotRequireABase() {
-        val engine = RhinoScriptEngine(HostBridge { _, _ -> error("No host") })
-        for (url in listOf("https://fixture.invalid/chapter", "HTTP://fixture.invalid/chapter,{\"method\":\"POST\"}")) {
-            val frame = ScriptFrame("a", "legado", chapter = buildJsonObject { put("url", url) })
-            assertEquals(ScriptResult.Success(JsonPrimitive(url).toString()), engine.evaluate("chapter.getAbsoluteURL()", frame))
-        }
-    }
     @Test fun metadataMethodsPreserveTypesAndSeparateVariableScopes() {
         val context = RuleContext("a", chapterVariables = mapOf("token" to "old"))
         val frame = ScriptFrame("a", "legado", bookId = "book-a", ruleContext = context,

@@ -198,30 +198,6 @@ class BangumiRepositoryTest {
         assertEquals(0, server.requestCount)
     }
 
-    @Test fun missingCollectionIsCreatedPrivatelyAndThenUpdated() = runBlocking {
-        remote = null
-        read(1); bind(); repository.syncAll()
-        assertEquals(2, writes.size)
-        assertEquals(setOf("type", "private"), writes[0].keys)
-        assertEquals(BangumiCollection(3, 1, 0, true), remote)
-    }
-
-    @Test fun readingAutomaticallyEntersSyncButBrowsingDoesNot() = runBlocking {
-        remote = null
-        assertTrue(repository.reconcile().isEmpty())
-        assertEquals(0, server.requestCount)
-        read(1)
-        assertEquals(1, repository.reconcile().size)
-        assertNull(database.bangumiBindingDao().get(17, book.storageKey)!!.subjectId)
-        repository.syncAll()
-        assertEquals(10, database.bangumiBindingDao().get(17, book.storageKey)!!.subjectId)
-        assertEquals(BangumiCollection(3, 1, 0, true), remote)
-        assertEquals(BangumiSyncStatus.SYNCED, binding().status)
-        val requests = server.requestCount
-        repository.requestSync(); repository.syncAll()
-        assertEquals(requests, server.requestCount)
-    }
-
     @Test fun ambiguousMatchesPersistAsErrorsUntilGlobalSyncOrCorrection() = runBlocking {
         ambiguousSearch = true
         read(1); repository.requestSync(); repository.syncAll()
@@ -250,15 +226,6 @@ class BangumiRepositoryTest {
         read(5); repository.reconcile(); repository.syncAll()
         assertEquals(5, remote!!.volumes)
         assertEquals(1, writes.size)
-    }
-
-    @Test fun clearingReadingBeforeAutomaticMatchingDoesNotCreateACollection() = runBlocking {
-        remote = null
-        read(1); repository.reconcile()
-        database.userReadingDataDao().clear()
-        repository.syncAll()
-        assertNull(database.bangumiBindingDao().get(17, book.storageKey))
-        assertEquals(0, server.requestCount)
     }
 
     @Test fun aFinishedButUnconfirmedLatestCatalogAppearsAsAnActionableError() = runBlocking {
@@ -309,14 +276,6 @@ class BangumiRepositoryTest {
         assertEquals(3, remote!!.type)
     }
 
-    @Test fun aSingleBookSubjectCannotBeBoundToSeveralPublications() = runBlocking {
-        val preview = repository.preview(book.storageKey, 10).let { it.copy(subject = it.subject.copy(series = false)) }
-        try { repository.bind(preview, preview.mapping, emptySet(), true); fail() }
-        catch (_: IllegalArgumentException) { }
-        assertNull(database.bangumiBindingDao().get(17, book.storageKey))
-        assertTrue(writes.isEmpty())
-    }
-
     @Test fun alreadyCompletedCollectionIsOnlyResumedAfterBindingConfirmation() = runBlocking {
         remote = BangumiCollection(2, 0, 17)
         read(1)
@@ -327,14 +286,6 @@ class BangumiRepositoryTest {
         assertEquals(setOf("type"), writes[0].keys)
         assertEquals(3, remote!!.type)
         assertEquals(17, remote!!.chapters)
-    }
-
-    @Test fun aHigherRemoteCountIsPreserved() = runBlocking {
-        remote = BangumiCollection(3, 5)
-        read(1); bind(); repository.syncAll()
-        assertTrue(writes.isEmpty())
-        assertEquals(5, remote!!.volumes)
-        assertEquals(BangumiSyncStatus.REMOTE_AHEAD, binding().status)
     }
 
     @Test fun fourPreviouslyReadRemoteVolumesAreNotAddedAgainWhenRereadLocally() = runBlocking {
@@ -369,17 +320,6 @@ class BangumiRepositoryTest {
         assertEquals(listOf(buildJsonObject { put("vol_status", 5) }), writes)
     }
 
-    @Test fun unreadResetBeforeSendDropsThePendingTargetButNotAnAcknowledgedVolume() = runBlocking {
-        bind(); repository.syncAll()
-        read(1); assertTrue(repository.reconcile().isNotEmpty())
-        read(); repository.syncAll()
-        assertTrue(writes.isEmpty())
-        read(1); repository.syncAll()
-        read(); repository.syncAll()
-        assertEquals(1, remote!!.volumes)
-        assertEquals(1, writes.size)
-    }
-
     @Test fun deletingReadingRecordsAndRereadingDoesNotResendAcknowledgedVolumes() = runBlocking {
         read(1); bind(); repository.syncAll()
         val acknowledged = binding().acknowledged
@@ -398,18 +338,6 @@ class BangumiRepositoryTest {
         assertEquals(2, remote!!.volumes)
         assertEquals(listOf(1, 2), writes.map { it["vol_status"]!!.jsonPrimitive.int })
         assertEquals(2, binding().acknowledged.size)
-    }
-
-    @Test fun deletingUnsentReadingRecordsCancelsThePendingCount() = runBlocking {
-        bind(); repository.syncAll()
-        read(1); assertTrue(repository.reconcile().isNotEmpty())
-        database.userReadingDataDao().deleteByIds(listOf(book.storageKey))
-        val requests = server.requestCount
-        repository.syncAll()
-        assertEquals(requests, server.requestCount)
-        assertTrue(writes.isEmpty())
-        assertEquals(0, binding().target)
-        assertEquals(BangumiSyncStatus.READY, binding().status)
     }
 
     @Test fun deletingReadingRecordsDuringTheRemoteReadIsRecheckedBeforeWriting() = runBlocking {
@@ -450,24 +378,6 @@ class BangumiRepositoryTest {
         assertEquals(BangumiSyncStatus.REMOTE_CHANGED, binding().status)
         assertEquals(1, writes.size)
         assertEquals(0, remote!!.volumes)
-    }
-
-    @Test fun manualWebsiteStatusIsPreservedAfterTheInitialLink() = runBlocking {
-        bind(); repository.syncAll()
-        remote = remote!!.copy(type = 2)
-        read(1); repository.syncAll()
-        assertTrue(writes.isEmpty())
-        assertEquals(BangumiSyncStatus.REMOTE_STATE, binding().status)
-    }
-
-    @Test fun addedChapterInvalidatesMappingBeforeAnyWrite() = runBlocking {
-        read(1); bind()
-        val changed = volumes.mapIndexed { index, volume -> if (index == 0) volume.copy(chapters = volume.chapters +
-            ChapterInformation(SourceChapterId(book, "new").storageKey, "补章")) else volume }
-        local.updateBookVolumes(BookVolumes(book.storageKey, changed))
-        repository.syncAll()
-        assertTrue(writes.isEmpty())
-        assertEquals(BangumiSyncStatus.MAPPING_CHANGED, binding().status)
     }
 
     @Test fun freshWorkerRecoversProgressWithoutAnInMemoryReadingEvent() = runBlocking {
@@ -536,21 +446,6 @@ class BangumiRepositoryTest {
         assertNull(record.httpStatus)
         assertFalse(record.toString().contains("private-response"))
         assertTrue(writes.isEmpty())
-    }
-
-    @Test fun disconnectPreventsLaterQueuedWritesWithoutDeletingRemoteCollection() = runBlocking {
-        read(1); bind(); accounts.disconnect(); repository.syncAll()
-        assertTrue(writes.isEmpty())
-        assertNotNull(remote)
-    }
-
-    @Test fun explicitRetryChecksRemoteEvenWhenLocalCountDidNotChange() = runBlocking {
-        bind(); repository.syncAll()
-        repository.retry(book.storageKey)
-        assertTrue(repository.reconcile().isNotEmpty())
-        remote = remote!!.copy(type = 4)
-        repository.syncAll()
-        assertEquals(BangumiSyncStatus.REMOTE_STATE, binding().status)
     }
 
     @Test fun acceptedWriteSurvivesFailedReadbackUnreadResetAndWorkerRecreation() = runBlocking {

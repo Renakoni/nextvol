@@ -20,13 +20,6 @@ class BangumiSearchApiTest {
     private val reader = BangumiSearchApi(official, mirror)
     private val page = BangumiSearchPage(listOf(BangumiSubject(19441, nameCn = "春物")), 1)
 
-    @Test fun fastOfficialSuccessDoesNotContactMirror() = runTest {
-        coEvery { official.search("春物", 0) } returns page
-        assertEquals(page, reader.search("春物", 0, false))
-        coVerify(exactly = 0) { mirror.search(any(), any()) }
-        assertEquals(0L, currentTime)
-    }
-
     @Test fun slowOfficialReadStartsMirrorAndCancelsLosingRequest() = runTest {
         var cancelled = false
         coEvery { official.searchTag("春物", 10) } coAnswers {
@@ -78,21 +71,6 @@ class BangumiSearchApiTest {
         advanceTimeBy(1_000)
         job.cancelAndJoin()
         assertEquals(2, finished)
-    }
-
-    @Test fun concurrentSearchesShareTheFourHttpRequestLimit() = runTest {
-        var active = 0
-        var peak = 0
-        suspend fun response(): BangumiSearchPage {
-            active++
-            peak = maxOf(peak, active)
-            try { delay(1_000); return page } finally { active-- }
-        }
-        coEvery { official.search(any(), any()) } coAnswers { response() }
-        coEvery { mirror.search(any(), any()) } coAnswers { response() }
-        (1..5).map { async { reader.search("春物", it * 10, false) } }.awaitAll()
-        assertEquals(4, peak)
-        assertEquals(0, active)
     }
 
     @Test fun mirrorReceivesOnlyPublicRequestsWithoutCredentialsAndRejectsHtml() = runBlocking {

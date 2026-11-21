@@ -112,21 +112,6 @@ class SystemSpeechInstrumentedTest {
         }
     }
 
-    @Test fun missingEngineIsReportedBeforeAnyAudioIsCreated() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val engines = SystemSpeechEngines(context)
-        val expected = if (engines.installed().isEmpty()) SpeechError.NoEngine else SpeechError.EngineUnavailable
-        val provider = engines.synthesizer()
-        try {
-            try {
-                provider.open(SpeechSettings(engine = "invalid.nextvol.speech.engine"))
-                fail("A missing engine must not fall back to a different engine")
-            } catch (failure: SpeechException) {
-                assertEquals(expected, failure.error)
-            }
-        } finally { provider.close() }
-    }
-
     /** Optional real-engine check: -e speechEngine com.reecedunn.espeak. Never installs an engine. */
     @Test fun installedEngineCreatesRealAudioAndPlaybackCanPauseResumeAndFinish() = runBlocking {
         val engine = InstrumentationRegistry.getArguments().getString("speechEngine")

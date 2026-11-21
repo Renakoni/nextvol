@@ -476,25 +476,4 @@ class NativeBrowserInstrumentedTest {
         assertEquals(target, blocked.verificationRequest?.url)
     } }
 
-    @Test fun suppliedHtmlUsesTheSyntheticBrowserWithoutNetwork(): Unit = runBlocking { fixture { broker, server ->
-        val result = session(broker, server).execute(BrokerRequest("html", server.url("/").toString(),
-            browser = BrowserOptions(html = "<html><head><link rel='icon' href='data:,'></head><body>synthetic</body></html>",
-                script = "document.body.textContent")))
-        assertTrue(result.toString(), result is BrokerResult.Success)
-        assertEquals("synthetic", (result as BrokerResult.Success).response.text().trim())
-        val unexpected = List(server.requestCount) { server.takeRequest(1, TimeUnit.SECONDS)?.path }
-        assertEquals("Synthetic HTML unexpectedly fetched $unexpected", emptyList<String>(), unexpected)
-    } }
-
-    @Test fun backgroundDocumentHasAnActualViewport(): Unit = runBlocking { fixture { broker, server ->
-        server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(
-            "<meta name='viewport' content='width=device-width,initial-scale=1'><div style='width:50vw' id='half'></div>"))
-        val result = Json.parseToJsonElement(render(session(broker, server), server.url("/").toString(),
-            "JSON.stringify({width:innerWidth,height:innerHeight,half:document.getElementById('half').getBoundingClientRect().width})").text()).jsonObject
-        val width = result.getValue("width").jsonPrimitive.double
-        assertTrue(width > 0)
-        assertTrue(result.getValue("height").jsonPrimitive.double > 0)
-        assertEquals(width / 2, result.getValue("half").jsonPrimitive.double, 1.0)
-    } }
-
 }

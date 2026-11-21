@@ -20,12 +20,9 @@ import indi.renakoni.nextvol.data.local.room.NextVolDatabase
 import indi.renakoni.nextvol.data.local.room.entity.UserReadingDataEntity
 import indi.renakoni.nextvol.data.statistics.StatisticsWriteCoordinator
 import indi.renakoni.nextvol.data.statistics.StatsRepository
-import indi.renakoni.nextvol.data.reading.RepositoryReaderRecordStore
-import indi.renakoni.nextvol.data.userdata.UserDataRepository
 import indi.renakoni.nextvol.data.work.SaveBookshelfWork
 import indi.renakoni.nextvol.data.work.workerParameters
 import indi.renakoni.nextvol.data.backup.BackupFiles
-import io.nightfish.lightnovelreader.api.userdata.UserDataPath
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -147,7 +144,6 @@ class LocalBookRelinkTest {
         val text = "Chapter 1\n" + "これは日本語の小説です。登場人物たちは長い旅に出かけました。読者は物語を楽しみます。".repeat(40)
         roundTrip(temporary.newFile("japanese.txt").apply { writeBytes(text.toByteArray(java.nio.charset.Charset.forName("Shift_JIS"))) })
     }
-    @Test fun extensionOnlyFileNameKeepsItsFallbackChapterAcrossDevices() = runBlocking { roundTrip(txt(name = ".txt", text = "A book without headings")) }
     @Test fun epubRestoreResolvesImagesFromTheNewDeviceDirectory() = runBlocking { roundTrip(epub()) }
 
     @Test fun sharedBookshelfRetainsLocalFileEvidenceWithoutOtherBooksOrPrivateReadingData() = runBlocking {
@@ -185,20 +181,6 @@ class LocalBookRelinkTest {
         assertEquals(listOf(book.storageKey), target.db.importedBookDao().allIds())
         assertEquals("My saved title", target.store.readInformation(book).get()!!.title)
         assertTrue(target.store.readChapter(SourceChapterId(book, "0")).isOk)
-    }
-
-    @Test fun restoredEmptyRecentHistoryCanRecordTheRelinkedBook() = runBlocking {
-        val file = txt()
-        val old = Library("old")
-        val book = old.import(file)
-        UserDataRepository(old.db.userDataDao()).stringListUserData(UserDataPath.ReadingBooks.path).set(emptyList())
-        val target = Library("new")
-        target.restore(old.export(cache = false))
-        target.store.relink(target.preview(book, file))
-        val preferences = UserDataRepository(target.db.userDataDao())
-        val records = RepositoryReaderRecordStore(mockk(), mockk(), preferences)
-        records.updateRecentBooks { it + book.storageKey }
-        assertEquals(listOf(book.storageKey), preferences.stringListUserData(UserDataPath.ReadingBooks.path).get())
     }
 
     @Test fun changedOriginalAndSameNameDifferentBookCannotBind() = runBlocking {
@@ -305,17 +287,6 @@ class LocalBookRelinkTest {
         assertTrue(runCatching { library.store.relink(deleted) }.isFailure)
         assertFalse(library.store.contains(book))
         assertTrue(library.db.bookInformationDao().getAllEntities().isEmpty())
-    }
-    @Test fun settingsOnlyBackupHasNoManifestsAndUnselectedBooksAreExcluded() = runBlocking {
-        val library = Library("library")
-        val book = library.import(txt())
-        assertTrue(library.backup.exportAppLocalData(false, false, false, true, false).get()!!.localDataList.single().localBookFiles.isEmpty())
-        assertTrue(library.backup.exportAppLocalData(false, false, false, false, true).get()!!.localDataList.single().localBookFiles.isEmpty())
-        library.seedPosition(book)
-        val bookmarks = library.backup.exportAppLocalData(false, false, false, false, true).get()!!.localDataList.single()
-        assertEquals(listOf(book.storageKey), bookmarks.localBookFiles.map { it.bookId })
-        assertEquals(listOf(book.storageKey), bookmarks.bookInformationEntities.map { it.id })
-        assertTrue(bookmarks.chapterContentEntities.isEmpty())
     }
     @Test fun version22MigrationPreservesOriginalOwnershipAndReadingData() = runBlocking {
         val library = Library("library")

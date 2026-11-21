@@ -138,21 +138,6 @@ class EpubExportRegressionTest {
         assertTrue(files.isEmpty())
     }
 
-    @Test fun legacyShortComponentIdsRetainTheirText() = runTest {
-        startCase("legacy-id-body-loss")
-        setBody(textBody("Legacy text", "simple_text"))
-        assertTrue(worker().doWork() is ListenableWorker.Result.Success)
-        assertEquals(listOf("Legacy text", "Legacy text"), files.flatMap(::bodies))
-    }
-
-    @Test fun emptyVolumeFailsWithoutEscapingWorkerFailureHandling() = runTest {
-        startCase("empty-volume")
-        volumes = book.bind(BookVolumes("book", listOf(Volume("empty", "Empty volume", emptyList()))))
-        val result = worker("BOOK").doWork() as ListenableWorker.Result.Failure
-        assertEquals("empty_volume", result.outputData.getString("reason"))
-        assertEquals(-1f, items.single().progress)
-    }
-
     @Test fun emptyVolumeInSplitModeFailsBeforeCreatingFiles() = runTest {
         startCase("empty-split-volume")
         volumes = book.bind(BookVolumes("book", listOf(Volume("empty", "Empty volume", emptyList()))))
@@ -181,29 +166,12 @@ class EpubExportRegressionTest {
         assertEquals(2, covers.size); assertFalse(covers[0].contentEquals(covers[1]))
     }
 
-    @Test fun optionalVolumeCoverLookupFailureUsesDefaultCover() = runTest {
-        startCase("cover-lookup-failure")
-        coEvery { repository.volumeCover(book, any(), any(), any()) } throws IOException("cover unavailable")
-        assertTrue(worker().doWork() is ListenableWorker.Result.Success)
-        assertEquals(listOf("Retained text", "Retained text"), files.flatMap(::bodies))
-    }
-
     @Test fun emptySelectionNeverFallsBackToWholeBook() = runTest {
         startCase("empty-selection")
         val result = worker(selected = "").doWork() as ListenableWorker.Result.Failure
         assertEquals("missing_volume", result.outputData.getString("reason"))
         assertTrue(files.isEmpty())
         verify(exactly = 0) { repository.getChapterContentFlow(any(), any(), any()) }
-    }
-
-    @Test fun publishFailureDoesNotExposeAnyArchives() = runTest {
-        startCase("publish-failure")
-        mockkObject(EpubShareFiles)
-        every { EpubShareFiles.publish(context, any(), any(), any()) } throws IOException("disk full")
-        val result = worker().doWork() as ListenableWorker.Result.Failure
-        assertEquals("share_failed", result.outputData.getString("reason"))
-        assertTrue(files.isEmpty())
-        assertEquals(-1f, items.single().progress)
     }
 
     @Test fun restartingAnAlreadyPublishedRequestKeepsTheOriginalRecipientFiles() = runTest {

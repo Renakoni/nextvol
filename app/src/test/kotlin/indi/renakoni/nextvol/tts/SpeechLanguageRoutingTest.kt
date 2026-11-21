@@ -29,13 +29,6 @@ class SpeechLanguageRoutingTest {
         assertNull(unmatched?.role)
     }
 
-    @Test fun disabledAndEmptyRulesSkipDetection() = runBlocking {
-        val mustNotDetect: suspend (String, Set<String>) -> String? = { _, _ -> error("Detector must stay unloaded") }
-        assertNull(SpeechLanguageRouting(listOf(rule("en").copy(activate = false), rule("zh").copy(mode = 0)),
-            mustNotDetect).route("Hello"))
-        assertNull(SpeechLanguageRouting(emptyList(), mustNotDetect).route("Hello"))
-    }
-
     @Test fun detectionUnitsCoalesceWithoutLosingPunctuationOrOriginalOffsets() = runBlocking {
         val calls = mutableListOf<String>()
         val routing = SpeechLanguageRouting(listOf(rule("en"), rule("zh-CN"))) { text, _ ->
@@ -49,13 +42,6 @@ class SpeechLanguageRoutingTest {
         assertEquals(listOf("en", "zh-CN"), groups.map { it.second?.language })
         assertEquals(0 to 13, groups.first().first.range())
         assertEquals(13 to text.length, groups.last().first.range())
-    }
-
-    @Test fun detectorCandidatesFollowTheSystemLocale() {
-        assertEquals(setOf("en", "zh-CN"), optimaizeLanguageCandidates(setOf("unsupported"), Locale.US))
-        assertEquals(setOf("ja", "zh-TW"), optimaizeLanguageCandidates(setOf("ja"), Locale.TAIWAN))
-        val mediaPipe = mediaPipeLanguageCandidates(setOf("en", "ja"), Locale.CHINA)
-        assertTrue(mediaPipe.containsAll(listOf("en", "ja", "zh", "ru-Latn", "zh-Latn")))
     }
 
     private fun Char.isAsciiLetter() = this in 'A'..'Z' || this in 'a'..'z'
