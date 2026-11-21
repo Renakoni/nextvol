@@ -26,8 +26,14 @@ dependencyResolutionManagement {
                     includeModule("org.jetbrains.compose.ui", "ui-backhandler$suffix")
                 }
                 includeVersion("org.codehaus.groovy", "groovy", "3.0.22")
+                includeVersion("org.jetbrains.kotlin", "compose-group-mapping", "2.4.10")
                 includeVersion("org.jetbrains.kotlin", "kotlin-reflect", "2.2.10")
                 includeVersion("org.jetbrains.kotlin", "kotlin-stdlib", "2.2.10")
+                includeVersion("org.jetbrains.kotlin", "kotlin-stdlib", "2.2.21")
+                includeVersion("org.jetbrains", "annotations", "13.0")
+                listOf("asm", "asm-tree").forEach { module ->
+                    includeVersion("org.ow2.asm", module, "9.9.1")
+                }
                 listOf("asm", "asm-commons", "asm-tree", "asm-analysis").forEach { module ->
                     includeVersion("org.ow2.asm", module, "9.9")
                 }
