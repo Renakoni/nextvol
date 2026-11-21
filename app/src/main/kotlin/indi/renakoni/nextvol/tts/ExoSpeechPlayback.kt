@@ -13,6 +13,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -35,28 +36,20 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
     }
 
     override suspend fun play(clip: SpeechClip, playWhenReady: Boolean, onRange: (SpeechTiming) -> Unit,
-        onEstimatedAnchor: (Int) -> Unit,
+        onEstimatedAnchor: (Int) -> Unit, nextClip: Flow<SpeechClip?>,
         onState: (SpeechPhase, Boolean) -> Unit) = coroutineScope {
-        stop()
+        val continuing = player.currentMediaItem?.mediaId == clip.file.name
+        if (!continuing) stop()
         val completed = CompletableDeferred<Unit>()
         active = completed
         var seekPending = false
+        var queuedId: String? = null
         val playbackChanges = Channel<Unit>(Channel.CONFLATED)
-        val events = object : Player.Listener {
-            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
-                if (active === completed && reason == Player.DISCONTINUITY_REASON_SEEK) {
-                    seekPending = true
-                    playbackChanges.trySend(Unit)
-                }
-            }
-
-            override fun onEvents(player: Player, events: Player.Events) {
-                if (active !== completed) return
-                playbackChanges.trySend(Unit)
-                if (player.playbackState == Player.STATE_ENDED) {
-                    completed.complete(Unit)
-                    return
-                }
+        fun reportState() {
+            if (active !== completed || completed.isCompleted) return
+            playbackChanges.trySend(Unit)
+            if (player.playbackState == Player.STATE_ENDED) completed.complete(Unit)
+            else {
                 val phase = when {
                     !player.playWhenReady || player.playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE -> SpeechPhase.Paused
                     player.isPlaying -> SpeechPhase.Playing
@@ -64,6 +57,21 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
                 }
                 onState(phase, player.playWhenReady)
             }
+        }
+        val events = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && mediaItem != null && mediaItem.mediaId == queuedId)
+                    completed.complete(Unit)
+            }
+
+            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (active === completed && reason == Player.DISCONTINUITY_REASON_SEEK) {
+                    seekPending = true
+                    playbackChanges.trySend(Unit)
+                }
+            }
+
+            override fun onEvents(player: Player, events: Player.Events) = reportState()
             override fun onPlayerError(error: PlaybackException) {
                 if (active === completed) completed.completeExceptionally(clip.stream?.failure ?: SpeechException(SpeechError.Playback))
             }
@@ -71,23 +79,33 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
         listener = events
         player.addListener(events)
         try {
-            val title = clip.chapter.title.ifEmpty { context.getString(R.string.tts_preview) }
-            val item = MediaItem.Builder().setUri(clip.file.toUri()).setMediaId(clip.file.name)
-                .setMediaMetadata(MediaMetadata.Builder().setTitle(title)
-                    .setArtist(clip.chapter.bookTitle.ifEmpty { context.getString(R.string.app_name) })
-                    .setSubtitle(context.getString(R.string.tts_passage, clip.index + 1, clip.count)).build()).build()
-            val pauseMs = clip.segment.pauseMs
-            if (pauseMs != null) player.setMediaSource(SilenceMediaSource.Factory()
-                .setDurationUs(pauseMs.toLong() * 1000).createMediaSource().apply { updateMediaItem(item) })
-            else if (clip.stream == null) player.setMediaItem(item)
-            else player.setMediaSource(streamingSpeechMediaSource(item, clip.stream))
-            player.playWhenReady = playWhenReady
-            player.prepare()
+            if (continuing) {
+                val index = player.currentMediaItemIndex
+                if (index > 0) player.removeMediaItems(0, index)
+                player.playerError?.let { throw clip.stream?.failure ?: SpeechException(SpeechError.Playback) }
+                reportState()
+            } else {
+                load(clip, append = false)
+                player.playWhenReady = playWhenReady
+                player.prepare()
+            }
+            val preload = launch {
+                nextClip.collect { next ->
+                    if (completed.isCompleted || active !== completed || player.currentMediaItem?.mediaId != clip.file.name) return@collect
+                    if (next != null && queuedId == null) {
+                        queuedId = next.file.name
+                        load(next, append = true)
+                    } else if (next == null && queuedId != null) {
+                        queuedId = null
+                        player.removeMediaItem(player.currentMediaItemIndex + 1)
+                    }
+                }
+            }
             val estimate = if (clip.timings.isEmpty() && clip.segment.pauseMs == null) SpeechFollowEstimate(clip.segment.text) else null
             val tracking = if (estimate != null || clip.timings.isNotEmpty()) launch {
                 var reported: SpeechTiming? = null
                 var reportedAnchor: Int? = null
-                while (isActive && active === completed) {
+                while (isActive && active === completed && !completed.isCompleted) {
                     if (player.isPlaying || seekPending && player.playbackState == Player.STATE_READY) {
                         val wasSeek = seekPending
                         seekPending = false
@@ -106,11 +124,29 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
                     if (player.isPlaying) delay(50) else playbackChanges.receive()
                 }
             } else null
-            try { completed.await() } finally { tracking?.cancel() }
+            try { completed.await() } finally { preload.cancel(); tracking?.cancel() }
         } finally {
             player.removeListener(events)
             if (active === completed) { active = null; listener = null }
         }
+    }
+
+    private fun load(clip: SpeechClip, append: Boolean) {
+        val title = clip.chapter.title.ifEmpty { context.getString(R.string.tts_preview) }
+        val item = MediaItem.Builder().setUri(clip.file.toUri()).setMediaId(clip.file.name)
+            .setMediaMetadata(MediaMetadata.Builder().setTitle(title)
+                .setArtist(clip.chapter.bookTitle.ifEmpty { context.getString(R.string.app_name) })
+                .setSubtitle(context.getString(R.string.tts_passage, clip.index + 1, clip.count)).build()).build()
+        val pauseMs = clip.segment.pauseMs
+        val source = when {
+            pauseMs != null -> SilenceMediaSource.Factory().setDurationUs(pauseMs.toLong() * 1000)
+                .createMediaSource().apply { updateMediaItem(item) }
+            clip.stream != null -> streamingSpeechMediaSource(item, clip.stream)
+            else -> null
+        }
+        if (source == null) {
+            if (append) player.addMediaItem(item) else player.setMediaItem(item)
+        } else if (append) player.addMediaSource(source) else player.setMediaSource(source)
     }
 
     override fun positionMs(clip: SpeechClip): Long =

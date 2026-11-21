@@ -6,6 +6,7 @@ import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -914,7 +915,7 @@ class ReadAloudSessionTest {
         var rangeCallback: ((SpeechTiming) -> Unit)? = null
         var estimatedAnchorCallback: ((Int) -> Unit)? = null
         override suspend fun play(clip: SpeechClip, playWhenReady: Boolean, onRange: (SpeechTiming) -> Unit,
-            onEstimatedAnchor: (Int) -> Unit,
+            onEstimatedAnchor: (Int) -> Unit, nextClip: Flow<SpeechClip?>,
             onState: (SpeechPhase, Boolean) -> Unit) {
             val complete = CompletableDeferred<Unit>()
             pending = complete

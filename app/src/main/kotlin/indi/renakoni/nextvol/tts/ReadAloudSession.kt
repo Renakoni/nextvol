@@ -17,9 +17,15 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -45,6 +51,7 @@ interface SpeechPlayback {
     /** Completes when this audio has actually ended, never when synthesis or buffering finishes. */
     suspend fun play(clip: SpeechClip, playWhenReady: Boolean, onRange: (SpeechTiming) -> Unit,
         onEstimatedAnchor: (Int) -> Unit = {},
+        nextClip: Flow<SpeechClip?> = emptyFlow(), // The immediate successor, or null to withdraw it.
         onState: (SpeechPhase, Boolean) -> Unit)
     fun positionMs(clip: SpeechClip): Long = 0
     fun pause()
@@ -151,6 +158,7 @@ class ReadAloudSession(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
+                if (token == generation) playback.stop()
                 val error = failure.speechError(SpeechError.SynthesisFailed)
                 val failedVoice = currentClip?.segment?.selectedVoice?.reference ?: state.value.failedVoice ?: openingVoice
                 diagnostics(SpeechLogRecord(if (error == SpeechError.Playback) SpeechLogStage.Playback else SpeechLogStage.Initialization,
@@ -318,6 +326,7 @@ class ReadAloudSession(
             return readyMs - playback.positionMs(clip).coerceIn(0, clip.durationMs)
         }
         launch {
+            var previous: Step.Ready? = null
             try {
                 SpeechClipProducer(chapters, provider, ioDispatcher, preparePlan, diagnostics, detailedLogging, nowMs)
                     .produce(request, directory, saved, synthesis, reusablePlan, initialContext, opened, initialLabel,
@@ -325,10 +334,16 @@ class ReadAloudSession(
                         queued.first { count -> count < 2 ||
                             step is Step.Ready && step.prefetchShortClips && count < 6 && remainingMs() < 6000 }
                         queued.value++
-                        if (step is Step.Ready) readyMs += step.clip.durationMs
+                        val ready = step as? Step.Ready
+                        if (ready != null) readyMs += ready.clip.durationMs
                         queue.send(step)
+                        previous?.successor?.complete(ready?.clip)
+                        previous = ready
                     }
-            } finally { queue.close() }
+            } finally {
+                previous?.successor?.complete(null)
+                queue.close()
+            }
         }
         try {
             for (step in queue) {
@@ -394,7 +409,7 @@ class ReadAloudSession(
                         try {
                             if (detailedLogging()) diagnostics(SpeechLogRecord(SpeechLogStage.Playback, SpeechLogEvent.Started,
                                 voice = clip.segment.selectedVoice?.reference, processId = clip.plan.logId, segment = clip.index + 1))
-                            playback.play(clip, wantsPlay, onRange = { range ->
+                            playback.play(clip, wantsPlay, nextClip = nextClip(step), onRange = { range ->
                                 if (token == generation && currentClip === clip && !request.isPreview && !silent) {
                                     val sentence = sentences.firstOrNull { range.start in it.start until it.end }
                                     audibleStart = sentence?.start ?: range.start
@@ -441,6 +456,14 @@ class ReadAloudSession(
             }
             publish(token) { it.copy(phase = SpeechPhase.Completed, position = null, sleepTimerChapters = null) }
         } finally { queue.cancel() }
+    }
+
+    private fun nextClip(step: Step.Ready): Flow<SpeechClip?> = flow {
+        val next = step.successor.await() ?: return@flow
+        if (next.plan === step.clip.plan) emit(next)
+        // A chapter timer can be set or cleared while the final clip is playing.
+        // Only a replayable source can be withdrawn from the playlist and added again.
+        else if (next.stream == null) emitAll(state.map { if (it.sleepTimerChapters == 1) null else next }.distinctUntilChanged())
     }
 
     private suspend fun save(bookmark: SpeechBookmark) {
