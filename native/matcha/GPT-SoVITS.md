@@ -44,8 +44,9 @@ volume remains a PCM gain adjustment.
 At an effective model speed of 0.8× through 1.2×, the reader sizes each request
 when the voice is ready. A request stays inside the current routed text segment,
 after replacements, role selection and pause marks. The existing sentence and
-clause rules can group short sentences. A long sentence can break at a pause,
-word or code-point boundary. The model cap remains 120 UTF-16 units.
+clause rules can group short sentences. Mandarin prose with punctuation keeps
+its clauses intact when fitting the timing budget. A single Han character at
+a split joins the adjacent clip when possible. The model cap remains 120 UTF-16 units.
 
 Cold start assumes five UTF-16 units per second at 1× and an RTF of 0.75.
 With an empty buffer the target is two seconds of speech, about 8 to 12 units
@@ -56,7 +57,9 @@ For later requests, the budget is the duration of ready files and pauses minus
 the current playback position and a 300 ms reserve. Divide that budget by the
 estimated generation milliseconds per unit. For example, two seconds ready at
 1× and RTF 0.75 give about 11 units. Six seconds ready give about 38.
-The target stays between one and twelve seconds of estimated speech. An intact
+The target stays between one and twelve seconds of estimated speech. If less
+than two seconds remain and the measured cost reaches real time, the target
+floor rises to four seconds to amortize per-request work. An intact clause,
 word or control mark can exceed the target. Each finished WAV updates both the
 generation cost and the audio duration per unit, averaging the previous
 estimate with the new observation. A voice or tempo change resets the estimate.

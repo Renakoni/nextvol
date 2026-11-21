@@ -249,7 +249,11 @@ internal fun speechRequestChunks(input: SpeechMappedText, limit: Int, hard: Bool
     val pauses = if (language == "en" || language == "zh") chineseEnglishSentence else otherSentence
     return speechPunctuationChunks(input, limit, speechSentenceEnd, true, checkCancelled) { sentence ->
         speechPunctuationChunks(sentence, limit, pauses, true, checkCancelled) {
-            speechLongSentence(it, limit, hard, checkCancelled)
+            // A timing target can wait for the end of a Mandarin clause. The plan already
+            // enforces the provider limit; fragmenting a short clause can leave one phoneme.
+            if (!hard && pauses.matcher(input.text).find() && it.text.codePoints().anyMatch(Character::isIdeographic) &&
+                speechMarkRanges(it.text).isEmpty()) listOf(it)
+            else speechLongSentence(it, limit, hard, checkCancelled)
         }
     }
 }
