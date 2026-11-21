@@ -38,7 +38,8 @@ sessions from the stored graphs. Subsequent clips reuse the sessions and start
 with their own KV history. The decoder appends into preallocated buffers that grow
 in blocks of 256 steps. Its FP16 weight storage retains FP32 computation. HuBERT and speaker conditioning
 use a checksummed, atomically written cache scoped to the installed voice, base
-model revision and reference recording. The sampler is supplied per request. A vocoder exposing
+model revision and reference recording. A cache hit skips preparation of the prompt
+encoder and HuBERT weights. The sampler is supplied per request. A vocoder exposing
 `speed` receives the voice speed multiplied by the reading rate mapped from
 `0 / 1 / 2` to `0.6 / 1 / 1.65`, clamped to `0.6..1.65`. Reading pitch is ignored;
 volume remains a PCM gain adjustment.

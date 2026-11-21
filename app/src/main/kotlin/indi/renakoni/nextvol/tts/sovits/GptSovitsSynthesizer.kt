@@ -72,9 +72,9 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     @RequiresApi(29)
     private suspend fun prepare(settings: SpeechSettings, npuRuntime: File?) {
         options = voice.options.withReadingRate(settings.rate)
-        prepareSovitsFiles(voice)
         val cache = SovitsReferenceCache(voice)
         val cached = cache.read()
+        prepareSovitsFiles(voice, encodeReference = cached == null)
         val audio = if (cached == null) readSovitsReference(voice.referenceAudio) else null
         nativeOperation {
             val languageFrontend = SovitsFrontend(voice.runtime)
