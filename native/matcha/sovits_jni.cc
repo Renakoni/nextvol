@@ -32,12 +32,23 @@ Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_create(JNIEnv* env, jobject, 
   catch (const std::exception& e) { fail(env, e); return 0; }
 }
 
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_encodeReference(JNIEnv* env, jobject, jlong handle,
+    jfloatArray pcm32, jfloatArray pcm16) {
+  try {
+    auto data = reinterpret_cast<sovits::Voice*>(handle)->encode_reference(floats(env, pcm32), floats(env, pcm16));
+    auto result = env->NewFloatArray(static_cast<jsize>(data.size()));
+    if (result) env->SetFloatArrayRegion(result, 0, data.size(), data.data());
+    return result;
+  } catch (const std::exception& e) { fail(env, e); return nullptr; }
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_indi_renakoni_nextvol_tts_sovits_SovitsNative_prepare(JNIEnv* env, jobject, jlong handle,
-    jlongArray phones, jlongArray tokens, jlongArray repeats, jlongArray runs, jfloatArray pcm32, jfloatArray pcm16) {
+    jlongArray phones, jlongArray tokens, jlongArray repeats, jlongArray runs, jfloatArray reference) {
   try {
     reinterpret_cast<sovits::Voice*>(handle)->prepare({longs(env, phones), longs(env, tokens), longs(env, repeats), longs(env, runs)},
-                                                     floats(env, pcm32), floats(env, pcm16));
+                                                     floats(env, reference));
   } catch (const std::exception& e) { fail(env, e); }
 }
 

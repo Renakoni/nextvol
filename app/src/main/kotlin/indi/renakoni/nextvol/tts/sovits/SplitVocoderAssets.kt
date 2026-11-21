@@ -5,62 +5,30 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 
-/** Bind optional derived graphs to the unchanged source graph before GPU use. */
+/** Publish the selected acoustic graphs beside their external weights once per voice. */
 internal object SplitVocoderAssets {
     const val ENCODER = "split-encoder.onnx"
     const val HIFIGAN = "split-hifigan.onnx"
     const val BOUNDARY = "/vq_model/Mul_2_output_0"
 
-    enum class Layout { Full, Split, Htp }
-
-    fun prepare(voice: GptSovitsVoice, useHtp: Boolean): Layout {
+    fun prepare(voice: GptSovitsVoice, useHtp: Boolean) {
         val directory = voice.model
         val assets = File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/graphs/${voice.version.directory}")
         val bundled = File(assets, "split-vits.json").bufferedReader().use { JSONObject(it.readText()) }
-        val source = sha256(File(directory, "vits_fp32.onnx"))
-        val canonical = source == bundled.getString("source_sha256")
-        val data = if (canonical) bundled else {
-            val manifest = File(directory, "split-vits.json")
-            if (!manifest.isFile) return Layout.Full
-            JSONObject(manifest.readText()).also {
-                require(it.getInt("schema_version") == 1 && it.getString("format") == "genie_v2proplus_split_v1" &&
-                    it.getString("boundary") == BOUNDARY && it.getString("source_sha256") == source)
-            }
-        }
-        val hashes = data.getJSONObject("graphs")
-        fun prepareGraph(name: String, digests: JSONObject): Boolean {
+        require(sha256(File(directory, "vits_fp32.onnx")) == bundled.getString("source_sha256"))
+        val hashes = bundled.getJSONObject("graphs")
+        val required = if (useHtp) listOf(ENCODER, HIFIGAN) + V2HtpVocoder.GRAPHS else listOf(ENCODER, HIFIGAN)
+        for (name in required) {
             val file = File(directory, name)
-            if (!digests.has(name)) return false
-            if (file.isFile && sha256(file) == digests.getString(name)) return true
-            if (!canonical) return false
+            val expected = hashes.getString(name)
+            if (file.isFile && sha256(file) == expected) continue
             val part = File.createTempFile(".sovits-", ".part", directory)
             try {
                 File(assets, name).inputStream().use { input -> part.outputStream().use(input::copyTo) }
+                require(sha256(part) == expected) { "Invalid acoustic graph: $name" }
                 java.nio.file.Files.move(part.toPath(), file.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
             } finally { part.delete() }
-            return true
         }
-        if (!prepareGraph(ENCODER, hashes) || !prepareGraph(HIFIGAN, hashes)) return Layout.Full
-        if (!useHtp) return Layout.Split
-        return try {
-            prepareHtpGraphs(directory, source, hashes, ::prepareGraph)
-        } catch (failure: Exception) {
-            android.util.Log.w("NextVolSoVITS", "Ignoring unavailable HTP graphs", failure)
-            Layout.Split
-        }
-    }
-
-    private fun prepareHtpGraphs(directory: File, source: String, hashes: JSONObject,
-                                 prepareGraph: (String, JSONObject) -> Boolean): Layout {
-        // Voicebox exports HTP checksums in the checkpoint manifest.
-        val htpHashes = if (hashes.has(V2HtpVocoder.BODY)) hashes else {
-            val checkpoint = File(directory, "manifest.json")
-            if (!checkpoint.isFile) return Layout.Split
-            val files = JSONObject(checkpoint.readText()).getJSONObject("files")
-            if (files.optString("vits_fp32.onnx") != source) return Layout.Split
-            files
-        }
-        return if (V2HtpVocoder.GRAPHS.all { prepareGraph(it, htpHashes) }) Layout.Htp else Layout.Split
     }
 
     private fun sha256(file: File): String {

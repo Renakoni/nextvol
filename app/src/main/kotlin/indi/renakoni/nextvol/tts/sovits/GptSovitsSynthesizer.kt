@@ -73,7 +73,9 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
     private suspend fun prepare(settings: SpeechSettings, npuRuntime: File?) {
         options = voice.options.withReadingRate(settings.rate)
         prepareSovitsFiles(voice)
-        val (pcm32, pcm16) = readSovitsReference(voice.referenceAudio)
+        val cache = SovitsReferenceCache(voice)
+        val cached = cache.read()
+        val audio = if (cached == null) readSovitsReference(voice.referenceAudio) else null
         nativeOperation {
             val languageFrontend = SovitsFrontend(voice.runtime)
             frontend = languageFrontend
@@ -83,18 +85,17 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                 handle = SovitsNative.create(voice.model.absolutePath.encodeToByteArray(),
                     voice.runtime.absolutePath.encodeToByteArray())
             }
-            SovitsNative.prepare(handle, prompt.phones, prompt.tokens, prompt.repeats, prompt.bertRuns, pcm32, pcm16)
-            try {
-                if (settings.audio.sovitsGpu) {
-                    acoustic = SovitsAcoustic(voice.copy(options = options), SovitsNative.condition(handle, false), SovitsNative.condition(handle, true))
-                    acoustic?.prepare(context, npuRuntime)
+            val features = cached ?: checkNotNull(audio).let { (pcm32, pcm16) ->
+                SovitsNative.encodeReference(handle, pcm32, pcm16).also {
+                    generation.checkCancelled()
+                    cache.write(it)
                 }
-            } catch (failure: Throwable) {
-                if (failure !is Exception && failure !is LinkageError) throw failure
-                generation.checkCancelled()
-                acoustic?.close()
-                acoustic = null
-                android.util.Log.w("NextVolSoVITS", "Accelerated voice unavailable", failure)
+            }
+            android.util.Log.d("NextVolSoVITS", "Reference features cache hit=${cached != null}")
+            SovitsNative.prepare(handle, prompt.phones, prompt.tokens, prompt.repeats, prompt.bertRuns, features)
+            if (settings.audio.sovitsGpu) {
+                acoustic = SovitsAcoustic(voice.copy(options = options), SovitsNative.condition(handle, false), SovitsNative.condition(handle, true))
+                acoustic?.prepare(context, npuRuntime)
             }
             audioParameters = SpeechAudioParameters(volume = settings.volume)
         }

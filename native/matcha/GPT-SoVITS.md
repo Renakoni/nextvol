@@ -10,15 +10,15 @@ The Mandarin frontend uses the Voicebox normalization, segmentation,
 contextual pronunciation, tone sandhi and erhua before RoBERTa alignment.
 On arm64 the default is CPU + WebGPU. Reference encoding and autoregressive
 decoding use the CPU provider in the bundled ORT 1.27 build. The acoustic stage uses
-WebGPU, with CPU fallback if the adapter or graph fails.
+WebGPU when selected. A failed session or graph propagates an error to the reader.
 
 ```text
 <root>/
   CharacterModels/{v2Pro,v2ProPlus}/<character>/tts_models/
     prompt_encoder_fp32.onnx
     t2s_encoder_fp32.onnx
-    t2s_first_stage_decoder_fp32.onnx
-    t2s_stage_decoder_fp32.onnx
+    mobile-prefill.onnx
+    mobile-decoder-shared.onnx
     vits_fp32.onnx
     <external weights referenced by these graphs>
 <shared-models>/
@@ -32,9 +32,12 @@ WebGPU, with CPU fallback if the adapter or graph fails.
 Use a separate model directory for each installed revision. Standard packed FP16
 external weights for the prompt encoder, shared decoder, VITS and HuBERT are
 expanded beside their graphs on first open, so these directories must be writable
-when preparation is needed. The speech encoder, first decoder, cached decoder and
-vocoder use the V2 ONNX graph inputs and outputs. Both decoder exports with fixed
-sampling and exports with a `sampling` input are supported. A vocoder exposing
+when preparation is needed. The importer installs the shared V2 decoder graphs from
+Voicebox v1.1.3 alongside the checkpoint weights. Each clip owns its KV history.
+The decoder appends into preallocated buffers that grow in blocks of 256 steps;
+its FP16 weight storage retains FP32 computation. HuBERT and speaker conditioning
+use a checksummed, atomically written cache scoped to the installed voice, base
+model revision and reference recording. The sampler is supplied per request. A vocoder exposing
 `speed` receives the voice speed multiplied by the reading rate mapped from
 `0 / 1 / 2` to `0.6 / 1 / 1.65`, clamped to `0.6..1.65`. Reading pitch is ignored;
 volume remains a PCM gain adjustment.
@@ -44,11 +47,8 @@ volume remains a PCM gain adjustment.
 For standard V2 Pro and V2 Pro Plus exports the app supplies weight-free graph
 templates. Before writing a derived graph alongside the weights it verifies the
 source VITS SHA-256. The HTP graphs are prepared when the device probe succeeds.
-A separately prepared local voice may also include Voicebox's hash-bound `split-vits.json`,
-`split-encoder.onnx` and `split-hifigan.onnx`. In this layout the encoder runs on
-CPU and the FP32 HiFiGAN runs on WebGPU. For an original unsplit export the
-backend requests WebGPU on the original VITS graph. On a provider failure the
-CPU vocoder reuses the semantic tokens already produced for that segment.
+The encoder runs on CPU and the FP32 HiFiGAN runs on WebGPU. CPU-only playback
+uses the full VITS graph when that mode is explicitly selected.
 
 After the first frame of the app, an IO worker runs a 234-byte arithmetic graph
 on WebGPU and Qualcomm HTP with CPU fallback disabled. The graph and inference
