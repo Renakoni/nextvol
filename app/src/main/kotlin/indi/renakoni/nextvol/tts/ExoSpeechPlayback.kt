@@ -23,6 +23,7 @@ internal class ExoSpeechPlayback(private val player: ExoPlayer, private val cont
     onInterrupted: () -> Unit = {}) : SpeechPlayback {
     private var active: CompletableDeferred<Unit>? = null
     private var listener: Player.Listener? = null
+    override val isPlaying get() = player.isPlaying
 
     init {
         // A system interruption can arrive before synthesis finishes or between audio files.

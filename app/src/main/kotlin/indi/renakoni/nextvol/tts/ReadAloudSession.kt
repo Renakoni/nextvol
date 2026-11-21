@@ -48,6 +48,7 @@ data class SpeechClip(val plan: SpeechPlan, val index: Int, val file: File, val 
 }
 
 interface SpeechPlayback {
+    val isPlaying: Boolean
     /** Completes when this audio has actually ended, never when synthesis or buffering finishes. */
     suspend fun play(clip: SpeechClip, playWhenReady: Boolean, onRange: (SpeechTiming) -> Unit,
         onEstimatedAnchor: (Int) -> Unit = {},
@@ -321,6 +322,11 @@ class ReadAloudSession(
         // Producer and consumer share the session dispatcher. Only finished audio earns buffer credit.
         var readyMs = 0L
         val queued = MutableStateFlow(0)
+        fun handoffPhase() = when {
+            !wantsPlay -> SpeechPhase.Paused
+            playback.isPlaying -> SpeechPhase.Playing
+            else -> SpeechPhase.Buffering
+        }
         fun remainingMs(): Long {
             val clip = currentClip ?: return readyMs
             return readyMs - playback.positionMs(clip).coerceIn(0, clip.durationMs)
@@ -389,23 +395,25 @@ class ReadAloudSession(
                     is Step.Ready -> {
                         val clip = step.clip
                         currentClip = clip
-                        audibleTextAnchor = 0
                         currentPlan = clip.plan
                         val silent = clip.segment.pauseMs != null
                         currentBoundary = clip.startBookmark()
+                        val sentences = if (clip.timings.isEmpty()) emptyList() else speechSentences(clip.segment.text)
+                        var audibleStart = sentences.firstOrNull()?.start ?: 0
+                        var audibleEnd = sentences.firstOrNull()?.end ?: clip.segment.text.length
+                        audibleTextAnchor = audibleStart
+                        val phase = handoffPhase()
                         publish(token) { it.copy(
                             request = request.copy(chapterId = clip.chapter.id), bookTitle = clip.chapter.bookTitle,
                             chapterTitle = clip.chapter.title, segmentIndex = clip.index, segmentCount = clip.count,
                             currentText = if (silent) it.currentText else clip.segment.text, previousChapterId = clip.chapter.previousId,
                             voiceLabel = if (silent) it.voiceLabel else clip.voiceLabel, planContext = clip.plan.context, failedVoice = null, failedRole = null,
                             nextChapterId = clip.chapter.nextId,
-                            phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused, error = null, replacementFailure = null, roleFailure = null,
+                            phase = phase, error = null, replacementFailure = null, roleFailure = null,
+                            position = if (phase == SpeechPhase.Playing && !request.isPreview && !silent)
+                                clip.position(audibleStart, audibleEnd, audibleTextAnchor) else it.position,
                         ) }
                         if (!request.isPreview) save(currentBoundary!!)
-                        val sentences = if (clip.timings.isEmpty()) emptyList() else speechSentences(clip.segment.text)
-                        var audibleStart = sentences.firstOrNull()?.start ?: 0
-                        var audibleEnd = sentences.firstOrNull()?.end ?: clip.segment.text.length
-                        audibleTextAnchor = audibleStart
                         try {
                             if (detailedLogging()) diagnostics(SpeechLogRecord(SpeechLogStage.Playback, SpeechLogEvent.Started,
                                 voice = clip.segment.selectedVoice?.reference, processId = clip.plan.logId, segment = clip.index + 1))
@@ -445,7 +453,7 @@ class ReadAloudSession(
                         if (!request.isPreview && clip.finishesSegment && clip.index == clip.count - 1 && finishTimerChapter()) {
                             return@coroutineScope
                         }
-                        publish(token) { it.copy(phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused) }
+                        publish(token) { it.copy(phase = handoffPhase()) }
                     }
                 }
             }

@@ -907,6 +907,7 @@ class ReadAloudSessionTest {
     private class FakePlayback : SpeechPlayback {
         val started = mutableListOf<SpeechClip>()
         var playing = false
+        override val isPlaying get() = playing
         var startBuffered = false
         var position: () -> Long = { 0L }
         override fun positionMs(clip: SpeechClip) = position()
@@ -931,7 +932,7 @@ class ReadAloudSessionTest {
             }, playWhenReady)
             try { complete.await() } finally { if (pending === complete) { pending = null; callback = null } }
         }
-        fun finish() { check(playing); pending!!.complete(Unit) }
+        fun finish() { check(playing); playing = false; pending!!.complete(Unit) }
         override fun pause() { playing = false; callback?.invoke(SpeechPhase.Paused, false) }
         override fun resume() { playing = true; callback?.invoke(SpeechPhase.Playing, true) }
         override fun stop() { pending?.cancel(); pending = null; callback = null; playing = false }
