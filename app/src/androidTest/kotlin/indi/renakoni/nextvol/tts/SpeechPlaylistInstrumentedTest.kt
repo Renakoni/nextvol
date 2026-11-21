@@ -2,17 +2,19 @@ package indi.renakoni.nextvol.tts
 
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import indi.renakoni.nextvol.reader.ReaderLayoutTestActivity
 import indi.renakoni.nextvol.tts.audio.SpeechWaveFile
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import java.io.File
 import java.util.UUID
@@ -27,9 +29,14 @@ class SpeechPlaylistInstrumentedTest {
             val player = ExoPlayer.Builder(context).build()
             val files = mutableMapOf<String, String>()
             val transitions = mutableListOf<String>()
+            val followingChapterQueued = CompletableDeferred<Unit>()
             player.addListener(object : Player.Listener {
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) transitions += files.getValue(mediaItem!!.mediaId)
+                }
+                override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                    if (player.mediaItemCount > 1 && files[player.getMediaItemAt(player.mediaItemCount - 1).mediaId] == "丁丁")
+                        followingChapterQueued.complete(Unit)
                 }
             })
             val chapters = listOf("甲甲乙乙", "丙丙", "丁丁")
@@ -54,21 +61,23 @@ class SpeechPlaylistInstrumentedTest {
                 SpeechChapter(book, id, "", id, chapters[index], nextId = (index + 1).takeIf { it < chapters.size }?.toString())
             }, { SpeechSettings() }, object : SpeechProgressStore {
                 override suspend fun load(bookId: String) = saved
-                override suspend fun save(bookmark: SpeechBookmark) { saved = bookmark }
+                override suspend fun save(bookmark: SpeechBookmark) {
+                    assertNotEquals(saved, bookmark)
+                    saved = bookmark
+                }
             }, { synth }, ExoSpeechPlayback(player, context), directory)
             try {
                 withTimeout(15_000) {
                     session.start(SpeechRequest("book", "0"))
                     session.state.first { it.currentText == "丙丙" && it.phase == SpeechPhase.Playing }
                     session.pause()
-                    while (player.mediaItemCount <= player.currentMediaItemIndex + 1) delay(10)
-                    assertEquals("1", saved?.chapterId)
+                    followingChapterQueued.await()
                     session.setChapterSleepTimer(1)
                     session.resume()
                     session.state.first { it.phase == SpeechPhase.Stopped }
                 }
                 assertEquals(listOf("乙乙", "丙丙"), transitions)
-                assertEquals("1", saved?.chapterId)
+                assertEquals("1" to 2, saved?.let { it.chapterId to it.offset })
             } finally {
                 session.stop()
                 player.release()

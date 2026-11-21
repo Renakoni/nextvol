@@ -351,6 +351,16 @@ class ReadAloudSession(
                 queue.close()
             }
         }
+        var lastSaved: SpeechBookmark? = null
+        suspend fun persistBoundary() {
+            if (request.isPreview) return
+            currentCoroutineContext().ensureActive()
+            val boundary = checkNotNull(currentBoundary)
+            if (boundary != lastSaved) {
+                save(boundary)
+                lastSaved = boundary
+            }
+        }
         try {
             for (step in queue) {
                 queued.value--
@@ -361,7 +371,7 @@ class ReadAloudSession(
                         currentPlan = skipped
                         currentClip = null
                         currentBoundary = skipped.bookmark(skipped.chapter.text.length, 0)
-                        if (!request.isPreview) save(currentBoundary!!)
+                        persistBoundary()
                         publish(token) { it.copy(request = request.copy(chapterId = skipped.chapter.id),
                             bookTitle = skipped.chapter.bookTitle, chapterTitle = skipped.chapter.title,
                             segmentIndex = 0, segmentCount = 0, currentText = "", position = null,
@@ -380,7 +390,7 @@ class ReadAloudSession(
                             ?: SpeechBookmark(request.bookId,
                             step.request.chapterId, failed?.fingerprint.orEmpty(), 0, bookTitle, failed?.title.orEmpty(),
                             replacementKey = processingKey, context = step.context)
-                        if (!request.isPreview) save(currentBoundary!!)
+                        persistBoundary()
                         publish(token) { it.copy(request = step.request, bookTitle = bookTitle, chapterTitle = failed?.title.orEmpty(),
                             segmentIndex = step.clip?.index ?: 0, segmentCount = step.plan?.segments?.size ?: 0, currentText = segment?.text.orEmpty(),
                             position = if (request.isPreview || failed == null || segment == null) null else SpeechPosition(
@@ -413,7 +423,7 @@ class ReadAloudSession(
                             position = if (phase == SpeechPhase.Playing && !request.isPreview && !silent)
                                 clip.position(audibleStart, audibleEnd, audibleTextAnchor) else it.position,
                         ) }
-                        if (!request.isPreview) save(currentBoundary!!)
+                        persistBoundary()
                         try {
                             if (detailedLogging()) diagnostics(SpeechLogRecord(SpeechLogStage.Playback, SpeechLogEvent.Started,
                                 voice = clip.segment.selectedVoice?.reference, processId = clip.plan.logId, segment = clip.index + 1))
@@ -447,7 +457,7 @@ class ReadAloudSession(
                         currentCoroutineContext().ensureActive()
                         // Only actual playback completion advances the durable offset.
                         currentBoundary = clip.endBookmark()
-                        if (!request.isPreview) save(currentBoundary!!)
+                        persistBoundary()
                         readyMs -= clip.durationMs
                         currentClip = null
                         if (!request.isPreview && clip.finishesSegment && clip.index == clip.count - 1 && finishTimerChapter()) {
@@ -460,7 +470,7 @@ class ReadAloudSession(
             currentClip = null
             currentPlan = null
             if (!request.isPreview) {
-                progress.load(request.bookId)?.let { save(it.copy(completed = true)) }
+                (lastSaved ?: progress.load(request.bookId))?.let { save(it.copy(completed = true)) }
             }
             publish(token) { it.copy(phase = SpeechPhase.Completed, position = null, sleepTimerChapters = null) }
         } finally { queue.cancel() }
@@ -468,10 +478,12 @@ class ReadAloudSession(
 
     private fun nextClip(step: Step.Ready): Flow<SpeechClip?> = flow {
         val next = step.successor.await() ?: return@flow
+        // Seeking in the current item can discard and reopen a preloaded source.
+        // A live PCM channel can only be read once.
+        if (next.stream != null) return@flow
         if (next.plan === step.clip.plan) emit(next)
         // A chapter timer can be set or cleared while the final clip is playing.
-        // Only a replayable source can be withdrawn from the playlist and added again.
-        else if (next.stream == null) emitAll(state.map { if (it.sleepTimerChapters == 1) null else next }.distinctUntilChanged())
+        else emitAll(state.map { if (it.sleepTimerChapters == 1) null else next }.distinctUntilChanged())
     }
 
     private suspend fun save(bookmark: SpeechBookmark) {
