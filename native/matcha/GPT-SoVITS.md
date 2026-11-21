@@ -75,7 +75,9 @@ Other model speeds use the existing chapter segments.
 
 With detailed speech logging enabled, `adb logcat -s NextVolSoVITS:D` reports
 the selected text length, ready audio at selection, generation time through PCM
-processing and final WAV duration. Compare generation time with the buffer
+processing and final WAV duration. The first clip in each estimate logs
+`warmRtf=n/a`. Later clips report generation time divided by WAV duration.
+Compare generation time with the buffer
 available at selection to investigate audible gaps on a device.
 
 ## GPU and NPU

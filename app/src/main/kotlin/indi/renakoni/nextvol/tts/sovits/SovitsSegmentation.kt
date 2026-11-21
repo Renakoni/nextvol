@@ -28,11 +28,13 @@ internal class SovitsSegmentation(speed: Float) {
         // Punctuation or whitespace in isolation may have no phonemes. Carry it with spoken text.
         val spoken = chunks.filterNot { speechIsUnspoken(it.text) }
         val first = spoken.firstOrNull() ?: return text.length
-        var end = first.range()?.second ?: return text.length
+        var end = first.range().second
         // Keep a short comma phrase with the surrounding narration. A period, quote,
         // paragraph break or a different routed segment remains a separate boundary.
         val next = spoken.getOrNull(1)
-        if (next != null && Character.isLetterOrDigit(remaining.codePointAt(end))) {
+        var following = end
+        while (following < remaining.length && remaining[following] in " \t") following++
+        if (next != null && following < remaining.length && Character.isLetterOrDigit(remaining.codePointAt(following))) {
             val shortHead = singleHan(first.text) || shortClause.matches(first.text)
             val shortNext = remaining[end - 1] in comma && shortClause.matches(next.text)
             if (shortHead || shortNext) end = next.range().second
@@ -46,18 +48,22 @@ internal class SovitsSegmentation(speed: Float) {
         return start + end
     }
 
-    fun record(units: Int, elapsedMs: Long, audioMs: Long) {
-        if (units <= 0 || elapsedMs <= 0 || audioMs <= 0) return
+    fun record(units: Int, elapsedMs: Long, audioMs: Long): Double? {
+        if (units <= 0 || elapsedMs <= 0 || audioMs <= 0) return null
+        audioMsPerUnit = (audioMsPerUnit + audioMs.toDouble() / units) / 2
         // The first WAV may create backend sessions. Its duration is usable, but
         // its generation time cannot predict the next clip on the prepared voice.
-        if (!firstClip) generationMsPerUnit = (generationMsPerUnit + elapsedMs.toDouble() / units) / 2
-        firstClip = false
-        audioMsPerUnit = (audioMsPerUnit + audioMs.toDouble() / units) / 2
+        if (firstClip) {
+            firstClip = false
+            return null
+        }
+        generationMsPerUnit = (generationMsPerUnit + elapsedMs.toDouble() / units) / 2
+        return elapsedMs.toDouble() / audioMs
     }
 
     private companion object {
         const val comma = "，,"
-        val shortClause = Regex("""[ \t]*\p{sc=Han}{1,3}[$comma]""")
+        val shortClause = Regex("""\s*[“「『‘"]?[ \t]*\p{sc=Han}{1,3}[ \t]*[$comma]""")
         fun singleHan(text: String) = text.codePointCount(0, text.length) == 1 && Character.isIdeographic(text.codePointAt(0))
         val wordOrNumber = Regex("""[\p{IsLatin}\p{M}\d]+(?:['’.\-][\p{IsLatin}\p{M}\d]+)*""")
     }

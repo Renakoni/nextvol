@@ -123,9 +123,9 @@ internal class SpeechClipProducer(
                                 if (policy != null) {
                                     val elapsedMs = nowMs() - started
                                     val units = clip.segment.text.length
-                                    policy.record(units, elapsedMs, duration)
+                                    val warmRtf = policy.record(units, elapsedMs, duration)
                                     if (detailedLogging()) android.util.Log.d("NextVolSoVITS",
-                                        "segment units=$units bufferMs=$bufferedMs generationMs=$elapsedMs audioMs=$duration")
+                                        "segment units=$units bufferMs=$bufferedMs generationMs=$elapsedMs audioMs=$duration warmRtf=${warmRtf ?: "n/a"}")
                                 }
                                 send(Step.Ready(clip.copy(timings = timings, voiceLabel = voiceLabel, durationMs = duration),
                                     prefetchShortClips = policy != null))

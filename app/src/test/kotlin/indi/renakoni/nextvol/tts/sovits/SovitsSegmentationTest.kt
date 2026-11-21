@@ -16,6 +16,9 @@ class SovitsSegmentationTest {
         assertEquals("傍晚，" + next, text.substring(resume, policy.nextEnd(text, resume, 0)))
         val dialogue = "“嗯。”“接下来的事情由你决定。”"
         assertEquals("“嗯。”", dialogue.take(policy.nextEnd(dialogue, 0, 0)))
+        val call = "\n“喂， 你这个戴德国帽的！”"
+        val passage = call + "他停下了脚步。"
+        assertEquals(call, passage.take(policy.nextEnd(passage, 0, 0)))
     }
 
     @Test fun budgetRespondsToReadyAudioAndMeasuredCost() {
@@ -24,9 +27,9 @@ class SovitsSegmentationTest {
         assertEquals(10, policy.nextEnd(text, 0, 0))
         val normal = policy.nextEnd(text, 0, 3000)
         assertTrue(normal > policy.nextEnd(text, 0, 500))
-        policy.record(10, elapsedMs = 7500, audioMs = 2000)
+        assertNull(policy.record(10, elapsedMs = 7500, audioMs = 2000))
         assertEquals(normal, policy.nextEnd(text, 0, 3000))
-        policy.record(10, elapsedMs = 3500, audioMs = 2000)
+        assertEquals(1.75, policy.record(10, elapsedMs = 3500, audioMs = 2000)!!, 0.0)
         assertTrue(policy.nextEnd(text, 0, 3000) < normal)
         assertEquals(20, policy.nextEnd(text, 0, 1000))
         assertEquals(60, policy.nextEnd(text, 0, 100_000))
