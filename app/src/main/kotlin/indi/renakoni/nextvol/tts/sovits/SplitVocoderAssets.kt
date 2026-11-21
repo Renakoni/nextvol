@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.tts.sovits
 import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import org.json.JSONObject
 import java.io.File
+import java.io.OutputStream
 import java.security.MessageDigest
 
 /** Publish the selected acoustic graphs beside their external weights once per voice. */
@@ -24,20 +25,21 @@ internal object SplitVocoderAssets {
             if (file.isFile && sha256(file) == expected) continue
             val part = File.createTempFile(".sovits-", ".part", directory)
             try {
-                File(assets, name).inputStream().use { input -> part.outputStream().use(input::copyTo) }
-                require(sha256(part) == expected) { "Invalid acoustic graph: $name" }
+                val digest = part.outputStream().use { sha256(File(assets, name), it) }
+                require(digest == expected) { "Invalid acoustic graph: $name" }
                 java.nio.file.Files.move(part.toPath(), file.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
             } finally { part.delete() }
         }
     }
 
-    private fun sha256(file: File): String {
+    private fun sha256(file: File, copyTo: OutputStream? = null): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { stream ->
             val buffer = ByteArray(65536)
             var count = stream.read(buffer)
             while (count >= 0) {
                 digest.update(buffer, 0, count)
+                copyTo?.write(buffer, 0, count)
                 count = stream.read(buffer)
             }
         }

@@ -16,13 +16,18 @@ using Tensor = Ort::Value;
 using Inputs = std::vector<std::pair<std::string, const Tensor*>>;
 
 template <typename T>
-Tensor tensor(const std::vector<T>& data, std::initializer_list<int64_t> shape) {
+Tensor tensor(const T* data, size_t count, std::initializer_list<int64_t> shape) {
   Ort::AllocatorWithDefaultOptions allocator;
   Tensor value = Tensor::CreateTensor<T>(allocator, shape.begin(), shape.size());
-  if (value.GetTensorTypeAndShapeInfo().GetElementCount() != data.size())
+  if (value.GetTensorTypeAndShapeInfo().GetElementCount() != count)
     throw std::invalid_argument("Invalid GPT-SoVITS tensor shape");
-  std::copy(data.begin(), data.end(), value.GetTensorMutableData<T>());
+  std::copy_n(data, count, value.GetTensorMutableData<T>());
   return value;
+}
+
+template <typename T>
+Tensor tensor(const std::vector<T>& data, std::initializer_list<int64_t> shape) {
+  return tensor(data.data(), data.size(), shape);
 }
 
 std::vector<Tensor> evaluate(Ort::Session& graph, const Ort::RunOptions& run,
@@ -65,9 +70,11 @@ void reserve_kv(Tensor& value, int64_t old_stride, int64_t used, int64_t capacit
   Ort::AllocatorWithDefaultOptions allocator;
   const int64_t shape[]{1, heads, capacity, head_width};
   auto next = Tensor::CreateTensor<float>(allocator, shape, 4);
+  const auto* source = value.GetTensorData<float>();
+  auto* destination = next.GetTensorMutableData<float>();
   for (int64_t head = 0; head < heads; ++head) {
-    auto dst = next.GetTensorMutableData<float>() + head * capacity * head_width;
-    std::copy_n(value.GetTensorData<float>() + head * old_stride * head_width, used * head_width, dst);
+    auto dst = destination + head * capacity * head_width;
+    std::copy_n(source + head * old_stride * head_width, used * head_width, dst);
     std::fill(dst + used * head_width, dst + capacity * head_width, 0.f);
   }
   value = std::move(next);
@@ -188,9 +195,9 @@ void Voice::prepare(const Text& prompt, const std::vector<float>& reference) {
   if (reference.size() <= speaker_size || (reference.size() - speaker_size) % 768 != 0)
     throw std::runtime_error("Invalid V2 reference feature length");
   auto frames = static_cast<int64_t>((reference.size() - speaker_size) / 768);
-  ge_ = tensor<float>({reference.begin(), reference.begin() + 1024}, {1, 1024, 1});
-  advanced_ = tensor<float>({reference.begin() + 1024, reference.begin() + speaker_size}, {1, 512, 1});
-  ssl_ = tensor<float>({reference.begin() + speaker_size, reference.end()}, {1, 768, frames});
+  ge_ = tensor(reference.data(), 1024, {1, 1024, 1});
+  advanced_ = tensor(reference.data() + 1024, 512, {1, 512, 1});
+  ssl_ = tensor(reference.data() + speaker_size, reference.size() - speaker_size, {1, 768, frames});
   roberta_ = load(runtime_ / "roberta-wwm-ext-large-onnx/model.onnx", 8);
   ref_phones_ = tensor(prompt.phones, {1, static_cast<int64_t>(prompt.phones.size())});
   ref_bert_ = bert(prompt);

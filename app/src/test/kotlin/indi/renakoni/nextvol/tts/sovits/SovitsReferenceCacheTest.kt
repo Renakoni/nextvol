@@ -18,7 +18,7 @@ class SovitsReferenceCacheTest {
         assertNull(SovitsReferenceCache(voice.copy(runtime = files.newFolder("other-runtime"))).read())
         recording.writeBytes(byteArrayOf(1, 3))
         assertNull(SovitsReferenceCache(voice).read())
-        SovitsReferenceCache(voice).write(features)
+        recording.writeBytes(byteArrayOf(1, 2))
         val stored = voice.model.listFiles()!!.single()
         val bytes = stored.readBytes()
         bytes[bytes.lastIndex] = (bytes.last() + 1).toByte()
