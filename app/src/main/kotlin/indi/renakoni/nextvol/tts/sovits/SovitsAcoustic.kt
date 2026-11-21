@@ -4,14 +4,15 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import java.io.File
 import java.nio.DoubleBuffer
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
-import java.util.concurrent.CancellationException
 
 internal const val MAX_SOVITS_PCM_SAMPLES = (8 * 1024 * 1024 - 44) / 2
+private const val TAG = "NextVolSoVITS"
 
 /** V2's autoregressive decoder stays on CPU. The acoustic stage owns its separate WebGPU runtime. */
 internal class SovitsAcoustic(
@@ -19,90 +20,56 @@ internal class SovitsAcoustic(
 ) : AutoCloseable {
     private val environment = OrtEnvironment.getEnvironment()
     private val sessions = mutableMapOf<String, OrtSession>()
-    private var split = false
-    private var gpuAvailable = true
+    private val conditioning = mutableMapOf<String, OnnxTensor>()
     private var htp: V2HtpVocoder? = null
 
     fun prepare(context: Context, runtime: File?) {
         val directory = voice.model
-        val layout = try {
-            SplitVocoderAssets.prepare(voice, runtime != null)
-        } catch (failure: Exception) {
-            Log.w("NextVolSoVITS", "Using original VITS graph", failure)
-            SplitVocoderAssets.Layout.Full
-        }
-        split = layout != SplitVocoderAssets.Layout.Full
-        if (runtime != null && layout == SplitVocoderAssets.Layout.Htp) {
+        SplitVocoderAssets.prepare(voice, runtime != null)
+        fun condition(values: FloatArray) = OnnxTensor.createTensor(environment, FloatBuffer.wrap(values),
+            longArrayOf(1, values.size.toLong(), 1))
+        conditioning["ge"] = condition(ge)
+        conditioning["ge_advanced"] = condition(advanced)
+        conditioning["speed"] = OnnxTensor.createTensor(environment, DoubleBuffer.wrap(doubleArrayOf(voice.options.speed.toDouble())), longArrayOf(1))
+        if (runtime != null) {
             val updated = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
             val channels = if (voice.version == GptSovitsVersion.V2Pro) 512 else 768
-            try {
-                htp = V2HtpVocoder(environment, ::session, directory, runtime, updated, channels)
-            } catch (failure: Exception) {
-                Log.w("NextVolSoVITS", "HTP unavailable for this voice", failure)
-            }
+            htp = V2HtpVocoder(environment, ::session, directory, runtime, updated, channels)
         }
     }
 
     private fun session(name: String): OrtSession = sessions.getOrPut(name) {
         OrtSession.SessionOptions().use { options ->
-            options.setIntraOpNumThreads(4)
+            options.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 6))
             options.setInterOpNumThreads(1)
-            options.addConfigEntry("session.intra_op.allow_spinning", "0")
-            if (gpuAvailable && (name == SplitVocoderAssets.HIFIGAN || name == FULL)) options.addWebGPU(emptyMap())
+            options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+            options.setMemoryPatternOptimization(false)
+            if (name == SplitVocoderAssets.HIFIGAN) options.addWebGPU(emptyMap())
             environment.createSession(File(voice.model, name).absolutePath, options)
         }
     }
 
-    fun generate(phones: LongArray, tokens: LongArray): ByteArray? {
-        if (!gpuAvailable && !split) return null
+    fun generate(phones: LongArray, tokens: LongArray): ByteArray {
         val inputs = mutableMapOf<String, OnnxTensor>()
+        val start = SystemClock.elapsedRealtime()
         try {
-            val encoder = session(if (split) SplitVocoderAssets.ENCODER else FULL)
+            val encoder = session(SplitVocoderAssets.ENCODER)
             inputs["text_seq"] = OnnxTensor.createTensor(environment, LongBuffer.wrap(phones), longArrayOf(1, phones.size.toLong()))
             inputs["pred_semantic"] = OnnxTensor.createTensor(environment, LongBuffer.wrap(tokens), longArrayOf(1, 1, tokens.size.toLong()))
-            fun condition(values: FloatArray) = OnnxTensor.createTensor(environment, FloatBuffer.wrap(values),
-                longArrayOf(1, values.size.toLong(), 1))
-            inputs["ge"] = condition(ge)
-            inputs["ge_advanced"] = condition(advanced)
-            inputs["speed"] = OnnxTensor.createTensor(environment, DoubleBuffer.wrap(doubleArrayOf(voice.options.speed.toDouble())), longArrayOf(1))
-            return encoder.runCancellable(inputs).use { result ->
+            return encoder.runCancellable(inputs + conditioning).use { result ->
                 val value = result[0] as OnnxTensor
-                if (split) {
-                    val speaker = inputs.getValue("ge")
-                    try {
-                        htp?.generate(value, speaker)?.let {
-                            return@use SovitsNative.pcm(it)
-                        }
-                    } catch (failed: Exception) {
-                        GenerationContext.checkCurrent()
-                        htp?.close()
-                        htp = null
-                        Log.w("NextVolSoVITS", "HTP failed for this voice", failed)
+                val speaker = conditioning.getValue("ge")
+                htp?.generate(value, speaker)?.let { return@use SovitsNative.pcm(it) }
+                val vocoderInputs = mapOf(SplitVocoderAssets.BOUNDARY to value, "ge" to speaker)
+                val encoded = SystemClock.elapsedRealtime()
+                session(SplitVocoderAssets.HIFIGAN).runCancellable(vocoderInputs).use {
+                    val audio = pcm(it[0] as OnnxTensor)
+                    if (Log.isLoggable(TAG, Log.DEBUG)) {
+                        Log.d(TAG, "WebGPU encoder_ms=${encoded - start} hifigan_ms=${SystemClock.elapsedRealtime() - encoded}")
                     }
-                    val vocoderInputs = mapOf(SplitVocoderAssets.BOUNDARY to value, "ge" to speaker)
-                    fun render() = session(SplitVocoderAssets.HIFIGAN).runCancellable(vocoderInputs).use {
-                        pcm(it[0] as OnnxTensor)
-                    }
-                    if (!gpuAvailable) return@use render()
-                    try { render() } catch (failed: Exception) {
-                        GenerationContext.checkCurrent()
-                        gpuAvailable = false
-                        sessions.remove(SplitVocoderAssets.HIFIGAN)?.close()
-                        Log.w("NextVolSoVITS", "WebGPU failed, rendering the same latent on CPU", failed)
-                        render()
-                    }
-                } else pcm(value)
+                    audio
+                }
             }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Throwable) {
-            if (failure !is Exception && failure !is LinkageError) throw failure
-            GenerationContext.checkCurrent()
-            gpuAvailable = false
-            split = false
-            close()
-            Log.w("NextVolSoVITS", "Using original CPU vocoder for this voice", failure)
-            return null
         } finally { inputs.values.forEach { it.close() } }
     }
 
@@ -115,11 +82,11 @@ internal class SovitsAcoustic(
     }
 
     override fun close() {
+        conditioning.values.forEach { it.close() }
+        conditioning.clear()
         htp?.close()
         htp = null
         sessions.values.forEach { it.close() }
         sessions.clear()
     }
-
-    private companion object { const val FULL = "vits_fp32.onnx" }
 }
