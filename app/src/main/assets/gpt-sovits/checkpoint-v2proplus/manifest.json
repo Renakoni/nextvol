@@ -3,8 +3,8 @@
   "architecture": "v2ProPlus",
   "files": {
     "t2s_encoder_fp32.onnx": "38e9574907ac5e8076e1f853c9f01831e0cbc9a6739bcf09fccbd46c32b25997",
-    "t2s_first_stage_decoder_fp32.onnx": "303ea6ceb1dd390084c4db701f280054723cd1f46d4b62734618e04ac5cac5ea",
-    "t2s_stage_decoder_fp32.onnx": "03b1717b3ff3c4904bc9d2e6a18e521d8416cb12debbbb24c93b44792d2852fa",
+    "mobile-prefill.onnx": "81e4afc738ab6ed67e62b06ee795311a9a096ff6363806e945c084b4f8cabf99",
+    "mobile-decoder-shared.onnx": "c48065be59fe4ea32c556927ffdd63a3552af8fa1673ea5f70e58f60665c8276",
     "prompt_encoder_fp32.onnx": "48efa86ffcc9a1a5a34cd7aa5b7de3f5cab2535b7d0ff41a507aa1ccbd1ef444",
     "vits_fp32.onnx": "c3ee8878f72ba2fb0ffec5d80a7577a6c3798e23c63ceee91128af3f6cbfb4ce"
   },

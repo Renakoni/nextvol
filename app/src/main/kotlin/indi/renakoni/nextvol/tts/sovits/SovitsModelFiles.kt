@@ -12,10 +12,13 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 @RequiresApi(26)
-internal suspend fun prepareSovitsFiles(voice: GptSovitsVoice) {
-    for (name in listOf("prompt_encoder", "t2s_shared", "vits"))
+internal suspend fun prepareSovitsFiles(voice: GptSovitsVoice, encodeReference: Boolean) {
+    for (name in listOf("t2s_shared", "vits"))
         expand(voice.model, "${name}_fp16.bin", "${name}_fp32.bin")
-    prepareSovitsSharedEncoder(voice.runtime)
+    if (encodeReference) {
+        expand(voice.model, "prompt_encoder_fp16.bin", "prompt_encoder_fp32.bin")
+        prepareSovitsSharedEncoder(voice.runtime)
+    }
 }
 
 @RequiresApi(26)
