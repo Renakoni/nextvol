@@ -45,8 +45,9 @@ At an effective model speed of 0.8× through 1.2×, the reader sizes each reques
 when the voice is ready. A request stays inside the current routed text segment,
 after replacements, role selection and pause marks. The existing sentence and
 clause rules can group short sentences. Mandarin prose with punctuation keeps
-its clauses intact when fitting the timing budget. A single Han character at
-a split joins the adjacent clip when possible. The model cap remains 120 UTF-16 units.
+its clauses intact when fitting the timing budget. Within the same routed segment,
+a comma phrase of up to three Han characters can join the adjacent clause.
+The model cap remains 120 UTF-16 units.
 
 Cold start assumes five UTF-16 units per second at 1× and an RTF of 0.75.
 With an empty buffer the target is two seconds of speech, about 8 to 12 units
@@ -60,9 +61,10 @@ estimated generation milliseconds per unit. For example, two seconds ready at
 The target stays between one and twelve seconds of estimated speech. If less
 than two seconds remain and the measured cost reaches real time, the target
 floor rises to four seconds to amortize per-request work. An intact clause,
-word or control mark can exceed the target. Each finished WAV updates both the
-generation cost and the audio duration per unit, averaging the previous
-estimate with the new observation. A voice or tempo change resets the estimate.
+word or control mark can exceed the target. The first WAV after a voice or tempo
+change updates only the audio duration estimate, since it can include backend
+preparation. Subsequent WAVs update both generation cost and audio duration
+per unit, averaging the previous estimate with the new observation.
 
 One model request runs alongside playback. The usual queue holds two files.
 While less than six seconds of ready audio remain, short GPT-SoVITS clips can

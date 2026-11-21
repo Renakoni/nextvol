@@ -56,10 +56,10 @@ class ReadAloudSessionTest {
         env.player.position = { (testScheduler.currentTime - 1000).coerceAtLeast(0) }
         try {
             env.session.start(SpeechRequest("book", "one"))
-            advanceTimeBy(2400)
+            advanceTimeBy(2100)
             runCurrent()
-            // At t=2400, 600 ms remain in the first WAV and 2800 ms are ready in the second.
-            assertEquals(listOf(10, 14, 28), env.synthesized.map { it.length })
+            // At t=2100, 900 ms remain in the first WAV and 2200 ms are ready in the second.
+            assertEquals(listOf(10, 11, 22), env.synthesized.map { it.length })
             assertEquals(0, env.progress.saved.getValue("book").offset)
         } finally { env.stop() }
     }

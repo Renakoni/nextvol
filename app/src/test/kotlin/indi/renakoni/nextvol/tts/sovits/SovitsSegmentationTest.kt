@@ -4,15 +4,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SovitsSegmentationTest {
-    @Test fun costlySynthesisKeepsMandarinClausesWholeWhenPlaybackCatchesUp() {
-        val text = "七月初，一个热得出奇的傍晚，一个年轻人从斯巷租住的阁楼里走出来。"
-        val policy = SovitsSegmentation(1f)
+    @Test fun shortNarrativePhraseStaysWithItsClauseAtStartAndOnResume() {
+        val opening = "七月初，时当酷暑，傍晚，"
+        val next = "有个年轻人从他向C巷二房东租来的一间小屋里走出来，"
+        val text = opening + next + "慢慢地、犹豫不决似地朝K桥方向走去。"
+        val policy = SovitsSegmentation(.9f)
         val start = policy.nextEnd(text, 0, 0)
-        assertEquals("七月初，", text.take(start))
-        policy.record(start, elapsedMs = 7553, audioMs = 1040)
-        assertEquals("一个热得出奇的傍晚，", text.substring(start, policy.nextEnd(text, start, 1040)))
-        val clause = "一个年轻人从斯巷租住的阁楼里走出来，脚步迟疑。"
-        assertEquals("一个年轻人从斯巷租住的阁楼里走出来，", clause.take(SovitsSegmentation(1f).nextEnd(clause, 0, 0)))
+        assertEquals(opening, text.take(start))
+        assertEquals(next, text.substring(start, policy.nextEnd(text, start, 3160)))
+        val resume = text.indexOf("傍晚")
+        assertEquals("傍晚，" + next, text.substring(resume, policy.nextEnd(text, resume, 0)))
+        val dialogue = "“嗯。”“接下来的事情由你决定。”"
+        assertEquals("“嗯。”", dialogue.take(policy.nextEnd(dialogue, 0, 0)))
     }
 
     @Test fun budgetRespondsToReadyAudioAndMeasuredCost() {
@@ -21,6 +24,8 @@ class SovitsSegmentationTest {
         assertEquals(10, policy.nextEnd(text, 0, 0))
         val normal = policy.nextEnd(text, 0, 3000)
         assertTrue(normal > policy.nextEnd(text, 0, 500))
+        policy.record(10, elapsedMs = 7500, audioMs = 2000)
+        assertEquals(normal, policy.nextEnd(text, 0, 3000))
         policy.record(10, elapsedMs = 3500, audioMs = 2000)
         assertTrue(policy.nextEnd(text, 0, 3000) < normal)
         assertEquals(20, policy.nextEnd(text, 0, 1000))

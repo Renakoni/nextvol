@@ -12,6 +12,7 @@ internal class SovitsSegmentation(speed: Float) {
     // Initial Mandarin estimate: five UTF-16 units per second at 1x, RTF 0.75.
     private var audioMsPerUnit = 200.0 / speed
     private var generationMsPerUnit = .75 * audioMsPerUnit
+    private var firstClip = true
 
     fun nextEnd(text: String, start: Int, bufferedMs: Long): Int {
         val target = if (bufferedMs <= 0) 2000 / audioMsPerUnit else
@@ -27,8 +28,15 @@ internal class SovitsSegmentation(speed: Float) {
         // Punctuation or whitespace in isolation may have no phonemes. Carry it with spoken text.
         val spoken = chunks.filterNot { speechIsUnspoken(it.text) }
         val first = spoken.firstOrNull() ?: return text.length
-        val head = if (singleHan(first.text)) spoken.getOrNull(1) ?: first else first
-        var end = head.range()?.second ?: return text.length
+        var end = first.range()?.second ?: return text.length
+        // Keep a short comma phrase with the surrounding narration. A period, quote,
+        // paragraph break or a different routed segment remains a separate boundary.
+        val next = spoken.getOrNull(1)
+        if (next != null && Character.isLetterOrDigit(remaining.codePointAt(end))) {
+            val shortHead = singleHan(first.text) || shortClause.matches(first.text)
+            val shortNext = remaining[end - 1] in comma && shortClause.matches(next.text)
+            if (shortHead || shortNext) end = next.range().second
+        }
         // A model duration target may fall inside a long English word or decimal in unpunctuated prose.
         wordOrNumber.findAll(remaining).firstOrNull { end in it.range && end > it.range.first }?.let { end = it.range.last + 1 }
         while (end < remaining.length && speechIsClosingPunctuation(remaining[end])) end++
@@ -40,13 +48,17 @@ internal class SovitsSegmentation(speed: Float) {
 
     fun record(units: Int, elapsedMs: Long, audioMs: Long) {
         if (units <= 0 || elapsedMs <= 0 || audioMs <= 0) return
-        generationMsPerUnit = (generationMsPerUnit + elapsedMs.toDouble() / units) / 2
+        // The first WAV may create backend sessions. Its duration is usable, but
+        // its generation time cannot predict the next clip on the prepared voice.
+        if (!firstClip) generationMsPerUnit = (generationMsPerUnit + elapsedMs.toDouble() / units) / 2
+        firstClip = false
         audioMsPerUnit = (audioMsPerUnit + audioMs.toDouble() / units) / 2
     }
 
     private companion object {
-        fun singleHan(text: String) = text.codePoints().anyMatch(Character::isIdeographic) &&
-            text.codePoints().filter(Character::isLetterOrDigit).count() == 1L
+        const val comma = "，,"
+        val shortClause = Regex("""[ \t]*\p{sc=Han}{1,3}[$comma]""")
+        fun singleHan(text: String) = text.codePointCount(0, text.length) == 1 && Character.isIdeographic(text.codePointAt(0))
         val wordOrNumber = Regex("""[\p{IsLatin}\p{M}\d]+(?:['’.\-][\p{IsLatin}\p{M}\d]+)*""")
     }
 }
