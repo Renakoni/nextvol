@@ -32,10 +32,11 @@ WebGPU when selected. A failed session or graph propagates an error to the reade
 Use a separate model directory for each installed revision. Standard packed FP16
 external weights for the prompt encoder, shared decoder, VITS and HuBERT are
 expanded beside their graphs on first open, so these directories must be writable
-when preparation is needed. The importer installs the shared V2 decoder graphs from
-Voicebox v1.1.3 alongside the checkpoint weights. Each clip owns its KV history.
-The decoder appends into preallocated buffers that grow in blocks of 256 steps;
-its FP16 weight storage retains FP32 computation. HuBERT and speaker conditioning
+when preparation is needed. The importer copies the shared V2 decoder graphs from
+Voicebox v1.1.3 alongside the checkpoint weights. Opening the voice creates ORT
+sessions from the stored graphs. Subsequent clips reuse the sessions and start
+with their own KV history. The decoder appends into preallocated buffers that grow
+in blocks of 256 steps. Its FP16 weight storage retains FP32 computation. HuBERT and speaker conditioning
 use a checksummed, atomically written cache scoped to the installed voice, base
 model revision and reference recording. The sampler is supplied per request. A vocoder exposing
 `speed` receives the voice speed multiplied by the reading rate mapped from
@@ -70,7 +71,9 @@ NPU, or disable GPU after a warning and allow CPU synthesis. Compatible voices w
 automatically use the NPU for latents of at least 192 frames. Shorter utterances
 continue on GPU. HTP uses 64-frame windows with eight frames of context and
 FP32 stem/head stages. V2 Pro uses 512/16 stem/body-output channels and V2 Pro
-Plus uses 768/24. A failed HTP context falls back to the GPU for that voice.
+Plus uses 768/24. QNN stores its compiled context alongside the graph. If a
+stored context fails to load, the runtime deletes it and compiles it once more.
+An HTP failure then reaches the reader.
 
 To prepare the optional graphs from an exported voice on a workstation with
 Python and ONNX installed, run the copied V2 tools against
