@@ -23,6 +23,8 @@ data class SpeechBookmark(
     val replacementKey: String? = null,
     val segmentIndex: Int? = null,
     val context: SpeechContext = SpeechContext(),
+    /** Offset in the transformed segment for subclips that can share an original source range. */
+    val textOffset: Int? = null,
 )
 
 interface SpeechProgressStore {

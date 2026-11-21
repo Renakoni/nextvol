@@ -19,16 +19,25 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
 data class SpeechClip(val plan: SpeechPlan, val index: Int, val file: File, val timings: List<SpeechTiming> = emptyList(),
-    val voiceLabel: String = "", val stream: SpeechStream? = null) {
+    val voiceLabel: String = "", val stream: SpeechStream? = null,
+    val textStart: Int = 0, val segment: SpeechSegment = plan.slice(index, textStart, plan.segments[index].text.length),
+    val durationMs: Long = 0) {
     val chapter get() = plan.chapter
-    val segment get() = plan.segments[index]
+    val textEnd get() = textStart + segment.text.length
     val count get() = plan.segments.size
+    internal val finishesSegment get() = textEnd == plan.segments[index].text.length
+    internal fun position(start: Int, end: Int, anchor: Int) =
+        plan.position(index, textStart + start, textStart + end, textStart + anchor)
+    internal fun startBookmark() = plan.bookmark(segment.start, index, textStart.takeIf { it > 0 })
+    internal fun endBookmark() = if (finishesSegment) plan.bookmark(segment.end, index + 1)
+        else plan.bookmark(segment.end, index, textEnd)
     internal fun dispose() { stream?.cancel(); file.delete() }
 }
 
@@ -37,6 +46,7 @@ interface SpeechPlayback {
     suspend fun play(clip: SpeechClip, playWhenReady: Boolean, onRange: (SpeechTiming) -> Unit,
         onEstimatedAnchor: (Int) -> Unit = {},
         onState: (SpeechPhase, Boolean) -> Unit)
+    fun positionMs(clip: SpeechClip): Long = 0
     fun pause()
     fun resume()
     fun stop()
@@ -58,6 +68,7 @@ class ReadAloudSession(
     },
     private val diagnostics: (SpeechLogRecord) -> Unit = {},
     private val detailedLogging: () -> Boolean = { false },
+    private val nowMs: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private val mutableState = MutableStateFlow(ReadAloudState())
     val state = mutableState.asStateFlow()
@@ -65,6 +76,7 @@ class ReadAloudSession(
     private var work: Job? = null
     private var engine: SpeechSynthesizer? = null
     private var currentClip: SpeechClip? = null
+    private var audibleTextAnchor = 0
     private var currentPlan: SpeechPlan? = null
     private var wantsPlay = true
     private var currentSettings: SpeechSettings? = null
@@ -198,7 +210,7 @@ class ReadAloudSession(
         val current = state.value
         mutableState.value = current.copy(sleepTimerChapters = chapters)
         // Count the current chapter even if its audio has ended while the next one is loading.
-        if (currentClip == null && current.segmentCount > 0 && current.segmentIndex == current.segmentCount - 1) {
+        if (currentClip == null && current.segmentCount > 0 && currentBoundary?.segmentIndex == current.segmentCount) {
             finishTimerChapter()
         }
     }
@@ -258,7 +270,7 @@ class ReadAloudSession(
         val target = clip.plan.segments.getOrNull(clip.index + delta)
         if (target == null) {
             if (delta > 0 || clip.chapter.previousId != null) changeChapter(delta > 0)
-            else start(request, resumeSaved = false, boundary = clip.bookmark(clip.segment.start), playing = wantsPlay,
+            else start(request, resumeSaved = false, boundary = clip.plan.bookmark(clip.plan.segments.first().start, 0), playing = wantsPlay,
                 sleepTimerChapters = state.value.sleepTimerChapters)
         } else start(request, resumeSaved = false, boundary = clip.plan.bookmark(target.start, clip.index + delta), playing = wantsPlay,
             sleepTimerChapters = state.value.sleepTimerChapters)
@@ -288,22 +300,39 @@ class ReadAloudSession(
     private fun audibleBoundary(): SpeechBookmark? = currentClip?.let { clip ->
         val position = state.value.position?.takeIf { it.bookId == clip.chapter.bookId && it.chapterId == clip.chapter.id &&
             it.anchor in clip.segment.start until clip.segment.end }
-        clip.bookmark(position?.anchor ?: clip.segment.start)
+        if (position == null) clip.startBookmark() else clip.plan.bookmark(position.anchor, clip.index,
+            clip.textStart + audibleTextAnchor)
     } ?: currentBoundary
 
     private suspend fun stream(token: Long, request: SpeechRequest, provider: SpeechSynthesizer,
         directory: File, saved: SpeechBookmark?, synthesis: SpeechSettings, reusablePlan: SpeechPlan?,
         initialContext: SpeechContext, opened: SpeechSettings?, initialLabel: String, maxInputLength: Int) = coroutineScope {
         val processingKey = synthesis.textProcessingKey(maxInputLength)
-        // At most one playing file, two buffered files and one synthesis in flight.
-        val queue = Channel<Step>(capacity = 2, onUndeliveredElement = { (it as? Step.Ready)?.clip?.dispose() })
+        // Ordinarily two queued files suffice. Short SoVITS dialogue may need several to cover six seconds.
+        val queue = Channel<Step>(capacity = 6, onUndeliveredElement = { (it as? Step.Ready)?.clip?.dispose() })
+        // Producer and consumer share the session dispatcher. Only finished audio earns buffer credit.
+        var readyMs = 0L
+        val queued = MutableStateFlow(0)
+        fun remainingMs(): Long {
+            val clip = currentClip ?: return readyMs
+            return readyMs - playback.positionMs(clip).coerceIn(0, clip.durationMs)
+        }
         launch {
-            SpeechClipProducer(chapters, provider, ioDispatcher, preparePlan, diagnostics, detailedLogging)
-                .produce(request, directory, saved, synthesis, reusablePlan, initialContext, opened, initialLabel,
-                    maxInputLength, processingKey, queue)
+            try {
+                SpeechClipProducer(chapters, provider, ioDispatcher, preparePlan, diagnostics, detailedLogging, nowMs)
+                    .produce(request, directory, saved, synthesis, reusablePlan, initialContext, opened, initialLabel,
+                        maxInputLength, processingKey, ::remainingMs) { step ->
+                        queued.first { count -> count < 2 ||
+                            step is Step.Ready && step.prefetchShortClips && count < 6 && remainingMs() < 6000 }
+                        queued.value++
+                        if (step is Step.Ready) readyMs += step.clip.durationMs
+                        queue.send(step)
+                    }
+            } finally { queue.close() }
         }
         try {
             for (step in queue) {
+                queued.value--
                 currentCoroutineContext().ensureActive()
                 when (step) {
                     is Step.Skipped -> {
@@ -323,16 +352,16 @@ class ReadAloudSession(
                         currentClip = null
                         currentPlan = step.plan
                         val failed = step.chapter
-                        val segment = step.plan?.segments?.getOrNull(step.index)
+                        val segment = step.clip?.segment
                         val bookTitle = failed?.bookTitle ?: state.value.bookTitle
-                        currentBoundary = step.plan?.bookmark(segment?.start ?: 0, step.index)
+                        currentBoundary = step.clip?.startBookmark()
                             ?: currentBoundary?.takeIf { it.chapterId == failed?.id && it.fingerprint == failed.fingerprint }
                             ?: SpeechBookmark(request.bookId,
                             step.request.chapterId, failed?.fingerprint.orEmpty(), 0, bookTitle, failed?.title.orEmpty(),
                             replacementKey = processingKey, context = step.context)
                         if (!request.isPreview) save(currentBoundary!!)
                         publish(token) { it.copy(request = step.request, bookTitle = bookTitle, chapterTitle = failed?.title.orEmpty(),
-                            segmentIndex = step.index, segmentCount = step.plan?.segments?.size ?: 0, currentText = segment?.text.orEmpty(),
+                            segmentIndex = step.clip?.index ?: 0, segmentCount = step.plan?.segments?.size ?: 0, currentText = segment?.text.orEmpty(),
                             position = if (request.isPreview || failed == null || segment == null) null else SpeechPosition(
                                 failed.bookId, failed.id, failed.fingerprint, segment.start, segment.end),
                             previousChapterId = failed?.previousId, nextChapterId = failed?.nextId,
@@ -345,9 +374,10 @@ class ReadAloudSession(
                     is Step.Ready -> {
                         val clip = step.clip
                         currentClip = clip
+                        audibleTextAnchor = 0
                         currentPlan = clip.plan
                         val silent = clip.segment.pauseMs != null
-                        currentBoundary = clip.plan.bookmark(clip.segment.start, clip.index)
+                        currentBoundary = clip.startBookmark()
                         publish(token) { it.copy(
                             request = request.copy(chapterId = clip.chapter.id), bookTitle = clip.chapter.bookTitle,
                             chapterTitle = clip.chapter.title, segmentIndex = clip.index, segmentCount = clip.count,
@@ -360,7 +390,7 @@ class ReadAloudSession(
                         val sentences = if (clip.timings.isEmpty()) emptyList() else speechSentences(clip.segment.text)
                         var audibleStart = sentences.firstOrNull()?.start ?: 0
                         var audibleEnd = sentences.firstOrNull()?.end ?: clip.segment.text.length
-                        var audibleAnchor = audibleStart
+                        audibleTextAnchor = audibleStart
                         try {
                             if (detailedLogging()) diagnostics(SpeechLogRecord(SpeechLogStage.Playback, SpeechLogEvent.Started,
                                 voice = clip.segment.selectedVoice?.reference, processId = clip.plan.logId, segment = clip.index + 1))
@@ -369,21 +399,21 @@ class ReadAloudSession(
                                     val sentence = sentences.firstOrNull { range.start in it.start until it.end }
                                     audibleStart = sentence?.start ?: range.start
                                     audibleEnd = maxOf(sentence?.end ?: range.end, range.end)
-                                    audibleAnchor = range.start
-                                    publish(token) { it.copy(position = clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)) }
+                                    audibleTextAnchor = range.start
+                                    publish(token) { it.copy(position = clip.position(audibleStart, audibleEnd, audibleTextAnchor)) }
                                 }
                             }, onEstimatedAnchor = { anchor ->
                                 if (token == generation && currentClip === clip && !request.isPreview && !silent && clip.timings.isEmpty()) {
                                     // Keep the reliably audible clip highlighted; only viewport following is estimated.
-                                    audibleAnchor = anchor
-                                    publish(token) { it.copy(position = clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)) }
+                                    audibleTextAnchor = anchor
+                                    publish(token) { it.copy(position = clip.position(audibleStart, audibleEnd, audibleTextAnchor)) }
                                 }
                             }) { phase, playing ->
                                 if (token == generation && currentClip === clip) {
                                     wantsPlay = playing
                                     publish(token) { it.copy(phase = phase,
                                         position = if (!request.isPreview && !silent && phase in setOf(SpeechPhase.Playing, SpeechPhase.Paused))
-                                            clip.plan.position(clip.index, audibleStart, audibleEnd, audibleAnchor)
+                                            clip.position(audibleStart, audibleEnd, audibleTextAnchor)
                                         else it.position,
                                     ) }
                                 }
@@ -393,10 +423,11 @@ class ReadAloudSession(
                         finally { clip.dispose() }
                         currentCoroutineContext().ensureActive()
                         // Only actual playback completion advances the durable offset.
-                        if (!request.isPreview) save(clip.bookmark(clip.segment.end))
-                        currentBoundary = clip.bookmark(clip.segment.end)
+                        currentBoundary = clip.endBookmark()
+                        if (!request.isPreview) save(currentBoundary!!)
+                        readyMs -= clip.durationMs
                         currentClip = null
-                        if (!request.isPreview && clip.index == clip.count - 1 && finishTimerChapter()) {
+                        if (!request.isPreview && clip.finishesSegment && clip.index == clip.count - 1 && finishTimerChapter()) {
                             return@coroutineScope
                         }
                         publish(token) { it.copy(phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused) }
@@ -419,8 +450,6 @@ class ReadAloudSession(
         // Finishing a durable write must not resume playback after Stop or a replacement request.
         currentCoroutineContext().ensureActive()
     }
-
-    private fun SpeechClip.bookmark(offset: Int) = plan.bookmark(offset, if (offset == segment.end) index + 1 else index)
 
     private inline fun publish(token: Long, update: (ReadAloudState) -> ReadAloudState) {
         if (token == generation) mutableState.value = update(state.value)

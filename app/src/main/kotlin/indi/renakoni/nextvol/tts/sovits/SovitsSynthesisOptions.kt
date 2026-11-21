@@ -23,10 +23,12 @@ data class SovitsSynthesisOptions(
 
     fun samplingValues() = floatArrayOf(temperature, topK.toFloat(), topP, repetitionPenalty)
 
-    internal fun withReadingRate(rate: Float): SovitsSynthesisOptions {
-        val normalized = if (rate <= 1f) .6f + .4f * rate else 1f + .65f * (rate - 1f)
-        return copy(speed = (speed * normalized).coerceIn(.6f, 1.65f))
-    }
+    internal fun withReadingRate(rate: Float) = copy(speed = sovitsReadingSpeed(speed, rate))
+}
+
+internal fun sovitsReadingSpeed(voiceSpeed: Float, rate: Float): Float {
+    val normalized = if (rate <= 1f) .6f + .4f * rate else 1f + .65f * (rate - 1f)
+    return (voiceSpeed * normalized).coerceIn(.6f, 1.65f)
 }
 
 private fun sovitsParameters(configuration: OfflineVoiceConfig): JsonObject =

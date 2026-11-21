@@ -4,6 +4,7 @@ This Maven repository contains build dependencies used by NextVol. Reorderable, 
 
 - Reorderable 3.1.0 — [Maven Central](https://repo.maven.apache.org/maven2/sh/calvin/reorderable/) · [source](https://github.com/Calvin-LL/Reorderable)
 - Compose Multiplatform BackHandler 1.9.1 — [Maven Central](https://repo.maven.apache.org/maven2/org/jetbrains/compose/ui/ui-backhandler/1.9.1/) · [source](https://github.com/JetBrains/compose-multiplatform-core)
+- Release builds use Compose Group Mapping 2.4.10 with Kotlin Stdlib 2.2.21, JetBrains Annotations 13.0 and ASM Core/Tree 9.9.1. [Compose Group Mapping](https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/compose-group-mapping/2.4.10/) · [ASM license](org/ow2/asm/LICENSE.txt)
 
 Android Lint also resolves these versions from this directory.
 

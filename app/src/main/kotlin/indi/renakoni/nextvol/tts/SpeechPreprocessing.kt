@@ -11,7 +11,7 @@ private val latinLetter = Pattern.compile("\\p{script=Latin}")
 private val atomicMarks = Pattern.compile("<<.*?>>|\\[\\[.*?\\]\\]")
 private const val speechClosingPunctuation = ",.!?;:，。！？；：…”」»\"’')]}）】》"
 
-private fun speechIsClosingPunctuation(value: Char): Boolean = value in speechClosingPunctuation ||
+internal fun speechIsClosingPunctuation(value: Char): Boolean = value in speechClosingPunctuation ||
     when (Character.getType(value)) {
         Character.END_PUNCTUATION.toInt(), Character.FINAL_QUOTE_PUNCTUATION.toInt(),
         Character.DASH_PUNCTUATION.toInt() -> true
@@ -236,14 +236,25 @@ private fun speechLongSentence(
 internal fun speechHardChunks(
     input: SpeechMappedText, limit: Int, checkCancelled: () -> Unit = {},
 ): List<SpeechMappedText> {
+    return speechRequestChunks(input, limit, hard = true, checkCancelled)
+}
+
+// A timing target can yield to an atomic mark. The enclosing plan already enforces the backend cap.
+internal fun speechRequestChunks(input: SpeechMappedText, limit: Int, hard: Boolean,
+    checkCancelled: () -> Unit): List<SpeechMappedText> {
     require(limit >= 2)
     checkCancelled()
     if (input.text.length <= limit) return listOf(input)
     val language = Locale.getDefault().language
     val pauses = if (language == "en" || language == "zh") chineseEnglishSentence else otherSentence
+    val keepClauses = !hard && pauses.matcher(input.text).find()
     return speechPunctuationChunks(input, limit, speechSentenceEnd, true, checkCancelled) { sentence ->
         speechPunctuationChunks(sentence, limit, pauses, true, checkCancelled) {
-            speechLongSentence(it, limit, true, checkCancelled)
+            // A timing target can wait for the end of a Mandarin clause. The plan already
+            // enforces the provider limit; fragmenting a short clause can leave one phoneme.
+            if (keepClauses && it.text.codePoints().anyMatch(Character::isIdeographic) &&
+                !atomicMarks.matcher(it.text).find()) listOf(it)
+            else speechLongSentence(it, limit, hard, checkCancelled)
         }
     }
 }
