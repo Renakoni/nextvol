@@ -3,13 +3,14 @@ package indi.renakoni.nextvol.tts
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
+import indi.renakoni.nextvol.reader.ReaderLayoutTestActivity
 import indi.renakoni.nextvol.tts.audio.SpeechWaveFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -19,8 +20,8 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 class SpeechPlaylistInstrumentedTest {
-    @Test fun readyFilesTransitionInOrderAndChapterTimerWithdrawsTheFollowingChapter() = runBlocking {
-        withContext(Dispatchers.Main.immediate) {
+    @Test fun readyFilesTransitionInOrderAndChapterTimerWithdrawsTheFollowingChapter() = ActivityScenario.launch(ReaderLayoutTestActivity::class.java).use {
+        runBlocking(Dispatchers.Main.immediate) {
             val context = InstrumentationRegistry.getInstrumentation().targetContext
             val directory = File(context.cacheDir, "playlist-${UUID.randomUUID()}")
             val player = ExoPlayer.Builder(context).build()
