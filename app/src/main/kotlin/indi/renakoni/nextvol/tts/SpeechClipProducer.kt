@@ -6,6 +6,7 @@ import indi.renakoni.nextvol.data.logging.SpeechLogStage
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.sovits.SovitsSegmentation
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -27,7 +28,9 @@ internal class SpeechClipProducer(
     private val nowMs: () -> Long,
 ) {
     sealed interface Step {
-        data class Ready(val clip: SpeechClip, val prefetchShortClips: Boolean = false) : Step
+        class Ready(val clip: SpeechClip, val prefetchShortClips: Boolean = false) : Step {
+            val successor = CompletableDeferred<SpeechClip?>()
+        }
         data class Skipped(val plan: SpeechPlan) : Step
         data class Failed(val error: SpeechError, val request: SpeechRequest, val chapter: SpeechChapter?,
             val plan: SpeechPlan?, val clip: SpeechClip?, val context: SpeechContext,

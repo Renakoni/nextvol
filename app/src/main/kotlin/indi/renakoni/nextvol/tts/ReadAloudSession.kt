@@ -17,9 +17,15 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -42,9 +48,11 @@ data class SpeechClip(val plan: SpeechPlan, val index: Int, val file: File, val 
 }
 
 interface SpeechPlayback {
+    val isPlaying: Boolean
     /** Completes when this audio has actually ended, never when synthesis or buffering finishes. */
     suspend fun play(clip: SpeechClip, playWhenReady: Boolean, onRange: (SpeechTiming) -> Unit,
         onEstimatedAnchor: (Int) -> Unit = {},
+        nextClip: Flow<SpeechClip?> = emptyFlow(), // The immediate successor, or null to withdraw it.
         onState: (SpeechPhase, Boolean) -> Unit)
     fun positionMs(clip: SpeechClip): Long = 0
     fun pause()
@@ -151,6 +159,7 @@ class ReadAloudSession(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
+                if (token == generation) playback.stop()
                 val error = failure.speechError(SpeechError.SynthesisFailed)
                 val failedVoice = currentClip?.segment?.selectedVoice?.reference ?: state.value.failedVoice ?: openingVoice
                 diagnostics(SpeechLogRecord(if (error == SpeechError.Playback) SpeechLogStage.Playback else SpeechLogStage.Initialization,
@@ -313,11 +322,17 @@ class ReadAloudSession(
         // Producer and consumer share the session dispatcher. Only finished audio earns buffer credit.
         var readyMs = 0L
         val queued = MutableStateFlow(0)
+        fun handoffPhase() = when {
+            !wantsPlay -> SpeechPhase.Paused
+            playback.isPlaying -> SpeechPhase.Playing
+            else -> SpeechPhase.Buffering
+        }
         fun remainingMs(): Long {
             val clip = currentClip ?: return readyMs
             return readyMs - playback.positionMs(clip).coerceIn(0, clip.durationMs)
         }
         launch {
+            var previous: Step.Ready? = null
             try {
                 SpeechClipProducer(chapters, provider, ioDispatcher, preparePlan, diagnostics, detailedLogging, nowMs)
                     .produce(request, directory, saved, synthesis, reusablePlan, initialContext, opened, initialLabel,
@@ -325,10 +340,26 @@ class ReadAloudSession(
                         queued.first { count -> count < 2 ||
                             step is Step.Ready && step.prefetchShortClips && count < 6 && remainingMs() < 6000 }
                         queued.value++
-                        if (step is Step.Ready) readyMs += step.clip.durationMs
+                        val ready = step as? Step.Ready
+                        if (ready != null) readyMs += ready.clip.durationMs
                         queue.send(step)
+                        previous?.successor?.complete(ready?.clip)
+                        previous = ready
                     }
-            } finally { queue.close() }
+            } finally {
+                previous?.successor?.complete(null)
+                queue.close()
+            }
+        }
+        var lastSaved: SpeechBookmark? = null
+        suspend fun persistBoundary() {
+            if (request.isPreview) return
+            currentCoroutineContext().ensureActive()
+            val boundary = checkNotNull(currentBoundary)
+            if (boundary != lastSaved) {
+                save(boundary)
+                lastSaved = boundary
+            }
         }
         try {
             for (step in queue) {
@@ -340,7 +371,7 @@ class ReadAloudSession(
                         currentPlan = skipped
                         currentClip = null
                         currentBoundary = skipped.bookmark(skipped.chapter.text.length, 0)
-                        if (!request.isPreview) save(currentBoundary!!)
+                        persistBoundary()
                         publish(token) { it.copy(request = request.copy(chapterId = skipped.chapter.id),
                             bookTitle = skipped.chapter.bookTitle, chapterTitle = skipped.chapter.title,
                             segmentIndex = 0, segmentCount = 0, currentText = "", position = null,
@@ -359,7 +390,7 @@ class ReadAloudSession(
                             ?: SpeechBookmark(request.bookId,
                             step.request.chapterId, failed?.fingerprint.orEmpty(), 0, bookTitle, failed?.title.orEmpty(),
                             replacementKey = processingKey, context = step.context)
-                        if (!request.isPreview) save(currentBoundary!!)
+                        persistBoundary()
                         publish(token) { it.copy(request = step.request, bookTitle = bookTitle, chapterTitle = failed?.title.orEmpty(),
                             segmentIndex = step.clip?.index ?: 0, segmentCount = step.plan?.segments?.size ?: 0, currentText = segment?.text.orEmpty(),
                             position = if (request.isPreview || failed == null || segment == null) null else SpeechPosition(
@@ -374,27 +405,29 @@ class ReadAloudSession(
                     is Step.Ready -> {
                         val clip = step.clip
                         currentClip = clip
-                        audibleTextAnchor = 0
                         currentPlan = clip.plan
                         val silent = clip.segment.pauseMs != null
                         currentBoundary = clip.startBookmark()
+                        val sentences = if (clip.timings.isEmpty()) emptyList() else speechSentences(clip.segment.text)
+                        var audibleStart = sentences.firstOrNull()?.start ?: 0
+                        var audibleEnd = sentences.firstOrNull()?.end ?: clip.segment.text.length
+                        audibleTextAnchor = audibleStart
+                        val phase = handoffPhase()
                         publish(token) { it.copy(
                             request = request.copy(chapterId = clip.chapter.id), bookTitle = clip.chapter.bookTitle,
                             chapterTitle = clip.chapter.title, segmentIndex = clip.index, segmentCount = clip.count,
                             currentText = if (silent) it.currentText else clip.segment.text, previousChapterId = clip.chapter.previousId,
                             voiceLabel = if (silent) it.voiceLabel else clip.voiceLabel, planContext = clip.plan.context, failedVoice = null, failedRole = null,
                             nextChapterId = clip.chapter.nextId,
-                            phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused, error = null, replacementFailure = null, roleFailure = null,
+                            phase = phase, error = null, replacementFailure = null, roleFailure = null,
+                            position = if (phase == SpeechPhase.Playing && !request.isPreview && !silent)
+                                clip.position(audibleStart, audibleEnd, audibleTextAnchor) else it.position,
                         ) }
-                        if (!request.isPreview) save(currentBoundary!!)
-                        val sentences = if (clip.timings.isEmpty()) emptyList() else speechSentences(clip.segment.text)
-                        var audibleStart = sentences.firstOrNull()?.start ?: 0
-                        var audibleEnd = sentences.firstOrNull()?.end ?: clip.segment.text.length
-                        audibleTextAnchor = audibleStart
+                        persistBoundary()
                         try {
                             if (detailedLogging()) diagnostics(SpeechLogRecord(SpeechLogStage.Playback, SpeechLogEvent.Started,
                                 voice = clip.segment.selectedVoice?.reference, processId = clip.plan.logId, segment = clip.index + 1))
-                            playback.play(clip, wantsPlay, onRange = { range ->
+                            playback.play(clip, wantsPlay, nextClip = nextClip(step), onRange = { range ->
                                 if (token == generation && currentClip === clip && !request.isPreview && !silent) {
                                     val sentence = sentences.firstOrNull { range.start in it.start until it.end }
                                     audibleStart = sentence?.start ?: range.start
@@ -424,23 +457,33 @@ class ReadAloudSession(
                         currentCoroutineContext().ensureActive()
                         // Only actual playback completion advances the durable offset.
                         currentBoundary = clip.endBookmark()
-                        if (!request.isPreview) save(currentBoundary!!)
+                        persistBoundary()
                         readyMs -= clip.durationMs
                         currentClip = null
                         if (!request.isPreview && clip.finishesSegment && clip.index == clip.count - 1 && finishTimerChapter()) {
                             return@coroutineScope
                         }
-                        publish(token) { it.copy(phase = if (wantsPlay) SpeechPhase.Buffering else SpeechPhase.Paused) }
+                        publish(token) { it.copy(phase = handoffPhase()) }
                     }
                 }
             }
             currentClip = null
             currentPlan = null
             if (!request.isPreview) {
-                progress.load(request.bookId)?.let { save(it.copy(completed = true)) }
+                (lastSaved ?: progress.load(request.bookId))?.let { save(it.copy(completed = true)) }
             }
             publish(token) { it.copy(phase = SpeechPhase.Completed, position = null, sleepTimerChapters = null) }
         } finally { queue.cancel() }
+    }
+
+    private fun nextClip(step: Step.Ready): Flow<SpeechClip?> = flow {
+        val next = step.successor.await() ?: return@flow
+        // Seeking in the current item can discard and reopen a preloaded source.
+        // A live PCM channel can only be read once.
+        if (next.stream != null) return@flow
+        if (next.plan === step.clip.plan) emit(next)
+        // A chapter timer can be set or cleared while the final clip is playing.
+        else emitAll(state.map { if (it.sleepTimerChapters == 1) null else next }.distinctUntilChanged())
     }
 
     private suspend fun save(bookmark: SpeechBookmark) {

@@ -60,6 +60,7 @@ EXTRA_24 = [
     ('storage', 'data.localbook.LocalBookImportInstrumentedTest'),
     ('full', 'defaultplugin.wenku8.Wenku8NetworkInstrumentedTest'),
     ('speech', 'tts.SystemSpeechInstrumentedTest'),
+    ('speech', 'tts.SpeechPlaylistInstrumentedTest'),
     ('speech', 'tts.ReadAloudBackgroundInstrumentedTest'),
     ('speech', 'tts.HttpSpeechInstrumentedTest'),
     ('speech', 'tts.SpeechReplacementInstrumentedTest'),

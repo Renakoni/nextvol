@@ -6,6 +6,9 @@ import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -95,25 +98,22 @@ class ReadAloudSessionTest {
         } finally { env.stop() }
     }
 
-    @Test fun streamingStartsBeforeSynthesisEndsAndStopKeepsTheAudibleBoundary() = runTest {
+    @Test fun singleUseStreamStartsOnItsTurnAndStopKeepsTheAudibleBoundary() = runTest {
         val env = Environment(this)
-        val pending = CompletableDeferred<Unit>()
         val stream = SpeechStream(16000)
-        env.streaming = stream
-        env.beforeSynthesis = { pending.await() }
+        env.inputLimit = 2
+        env.load = { book, chapter -> SpeechChapter(book, chapter, "", "", "甲乙丙丁") }
+        env.beforeSynthesis = { if (env.synthesized.size == 1) env.streaming = stream else awaitCancellation() }
         env.session.start(SpeechRequest("book", "one"))
         runCurrent()
-        assertSame(stream, env.player.started.single().stream)
-        assertFalse(pending.isCompleted)
+        assertNull(env.player.successor.firstOrNull())
+        env.player.finish()
+        runCurrent()
+        assertSame(stream, env.player.started.last().stream)
         assertEquals(0, env.audioFiles())
-        env.session.pause()
-        assertEquals(SpeechPhase.Paused, env.session.state.value.phase)
-        env.session.resume()
-        assertEquals(SpeechPhase.Playing, env.session.state.value.phase)
         env.stop()
-        assertEquals(0, env.progress.saved.getValue("book").offset)
+        assertEquals(2, env.progress.saved.getValue("book").offset)
         assertTrue(stream.blocks.receiveCatching().isClosed)
-        assertEquals(1, env.player.started.size)
     }
 
     @Test fun prefetchIsBoundedAndCannotAdvanceTheListeningPosition() = runTest {
@@ -906,6 +906,7 @@ class ReadAloudSessionTest {
     private class FakePlayback : SpeechPlayback {
         val started = mutableListOf<SpeechClip>()
         var playing = false
+        override val isPlaying get() = playing
         var startBuffered = false
         var position: () -> Long = { 0L }
         override fun positionMs(clip: SpeechClip) = position()
@@ -913,14 +914,16 @@ class ReadAloudSessionTest {
         private var callback: ((SpeechPhase, Boolean) -> Unit)? = null
         var rangeCallback: ((SpeechTiming) -> Unit)? = null
         var estimatedAnchorCallback: ((Int) -> Unit)? = null
+        lateinit var successor: Flow<SpeechClip?>
         override suspend fun play(clip: SpeechClip, playWhenReady: Boolean, onRange: (SpeechTiming) -> Unit,
-            onEstimatedAnchor: (Int) -> Unit,
+            onEstimatedAnchor: (Int) -> Unit, nextClip: Flow<SpeechClip?>,
             onState: (SpeechPhase, Boolean) -> Unit) {
             val complete = CompletableDeferred<Unit>()
             pending = complete
             callback = onState
             rangeCallback = onRange
             estimatedAnchorCallback = onEstimatedAnchor
+            successor = nextClip
             started += clip
             playing = playWhenReady && !startBuffered
             onState(when {
@@ -930,7 +933,7 @@ class ReadAloudSessionTest {
             }, playWhenReady)
             try { complete.await() } finally { if (pending === complete) { pending = null; callback = null } }
         }
-        fun finish() { check(playing); pending!!.complete(Unit) }
+        fun finish() { check(playing); playing = false; pending!!.complete(Unit) }
         override fun pause() { playing = false; callback?.invoke(SpeechPhase.Paused, false) }
         override fun resume() { playing = true; callback?.invoke(SpeechPhase.Playing, true) }
         override fun stop() { pending?.cancel(); pending = null; callback = null; playing = false }
