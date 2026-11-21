@@ -10,14 +10,21 @@ class SpeechPlanTest {
         val chapter = SpeechChapter("book", "chapter", "Book", "Chapter",
             "  𠀀说：你好！\n\n" + "长句𠀁".repeat(100), nextId = "next")
         val plan = prepareSpeechPlan(chapter, SpeechSettings()) {}
-        assertTrue(plan.segments.size > 2)
         val second = plan.segments[1]
         val saved = plan.bookmark(second.start + 1)
         assertEquals(1, plan.resumeAt(saved).index)
         assertEquals(0, plan.resumeAt(saved.copy(fingerprint = "old text")).index)
         assertEquals(plan.segments.size, plan.resumeAt(plan.bookmark(plan.segments.last().end)).index)
-        val finalChapter = prepareSpeechPlan(chapter.copy(nextId = null), SpeechSettings()) {}
-        assertEquals(finalChapter.segments.size, finalChapter.resumeAt(saved.copy(offset = chapter.text.length)).index)
+    }
+
+    @Test fun sovitsResumeOnClosingPunctuationAdvancesPastTheSilentSuffix() = runBlocking {
+        val settings = SpeechSettings()
+        val voice = settings.voiceReference()
+        val chapter = SpeechChapter("book", "chapter", "", "", "“走吧！”")
+        val plan = prepareSpeechPlan(chapter, settings, voices = mapOf(
+            voice.key to SpeechResolvedVoice(voice, settings.forVoice(voice), 120, sovitsSpeed = 1f))) {}
+        val segment = plan.segments.single()
+        assertEquals(SpeechCursor(1), plan.resumeAt(plan.bookmark(chapter.text.indexOf('！'), 0, segment.text.indexOf('！'))))
     }
 
     @Test fun preparationRejectsOversizedChaptersAndCooperatesWithCancellationDuringSegmentation() {

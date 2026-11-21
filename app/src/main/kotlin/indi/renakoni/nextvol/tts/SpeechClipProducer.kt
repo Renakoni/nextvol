@@ -101,7 +101,7 @@ internal class SpeechClipProducer(
                             val bufferedMs = if (policy == null) 0L else remainingMs()
                             if (policy != null) {
                                 val end = policy.nextEnd(segment.text, offset, bufferedMs)
-                                if (end < clip.textEnd) clip = clip.copy(textEnd = end)
+                                if (end < clip.textEnd) clip = clip.copy(segment = plan.slice(index, offset, end))
                                 pending = clip
                             }
                             stage = SpeechLogStage.Request

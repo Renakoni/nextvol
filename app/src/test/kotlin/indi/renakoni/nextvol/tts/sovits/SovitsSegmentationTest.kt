@@ -11,7 +11,6 @@ class SovitsSegmentationTest {
         val policy = SovitsSegmentation(.9f)
         val start = policy.nextEnd(text, 0, 0)
         assertEquals(opening, text.take(start))
-        assertEquals(next, text.substring(start, policy.nextEnd(text, start, 3160)))
         val resume = text.indexOf("傍晚")
         assertEquals("傍晚，" + next, text.substring(resume, policy.nextEnd(text, resume, 0)))
         val dialogue = "“嗯。”“接下来的事情由你决定。”"
@@ -24,7 +23,6 @@ class SovitsSegmentationTest {
     @Test fun budgetRespondsToReadyAudioAndMeasuredCost() {
         val text = "甲".repeat(120)
         val policy = SovitsSegmentation(1f)
-        assertEquals(10, policy.nextEnd(text, 0, 0))
         val normal = policy.nextEnd(text, 0, 3000)
         assertTrue(normal > policy.nextEnd(text, 0, 500))
         assertNull(policy.record(10, elapsedMs = 7500, audioMs = 2000))

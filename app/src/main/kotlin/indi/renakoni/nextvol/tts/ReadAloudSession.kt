@@ -27,9 +27,10 @@ import java.util.UUID
 
 data class SpeechClip(val plan: SpeechPlan, val index: Int, val file: File, val timings: List<SpeechTiming> = emptyList(),
     val voiceLabel: String = "", val stream: SpeechStream? = null,
-    val textStart: Int = 0, val textEnd: Int = plan.segments[index].text.length, val durationMs: Long = 0) {
+    val textStart: Int = 0, val segment: SpeechSegment = plan.slice(index, textStart, plan.segments[index].text.length),
+    val durationMs: Long = 0) {
     val chapter get() = plan.chapter
-    val segment = plan.slice(index, textStart, textEnd)
+    val textEnd get() = textStart + segment.text.length
     val count get() = plan.segments.size
     internal val finishesSegment get() = textEnd == plan.segments[index].text.length
     internal fun position(start: Int, end: Int, anchor: Int) =
@@ -269,7 +270,7 @@ class ReadAloudSession(
         val target = clip.plan.segments.getOrNull(clip.index + delta)
         if (target == null) {
             if (delta > 0 || clip.chapter.previousId != null) changeChapter(delta > 0)
-            else start(request, resumeSaved = false, boundary = clip.startBookmark(), playing = wantsPlay,
+            else start(request, resumeSaved = false, boundary = clip.plan.bookmark(clip.plan.segments.first().start, 0), playing = wantsPlay,
                 sleepTimerChapters = state.value.sleepTimerChapters)
         } else start(request, resumeSaved = false, boundary = clip.plan.bookmark(target.start, clip.index + delta), playing = wantsPlay,
             sleepTimerChapters = state.value.sleepTimerChapters)
@@ -300,7 +301,7 @@ class ReadAloudSession(
         val position = state.value.position?.takeIf { it.bookId == clip.chapter.bookId && it.chapterId == clip.chapter.id &&
             it.anchor in clip.segment.start until clip.segment.end }
         if (position == null) clip.startBookmark() else clip.plan.bookmark(position.anchor, clip.index,
-            (clip.textStart + audibleTextAnchor).takeIf { clip.textStart > 0 || !clip.finishesSegment })
+            clip.textStart + audibleTextAnchor)
     } ?: currentBoundary
 
     private suspend fun stream(token: Long, request: SpeechRequest, provider: SpeechSynthesizer,

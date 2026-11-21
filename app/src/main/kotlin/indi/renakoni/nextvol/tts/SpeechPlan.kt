@@ -29,16 +29,18 @@ class SpeechPlan internal constructor(
             it.fingerprint == chapter.fingerprint && !it.completed && it.offset in 0..chapter.text.length }
             ?: return SpeechCursor(0)
         // Expansion/capture reordering can give several clips overlapping original ranges.
-        val index = matching.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }
+        val savedIndex = matching.segmentIndex?.takeIf { matching.replacementKey == replacementKey && it in 0..segments.size }
         // End offsets are exclusive: a durable completion boundary must not replay
         // the finished segment, including whitespace before the next segment.
-            ?: segments.indexOfFirst { it.end > matching.offset }.takeIf { it >= 0 } ?: segments.size
+        val index = savedIndex ?: segments.indexOfFirst { it.end > matching.offset }.takeIf { it >= 0 } ?: segments.size
         val segment = segments.getOrNull(index) ?: return SpeechCursor(index)
-        val exact = matching.textOffset?.takeIf { matching.replacementKey == replacementKey &&
-            matching.segmentIndex == index && it in segment.text.indices &&
+        val exact = matching.textOffset?.takeIf { savedIndex != null && it in segment.text.indices &&
             !(it > 0 && segment.text[it - 1].isHighSurrogate() && segment.text[it].isLowSurrogate()) }
         val start = exact ?: if (matching.offset in segment.start + 1 until segment.end)
             mappedSegments[index].indexAtOriginal(matching.offset) else 0
+        if (start > 0 && segment.selectedVoice?.sovitsSpeed != null &&
+            (start until segment.text.length).all { segment.text[it].isWhitespace() || speechIsClosingPunctuation(segment.text[it]) })
+            return SpeechCursor(index + 1)
         return SpeechCursor(index, start)
     }
 

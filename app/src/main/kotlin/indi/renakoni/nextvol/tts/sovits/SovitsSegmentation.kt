@@ -26,15 +26,16 @@ internal class SovitsSegmentation(speed: Float) {
         val remaining = text.substring(start)
         val chunks = speechRequestChunks(SpeechMappedText.original(remaining), limit, hard = false) {}
         // Punctuation or whitespace in isolation may have no phonemes. Carry it with spoken text.
-        val spoken = chunks.filterNot { speechIsUnspoken(it.text) }
-        val first = spoken.firstOrNull() ?: return text.length
+        val spoken = chunks.asSequence().filterNot { speechIsUnspoken(it.text) }.iterator()
+        if (!spoken.hasNext()) return text.length
+        val first = spoken.next()
         var end = first.range().second
         // Keep a short comma phrase with the surrounding narration. A period, quote,
         // paragraph break or a different routed segment remains a separate boundary.
-        val next = spoken.getOrNull(1)
         var following = end
         while (following < remaining.length && remaining[following] in " \t") following++
-        if (next != null && following < remaining.length && Character.isLetterOrDigit(remaining.codePointAt(following))) {
+        if (following < remaining.length && Character.isLetterOrDigit(remaining.codePointAt(following)) && spoken.hasNext()) {
+            val next = spoken.next()
             val shortHead = singleHan(first.text) || shortClause.matches(first.text)
             val shortNext = remaining[end - 1] in comma && shortClause.matches(next.text)
             if (shortHead || shortNext) end = next.range().second
