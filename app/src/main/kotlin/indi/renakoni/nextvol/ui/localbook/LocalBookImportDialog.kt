@@ -360,7 +360,7 @@ fun LocalBookImportDialog(
                         state.preview?.let { preview ->
                             item(key = "preview_header") {
                                 Column(
-                                    modifier = Modifier.padding(horizontal = 6.dp, top = 4.dp),
+                                    modifier = Modifier.padding(start = 6.dp, top = 4.dp, end = 6.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
                                     SectionHeader(
