@@ -500,13 +500,14 @@ fun ReaderScreen(
 
         if (showChapterSelectionBottomSheet) {
             readingScreenUiState.contentUiState?.let { contentUiState ->
-                readingScreenUiState.bookVolumes?.availableVolumes()?.let { bookVolumes ->
+                val directoryResult = readingScreenUiState.bookVolumes
+                directoryResult?.availableVolumes()?.let { bookVolumes ->
                     contentUiState.readingChapterId?.let { readingChapterId ->
                         ChapterSelectionBottomSheet(
                             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                             selectedVolumeId = selectedVolumeId,
                             bookVolumes = bookVolumes,
-                            directoryIncomplete = readingScreenUiState.bookVolumes.isErr,
+                            directoryIncomplete = directoryResult.isErr,
                             readingChapterId = readingChapterId,
                             onDismissRequest = {
                                 showChapterSelectionBottomSheet = false
