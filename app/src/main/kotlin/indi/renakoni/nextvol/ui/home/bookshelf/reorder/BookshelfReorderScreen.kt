@@ -94,9 +94,7 @@ fun BookshelfReorderBooksScreen(
     }
 
     Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             ReorderTopBar(
                 title = stringResource(R.string.bookshelf_adjust_order),
@@ -153,9 +151,7 @@ fun BookshelfReorderBookshelvesScreen(
     }
 
     Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             ReorderTopBar(
                 title = stringResource(R.string.bookshelf_adjust_bookshelf_order),
