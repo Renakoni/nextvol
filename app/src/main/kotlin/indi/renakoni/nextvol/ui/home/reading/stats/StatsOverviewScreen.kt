@@ -156,36 +156,47 @@ fun StatsOverviewScreen(
 private fun OverviewSummaryStrip(
     bookRecordsByDate: Map<LocalDate, List<BookRecord>>,
 ) {
-    val (totalSeconds, distinctBooks) = remember(bookRecordsByDate) {
+    val (totalSeconds, readBookCount) = remember(bookRecordsByDate) {
         var seconds = 0L
-        val bookIds = HashSet<String>()
+        val readBookIds = HashSet<String>()
         bookRecordsByDate.values.forEach { records ->
             records.forEach { record ->
                 seconds += record.seconds
-                bookIds.add(record.bookId)
+                if (record.reads > 0 || record.seconds > 0) {
+                    readBookIds.add(record.bookId)
+                }
             }
         }
-        seconds to bookIds.size
+        seconds to readBookIds.size
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        SummaryMetricCard(
-            modifier = Modifier.weight(1f),
-            icon = painterResource(R.drawable.schedule_90dp),
-            label = stringResource(R.string.reading_duration),
-            value = if (totalSeconds > 0L) formReadingDuration(totalSeconds) else "--",
+        SectionHeader(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            text = stringResource(R.string.stats_last_six_months),
         )
-        SummaryMetricCard(
-            modifier = Modifier.weight(1f),
-            icon = painterResource(R.drawable.menu_book_24px),
-            label = stringResource(R.string.activity_read),
-            value = stringResource(R.string.n_books, distinctBooks),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SummaryMetricCard(
+                modifier = Modifier.weight(1f),
+                icon = painterResource(R.drawable.schedule_90dp),
+                label = stringResource(R.string.reading_duration),
+                value = if (totalSeconds > 0L) formReadingDuration(totalSeconds) else "--",
+            )
+            SummaryMetricCard(
+                modifier = Modifier.weight(1f),
+                icon = painterResource(R.drawable.menu_book_24px),
+                label = stringResource(R.string.activity_read),
+                value = stringResource(R.string.n_books, readBookCount),
+            )
+        }
     }
 }
 

@@ -389,6 +389,7 @@
     <string name="no_records">No Records</string>
     <string name="total_record">Total Record</string>
     <string name="reading_sessions">Reading Sessions</string>
+    <string name="stats_last_six_months">Last 6 months</string>
     <string name="reading_duration">Reading Duration</string>
     <string name="reading_duration_unit">h %d min</string>
     <string name="cached">Downloaded</string>
