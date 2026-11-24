@@ -3,9 +3,9 @@ package indi.renakoni.nextvol.ui.navigation
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -88,9 +88,9 @@ fun NextVolNavHost(
 
         val bottomPadding by animateDpAsState(
             targetValue = if (bottomBarVisible && hasBottomBarByRoute) 88.dp else 0.dp,
-            animationSpec = spring(
-                dampingRatio = 0.88f,
-                stiffness = Spring.StiffnessMediumLow,
+            animationSpec = tween(
+                durationMillis = 240,
+                easing = FastOutSlowInEasing,
             ),
             label = "snackbarBottomPadding",
         )
@@ -98,7 +98,7 @@ fun NextVolNavHost(
         Scaffold(
             snackbarHost = {
                 if (claimCount == 0) {
-                    Box(Modifier.navigationBarsPadding().padding(bottom = bottomPadding)) {
+                    Box(Modifier.navigationBarsPadding().padding(bottom = bottomPadding.coerceAtLeast(0.dp))) {
                         SnackbarHost(snackbarHostState) { data -> LnrSnackbar(data) }
                     }
                 }

@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +39,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -77,6 +80,44 @@ internal fun resolveDiscreteStepIndex(sortedSteps: List<Float>, value: Float): I
         }
     }
     return nearestIndex
+}
+
+/**
+ * Coordinates deferred persistence during pointer drags while ensuring non-pointer updates
+ * (such as accessibility setProgress in Miuix Slider) persist immediately without double writes.
+ */
+internal class SliderCommitState {
+    var isPointerInteracting: Boolean = false
+        private set
+    var pendingValue: Float? = null
+        private set
+
+    fun onPointerDown() {
+        isPointerInteracting = true
+    }
+
+    fun onValueChanged(value: Float): Float? {
+        return if (isPointerInteracting) {
+            pendingValue = value
+            null
+        } else {
+            pendingValue = null
+            value
+        }
+    }
+
+    fun onValueChangeFinished(): Float? {
+        val committed = pendingValue
+        pendingValue = null
+        return committed
+    }
+
+    fun onPointerReleased(): Float? {
+        isPointerInteracting = false
+        val committed = pendingValue
+        pendingValue = null
+        return committed
+    }
 }
 
 @Composable
@@ -180,7 +221,10 @@ fun SettingsSliderEntry(
         valueFormat = valueFormat,
         steps = steps,
         onSlideChange = { tempValue = it },
-        onSliderChangeFinished = { floatUserData.asynchronousSet(tempValue) },
+        onSliderChangeFinished = { committed ->
+            tempValue = committed
+            floatUserData.asynchronousSet(committed)
+        },
         onLongClick = {
             navController.navigateToSliderValueDialog(floatUserData.path, tempValue)
         }
@@ -198,10 +242,12 @@ private fun SettingsSliderEntry(
     valueFormat: (Float) -> Float = { (it * 2).roundToInt().toFloat() / 2 },
     steps: List<Float>? = null,
     onSlideChange: (Float) -> Unit,
-    onSliderChangeFinished: () -> Unit,
+    onSliderChangeFinished: (Float) -> Unit,
     onLongClick: () -> Unit
 ) {
     val tokens = NextVolDesign.tokens
+    val commitState = remember { SliderCommitState() }
+    val currentOnCommit by rememberUpdatedState(onSliderChangeFinished)
     val actualSteps = steps?.distinct()?.sorted()?.takeIf { it.size >= 2 }
     val sliderValue = if (actualSteps != null) {
         resolveDiscreteStepIndex(actualSteps, value).toFloat()
@@ -291,11 +337,29 @@ private fun SettingsSliderEntry(
                         valueFormat(raw)
                     }
                     onSlideChange(newValue)
+                    commitState.onValueChanged(newValue)?.let(currentOnCommit)
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(commitState) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val initial = awaitPointerEvent(PointerEventPass.Initial)
+                                if (initial.changes.any { it.pressed }) {
+                                    commitState.onPointerDown()
+                                }
+                                val finalEvent = awaitPointerEvent(PointerEventPass.Final)
+                                if (commitState.isPointerInteracting && finalEvent.changes.none { it.pressed }) {
+                                    commitState.onPointerReleased()?.let(currentOnCommit)
+                                }
+                            }
+                        }
+                    },
                 valueRange = sliderRange,
                 steps = stepsCount,
-                onValueChangeFinished = onSliderChangeFinished,
+                onValueChangeFinished = {
+                    commitState.onValueChangeFinished()?.let(currentOnCommit)
+                },
             )
         }
     }
