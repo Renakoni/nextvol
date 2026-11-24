@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.ui.components
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,15 +11,17 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme.colorScheme
@@ -34,8 +37,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isUnspecified
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -46,6 +51,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.theme.NextVolDesign
+import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
+import top.yukonga.miuix.kmp.squircle.squircleBackground
+import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.squircle.squircleClip
 
 @Composable
 fun BaseDialog(
@@ -69,26 +79,30 @@ fun BaseDialog(
         content.invoke(this)
         Row(
             modifier = Modifier
-                .padding(8.dp, 24.dp, 24.dp, 24.dp)
-                .align(Alignment.End),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(
                 onClick = onDismissRequest,
-                enabled = dismissEnabled
+                enabled = dismissEnabled,
+                shape = RoundedCornerShape(14.dp),
             ) {
                 Text(
                     text = dismissText,
-                    style = typography.labelMedium
+                    style = typography.labelLarge,
                 )
             }
-            TextButton(
+            Button(
                 onClick = onConfirmation,
-                enabled = confirmationEnabled
+                enabled = confirmationEnabled,
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 Text(
                     text = confirmationText,
-                    style = typography.labelMedium
+                    style = typography.labelLarge.copy(fontWeight = FontWeight.W600),
                 )
             }
         }
@@ -103,42 +117,50 @@ fun BaseDialog(
     onDismissRequest: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val tokens = NextVolDesign.tokens
+    val radius = tokens.sheetRadius
     Dialog(
         onDismissRequest = onDismissRequest,
     ) {
-        Card(
+        Column(
             modifier = Modifier
-                .sizeIn(minWidth = 280.dp, maxWidth = 560.dp),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainerHigh),
+                .sizeIn(minWidth = 280.dp, maxWidth = 560.dp)
+                .squircleBackground(color = tokens.cardElevatedSurface, cornerRadius = radius)
+                .squircleBorder(width = 0.85.dp, color = tokens.cardBorder, cornerRadius = radius)
+                .squircleClip(cornerRadius = radius),
         ) {
-            Box(Modifier.height(24.dp))
-            Icon(
-                modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally),
+            Spacer(Modifier.height(24.dp))
+            EditorialIconBadge(
                 painter = icon,
-                tint = colorScheme.secondary,
-                contentDescription = null
-            )
-            Box(Modifier.height(16.dp))
-            Text(
+                size = 48.dp,
+                iconSize = 24.dp,
+                cornerRadius = 15.dp,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(horizontal = 24.dp),
                 text = title,
                 style = typography.displayMedium,
-                fontWeight = FontWeight.W500,
+                fontWeight = FontWeight.W600,
+                textAlign = TextAlign.Center,
+                color = colorScheme.onSurface,
             )
-            Box(Modifier.height(16.dp))
             if (description.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
                 Text(
                     modifier = Modifier
                         .sizeIn(minWidth = 280.dp, maxWidth = 560.dp)
                         .padding(horizontal = 24.dp),
-                    textAlign = TextAlign.Start,
+                    textAlign = TextAlign.Center,
                     text = description,
-                    style = typography.labelLarge,
-                    color = colorScheme.onSurfaceVariant
+                    style = typography.bodyMedium,
+                    color = colorScheme.onSurfaceVariant,
                 )
-                Box(Modifier.height(16.dp))
             }
+            Spacer(Modifier.height(18.dp))
             content.invoke(this)
         }
     }
@@ -157,7 +179,7 @@ fun ColorPickerDialog(
         mutableStateOf(selectedColor)
     }
 
-    BaseDialog (
+    BaseDialog(
         icon = painterResource(R.drawable.palette_24px),
         title = stringResource(R.string.dialog_color_picker),
         description = description,
@@ -167,44 +189,51 @@ fun ColorPickerDialog(
         confirmationText = stringResource(R.string.apply),
     ) {
         FlowRow(
-            modifier = Modifier.padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             colors.forEachIndexed { index, color ->
+                val isSelected = color == currentColor
+                val fill = if (color.isUnspecified) colorScheme.surfaceContainer else color
+                val iconTint = if (color.isUnspecified) {
+                    colorScheme.onSurfaceVariant
+                } else if (fill.luminance() > 0.55f) {
+                    Color(0xFF1A1816)
+                } else {
+                    Color.White
+                }
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clickable {
-                            currentColor = color
-                        }
-                ) {
-                    val secondary = colorScheme.secondary
-                    val surfaceContainer = colorScheme.surfaceContainer
-                    val blockIconId = painterResource(R.drawable.block_24px)
-                    Canvas(
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        if (color == currentColor)
-                            drawCircle(
-                                color = secondary,
-                                radius = 22.dp.toPx(),
-                            )
-                        drawCircle(
-                            color = surfaceContainer,
-                            radius = 20.dp.toPx(),
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .border(
+                            width = if (isSelected) 2.5.dp else 1.dp,
+                            color = if (isSelected) colorScheme.primary else colorScheme.outlineVariant,
+                            shape = CircleShape,
                         )
-                        drawCircle(
-                            color = if (color.isUnspecified) surfaceContainer else color,
-                            radius = 20.dp.toPx(),
+                        .padding(3.dp)
+                        .clip(CircleShape)
+                        .background(fill)
+                        .clickable { currentColor = color },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when {
+                        index == 0 -> Icon(
+                            painter = painterResource(R.drawable.block_24px),
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        isSelected -> Icon(
+                            painter = painterResource(R.drawable.check_24px),
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(18.dp),
                         )
                     }
-                    if (index == 0)
-                        Icon(
-                            modifier = Modifier.align(Alignment.Center),
-                            painter = blockIconId,
-                            contentDescription = null
-                        )
                 }
             }
         }
@@ -218,6 +247,7 @@ fun SliderValueDialog(
     onDismissRequest: () -> Unit,
     onConfirmation: (Float) -> Unit
 ) {
+    val tokens = NextVolDesign.tokens
     var text by remember { mutableStateOf(value.toString()) }
 
     LaunchedEffect(value) {
@@ -229,15 +259,23 @@ fun SliderValueDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(stringResource(R.string.dialog_slider_custom)) },
+        shape = RoundedCornerShape(tokens.sheetRadius),
+        containerColor = tokens.cardElevatedSurface,
+        title = {
+            Text(
+                text = stringResource(R.string.dialog_slider_custom),
+                style = typography.displayMedium,
+            )
+        },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
                     label = { Text(stringResource(R.string.dialog_value)) },
                     isError = error,
                     singleLine = true,
+                    shape = RoundedCornerShape(tokens.controlRadius),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace)
                 )
@@ -251,20 +289,24 @@ fun SliderValueDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
                     parsed?.let {
                         onValueChange(it)
                         onConfirmation(it)
                     }
                 },
-                enabled = parsed != null
+                enabled = parsed != null,
+                shape = RoundedCornerShape(14.dp),
             ) {
                 Text(stringResource(R.string.apply))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
+            TextButton(
+                onClick = onDismissRequest,
+                shape = RoundedCornerShape(14.dp),
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }

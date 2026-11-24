@@ -2,8 +2,8 @@ package indi.renakoni.nextvol.ui.components
 
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,11 +21,11 @@ import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import indi.renakoni.nextvol.ui.home.HomeNavigateBar
 
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun LnrNavigationBar(
     showBottomBar: Boolean,
@@ -37,8 +37,13 @@ fun LnrNavigationBar(
 
     val showPlaceholder =
         !showBottomBar &&
-                Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
-                navHeight > 0.dp
+            Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            navHeight > 0.dp
+
+    val slideSpec = spring<IntOffset>(
+        dampingRatio = 0.86f,
+        stiffness = Spring.StiffnessMediumLow,
+    )
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -48,18 +53,12 @@ fun LnrNavigationBar(
             visible = showBottomBar,
             enter = slideInVertically(
                 initialOffsetY = { it },
-                animationSpec = tween(
-                    durationMillis = 420,
-                    easing = FastOutSlowInEasing
-                )
-            ),
+                animationSpec = slideSpec,
+            ) + fadeIn(tween(220)),
             exit = slideOutVertically(
                 targetOffsetY = { it },
-                animationSpec = tween(
-                    durationMillis = 380,
-                    easing = FastOutSlowInEasing
-                )
-            )
+                animationSpec = slideSpec,
+            ) + fadeOut(tween(180)),
         ) {
             HomeNavigateBar(
                 selectedRoute = selectedRoute,
@@ -78,7 +77,7 @@ fun LnrNavigationBar(
                     .fillMaxWidth()
                     .windowInsetsBottomHeight(navInsets)
                     .background(
-                        colorScheme.surface.copy(alpha = 0.75f)
+                        colorScheme.surface.copy(alpha = 0.78f)
                     )
             )
         }

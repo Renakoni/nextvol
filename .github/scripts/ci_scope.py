@@ -68,6 +68,7 @@ EXTRA_24 = [
 ]
 MINIFIED_SOURCE = PACKAGE + 'benchmark.explore.MinifiedSourceRuntimeTest'
 MINIFIED_SPEECH = PACKAGE + 'benchmark.tts.ReadAloudSmokeTest'
+MINIFIED_NAVIGATION = PACKAGE + 'benchmark.navigation.SettingsNavigationSmokeTest'
 
 
 def source_module_for_path(path):
@@ -207,6 +208,8 @@ def plan(scopes):
     minified = []
     if full or scopes & {'catalog', 'source'}:
         minified.append(MINIFIED_SOURCE)
+    if full:
+        minified.append(MINIFIED_NAVIGATION)
     if full or scopes & {'speech', 'speech-ui'}:
         minified.append(MINIFIED_SPEECH)
     return {
@@ -220,7 +223,7 @@ def plan(scopes):
         'release': active,
         'lint': active,
         'minified': bool(minified),
-        'minified-classes': ','.join(minified),
+        'minified-classes': ','.join(sorted(minified)),
     }
 
 
@@ -271,6 +274,7 @@ def plan_for_paths(paths):
                 device_scopes.add('full')
         elif path in (
                 'tests/benchmark/src/main/kotlin/' + MINIFIED_SOURCE.replace('.', '/') + '.kt',
+                'tests/benchmark/src/main/kotlin/' + MINIFIED_NAVIGATION.replace('.', '/') + '.kt',
                 'tests/benchmark/src/main/kotlin/' + MINIFIED_SPEECH.replace('.', '/') + '.kt'):
             minified.add(path[len('tests/benchmark/src/main/kotlin/'):-3].replace('/', '.'))
         else:

@@ -1,9 +1,11 @@
 package indi.renakoni.nextvol.ui.components
 
 import android.net.Uri
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -40,11 +42,12 @@ fun Cover(bookId: String, width: Dp, height: Dp, uri: Uri, title: String, rounde
     author: String = "", onFallbackChanged: (Boolean) -> Unit = {}) {
     val missing = uri.toString().isBlank()
     LaunchedEffect(bookId, uri) { if (missing) onFallbackChanged(true) }
+    val coverShape = RoundedCornerShape(rounded)
     Box(
         modifier = Modifier
             .size(width, height)
             .graphicsLayer {
-                shape = RoundedCornerShape(rounded)
+                shape = coverShape
                 clip = true
             }
     ) {
@@ -53,6 +56,15 @@ fun Cover(bookId: String, width: Dp, height: Dp, uri: Uri, title: String, rounde
         } else {
             RemoteBookCover(bookId, width, height, uri, title, author, onFallbackChanged)
         }
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .border(
+                    width = 0.5.dp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                    shape = coverShape,
+                )
+        )
     }
 }
 

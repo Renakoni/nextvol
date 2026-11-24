@@ -1,28 +1,61 @@
 package indi.renakoni.nextvol.ui.home
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.navigation
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.theme.NextVolDesign
+import indi.renakoni.nextvol.ui.components.design.GlassVariant
+import indi.renakoni.nextvol.ui.components.design.LiquidGlassSurface
 import indi.renakoni.nextvol.ui.home.bookshelf.bookshelfNavigation
 import indi.renakoni.nextvol.ui.home.categories.categoriesDestination
 import indi.renakoni.nextvol.ui.home.explore.exploreNavigation
@@ -61,35 +94,130 @@ fun HomeNavigateBar(
     val avdShelf = AnimatedImageVector.animatedVectorResource(R.drawable.animated_bookshelf)
     val avdExplore = AnimatedImageVector.animatedVectorResource(R.drawable.animated_explore)
 
-
-    NavigationBar(
-        windowInsets = WindowInsets.systemBars.only(
-            WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
-        )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(
+                WindowInsets.systemBars.only(
+                    WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
+                )
+            )
+            .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 10.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        NavigationBarItem(
-            selected = isReading,
-            onClick = { controller.navigateToMainRoot(Route.Main.Reading) },
-            icon = { Icon(painter = rememberAnimatedVectorPainter(avdReading, isReading), null) },
-            label = { Text(stringResource(R.string.nav_reading), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        LiquidGlassSurface(
+            modifier = Modifier
+                .widthIn(max = 420.dp)
+                .fillMaxWidth(),
+            shape = CircleShape,
+            variant = GlassVariant.Liquid,
+            elevation = 12.dp,
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .padding(horizontal = 6.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LiquidNavigationTab(
+                    selected = isReading,
+                    onClick = { controller.navigateToMainRoot(Route.Main.Reading) },
+                    painter = rememberAnimatedVectorPainter(avdReading, isReading),
+                    label = stringResource(R.string.nav_reading),
+                )
+                LiquidNavigationTab(
+                    selected = isBookshelf,
+                    onClick = { controller.navigateToMainRoot(Route.Main.Bookshelf) },
+                    painter = rememberAnimatedVectorPainter(avdShelf, isBookshelf),
+                    label = stringResource(R.string.nav_bookshelf),
+                )
+                LiquidNavigationTab(
+                    selected = isExploration,
+                    onClick = { controller.navigateToMainRoot(Route.Main.Explore) },
+                    painter = rememberAnimatedVectorPainter(avdExplore, isExploration),
+                    label = stringResource(R.string.nav_explore),
+                )
+                LiquidNavigationTab(
+                    selected = isCategories,
+                    onClick = { controller.navigateToMainRoot(Route.Main.Categories()) },
+                    painter = painterResource(R.drawable.view_list_24px),
+                    label = stringResource(R.string.categories_title),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.LiquidNavigationTab(
+    selected: Boolean,
+    onClick: () -> Unit,
+    painter: Painter,
+    label: String,
+) {
+    val tokens = NextVolDesign.tokens
+    val colors = MaterialTheme.colorScheme
+    val pillBackground by animateColorAsState(
+        targetValue = if (selected) tokens.activePillFill else Color.Transparent,
+        animationSpec = tween(220),
+        label = "navPillFill",
+    )
+    val pillBorder by animateColorAsState(
+        targetValue = if (selected) tokens.activePillBorder else Color.Transparent,
+        animationSpec = tween(220),
+        label = "navPillBorder",
+    )
+    val contentTint by animateColorAsState(
+        targetValue = if (selected) colors.primary else colors.onSurfaceVariant,
+        animationSpec = tween(200),
+        label = "navTint",
+    )
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.06f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = 0.65f,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "navIconScale",
+    )
+
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .heightIn(min = 52.dp)
+            .clip(CircleShape)
+            .background(pillBackground)
+            .border(0.75.dp, pillBorder, CircleShape)
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.Tab,
+            )
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+    ) {
+        Icon(
+            painter = painter,
+            contentDescription = null,
+            tint = contentTint,
+            modifier = Modifier
+                .size(22.dp)
+                .graphicsLayer {
+                    scaleX = iconScale
+                    scaleY = iconScale
+                },
         )
-        NavigationBarItem(
-            selected = isBookshelf,
-            onClick = { controller.navigateToMainRoot(Route.Main.Bookshelf) },
-            icon = { Icon(painter = rememberAnimatedVectorPainter(avdShelf, isBookshelf), null) },
-            label = { Text(stringResource(R.string.nav_bookshelf), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        )
-        NavigationBarItem(
-            selected = isExploration,
-            onClick = { controller.navigateToMainRoot(Route.Main.Explore) },
-            icon = { Icon(painter = rememberAnimatedVectorPainter(avdExplore, isExploration), null) },
-            label = { Text(stringResource(R.string.nav_explore), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        )
-        NavigationBarItem(
-            selected = isCategories,
-            onClick = { controller.navigateToMainRoot(Route.Main.Categories()) },
-            icon = { Icon(painterResource(R.drawable.view_list_24px), null) },
-            label = { Text(stringResource(R.string.categories_title), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = if (selected) FontWeight.W600 else FontWeight.W500,
+            ),
+            color = contentTint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

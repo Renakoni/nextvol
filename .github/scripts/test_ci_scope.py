@@ -313,6 +313,13 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(plan['release'])
         self.assertFalse(plan['jvm'])
         self.assertFalse(plan['lint'])
+        nav_plan = self.select('tests/benchmark/src/main/kotlin/' + ci_scope.MINIFIED_NAVIGATION.replace('.', '/') + '.kt')
+        self.assertEqual(ci_scope.MINIFIED_NAVIGATION, nav_plan['minified-classes'])
+        self.assertTrue(nav_plan['minified'])
+        self.assertFalse(nav_plan['release'])
+        self.assertFalse(nav_plan['jvm'])
+        self.assertFalse(nav_plan['lint'])
+        self.assertIn(ci_scope.MINIFIED_NAVIGATION, ci_scope.plan({'full'})['minified-classes'].split(','))
 
     def test_shared_test_inputs_include_jvm_and_android_consumers(self):
         for path, owner in (('sources/content/src/testFixtures/kotlin/RuleSourceFixture.kt', ':app:testDebugUnitTest'),

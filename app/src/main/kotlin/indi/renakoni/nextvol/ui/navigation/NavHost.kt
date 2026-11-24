@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.ui.navigation
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -24,15 +25,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
+import indi.renakoni.nextvol.theme.LocalNextVolHazeState
 import indi.renakoni.nextvol.ui.LocalBottomBarController
-import indi.renakoni.nextvol.ui.book.bookNavigation
 import indi.renakoni.nextvol.ui.bangumi.bangumiDestination
-import indi.renakoni.nextvol.ui.bookmanager.bookManager
+import indi.renakoni.nextvol.ui.book.bookNavigation
 import indi.renakoni.nextvol.ui.book.download.bookDownload
+import indi.renakoni.nextvol.ui.bookmanager.bookManager
 import indi.renakoni.nextvol.ui.components.LnrNavigationBar
 import indi.renakoni.nextvol.ui.components.LnrSnackbar
 import indi.renakoni.nextvol.ui.dialog.addBookToBookshelfDialog
@@ -60,6 +64,7 @@ fun NextVolNavHost(
     readerStyle: ReaderStyle,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val navHazeState = rememberHazeState()
 
     var claimCount by remember { mutableIntStateOf(0) }
     val claim: (Boolean) -> Unit = remember { { take -> claimCount += if (take) 1 else -1 } }
@@ -71,6 +76,7 @@ fun NextVolNavHost(
         LocalSnackbarHost provides snackbarHostState,
         LocalClaimSnackbarHost provides claim,
         LocalBottomBarController provides { visible -> bottomBarVisible = visible },
+        LocalNextVolHazeState provides navHazeState,
     ) {
         val backStackEntry by navController.currentBackStackEntryAsState()
         val currentDest = backStackEntry?.destination
@@ -81,14 +87,18 @@ fun NextVolNavHost(
         }
 
         val bottomPadding by animateDpAsState(
-            if (bottomBarVisible && hasBottomBarByRoute) 80.dp else 0.dp,
-            animationSpec = tween(300)
+            targetValue = if (bottomBarVisible && hasBottomBarByRoute) 88.dp else 0.dp,
+            animationSpec = tween(
+                durationMillis = 240,
+                easing = FastOutSlowInEasing,
+            ),
+            label = "snackbarBottomPadding",
         )
 
         Scaffold(
             snackbarHost = {
                 if (claimCount == 0) {
-                    Box(Modifier.navigationBarsPadding().padding(bottom = bottomPadding)) {
+                    Box(Modifier.navigationBarsPadding().padding(bottom = bottomPadding.coerceAtLeast(0.dp))) {
                         SnackbarHost(snackbarHostState) { data -> LnrSnackbar(data) }
                     }
                 }
@@ -97,7 +107,9 @@ fun NextVolNavHost(
         ) { _ ->
             Box(Modifier.fillMaxSize()) {
                 NavHost(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .hazeSource(navHazeState),
                     navController = navController,
                     startDestination = Route.Main,
                     enterTransition = { destinationEnter() },

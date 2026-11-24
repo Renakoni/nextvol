@@ -19,6 +19,7 @@ import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.ui.LocalDarkColorScheme
 import indi.renakoni.nextvol.ui.LocalLightColorScheme
 import io.nightfish.lightnovelreader.api.ui.theme.AppTypography
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 data class AppTheme(
     val isDark: Boolean,
@@ -71,17 +72,27 @@ fun NextVolTheme(
         AppTheme(isDark = isDark, colorScheme = colorScheme)
     }
 
+    val designTokens = remember(isDark, colorScheme) {
+        buildNextVolDesignTokens(colorScheme = colorScheme, isDark = isDark)
+    }
+
+    val miuixColors = rememberBridgedMiuixColors(
+        colorScheme = colorScheme,
+        isDark = isDark,
+    )
+
     @Suppress("deprecation")
     DisposableEffect(view, isDark) {
-        val window = (view.context as Activity).window
-        val controller = WindowCompat.getInsetsController(window, view)
-
-        controller.isAppearanceLightStatusBars = !isDark
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            controller.isAppearanceLightNavigationBars = !isDark
+        val window = (view.context as? Activity)?.window
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !isDark
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                controller.isAppearanceLightNavigationBars = !isDark
+            }
+            window.statusBarColor = Color.TRANSPARENT
+            window.navigationBarColor = Color.TRANSPARENT
         }
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
         onDispose { }
     }
 
@@ -89,11 +100,14 @@ fun NextVolTheme(
         LocalAppTheme provides appTheme,
         LocalLightColorScheme provides lightColorScheme,
         LocalDarkColorScheme provides darkColorScheme,
+        LocalNextVolTokens provides designTokens,
     ) {
-        MaterialTheme(
-            colorScheme = colorScheme,
-            typography = AppTypography,
-            content = content
-        )
+        MiuixTheme(colors = miuixColors) {
+            MaterialTheme(
+                colorScheme = colorScheme,
+                typography = AppTypography,
+                content = content,
+            )
+        }
     }
 }

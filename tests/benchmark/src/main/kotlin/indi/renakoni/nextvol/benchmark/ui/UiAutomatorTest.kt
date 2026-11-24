@@ -62,12 +62,6 @@ abstract class UiAutomatorTest {
         return object2
     }
 
-    protected fun assertTextContains(text: String): UiObject2 {
-        val object2 = device.wait(Until.findObject(By.textContains(text)), TIMEOUT)
-        assertNotNull("Expected text fragment was not visible: $text", object2)
-        return object2
-    }
-
     protected fun assertTextNotVisible(text: String, timeout: Long = 1_500L) {
         assertFalse(
             "Text should not be visible: $text",
@@ -95,11 +89,6 @@ abstract class UiAutomatorTest {
         device.waitForIdle()
     }
 
-    protected fun clickTextContains(text: String) {
-        clickCenter(assertTextContains(text))
-        device.waitForIdle()
-    }
-
     protected fun clickLastText(text: String) {
         val objects = device.wait(Until.findObjects(By.text(text)), TIMEOUT)
         assertTrue("Expected text was not visible: $text", objects.isNotEmpty())
@@ -114,16 +103,6 @@ abstract class UiAutomatorTest {
             objects != null && objects.size > index,
         )
         clickCenter(objects[index])
-        device.waitForIdle()
-    }
-
-    protected fun clickMenuItemAfter(text: String) {
-        var item = assertText(text)
-        while (!item.isClickable && item.parent != null) {
-            item = item.parent
-        }
-        val bounds = item.visibleBounds
-        device.click(bounds.centerX(), bounds.bottom + bounds.height() / 2)
         device.waitForIdle()
     }
 
@@ -181,11 +160,6 @@ abstract class UiAutomatorTest {
         device.waitForIdle()
     }
 
-    protected fun openBottomNavigation(label: String) {
-        clickText(label)
-        assertText(label)
-    }
-
     protected fun openAppSettings() {
         clickDescription("Settings")
         assertText("Settings")
@@ -198,13 +172,6 @@ abstract class UiAutomatorTest {
 
     protected fun assertForegroundPackage(packageName: String) {
         assertEquals(packageName, device.currentPackageName)
-    }
-
-    protected fun clickFirstCheckable() {
-        val checkable = device.wait(Until.findObject(By.checkable(true)), TIMEOUT)
-        assertNotNull("No checkable control was visible", checkable)
-        clickCenter(checkable)
-        device.waitForIdle()
     }
 
     companion object {

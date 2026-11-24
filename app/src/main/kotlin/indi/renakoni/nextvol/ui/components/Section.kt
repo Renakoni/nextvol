@@ -6,6 +6,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun SectionHeader(
@@ -15,8 +16,8 @@ fun SectionHeader(
     Text(
         text = text,
         modifier = modifier,
-        color = colorScheme.onSurfaceVariant,
-        style = typography.bodyLarge,
+        color = colorScheme.primary,
+        style = typography.bodyLarge.copy(letterSpacing = 0.25.sp),
         fontWeight = FontWeight.W600
     )
 }
