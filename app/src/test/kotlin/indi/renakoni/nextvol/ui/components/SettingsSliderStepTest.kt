@@ -7,6 +7,7 @@ import indi.renakoni.nextvol.theme.DefaultLightColorScheme
 import indi.renakoni.nextvol.theme.buildNextVolDesignTokens
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsSliderStepTest {
@@ -15,6 +16,7 @@ class SettingsSliderStepTest {
     fun resolveDiscreteStepIndexMatchesExactClampsOutOfRangeAndSnapsNearest() {
         val steps = listOf(10f, 14f, 18f, 24f)
 
+        assertEquals(0, resolveDiscreteStepIndex(emptyList(), 15f))
         assertEquals(2, resolveDiscreteStepIndex(steps, 18f))
         assertEquals(0, resolveDiscreteStepIndex(steps, 4f))
         assertEquals(3, resolveDiscreteStepIndex(steps, 40f))
@@ -32,5 +34,9 @@ class SettingsSliderStepTest {
         assertNotEquals(DefaultDarkColorScheme.surface, dark.cardSurface)
         assertEquals(Color(0xFF000000), DarkObsidianColorScheme.surface)
         assertNotEquals(Color(0xFF000000), obsidian.cardSurface)
+        assertTrue(light.glassFallbackSurface.alpha >= 0.9f)
+        assertTrue(dark.glassFallbackSurface.alpha >= 0.9f)
+        assertTrue(light.glassSurfaceTint.alpha in 0.5f..0.85f)
+        assertTrue(dark.glassSurfaceTint.alpha in 0.5f..0.85f)
     }
 }
