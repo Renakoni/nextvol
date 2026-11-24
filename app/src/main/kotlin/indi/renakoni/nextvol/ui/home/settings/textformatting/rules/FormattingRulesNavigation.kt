@@ -27,7 +27,8 @@ fun NavGraphBuilder.settingsTextFormattingRulesDestination() {
             onToggle = viewModel::onToggle,
             onClickBack = navController::popBackStackIfResumed,
             onClickAddRule = { navController.navigateToEditTextFormattingRuleDialog(bookId, -1) },
-            onClickEditRule = { navController.navigateToEditTextFormattingRuleDialog(bookId, it) }
+            onClickEditRule = { navController.navigateToEditTextFormattingRuleDialog(bookId, it) },
+            isGlobal = bookId.isBlank(),
         )
     }
 }
