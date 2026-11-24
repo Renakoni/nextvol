@@ -487,6 +487,7 @@ dependencies {
     // coil3
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.androidsvg)
     // jsoup
     implementation(libs.jsoup)
     // Markdown

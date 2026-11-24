@@ -2,6 +2,9 @@ package indi.renakoni.nextvol.data.localbook
 
 import android.content.ContextWrapper
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.util.Base64
 import androidx.core.net.toUri
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -92,6 +95,60 @@ class LocalBookImportInstrumentedTest {
                 database.close()
                 root.deleteRecursively()
             }
+        }
+    }
+
+    @Test fun epubSvgCoverAndIllustrationUseOneOfflinePng() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val root = File(context.cacheDir, "svg-import-${UUID.randomUUID()}").apply { mkdirs() }
+        try {
+            val pixels = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            val raster = ByteArrayOutputStream()
+            try {
+                pixels.eraseColor(Color.BLUE)
+                assertTrue(pixels.compress(Bitmap.CompressFormat.PNG, 100, raster))
+            } finally {
+                pixels.recycle()
+            }
+            val embedded = Base64.encodeToString(raster.toByteArray(), Base64.NO_WRAP)
+            val original = File(root, "illustrated.epub")
+            val entries = mapOf(
+                "META-INF/container.xml" to """<container><rootfiles><rootfile full-path="OPS/book.opf"/></rootfiles></container>""",
+                "OPS/book.opf" to """<package><metadata><title>Illustrated book</title></metadata><manifest>
+                    <item id="body" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+                    <item id="art" href="art.svg" media-type="image/svg+xml" properties="cover-image"/>
+                    </manifest><spine><itemref idref="body"/></spine></package>""",
+                "OPS/chapter.xhtml" to """<html><body><p>Illustrated chapter</p><img src="art.svg"/></body></html>""",
+                "OPS/art.svg" to """<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 8 6">
+                    <rect width="8" height="6" fill="#ff0000"/>
+                    <image x="4" width="4" height="6" xlink:href="data:image/png;base64,$embedded"/>
+                    </svg>""",
+            )
+            ZipOutputStream(original.outputStream()).use { zip ->
+                entries.forEach { (path, text) ->
+                    zip.putNextEntry(ZipEntry(path))
+                    zip.write(text.toByteArray())
+                    zip.closeEntry()
+                }
+            }
+            val assets = File(root, "assets")
+            val book = EpubBookParser.parse(original, assets, "Fallback")
+            val illustration = book.chapters.single().blocks.filterIsInstance<LocalBookBlock.Image>().single()
+            val savedPng = assets.listFiles()!!.single()
+            assertEquals("assets/${savedPng.name}", illustration.path)
+            assertEquals(illustration.path, book.coverPath)
+            assertEquals("png", savedPng.extension)
+            val bitmap = requireNotNull(BitmapFactory.decodeFile(savedPng.path))
+            try {
+                assertEquals(8, bitmap.width)
+                assertEquals(6, bitmap.height)
+                assertEquals(Color.RED, bitmap.getPixel(1, 2))
+                assertEquals(Color.BLUE, bitmap.getPixel(6, 2))
+            } finally {
+                bitmap.recycle()
+            }
+        } finally {
+            root.deleteRecursively()
         }
     }
 

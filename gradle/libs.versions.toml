@@ -36,6 +36,7 @@ composeUi = "1.11.4"
 foundationLayout = "1.11.4"
 composeAnimationGraphics = "1.11.4"
 coil = "3.5.0"
+androidsvg = "1.4"
 # Legado selector semantics must also hold in the APK. Newer Jsoup may auto-select
 # the app's RE2J engine, which rejects source lookarounds and backreferences.
 jsoup = { strictly = "1.16.2" }
@@ -119,6 +120,7 @@ compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4", versio
 compose-animation-graphics = { module = "androidx.compose.animation:animation-graphics-android", version.ref = "composeAnimationGraphics" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+androidsvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 markdown = { module = "com.github.jeziellago:compose-markdown", version.ref = "markdown" }
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }

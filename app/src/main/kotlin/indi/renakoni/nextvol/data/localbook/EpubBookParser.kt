@@ -38,14 +38,17 @@ object EpubBookParser {
             val path = normalizePath(entry.name)
             requireImport(entries.put(path, entry) == null, LocalBookImportReason.CorruptEpub) { "The EPUB has duplicate resource paths." }
         }
-        fun copy(path: String, output: OutputStream) {
+        fun copy(path: String, output: OutputStream, maxBytes: Long = Long.MAX_VALUE) {
             val entry = requireImportNotNull(entries[path], LocalBookImportReason.CorruptEpub) { "An EPUB resource is missing: $path" }
             zip.getInputStream(entry).use { input ->
                 val crc = CRC32()
                 val buffer = ByteArray(8192)
+                var size = 0L
                 while (true) {
                     val read = input.read(buffer)
                     if (read < 0) break
+                    size += read
+                    requireImport(size <= maxBytes, LocalBookImportReason.EpubLimit) { "An EPUB resource exceeds the import size limit." }
                     output.write(buffer, 0, read)
                     crc.update(buffer, 0, read)
                 }
@@ -103,14 +106,20 @@ object EpubBookParser {
         val savedAssets = mutableMapOf<String, String>()
         fun image(path: String): String = savedAssets.getOrPut(path) {
             requireImport(path !in encrypted, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB images are not supported." }
-            requireImport(!path.endsWith(".svg", ignoreCase = true) && items.none { it.path == path && it.mediaType == "image/svg+xml" }, LocalBookImportReason.UnsupportedEpub) {
-                "Standalone SVG images are not supported. Convert this EPUB to use PNG or JPEG images."
-            }
+            val isSvg = path.endsWith(".svg", ignoreCase = true) ||
+                items.any { it.path == path && it.mediaType == "image/svg+xml" }
             requireImport(assetsDirectory.isDirectory || assetsDirectory.mkdirs(), LocalBookImportReason.Storage) { "Cannot create the EPUB image directory." }
             val digest = MessageDigest.getInstance("SHA-256").digest(path.toByteArray()).joinToString("") { "%02x".format(it) }
-            val extension = path.substringAfterLast('.', "img").takeIf { it.matches(Regex("[a-zA-Z0-9]{1,6}")) } ?: "img"
+            val extension = if (isSvg) "png" else
+                path.substringAfterLast('.', "img").takeIf { it.matches(Regex("[a-zA-Z0-9]{1,6}")) } ?: "img"
             val name = "$digest.$extension"
-            File(assetsDirectory, name).outputStream().use { copy(path, it) }
+            val destination = File(assetsDirectory, name)
+            if (isSvg) {
+                val svg = ByteArrayOutputStream().also { copy(path, it, EpubSvgImage.MAX_BYTES) }.toByteArray()
+                EpubSvgImage.writePng(svg, destination)
+            } else {
+                destination.outputStream().use { copy(path, it) }
+            }
             "assets/$name"
         }
         val coverId = metadata.named("meta").firstOrNull { it.attr("name") == "cover" }?.attr("content")
