@@ -40,7 +40,7 @@ class WorkManagerTest : UiAutomatorTest() {
         // Remove fixture data after the snapshot so a successful import has a
         // user-visible result instead of merely producing a success toast.
         restartApp()
-        openBottomNavigation("Bookshelf")
+        clickText("Bookshelf")
         openBookshelfMenu()
         clickText("Bookshelf Settings")
         clickText("Delete Bookshelf")
@@ -58,7 +58,7 @@ class WorkManagerTest : UiAutomatorTest() {
         )
 
         restartApp()
-        openBottomNavigation("Bookshelf")
+        clickText("Bookshelf")
         assertText("Benchmark Shelf")
         assertText("Benchmark Sample Novel")
     }
