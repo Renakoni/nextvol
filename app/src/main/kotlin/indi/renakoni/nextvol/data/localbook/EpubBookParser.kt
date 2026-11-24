@@ -208,12 +208,13 @@ object EpubBookParser {
         requireImport(chapters.isNotEmpty(), LocalBookImportReason.NoContent) { "The EPUB has no readable content." }
         val coverId = metadata.named("meta").firstOrNull { it.attr("name") == "cover" }?.attr("content")
         val coverPath = (items.firstOrNull { "cover-image" in it.properties } ?: byId[coverId])?.path
-        val description = metadata.named("description").firstOrNull()?.text().orEmpty()
         ParsedLocalBook(
             title = metadata.named("title").firstOrNull()?.text()?.takeIf { it.isNotBlank() } ?: fallbackTitle,
             chapters = chapters,
             author = metadata.named("creator").joinToString(", ") { it.text() },
-            description = if ('<' in description) Jsoup.parseBodyFragment(description).text() else description,
+            description = metadata.named("description").firstOrNull()?.let {
+                if (it.childrenSize() == 0) it.wholeText().trim() else it.html()
+            }.orEmpty(),
             publishingHouse = metadata.named("publisher").firstOrNull()?.text().orEmpty(),
             coverPath = coverPath?.let(::image),
         )

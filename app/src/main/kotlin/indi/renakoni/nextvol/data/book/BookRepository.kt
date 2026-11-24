@@ -113,8 +113,8 @@ class BookRepository @Inject constructor(
     /** Keep observation timestamps in storage/update checks, not in the detail UI. */
     internal suspend fun bookInformationForDisplay(information: BookInformation): BookInformation {
         val book = BookIdentity.book(information.id)
-        if (book.sourceId.namespace != "rules") return information
         val display = information.copy(description = bookDescriptionForDisplay(information.description))
+        if (book.sourceId.namespace != "rules") return display
         val fallback = display.copy(lastUpdated = UNKNOWN_BOOK_UPDATE_TIME)
         return try {
             val canonical = canonicalBook(book)
