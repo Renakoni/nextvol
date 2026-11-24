@@ -625,4 +625,5 @@
     <string name="tts_role_language_required">請選擇目前偵測演算法支援的語言。</string>
     <string name="tts_language_detector_unavailable">所選語言偵測器或模型無法載入，請檢查語言規則和語言偵測演算法。</string>
     <string name="tts_segment_language">語言：%1$s</string>
+    <string name="copied_to_clipboard">已複製</string>
 </resources>

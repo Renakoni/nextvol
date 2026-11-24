@@ -624,4 +624,5 @@
     <string name="tts_role_language_required">请选择当前检测算法支持的语言。</string>
     <string name="tts_language_detector_unavailable">所选语言检测器或模型无法加载，请检查语言规则和语言检测算法。</string>
     <string name="tts_segment_language">语言：%1$s</string>
+    <string name="copied_to_clipboard">已复制</string>
 </resources>
