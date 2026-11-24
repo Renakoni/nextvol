@@ -27,7 +27,7 @@ data class LocalBookFileManifest(
         require(LocalBookStore.isLocal(SourceBookId.fromStorageKey(bookId)))
         require(format in LocalBookFormat.entries.map { it.name })
         require(originalDigest.matches(Regex("[0-9a-f]{64}")) && mappingDigest.matches(Regex("[0-9a-f]{64}")))
-        require(originalName.length <= 1024 && (rule == null || rule.length <= 1024))
+        require(rule == null || rule.length <= 1024)
         require(encoding == null || Charset.isSupported(encoding))
     }
 }

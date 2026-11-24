@@ -1,5 +1,7 @@
 package indi.renakoni.nextvol.data.localbook
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -45,12 +47,12 @@ object EpubBookParser {
             requireImport(entries.put(path, entry) == null, LocalBookImportReason.CorruptEpub) { "The EPUB has duplicate resource paths." }
         }
         fun copy(path: String, output: OutputStream) {
-            checkActive()
             val entry = requireImportNotNull(entries[path], LocalBookImportReason.CorruptEpub) { "An EPUB resource is missing: $path" }
             zip.getInputStream(entry).use { input ->
                 val crc = CRC32()
                 val buffer = ByteArray(8192)
                 while (true) {
+                    checkActive()
                     val read = input.read(buffer)
                     if (read < 0) break
                     output.write(buffer, 0, read)
@@ -127,6 +129,7 @@ object EpubBookParser {
         }
         val savedAssets = mutableMapOf<String, String>()
         val svgPaths = items.filter { it.mediaType == SVG }.mapNotNull { it.path }.toSet()
+        fun isSvg(path: String) = path in svgPaths || path.endsWith(".svg", ignoreCase = true)
         fun saveImage(key: String, extension: String, write: (File) -> Unit): String = savedAssets.getOrPut(key) {
             requireImport(assetsDirectory.isDirectory || assetsDirectory.mkdirs(), LocalBookImportReason.Storage) { "Cannot create the EPUB image directory." }
             val digest = MessageDigest.getInstance("SHA-256").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }
@@ -135,15 +138,32 @@ object EpubBookParser {
             "assets/$name"
         }
         fun svg(key: String, base: String, bytes: () -> ByteArray): String = saveImage(key, "png") { destination ->
-            EpubSvgImage.writePng(bytes(), destination) { href ->
-                val path = resolve(base, href).first
-                requireImport(path !in encrypted, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB images are not supported." }
-                read(path)
+            val rendering = mutableSetOf(base)
+            fun render(path: String, source: ByteArray): Bitmap = EpubSvgImage.render(source) { href ->
+                val linked = resolve(path, href).first
+                requireImport(linked !in encrypted, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB images are not supported." }
+                if (isSvg(linked)) {
+                    requireImport(rendering.add(linked), LocalBookImportReason.CorruptEpub) { "Circular SVG image reference: $linked" }
+                    try { render(linked, read(linked)) } finally { rendering.remove(linked) }
+                } else {
+                    val data = read(linked)
+                    requireImportNotNull(BitmapFactory.decodeByteArray(data, 0, data.size), LocalBookImportReason.CorruptEpub) {
+                        "Cannot decode an EPUB SVG raster image: $linked"
+                    }
+                }
             }
+            val bitmap = render(base, bytes())
+            try {
+                destination.outputStream().use { output ->
+                    requireImport(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output), LocalBookImportReason.Storage) {
+                        "Cannot save the rasterized EPUB image."
+                    }
+                }
+            } finally { bitmap.recycle() }
         }
         fun image(path: String): String {
             requireImport(path !in encrypted, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB images are not supported." }
-            return if (path in svgPaths || path.endsWith(".svg", ignoreCase = true)) {
+            return if (isSvg(path)) {
                 svg(path, path) { read(path) }
             } else {
                 val extension = path.substringAfterLast('.', "img").takeIf { it.matches(Regex("[a-zA-Z0-9]{1,6}")) } ?: "img"
@@ -234,7 +254,9 @@ object EpubBookParser {
                 if (tag == "svg") {
                     flush()
                     val wrapper = node.children().singleOrNull()?.takeIf { it.normalName().substringAfter(':') == "image" }
-                    val href = wrapper?.attr("href")?.ifEmpty { wrapper.attr("xlink:href") }.orEmpty()
+                    // AndroidSVG needs explicit image dimensions. Bare wrappers use the source's intrinsic size.
+                    val href = wrapper?.takeUnless { it.hasAttr("width") && it.hasAttr("height") }
+                        ?.let { it.attr("href").ifEmpty { it.attr("xlink:href") } }.orEmpty()
                     content += LocalBookBlock.Image(if (href.isNotBlank() && !isRemote(href) && !href.startsWith('#')) image(href) else svg(node))
                     return FilterResult.SKIP_ENTIRELY
                 }
