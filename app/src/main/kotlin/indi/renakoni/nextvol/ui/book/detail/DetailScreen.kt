@@ -856,7 +856,7 @@ private fun DetailContent(
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                text = if (uiState.bookVolumes.availableVolumes() != null) {
+                                text = if (bookVolumes != null) {
                                     stringResource(R.string.book_directory_incomplete)
                                 } else {
                                     error.title
