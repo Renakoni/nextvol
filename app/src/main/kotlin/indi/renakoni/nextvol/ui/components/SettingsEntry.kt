@@ -7,27 +7,23 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,22 +34,50 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.theme.NextVolDesign
+import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
+import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenu
+import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenuItem
 import indi.renakoni.nextvol.ui.home.settings.navigateToSliderValueDialog
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
 import io.nightfish.lightnovelreader.api.userdata.BooleanUserData
 import io.nightfish.lightnovelreader.api.userdata.FloatUserData
 import io.nightfish.lightnovelreader.api.userdata.StringUserData
+import top.yukonga.miuix.kmp.basic.Slider as MiuixSlider
+import top.yukonga.miuix.kmp.basic.Switch as MiuixSwitch
 import java.text.DecimalFormat
+import kotlin.math.abs
 import kotlin.math.roundToInt
+
+internal fun resolveDiscreteStepIndex(sortedSteps: List<Float>, value: Float): Int {
+    if (sortedSteps.isEmpty()) return 0
+    val exact = sortedSteps.indexOfFirst { it == value }
+    if (exact >= 0) return exact
+    if (value <= sortedSteps.first()) return 0
+    if (value >= sortedSteps.last()) return sortedSteps.lastIndex
+    var nearestIndex = 0
+    var minDelta = abs(sortedSteps[0] - value)
+    for (index in 1..sortedSteps.lastIndex) {
+        val delta = abs(sortedSteps[index] - value)
+        if (delta < minDelta) {
+            minDelta = delta
+            nearestIndex = index
+        }
+    }
+    return nearestIndex
+}
 
 @Composable
 fun SettingsSwitchEntry(
@@ -86,54 +110,45 @@ fun SettingsSwitchEntry(
     onCheckedChange: (Boolean) -> Unit,
     disabled: Boolean = false
 ) {
+    val tokens = NextVolDesign.tokens
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .background(tokens.cardSurface)
             .then(modifier)
             .fillMaxWidth()
             .clickable(enabled = !disabled) { onCheckedChange(!checked) }
-            .padding(horizontal = 22.dp)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .alpha(if (disabled) 0.45f else 1f)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         painter?.let {
-            Icon(
-                modifier = Modifier
-                    .padding(end = 22.dp)
-                    .size(24.dp),
-                painter = it,
-                tint = colorScheme.onSurfaceVariant,
-                contentDescription = null
-            )
+            EditorialIconBadge(painter = it)
         }
 
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
                 text = title,
                 color = colorScheme.onSurface,
-                style = typography.headlineSmall
+                style = typography.headlineSmall,
             )
-            Text(
-                text = description,
-                color = colorScheme.onSurfaceVariant,
-                style = typography.bodyMedium
-            )
+            if (description.isNotBlank()) {
+                Text(
+                    text = description,
+                    color = colorScheme.onSurfaceVariant,
+                    style = typography.bodyMedium,
+                )
+            }
         }
 
-        Box(
-            modifier = Modifier
-                .width(60.dp)
-                .fillMaxHeight(),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            Switch(
-                checked = checked,
-                enabled = !disabled,
-                onCheckedChange = if (disabled) null else onCheckedChange
-            )
-        }
+        MiuixSwitch(
+            checked = checked,
+            onCheckedChange = { if (!disabled) onCheckedChange(it) },
+            enabled = !disabled,
+        )
     }
 }
 
@@ -186,85 +201,88 @@ private fun SettingsSliderEntry(
     onSliderChangeFinished: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val actualSteps = steps?.distinct()?.sorted()
+    val tokens = NextVolDesign.tokens
+    val actualSteps = steps?.distinct()?.sorted()?.takeIf { it.size >= 2 }
     val sliderValue = if (actualSteps != null) {
-        actualSteps.indexOfFirst { it == value }.takeIf { it >= 0 }?.toFloat()
-            ?: actualSteps.indexOfFirst { it > value }.coerceAtLeast(0).toFloat()
+        resolveDiscreteStepIndex(actualSteps, value).toFloat()
     } else value
 
     val sliderRange = if (actualSteps != null) 0f..(actualSteps.lastIndex.toFloat())
     else valueRange
 
-    val stepsCount = if (actualSteps != null) actualSteps.size - 2 else 0
+    val stepsCount = if (actualSteps != null) (actualSteps.size - 2).coerceAtLeast(0) else 0
+    val displayValue = if (actualSteps != null) actualSteps[sliderValue.roundToInt().coerceIn(0, actualSteps.lastIndex)] else value
 
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .background(tokens.cardSurface)
             .then(modifier)
             .fillMaxWidth()
             .combinedClickable(
                 onClick = {},
-                onLongClick = onLongClick
+                onLongClick = onLongClick,
             )
-            .padding(horizontal = 22.dp)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         painter?.let {
-            Icon(
-                modifier = Modifier
-                    .padding(end = 22.dp)
-                    .size(24.dp),
-                painter = it,
-                tint = colorScheme.onSurfaceVariant,
-                contentDescription = null
-            )
+            EditorialIconBadge(painter = it)
         }
 
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = title,
-                color = colorScheme.onSurface,
-                style = typography.headlineSmall
-            )
-
-            val displayValue = if (actualSteps != null)
-                actualSteps[sliderValue.toInt()]
-            else value
-
             Row(
-                modifier = Modifier
-                    .animateContentSize(
-                        animationSpec = tween(
-                            durationMillis = 250,
-                            easing = FastOutSlowInEasing
-                        )
-                    )
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                AnimatedText(
-                    text = "${DecimalFormat("#.#").format(displayValue)}",
-                    color = colorScheme.primary,
-                    style = typography.bodyMedium,
-                    maxLines = 1
-                )
-
-                Spacer(Modifier.width(1.dp))
-
                 Text(
-                    text = unit,
-                    color = colorScheme.primary,
-                    style = typography.bodyMedium,
-                    maxLines = 1
+                    text = title,
+                    color = colorScheme.onSurface,
+                    style = typography.headlineSmall,
+                    modifier = Modifier.weight(1f),
                 )
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(tokens.activePillFill)
+                        .border(0.6.dp, tokens.activePillBorder, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 9.dp, vertical = 3.dp)
+                        .animateContentSize(
+                            animationSpec = tween(
+                                durationMillis = 200,
+                                easing = FastOutSlowInEasing,
+                            ),
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AnimatedText(
+                        text = DecimalFormat("#.#").format(displayValue),
+                        color = colorScheme.primary,
+                        style = typography.labelMedium.copy(
+                            fontWeight = FontWeight.W600,
+                            fontFeatureSettings = "tnum",
+                        ),
+                        maxLines = 1,
+                    )
+                    if (unit.isNotEmpty()) {
+                        Spacer(Modifier.width(2.dp))
+                        Text(
+                            text = unit,
+                            color = colorScheme.primary,
+                            style = typography.labelMedium.copy(fontWeight = FontWeight.W600),
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
 
-            Slider(
-                modifier = Modifier.fillMaxWidth(),
-                value = sliderValue,
-                valueRange = sliderRange,
-                steps = stepsCount,
+            MiuixSlider(
+                value = sliderValue.coerceIn(sliderRange.start, sliderRange.endInclusive),
                 onValueChange = { raw ->
                     val newValue = if (actualSteps != null) {
                         val index = raw.roundToInt().coerceIn(0, actualSteps.lastIndex)
@@ -274,15 +292,14 @@ private fun SettingsSliderEntry(
                     }
                     onSlideChange(newValue)
                 },
+                modifier = Modifier.fillMaxWidth(),
+                valueRange = sliderRange,
+                steps = stepsCount,
                 onValueChangeFinished = onSliderChangeFinished,
-                colors = SliderDefaults.colors(
-                    inactiveTrackColor = colorScheme.primaryContainer,
-                ),
             )
         }
     }
 }
-
 
 @Composable
 fun SettingsMenuEntry(
@@ -318,80 +335,78 @@ fun SettingsMenuEntry(
     selectedOptionKey: String,
     onOptionChange: (String) -> Unit
 ) {
+    val tokens = NextVolDesign.tokens
     var expanded by remember(disabled) { mutableStateOf(false) }
     val selectedOption = remember(options, selectedOptionKey) { options.getOrNull(selectedOptionKey) }
+    val optionLabel = if (disabled) {
+        stringResource(R.string.unavailable)
+    } else {
+        selectedOption?.let { stringResource(it.nameId) } ?: "(null)"
+    }
 
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .background(tokens.cardSurface)
             .then(modifier)
             .fillMaxWidth()
             .clickable(enabled = !disabled) { expanded = true }
-            .padding(horizontal = 22.dp)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .alpha(if (disabled) 0.45f else 1f)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         painter?.let {
-            Icon(
-                modifier = Modifier
-                    .padding(end = 22.dp)
-                    .size(24.dp),
-                painter = it,
-                tint = colorScheme.onSurfaceVariant,
-                contentDescription = null
-            )
+            EditorialIconBadge(painter = it)
         }
 
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
                 text = title,
                 color = colorScheme.onSurface,
-                style = typography.headlineSmall
+                style = typography.headlineSmall,
             )
             description?.let {
                 Text(
                     text = it,
                     color = colorScheme.onSurfaceVariant,
-                    style = typography.bodyMedium
+                    style = typography.bodyMedium,
                 )
             }
-            val option = selectedOption?.let { stringResource(it.nameId) } ?: "(null)"
+            Spacer(Modifier.height(2.dp))
             AnimatedTextLine(
-                text = if (disabled) stringResource(R.string.unavailable)
-                    else option,
-                style = typography.bodyMedium,
-                color = colorScheme.primary
+                text = optionLabel,
+                style = typography.labelLarge.copy(fontWeight = FontWeight.W600),
+                color = if (disabled) colorScheme.onSurfaceVariant else colorScheme.primary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
+        }
 
-            Box(
-                modifier = Modifier.offset {
-                    IntOffset(0, 20)
-                }
-            ) {
-                if (disabled) return@Box
-                DropdownMenu(
+        Box(contentAlignment = Alignment.CenterEnd) {
+            Icon(
+                painter = painterResource(R.drawable.arrow_forward_ios_24px),
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                modifier = Modifier
+                    .size(14.dp)
+                    .rotate(if (expanded) 270f else 90f),
+            )
+            if (!disabled) {
+                EditorialPopupMenu(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    onDismissRequest = { expanded = false },
                 ) {
                     options.optionList.forEach { option ->
-                        DropdownMenuItem(
-                            modifier = if (option.key == selectedOptionKey)
-                                Modifier.background(colorScheme.surfaceContainerHighest)
-                            else
-                                Modifier,
+                        EditorialPopupMenuItem(
+                            text = stringResource(option.nameId),
+                            selected = option.key == selectedOptionKey,
                             onClick = {
                                 expanded = false
                                 onOptionChange(option.key)
                             },
-                            text = {
-                                Text(
-                                    modifier = Modifier.padding(vertical = 4.dp),
-                                    text = stringResource(option.nameId),
-                                    style = typography.bodyLarge
-                                )
-                            }
                         )
                     }
                 }
@@ -433,29 +448,24 @@ fun SettingsClickableEntry(
     description: String? = null,
     onClick: () -> Unit
 ) {
+    val tokens = NextVolDesign.tokens
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .background(tokens.cardSurface)
             .then(modifier)
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 22.dp)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         painter?.let {
-            Icon(
-                modifier = Modifier
-                    .padding(end = 22.dp)
-                    .size(24.dp),
-                painter = it,
-                tint = colorScheme.onSurfaceVariant,
-                contentDescription = null
-            )
+            EditorialIconBadge(painter = it)
         }
 
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
                 text = title,
@@ -466,29 +476,31 @@ fun SettingsClickableEntry(
                 Text(
                     text = it,
                     color = colorScheme.onSurfaceVariant,
-                    style = typography.bodyMedium
+                    style = typography.bodyMedium,
                 )
             }
             option?.let {
                 AnimatedTextLine(
                     text = it,
-                    style = typography.bodyMedium,
+                    style = typography.labelLarge.copy(fontWeight = FontWeight.W500),
                     color = colorScheme.primary,
                     maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
 
-        trailingContent?.let { composable ->
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(55.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                composable()
+        if (trailingContent != null) {
+            Box(contentAlignment = Alignment.CenterEnd) {
+                trailingContent()
             }
+        } else {
+            Icon(
+                painter = painterResource(R.drawable.arrow_forward_ios_24px),
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                modifier = Modifier.size(14.dp),
+            )
         }
     }
 }

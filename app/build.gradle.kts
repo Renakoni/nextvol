@@ -509,6 +509,11 @@ dependencies {
     implementation(libs.vico.compose.m3)
     // Shimmer
     implementation(libs.compose.shimmer)
+    // Miuix & Haze (Editorial Liquid Glass UI foundation)
+    implementation(libs.miuix.ui)
+    implementation(libs.haze)
+    implementation(libs.haze.blur)
+    implementation(libs.haze.glass)
     // About Libraries
     implementation(libs.aboutlibraries.core)
     implementation(libs.aboutlibraries.compose.m3)
