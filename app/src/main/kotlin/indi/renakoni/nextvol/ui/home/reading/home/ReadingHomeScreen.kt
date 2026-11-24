@@ -62,10 +62,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -125,7 +121,6 @@ fun ReadingScreen(
     onClickStats: () -> Unit,
     onRemoveBook: (String) -> Unit,
     onAddBook: (String) -> Unit,
-    onClickOpenChapters: (String) -> Unit,
     onSettings: () -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -173,7 +168,6 @@ fun ReadingScreen(
                 topPadding = paddingValues.calculateTopPadding(),
                 onClickBook = onClickBook,
                 onClickContinueReading = onClickContinueReading,
-                onClickOpenChapters = onClickOpenChapters,
                 onAddBook = onAddBook,
                 onRemoveBook = onRemoveBook,
                 recentReadingBooks = recentReadingBooks,
@@ -191,7 +185,6 @@ private fun ReadingContent(
     onAddBook: (String) -> Unit,
     onRemoveBook: (String) -> Unit,
     recentReadingBooks: List<Pair<String, StateFlow<Result<RecentReadingBook, WebRequestError>?>>>,
-    onClickOpenChapters: (String) -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = LocalSnackbarHost.current
@@ -267,7 +260,6 @@ private fun ReadingContent(
                     items = recentReadingBooks.take(3),
                     onClickBook = onClickBook,
                     onClickContinueReading = onClickContinueReading,
-                    onClickOpenChapters = onClickOpenChapters,
                     shimmerInstance = if (started) shimmerInstance else null,
                     onPlaceholderPresenceChanged = { present ->
                         loadingCards = (loadingCards + if (present) 1 else -1).coerceAtLeast(0)
@@ -376,7 +368,6 @@ fun ReadingHeaderCardPager(
     modifier: Modifier = Modifier,
     onClickBook: (String) -> Unit,
     onClickContinueReading: (String, String) -> Unit,
-    onClickOpenChapters: (String) -> Unit,
     shimmerInstance: Shimmer? = null,
     onPlaceholderPresenceChanged: (Boolean) -> Unit = {},
 ) {
@@ -404,7 +395,6 @@ fun ReadingHeaderCardPager(
                     data = it.userReadingData,
                     onClickBook = onClickBook,
                     onClickContinueReading = onClickContinueReading,
-                    onClickOpenChapters = onClickOpenChapters,
                 )
             }?.onErr {
                 EditorialHeroErrorCard(
@@ -470,7 +460,6 @@ private fun EditorialHeroBookCard(
     data: UserReadingData,
     onClickBook: (String) -> Unit,
     onClickContinueReading: (String, String) -> Unit,
-    onClickOpenChapters: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tokens = NextVolDesign.tokens
@@ -574,63 +563,28 @@ private fun EditorialHeroBookCard(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Button(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    onClick = {
+                        val chapterId = data.lastReadChapterId
+                        if (chapterId != null) {
+                            onClickContinueReading(info.id, chapterId)
+                        } else {
+                            onClickBook(info.id)
+                        }
+                    },
+                    shape = RoundedCornerShape(13.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
                 ) {
-                    val contentsDesc = stringResource(R.string.detail_contents)
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .squircleBackground(
-                                color = tokens.cardElevatedSurface.copy(alpha = 0.86f),
-                                cornerRadius = 13.dp,
-                            )
-                            .squircleBorder(
-                                width = 0.75.dp,
-                                color = tokens.cardBorder,
-                                cornerRadius = 13.dp,
-                            )
-                            .squircleClip(13.dp)
-                            .clickable { onClickOpenChapters(info.id) }
-                            .semantics {
-                                role = Role.Button
-                                contentDescription = contentsDesc
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.view_list_24px),
-                            contentDescription = null,
-                            tint = colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-
-                    Button(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp),
-                        onClick = {
-                            val chapterId = data.lastReadChapterId
-                            if (chapterId != null) {
-                                onClickContinueReading(info.id, chapterId)
-                            } else {
-                                onClickBook(info.id)
-                            }
-                        },
-                        shape = RoundedCornerShape(13.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.resume_last_reading),
-                            style = typography.labelLarge.copy(fontWeight = FontWeight.W600),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    Text(
+                        text = stringResource(R.string.resume_last_reading),
+                        style = typography.labelLarge.copy(fontWeight = FontWeight.W600),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
@@ -641,7 +595,6 @@ private fun EditorialHeroBookCard(
 private fun EditorialHeroBookCardSkeleton(
     modifier: Modifier = Modifier,
 ) {
-    val tokens = NextVolDesign.tokens
     val blockColor = colorScheme.surfaceContainerHigh
     EditorialCard(
         modifier = modifier.fillMaxWidth(),
@@ -695,21 +648,13 @@ private fun EditorialHeroBookCardSkeleton(
                         .clip(CircleShape)
                         .background(blockColor),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(tokens.cardElevatedSurface),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(blockColor),
-                    )
-                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(blockColor),
+                )
             }
         }
     }
