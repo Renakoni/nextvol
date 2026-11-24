@@ -13,5 +13,5 @@ internal fun bookDescriptionForDisplay(raw: String): String {
     body.getAllElements().filter { it !== body && it.isBlock }.forEach {
         it.before(TextNode("\n")); it.after(TextNode("\n"))
     }
-    return body.wholeText().replace(Regex("\n{3,}"), "\n\n").trim()
+    return body.wholeText().replace(Regex("\n[ \t\n]*\n"), "\n\n").trim()
 }
