@@ -48,7 +48,7 @@ data class LocalBookImportState(
     val preview: PreparedLocalBook? = null,
     val error: LocalBookImportFailure? = null,
 ) {
-    val canImport get() = !busy && !importing && error == null && preview != null && title.isNotBlank() && title.length <= 200
+    val canImport get() = !busy && !importing && error == null && preview != null && title.isNotBlank()
 }
 
 @HiltViewModel

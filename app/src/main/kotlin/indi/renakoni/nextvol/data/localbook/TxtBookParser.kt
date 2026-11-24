@@ -12,7 +12,6 @@ object TxtBookParser {
     const val MAX_TITLE_LENGTH = 120
     const val MAX_CHAPTER_CHARACTERS = 64_000
     const val MAX_CHAPTER_BLOCKS = 1_000
-    const val MAX_CHAPTERS = 10_000
     val DEFAULT_RULE = "^(?:(?:正文\\s*)?第\\s*[$NUMBERS]{1,16}\\s*[章回节節话話卷部篇册冊集].*|" +
         "(?:序章|序幕|楔子|引子|前言|尾声|尾聲|后记|後記|番外|幕间|幕間|间章|間章|终章|終章)(?:\\s.*|[:：—-].*)?|" +
         "(?i:(?:chapter|chap\\.?|part|volume)\\s+[0-9ivxlcdm]+(?:\\s.*|[.:：—-].*)?|" +

@@ -41,12 +41,11 @@ internal fun LocalBookImportReason.messageResource(): Int = when (this) {
     LocalBookImportReason.UnsupportedEncoding -> R.string.local_import_error_encoding_unsupported
     LocalBookImportReason.InvalidRule -> R.string.local_import_error_rule
     LocalBookImportReason.RuleTooLong -> R.string.local_import_error_rule_length
-    LocalBookImportReason.TooManyChapters -> R.string.local_import_error_chapters
     LocalBookImportReason.NoContent -> R.string.local_import_error_no_content
     LocalBookImportReason.CorruptEpub -> R.string.local_import_error_epub_damaged
     LocalBookImportReason.EncryptedEpub -> R.string.local_import_error_epub_encrypted
     LocalBookImportReason.UnsupportedEpub -> R.string.local_import_error_epub_unsupported
-    LocalBookImportReason.EpubLimit -> R.string.local_import_error_epub_limit
+    LocalBookImportReason.InsufficientMemory -> R.string.local_import_error_memory
     LocalBookImportReason.SessionExpired -> R.string.local_import_error_session
     LocalBookImportReason.InvalidTitle -> R.string.local_import_error_title
     LocalBookImportReason.ShelfChanged -> R.string.local_import_error_shelf

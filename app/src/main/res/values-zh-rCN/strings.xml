@@ -532,7 +532,6 @@
     <string name="local_book_preparing">正在准备书籍…</string>
     <string name="local_book_import_failed">暂时无法导入</string>
     <string name="local_book_title">书名</string>
-    <string name="local_book_title_error">请输入 1–200 个字符的书名。</string>
     <string name="local_book_target">导入到「%1$s」</string>
     <string name="local_book_copy_note">每次导入都会创建独立副本，已有书籍和阅读进度会保留。</string>
     <string name="local_book_chapter_detection">章节识别</string>

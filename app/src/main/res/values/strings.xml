@@ -554,7 +554,6 @@
     <string name="local_book_preparing">Preparing your book…</string>
     <string name="local_book_import_failed">Unable to import</string>
     <string name="local_book_title">Book title</string>
-    <string name="local_book_title_error">Enter a title of 1–200 characters.</string>
     <string name="local_book_target">To %1$s</string>
     <string name="local_book_copy_note">Each import creates a separate copy. Existing books and reading progress are kept.</string>
     <string name="local_book_chapter_detection">Chapter detection</string>

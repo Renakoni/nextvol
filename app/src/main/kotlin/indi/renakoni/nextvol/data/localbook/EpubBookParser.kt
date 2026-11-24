@@ -1,10 +1,16 @@
 package indi.renakoni.nextvol.data.localbook
 
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.Entities
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
+import org.jsoup.parser.ParseSettings
 import org.jsoup.parser.Parser
+import org.jsoup.select.NodeFilter
+import org.jsoup.select.NodeFilter.FilterResult
+import org.jsoup.select.NodeTraversor
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.OutputStream
@@ -16,39 +22,37 @@ import java.util.zip.CRC32
 
 /** Reads the publication's spine, never ZIP entry order. Assets stay in the draft directory. */
 object EpubBookParser {
-    private const val MAX_ENTRIES = 20_000
+    private const val SVG = "image/svg+xml"
+    private val textTypes = setOf("application/xhtml+xml", "text/html")
+    private val imageTypes = setOf(SVG, "image/jpeg", "image/png", "image/gif", "image/webp")
     private val blocks = setOf("p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6",
         "li", "blockquote", "pre", "tr", "td", "br", "hr")
     private val ignored = setOf("head", "script", "style", "noscript")
     private val whitespace = Regex("\\s+")
     private val scheme = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:")
 
-    private data class Item(val id: String, val path: String, val mediaType: String, val properties: Set<String>)
+    private data class Item(val id: String, val path: String?, val mediaType: String, val properties: Set<String>, val fallback: String)
     private data class NavigationEntry(val path: String, val fragment: String, val title: String)
     private data class Body(val content: List<LocalBookBlock>, val anchors: Map<String, Int>)
 
-    fun parse(file: File, assetsDirectory: File, fallbackTitle: String): ParsedLocalBook = ZipFile(file).use { zip ->
+    fun parse(file: File, assetsDirectory: File, fallbackTitle: String, checkActive: () -> Unit = {}): ParsedLocalBook = ZipFile(file).use { zip ->
         val entries = linkedMapOf<String, ZipEntry>()
         val allEntries = zip.entries()
-        var count = 0
         while (allEntries.hasMoreElements()) {
             val entry = allEntries.nextElement()
-            requireImport(++count <= MAX_ENTRIES, LocalBookImportReason.EpubLimit) { "The EPUB contains too many files." }
             if (entry.isDirectory) continue
             val path = normalizePath(entry.name)
             requireImport(entries.put(path, entry) == null, LocalBookImportReason.CorruptEpub) { "The EPUB has duplicate resource paths." }
         }
-        fun copy(path: String, output: OutputStream, maxBytes: Long = Long.MAX_VALUE) {
+        fun copy(path: String, output: OutputStream) {
+            checkActive()
             val entry = requireImportNotNull(entries[path], LocalBookImportReason.CorruptEpub) { "An EPUB resource is missing: $path" }
             zip.getInputStream(entry).use { input ->
                 val crc = CRC32()
                 val buffer = ByteArray(8192)
-                var size = 0L
                 while (true) {
                     val read = input.read(buffer)
                     if (read < 0) break
-                    size += read
-                    requireImport(size <= maxBytes, LocalBookImportReason.EpubLimit) { "An EPUB resource exceeds the import size limit." }
                     output.write(buffer, 0, read)
                     crc.update(buffer, 0, read)
                 }
@@ -66,96 +70,150 @@ object EpubBookParser {
         val metadata = requireImportNotNull(opf.named("metadata").firstOrNull(), LocalBookImportReason.CorruptEpub) { "The EPUB has no metadata." }
         val manifest = requireImportNotNull(opf.named("manifest").firstOrNull(), LocalBookImportReason.CorruptEpub) { "The EPUB has no manifest." }
         val items = manifest.named("item").map { item ->
-            Item(item.attr("id"), resolve(opfPath, item.attr("href")).first, item.attr("media-type"),
-                item.attr("properties").split(whitespace).toSet())
-        }
-        requireImport(items.isNotEmpty() && items.all { it.id.isNotBlank() } && items.map { it.id }.distinct().size == items.size, LocalBookImportReason.CorruptEpub) {
-            "The EPUB manifest has invalid IDs."
+            val path = item.attr("href").takeUnless(::isRemote)?.let { resolve(opfPath, it).first }
+            Item(item.attr("id"), path, item.attr("media-type"),
+                item.attr("properties").split(whitespace).toSet(), item.attr("fallback"))
         }
         val byId = items.associateBy { it.id }
+        requireImport(byId.isNotEmpty() && byId.size == items.size && byId.keys.none(String::isBlank), LocalBookImportReason.CorruptEpub) {
+            "The EPUB manifest has invalid IDs."
+        }
         val spine = requireImportNotNull(opf.named("spine").firstOrNull(), LocalBookImportReason.CorruptEpub) { "The EPUB has no reading order." }
-        val readingOrder = spine.named("itemref").map {
-            requireImportNotNull(byId[it.attr("idref")], LocalBookImportReason.CorruptEpub) { "The EPUB reading order refers to a missing item." }
+        val readingOrder = spine.named("itemref").mapNotNull { ref ->
+            val primary = requireImportNotNull(byId[ref.attr("idref")], LocalBookImportReason.CorruptEpub) {
+                "The EPUB reading order refers to a missing item."
+            }
+            var candidate = primary
+            val visited = mutableSetOf<String>()
+            while (candidate.path == null || candidate.mediaType !in textTypes && candidate.mediaType !in imageTypes) {
+                if (candidate.fallback.isEmpty()) {
+                    if (ref.attr("linear") == "no") return@mapNotNull null
+                    throw LocalBookImportException(LocalBookImportReason.UnsupportedEpub, "Unsupported EPUB spine content: ${primary.mediaType}")
+                }
+                requireImport(visited.add(candidate.id), LocalBookImportReason.CorruptEpub) { "The EPUB contains a circular fallback chain." }
+                candidate = requireImportNotNull(byId[candidate.fallback], LocalBookImportReason.CorruptEpub) {
+                    "An EPUB fallback refers to a missing item."
+                }
+            }
+            primary.path to candidate
         }
         requireImport(readingOrder.isNotEmpty(), LocalBookImportReason.NoContent) { "The EPUB has no readable chapters." }
         val encrypted = if (entries.containsKey("META-INF/encryption.xml")) {
             xml("META-INF/encryption.xml").named("CipherReference").map { resolve("", it.attr("URI")).first }.toSet()
         } else emptySet()
-        requireImport(readingOrder.none { it.path in encrypted }, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB text is not supported." }
-
         val navigation = mutableListOf<NavigationEntry>()
-        val navItem = items.firstOrNull { "nav" in it.properties }
-        if (navItem != null) {
-            val navDocument = Jsoup.parse(read(navItem.path).inputStream(), null, "")
+        val navPath = items.firstOrNull { "nav" in it.properties }?.path
+        if (navPath != null) {
+            val navDocument = Jsoup.parse(read(navPath).inputStream(), null, "")
             val toc = navDocument.named("nav").firstOrNull { node ->
                 node.attributes().any { it.key.substringAfter(':') == "type" && "toc" in it.value.split(whitespace) }
             }
             toc?.select("a[href]")?.forEach { link ->
-                val (path, fragment) = resolve(navItem.path, link.attr("href"))
+                val href = link.attr("href")
+                if (isRemote(href)) return@forEach
+                val (path, fragment) = resolve(navPath, href)
                 navigation += NavigationEntry(path, fragment, link.text())
             }
         }
         if (navigation.isEmpty()) {
-            val ncx = byId[spine.attr("toc")] ?: items.firstOrNull { it.mediaType == "application/x-dtbncx+xml" }
-            if (ncx != null) xml(ncx.path).named("navPoint").forEach { point ->
+            val ncxPath = (byId[spine.attr("toc")] ?: items.firstOrNull { it.mediaType == "application/x-dtbncx+xml" })?.path
+            if (ncxPath != null) xml(ncxPath).named("navPoint").forEach { point ->
                 val content = point.named("content").firstOrNull() ?: return@forEach
-                val (path, fragment) = resolve(ncx.path, content.attr("src"))
+                val href = content.attr("src")
+                if (isRemote(href)) return@forEach
+                val (path, fragment) = resolve(ncxPath, href)
                 navigation += NavigationEntry(path, fragment, point.named("navLabel").firstOrNull()?.text().orEmpty())
             }
         }
         val savedAssets = mutableMapOf<String, String>()
-        fun image(path: String): String = savedAssets.getOrPut(path) {
-            requireImport(path !in encrypted, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB images are not supported." }
-            val isSvg = path.endsWith(".svg", ignoreCase = true) ||
-                items.any { it.path == path && it.mediaType == "image/svg+xml" }
+        val svgPaths = items.filter { it.mediaType == SVG }.mapNotNull { it.path }.toSet()
+        fun saveImage(key: String, extension: String, write: (File) -> Unit): String = savedAssets.getOrPut(key) {
             requireImport(assetsDirectory.isDirectory || assetsDirectory.mkdirs(), LocalBookImportReason.Storage) { "Cannot create the EPUB image directory." }
-            val digest = MessageDigest.getInstance("SHA-256").digest(path.toByteArray()).joinToString("") { "%02x".format(it) }
-            val extension = if (isSvg) "png" else
-                path.substringAfterLast('.', "img").takeIf { it.matches(Regex("[a-zA-Z0-9]{1,6}")) } ?: "img"
+            val digest = MessageDigest.getInstance("SHA-256").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }
             val name = "$digest.$extension"
-            val destination = File(assetsDirectory, name)
-            if (isSvg) {
-                val svg = ByteArrayOutputStream().also { copy(path, it, EpubSvgImage.MAX_BYTES) }.toByteArray()
-                EpubSvgImage.writePng(svg, destination)
-            } else {
-                destination.outputStream().use { copy(path, it) }
-            }
+            write(File(assetsDirectory, name))
             "assets/$name"
         }
-        val coverId = metadata.named("meta").firstOrNull { it.attr("name") == "cover" }?.attr("content")
-        val cover = items.firstOrNull { "cover-image" in it.properties } ?: byId[coverId]
-        val chapters = mutableListOf<LocalBookChapter>()
-        for (item in readingOrder) {
-            requireImport(item.mediaType in setOf("application/xhtml+xml", "text/html"), LocalBookImportReason.UnsupportedEpub) { "Unsupported EPUB spine content: ${item.mediaType}" }
-            val labels = navigation.filter { it.path == item.path && it.title.isNotBlank() }
-            val document = Jsoup.parse(read(item.path).inputStream(), null, "")
-            val fallback = labels.firstOrNull()?.title
-                ?: document.selectFirst("h1,h2,h3")?.text()?.takeIf { it.isNotBlank() }
-                ?: document.title().takeIf { it.isNotBlank() } ?: item.path.substringAfterLast('/').substringBeforeLast('.')
-            val body = extractBody(document.body()) { href -> image(resolve(item.path, href).first) }
-            if (body.content.isEmpty()) continue
-            val boundaries = labels.mapNotNull { label ->
-                body.anchors[label.fragment]?.let { it to label.title }
-            }.distinctBy { it.first }.sortedBy { it.first }.toMutableList()
-            if (boundaries.firstOrNull()?.first != 0) boundaries.add(0, 0 to fallback)
-            boundaries.forEachIndexed { index, (start, title) ->
-                val end = boundaries.getOrNull(index + 1)?.first ?: body.content.size
-                if (end > start) chapters += splitChapter(title.limit(200), body.content.subList(start, end))
+        fun svg(key: String, base: String, bytes: () -> ByteArray): String = saveImage(key, "png") { destination ->
+            EpubSvgImage.writePng(bytes(), destination) { href ->
+                val path = resolve(base, href).first
+                requireImport(path !in encrypted, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB images are not supported." }
+                read(path)
             }
-            requireImport(chapters.size <= TxtBookParser.MAX_CHAPTERS, LocalBookImportReason.TooManyChapters) { "The EPUB contains too many chapters." }
+        }
+        fun image(path: String): String {
+            requireImport(path !in encrypted, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB images are not supported." }
+            return if (path in svgPaths || path.endsWith(".svg", ignoreCase = true)) {
+                svg(path, path) { read(path) }
+            } else {
+                val extension = path.substringAfterLast('.', "img").takeIf { it.matches(Regex("[a-zA-Z0-9]{1,6}")) } ?: "img"
+                saveImage(path, extension) { destination -> destination.outputStream().use { copy(path, it) } }
+            }
+        }
+        val labelsByPath = navigation.filter { it.title.isNotBlank() }.groupBy { it.path }
+        val chapters = mutableListOf<LocalBookChapter>()
+        for ((primaryPath, item) in readingOrder) {
+            val path = requireNotNull(item.path)
+            val labels = labelsByPath[path].orEmpty().let {
+                if (primaryPath == path) it else labelsByPath[primaryPath].orEmpty() + it
+            }
+            val fileTitle = path.substringAfterLast('/').substringBeforeLast('.')
+            if (item.mediaType in imageTypes) {
+                chapters += LocalBookChapter(labels.firstOrNull()?.title ?: fileTitle,
+                    blocks = listOf(LocalBookBlock.Image(image(path))))
+            } else {
+                requireImport(path !in encrypted, LocalBookImportReason.EncryptedEpub) { "Encrypted EPUB text is not supported." }
+                val document = Jsoup.parse(read(path).inputStream(), null, "", Parser.htmlParser().settings(ParseSettings.preserveCase))
+                val fallback = labels.firstOrNull()?.title
+                    ?: document.selectFirst("h1,h2,h3")?.text()?.takeIf { it.isNotBlank() }
+                    ?: document.title().takeIf { it.isNotBlank() } ?: fileTitle
+                var nextSvg = 0
+                val body = extractBody(document.body(), { href -> image(resolve(path, href).first) }, { node ->
+                    svg("$path\u0000${nextSvg++}", path) {
+                        checkActive()
+                        inlineSvg(node)
+                    }
+                })
+                if (body.content.isEmpty()) continue
+                val boundaries = labels.mapNotNull { label ->
+                    body.anchors[label.fragment]?.let { it to label.title }
+                }.distinctBy { it.first }.sortedBy { it.first }.toMutableList()
+                if (boundaries.firstOrNull()?.first != 0) boundaries.add(0, 0 to fallback)
+                boundaries.forEachIndexed { index, (start, title) ->
+                    val end = boundaries.getOrNull(index + 1)?.first ?: body.content.size
+                    if (end > start) chapters += splitChapter(title, body.content.subList(start, end))
+                }
+            }
         }
         requireImport(chapters.isNotEmpty(), LocalBookImportReason.NoContent) { "The EPUB has no readable content." }
+        val coverId = metadata.named("meta").firstOrNull { it.attr("name") == "cover" }?.attr("content")
+        val coverPath = (items.firstOrNull { "cover-image" in it.properties } ?: byId[coverId])?.path
+        val description = metadata.named("description").firstOrNull()?.text().orEmpty()
         ParsedLocalBook(
-            title = (metadata.named("title").firstOrNull()?.text()?.takeIf { it.isNotBlank() } ?: fallbackTitle).limit(200),
+            title = metadata.named("title").firstOrNull()?.text()?.takeIf { it.isNotBlank() } ?: fallbackTitle,
             chapters = chapters,
-            author = metadata.named("creator").joinToString(", ") { it.text() }.limit(2_000),
-            description = metadata.named("description").firstOrNull()?.text().orEmpty().limit(16_000),
-            publishingHouse = metadata.named("publisher").firstOrNull()?.text().orEmpty().limit(1_000),
-            coverPath = cover?.let { image(it.path) },
+            author = metadata.named("creator").joinToString(", ") { it.text() },
+            description = if ('<' in description) Jsoup.parseBodyFragment(description).text() else description,
+            publishingHouse = metadata.named("publisher").firstOrNull()?.text().orEmpty(),
+            coverPath = coverPath?.let(::image),
         )
     }
 
-    private fun extractBody(root: Element, image: (String) -> String): Body {
+    private fun inlineSvg(node: Element): ByteArray {
+        val svg = node.clone()
+        for (ancestor in node.parents()) {
+            for (attribute in ancestor.attributes()) {
+                if (attribute.key.startsWith("xmlns:") && !svg.hasAttr(attribute.key)) svg.attr(attribute.key, attribute.value)
+            }
+        }
+        if (!svg.hasAttr("xmlns")) svg.attr("xmlns", "http://www.w3.org/2000/svg")
+        val document = Document("")
+        document.outputSettings().syntax(Document.OutputSettings.Syntax.xml).escapeMode(Entities.EscapeMode.xhtml).prettyPrint(false)
+        document.appendChild(svg)
+        return svg.outerHtml().toByteArray(Charsets.UTF_8)
+    }
+
+    private fun extractBody(root: Element, image: (String) -> String, svg: (Element) -> String): Body {
         val content = mutableListOf<LocalBookBlock>()
         val anchors = linkedMapOf<String, Int>()
         val text = StringBuilder()
@@ -164,32 +222,43 @@ object EpubBookParser {
             if (value.isNotEmpty()) content += LocalBookBlock.Text(value)
             text.clear()
         }
-        fun visit(node: Node, depth: Int) {
-            requireImport(depth <= 256, LocalBookImportReason.EpubLimit) { "The EPUB markup is nested too deeply." }
-            if (node is TextNode) { text.append(node.wholeText); return }
-            if (node !is Element) return
-            val tag = node.tagName().substringAfter(':').lowercase()
-            if (tag in ignored) return
-            requireImport(tag != "svg" || node.named("image").isNotEmpty(), LocalBookImportReason.UnsupportedEpub) { "Inline vector SVG artwork is not supported." }
-            if (tag in blocks) flush()
-            val id = node.id().ifEmpty { if (tag == "a") node.attr("name") else "" }
-            if (id.isNotEmpty()) { flush(); anchors.putIfAbsent(id, content.size) }
-            if (tag == "img" || tag == "image") {
-                flush()
-                val href = node.attr("src").ifEmpty { node.attr("href") }.ifEmpty { node.attr("xlink:href") }
-                requireImport(href.isNotBlank(), LocalBookImportReason.CorruptEpub) { "An EPUB image has no resource path." }
-                content += LocalBookBlock.Image(image(href))
-            } else {
-                node.childNodes().forEach { visit(it, depth + 1) }
+        NodeTraversor.filter(object : NodeFilter {
+            override fun head(node: Node, depth: Int): FilterResult {
+                if (node is TextNode) text.append(node.wholeText)
+                if (node !is Element) return FilterResult.CONTINUE
+                val tag = node.normalName().substringAfter(':')
+                if (tag in ignored) return FilterResult.SKIP_ENTIRELY
+                if (tag in blocks) flush()
+                val id = node.id().ifEmpty { if (tag == "a") node.attr("name") else "" }
+                if (id.isNotEmpty()) { flush(); anchors.putIfAbsent(id, content.size) }
+                if (tag == "svg") {
+                    flush()
+                    val wrapper = node.children().singleOrNull()?.takeIf { it.normalName().substringAfter(':') == "image" }
+                    val href = wrapper?.attr("href")?.ifEmpty { wrapper.attr("xlink:href") }.orEmpty()
+                    content += LocalBookBlock.Image(if (href.isNotBlank() && !isRemote(href) && !href.startsWith('#')) image(href) else svg(node))
+                    return FilterResult.SKIP_ENTIRELY
+                }
+                if (tag == "img" || tag == "image") {
+                    flush()
+                    val href = node.attr("src").ifEmpty { node.attr("href") }.ifEmpty { node.attr("xlink:href") }
+                    requireImport(href.isNotBlank(), LocalBookImportReason.CorruptEpub) { "An EPUB image has no resource path." }
+                    content += LocalBookBlock.Image(image(href))
+                    return FilterResult.SKIP_ENTIRELY
+                }
+                return FilterResult.CONTINUE
             }
-            if (tag in blocks) flush()
-        }
-        visit(root, 0)
+
+            override fun tail(node: Node, depth: Int): FilterResult {
+                if (node is Element && node.normalName().substringAfter(':') in blocks) flush()
+                return FilterResult.CONTINUE
+            }
+        }, root)
         flush()
         return Body(content, anchors)
     }
 
     private fun splitChapter(title: String, blocks: List<LocalBookBlock>): List<LocalBookChapter> {
+        // Cache rows hold one chapter segment. Split long chapters without dropping content.
         val result = mutableListOf<LocalBookChapter>()
         val current = mutableListOf<LocalBookBlock>()
         var length = 0
@@ -220,12 +289,10 @@ object EpubBookParser {
 
     private fun Element.named(name: String): List<Element> = allElements.filter { it.tagName().substringAfter(':') == name }
 
-    private fun String.limit(length: Int) = take(length).let {
-        if (it.lastOrNull()?.isHighSurrogate() == true) it.dropLast(1) else it
-    }
+    private fun isRemote(href: String): Boolean = scheme.containsMatchIn(href) || href.startsWith("//")
 
     private fun resolve(base: String, href: String): Pair<String, String> {
-        requireImport(!scheme.containsMatchIn(href) && !href.startsWith('/'), LocalBookImportReason.CorruptEpub) { "EPUB resources must be local to the archive." }
+        requireImport(!isRemote(href) && !href.startsWith('/'), LocalBookImportReason.CorruptEpub) { "EPUB resources must be local to the archive." }
         val rawPath = href.substringBefore('#').substringBefore('?')
         val fragment = decodePath(href.substringAfter('#', ""))
         if (rawPath.isEmpty()) return base to fragment
@@ -242,7 +309,7 @@ object EpubBookParser {
     }
 
     private fun normalizePath(path: String): String {
-        requireImport(path.isNotEmpty() && path.length <= 4096 && !path.startsWith('/') && '\\' !in path && '\u0000' !in path && !scheme.containsMatchIn(path), LocalBookImportReason.CorruptEpub) {
+        requireImport(path.isNotEmpty() && !path.startsWith('/') && '\\' !in path && '\u0000' !in path && !scheme.containsMatchIn(path), LocalBookImportReason.CorruptEpub) {
             "Invalid EPUB resource path."
         }
         val parts = mutableListOf<String>()
