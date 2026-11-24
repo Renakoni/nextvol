@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
 import kotlinx.coroutines.Dispatchers
@@ -93,7 +94,7 @@ internal fun ReaderFontEntry(settings: ReaderSettingsEditor, modifier: Modifier 
             listState.requestScrollToItem(index)
         }
     }
-    Column(modifier.padding(vertical = 8.dp)) {
+    Column(modifier.fillMaxWidth().background(NextVolDesign.tokens.cardSurface).padding(vertical = 8.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -27,8 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.theme.NextVolDesign
 import kotlinx.coroutines.launch
 
 /** Reader-local modal surface. Material owns the sheet gestures and predictive back, not a Dialog. */
@@ -52,6 +53,7 @@ internal fun ReaderSettingsSheet(
     backHandlerEnabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val tokens = NextVolDesign.tokens
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val inputMode = LocalInputModeManager.current
@@ -66,7 +68,7 @@ internal fun ReaderSettingsSheet(
     val sheetTitle = stringResource(R.string.reader_settings)
     val scrim = BottomSheetDefaults.ScrimColor
     val alpha by animateFloatAsState(
-        if (state.targetValue == SheetValue.Hidden) 0f else 1f,
+        targetValue = if (state.targetValue == SheetValue.Hidden) 0f else 1f,
         animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "reader-settings-scrim",
     )
@@ -83,16 +85,23 @@ internal fun ReaderSettingsSheet(
     }
     BackHandler(backHandlerEnabled && !state.isVisible) { onDismissRequest() }
     Box(Modifier.fillMaxSize().semantics { isTraversalGroup = true }) {
-        Canvas(Modifier.fillMaxSize()
-            .pointerInput(dismiss) { detectTapGestures { dismiss() } }
-            .semantics {
-                contentDescription = closeLabel
-                traversalIndex = 1f
-                onClick { dismiss(); true }
-            }) { drawRect(scrim, alpha = alpha) }
+        Canvas(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(dismiss) { detectTapGestures { dismiss() } }
+                .semantics {
+                    contentDescription = closeLabel
+                    traversalIndex = 1f
+                    onClick { dismiss(); true }
+                },
+        ) {
+            drawRect(scrim, alpha = alpha)
+        }
         BottomSheet(
             state = state,
-            modifier = Modifier.align(Alignment.TopCenter).consumeWindowInsets(offsetInsets)
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .consumeWindowInsets(offsetInsets)
                 .semantics { paneTitle = sheetTitle }
                 .focusRequester(focus)
                 .focusProperties { onExit = { cancelFocusChange() } }
@@ -100,9 +109,9 @@ internal fun ReaderSettingsSheet(
             onDismissRequest = onDismissRequest,
             backHandlerEnabled = backHandlerEnabled,
             contentWindowInsets = { BottomSheetDefaults.modalWindowInsets },
-            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 16.dp,
+            shape = RoundedCornerShape(topStart = tokens.sheetRadius, topEnd = tokens.sheetRadius),
+            containerColor = tokens.cardElevatedSurface,
+            tonalElevation = 0.dp,
             content = content,
         )
     }
