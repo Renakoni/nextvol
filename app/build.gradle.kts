@@ -415,6 +415,20 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-processing")
 }
 
+// GitHub's file size limit requires storing the upstream test runtime in two parts.
+val prepareRobolectricRuntime = tasks.register("prepareRobolectricRuntime") {
+    val name = "nativeruntime-dist-compat-1.0.18.jar"
+    val parts = listOf(1, 2).map { rootProject.file("gradle/robolectric/$name.part$it") }
+    val jar = layout.buildDirectory.file("robolectric/$name")
+    inputs.files(parts)
+    outputs.file(jar)
+    doLast {
+        jar.get().asFile.outputStream().buffered().use { output ->
+            for (part in parts) part.inputStream().use { it.copyTo(output) }
+        }
+    }
+}
+
 dependencies {
     implementation("com.optimaize.languagedetector:language-detector:0.6") {
         exclude(group = "com.intellij", module = "annotations")
@@ -464,6 +478,7 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation(libs.robolectric)
+    testRuntimeOnly(files(prepareRobolectricRuntime))
     testImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.compose.ui.test.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
@@ -549,6 +564,11 @@ dependencies {
 
 configurations.implementation {
     exclude(group = "com.intellij", module = "annotations")
+}
+
+// Use the vendored native runtime for every Robolectric unit test configuration.
+configurations.testImplementation {
+    exclude(group = "org.robolectric", module = "nativeruntime-dist-compat")
 }
 
 // Robolectric supplies desktop Conscrypt; Android's JNI binary cannot run in the JVM test worker.
