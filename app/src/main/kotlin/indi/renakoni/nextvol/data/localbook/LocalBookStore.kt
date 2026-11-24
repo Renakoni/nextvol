@@ -164,7 +164,11 @@ class LocalBookStore @Inject constructor(
                         PreparedLocalBook(title, chapters, draft.directory, words, digest.finishDigest(), encoding = detected)
                     }
                     LocalBookFormat.EPUB -> {
-                        val epub = EpubBookParser.parse(draft.original, File(draft.directory, "assets"), title)
+                        val epub = try {
+                            EpubBookParser.parse(draft.original, File(draft.directory, "assets"), title, operation::ensureActive)
+                        } catch (failure: OutOfMemoryError) {
+                            throw LocalBookImportException(LocalBookImportReason.InsufficientMemory, "Not enough memory to read this EPUB.", failure)
+                        }
                         epub.chapters.forEach(::write)
                         PreparedLocalBook(epub.title, chapters, draft.directory, words, digest.finishDigest(), epub.author,
                             epub.description, epub.publishingHouse, epub.coverPath)
@@ -197,7 +201,7 @@ class LocalBookStore @Inject constructor(
         withContext(NonCancellable + Dispatchers.IO) { lock.withLock {
             requireImport(draft.directory in drafts, LocalBookImportReason.SessionExpired) { "This import session is no longer available." }
             requireImport(draft.preview === parsed, LocalBookImportReason.SessionExpired) { "This preview is no longer current." }
-            requireImport(title.isNotBlank() && title.length <= 200, LocalBookImportReason.InvalidTitle) { "Enter a book title of at most 200 characters." }
+            requireImport(title.isNotBlank(), LocalBookImportReason.InvalidTitle) { "Enter a book title." }
             val index = LocalBookIndex(title.trim(), parsed.author, parsed.description, parsed.publishingHouse,
                 parsed.coverPath, LocalDateTime.now().toString(),
                 parsed.wordCount, parsed.chapters, manifest(draft, parsed, draft.book))
@@ -451,12 +455,14 @@ class LocalBookStore @Inject constructor(
 
     private fun volumes(book: SourceBookId, index: LocalBookIndex): BookVolumes {
         val volumes = mutableListOf<Volume>()
+        var chapters = mutableListOf<ChapterInformation>()
         index.chapters.forEachIndexed { number, chapter ->
             val volumeTitle = chapter.volume
-            val info = ChapterInformation(SourceChapterId(book, number.toString()).storageKey, chapter.title)
-            if (volumes.lastOrNull()?.volumeTitle == volumeTitle) {
-                volumes[volumes.lastIndex] = volumes.last().copy(chapters = volumes.last().chapters + info)
-            } else volumes += Volume(BookIdentity.volumeKey(book, volumes.size.toString()), volumeTitle, listOf(info))
+            if (volumes.lastOrNull()?.volumeTitle != volumeTitle) {
+                chapters = mutableListOf()
+                volumes += Volume(BookIdentity.volumeKey(book, volumes.size.toString()), volumeTitle, chapters)
+            }
+            chapters += ChapterInformation(SourceChapterId(book, number.toString()).storageKey, chapter.title)
         }
         return BookVolumes(book.storageKey, volumes)
     }

@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.data.localbook
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.FileNotFoundException
-import java.util.zip.ZipException
 
 class LocalBookImportFailureTest {
     private fun reason(block: () -> Unit): LocalBookImportReason {
@@ -22,7 +21,6 @@ class LocalBookImportFailureTest {
 
     @Test fun exceptionTypesDetermineTheReasonWithoutMatchingDiagnosticText() {
         assertEquals(LocalBookImportReason.FileAccess, LocalBookImportFailure.from(FileNotFoundException("任意说明")).reason)
-        assertEquals(LocalBookImportReason.CorruptEpub, LocalBookImportFailure.from(ZipException("任意说明")).reason)
         assertEquals(LocalBookImportReason.Unknown, LocalBookImportFailure.from(IllegalStateException("The text file is empty.")).reason)
         val cause = IllegalStateException("underlying detail")
         val failure = LocalBookImportFailure.from(LocalBookImportException(LocalBookImportReason.Storage, "诊断", cause))

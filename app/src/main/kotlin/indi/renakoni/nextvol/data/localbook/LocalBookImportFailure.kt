@@ -7,8 +7,8 @@ import java.util.zip.ZipException
 
 enum class LocalBookImportReason {
     EmptyFile, UnsupportedFormat, FileAccess, Storage,
-    InvalidEncoding, UnsupportedEncoding, InvalidRule, RuleTooLong, TooManyChapters,
-    NoContent, CorruptEpub, EncryptedEpub, UnsupportedEpub, EpubLimit,
+    InvalidEncoding, UnsupportedEncoding, InvalidRule, RuleTooLong,
+    NoContent, CorruptEpub, EncryptedEpub, UnsupportedEpub, InsufficientMemory,
     SessionExpired, InvalidTitle, ShelfChanged, Unknown,
 }
 

@@ -8,14 +8,13 @@
     <string name="local_import_error_encoding_unsupported">暂不支持此编码，请从列表中选择其他编码。</string>
     <string name="local_import_error_rule">章节规则有误或使用了不支持的语法。请修改规则，或恢复默认规则。</string>
     <string name="local_import_error_rule_length">章节规则过长，请缩短至 1,024 个字符以内。</string>
-    <string name="local_import_error_chapters">EPUB 文件超过 10,000 章，请拆分原书文件。</string>
     <string name="local_import_error_no_content">文件中没有可阅读的正文。请检查文件内容；若为 TXT，也请检查编码和章节规则。</string>
     <string name="local_import_error_epub_damaged">EPUB 文件不完整或已损坏。请重新下载或导出原文件后再试。</string>
     <string name="local_import_error_epub_encrypted">此 EPUB 的正文或图片已加密，暂时无法导入。</string>
-    <string name="local_import_error_epub_unsupported">此 EPUB 含不支持的正文格式或矢量插图。请转换为包含 HTML 正文及 PNG、JPEG 图片的 EPUB。</string>
-    <string name="local_import_error_epub_limit">EPUB 内的文件数量过多或标记嵌套过深，请简化或拆分原书文件。</string>
+    <string name="local_import_error_epub_unsupported">此 EPUB 含 NextVol 无法读取的资源格式。可尝试重新导出为正文和图片均保存在书内的 EPUB。</string>
+    <string name="local_import_error_memory">设备内存不足，无法读取此 EPUB。</string>
     <string name="local_import_error_session">本次导入已失效，请返回后重新选择原文件。</string>
-    <string name="local_import_error_title">请输入 1 至 200 个字符的书名。</string>
+    <string name="local_import_error_title">请输入书名。</string>
     <string name="local_import_error_shelf">所选书架已不可用，请返回后重新选择书架。</string>
     <string name="local_import_error_unknown">暂时无法导入这本书，请重新选择文件后重试。你可以展开下方的诊断详情查看原因。</string>
     <string name="local_import_show_details">查看诊断详情</string>

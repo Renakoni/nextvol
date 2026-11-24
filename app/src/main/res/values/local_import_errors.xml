@@ -8,14 +8,13 @@
     <string name="local_import_error_encoding_unsupported">This text encoding is not supported. Choose an encoding from the list.</string>
     <string name="local_import_error_rule">The chapter rule is invalid or uses unsupported syntax. Edit it or restore the default rule.</string>
     <string name="local_import_error_rule_length">The chapter rule is too long. Shorten it to 1,024 characters or fewer.</string>
-    <string name="local_import_error_chapters">The EPUB contains more than 10,000 chapters. Split the original book.</string>
     <string name="local_import_error_no_content">No readable content was found. Check the file contents; for TXT, also check the encoding and chapter rule.</string>
     <string name="local_import_error_epub_damaged">The EPUB is incomplete or damaged. Download or export the original file again.</string>
     <string name="local_import_error_epub_encrypted">This EPUB contains encrypted text or images and cannot be imported.</string>
-    <string name="local_import_error_epub_unsupported">This EPUB uses unsupported content or vector artwork. Convert it to an EPUB with HTML text and PNG or JPEG images.</string>
-    <string name="local_import_error_epub_limit">The EPUB contains too many files or its markup is nested too deeply. Simplify or split the original book.</string>
+    <string name="local_import_error_epub_unsupported">This EPUB contains a resource format NextVol cannot read. Try exporting it as a standard EPUB with local text and images.</string>
+    <string name="local_import_error_memory">The device ran out of memory while reading this EPUB.</string>
     <string name="local_import_error_session">This import session has ended. Go back and select the original file again.</string>
-    <string name="local_import_error_title">Enter a book title of 1 to 200 characters.</string>
+    <string name="local_import_error_title">Enter a book title.</string>
     <string name="local_import_error_shelf">The selected bookshelf is no longer available. Go back and choose a bookshelf again.</string>
     <string name="local_import_error_unknown">The book could not be imported. Select the file again to retry. Diagnostic details are available below.</string>
     <string name="local_import_show_details">Show diagnostic details</string>

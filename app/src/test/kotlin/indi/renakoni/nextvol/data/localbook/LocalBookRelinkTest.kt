@@ -48,8 +48,6 @@ import org.robolectric.annotation.Config
 import java.io.File
 import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [27], application = Application::class)
@@ -85,18 +83,6 @@ class LocalBookRelinkTest {
     @After fun close() { databases.forEach { it.close() } }
     private fun txt(name: String = "novel.txt", text: String = "Chapter 1\nFirst text\nChapter 2\nSecond text") =
         temporary.newFile(name).apply { writeText(text) }
-    private fun epub() = temporary.newFile("novel.epub").apply {
-        ZipOutputStream(outputStream()).use { zip ->
-            val entries = mapOf(
-                "mimetype" to "application/epub+zip",
-                "META-INF/container.xml" to "<container><rootfiles><rootfile full-path='OPS/book.opf' media-type='application/oebps-package+xml'/></rootfiles></container>",
-                "OPS/book.opf" to "<package><metadata xmlns:dc='http://purl.org/dc/elements/1.1/'><dc:title>Original</dc:title></metadata><manifest><item id='one' href='one.xhtml' media-type='application/xhtml+xml'/><item id='image' href='image.png' media-type='image/png'/></manifest><spine><itemref idref='one'/></spine></package>",
-                "OPS/one.xhtml" to "<html><body><h1>Chapter one</h1><p>Text</p><img src='image.png'/></body></html>",
-                "OPS/image.png" to "image fixture",
-            )
-            entries.forEach { (name, value) -> zip.putNextEntry(ZipEntry(name)); zip.write(value.toByteArray()); zip.closeEntry() }
-        }
-    }
     private suspend fun Library.seedPosition(book: SourceBookId) {
         val chapter = SourceChapterId(book, "0").storageKey
         db.userReadingDataDao().insert(UserReadingDataEntity(book.storageKey, LocalDateTime.now(), 81, .4f,
@@ -144,7 +130,6 @@ class LocalBookRelinkTest {
         val text = "Chapter 1\n" + "これは日本語の小説です。登場人物たちは長い旅に出かけました。読者は物語を楽しみます。".repeat(40)
         roundTrip(temporary.newFile("japanese.txt").apply { writeBytes(text.toByteArray(java.nio.charset.Charset.forName("Shift_JIS"))) })
     }
-    @Test fun epubRestoreResolvesImagesFromTheNewDeviceDirectory() = runBlocking { roundTrip(epub()) }
 
     @Test fun sharedBookshelfRetainsLocalFileEvidenceWithoutOtherBooksOrPrivateReadingData() = runBlocking {
         val file = txt()

@@ -145,9 +145,9 @@ fun LocalBookImportDialog(
                                     enabled = !state.importing && !state.busy, singleLine = true,
                                     label = { Text(stringResource(R.string.local_book_title)) },
                                     supportingText = {
-                                        if (!state.busy && (state.title.isBlank() || state.title.length > 200)) Text(stringResource(R.string.local_book_title_error))
+                                        if (!state.busy && state.title.isBlank()) Text(stringResource(R.string.local_import_error_title))
                                     },
-                                    isError = !state.busy && (state.title.isBlank() || state.title.length > 200))
+                                    isError = !state.busy && state.title.isBlank())
                                 SectionDescription(Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                                     stringResource(R.string.local_book_copy_note))
                             }

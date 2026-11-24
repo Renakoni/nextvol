@@ -517,7 +517,6 @@
     <string name="local_book_preparing">正在準備書籍…</string>
     <string name="local_book_import_failed">暫時無法匯入</string>
     <string name="local_book_title">書名</string>
-    <string name="local_book_title_error">請輸入 1–200 個字元的書名。</string>
     <string name="local_book_target">匯入至「%1$s」</string>
     <string name="local_book_copy_note">每次匯入都會建立獨立副本，原有書籍及閱讀進度會保留。</string>
     <string name="local_book_chapter_detection">章節辨識</string>
