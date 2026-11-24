@@ -79,8 +79,6 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.bangumi.BangumiSyncRecord
 import indi.renakoni.nextvol.data.bangumi.BangumiSyncStatus
 import indi.renakoni.nextvol.data.bangumi.BangumiVolumeMapping
-import indi.renakoni.nextvol.data.bangumi.bangumiHttpError
-import indi.renakoni.nextvol.data.bangumi.binding
 import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.EmptyPage
 import indi.renakoni.nextvol.ui.components.design.EditorialCard
