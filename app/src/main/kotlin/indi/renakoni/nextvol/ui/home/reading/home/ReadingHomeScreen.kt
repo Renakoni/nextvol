@@ -483,11 +483,13 @@ private fun EditorialHeroBookCard(
     }
     val heroCorner = 24.dp
 
-    val ambientBrush = remember(tokens.isDark, colorScheme.primaryContainer, colorScheme.tertiaryContainer, tokens.cardSurface) {
+    val primaryContainer = colorScheme.primaryContainer
+    val tertiaryContainer = colorScheme.tertiaryContainer
+    val ambientBrush = remember(tokens.isDark, primaryContainer, tertiaryContainer, tokens.cardSurface) {
         Brush.linearGradient(
             colors = listOf(
-                colorScheme.primaryContainer.copy(alpha = if (tokens.isDark) 0.34f else 0.42f),
-                colorScheme.tertiaryContainer.copy(alpha = if (tokens.isDark) 0.16f else 0.18f),
+                primaryContainer.copy(alpha = if (tokens.isDark) 0.34f else 0.42f),
+                tertiaryContainer.copy(alpha = if (tokens.isDark) 0.16f else 0.18f),
                 tokens.cardSurface,
             ),
         )
