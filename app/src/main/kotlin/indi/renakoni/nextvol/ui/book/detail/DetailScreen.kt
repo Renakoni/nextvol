@@ -1,6 +1,7 @@
 package indi.renakoni.nextvol.ui.book.detail
 
 import indi.renakoni.nextvol.data.book.availableVolumes
+import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
 import android.net.Uri
 import android.widget.Toast
 import indi.renakoni.nextvol.utils.textToast
@@ -667,7 +668,9 @@ private fun DetailContent(
         if (visible >= 4 && !selectingChapters && !searching) item {
             IntroBlock(
                 modifier = Modifier.fadeInOnce("intro"),
-                description = bookInformation.description
+                description = remember(bookInformation.id, bookInformation.description) {
+                    bookDescriptionForDisplay(bookInformation.id, bookInformation.description)
+                }
             )
         }
 
