@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,11 +14,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,23 +29,26 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow.Companion.Ellipsis
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.onErr
@@ -66,9 +68,7 @@ import indi.renakoni.nextvol.ui.components.calendar.core.CalendarWeek
 import indi.renakoni.nextvol.ui.components.calendar.core.displayText
 import indi.renakoni.nextvol.ui.components.calendar.core.yearMonth
 import indi.renakoni.nextvol.ui.components.calendar.rememberHeatMapCalendarState
-import indi.renakoni.nextvol.ui.components.design.EditorialCard
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
-import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.design.EditorialTopBar
 import indi.renakoni.nextvol.utils.formReadingDuration
@@ -76,6 +76,8 @@ import indi.renakoni.nextvol.utils.navigationBarSpacer
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.flow.Flow
+import top.yukonga.miuix.kmp.squircle.squircleBackground
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
@@ -126,12 +128,12 @@ fun StatsOverviewScreen(
                         .hazeSource(contentHazeState),
                     contentPadding = PaddingValues(
                         top = paddingValues.calculateTopPadding() + 8.dp,
-                        bottom = 20.dp,
+                        bottom = 24.dp,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(22.dp),
                 ) {
                     item(key = "summary_strip") {
-                        OverviewSummaryStrip(uiState.bookRecordsByDate)
+                        OverviewSummaryLedger(uiState.bookRecordsByDate)
                     }
                     item(key = "calendar_block") {
                         CalendarBlock(
@@ -153,9 +155,10 @@ fun StatsOverviewScreen(
 }
 
 @Composable
-private fun OverviewSummaryStrip(
+private fun OverviewSummaryLedger(
     bookRecordsByDate: Map<LocalDate, List<BookRecord>>,
 ) {
+    val tokens = NextVolDesign.tokens
     val (totalSeconds, readBookCount) = remember(bookRecordsByDate) {
         var seconds = 0L
         val readBookIds = HashSet<String>()
@@ -173,78 +176,70 @@ private fun OverviewSummaryStrip(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SectionHeader(
-            modifier = Modifier.padding(horizontal = 4.dp),
-            text = stringResource(R.string.stats_last_six_months),
-        )
+        SectionHeader(text = stringResource(R.string.stats_last_six_months))
+
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            SummaryMetricCard(
-                modifier = Modifier.weight(1f),
-                icon = painterResource(R.drawable.schedule_90dp),
-                label = stringResource(R.string.reading_duration),
+            LedgerMetricColumn(
                 value = if (totalSeconds > 0L) formReadingDuration(totalSeconds) else "--",
-            )
-            SummaryMetricCard(
+                label = stringResource(R.string.reading_duration),
                 modifier = Modifier.weight(1f),
-                icon = painterResource(R.drawable.menu_book_24px),
-                label = stringResource(R.string.activity_read),
+            )
+            VerticalDivider(
+                modifier = Modifier
+                    .height(42.dp)
+                    .padding(horizontal = 16.dp),
+                thickness = 0.6.dp,
+                color = tokens.divider,
+            )
+            LedgerMetricColumn(
                 value = stringResource(R.string.n_books, readBookCount),
+                label = stringResource(R.string.activity_read),
+                modifier = Modifier.weight(1f),
             )
         }
+
+        EditorialHairlineDivider()
     }
 }
 
 @Composable
-private fun SummaryMetricCard(
-    icon: Painter,
-    label: String,
+private fun LedgerMetricColumn(
     value: String,
+    label: String,
     modifier: Modifier = Modifier,
 ) {
-    EditorialCard(
+    Column(
         modifier = modifier,
-        cornerRadius = 20.dp,
-        contentPadding = PaddingValues(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            EditorialIconBadge(
-                painter = icon,
-                size = 38.dp,
-                iconSize = 19.dp,
-                cornerRadius = 12.dp,
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = label,
-                    style = typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = Ellipsis,
-                )
-                Text(
-                    text = value,
-                    style = typography.titleMedium.copy(
-                        fontWeight = FontWeight.W700,
-                        fontFeatureSettings = "tnum",
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = Ellipsis,
-                )
-            }
-        }
+        Text(
+            text = value,
+            style = typography.displayMedium.copy(
+                fontSize = 26.sp,
+                lineHeight = 32.sp,
+                fontWeight = FontWeight.W700,
+                fontFeatureSettings = "tnum",
+                letterSpacing = (-0.4).sp,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = Ellipsis,
+        )
+        Text(
+            text = label,
+            style = typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = Ellipsis,
+        )
     }
 }
 
@@ -253,6 +248,7 @@ private fun CalendarBlock(
     viewModel: StatsOverviewViewModel,
     onSelectedDate: (LocalDate) -> Unit,
 ) {
+    val tokens = NextVolDesign.tokens
     val uiState = viewModel.uiState
     val now = LocalDate.now()
     val startDate = uiState.startDate
@@ -262,6 +258,7 @@ private fun CalendarBlock(
         firstVisibleMonth = now.yearMonth,
         firstDayOfWeek = DayOfWeek.MONDAY,
     )
+    val surfaceRadius = 20.dp
 
     Column(
         modifier = Modifier.padding(horizontal = 16.dp),
@@ -271,10 +268,26 @@ private fun CalendarBlock(
             modifier = Modifier.padding(horizontal = 4.dp),
             text = stringResource(R.string.calendar),
         )
-        EditorialCard(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 22.dp,
-            contentPadding = PaddingValues(16.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (!tokens.isDark) {
+                        Modifier.shadow(
+                            elevation = 3.dp,
+                            shape = RoundedCornerShape(surfaceRadius),
+                            ambientColor = tokens.glassShadow.copy(alpha = 0.05f),
+                            spotColor = tokens.glassShadow.copy(alpha = 0.05f),
+                            clip = false,
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+                .squircleBackground(color = tokens.cardSurface, cornerRadius = surfaceRadius)
+                .squircleClip(surfaceRadius)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             HeatMapCalendar(
                 state = state,
@@ -296,9 +309,6 @@ private fun CalendarBlock(
                 weekHeader = { WeekHeader(it) },
                 monthHeader = { MonthHeader(it, now) },
             )
-            Spacer(Modifier.height(10.dp))
-            EditorialHairlineDivider()
-            Spacer(Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -332,25 +342,24 @@ private fun DailyStatsBlock(
     uiState: StatsOverviewUiState,
     onClickDetailScreen: (Int) -> Unit,
 ) {
-    val tokens = NextVolDesign.tokens
     val selectedDate = uiState.selectedDate
     val records = uiState.bookRecordsByDate[selectedDate] ?: emptyList()
     val details = remember(records) { getDailyDetails(records) }
     val untitledBook = stringResource(R.string.cover_untitled)
 
     Column(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AnimatedText(
                 text = selectedDate.toString(),
-                style = typography.titleMedium.copy(
+                style = typography.titleLarge.copy(
                     fontWeight = FontWeight.W700,
                     fontFeatureSettings = "tnum",
                 ),
@@ -358,73 +367,81 @@ private fun DailyStatsBlock(
             )
             Spacer(Modifier.weight(1f))
             if (details?.formattedTotalTime?.isNotBlank() == true) {
-                val pillShape = CircleShape
                 Row(
                     modifier = Modifier
-                        .clip(pillShape)
-                        .background(tokens.activePillFill)
-                        .border(0.75.dp, tokens.activePillBorder, pillShape)
-                        .clickable {
+                        .heightIn(min = 36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(role = Role.Button) {
                             onClickDetailScreen(
                                 selectedDate.format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInt(),
                             )
                         }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     Text(
                         text = stringResource(R.string.detail_title),
-                        style = typography.labelLarge.copy(fontWeight = FontWeight.W600),
+                        style = typography.labelLarge.copy(fontWeight = FontWeight.W500),
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Icon(
-                        painter = painterResource(R.drawable.arrow_forward_24px),
+                        painter = painterResource(R.drawable.arrow_forward_ios_24px),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.80f),
+                        modifier = Modifier.size(11.dp),
                     )
                 }
             }
         }
 
-        EditorialCard(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 22.dp,
-            contentPadding = PaddingValues(16.dp),
-        ) {
-            StatSection(
-                icon = painterResource(R.drawable.schedule_90dp),
-                title = stringResource(R.string.activity_reading_time),
-                value = details?.formattedTotalTime ?: "--",
-            ) {
-                Crossfade(
-                    targetState = details?.timeDetails.isNullOrEmpty(),
-                    label = "dailyStatsDetails",
-                ) { isEmpty ->
-                    if (isEmpty) {
-                        NoRecords()
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            details?.timeDetails?.forEachIndexed { index, pair ->
-                                val formattedTime = formReadingDuration(pair.second.toLong())
-                                val bookInformation by pair.first.collectAsStateWithLifecycle(null)
-                                bookInformation?.onOk {
-                                    DataItem(
-                                        leftText = it.title.ifBlank { untitledBook },
-                                        rightText = formattedTime,
-                                    )
-                                }?.onErr {
-                                    DataItem(
-                                        leftText = untitledBook,
-                                        rightText = formattedTime,
-                                    )
-                                } ?: DataItemPlaceholder(rightText = formattedTime)
+        EditorialHairlineDivider()
 
-                                if (index != details.timeDetails.lastIndex) {
-                                    EditorialHairlineDivider()
-                                }
-                            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.activity_reading_time),
+                style = typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = details?.formattedTotalTime ?: "--",
+                style = typography.titleMedium.copy(
+                    fontWeight = FontWeight.W700,
+                    fontFeatureSettings = "tnum",
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        Crossfade(
+            targetState = details?.timeDetails.isNullOrEmpty(),
+            label = "dailyStatsDetails",
+        ) { isEmpty ->
+            if (isEmpty) {
+                NoRecords()
+            } else {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    details?.timeDetails?.forEachIndexed { index, pair ->
+                        val formattedTime = formReadingDuration(pair.second.toLong())
+                        val bookInformation by pair.first.collectAsStateWithLifecycle(null)
+                        bookInformation?.onOk {
+                            DataItem(
+                                leftText = it.title.ifBlank { untitledBook },
+                                rightText = formattedTime,
+                            )
+                        }?.onErr {
+                            DataItem(
+                                leftText = untitledBook,
+                                rightText = formattedTime,
+                            )
+                        } ?: DataItemPlaceholder(rightText = formattedTime)
+
+                        if (index != details.timeDetails.lastIndex) {
+                            EditorialHairlineDivider()
                         }
                     }
                 }
@@ -439,7 +456,7 @@ private fun NoRecords() {
         text = stringResource(R.string.no_records),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(vertical = 18.dp),
         textAlign = TextAlign.Center,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = typography.bodyMedium,
@@ -468,70 +485,18 @@ private fun getDailyDetails(records: List<BookRecord>): DailyDateDetails? {
 }
 
 @Composable
-private fun StatSection(
-    icon: Painter,
-    title: String,
-    value: String,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    val tokens = NextVolDesign.tokens
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            EditorialIconBadge(
-                painter = icon,
-                size = 32.dp,
-                iconSize = 17.dp,
-                cornerRadius = 10.dp,
-            )
-            Text(
-                text = title,
-                style = typography.titleSmall.copy(fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.weight(1f))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(tokens.activePillFill)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-            ) {
-                Text(
-                    text = value,
-                    style = typography.labelMedium.copy(
-                        fontWeight = FontWeight.W600,
-                        fontFeatureSettings = "tnum",
-                    ),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-        EditorialHairlineDivider()
-        content()
-    }
-}
-
-@Composable
 private fun DataItem(leftText: String, rightText: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
+            .padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)),
-        )
         Text(
             modifier = Modifier.weight(1f),
             text = leftText,
-            style = typography.bodyMedium,
+            style = typography.bodyMedium.copy(fontWeight = FontWeight.W500),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = Ellipsis,
@@ -550,16 +515,10 @@ private fun DataItemPlaceholder(rightText: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
+            .padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-        )
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -633,8 +592,7 @@ private fun LevelBox(
     isZero: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
-    val tokens = NextVolDesign.tokens
-    val tileShape = RoundedCornerShape(5.dp)
+    val tileShape = RoundedCornerShape(6.dp)
     Box(
         modifier = Modifier
             .size(24.dp)
@@ -642,18 +600,14 @@ private fun LevelBox(
             .clip(tileShape)
             .background(color = color)
             .then(
-                when {
-                    selected == true -> Modifier.border(
-                        width = 1.6.dp,
+                if (selected == true) {
+                    Modifier.border(
+                        width = 1.8.dp,
                         color = MaterialTheme.colorScheme.onSurface,
                         shape = tileShape,
                     )
-                    isZero -> Modifier.border(
-                        width = 0.5.dp,
-                        color = tokens.cardBorder.copy(alpha = 0.65f),
-                        shape = tileShape,
-                    )
-                    else -> Modifier
+                } else {
+                    Modifier
                 },
             )
             .clickable(enabled = onClick != null) { onClick?.invoke() },

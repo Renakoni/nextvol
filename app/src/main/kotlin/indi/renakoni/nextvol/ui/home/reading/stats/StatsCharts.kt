@@ -1,11 +1,9 @@
 package indi.renakoni.nextvol.ui.home.reading.stats
 
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,7 +21,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -57,7 +54,6 @@ import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
 import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.statistics.Count
-import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.home.reading.stats.detailed.StatsViewOption
 import indi.renakoni.nextvol.utils.formMinutes
@@ -231,7 +227,6 @@ fun ReadingTimeStatsChart(
     viewOption: StatsViewOption,
     showAverage: Boolean = true,
 ) {
-    val tokens = NextVolDesign.tokens
     val dates = remember(selectedDate) {
         (0..6).map { selectedDate.minusDays((6 - it).toLong()) }
     }
@@ -308,41 +303,26 @@ fun ReadingTimeStatsChart(
     val averageLine = rememberAverageLine(average, showAverage)
 
     Column(Modifier.fillMaxWidth()) {
-        Row(
+        val unitLabel = stringResource(if (useHoursOnAxis) R.string.unit_hours else R.string.unit_minutes).trim()
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = stringResource(R.string.stats_total),
-                    style = typography.labelMedium,
-                    color = colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = formMinutes(totalMinutes.toInt()),
-                    style = typography.displayMedium.copy(
-                        fontWeight = FontWeight.W700,
-                        fontFeatureSettings = "tnum",
-                    ),
-                    color = colorScheme.primary,
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(tokens.cardElevatedSurface)
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
-            ) {
-                Text(
-                    text = stringResource(if (useHoursOnAxis) R.string.unit_hours else R.string.unit_minutes).trim(),
-                    style = typography.labelSmall.copy(fontWeight = FontWeight.W600),
-                    color = colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                text = "${stringResource(R.string.stats_total)} · $unitLabel",
+                style = typography.labelMedium,
+                color = colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = formMinutes(totalMinutes.toInt()),
+                style = typography.displayMedium.copy(
+                    fontWeight = FontWeight.W700,
+                    fontFeatureSettings = "tnum",
+                ),
+                color = colorScheme.onSurface,
+            )
         }
 
         CartesianChartHost(

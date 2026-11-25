@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -54,7 +55,6 @@ import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.components.SectionHeader
-import indi.renakoni.nextvol.ui.components.design.EditorialCard
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.design.EditorialPillTabRow
@@ -66,6 +66,8 @@ import indi.renakoni.nextvol.utils.navigationBarSpacer
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.flow.Flow
+import top.yukonga.miuix.kmp.squircle.squircleBackground
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 
@@ -239,6 +241,8 @@ fun StatsCard(
     subTitle: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val tokens = NextVolDesign.tokens
+    val radius = 20.dp
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -256,13 +260,28 @@ fun StatsCard(
             }
         }
 
-        EditorialCard(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 22.dp,
-            contentPadding = PaddingValues(18.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (!tokens.isDark) {
+                        Modifier.shadow(
+                            elevation = 3.dp,
+                            shape = RoundedCornerShape(radius),
+                            ambientColor = tokens.glassShadow.copy(alpha = 0.05f),
+                            spotColor = tokens.glassShadow.copy(alpha = 0.05f),
+                            clip = false,
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+                .squircleBackground(color = tokens.cardSurface, cornerRadius = radius)
+                .squircleClip(radius)
+                .padding(18.dp),
             content = content,
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
     }
 }
 

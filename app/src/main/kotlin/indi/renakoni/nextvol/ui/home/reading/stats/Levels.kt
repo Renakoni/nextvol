@@ -62,9 +62,9 @@ internal fun Level.resolvedColor(
 internal fun Level.themedColor(isWeekend: Boolean): Color {
     val isDark = NextVolDesign.tokens.isDark
     val emptySurface = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerHighest
-    } else {
         MaterialTheme.colorScheme.surfaceContainerHigh
+    } else {
+        MaterialTheme.colorScheme.surfaceContainer
     }
     return resolvedColor(isWeekend = isWeekend, isDark = isDark, emptySurface = emptySurface)
 }
