@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.theme.NextVolDesign
-import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
 import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenu
 import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenuItem
 import indi.renakoni.nextvol.ui.home.settings.navigateToSliderValueDialog
@@ -154,8 +153,8 @@ fun SettingsSwitchEntry(
     val tokens = NextVolDesign.tokens
     Row(
         modifier = Modifier
-            .background(tokens.cardSurface)
             .then(modifier)
+            .background(tokens.cardSurface)
             .fillMaxWidth()
             .clickable(enabled = !disabled) { onCheckedChange(!checked) }
             .alpha(if (disabled) 0.45f else 1f)
@@ -164,7 +163,12 @@ fun SettingsSwitchEntry(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         painter?.let {
-            EditorialIconBadge(painter = it)
+            Icon(
+                painter = it,
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
         }
 
         Column(
@@ -261,8 +265,8 @@ private fun SettingsSliderEntry(
 
     Row(
         modifier = Modifier
-            .background(tokens.cardSurface)
             .then(modifier)
+            .background(tokens.cardSurface)
             .fillMaxWidth()
             .combinedClickable(
                 onClick = {},
@@ -273,7 +277,12 @@ private fun SettingsSliderEntry(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         painter?.let {
-            EditorialIconBadge(painter = it)
+            Icon(
+                painter = it,
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
         }
 
         Column(
@@ -410,8 +419,8 @@ fun SettingsMenuEntry(
 
     Row(
         modifier = Modifier
-            .background(tokens.cardSurface)
             .then(modifier)
+            .background(tokens.cardSurface)
             .fillMaxWidth()
             .clickable(enabled = !disabled) { expanded = true }
             .alpha(if (disabled) 0.45f else 1f)
@@ -420,7 +429,12 @@ fun SettingsMenuEntry(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         painter?.let {
-            EditorialIconBadge(painter = it)
+            Icon(
+                painter = it,
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
         }
 
         Column(
@@ -515,8 +529,8 @@ fun SettingsClickableEntry(
     val tokens = NextVolDesign.tokens
     Row(
         modifier = Modifier
-            .background(tokens.cardSurface)
             .then(modifier)
+            .background(tokens.cardSurface)
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 14.dp),
@@ -524,7 +538,12 @@ fun SettingsClickableEntry(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         painter?.let {
-            EditorialIconBadge(painter = it)
+            Icon(
+                painter = it,
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
         }
 
         Column(
