@@ -171,8 +171,6 @@
     <string name="settings_text_formatting">文本格式化</string>
     <string name="settings_text_formatting_desc">根據規則格式化文字內容</string>
     <string name="settings_theme_palette_settings">主題設定</string>
-    <string name="settings_theme_light_theme_desc">指定應用程式在淺色模式下的主題</string>
-    <string name="settings_theme_dark_theme_desc">指定應用程式在深色模式下的主題</string>
     <string name="settings_theme_dynamic_colors">系統動態配色</string>
     <string name="settings_theme_dynamic_colors_desc_unavailable">從系統主題套用動態配色 (需要 Android 12+)</string>
     <string name="settings_theme_dynamic_colors_desc">從系統主題套用動態配色</string>

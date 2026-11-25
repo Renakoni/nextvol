@@ -178,8 +178,6 @@
     <string name="settings_text_formatting">Text Formatting</string>
     <string name="settings_text_formatting_desc">Formatting text content based on rules</string>
     <string name="settings_theme_palette_settings">Theme settings</string>
-    <string name="settings_theme_light_theme_desc">Set the app theme for light mode</string>
-    <string name="settings_theme_dark_theme_desc">Set the app theme for dark mode</string>
     <string name="settings_theme_dynamic_colors">Dynamic Colors</string>
     <string name="settings_theme_dynamic_colors_desc_unavailable">Apply system-generated dynamic colors (Android 12+ required)</string>
     <string name="settings_theme_dynamic_colors_desc">Apply system-generated dynamic colors</string>

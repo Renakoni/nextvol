@@ -42,7 +42,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,13 +75,9 @@ import coil3.memory.MemoryCache
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.theme.AppTheme
-import indi.renakoni.nextvol.theme.DarkObsidianColorScheme
-import indi.renakoni.nextvol.theme.DefaultDarkColorScheme
-import indi.renakoni.nextvol.theme.DefaultLightColorScheme
-import indi.renakoni.nextvol.theme.DesignerDarkColorScheme
-import indi.renakoni.nextvol.theme.DesignerLightColorScheme
 import indi.renakoni.nextvol.theme.NextVolDesign
+import indi.renakoni.nextvol.theme.darkThemePalette
+import indi.renakoni.nextvol.theme.lightThemePalette
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import indi.renakoni.nextvol.ui.LocalDarkColorScheme
 import indi.renakoni.nextvol.ui.LocalLightColorScheme
@@ -188,69 +183,62 @@ fun DarkModeSettings(
         text = stringResource(R.string.theme_settings),
     )
 
-    val appTheme = AppTheme(
-        isDark = LocalAppTheme.current.isDark,
-        colorScheme = colorScheme,
-    )
-
-    CompositionLocalProvider(LocalAppTheme provides appTheme) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-                .selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        DarkModeOptionCard(
+            label = stringResource(R.string.key_dark_mode_disabled),
+            selected = settingState.darkModeKey == "Disabled",
+            onClick = { settingState.darkModeKeyUserData.asynchronousSet("Disabled") },
+            modifier = Modifier.weight(1f),
         ) {
-            DarkModeOptionCard(
-                label = stringResource(R.string.key_dark_mode_disabled),
-                selected = settingState.darkModeKey == "Disabled",
-                onClick = { settingState.darkModeKeyUserData.asynchronousSet("Disabled") },
-                modifier = Modifier.weight(1f),
-            ) {
-                LightThemeSettingsItem(Modifier.fillMaxSize())
-            }
+            LightThemeSettingsItem(Modifier.fillMaxSize())
+        }
 
-            DarkModeOptionCard(
-                label = stringResource(R.string.key_dark_mode_enabled),
-                selected = settingState.darkModeKey == "Enabled",
-                onClick = { settingState.darkModeKeyUserData.asynchronousSet("Enabled") },
-                modifier = Modifier.weight(1f),
-            ) {
-                DarkThemeSettingsItem(Modifier.fillMaxSize())
-            }
+        DarkModeOptionCard(
+            label = stringResource(R.string.key_dark_mode_enabled),
+            selected = settingState.darkModeKey == "Enabled",
+            onClick = { settingState.darkModeKeyUserData.asynchronousSet("Enabled") },
+            modifier = Modifier.weight(1f),
+        ) {
+            DarkThemeSettingsItem(Modifier.fillMaxSize())
+        }
 
-            DarkModeOptionCard(
-                label = stringResource(R.string.key_dark_mode_follow_system),
-                selected = settingState.darkModeKey == "FollowSystem",
-                onClick = { settingState.darkModeKeyUserData.asynchronousSet("FollowSystem") },
-                modifier = Modifier.weight(1f),
-            ) {
-                Box(Modifier.fillMaxSize()) {
-                    val shapeTop = GenericShape { size: Size, _ ->
-                        moveTo(0f, 0f)
-                        lineTo(size.width, 0f)
-                        lineTo(size.width, size.height / 2)
-                        lineTo(0f, size.height / 2)
-                        close()
-                    }
-                    val shapeBottom = GenericShape { size: Size, _ ->
-                        moveTo(0f, size.height / 2)
-                        lineTo(size.width, size.height / 2)
-                        lineTo(size.width, size.height)
-                        lineTo(0f, size.height)
-                        close()
-                    }
-                    LightThemeSettingsItem(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .graphicsLayer { clip = true; shape = shapeTop },
-                    )
-                    DarkThemeSettingsItem(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .graphicsLayer { clip = true; shape = shapeBottom },
-                    )
+        DarkModeOptionCard(
+            label = stringResource(R.string.key_dark_mode_follow_system),
+            selected = settingState.darkModeKey == "FollowSystem",
+            onClick = { settingState.darkModeKeyUserData.asynchronousSet("FollowSystem") },
+            modifier = Modifier.weight(1f),
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                val shapeTop = GenericShape { size: Size, _ ->
+                    moveTo(0f, 0f)
+                    lineTo(size.width, 0f)
+                    lineTo(size.width, size.height / 2)
+                    lineTo(0f, size.height / 2)
+                    close()
                 }
+                val shapeBottom = GenericShape { size: Size, _ ->
+                    moveTo(0f, size.height / 2)
+                    lineTo(size.width, size.height / 2)
+                    lineTo(size.width, size.height)
+                    lineTo(0f, size.height)
+                    close()
+                }
+                LightThemeSettingsItem(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .graphicsLayer { clip = true; shape = shapeTop },
+                )
+                DarkThemeSettingsItem(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .graphicsLayer { clip = true; shape = shapeBottom },
+                )
             }
         }
     }
@@ -366,15 +354,9 @@ fun ThemeSettingsList(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     options.optionList.forEach { option ->
-                        val scheme = when (option.key) {
-                            "light_designer" -> DesignerLightColorScheme
-                            "dark_obsidian" -> DarkObsidianColorScheme
-                            "dark_designer" -> DesignerDarkColorScheme
-                            else -> if (isDark) DefaultDarkColorScheme else DefaultLightColorScheme
-                        }
                         PaletteOptionCard(
                             label = stringResource(option.nameId),
-                            scheme = scheme,
+                            scheme = if (isDark) darkThemePalette(option.key) else lightThemePalette(option.key),
                             selected = selected == option.key,
                             onClick = { preference.asynchronousSet(option.key) },
                             modifier = Modifier.weight(1f),

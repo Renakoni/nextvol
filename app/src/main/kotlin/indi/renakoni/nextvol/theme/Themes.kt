@@ -169,3 +169,12 @@ val DesignerDarkColorScheme = darkColorScheme(
     errorContainer = Color(0xFF8C1D18),
     onErrorContainer = Color(0xFFF9DEDC),
 )
+
+internal fun lightThemePalette(name: String) =
+    if (name == "light_designer") DesignerLightColorScheme else DefaultLightColorScheme
+
+internal fun darkThemePalette(name: String) = when (name) {
+    "dark_obsidian" -> DarkObsidianColorScheme
+    "dark_designer" -> DesignerDarkColorScheme
+    else -> DefaultDarkColorScheme
+}

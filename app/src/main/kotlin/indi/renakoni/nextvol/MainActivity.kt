@@ -153,17 +153,17 @@ class MainActivity : AppCompatActivity() {
     private fun observeDisplaySettings() {
         coroutineScope.launch(Dispatchers.IO) {
             userDataRepository.stringUserData(UserDataPath.Settings.Display.DarkMode.path).getFlow().collect {
-                it?.let { darkMode = it }
+                darkMode = it ?: "FollowSystem"
             }
         }
         coroutineScope.launch(Dispatchers.IO) {
             userDataRepository.stringUserData(UserDataPath.Settings.Display.LightThemeName.path).getFlow().collect {
-                it?.let { lightThemeName = it }
+                lightThemeName = it ?: "light_default"
             }
         }
         coroutineScope.launch(Dispatchers.IO) {
             userDataRepository.stringUserData(UserDataPath.Settings.Display.DarkThemeName.path).getFlow().collect {
-                it?.let { darkThemeName = it }
+                darkThemeName = it ?: "dark_default"
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

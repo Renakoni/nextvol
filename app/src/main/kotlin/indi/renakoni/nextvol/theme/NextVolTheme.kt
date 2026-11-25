@@ -49,21 +49,13 @@ fun NextVolTheme(
     val lightColorScheme = remember(lightThemeName, isDynamicColor) {
         if (isDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             dynamicLightColorScheme(context)
-        else when (lightThemeName) {
-            "light_default" -> DefaultLightColorScheme
-            "light_designer" -> DesignerLightColorScheme
-            else -> DefaultLightColorScheme
-        }
+        else lightThemePalette(lightThemeName)
     }
 
     val darkColorScheme = remember(darkThemeName, isDynamicColor) {
         if (isDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             dynamicDarkColorScheme(context)
-        else when (darkThemeName) {
-            "dark_obsidian" -> DarkObsidianColorScheme
-            "dark_designer" -> DesignerDarkColorScheme
-            else -> DefaultDarkColorScheme
-        }
+        else darkThemePalette(darkThemeName)
     }
 
     val colorScheme = if (isDark) darkColorScheme else lightColorScheme
