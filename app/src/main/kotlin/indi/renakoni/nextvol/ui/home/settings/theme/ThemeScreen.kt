@@ -539,7 +539,7 @@ fun ReaderTextSettings(settingState: ReaderSettingsEditor, onClickChangeTextColo
         settings = settingState,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 22.dp, vertical = 8.dp)
             .height(160.dp)
             .border(0.75.dp, currentColor.copy(alpha = 0.18f), RoundedCornerShape(16.dp)),
         preview = draft.layout,
