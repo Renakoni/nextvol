@@ -1,13 +1,15 @@
 package indi.renakoni.nextvol.ui.home.explore.home
 
 import android.net.Uri
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollFactory
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +30,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,9 +52,13 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -65,6 +70,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.SourceBookId
 import indi.renakoni.nextvol.data.web.SourceCategory
@@ -72,7 +78,6 @@ import indi.renakoni.nextvol.data.web.SourceDiscoveryBook
 import indi.renakoni.nextvol.data.web.SourceDiscoverySection
 import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.Cover
-import indi.renakoni.nextvol.ui.components.design.EditorialCard
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.rememberListCover
@@ -87,12 +92,8 @@ import indi.renakoni.nextvol.ui.home.discovery.SourceScopeEmpty
 import indi.renakoni.nextvol.ui.home.discovery.SourceScopeTitle
 import indi.renakoni.nextvol.ui.home.discovery.SourceTabs
 import indi.renakoni.nextvol.ui.home.discovery.sourceTopBarHeight
-import indi.renakoni.nextvol.utils.fadingEdge
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import kotlinx.coroutines.flow.first
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,8 +182,8 @@ fun ExploreHomeScreen(
                             LazyColumn(
                                 state = list,
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(top = 8.dp, bottom = 92.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
+                                verticalArrangement = Arrangement.spacedBy(22.dp),
                             ) {
                                 content.error?.let { error ->
                                     item(key = "error") {
@@ -242,38 +243,35 @@ private fun ExploreActionRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    val tokens = NextVolDesign.tokens
-    val radius = 16.dp
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .squircleBackground(color = tokens.cardSurface, cornerRadius = radius)
-            .squircleBorder(width = 0.75.dp, color = tokens.cardBorder, cornerRadius = radius)
-            .squircleClip(radius)
-            .combinedClickable(
-                enabled = enabled,
-                onClick = onClick,
-                onLongClick = onLongClick,
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    enabled = enabled,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.W600),
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.W600),
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-            modifier = Modifier.weight(1f),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Icon(
-            painter = painterResource(R.drawable.arrow_forward_ios_24px),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp),
-        )
+            Icon(
+                painter = painterResource(R.drawable.arrow_forward_ios_24px),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+        EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
     }
 }
 
@@ -287,13 +285,12 @@ private fun ExploreRowSection(
     onRetryPreview: ((SourceDiscoverySection) -> Unit)?,
     coverFor: suspend (String) -> Uri?,
 ) {
-    val tokens = NextVolDesign.tokens
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 44.dp)
-                .padding(horizontal = 16.dp),
+                .padding(start = 16.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -303,7 +300,7 @@ private fun ExploreRowSection(
                     .semantics { heading() },
                 text = row.title.ifBlank { stringResource(R.string.discovery_unnamed_entry) },
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W700),
-                color = MaterialTheme.colorScheme.onSurface,
+                color = colors.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -311,28 +308,27 @@ private fun ExploreRowSection(
                 val moreDesc = stringResource(R.string.explore_more)
                 Row(
                     modifier = Modifier
-                        .clip(CircleShape)
-                        .background(tokens.activePillFill)
-                        .border(0.75.dp, tokens.activePillBorder, CircleShape)
+                        .heightIn(min = 36.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable { onClickExpand(row) }
                         .semantics {
                             role = Role.Button
                             contentDescription = moreDesc
                         }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     Text(
                         text = moreDesc,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W600),
-                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W500),
+                        color = colors.onSurfaceVariant,
                     )
                     Icon(
-                        painter = painterResource(id = R.drawable.arrow_forward_24px),
+                        painter = painterResource(id = R.drawable.arrow_forward_ios_24px),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(15.dp),
+                        tint = colors.onSurfaceVariant.copy(alpha = 0.72f),
+                        modifier = Modifier.size(11.dp),
                     )
                 }
             }
@@ -351,69 +347,54 @@ private fun ExploreRowSection(
             )
         }
         if (row.previewFailure != null || validBooks.isEmpty()) {
-            EditorialCard(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .fillMaxWidth(),
-                cornerRadius = 18.dp,
-            ) {
-                when {
-                    row.previewLoading -> Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.discovery_preview_loading),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                    }
-                    row.previewFailure != null -> {
-                        val failure = row.previewFailure
-                        DiscoveryFailure(
-                            error = failure.error,
-                            retry = if (row.previewRetryAvailable && onRetryPreview != null) ({ onRetryPreview(row) }) else null,
-                            manage = onManageSources,
-                            back = null,
-                            field = failure.field,
-                            permission = failure.permission,
-                            diagnostic = row.diagnosticFailure,
-                            httpStatus = row.httpStatus,
-                        )
-                    }
-                    else -> Text(
-                        text = stringResource(R.string.discovery_preview_empty),
-                        modifier = Modifier.padding(16.dp),
+            when {
+                row.previewLoading -> Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.discovery_preview_loading),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = colors.onSurfaceVariant,
+                    )
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                row.previewFailure != null -> {
+                    val failure = row.previewFailure
+                    DiscoveryFailure(
+                        error = failure.error,
+                        retry = if (row.previewRetryAvailable && onRetryPreview != null) ({ onRetryPreview(row) }) else null,
+                        manage = onManageSources,
+                        back = null,
+                        field = failure.field,
+                        permission = failure.permission,
+                        diagnostic = row.diagnosticFailure,
+                        httpStatus = row.httpStatus,
                     )
                 }
+                else -> Text(
+                    text = stringResource(R.string.discovery_preview_empty),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant,
+                )
             }
         }
         if (validBooks.isNotEmpty()) {
             CompositionLocalProvider(LocalOverscrollFactory provides null) {
                 LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fadingEdge(
-                            Brush.horizontalGradient(
-                                0.01f to Color.Transparent,
-                                0.03f to Color.White,
-                                0.97f to Color.White,
-                                0.99f to Color.Transparent,
-                            ),
-                        ),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     state = lazyRowState,
-                    flingBehavior = rememberSnapFlingBehavior(lazyRowState),
                 ) {
                     items(
                         items = validBooks,
                         key = { it.id.storageKey },
                     ) { exploreDisplayBook ->
-                        ExploreBookCard(
+                        ExploreBookItem(
                             book = exploreDisplayBook,
                             coverFor = coverFor,
                             onClickBook = onClickBook,
@@ -422,59 +403,109 @@ private fun ExploreRowSection(
                 }
             }
         }
-        EditorialHairlineDivider(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
     }
 }
 
 @Composable
-private fun ExploreBookCard(
+private fun ExploreBookItem(
     book: SourceDiscoveryBook,
     coverFor: suspend (String) -> Uri?,
     onClickBook: (SourceBookId) -> Unit,
 ) {
     val tokens = NextVolDesign.tokens
-    val cardRadius = 16.dp
+    val colors = MaterialTheme.colorScheme
+    val coverRadius = 10.dp
+    val coverShape = RoundedCornerShape(coverRadius)
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.965f else 1f,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 520f),
+        label = "exploreBookPressScale",
+    )
+
     Column(
         modifier = Modifier
-            .width(114.dp)
-            .squircleBackground(color = tokens.cardSurface, cornerRadius = cardRadius)
-            .squircleBorder(width = 0.75.dp, color = tokens.cardBorder, cornerRadius = cardRadius)
-            .squircleClip(cardRadius)
-            .clickable { onClickBook(book.id) }
-            .padding(7.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .width(110.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(coverShape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { onClickBook(book.id) },
+            ),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
-            modifier = Modifier.shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(10.dp),
-                ambientColor = tokens.glassShadow,
-                spotColor = tokens.glassShadow,
-                clip = false,
-            ),
+            modifier = Modifier
+                .shadow(
+                    elevation = if (tokens.isDark) 4.dp else 7.dp,
+                    shape = coverShape,
+                    ambientColor = tokens.glassShadow,
+                    spotColor = tokens.glassShadow,
+                    clip = false,
+                )
+                .clip(coverShape)
+                .drawWithContent {
+                    drawContent()
+                    // Subtle printed paperback spine groove + top specular edge.
+                    val spineWidth = 5.dp.toPx()
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.14f),
+                                Color.White.copy(alpha = 0.22f),
+                                Color.Transparent,
+                            ),
+                            startX = 0f,
+                            endX = spineWidth,
+                        ),
+                        size = Size(spineWidth, size.height),
+                    )
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = if (tokens.isDark) 0.14f else 0.28f),
+                                Color.Transparent,
+                            ),
+                            startY = 0f,
+                            endY = 3.dp.toPx(),
+                        ),
+                        topLeft = Offset.Zero,
+                        size = Size(size.width, 3.dp.toPx()),
+                    )
+                }
+                .border(
+                    width = 0.5.dp,
+                    color = if (tokens.isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f),
+                    shape = coverShape,
+                ),
         ) {
             Cover(
                 bookId = book.id.storageKey,
-                width = 100.dp,
-                height = 142.dp,
+                width = 110.dp,
+                height = 158.dp,
                 uri = rememberListCover(book.id.storageKey, book.coverUrl, coverFor),
                 title = book.title,
                 author = book.author,
-                rounded = 10.dp,
+                rounded = coverRadius,
             )
         }
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 2.dp, vertical = 1.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
                 text = book.title,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.5.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.W500,
+                ),
+                color = colors.onSurface,
                 minLines = 2,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -483,7 +514,7 @@ private fun ExploreBookCard(
                 Text(
                     text = book.author,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = colors.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

@@ -14,14 +14,15 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -52,7 +53,6 @@ import indi.renakoni.nextvol.data.web.SourceDiscoveryBook
 import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.Cover
 import indi.renakoni.nextvol.ui.components.EmptyPage
-import indi.renakoni.nextvol.ui.components.design.EditorialCard
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.rememberListCover
 import indi.renakoni.nextvol.utils.navigationBarSpacer
@@ -124,11 +124,10 @@ fun DiscoveryResultsScreen(
                         activeFilters.forEach { filter ->
                             Box(
                                 modifier = Modifier
-                                    .clip(CircleShape)
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(tokens.activePillFill)
-                                    .border(0.75.dp, tokens.activePillBorder, CircleShape)
                                     .clickable(role = Role.Button) { showFilters = true }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
                             ) {
                                 Text(
                                     text = discoveryFilterSummary(filter, values.getValue(filter.id)),
@@ -154,27 +153,30 @@ fun DiscoveryResultsScreen(
                 LazyColumn(
                     state = list,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 12.dp),
                 ) {
-                    items(state.books, key = { it.id.storageKey }, contentType = { "book" }) { book ->
-                        DiscoveryBookRow(book, coverFor) { onBook(book.id) }
+                    itemsIndexed(state.books, key = { _, it -> it.id.storageKey }, contentType = { _, _ -> "book" }) { index, book ->
+                        DiscoveryBookRow(
+                            book = book,
+                            coverFor = coverFor,
+                            showDivider = index < state.books.lastIndex,
+                            onClick = { onBook(book.id) },
+                        )
                     }
                     if (state.loading) {
                         item {
-                            EditorialCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                cornerRadius = 16.dp,
-                                contentPadding = PaddingValues(16.dp),
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    LinearProgressIndicator(Modifier.fillMaxWidth())
-                                    Text(
-                                        text = stringResource(R.string.discovery_preview_loading),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = colors.onSurfaceVariant,
-                                    )
-                                }
+                                LinearProgressIndicator(Modifier.fillMaxWidth())
+                                Text(
+                                    text = stringResource(R.string.discovery_preview_loading),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                )
                             }
                         }
                     }
@@ -195,6 +197,7 @@ fun DiscoveryResultsScreen(
                     if (state.loaded && !state.loading && state.books.isEmpty() && state.error == null) {
                         item {
                             EmptyPage(
+                                modifier = Modifier.fillParentMaxHeight(0.75f),
                                 icon = painterResource(R.drawable.not_found_90dp),
                                 title = stringResource(R.string.nothing_here),
                                 description = stringResource(
@@ -208,13 +211,13 @@ fun DiscoveryResultsScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
+                                    .padding(vertical = 14.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 FilledTonalButton(
                                     onClick = onLoadMore,
                                     enabled = !state.loading,
-                                    shape = RoundedCornerShape(14.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                 ) {
                                     Text(stringResource(R.string.discovery_load_more))
                                 }
@@ -245,50 +248,64 @@ fun DiscoveryResultsScreen(
 internal fun DiscoveryBookRow(
     book: SourceDiscoveryBook,
     coverFor: suspend (String) -> Uri? = { null },
+    showDivider: Boolean = true,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    EditorialCard(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 18.dp,
-        contentPadding = PaddingValues(12.dp),
-        onClick = onClick,
-    ) {
+    val coverRadius = 7.dp
+    val coverShape = RoundedCornerShape(coverRadius)
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Cover(
-                bookId = book.id.storageKey,
-                width = 84.dp,
-                height = 122.dp,
-                uri = rememberListCover(book.id.storageKey, book.coverUrl, coverFor),
-                title = book.title,
-                author = book.author,
-                rounded = 10.dp,
-            )
+            Box(
+                modifier = Modifier.border(0.5.dp, colors.outlineVariant.copy(alpha = 0.35f), coverShape),
+            ) {
+                Cover(
+                    bookId = book.id.storageKey,
+                    width = 64.dp,
+                    height = 92.dp,
+                    uri = rememberListCover(book.id.storageKey, book.coverUrl, coverFor),
+                    title = book.title,
+                    author = book.author,
+                    rounded = coverRadius,
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
                     text = book.title,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W600),
                     color = colors.onSurface,
-                    maxLines = 3,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (book.author.isNotBlank()) {
                     Text(
                         text = book.author,
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W600),
-                        color = colors.primary,
-                        maxLines = 2,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
+            Icon(
+                painter = painterResource(R.drawable.arrow_forward_ios_24px),
+                contentDescription = null,
+                tint = colors.onSurfaceVariant.copy(alpha = 0.38f),
+                modifier = Modifier.size(12.dp),
+            )
+        }
+        if (showDivider) {
+            EditorialHairlineDivider(Modifier.padding(start = 94.dp, end = 16.dp))
         }
     }
 }

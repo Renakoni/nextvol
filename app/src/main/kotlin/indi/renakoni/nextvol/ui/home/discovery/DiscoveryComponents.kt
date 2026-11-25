@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -105,7 +106,7 @@ internal fun DiscoveryTopBar(
                         onClick = onFilters,
                         painter = painterResource(R.drawable.filter_list_24px),
                         contentDescription = stringResource(R.string.discovery_filters),
-                        containerColor = if (filterCount > 0) NextVolDesign.tokens.activePillFill else colors.surfaceContainerLow.copy(alpha = 0.85f),
+                        containerColor = if (filterCount > 0) NextVolDesign.tokens.activePillFill else Color.Transparent,
                         contentColor = if (filterCount > 0) colors.primary else colors.onSurface,
                     )
                 }

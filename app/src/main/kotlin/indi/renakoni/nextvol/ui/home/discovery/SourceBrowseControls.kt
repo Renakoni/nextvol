@@ -3,20 +3,22 @@ package indi.renakoni.nextvol.ui.home.discovery
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -49,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -79,27 +82,21 @@ internal fun SourceScopeTitle(state: DiscoveryPageState, onScope: (SourceCategor
 
     Row(
         modifier = Modifier
-            .heightIn(min = 40.dp)
-            .clip(CircleShape)
-            .background(if (hasScope) tokens.activePillFill else tokens.cardSurface)
-            .border(
-                width = if (hasScope) 1.dp else 0.75.dp,
-                color = if (hasScope) tokens.activePillBorder else tokens.cardBorder,
-                shape = CircleShape,
-            )
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(10.dp))
             .clickable { expanded = true }
             .semantics {
                 role = Role.Button
                 contentDescription = description
             }
-            .padding(start = 14.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = title,
             modifier = Modifier.weight(1f, fill = false),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W600),
+            style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.W700),
             color = if (hasScope) colors.primary else colors.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -108,7 +105,7 @@ internal fun SourceScopeTitle(state: DiscoveryPageState, onScope: (SourceCategor
             painter = painterResource(R.drawable.search_expand_24px),
             contentDescription = null,
             tint = if (hasScope) colors.primary else colors.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(20.dp),
         )
     }
 
@@ -123,73 +120,70 @@ internal fun SourceScopeTitle(state: DiscoveryPageState, onScope: (SourceCategor
             val categories = SourceCategory.entries.filter { category ->
                 category == state.scope || state.availableSources.any { it.metadata.category == category }
             }
+            val items = listOf(null) + categories
             LazyColumn(
                 modifier = Modifier.navigationBarsPadding(),
                 contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 item {
                     Text(
                         text = stringResource(R.string.source_range_title),
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
-                        style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.W600),
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.W600),
                         color = colors.onSurface,
                     )
                 }
-                items(listOf(null) + categories, key = { it?.name ?: "all" }) { category ->
+                itemsIndexed(items, key = { _, it -> it?.name ?: "all" }) { index, category ->
                     val selected = category == state.scope
                     val countText = if (state.loadingSources) {
                         "…"
                     } else {
                         state.availableSources.count { category == null || it.metadata.category == category }.toString()
                     }
-                    val rowShape = RoundedCornerShape(14.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .clip(rowShape)
-                            .background(if (selected) tokens.activePillFill else tokens.cardSurface)
-                            .border(
-                                width = if (selected) 1.dp else 0.75.dp,
-                                color = if (selected) tokens.activePillBorder else tokens.cardBorder,
-                                shape = rowShape,
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(if (selected) tokens.activePillFill else Color.Transparent)
+                                .selectable(
+                                    selected = selected,
+                                    role = Role.RadioButton,
+                                    onClick = {
+                                        expanded = false
+                                        onScope(category)
+                                    },
+                                )
+                                .heightIn(min = 52.dp)
+                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                text = stringResource(category?.title ?: R.string.source_range_all),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
+                                ),
+                                color = if (selected) colors.primary else colors.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
-                            .selectable(
-                                selected = selected,
-                                role = Role.RadioButton,
-                                onClick = {
-                                    expanded = false
-                                    onScope(category)
-                                },
+                            Text(
+                                text = countText,
+                                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                color = colors.onSurfaceVariant,
                             )
-                            .heightIn(min = 54.dp)
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(
-                            text = stringResource(category?.title ?: R.string.source_range_all),
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
-                            ),
-                            color = if (selected) colors.primary else colors.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = countText,
-                            style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-                            color = colors.onSurfaceVariant,
-                        )
-                        if (selected) {
-                            Icon(
-                                painter = painterResource(R.drawable.check_24px),
-                                contentDescription = null,
-                                tint = colors.primary,
-                                modifier = Modifier.size(18.dp),
-                            )
+                            if (selected) {
+                                Icon(
+                                    painter = painterResource(R.drawable.check_24px),
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                        if (index < items.lastIndex) {
+                            EditorialHairlineDivider(Modifier.padding(horizontal = 24.dp))
                         }
                     }
                 }
@@ -200,7 +194,7 @@ internal fun SourceScopeTitle(state: DiscoveryPageState, onScope: (SourceCategor
 
 @Composable
 internal fun sourceTopBarHeight() = with(LocalDensity.current) {
-    if (fontScale > 1.3f) (MaterialTheme.typography.bodyLarge.lineHeight * 2).toDp().coerceAtLeast(60.dp) else 60.dp
+    if (fontScale > 1.3f) (MaterialTheme.typography.bodyLarge.lineHeight * 2).toDp().coerceAtLeast(56.dp) else 56.dp
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -229,52 +223,53 @@ internal fun SourceTabs(state: DiscoveryPageState, onSelect: (Identifier) -> Uni
                     LazyRow(
                         state = rowState,
                         modifier = modifier.selectableGroup(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalAlignment = Alignment.Bottom,
                     ) {
                         itemsIndexed(
                             items = state.pageSources,
                             key = { _, source -> source.metadata.id.toString() },
                         ) { _, source ->
                             val selected = source.metadata.id == state.selected
-                            val bg by animateColorAsState(
-                                targetValue = if (selected) tokens.activePillFill else tokens.cardSurface,
-                                animationSpec = tween(200),
-                                label = "sourceTabBg",
-                            )
-                            val border by animateColorAsState(
-                                targetValue = if (selected) tokens.activePillBorder else tokens.cardBorder,
-                                animationSpec = tween(200),
-                                label = "sourceTabBorder",
-                            )
                             val textColor by animateColorAsState(
-                                targetValue = if (selected) colors.primary else colors.onSurfaceVariant,
-                                animationSpec = tween(200),
+                                targetValue = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                                animationSpec = tween(180),
                                 label = "sourceTabText",
                             )
-                            Box(
+                            val indicatorColor by animateColorAsState(
+                                targetValue = if (selected) colors.primary else Color.Transparent,
+                                animationSpec = tween(180),
+                                label = "sourceTabIndicator",
+                            )
+                            Column(
                                 modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(bg)
-                                    .border(if (selected) 1.dp else 0.75.dp, border, CircleShape)
+                                    .width(IntrinsicSize.Max)
                                     .selectable(
                                         selected = selected,
                                         onClick = { onSelect(source.metadata.id) },
                                         role = Role.Tab,
                                     )
-                                    .padding(horizontal = 14.dp, vertical = 7.dp),
-                                contentAlignment = Alignment.Center,
+                                    .padding(top = 6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 Text(
                                     text = source.metadata.item.name,
-                                    modifier = Modifier.widthIn(max = 196.dp),
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = if (selected) FontWeight.W600 else FontWeight.W500,
+                                    modifier = Modifier.widthIn(max = 200.dp),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
                                     ),
                                     color = textColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(2.5.dp)
+                                        .clip(CircleShape)
+                                        .background(indicatorColor),
                                 )
                             }
                         }
@@ -303,7 +298,7 @@ internal fun SourceTabs(state: DiscoveryPageState, onSelect: (Identifier) -> Uni
                 ) {
                     tabs(Modifier.weight(1f))
                     if (state.pageCount > 1) {
-                        VerticalDivider(Modifier.height(22.dp), color = tokens.divider)
+                        VerticalDivider(Modifier.height(20.dp), color = tokens.divider)
                         SourcePageButtons(
                             state = state,
                             onPage = onPage,
@@ -327,13 +322,12 @@ internal fun SourceTabs(state: DiscoveryPageState, onSelect: (Identifier) -> Uni
             LazyColumn(
                 modifier = Modifier.navigationBarsPadding(),
                 contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 item {
                     Text(
                         text = stringResource(R.string.source_pages_title),
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
-                        style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.W600),
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.W600),
                         color = colors.onSurface,
                     )
                 }
@@ -342,57 +336,54 @@ internal fun SourceTabs(state: DiscoveryPageState, onSelect: (Identifier) -> Uni
                     val end = minOf(start + SOURCE_PAGE_SIZE, state.sources.size)
                     val names = state.sources.subList(start, end).take(2).joinToString(" · ") { it.metadata.item.name }
                     val selected = page == state.pageIndex
-                    val rowShape = RoundedCornerShape(14.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .clip(rowShape)
-                            .background(if (selected) tokens.activePillFill else tokens.cardSurface)
-                            .border(
-                                width = if (selected) 1.dp else 0.75.dp,
-                                color = if (selected) tokens.activePillBorder else tokens.cardBorder,
-                                shape = rowShape,
-                            )
-                            .selectable(
-                                selected = selected,
-                                role = Role.RadioButton,
-                                onClick = {
-                                    showPages = false
-                                    onPage(page)
-                                },
-                            )
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(if (selected) tokens.activePillFill else Color.Transparent)
+                                .selectable(
+                                    selected = selected,
+                                    role = Role.RadioButton,
+                                    onClick = {
+                                        showPages = false
+                                        onPage(page)
+                                    },
+                                )
+                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Text(
-                                text = stringResource(R.string.source_page_number, page + 1),
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.W600,
-                                    fontFeatureSettings = "tnum",
-                                ),
-                                color = if (selected) colors.primary else colors.onSurface,
-                            )
-                            Text(
-                                text = stringResource(R.string.source_page_range, start + 1, end, names),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.source_page_number, page + 1),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.W600,
+                                        fontFeatureSettings = "tnum",
+                                    ),
+                                    color = if (selected) colors.primary else colors.onSurface,
+                                )
+                                Text(
+                                    text = stringResource(R.string.source_page_range, start + 1, end, names),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (selected) {
+                                Icon(
+                                    painter = painterResource(R.drawable.check_24px),
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
                         }
-                        if (selected) {
-                            Icon(
-                                painter = painterResource(R.drawable.check_24px),
-                                contentDescription = null,
-                                tint = colors.primary,
-                                modifier = Modifier.size(18.dp),
-                            )
+                        if (page < state.pageCount - 1) {
+                            EditorialHairlineDivider(Modifier.padding(horizontal = 24.dp))
                         }
                     }
                 }
@@ -408,7 +399,6 @@ private fun SourcePageButtons(
     onShowPages: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tokens = NextVolDesign.tokens
     val colors = MaterialTheme.colorScheme
     val previous = stringResource(R.string.source_page_previous)
     val next = stringResource(R.string.source_page_next)
@@ -423,7 +413,7 @@ private fun SourcePageButtons(
             enabled = state.pageIndex > 0,
             colors = IconButtonDefaults.iconButtonColors(contentColor = colors.onSurfaceVariant),
             modifier = Modifier
-                .size(48.dp)
+                .size(44.dp)
                 .semantics { contentDescription = previous },
         ) {
             Icon(
@@ -434,14 +424,12 @@ private fun SourcePageButtons(
         }
         Box(
             modifier = Modifier
-                .heightIn(min = 34.dp)
-                .widthIn(min = 48.dp)
-                .clip(CircleShape)
-                .background(tokens.cardSurface)
-                .border(0.75.dp, tokens.cardBorder, CircleShape)
+                .heightIn(min = 32.dp)
+                .widthIn(min = 42.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .clickable(role = Role.Button, onClick = onShowPages)
                 .semantics { contentDescription = description }
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -453,7 +441,7 @@ private fun SourcePageButtons(
                     fontWeight = FontWeight.W600,
                     fontFeatureSettings = "tnum",
                 ),
-                color = colors.onSurface,
+                color = colors.onSurfaceVariant,
             )
         }
         IconButton(
@@ -461,7 +449,7 @@ private fun SourcePageButtons(
             enabled = state.pageIndex + 1 < state.pageCount,
             colors = IconButtonDefaults.iconButtonColors(contentColor = colors.onSurfaceVariant),
             modifier = Modifier
-                .size(48.dp)
+                .size(44.dp)
                 .semantics { contentDescription = next },
         ) {
             Icon(
@@ -500,13 +488,13 @@ internal fun SourceScopeEmpty(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(
                     onClick = { onScope(null) },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
                     Text(stringResource(R.string.source_range_all))
                 }
                 Button(
                     onClick = onManageSources,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
                 ) {
                     Text(stringResource(R.string.sources_add))

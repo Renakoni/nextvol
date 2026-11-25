@@ -1,19 +1,19 @@
 package indi.renakoni.nextvol.ui.home.categories
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -25,18 +25,22 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,12 +55,14 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.web.SourceCategory
 import indi.renakoni.nextvol.data.web.SourceDiscoveryCategory
 import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.SectionHeader
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.home.HomeSettingsAction
 import indi.renakoni.nextvol.ui.home.discovery.DiscoveryEmpty
@@ -70,6 +76,38 @@ import indi.renakoni.nextvol.ui.home.discovery.SourceScopeTitle
 import indi.renakoni.nextvol.ui.home.discovery.SourceTabs
 import indi.renakoni.nextvol.ui.home.discovery.sourceTopBarHeight
 import io.nightfish.lightnovelreader.api.identifier.Identifier
+
+private data class CategorySection(
+    val id: String,
+    val title: String?,
+    val items: List<SourceDiscoveryCategory>,
+)
+
+private fun groupCategories(categories: List<SourceDiscoveryCategory>): List<CategorySection> {
+    val result = mutableListOf<CategorySection>()
+    var currentId = "root"
+    var currentTitle: String? = null
+    var currentItems = mutableListOf<SourceDiscoveryCategory>()
+
+    fun flush() {
+        if (currentItems.isNotEmpty() || currentTitle != null) {
+            result.add(CategorySection(currentId, currentTitle, currentItems.toList()))
+            currentItems = mutableListOf()
+        }
+    }
+
+    categories.forEach { entry ->
+        if (entry.target.target.isBlank()) {
+            flush()
+            currentId = entry.id
+            currentTitle = entry.title.trim().ifBlank { null }
+        } else {
+            currentItems.add(entry)
+        }
+    }
+    flush()
+    return result.filter { it.items.isNotEmpty() }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,6 +164,8 @@ fun CategoriesScreen(
                 if (id != null) {
                     key(id, content.resetId) {
                         val list = rememberLazyListState(content.scroll.index, content.scroll.offset)
+                        val sections = remember(content.categories) { groupCategories(content.categories) }
+
                         LaunchedEffect(list) {
                             snapshotFlow { DiscoveryScroll(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset) }
                                 .collect { onScroll(id, it) }
@@ -140,8 +180,8 @@ fun CategoriesScreen(
                             LazyColumn(
                                 state = list,
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(top = 8.dp, bottom = 92.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 content.error?.let { error ->
                                     item(key = "error") {
@@ -161,17 +201,16 @@ fun CategoriesScreen(
                                 if (content.buttons.isNotEmpty()) {
                                     item(key = "action-buttons") {
                                         LazyRow(
-                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         ) {
                                             items(content.buttons, key = { it.id }) { button ->
                                                 val enabled = !content.acting && !content.loading
                                                 Box(
                                                     modifier = Modifier
-                                                        .heightIn(min = 42.dp)
-                                                        .clip(CircleShape)
+                                                        .heightIn(min = 38.dp)
+                                                        .clip(RoundedCornerShape(10.dp))
                                                         .background(tokens.activePillFill)
-                                                        .border(0.75.dp, tokens.activePillBorder, CircleShape)
                                                         .combinedClickable(
                                                             enabled = enabled,
                                                             role = Role.Button,
@@ -179,7 +218,7 @@ fun CategoriesScreen(
                                                             onLongClick = { onAction(button.id, true) },
                                                         )
                                                         .alpha(if (enabled) 1f else 0.4f)
-                                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                                        .padding(horizontal = 14.dp, vertical = 8.dp),
                                                     contentAlignment = Alignment.Center,
                                                 ) {
                                                     Text(
@@ -207,46 +246,28 @@ fun CategoriesScreen(
                                     }
                                 }
 
-                                if (content.categories.isNotEmpty()) {
-                                    item(key = "category-tags") {
-                                        FlowRow(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                                        ) {
-                                            content.categories.forEach { category ->
-                                                key(category.id) {
-                                                    if (category.target.target.isBlank()) {
-                                                        SectionHeader(
-                                                            text = category.title,
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .padding(top = 10.dp, bottom = 2.dp)
-                                                                .semantics { heading() },
+                                if (sections.isNotEmpty()) {
+                                    sections.forEachIndexed { sectionIndex, section ->
+                                        section.title?.let { title ->
+                                            item(key = "category-header:${section.id}") {
+                                                SectionHeader(
+                                                    text = title,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(
+                                                            start = 16.dp,
+                                                            end = 16.dp,
+                                                            top = if (sectionIndex == 0) 4.dp else 12.dp,
                                                         )
-                                                    } else {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .heightIn(min = 40.dp)
-                                                                .clip(CircleShape)
-                                                                .background(tokens.cardSurface)
-                                                                .border(0.75.dp, tokens.cardBorder, CircleShape)
-                                                                .clickable { onCategory(category) }
-                                                                .semantics { role = Role.Button }
-                                                                .padding(horizontal = 16.dp, vertical = 9.dp),
-                                                            contentAlignment = Alignment.Center,
-                                                        ) {
-                                                            Text(
-                                                                text = category.title.ifBlank { stringResource(R.string.discovery_unnamed_entry) },
-                                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W500),
-                                                                color = colors.onSurface,
-                                                            )
-                                                        }
-                                                    }
-                                                }
+                                                        .semantics { heading() },
+                                                )
                                             }
+                                        }
+                                        item(key = "category-block:${section.id}") {
+                                            CategoryDirectoryBlock(
+                                                items = section.items,
+                                                onCategory = onCategory,
+                                            )
                                         }
                                     }
                                 }
@@ -259,6 +280,134 @@ fun CategoriesScreen(
     }
 }
 
+@Composable
+private fun CategoryDirectoryBlock(
+    items: List<SourceDiscoveryCategory>,
+    onCategory: (SourceDiscoveryCategory) -> Unit,
+) {
+    val maxLen = remember(items) { items.maxOfOrNull { it.title.trim().length } ?: 0 }
+    val columns = when {
+        maxLen <= 6 && items.size >= 4 -> 3
+        maxLen <= 10 && items.size >= 4 -> 2
+        else -> 1
+    }
+
+    if (columns == 1) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            items.forEachIndexed { index, category ->
+                CategoryDirectoryRow(
+                    category = category,
+                    onClick = { onCategory(category) },
+                )
+                if (index < items.lastIndex) {
+                    EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
+                }
+            }
+        }
+    } else {
+        val tokens = NextVolDesign.tokens
+        val rows = remember(items, columns) { items.chunked(columns) }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        ) {
+            EditorialHairlineDivider()
+            rows.forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    for (col in 0 until columns) {
+                        val category = rowItems.getOrNull(col)
+                        if (category != null) {
+                            CategoryGridCell(
+                                category = category,
+                                onClick = { onCategory(category) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        if (col < columns - 1) {
+                            VerticalDivider(
+                                modifier = Modifier.height(22.dp),
+                                thickness = 0.6.dp,
+                                color = tokens.divider,
+                            )
+                        }
+                    }
+                }
+                EditorialHairlineDivider()
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryGridCell(
+    category: SourceDiscoveryCategory,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = modifier
+            .heightIn(min = 54.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = category.title.ifBlank { stringResource(R.string.discovery_unnamed_entry) },
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W500),
+            color = colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            painter = painterResource(R.drawable.arrow_forward_ios_24px),
+            contentDescription = null,
+            tint = colors.onSurfaceVariant.copy(alpha = 0.42f),
+            modifier = Modifier.size(11.dp),
+        )
+    }
+}
+
+@Composable
+private fun CategoryDirectoryRow(
+    category: SourceDiscoveryCategory,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = category.title.ifBlank { stringResource(R.string.discovery_unnamed_entry) },
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W500),
+            color = colors.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            painter = painterResource(R.drawable.arrow_forward_ios_24px),
+            contentDescription = null,
+            tint = colors.onSurfaceVariant.copy(alpha = 0.48f),
+            modifier = Modifier.size(13.dp),
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CategoriesTopBar(
@@ -268,7 +417,6 @@ internal fun CategoriesTopBar(
     title: @Composable () -> Unit = {},
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
-    val tokens = NextVolDesign.tokens
     val refreshLabel = stringResource(R.string.discovery_refresh)
 
     TopAppBar(
@@ -287,19 +435,10 @@ internal fun CategoriesTopBar(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(tokens.cardSurface)
-                            .border(0.75.dp, tokens.cardBorder, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    }
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
                 }
             } else {
                 EditorialIconButton(
