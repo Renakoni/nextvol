@@ -197,7 +197,6 @@ class SpeechPlaybackPreferences(userData: UserDataRepository, scope: CoroutineSc
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechPlaybackSettingsScreen(
     state: SpeechPlaybackSettingsState,
