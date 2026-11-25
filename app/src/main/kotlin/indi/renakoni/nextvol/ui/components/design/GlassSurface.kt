@@ -25,7 +25,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -67,20 +69,36 @@ fun LiquidGlassSurface(
     shape: RoundedCornerShape = CircleShape,
     variant: GlassVariant = GlassVariant.Liquid,
     hazeState: HazeState? = LocalNextVolHazeState.current,
-    blurRadius: Dp = 22.dp,
-    elevation: Dp = 10.dp,
+    blurRadius: Dp = 14.dp,
+    elevation: Dp = 12.dp,
     tintColor: Color = NextVolDesign.tokens.glassSurfaceTint,
     fallbackColor: Color = NextVolDesign.tokens.glassFallbackSurface,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
-    borderWidth: Dp = 0.85.dp,
+    borderWidth: Dp = 1.dp,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val tokens = NextVolDesign.tokens
     val surfaceBg = MaterialTheme.colorScheme.surface
-    val rimBrush = remember(tokens.glassBorderTop, tokens.glassBorderBottom) {
-        Brush.verticalGradient(
-            colors = listOf(tokens.glassBorderTop, tokens.glassBorderBottom),
-        )
+    val rimBrush = remember(tokens.isDark, tokens.glassBorderTop, tokens.glassBorderBottom) {
+        if (tokens.isDark) {
+            Brush.linearGradient(
+                colorStops = arrayOf(
+                    0.0f to tokens.glassBorderTop,
+                    0.46f to Color.White.copy(alpha = 0.08f),
+                    0.78f to tokens.glassBorderBottom,
+                    1.0f to Color.White.copy(alpha = 0.28f),
+                ),
+            )
+        } else {
+            Brush.linearGradient(
+                colorStops = arrayOf(
+                    0.0f to tokens.glassBorderTop,
+                    0.45f to Color.White.copy(alpha = 0.34f),
+                    0.78f to tokens.glassBorderBottom,
+                    1.0f to Color.White.copy(alpha = 0.82f),
+                ),
+            )
+        }
     }
 
     val useLiquidShader = variant == GlassVariant.Liquid &&
@@ -91,15 +109,24 @@ fun LiquidGlassSurface(
         hazeState != null &&
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
+    val effectiveBlurRadius = if (variant == GlassVariant.Liquid) {
+        minOf(blurRadius, 12.dp)
+    } else {
+        blurRadius
+    }
+
     val effectModifier = when {
         useLiquidShader -> {
             val glassStyle = remember(shape, surfaceBg, tintColor, tokens.isDark, tokens.glassShadow) {
-                GlassStyle.regular.then {
+                GlassStyle.clear.then {
                     shape(shape)
                     backgroundColor(surfaceBg)
                     tint(tintColor)
-                    specularIntensity(if (tokens.isDark) 0.42f else 0.65f)
-                    chromaticAberrationStrength(if (tokens.isDark) 0.14f else 0.10f)
+                    specularIntensity(if (tokens.isDark) 0.64f else 0.90f)
+                    chromaticAberrationStrength(if (tokens.isDark) 0.24f else 0.20f)
+                    ambientResponse(0.85f)
+                    edgeSoftness(3.dp)
+                    fresnelExponent(2.2f)
                     edgeShadow(tokens.glassShadow)
                 }
             }
@@ -109,10 +136,10 @@ fun LiquidGlassSurface(
             )
         }
         useFrostedBlur -> {
-            val blurStyle = remember(blurRadius, surfaceBg, tintColor, fallbackColor) {
+            val blurStyle = remember(effectiveBlurRadius, surfaceBg, tintColor, fallbackColor) {
                 HazeBlurStyle {
-                    blurRadius(blurRadius)
-                    noiseFactor(0.04f)
+                    blurRadius(effectiveBlurRadius)
+                    noiseFactor(0.025f)
                     backgroundColor(surfaceBg)
                     colorEffects(listOf(HazeColorEffect.tint(tintColor)))
                     fallbackColorEffect(HazeColorEffect.tint(fallbackColor))
@@ -125,6 +152,39 @@ fun LiquidGlassSurface(
         }
         variant == GlassVariant.Subtle -> Modifier.background(tintColor)
         else -> Modifier.background(fallbackColor)
+    }
+
+    // Optical glass meniscus sheen + lower rim bounce gives curved lens depth across API 31-32 & 33+.
+    val glassSheenModifier = if (variant == GlassVariant.Liquid) {
+        val topGlow = if (tokens.isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.56f)
+        val midClear = Color.Transparent
+        val bottomBounce = if (tokens.isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.26f)
+        Modifier.drawWithContent {
+            val sheen = Brush.verticalGradient(
+                colorStops = arrayOf(
+                    0.0f to topGlow,
+                    0.38f to midClear,
+                    0.76f to midClear,
+                    1.0f to bottomBounce,
+                ),
+                startY = 0f,
+                endY = size.height,
+            )
+            drawRect(brush = sheen)
+            // Subtle inner corner refraction highlight near top-left glass curvature.
+            val specularDot = Brush.radialGradient(
+                colors = listOf(
+                    if (tokens.isDark) Color.White.copy(alpha = 0.09f) else Color.White.copy(alpha = 0.32f),
+                    Color.Transparent,
+                ),
+                center = Offset(size.width * 0.22f, 0f),
+                radius = size.height * 1.45f,
+            )
+            drawRect(brush = specularDot)
+            drawContent()
+        }
+    } else {
+        Modifier
     }
 
     val surfaceModifier = modifier
@@ -143,6 +203,7 @@ fun LiquidGlassSurface(
         )
         .clip(shape)
         .then(effectModifier)
+        .then(glassSheenModifier)
         .border(BorderStroke(borderWidth, rimBrush), shape)
 
     Box(modifier = surfaceModifier) {
@@ -224,7 +285,9 @@ fun EditorialIconBadge(
 }
 
 /**
- * Frosted circular action button with 48dp accessible touch target and 38dp visual rimmed capsule.
+ * Clean circular action button with 48dp accessible touch target.
+ * Borderless and transparent by default so top bars stay calm; renders a subtle capsule
+ * fill only when an explicit containerColor is supplied (e.g., active toggle states).
  */
 @Composable
 fun EditorialIconButton(
@@ -233,10 +296,10 @@ fun EditorialIconButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+    containerColor: Color = Color.Transparent,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
-    val tokens = NextVolDesign.tokens
+    val hasContainer = containerColor != Color.Transparent
     Box(
         modifier = modifier
             .size(48.dp)
@@ -252,15 +315,16 @@ fun EditorialIconButton(
             modifier = Modifier
                 .size(38.dp)
                 .clip(CircleShape)
-                .background(containerColor)
-                .border(0.75.dp, tokens.cardBorder, CircleShape),
+                .then(
+                    if (hasContainer) Modifier.background(containerColor) else Modifier,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painter,
                 contentDescription = null,
                 tint = if (enabled) contentColor else contentColor.copy(alpha = 0.38f),
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
     }

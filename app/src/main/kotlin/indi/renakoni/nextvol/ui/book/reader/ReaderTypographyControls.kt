@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.theme.NextVolDesign
 import io.nightfish.lightnovelreader.api.userdata.FloatUserData
 import kotlin.math.roundToInt
 
@@ -103,10 +104,10 @@ internal class ReaderLayoutDraft private constructor(
 
 @Composable
 internal fun ReaderTypographyControls(settings: ReaderSettingsEditor, draft: ReaderLayoutDraft) {
+    val tokens = NextVolDesign.tokens
     val layout = draft.layout
     var active by rememberSaveable { mutableStateOf(TypeSetting.Size) }
-    val colors = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxWidth().background(colors.surfaceContainer).padding(horizontal = 12.dp, vertical = 8.dp)) {
+    Column(Modifier.fillMaxWidth().background(tokens.cardSurface).padding(horizontal = 12.dp, vertical = 10.dp)) {
         BoxWithConstraints(Modifier.fillMaxWidth().selectableGroup()) {
             val columns = if (maxWidth >= 248.dp * LocalDensity.current.fontScale) 4 else 2
             Column {

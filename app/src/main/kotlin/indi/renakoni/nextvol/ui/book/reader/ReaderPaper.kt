@@ -9,18 +9,22 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.theme.AppTheme
+import indi.renakoni.nextvol.theme.LocalNextVolTokens
+import indi.renakoni.nextvol.theme.buildNextVolDesignTokens
+import indi.renakoni.nextvol.theme.rememberBridgedMiuixColors
 import indi.renakoni.nextvol.ui.LocalAppTheme
 import io.nightfish.lightnovelreader.api.ui.LocalReaderStyle
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class ReaderPaperColors(
     val background: Color,
@@ -31,22 +35,22 @@ internal data class ReaderPaperColors(
 ) {
     fun colorScheme() = (if (isDark) darkColorScheme() else lightColorScheme()).copy(
         primary = accent, onPrimary = background,
-        primaryContainer = lerp(background, accent, 0.12f), onPrimaryContainer = text,
+        primaryContainer = lerp(background, accent, 0.14f), onPrimaryContainer = text,
         secondary = accent, onSecondary = background,
-        secondaryContainer = lerp(background, accent, 0.12f), onSecondaryContainer = text,
+        secondaryContainer = lerp(background, accent, 0.14f), onSecondaryContainer = text,
         tertiary = accent, onTertiary = background,
-        tertiaryContainer = lerp(background, accent, 0.12f), onTertiaryContainer = text,
+        tertiaryContainer = lerp(background, accent, 0.14f), onTertiaryContainer = text,
         background = background, onBackground = text,
         surface = background, onSurface = text,
         surfaceVariant = lerp(background, text, 0.06f), onSurfaceVariant = muted,
         surfaceTint = accent,
-        surfaceDim = lerp(background, text, 0.08f), surfaceBright = background,
+        surfaceDim = lerp(background, text, 0.09f), surfaceBright = background,
         surfaceContainerLowest = background,
-        surfaceContainerLow = lerp(background, text, 0.02f),
-        surfaceContainer = lerp(background, text, 0.04f),
-        surfaceContainerHigh = lerp(background, text, 0.06f),
-        surfaceContainerHighest = lerp(background, text, 0.08f),
-        outline = muted, outlineVariant = lerp(background, text, 0.25f),
+        surfaceContainerLow = lerp(background, text, if (isDark) 0.04f else 0.03f),
+        surfaceContainer = lerp(background, text, if (isDark) 0.06f else 0.05f),
+        surfaceContainerHigh = lerp(background, text, if (isDark) 0.085f else 0.07f),
+        surfaceContainerHighest = lerp(background, text, if (isDark) 0.12f else 0.10f),
+        outline = muted, outlineVariant = lerp(background, text, 0.22f),
         inverseSurface = text, inverseOnSurface = background, inversePrimary = background,
     )
 }
@@ -108,11 +112,42 @@ internal fun ReaderPaperTheme(
     content: @Composable () -> Unit,
 ) {
     val appTheme = LocalReaderAppTheme.current ?: LocalAppTheme.current
+    val currentTokens = LocalNextVolTokens.current
     val colors = ReaderPaper.fromId(settings.paperId).colors
     val scheme = remember(colors) { colors?.colorScheme() } ?: MaterialTheme.colorScheme
     val theme = remember(colors, scheme, appTheme) {
         if (colors == null) appTheme else AppTheme(colors.isDark, scheme)
     }
+    // Synchronize NextVol design tokens and MiuixTheme with the active paper preset (e.g. Sepia/Sage/Night)
+    // while keeping an identical composable hierarchy across Default and preset papers.
+    val paperTokens = remember(colors, scheme, theme.isDark, currentTokens) {
+        if (colors == null) {
+            currentTokens
+        } else {
+            val base = buildNextVolDesignTokens(colorScheme = scheme, isDark = theme.isDark)
+            val glassTint = if (colors.isDark) {
+                scheme.surfaceContainerHigh.copy(alpha = 0.72f)
+            } else {
+                lerp(colors.background, Color.White, 0.22f).copy(alpha = 0.76f)
+            }
+            val glassFallback = if (colors.isDark) {
+                scheme.surfaceContainerHigh.copy(alpha = 0.94f)
+            } else {
+                lerp(colors.background, Color.White, 0.16f).copy(alpha = 0.95f)
+            }
+            base.copy(
+                glassSurfaceTint = glassTint,
+                glassFallbackSurface = glassFallback,
+                glassBorderTop = if (colors.isDark) {
+                    Color.White.copy(alpha = 0.20f)
+                } else {
+                    lerp(colors.background, Color.White, 0.72f).copy(alpha = 0.84f)
+                },
+                glassBorderBottom = scheme.outlineVariant.copy(alpha = if (colors.isDark) 0.45f else 0.72f),
+            )
+        }
+    }
+    val miuixColors = rememberBridgedMiuixColors(colorScheme = scheme, isDark = theme.isDark)
     val style = LocalReaderStyle.current
     val readerStyle = remember(colors, style) {
         if (colors == null) style else style.copy(textColor = colors.text, textDarkColor = colors.text)
@@ -126,22 +161,36 @@ internal fun ReaderPaperTheme(
     if (manageSystemBars) {
         val view = LocalView.current
         DisposableEffect(view, theme.isDark, appTheme.isDark) {
-            val window = (view.context as Activity).window
-            val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !theme.isDark
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                controller.isAppearanceLightNavigationBars = !theme.isDark
+            val window = (view.context as? Activity)?.window
+            if (window != null) {
+                val controller = WindowCompat.getInsetsController(window, view)
+                controller.isAppearanceLightStatusBars = !theme.isDark
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    controller.isAppearanceLightNavigationBars = !theme.isDark
+                }
             }
             onDispose {
-                controller.isAppearanceLightStatusBars = !appTheme.isDark
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                    controller.isAppearanceLightNavigationBars = !appTheme.isDark
+                val window = (view.context as? Activity)?.window
+                if (window != null) {
+                    val controller = WindowCompat.getInsetsController(window, view)
+                    controller.isAppearanceLightStatusBars = !appTheme.isDark
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                        controller.isAppearanceLightNavigationBars = !appTheme.isDark
+                    }
                 }
             }
         }
     }
-    MaterialTheme(colorScheme = scheme) {
-        CompositionLocalProvider(LocalReaderAppTheme provides appTheme, LocalAppTheme provides theme, LocalReaderStyle provides readerStyle,
-            LocalReaderSpeechHighlight provides speechHighlight, content = content)
+    MiuixTheme(colors = miuixColors) {
+        MaterialTheme(colorScheme = scheme) {
+            CompositionLocalProvider(
+                LocalReaderAppTheme provides appTheme,
+                LocalAppTheme provides theme,
+                LocalNextVolTokens provides paperTokens,
+                LocalReaderStyle provides readerStyle,
+                LocalReaderSpeechHighlight provides speechHighlight,
+                content = content,
+            )
+        }
     }
 }

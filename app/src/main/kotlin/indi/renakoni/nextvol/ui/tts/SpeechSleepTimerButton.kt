@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.ui.tts
 import android.os.SystemClock
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,7 +29,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
@@ -59,6 +60,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -68,9 +70,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.tts.MAX_SLEEP_TIMER_MINUTES
 import indi.renakoni.nextvol.tts.ReadAloudState
 import indi.renakoni.nextvol.tts.SpeechPhase
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
+import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -100,22 +105,66 @@ private fun chapterTimerLabel(chapters: Int): String = when (chapters) {
 
 @Composable
 internal fun SpeechSleepTimerButton(
-    state: ReadAloudState, onSelect: (Int?) -> Unit, onChapters: ((Int) -> Unit)?, onOpen: (() -> Unit)? = null,
+    state: ReadAloudState,
+    onSelect: (Int?) -> Unit,
+    onChapters: ((Int) -> Unit)?,
+    onOpen: (() -> Unit)? = null,
 ) {
+    val tokens = NextVolDesign.tokens
+    val colors = MaterialTheme.colorScheme
     var expanded by remember { mutableStateOf(false) }
     val remaining = timerRemaining(state)
     val title = stringResource(R.string.tts_sleep_timer)
     val label = state.sleepTimerChapters?.let { chapterTimerLabel(it) } ?: remaining
     val description = label ?: stringResource(R.string.tts_timer_off)
-    TextButton(
-        onClick = { if (onOpen != null) onOpen() else expanded = true },
-        enabled = state.isActive || state.phase == SpeechPhase.Paused,
-        modifier = Modifier.semantics { contentDescription = title; stateDescription = description },
-        colors = ButtonDefaults.textButtonColors(contentColor = if (label != null) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant),
+    val active = label != null
+    val enabled = state.isActive || state.phase == SpeechPhase.Paused
+
+    Row(
+        modifier = Modifier
+            .heightIn(min = 38.dp)
+            .clip(CircleShape)
+            .background(if (active) tokens.activePillFill else tokens.cardSurface)
+            .border(
+                width = if (active) 1.dp else 0.75.dp,
+                color = if (active) tokens.activePillBorder else tokens.cardBorder,
+                shape = CircleShape,
+            )
+            .clickable(enabled = enabled) {
+                if (onOpen != null) onOpen() else expanded = true
+            }
+            .semantics {
+                role = Role.Button
+                contentDescription = title
+                stateDescription = description
+            }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(painterResource(R.drawable.timer_24px), null, Modifier.size(20.dp))
-        Text(label ?: title, Modifier.padding(start = 6.dp))
+        Icon(
+            painter = painterResource(R.drawable.timer_24px),
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = when {
+                !enabled -> colors.onSurfaceVariant.copy(alpha = 0.38f)
+                active -> colors.primary
+                else -> colors.onSurfaceVariant
+            },
+        )
+        Text(
+            text = label ?: title,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = if (active) FontWeight.W600 else FontWeight.W500,
+                fontFeatureSettings = "tnum",
+            ),
+            color = when {
+                !enabled -> colors.onSurfaceVariant.copy(alpha = 0.38f)
+                active -> colors.primary
+                else -> colors.onSurface
+            },
+            maxLines = 1,
+        )
     }
     if (expanded) SpeechSleepTimerSheet(state, onSelect, onChapters) { expanded = false }
 }
@@ -123,9 +172,52 @@ internal fun SpeechSleepTimerButton(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechSleepTimerSheet(
-    state: ReadAloudState, onMinutes: (Int?) -> Unit, onChapters: ((Int) -> Unit)?, onDismiss: () -> Unit,
+    state: ReadAloudState,
+    onMinutes: (Int?) -> Unit,
+    onChapters: ((Int) -> Unit)?,
+    onDismiss: () -> Unit,
 ) {
+    val tokens = NextVolDesign.tokens
     var custom by rememberSaveable { mutableStateOf(false) }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+        ),
+        sheetGesturesEnabled = !custom,
+        dragHandle = null,
+        shape = RoundedCornerShape(topStart = tokens.sheetRadius, topEnd = tokens.sheetRadius),
+        containerColor = tokens.cardElevatedSurface,
+        properties = ModalBottomSheetProperties(
+            isAppearanceLightStatusBars = MaterialTheme.colorScheme.surface.luminance() > 0.5f,
+            isAppearanceLightNavigationBars = MaterialTheme.colorScheme.surface.luminance() > 0.5f,
+        ),
+    ) {
+        SpeechSleepTimerContent(
+            state = state,
+            custom = custom,
+            onCustomChange = { custom = it },
+            onMinutes = onMinutes,
+            onChapters = onChapters,
+            onBack = onDismiss,
+            modifier = Modifier.navigationBarsPadding(),
+        )
+    }
+}
+
+@Composable
+internal fun SpeechSleepTimerContent(
+    state: ReadAloudState,
+    custom: Boolean,
+    onCustomChange: (Boolean) -> Unit,
+    onMinutes: (Int?) -> Unit,
+    onChapters: ((Int) -> Unit)?,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tokens = NextVolDesign.tokens
+    val colors = MaterialTheme.colorScheme
     val deadline = state.sleepTimerDeadline
     val initialMinutes = remember(deadline, state.sleepTimerRemainingMillis) {
         val remaining = deadline?.minus(SystemClock.elapsedRealtime()) ?: state.sleepTimerRemainingMillis
@@ -137,120 +229,256 @@ internal fun SpeechSleepTimerSheet(
     val status = state.sleepTimerChapters?.let { chapterTimerLabel(it) }
         ?: remaining?.let { stringResource(R.string.tts_timer_remaining, it) }
     val cancelTimer = stringResource(R.string.tts_timer_off)
-    val chooseMinutes: (Int?) -> Unit = { onMinutes(it); onDismiss() }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,
-            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)),
-        sheetGesturesEnabled = !custom,
-        dragHandle = null,
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        properties = ModalBottomSheetProperties(
-            isAppearanceLightStatusBars = MaterialTheme.colorScheme.surface.luminance() > 0.5f,
-            isAppearanceLightNavigationBars = MaterialTheme.colorScheme.surface.luminance() > 0.5f,
-        ),
-    ) {
+    val chooseMinutes: (Int?) -> Unit = {
+        onMinutes(it)
+        onBack()
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
         if (custom) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(48.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { custom = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .height(48.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = { onCustomChange(false) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.onSurface),
+                ) {
                     Text(stringResource(R.string.cancel), style = MaterialTheme.typography.bodyLarge)
                 }
-                TextButton(onClick = { chooseMinutes(hours * 60 + minutes) }, enabled = hours * 60 + minutes > 0) {
-                    Text(stringResource(R.string.confirm), style = MaterialTheme.typography.bodyLarge)
+                TextButton(
+                    onClick = { chooseMinutes(hours * 60 + minutes) },
+                    enabled = hours * 60 + minutes > 0,
+                ) {
+                    Text(
+                        stringResource(R.string.confirm),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
+                    )
                 }
             }
             val itemHeight = 28.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
-            Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.fillMaxWidth().height(itemHeight)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.045f), RoundedCornerShape(4.dp)))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp)) {
-                    DurationWheel(hours, MAX_SLEEP_TIMER_MINUTES / 60 + 1, stringResource(R.string.tts_timer_hour_unit),
-                        itemHeight, Modifier.weight(1f)) { hours = it }
-                    DurationWheel(minutes, 60, stringResource(R.string.tts_timer_minute_unit),
-                        itemHeight, Modifier.weight(1f)) { minutes = it }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(itemHeight)
+                        .background(tokens.activePillFill, RoundedCornerShape(10.dp)),
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 32.dp),
+                ) {
+                    DurationWheel(
+                        initialValue = hours,
+                        count = MAX_SLEEP_TIMER_MINUTES / 60 + 1,
+                        unit = stringResource(R.string.tts_timer_hour_unit),
+                        itemHeight = itemHeight,
+                        modifier = Modifier.weight(1f),
+                    ) { hours = it }
+                    DurationWheel(
+                        initialValue = minutes,
+                        count = 60,
+                        unit = stringResource(R.string.tts_timer_minute_unit),
+                        itemHeight = itemHeight,
+                        modifier = Modifier.weight(1f),
+                    ) { minutes = it }
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(14.dp))
         } else {
-            Box(Modifier.fillMaxWidth().height(52.dp), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.tts_sleep_timer), style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Medium)
-                IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)) {
-                    Icon(painterResource(R.drawable.keyboard_arrow_up_24px), stringResource(R.string.close),
-                        Modifier.size(24.dp).graphicsLayer { rotationZ = 180f })
-                }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                EditorialIconButton(
+                    onClick = onBack,
+                    painter = painterResource(R.drawable.arrow_back_24px),
+                    contentDescription = stringResource(R.string.close),
+                )
+                Text(
+                    text = stringResource(R.string.tts_sleep_timer),
+                    style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.W600),
+                    color = colors.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
             }
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.tts_timer_by_chapter), style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    for (count in listOf(1, 3, 5)) TimerOption(
-                        label = chapterTimerLabel(count), selected = state.sleepTimerChapters == count,
-                        enabled = onChapters != null, modifier = Modifier.weight(1f),
-                        onClick = {
-                            if (state.sleepTimerChapters == count) onMinutes(null) else onChapters?.invoke(count)
-                            onDismiss()
-                        },
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(stringResource(R.string.tts_timer_by_time), style = MaterialTheme.typography.headlineSmall)
-                    Spacer(Modifier.weight(1f))
-                    if (status != null) Row(
-                        Modifier.clip(CircleShape).clickable(onClickLabel = cancelTimer) { chooseMinutes(null) }
-                            .semantics { contentDescription = cancelTimer }.padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
-                        Icon(painterResource(R.drawable.check_24px), null,
-                            Modifier.size(14.dp).background(MaterialTheme.colorScheme.primary, CircleShape).padding(2.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary)
-                        Text(status, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            EditorialHairlineDivider()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.tts_timer_by_chapter),
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.W600),
+                    color = colors.onSurface,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    for (count in listOf(1, 3, 5)) {
+                        TimerOption(
+                            label = chapterTimerLabel(count),
+                            selected = state.sleepTimerChapters == count,
+                            enabled = onChapters != null,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                if (state.sleepTimerChapters == count) onMinutes(null) else onChapters?.invoke(count)
+                                onBack()
+                            },
+                        )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (value in listOf(10, 30, 60, 90)) TimerOption(
-                        label = stringResource(R.string.tts_timer_minutes, value),
-                        selected = initialMinutes == value,
-                        modifier = Modifier.weight(1f),
-                        onClick = { chooseMinutes(value.takeUnless { initialMinutes == value }) },
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.tts_timer_by_time),
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.W600),
+                        color = colors.onSurface,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (status != null) {
+                        Row(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(tokens.activePillFill)
+                                .clickable(onClickLabel = cancelTimer) { chooseMinutes(null) }
+                                .semantics { contentDescription = cancelTimer }
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.check_24px),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .background(colors.primary, CircleShape)
+                                    .padding(2.dp),
+                                tint = colors.onPrimary,
+                            )
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                                color = colors.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (value in listOf(10, 30, 60, 90)) {
+                        TimerOption(
+                            label = stringResource(R.string.tts_timer_minutes, value),
+                            selected = initialMinutes == value,
+                            modifier = Modifier.weight(1f),
+                            onClick = { chooseMinutes(value.takeUnless { initialMinutes == value }) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 46.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(tokens.cardSurface)
+                        .border(0.75.dp, tokens.cardBorder, RoundedCornerShape(14.dp))
+                        .clickable { onCustomChange(true) }
+                        .padding(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.tts_timer_custom),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W500),
+                        color = colors.onSurface,
+                    )
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_ios_24px),
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(12.dp),
                     )
                 }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { custom = true },
-                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.tts_timer_custom), style = MaterialTheme.typography.bodyLarge)
-                    Icon(painterResource(R.drawable.arrow_forward_ios_24px), null, Modifier.size(12.dp))
-                }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
 }
 
 @Composable
-private fun TimerOption(label: String, selected: Boolean, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
-    val background = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.045f)
-    Box(modifier.heightIn(min = 48.dp).clip(CircleShape).selectable(selected, enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxWidth().background(background, CircleShape).padding(horizontal = 6.dp, vertical = 6.dp),
-            contentAlignment = Alignment.Center) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-        }
+private fun TimerOption(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val tokens = NextVolDesign.tokens
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = modifier
+            .heightIn(min = 44.dp)
+            .clip(CircleShape)
+            .background(if (selected) tokens.activePillFill else tokens.cardSurface)
+            .border(
+                width = if (selected) 1.dp else 0.75.dp,
+                color = if (selected) tokens.activePillBorder else tokens.cardBorder,
+                shape = CircleShape,
+            )
+            .selectable(selected, enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = if (selected) FontWeight.W600 else FontWeight.W500,
+                fontFeatureSettings = "tnum",
+            ),
+            textAlign = TextAlign.Center,
+            color = if (selected) colors.primary else colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
 @Composable
-private fun DurationWheel(initialValue: Int, count: Int, unit: String, itemHeight: Dp, modifier: Modifier, onChange: (Int) -> Unit) {
+private fun DurationWheel(
+    initialValue: Int,
+    count: Int,
+    unit: String,
+    itemHeight: Dp,
+    modifier: Modifier,
+    onChange: (Int) -> Unit,
+) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialValue)
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
@@ -269,15 +497,30 @@ private fun DurationWheel(initialValue: Int, count: Int, unit: String, itemHeigh
         state = listState,
         flingBehavior = rememberSnapFlingBehavior(listState),
         contentPadding = PaddingValues(vertical = itemHeight * 3),
-        modifier = modifier.height(itemHeight * 7).selectableGroup().semantics { contentDescription = unit },
+        modifier = modifier
+            .height(itemHeight * 7)
+            .selectableGroup()
+            .semantics { contentDescription = unit },
     ) {
         items(count) { value ->
             Box(
-                Modifier.fillMaxWidth().height(itemHeight).selectable(value == selected, role = Role.RadioButton,
-                    onClick = { scope.launch { listState.animateScrollToItem(value) } }),
+                Modifier
+                    .fillMaxWidth()
+                    .height(itemHeight)
+                    .selectable(
+                        selected = value == selected,
+                        role = Role.RadioButton,
+                        onClick = { scope.launch { listState.animateScrollToItem(value) } },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(value.toString() + unit, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 20.sp, lineHeight = 26.sp),
+                Text(
+                    text = value.toString() + unit,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = 20.sp,
+                        lineHeight = 26.sp,
+                        fontFeatureSettings = "tnum",
+                    ),
                     modifier = Modifier.graphicsLayer {
                         val layout = listState.layoutInfo
                         val item = layout.visibleItemsInfo.find { it.index == value }
@@ -290,7 +533,8 @@ private fun DurationWheel(initialValue: Int, count: Int, unit: String, itemHeigh
                         val visibility = (1f - abs(distance) / 3.5f).coerceIn(0f, 1f)
                         alpha = visibility * visibility
                         scaleX = 1f - abs(distance).coerceAtMost(3f) * 0.035f
-                    })
+                    },
+                )
             }
         }
     }
