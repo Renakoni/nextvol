@@ -42,7 +42,7 @@ class StatsOverviewViewModel @Inject constructor(
             val endDate = LocalDate.now()
 
             val dailyCounts = statsRepository.getDailyCounts(startDate, endDate)
-            generateLevelMap(dailyCounts, startDate, endDate)
+            generateLevelMap(dailyCounts)
 
             val bookRecordsMap = statsRepository.getBookRecords(startDate, endDate)
             _uiState.bookRecordsByDate = bookRecordsMap
@@ -87,16 +87,9 @@ class StatsOverviewViewModel @Inject constructor(
         )
     }
 
-    @Suppress("unused")
-    private fun generateLevelMap(
-        dailyCounts: Map<LocalDate, Count>,
-        startDate: LocalDate,
-        endDate: LocalDate
-    ) {
-        val dateTotalTimeMap = dailyCounts.mapValues { (_, count) -> count.getTotalMinutes() }
-        val localDateList = dateTotalTimeMap.keys.sorted()
-        val readingTimes = dateTotalTimeMap.values.toList()
-        val thresholds = readingTimes.filter { it > 0 }.run {
+    private fun generateLevelMap(dailyCounts: Map<LocalDate, Count>) {
+        val minutesByDate = dailyCounts.mapValues { (_, count) -> count.getTotalMinutes() }
+        val thresholds = minutesByDate.values.filter { it > 0 }.run {
             if (isEmpty()) listOf(0, 0, 0) else listOf(
                 quickSelect(this, 0.25),
                 quickSelect(this, 0.5),
@@ -105,15 +98,13 @@ class StatsOverviewViewModel @Inject constructor(
         }
         _uiState.thresholds = thresholds[2]
 
-        val dateLevelMap = localDateList.associateWith { date ->
-            val readingTime = dateTotalTimeMap[date] ?: 0
+        val dateLevelMap = minutesByDate.mapValues { (_, readingTime) ->
             when {
-                thresholds.all { it == 0 } -> Level.Zero
+                readingTime == 0 -> Level.Zero
                 readingTime >= thresholds[2] -> Level.Four
                 readingTime >= thresholds[1] -> Level.Three
                 readingTime >= thresholds[0] -> Level.Two
-                readingTime > 0 -> Level.One
-                else -> Level.Zero
+                else -> Level.One
             }
         }
         _uiState.dateLevelMap = dateLevelMap

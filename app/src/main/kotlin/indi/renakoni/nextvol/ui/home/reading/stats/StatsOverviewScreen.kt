@@ -328,7 +328,11 @@ private fun CalendarBlock(
                 }
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = stringResource(R.string.heatmap_indicator_more, uiState.thresholds),
+                    text = if (uiState.thresholds > 0) {
+                        stringResource(R.string.heatmap_indicator_threshold, uiState.thresholds)
+                    } else {
+                        stringResource(R.string.heatmap_indicator_more)
+                    },
                     style = typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
