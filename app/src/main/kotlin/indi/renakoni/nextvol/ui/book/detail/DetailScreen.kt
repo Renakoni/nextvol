@@ -105,6 +105,7 @@ import com.valentinilk.shimmer.shimmer
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import indi.renakoni.nextvol.R
+import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
 import indi.renakoni.nextvol.data.book.availableVolumes
 import indi.renakoni.nextvol.data.book.get
 import indi.renakoni.nextvol.data.download.BookDownloadPhase
@@ -789,7 +790,9 @@ private fun DetailContent(
 
             if (hasIntroBlock) {
                 item(key = "intro") {
-                    IntroBlock(description = bookInformation.description)
+                    IntroBlock(description = remember(bookInformation.id, bookInformation.description) {
+                        bookDescriptionForDisplay(bookInformation.id, bookInformation.description)
+                    })
                 }
             }
         }
