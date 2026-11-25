@@ -128,15 +128,15 @@ fun ChapterSelectionBottomSheet(
     )
 
     val readingLocation = remember(bookVolumes, readingChapterId) {
-        bookVolumes.volumes.forEachIndexed { volumeIndex, volume ->
+        bookVolumes.volumes.forEach { volume ->
             val chapterIndex = volume.chapters.indexOfFirst { it.id == readingChapterId }
-            if (chapterIndex >= 0) return@remember Triple(volumeIndex, volume.volumeId, chapterIndex)
+            if (chapterIndex >= 0) return@remember volume.volumeId to chapterIndex
         }
         null
     }
 
     val scrollToCurrent: () -> Unit = {
-        readingLocation?.let { (_, volumeId, chapterIndex) ->
+        readingLocation?.let { (volumeId, chapterIndex) ->
             val nextExpanded = if (volumeId in expandedVolumeIds) expandedVolumeIds else expandedVolumeIds + volumeId
             expandedVolumeIds = nextExpanded
             onChangeSelectedVolumeId(volumeId)
@@ -147,11 +147,11 @@ fun ChapterSelectionBottomSheet(
         }
     }
 
-    LaunchedEffect(sheetState.currentValue, readingLocation, autoScrolled, searching) {
+    LaunchedEffect(sheetState.currentValue, readingLocation, expandedVolumeIds, autoScrolled, searching) {
         if (searching || autoScrolled || sheetState.currentValue == SheetValue.Hidden || readingLocation == null) {
             return@LaunchedEffect
         }
-        val (_, volumeId, chapterIndex) = readingLocation
+        val (volumeId, chapterIndex) = readingLocation
         if (volumeId !in expandedVolumeIds) {
             expandedVolumeIds = expandedVolumeIds + volumeId
             onChangeSelectedVolumeId(volumeId)
