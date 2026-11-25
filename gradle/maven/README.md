@@ -2,6 +2,7 @@
 
 This Maven repository contains build dependencies used by NextVol. Reorderable, BackHandler, Groovy, Kotlin and HttpClient use the [Apache License 2.0](../../LICENSE).
 
+- Gradle settings load the Foojay toolchain resolver 1.0.0 from this repository. [Plugin Portal](https://plugins.gradle.org/plugin/org.gradle.toolchains.foojay-resolver-convention/1.0.0) · [Apache License 2.0](https://github.com/gradle/foojay-toolchains/blob/main/LICENSE)
 - Reorderable 3.1.0 — [Maven Central](https://repo.maven.apache.org/maven2/sh/calvin/reorderable/) · [source](https://github.com/Calvin-LL/Reorderable)
 - Compose Multiplatform BackHandler 1.9.1 — [Maven Central](https://repo.maven.apache.org/maven2/org/jetbrains/compose/ui/ui-backhandler/1.9.1/) · [source](https://github.com/JetBrains/compose-multiplatform-core)
 - JsonPath uses SLF4J API 2.0.17. Its JAR includes the MIT license and the local repository supplies both parent POMs. [Maven Central](https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.17/)

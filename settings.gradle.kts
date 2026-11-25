@@ -2,6 +2,13 @@
 
 pluginManagement {
     repositories {
+        exclusiveContent {
+            forRepository { maven { url = uri("gradle/maven") } }
+            filter {
+                includeModule("org.gradle.toolchains.foojay-resolver-convention", "org.gradle.toolchains.foojay-resolver-convention.gradle.plugin")
+                includeModule("org.gradle.toolchains", "foojay-resolver")
+            }
+        }
         google()
         mavenCentral()
         gradlePluginPortal()
