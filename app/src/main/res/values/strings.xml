@@ -177,13 +177,10 @@
     <string name="settings_theme_desc">Custom app theme and paper texture</string>
     <string name="settings_text_formatting">Text Formatting</string>
     <string name="settings_text_formatting_desc">Formatting text content based on rules</string>
-    <string name="settings_theme_light_theme">Light Theme</string>
-    <string name="settings_theme_light_theme_desc">Set the app theme for light mode</string>
-    <string name="settings_theme_dark_theme">Dark Theme</string>
-    <string name="settings_theme_dark_theme_desc">Set the app theme for dark mode</string>
+    <string name="settings_theme_palette_settings">Theme settings</string>
     <string name="settings_theme_dynamic_colors">Dynamic Colors</string>
-    <string name="settings_theme_dynamic_colors_desc_unavailable">Apply system-generated dynamic colors</string>
-    <string name="settings_theme_dynamic_colors_desc">Apply system-generated dynamic colors (Android 12+ required)</string>
+    <string name="settings_theme_dynamic_colors_desc_unavailable">Apply system-generated dynamic colors (Android 12+ required)</string>
+    <string name="settings_theme_dynamic_colors_desc">Apply system-generated dynamic colors</string>
 
     <string name="settings_formats">Formats</string>
     <string name="settings_formats_desc">Set date and time formats</string>
@@ -468,8 +465,8 @@
     <string name="key_platform_github" translatable="false">GitHub</string>
     <!-- Dark Mode -->
     <string name="key_dark_mode_follow_system">Follow System</string>
-    <string name="key_dark_mode_enabled">Override Enabled</string>
-    <string name="key_dark_mode_disabled">Override Disabled</string>
+    <string name="key_dark_mode_enabled">Dark</string>
+    <string name="key_dark_mode_disabled">Light</string>
     <!-- Log Level -->
     <string name="key_log_level_none">None</string>
     <string name="key_log_level_error">Error</string>

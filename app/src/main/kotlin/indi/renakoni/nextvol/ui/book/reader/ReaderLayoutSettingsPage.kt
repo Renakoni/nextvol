@@ -76,6 +76,7 @@ internal fun ReaderLayoutSettingsPage(settings: ReaderSettingsEditor) {
                         .height(previewHeight)
                         .border(0.75.dp, tokens.cardBorder, RoundedCornerShape(16.dp)),
                     preview = layout,
+                    showMarginGuide = true,
                 )
             }
             Column(
@@ -200,8 +201,10 @@ internal fun ReaderLayoutPreview(
     settings: ReaderSettings,
     modifier: Modifier = Modifier,
     preview: ReaderLayoutSettings = ReaderLayoutSettings.from(settings),
+    showMarginGuide: Boolean = false,
 ) = ReaderPaperTheme(settings) {
     val layout = rememberReaderTextLayout(preview)
+    val textColor = readerTextColor(settings)
     val density = LocalDensity.current
     val paragraphSpacing = with(density) { layout.settings.paragraphSpacing.sp.toDp() }
     val windowSize = LocalWindowInfo.current.containerSize
@@ -235,13 +238,16 @@ internal fun ReaderLayoutPreview(
             Modifier
                 .fillMaxSize()
                 .padding(previewPadding)
-                .border(1.dp, readerTextColor(settings).copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                .then(
+                    if (showMarginGuide) Modifier.border(1.dp, textColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                    else Modifier
+                )
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(paragraphSpacing, Alignment.CenterVertically),
         ) {
             stringResource(R.string.reader_welcome_preview).split('\n').forEach { line ->
-                Text(line, style = layout.style.copy(textAlign = TextAlign.Center), color = readerTextColor(settings))
+                Text(line, style = layout.style.copy(textAlign = TextAlign.Center), color = textColor)
             }
         }
     }

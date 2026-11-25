@@ -19,12 +19,6 @@ object SettingsMenuOptions {
         }
     )
 
-    data object DarkModeOptions: MenuOptions(
-        Option("FollowSystem", R.string.key_dark_mode_follow_system),
-        Option("Enabled", R.string.key_dark_mode_enabled),
-        Option("Disabled", R.string.key_dark_mode_disabled)
-    )
-
     data object InterfaceLanguageOptions : MenuOptions(
         Option("", R.string.follow_system),
         Option("en", R.string.key_locale_en),
