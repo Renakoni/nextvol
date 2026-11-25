@@ -458,7 +458,7 @@ private fun DownloadTaskCard(
                 )
                 if (!bookInformation?.author.isNullOrBlank()) {
                     Text(
-                        text = bookInformation?.author.orEmpty(),
+                        text = bookInformation.author,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall,
