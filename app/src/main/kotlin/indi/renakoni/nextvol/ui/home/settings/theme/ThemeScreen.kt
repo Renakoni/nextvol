@@ -185,7 +185,7 @@ fun DarkModeSettings(
 ) {
     SectionHeader(
         modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
-        text = stringResource(R.string.settings_theme_dark_theme),
+        text = stringResource(R.string.theme_settings),
     )
 
     val appTheme = AppTheme(
@@ -327,22 +327,26 @@ fun ThemeSettingsList(
     settingState: ThemeSettingsEditor,
 ) {
     val tokens = NextVolDesign.tokens
-    SettingsCategory(
-        title = stringResource(R.string.theme_settings),
-    ) {
+    val supportsDynamicColors = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val dynamicColors = supportsDynamicColors && settingState.dynamicColorsKey
+    SettingsCategory {
         SettingsSwitchEntry(
             painter = painterResource(R.drawable.format_color_fill_24px),
             title = stringResource(R.string.settings_theme_dynamic_colors),
-            description = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            description = if (!supportsDynamicColors) {
                 stringResource(R.string.settings_theme_dynamic_colors_desc_unavailable)
             } else {
                 stringResource(R.string.settings_theme_dynamic_colors_desc)
             },
-            checked = settingState.dynamicColorsKey,
+            checked = dynamicColors,
             booleanUserData = settingState.dynamicColorsKeyUserData,
-            disabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.S,
+            disabled = !supportsDynamicColors,
         )
-        if (!settingState.dynamicColorsKey) {
+        if (!dynamicColors) {
+            val isDark = LocalAppTheme.current.isDark
+            val options = if (isDark) SettingsMenuOptions.DarkThemeNameOptions else SettingsMenuOptions.LightThemeNameOptions
+            val selected = if (isDark) settingState.darkThemeName else settingState.lightThemeName
+            val preference = if (isDark) settingState.darkThemeNameUserData else settingState.lightThemeNameUserData
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -351,7 +355,7 @@ fun ThemeSettingsList(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.settings_theme_light_theme),
+                    text = stringResource(R.string.settings_theme_palette_settings),
                     style = typography.labelLarge.copy(fontWeight = FontWeight.W600),
                     color = colorScheme.onSurfaceVariant,
                 )
@@ -361,43 +365,18 @@ fun ThemeSettingsList(
                         .selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    SettingsMenuOptions.LightThemeNameOptions.optionList.forEach { option ->
+                    options.optionList.forEach { option ->
                         val scheme = when (option.key) {
                             "light_designer" -> DesignerLightColorScheme
-                            else -> DefaultLightColorScheme
-                        }
-                        PaletteOptionCard(
-                            label = stringResource(option.nameId),
-                            scheme = scheme,
-                            selected = settingState.lightThemeName == option.key,
-                            onClick = { settingState.lightThemeNameUserData.asynchronousSet(option.key) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-
-                Text(
-                    text = stringResource(R.string.settings_theme_dark_theme),
-                    style = typography.labelLarge.copy(fontWeight = FontWeight.W600),
-                    color = colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectableGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    SettingsMenuOptions.DarkThemeNameOptions.optionList.forEach { option ->
-                        val scheme = when (option.key) {
                             "dark_obsidian" -> DarkObsidianColorScheme
                             "dark_designer" -> DesignerDarkColorScheme
-                            else -> DefaultDarkColorScheme
+                            else -> if (isDark) DefaultDarkColorScheme else DefaultLightColorScheme
                         }
                         PaletteOptionCard(
                             label = stringResource(option.nameId),
                             scheme = scheme,
-                            selected = settingState.darkThemeName == option.key,
-                            onClick = { settingState.darkThemeNameUserData.asynchronousSet(option.key) },
+                            selected = selected == option.key,
+                            onClick = { preference.asynchronousSet(option.key) },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -548,7 +527,6 @@ fun ReaderThemeSettingsList(
 
 @Composable
 fun ReaderTextSettings(settingState: ReaderSettingsEditor, onClickChangeTextColor: () -> Unit) {
-    val tokens = NextVolDesign.tokens
     val onSecondaryContainer = colorScheme.onSecondaryContainer
     val background = colorScheme.background
     val currentColor = readerTextColor(settingState)
@@ -581,7 +559,7 @@ fun ReaderTextSettings(settingState: ReaderSettingsEditor, onClickChangeTextColo
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .height(160.dp)
-            .border(0.75.dp, tokens.cardBorder, RoundedCornerShape(16.dp)),
+            .border(0.75.dp, currentColor.copy(alpha = 0.18f), RoundedCornerShape(16.dp)),
         preview = draft.layout,
     )
     SettingsCategory {

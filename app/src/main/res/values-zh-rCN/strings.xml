@@ -170,9 +170,8 @@
     <string name="settings_theme_desc">设置应用主题和阅读器纸张</string>
     <string name="settings_text_formatting">文本格式化</string>
     <string name="settings_text_formatting_desc">根据规则格式化文本内容</string>
-    <string name="settings_theme_light_theme">浅色主题</string>
+    <string name="settings_theme_palette_settings">主题设置</string>
     <string name="settings_theme_light_theme_desc">指定应用在浅色模式下的主题</string>
-    <string name="settings_theme_dark_theme">深色主题</string>
     <string name="settings_theme_dark_theme_desc">指定应用在深色模式下的主题</string>
     <string name="settings_theme_dynamic_colors">系统动态配色</string>
     <string name="settings_theme_dynamic_colors_desc_unavailable">从系统主题应用动态配色 (需要 Android 12+)</string>
@@ -450,8 +449,8 @@
     <!-- Distribution Platform -->
     <!-- Dark Mode -->
     <string name="key_dark_mode_follow_system">跟随系统</string>
-    <string name="key_dark_mode_enabled">保持启用</string>
-    <string name="key_dark_mode_disabled">保持禁用</string>
+    <string name="key_dark_mode_enabled">深色</string>
+    <string name="key_dark_mode_disabled">浅色</string>
     <!-- Log Level -->
     <string name="key_log_level_none">无</string>
     <string name="key_log_level_error">错误</string>
