@@ -35,7 +35,6 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import io.nightfish.lightnovelreader.api.Route
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import java.util.Collections
 
 @Composable
 fun withHaptic(action: (() -> Unit)?): () -> Unit {
@@ -103,37 +102,6 @@ fun NavController.popBackStackIfResumed() {
 
 fun NavController.isResumed(): Boolean {
     return this.currentBackStackEntry?.lifecycle?.currentState == Lifecycle.State.RESUMED
-}
-
-fun quickSelect(list: List<Int>, percentile: Double): Int {
-    val targetIndex = (list.size * percentile).toInt().coerceIn(list.indices)
-    val arr = list.toMutableList()
-
-    var left = 0
-    var right = arr.lastIndex
-
-    while (left < right) {
-        val pivotIndex = partition(arr, left, right)
-        when {
-            pivotIndex == targetIndex -> return arr[pivotIndex]
-            pivotIndex < targetIndex -> left = pivotIndex + 1
-            else -> right = pivotIndex - 1
-        }
-    }
-    return arr[left]
-}
-
-private fun partition(arr: MutableList<Int>, left: Int, right: Int): Int {
-    val pivot = arr[right]
-    var i = left
-    for (j in left until right) {
-        if (arr[j] <= pivot) {
-            Collections.swap(arr, i, j)
-            i++
-        }
-    }
-    Collections.swap(arr, i, right)
-    return i
 }
 
 fun NavDestination?.currentMainRoute(): Any? {

@@ -64,15 +64,6 @@ object Route {
                 val title: String
             )
             /**
-             * 删除书架确认对话框路由
-             *
-             * @param bookshelfId 目标书架id
-             */
-            @Serializable
-            data class DeleteBookshelfDialog(
-                val bookshelfId: Int
-            )
-            /**
              * 将多本书添加至书架的对话框路由
              *
              * @param selectedBookIds 待添加的书本id列表

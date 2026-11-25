@@ -206,14 +206,17 @@ object EpubBookParser {
             }
         }
         requireImport(chapters.isNotEmpty(), LocalBookImportReason.NoContent) { "The EPUB has no readable content." }
+        // Exclude titles and other embedded XHTML from subsequent book metadata lookups.
+        val descriptions = metadata.named("description")
+        val description = descriptions.firstOrNull()?.descriptionMarkup().orEmpty()
+        descriptions.forEach { it.remove() }
         val coverId = metadata.named("meta").firstOrNull { it.attr("name") == "cover" }?.attr("content")
         val coverPath = (items.firstOrNull { "cover-image" in it.properties } ?: byId[coverId])?.path
-        val description = metadata.named("description").firstOrNull()?.text().orEmpty()
         ParsedLocalBook(
             title = metadata.named("title").firstOrNull()?.text()?.takeIf { it.isNotBlank() } ?: fallbackTitle,
             chapters = chapters,
             author = metadata.named("creator").joinToString(", ") { it.text() },
-            description = if ('<' in description) Jsoup.parseBodyFragment(description).text() else description,
+            description = description,
             publishingHouse = metadata.named("publisher").firstOrNull()?.text().orEmpty(),
             coverPath = coverPath?.let(::image),
         )
@@ -307,6 +310,15 @@ object EpubBookParser {
         }
         flush()
         return result
+    }
+
+    private fun Element.descriptionMarkup(): String {
+        if (childrenSize() == 0) return wholeText().trim()
+        // Use HTML tag semantics so a prefixed XHTML break serializes as a single <br />.
+        for (element in getAllElements()) {
+            element.tagName(element.tagName().substringAfter(':'), Parser.NamespaceHtml)
+        }
+        return html()
     }
 
     private fun Element.named(name: String): List<Element> = allElements.filter { it.tagName().substringAfter(':') == name }

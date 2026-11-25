@@ -3,7 +3,6 @@ package indi.renakoni.nextvol.ui.tts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +19,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.tts.names.RealtimeNameCandidate
 import indi.renakoni.nextvol.tts.names.SpeechNewWordDiscovery
+import indi.renakoni.nextvol.ui.components.design.EditorialCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -95,12 +95,18 @@ internal fun SpeechNewWordTestContent() {
             }
             if (candidates.isEmpty()) item { Text(stringResource(R.string.tts_new_word_empty)) }
             else items(candidates) { candidate ->
-                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
+                EditorialCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 14.dp,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(candidate.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                        Text("%.4f".format(candidate.score), style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            text = "%.4f".format(candidate.score),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 }
             }

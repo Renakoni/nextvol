@@ -22,6 +22,10 @@ import indi.renakoni.nextvol.tts.offline.OfflineAvailability
 import indi.renakoni.nextvol.tts.offline.OfflineAvailabilityChecker
 import indi.renakoni.nextvol.tts.SpeechEngineRepository
 import indi.renakoni.nextvol.tts.sovits.DeviceAcceleration
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
+import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenu
+import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenuHeader
+import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenuItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -147,10 +151,25 @@ internal fun OfflineSpeechSourceRow(
                 IconButton(onClick = { actions = true }) {
                     Icon(painterResource(R.drawable.more_vert_24px), stringResource(R.string.tts_source_actions))
                 }
-                DropdownMenu(actions, { actions = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_edit_source)) }, onClick = { actions = false; onEdit(voice, false) })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_voice_copy)) }, onClick = { actions = false; onEdit(voice, true) })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.tts_remove_source)) }, onClick = { actions = false; onDelete(listOf(voice)) })
+                EditorialPopupMenu(expanded = actions, onDismissRequest = { actions = false }) {
+                    EditorialPopupMenuHeader(text = voice.name)
+                    EditorialPopupMenuItem(
+                        text = stringResource(R.string.tts_edit_source),
+                        leadingIcon = painterResource(R.drawable.edit_square_24px),
+                        onClick = { actions = false; onEdit(voice, false) },
+                    )
+                    EditorialPopupMenuItem(
+                        text = stringResource(R.string.tts_voice_copy),
+                        leadingIcon = painterResource(R.drawable.add_circle_24px),
+                        onClick = { actions = false; onEdit(voice, true) },
+                    )
+                    EditorialHairlineDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                    EditorialPopupMenuItem(
+                        text = stringResource(R.string.tts_remove_source),
+                        leadingIcon = painterResource(R.drawable.delete_forever_24px),
+                        destructive = true,
+                        onClick = { actions = false; onDelete(listOf(voice)) },
+                    )
                 }
             }
         })

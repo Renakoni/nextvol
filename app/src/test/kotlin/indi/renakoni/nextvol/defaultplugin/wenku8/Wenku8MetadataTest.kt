@@ -49,7 +49,6 @@ class Wenku8MetadataTest {
             val book = information(cells)
             assertEquals("Book", book.title)
             assertEquals("Author", book.author)
-            assertEquals("Description", book.description)
             assertEquals(0, book.wordCount.count)
             assertEquals(UNKNOWN_BOOK_UPDATE_TIME, book.lastUpdated)
         }

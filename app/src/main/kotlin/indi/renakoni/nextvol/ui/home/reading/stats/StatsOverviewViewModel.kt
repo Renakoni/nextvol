@@ -6,10 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.github.michaelbull.result.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
-import indi.renakoni.nextvol.data.statistics.Count
+import indi.renakoni.nextvol.data.statistics.BookRecord
 import indi.renakoni.nextvol.data.statistics.StatsRepository
 import indi.renakoni.nextvol.utils.formReadingDuration
-import indi.renakoni.nextvol.utils.quickSelect
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.Dispatchers
@@ -41,10 +40,8 @@ class StatsOverviewViewModel @Inject constructor(
             val startDate = _uiState.startDate
             val endDate = LocalDate.now()
 
-            val dailyCounts = statsRepository.getDailyCounts(startDate, endDate)
-            generateLevelMap(dailyCounts, startDate, endDate)
-
             val bookRecordsMap = statsRepository.getBookRecords(startDate, endDate)
+            generateLevelMap(bookRecordsMap)
             _uiState.bookRecordsByDate = bookRecordsMap
             selectDate(_uiState.selectedDate)
 
@@ -87,33 +84,21 @@ class StatsOverviewViewModel @Inject constructor(
         )
     }
 
-    @Suppress("unused")
-    private fun generateLevelMap(
-        dailyCounts: Map<LocalDate, Count>,
-        startDate: LocalDate,
-        endDate: LocalDate
-    ) {
-        val dateTotalTimeMap = dailyCounts.mapValues { (_, count) -> count.getTotalMinutes() }
-        val localDateList = dateTotalTimeMap.keys.sorted()
-        val readingTimes = dateTotalTimeMap.values.toList()
-        val thresholds = readingTimes.filter { it > 0 }.run {
-            if (isEmpty()) listOf(0, 0, 0) else listOf(
-                quickSelect(this, 0.25),
-                quickSelect(this, 0.5),
-                quickSelect(this, 0.75)
-            )
-        }
-        _uiState.thresholds = thresholds[2]
+    private fun generateLevelMap(recordsByDate: Map<LocalDate, List<BookRecord>>) {
+        val secondsByDate = recordsByDate.mapValues { (_, records) -> records.sumOf { it.seconds.toLong() } }
+        val activeSeconds = secondsByDate.values.filter { it > 0 }.sorted()
+        val low = activeSeconds.getOrElse(activeSeconds.size / 4) { 0L }
+        val middle = activeSeconds.getOrElse(activeSeconds.size / 2) { 0L }
+        val high = activeSeconds.getOrElse(activeSeconds.size * 3 / 4) { 0L }
+        _uiState.highThresholdSeconds = high
 
-        val dateLevelMap = localDateList.associateWith { date ->
-            val readingTime = dateTotalTimeMap[date] ?: 0
+        val dateLevelMap = secondsByDate.mapValues { (_, readingTime) ->
             when {
-                thresholds.all { it == 0 } -> Level.Zero
-                readingTime >= thresholds[2] -> Level.Four
-                readingTime >= thresholds[1] -> Level.Three
-                readingTime >= thresholds[0] -> Level.Two
-                readingTime > 0 -> Level.One
-                else -> Level.Zero
+                readingTime == 0L -> Level.Zero
+                readingTime >= high -> Level.Four
+                readingTime >= middle -> Level.Three
+                readingTime >= low -> Level.Two
+                else -> Level.One
             }
         }
         _uiState.dateLevelMap = dateLevelMap

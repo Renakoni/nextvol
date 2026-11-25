@@ -4,9 +4,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.dialog
 import androidx.navigation.toRoute
-import indi.renakoni.nextvol.utils.isResumed
 import indi.renakoni.nextvol.utils.popBackStackIfResumed
 import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
@@ -22,40 +20,16 @@ fun NavGraphBuilder.bookshelfEditDestination() {
             bookshelf = editBookshelfViewModel.bookshelf,
             init = editBookshelfViewModel::init,
             onClickBack = navController::popBackStackIfResumed,
-            onClickSave = {
-                navController.popBackStackIfResumed()
-                editBookshelfViewModel.save()
-            },
-            onClickDelete = navController::navigateToDeleteBookshelfDialog,
+            onClickSave = { editBookshelfViewModel.save(edit.id) },
+            onClickDelete = editBookshelfViewModel::delete,
             onNameChange = editBookshelfViewModel::onNameChange,
             onSortTypeChange = editBookshelfViewModel::onSortTypeChange,
             onAutoCacheChange = editBookshelfViewModel::onAutoCacheChange,
             onSystemUpdateReminderChange = editBookshelfViewModel::onSystemUpdateReminderChange,
         )
     }
-    deleteBookshelfDialog()
 }
 
 fun NavController.navigateToBookshelfEditDestination(id: Int, title: String) {
     navigate(Route.Main.Bookshelf.Edit(id, title))
-}
-
-private fun NavGraphBuilder.deleteBookshelfDialog() {
-    dialog<Route.Main.Bookshelf.DeleteBookshelfDialog> {
-        val navController = LocalNavController.current
-        val viewModel = hiltViewModel<DeleteBookshelfDialogViewModel>()
-        DeleteBookshelfDialog(
-            onDismissRequest = { navController.popBackStack() },
-            onConfirmation = {
-                viewModel.deleteBookshelf(it.toRoute<Route.Main.Bookshelf.DeleteBookshelfDialog>().bookshelfId)
-                navController.popBackStack()
-                navController.popBackStackIfResumed()
-            }
-        )
-    }
-}
-
-private fun NavController.navigateToDeleteBookshelfDialog(bookId: Int) {
-    if (!this.isResumed()) return
-    navigate(Route.Main.Bookshelf.DeleteBookshelfDialog(bookId))
 }
