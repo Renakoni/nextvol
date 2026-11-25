@@ -1,11 +1,17 @@
 package indi.renakoni.nextvol.ui.home.settings.sources
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -14,14 +20,14 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -36,7 +42,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -54,121 +61,116 @@ import indi.renakoni.nextvol.data.web.rules.SourceGroup
 import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.design.EditorialCard
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
-import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
-
-@Composable
-internal fun SourceManagementAction(
-    title: String,
-    icon: Int,
-    enabled: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit,
-) {
-    EditorialCard(
-        modifier = modifier
-            .heightIn(min = 96.dp)
-            .alpha(if (enabled) 1f else 0.5f),
-        onClick = onClick,
-        enabled = enabled,
-        contentPadding = PaddingValues(16.dp),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            EditorialIconBadge(
-                painter = painterResource(icon),
-                size = 38.dp,
-                iconSize = 20.dp,
-                cornerRadius = 11.dp,
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.W600,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
 
 @Composable
 internal fun SourceGroupFilters(
     groups: List<SourceGroup>,
     installed: List<ManagedSource>,
     selected: String?,
+    showBottomDivider: Boolean = true,
     onSelect: (String?) -> Unit,
 ) {
     val ungroupedCount = installed.count { it.preferences.groupIds.isEmpty() }
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        item(key = "all") {
-            FilterChip(
-                selected = selected == null,
-                onClick = { onSelect(null) },
-                shape = CircleShape,
-                label = { Text(stringResource(R.string.sources_filter_all)) },
-            )
-        }
-        if (ungroupedCount > 0) {
-            item(key = "ungrouped") {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .selectableGroup(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            item(key = "all") {
                 SourceGroupFilter(
-                    name = stringResource(R.string.source_group_ungrouped),
-                    count = ungroupedCount,
-                    selected = selected == "",
-                ) { onSelect("") }
+                    name = stringResource(R.string.sources_filter_all),
+                    count = installed.size,
+                    selected = selected == null,
+                ) { onSelect(null) }
+            }
+            if (ungroupedCount > 0) {
+                item(key = "ungrouped") {
+                    SourceGroupFilter(
+                        name = stringResource(R.string.source_group_ungrouped),
+                        count = ungroupedCount,
+                        selected = selected == "",
+                    ) { onSelect("") }
+                }
+            }
+            items(groups, key = { it.id }) { group ->
+                SourceGroupFilter(
+                    name = group.name,
+                    count = installed.count { group.id in it.preferences.groupIds },
+                    selected = selected == group.id,
+                ) { onSelect(group.id) }
             }
         }
-        items(groups, key = { it.id }) { group ->
-            SourceGroupFilter(
-                name = group.name,
-                count = installed.count { group.id in it.preferences.groupIds },
-                selected = selected == group.id,
-            ) { onSelect(group.id) }
+        if (showBottomDivider) {
+            EditorialHairlineDivider()
         }
     }
 }
 
 @Composable
 private fun SourceGroupFilter(name: String, count: Int, selected: Boolean, onSelect: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
     val memberCount = pluralStringResource(R.plurals.source_group_member_count, count, count)
-    FilterChip(
-        selected = selected,
-        onClick = onSelect,
-        shape = CircleShape,
-        modifier = Modifier.semantics { contentDescription = "$name, $memberCount" },
-        label = {
+    val textColor by animateColorAsState(
+        targetValue = if (selected) colors.onSurface else colors.onSurfaceVariant,
+        animationSpec = tween(180),
+        label = "sourceGroupTabText",
+    )
+    val indicatorColor by animateColorAsState(
+        targetValue = if (selected) colors.primary else Color.Transparent,
+        animationSpec = tween(180),
+        label = "sourceGroupTabIndicator",
+    )
+
+    Column(
+        modifier = Modifier
+            .width(IntrinsicSize.Max)
+            .selectable(
+                selected = selected,
+                role = Role.Tab,
+                onClick = onSelect,
+            )
+            .semantics { contentDescription = "$name, $memberCount" }
+            .padding(top = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
                 text = name,
-                modifier = Modifier.widthIn(max = 180.dp),
+                modifier = Modifier.widthIn(max = 160.dp),
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
+                ),
+                color = textColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        },
-        trailingIcon = if (count > 0) {
-            {
-                Badge(
-                    containerColor = if (selected) {
-                        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.14f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainerHighest
-                    },
-                    contentColor = if (selected) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                ) {
-                    Text(
-                        text = count.toString(),
-                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                    )
-                }
+            if (count > 0) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFeatureSettings = "tnum",
+                        fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
+                    ),
+                    color = if (selected) colors.primary else colors.onSurfaceVariant.copy(alpha = 0.72f),
+                )
             }
-        } else {
-            null
-        },
-    )
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.5.dp)
+                .clip(CircleShape)
+                .background(indicatorColor),
+        )
+    }
 }
 
 @Composable

@@ -11,7 +11,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.CircleShape
@@ -93,8 +93,8 @@ import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.book.detail.PixivBlockManager
 import indi.renakoni.nextvol.ui.book.detail.PixivBlockingViewModel
 import indi.renakoni.nextvol.ui.components.EmptyPage
-import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.components.design.EditorialCard
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenu
 import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenuHeader
@@ -108,9 +108,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Switch as MiuixSwitch
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
 
 fun NavGraphBuilder.settingsSourcesDestination() {
     composable<Route.Main.Settings.SourceImport> { entry ->
@@ -378,13 +375,33 @@ fun SourcesScreen(
                     )
                 },
                 actions = {
+                    val onMainList = state.editor == null &&
+                        state.preview == null &&
+                        selectedSource == null &&
+                        !adding &&
+                        !managingGroups
+                    if (onMainList && !selecting) {
+                        EditorialIconButton(
+                            onClick = { managingGroups = true },
+                            enabled = !state.busy,
+                            painter = painterResource(R.drawable.view_list_24px),
+                            contentDescription = stringResource(R.string.source_groups_manage),
+                        )
+                        EditorialIconButton(
+                            onClick = { adding = true },
+                            enabled = !state.busy,
+                            painter = painterResource(R.drawable.add_circle_24px),
+                            contentDescription = stringResource(R.string.sources_add),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
                     if (state.editor != null) {
                         EditorialIconButton(
                             onClick = { findingInEditor = !findingInEditor },
                             enabled = !state.busy,
                             painter = painterResource(R.drawable.find_replace_24px),
                             contentDescription = stringResource(R.string.sources_editor_find_replace),
-                            containerColor = if (findingInEditor) tokens.activePillFill else MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+                            containerColor = if (findingInEditor) tokens.activePillFill else Color.Transparent,
                             contentColor = if (findingInEditor) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         )
                         Box {
@@ -594,13 +611,14 @@ fun SourcesScreen(
                             .fillMaxSize()
                             .padding(padding),
                         state = page.listState,
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp),
                     ) {
                         if (state.busy && state.showProgress) {
                             item(key = "sources_progress") {
                                 EditorialCard(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
                                     contentPadding = PaddingValues(14.dp),
                                 ) {
                                     LinearProgressIndicator(
@@ -620,7 +638,9 @@ fun SourcesScreen(
                         inlineMessage?.takeUnless { it == R.string.sources_saved || it == R.string.source_groups_saved }?.let { message ->
                             item(key = "sources_inline_msg") {
                                 EditorialCard(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
                                     borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
@@ -636,29 +656,12 @@ fun SourcesScreen(
                         if (state.selected != null) {
                             item(key = "source-settings") {
                                 state.addedSources.find { it.id == state.selected }?.let { source ->
-                                    SourceSettings(source, state, model, onSearch = { onSearch(source.id) })
+                                    Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                        SourceSettings(source, state, model, onSearch = { onSearch(source.id) })
+                                    }
                                 }
                             }
                         } else {
-                            item(key = "source-management-actions") {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    SourceManagementAction(
-                                        title = stringResource(R.string.sources_add),
-                                        icon = R.drawable.library_add_24px,
-                                        enabled = !state.busy,
-                                        modifier = Modifier.weight(1f),
-                                    ) { adding = true }
-                                    SourceManagementAction(
-                                        title = stringResource(R.string.source_groups_manage),
-                                        icon = R.drawable.view_list_24px,
-                                        enabled = !state.busy,
-                                        modifier = Modifier.weight(1f),
-                                    ) { managingGroups = true }
-                                }
-                            }
                             if (state.addedSources.isNotEmpty()) {
                                 item(key = "source-search-bar") {
                                     TextField(
@@ -666,7 +669,7 @@ fun SourcesScreen(
                                         onValueChange = { managementQuery = it },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .border(0.75.dp, tokens.cardBorder, CircleShape),
+                                            .padding(horizontal = 16.dp, vertical = 4.dp),
                                         singleLine = true,
                                         enabled = !state.busy,
                                         placeholder = {
@@ -697,11 +700,11 @@ fun SourcesScreen(
                                         } else {
                                             null
                                         },
-                                        shape = CircleShape,
+                                        shape = RoundedCornerShape(12.dp),
                                         colors = TextFieldDefaults.colors(
-                                            focusedContainerColor = tokens.cardSurface,
-                                            unfocusedContainerColor = tokens.cardSurface,
-                                            disabledContainerColor = tokens.cardSurface.copy(alpha = 0.6f),
+                                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f),
                                             focusedIndicatorColor = Color.Transparent,
                                             unfocusedIndicatorColor = Color.Transparent,
                                             disabledIndicatorColor = Color.Transparent,
@@ -710,20 +713,25 @@ fun SourcesScreen(
                                 }
                             }
                             item(key = "source-user-groups") {
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 6.dp),
+                                ) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .heightIn(min = 44.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            .padding(end = 8.dp),
+                                        verticalAlignment = Alignment.Bottom,
                                     ) {
-                                        SectionHeader(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .padding(start = 4.dp),
-                                            text = stringResource(R.string.source_catalog_installed, state.addedSources.size),
-                                        )
+                                        Box(Modifier.weight(1f)) {
+                                            SourceGroupFilters(
+                                                groups = state.groups,
+                                                installed = state.addedSources,
+                                                selected = managementGroup,
+                                                showBottomDivider = false,
+                                            ) { managementGroup = it }
+                                        }
                                         if (selecting) {
                                             val selection = when {
                                                 visibleSources.isNotEmpty() && visibleSources.all { it.key in selectedSources } -> ToggleableState.On
@@ -732,8 +740,8 @@ fun SourcesScreen(
                                             }
                                             Row(
                                                 modifier = Modifier
-                                                    .heightIn(min = 44.dp)
-                                                    .clip(CircleShape)
+                                                    .heightIn(min = 40.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
                                                     .triStateToggleable(
                                                         state = selection,
                                                         enabled = !state.busy && visibleSources.isNotEmpty(),
@@ -748,7 +756,7 @@ fun SourcesScreen(
                                                     }
                                                     .padding(horizontal = 8.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             ) {
                                                 TriStateCheckbox(
                                                     state = selection,
@@ -764,17 +772,22 @@ fun SourcesScreen(
                                             TextButton(
                                                 onClick = { selecting = true },
                                                 enabled = !state.busy && visibleSources.isNotEmpty(),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                             ) {
-                                                Text(stringResource(R.string.source_group_select_members))
+                                                Text(
+                                                    text = stringResource(R.string.source_group_select_members),
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                )
                                             }
                                         }
                                     }
-                                    SourceGroupFilters(state.groups, state.addedSources, managementGroup) { managementGroup = it }
+                                    EditorialHairlineDivider()
                                 }
                             }
                             if (visibleSources.isEmpty()) {
                                 item(key = "sources_empty") {
                                     EmptyPage(
+                                        modifier = Modifier.fillParentMaxHeight(0.7f),
                                         icon = painterResource(
                                             if (trimmedQuery.isNotEmpty()) R.drawable.search_24px else R.drawable.public_24px,
                                         ),
@@ -783,25 +796,29 @@ fun SourcesScreen(
                                             else R.string.source_catalog_empty,
                                         ),
                                         description = "",
-                                    )
+                                    ) {
+                                        if (trimmedQuery.isEmpty()) {
+                                            Button(
+                                                onClick = { adding = true },
+                                                enabled = !state.busy,
+                                                shape = RoundedCornerShape(12.dp),
+                                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                                            ) {
+                                                Text(stringResource(R.string.sources_add))
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                            items(visibleSources, key = { it.key }) { source ->
+                            itemsIndexed(visibleSources, key = { _, it -> it.key }) { index, source ->
                                 val id = source.id
                                 val selected = source.key in selectedSources
                                 val selectLabel = stringResource(R.string.source_group_select)
+                                val enabled = source.preferences.enabled
+                                val monogram = source.name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "#"
                                 val rowModifier = Modifier
                                     .fillMaxWidth()
-                                    .squircleBackground(
-                                        color = if (selecting && selected) tokens.activePillFill else tokens.cardSurface,
-                                        cornerRadius = tokens.cardRadius,
-                                    )
-                                    .squircleBorder(
-                                        width = if (selecting && selected) 1.25.dp else 0.75.dp,
-                                        color = if (selecting && selected) MaterialTheme.colorScheme.primary else tokens.cardBorder,
-                                        cornerRadius = tokens.cardRadius,
-                                    )
-                                    .squircleClip(tokens.cardRadius)
+                                    .background(if (selecting && selected) tokens.activePillFill else Color.Transparent)
                                     .then(
                                         if (selecting) {
                                             Modifier.toggleable(
@@ -824,46 +841,69 @@ fun SourcesScreen(
                                             )
                                         },
                                     )
-                                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
 
-                                Row(
-                                    modifier = rowModifier,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    if (selecting) {
-                                        Checkbox(
-                                            checked = selected,
-                                            onCheckedChange = null,
-                                            enabled = !state.busy,
-                                        )
-                                    }
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                                Column(Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = rowModifier,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     ) {
-                                        Text(
-                                            text = source.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.W600,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Text(
-                                            text = source.host,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
+                                        if (selecting) {
+                                            Checkbox(
+                                                checked = selected,
+                                                onCheckedChange = null,
+                                                enabled = !state.busy,
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(CircleShape)
+                                                    .background(
+                                                        if (enabled) tokens.iconBadgeContainer.copy(alpha = 0.72f)
+                                                        else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                    ),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Text(
+                                                    text = monogram,
+                                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.W700),
+                                                    color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        }
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                                        ) {
+                                            Text(
+                                                text = source.name,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.W600,
+                                                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Text(
+                                                text = source.host,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        if (!selecting) {
+                                            Spacer(Modifier.width(4.dp))
+                                            MiuixSwitch(
+                                                checked = enabled,
+                                                onCheckedChange = { model.setEnabled(id, it) },
+                                                enabled = !state.busy,
+                                            )
+                                        }
                                     }
-                                    if (!selecting) {
-                                        Spacer(Modifier.width(4.dp))
-                                        MiuixSwitch(
-                                            checked = source.preferences.enabled,
-                                            onCheckedChange = { model.setEnabled(id, it) },
-                                            enabled = !state.busy,
-                                        )
+                                    if (index < visibleSources.lastIndex) {
+                                        EditorialHairlineDivider(Modifier.padding(start = 66.dp, end = 16.dp))
                                     }
                                 }
                             }
