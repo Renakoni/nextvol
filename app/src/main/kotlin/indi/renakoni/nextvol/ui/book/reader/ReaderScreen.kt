@@ -640,7 +640,8 @@ internal fun ReaderTopBar(
             shape = RoundedCornerShape(22.dp),
             variant = GlassVariant.Frosted,
             hazeState = hazeState,
-            elevation = 8.dp,
+            elevation = 6.dp,
+            borderWidth = 0.65.dp,
         ) {
             Row(
                 modifier = Modifier
@@ -709,7 +710,8 @@ internal fun ReaderBottomBar(
             shape = RoundedCornerShape(26.dp),
             variant = GlassVariant.Liquid,
             hazeState = hazeState,
-            elevation = 12.dp,
+            elevation = 8.dp,
+            borderWidth = 0.65.dp,
         ) {
             Row(
                 modifier = Modifier
