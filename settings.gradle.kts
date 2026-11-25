@@ -7,6 +7,7 @@ pluginManagement {
             filter {
                 includeModule("org.gradle.toolchains.foojay-resolver-convention", "org.gradle.toolchains.foojay-resolver-convention.gradle.plugin")
                 includeModule("org.gradle.toolchains", "foojay-resolver")
+                includeVersion("org.jetbrains.kotlin.android", "org.jetbrains.kotlin.android.gradle.plugin", "2.4.10")
             }
         }
         google()
