@@ -12,9 +12,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import indi.renakoni.nextvol.theme.NextVolDesign
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -143,9 +149,13 @@ fun NavGraphBuilder.speechSettingsDestination() {
         if (runtimeDialog) SpeechRuntimeDialog { runtimeDialog = false }
         LaunchedEffect(Unit) { viewModel.refresh() }
         val scheme = route.schemeId?.let { id -> schemes.schemes.items.find { it.id == id } }
+        val currentSchemeName = state.settings.schemeName.ifBlank { stringResource(R.string.tts_scheme_initial) }
         SpeechSettingsScreen(state, playback, nav::popBackStackIfResumed,
             schemeTitle = scheme?.label(),
             schemeUsage = scheme?.let { schemes.usage(it.id) },
+            onSchemes = { nav.navigate(SpeechSchemesRoute(bookId)) { launchSingleTop = true } }.takeIf { route.schemeId == null },
+            schemeSummary = if (bookId != null && schemes.schemes.bindings[bookId] == null)
+                stringResource(R.string.tts_scheme_follow_name, currentSchemeName) else currentSchemeName,
             onSources = { nav.navigate(HttpSpeechSourcesRoute(schemeId = state.settings.schemeId)) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute(bookId, state.settings.schemeId)) { launchSingleTop = true } },
@@ -238,6 +248,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val viewModel = hiltViewModel<SpeechPlaybackSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val defaultContext = stringResource(R.string.tts_role_context_default)
+        var backgroundMusicDialog by rememberSaveable { mutableStateOf(false) }
+        if (backgroundMusicDialog) BackgroundMusicDialog { backgroundMusicDialog = false }
         LaunchedEffect(Unit) { viewModel.initializeRoleContext(defaultContext) }
         SpeechPlaybackSettingsScreen(state, viewModel.preferences, nav::popBackStackIfResumed,
             viewModel::update, viewModel::allowMultipleVoices, viewModel::roleContextPattern,
@@ -247,7 +259,8 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onAudioSettings = viewModel::audioSettings,
             onBackgroundMusic = viewModel::backgroundMusic,
             onAutoAssign = viewModel::autoAssign, onCacheLimit = viewModel::cacheLimit,
-            onDiagnosticLogging = viewModel::diagnosticLogging)
+            onDiagnosticLogging = viewModel::diagnosticLogging,
+            onManageBackgroundMusic = { backgroundMusicDialog = true })
     }
     composable<SpeechNameTestRoute> {
         HideReadAloudOverlay()
@@ -396,15 +409,31 @@ fun NavGraphBuilder.speechSettingsDestination() {
                 }
             })
         if (deleting.isNotEmpty() || deletingHttp.isNotEmpty()) {
+            val tokens = NextVolDesign.tokens
             val dismiss = { deleting = emptyList(); deletingHttp = emptyList() }
-            AlertDialog(onDismissRequest = dismiss, title = { Text(stringResource(R.string.tts_remove_source)) },
+            AlertDialog(
+                onDismissRequest = dismiss,
+                shape = RoundedCornerShape(tokens.sheetRadius),
+                containerColor = tokens.cardElevatedSurface,
+                title = { Text(stringResource(R.string.tts_remove_source)) },
                 text = { Text(stringResource(R.string.tts_voice_delete_confirm, deleting.size + deletingHttp.size)) },
-                confirmButton = { TextButton(onClick = {
-                    if (deleting.isNotEmpty()) offlineViewModel.delete(deleting) else viewModel.delete(deletingHttp)
-                    dismiss()
-                }) {
-                    Text(stringResource(R.string.confirm))
-                } }, dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } })
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (deleting.isNotEmpty()) offlineViewModel.delete(deleting) else viewModel.delete(deletingHttp)
+                            dismiss()
+                        },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.confirm))
+                    }
+                },
+                dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } },
+            )
         }
     }
     composable<SovitsImportRoute> { entry ->

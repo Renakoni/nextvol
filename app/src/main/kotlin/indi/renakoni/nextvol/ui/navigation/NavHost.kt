@@ -3,6 +3,7 @@ package indi.renakoni.nextvol.ui.navigation
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -113,9 +114,9 @@ fun NextVolNavHost(
                     navController = navController,
                     startDestination = Route.Main,
                     enterTransition = { destinationEnter() },
-                    exitTransition = { expandExit() },
+                    exitTransition = { destinationExit() },
                     popEnterTransition = { destinationEnter(pop = true) },
-                    popExitTransition = { expandPopExit() }
+                    popExitTransition = { destinationExit(pop = true) }
                 ) {
                     homeNavigation()
                     bookNavigation(onReaderActiveChanged)
@@ -137,10 +138,46 @@ fun NextVolNavHost(
     }
 }
 
-// Root tabs are peers. Fade them together so neither transition leaves an empty content frame.
-private val AnimatedContentTransitionScope<NavBackStackEntry>.isMainTabChange: Boolean
-    get() = initialState.destination.currentMainRoute() != null &&
-        targetState.destination.currentMainRoute() != null
+private const val MAIN_TAB_SLIDE_DURATION_MS = 180
 
-internal fun AnimatedContentTransitionScope<NavBackStackEntry>.destinationEnter(pop: Boolean = false): EnterTransition =
-    if (pop) expandPopEnter(fadeThrough = !isMainTabChange) else expandEnter(fadeThrough = !isMainTabChange)
+private fun mainTabOrdinal(route: Any?): Int? = when (route) {
+    is Route.Main.Reading -> 0
+    is Route.Main.Bookshelf -> 1
+    is Route.Main.Explore -> 2
+    is Route.Main.Categories -> 3
+    else -> null
+}
+
+private val AnimatedContentTransitionScope<NavBackStackEntry>.mainTabSlideDirection: AnimatedContentTransitionScope.SlideDirection?
+    get() {
+        val from = mainTabOrdinal(initialState.destination.currentMainRoute()) ?: return null
+        val to = mainTabOrdinal(targetState.destination.currentMainRoute()) ?: return null
+        if (from == to) return null
+        return if (to > from) {
+            AnimatedContentTransitionScope.SlideDirection.Start
+        } else {
+            AnimatedContentTransitionScope.SlideDirection.End
+        }
+    }
+
+internal fun AnimatedContentTransitionScope<NavBackStackEntry>.destinationEnter(pop: Boolean = false): EnterTransition {
+    val direction = mainTabSlideDirection
+    if (direction != null) {
+        return slideIntoContainer(
+            towards = direction,
+            animationSpec = tween(MAIN_TAB_SLIDE_DURATION_MS, easing = FastOutSlowInEasing),
+        )
+    }
+    return if (pop) expandPopEnter(fadeThrough = true) else expandEnter(fadeThrough = true)
+}
+
+internal fun AnimatedContentTransitionScope<NavBackStackEntry>.destinationExit(pop: Boolean = false): ExitTransition {
+    val direction = mainTabSlideDirection
+    if (direction != null) {
+        return slideOutOfContainer(
+            towards = direction,
+            animationSpec = tween(MAIN_TAB_SLIDE_DURATION_MS, easing = FastOutSlowInEasing),
+        )
+    }
+    return if (pop) expandPopExit() else expandExit()
+}

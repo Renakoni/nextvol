@@ -50,9 +50,6 @@ class ReadingHomeViewModel @Inject constructor(
     var readingListLoading by mutableStateOf(true)
         private set
 
-    var chapterSheetUiState by mutableStateOf<ChapterSheetUiState?>(null)
-        private set
-
     init {
         viewModelScope.launch {
             readingBooksUserData.getFlowWithDefault(emptyList()).collect { ids ->
@@ -88,25 +85,6 @@ class ReadingHomeViewModel @Inject constructor(
             // while the last result remains available; removing the ID cancels its child scope.
             .stateIn(scope, SharingStarted.WhileSubscribed(), null)
         return BookObservation(job, state)
-    }
-
-    fun openChapters(bookId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val userData = bookRepository.getUserReadingData(bookId)
-            chapterSheetUiState = ChapterSheetUiState(
-                bookId =  bookId,
-                readingChapterId = userData.lastReadChapterId ?: return@launch,
-                bookVolumeFlow = bookRepository.getBookVolumesFlow(bookId)
-            )
-        }
-    }
-
-    fun setVolume(volumeId: String) {
-        chapterSheetUiState = chapterSheetUiState?.copy(selectedVolumeId = volumeId)
-    }
-
-    fun closeContents() {
-        chapterSheetUiState = null
     }
 
     fun removeFromReadingList(bookId: String) {
