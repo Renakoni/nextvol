@@ -31,8 +31,8 @@ val DefaultLightColorScheme = lightColorScheme(
     inverseSurface = Color(0xFF1E2026),
     inverseOnSurface = Color(0xFFF5F6F8),
     inversePrimary = Color(0xFFA6C2FF),
-    outline = Color(0xFF8E94A0),
-    outlineVariant = Color(0xFFE3E5EC),
+    outline = Color(0xFF848A98),
+    outlineVariant = Color(0xFFD5D9E2),
     scrim = Color(0xFF000000),
     surfaceBright = Color(0xFFFFFFFF),
     surfaceDim = Color(0xFFECEEF2),
@@ -48,42 +48,42 @@ val DefaultLightColorScheme = lightColorScheme(
 )
 
 /**
- * Crystal Night (dark default): deep neutral charcoal canvas with pure snow ink,
- * luminous sky-cobalt accent, and cleanly stepped graphite surfaces.
+ * Satin Charcoal (dark default): deep neutral charcoal canvas with crisp white ink,
+ * luminous sky-cobalt accent, and neutral matte graphite surfaces mirroring Pure Porcelain.
  */
 val DefaultDarkColorScheme = darkColorScheme(
     primary = Color(0xFF7CA4F7),
     onPrimary = Color(0xFF0A2154),
-    primaryContainer = Color(0xFF1C325E),
+    primaryContainer = Color(0xFF1C3056),
     onPrimaryContainer = Color(0xFFDCE8FF),
-    secondary = Color(0xFFA5ABB8),
-    onSecondary = Color(0xFF20242C),
-    secondaryContainer = Color(0xFF242832),
-    onSecondaryContainer = Color(0xFFE4E7EE),
+    secondary = Color(0xFFA2A6B0),
+    onSecondary = Color(0xFF1C1E24),
+    secondaryContainer = Color(0xFF23252A),
+    onSecondaryContainer = Color(0xFFE6E8EE),
     tertiary = Color(0xFFE89B82),
     onTertiary = Color(0xFF471C0F),
     tertiaryContainer = Color(0xFF4D281D),
     onTertiaryContainer = Color(0xFFFFE0D6),
-    background = Color(0xFF0F1115),
-    onBackground = Color(0xFFF4F5F8),
-    surface = Color(0xFF0F1115),
-    onSurface = Color(0xFFF4F5F8),
-    surfaceVariant = Color(0xFF22252E),
-    onSurfaceVariant = Color(0xFF969CA8),
+    background = Color(0xFF0D0E10),
+    onBackground = Color(0xFFF6F7F9),
+    surface = Color(0xFF0D0E10),
+    onSurface = Color(0xFFF6F7F9),
+    surfaceVariant = Color(0xFF202226),
+    onSurfaceVariant = Color(0xFF9A9EA8),
     surfaceTint = Color(0xFF7CA4F7),
-    inverseSurface = Color(0xFFF4F5F8),
-    inverseOnSurface = Color(0xFF181A20),
+    inverseSurface = Color(0xFFF6F7F9),
+    inverseOnSurface = Color(0xFF16181C),
     inversePrimary = Color(0xFF2352C4),
-    outline = Color(0xFF686E7A),
-    outlineVariant = Color(0xFF2A2E38),
+    outline = Color(0xFF686C75),
+    outlineVariant = Color(0xFF2E3036),
     scrim = Color(0xFF000000),
-    surfaceBright = Color(0xFF2A2F3A),
-    surfaceDim = Color(0xFF0A0C0F),
-    surfaceContainerLowest = Color(0xFF090B0E),
-    surfaceContainerLow = Color(0xFF161920),
-    surfaceContainer = Color(0xFF1D2029),
-    surfaceContainerHigh = Color(0xFF252934),
-    surfaceContainerHighest = Color(0xFF2F3442),
+    surfaceBright = Color(0xFF2A2C32),
+    surfaceDim = Color(0xFF090A0C),
+    surfaceContainerLowest = Color(0xFF08090B),
+    surfaceContainerLow = Color(0xFF18191D),
+    surfaceContainer = Color(0xFF202126),
+    surfaceContainerHigh = Color(0xFF282A30),
+    surfaceContainerHighest = Color(0xFF32343C),
     error = Color(0xFFF29B9B),
     onError = Color(0xFF5A1111),
     errorContainer = Color(0xFF5E1B1B),
@@ -91,19 +91,19 @@ val DefaultDarkColorScheme = darkColorScheme(
 )
 
 /**
- * Pure Obsidian OLED: true #000000 background paired with subtle luminous card surfaces
- * and crisp borders so elevated glass panels never dissolve into black.
+ * Pure Obsidian OLED: true #000000 background paired with neutral matte graphite surfaces
+ * and crisp subtle dividers so floating glass panels never dissolve into black.
  */
 val DarkObsidianColorScheme = DefaultDarkColorScheme.copy(
     background = Color(0xFF000000),
     surface = Color(0xFF000000),
     surfaceDim = Color(0xFF000000),
     surfaceContainerLowest = Color(0xFF000000),
-    surfaceContainerLow = Color(0xFF111318),
-    surfaceContainer = Color(0xFF161920),
-    surfaceContainerHigh = Color(0xFF1E222B),
-    surfaceContainerHighest = Color(0xFF282D39),
-    outlineVariant = Color(0xFF262B36),
+    surfaceContainerLow = Color(0xFF151619),
+    surfaceContainer = Color(0xFF1D1E22),
+    surfaceContainerHigh = Color(0xFF25272C),
+    surfaceContainerHighest = Color(0xFF2F3138),
+    outlineVariant = Color(0xFF2A2C32),
 )
 
 val DesignerLightColorScheme = lightColorScheme(

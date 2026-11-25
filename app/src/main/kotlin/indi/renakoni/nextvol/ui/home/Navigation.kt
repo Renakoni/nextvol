@@ -97,6 +97,8 @@ fun NavGraphBuilder.homeNavigation() {
     }
 }
 
+private val TabLabelLineHeight = 13.sp
+
 private data class HomeTabSpec(
     val route: Any,
     val label: String,
@@ -174,8 +176,8 @@ fun HomeNavigateBar(
     val lensScaleX = (1f + (travelDelta * 0.24f).coerceAtMost(0.18f) + if (dragging) 0.05f else 0f)
     val lensScaleY = (1f - (travelDelta * 0.08f).coerceAtMost(0.06f) + if (dragging) 0.04f else 0f)
 
-    // Compact floating pill width leaves generous breathing room on both sides so book covers peek cleanly.
-    val barWidth = 276.dp
+    val barWidth = 244.dp * density.fontScale.coerceAtLeast(1f)
+    val barHeight = maxOf(50.dp, 29.dp + with(density) { TabLabelLineHeight.toDp() })
 
     Box(
         modifier = Modifier
@@ -185,24 +187,24 @@ fun HomeNavigateBar(
                     WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
                 )
             )
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
         LiquidGlassSurface(
             modifier = Modifier
                 .widthIn(max = barWidth)
                 .fillMaxWidth()
-                .height(58.dp),
+                .height(barHeight),
             shape = CircleShape,
             variant = GlassVariant.Liquid,
             blurRadius = 11.dp,
-            elevation = 14.dp,
-            borderWidth = 1.dp,
+            elevation = 12.dp,
+            borderWidth = 0.9.dp,
         ) {
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(4.dp)
+                    .padding(horizontal = 3.dp)
                     .pointerInput(tabs.size, isRtl) {
                         val slotWidthPx = size.width.toFloat() / tabs.size
                         detectHorizontalDragGestures(
@@ -234,15 +236,15 @@ fun HomeNavigateBar(
                     if (tokens.isDark) {
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.22f),
-                                Color.White.copy(alpha = 0.13f),
+                                Color.White.copy(alpha = 0.15f),
+                                Color.White.copy(alpha = 0.10f),
                             ),
                         )
                     } else {
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0x17000000),
-                                Color(0x11000000),
+                                Color(0x160F172A),
+                                Color(0x1F0F172A),
                             ),
                         )
                     }
@@ -251,15 +253,15 @@ fun HomeNavigateBar(
                     if (tokens.isDark) {
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.34f),
-                                Color.White.copy(alpha = 0.08f),
+                                Color.White.copy(alpha = 0.18f),
+                                Color.White.copy(alpha = 0.05f),
                             ),
                         )
                     } else {
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.72f),
-                                Color.White.copy(alpha = 0.18f),
+                                Color.White.copy(alpha = 0.85f),
+                                Color(0x140F172A),
                             ),
                         )
                     }
@@ -273,6 +275,7 @@ fun HomeNavigateBar(
                         }
                         .width(slotWidth)
                         .fillMaxHeight()
+                        .padding(vertical = 3.dp)
                         .graphicsLayer {
                             scaleX = lensScaleX
                             scaleY = lensScaleY
@@ -319,7 +322,7 @@ private fun RowScope.LiquidNavigationTab(
 ) {
     val colors = MaterialTheme.colorScheme
     val contentTint by animateColorAsState(
-        targetValue = if (highlighted) colors.primary else colors.onSurface.copy(alpha = 0.78f),
+        targetValue = if (highlighted) colors.primary else colors.onSurface.copy(alpha = 0.82f),
         animationSpec = tween(160),
         label = "navTint",
     )
@@ -342,7 +345,7 @@ private fun RowScope.LiquidNavigationTab(
                 onClick = onClick,
                 role = Role.Tab,
             )
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            .padding(horizontal = 2.dp, vertical = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically),
     ) {
@@ -351,7 +354,7 @@ private fun RowScope.LiquidNavigationTab(
             contentDescription = null,
             tint = contentTint,
             modifier = Modifier
-                .size(20.dp)
+                .size(18.dp)
                 .graphicsLayer {
                     scaleX = iconScale
                     scaleY = iconScale
@@ -361,7 +364,7 @@ private fun RowScope.LiquidNavigationTab(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 10.5.sp,
-                lineHeight = 13.sp,
+                lineHeight = TabLabelLineHeight,
                 fontWeight = if (highlighted) FontWeight.W600 else FontWeight.W500,
             ),
             color = contentTint,
