@@ -416,6 +416,7 @@
 
     <!-- Dialogs -->
     <string name="dialog_about_version">Version</string>
+    <string name="bookshelf_delete_failed">Could not delete the bookshelf. Please try again.</string>
     <string name="dialog_delete_bookshelf">Delete Bookshelf</string>
     <string name="dialog_delete_bookshelf_text">Are you sure you want to delete this bookshelf? This bookshelf will be lost forever! (A long time!)</string>
     <string name="dialog_export_to_epub">Export as EPUB</string>

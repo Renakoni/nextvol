@@ -402,6 +402,7 @@
     <string name="edit_rule">編輯規則</string>
     <!-- Dialogs -->
     <string name="dialog_about_version">版本</string>
+    <string name="bookshelf_delete_failed">書架刪除失敗，請重試。</string>
     <string name="dialog_delete_bookshelf">刪除書架</string>
     <string name="dialog_delete_bookshelf_text">確定要刪除這個書架嗎？它將會永久消失！（真的很久！）</string>
     <string name="dialog_export_to_epub">匯出為 EPUB</string>

@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.ui.home.bookshelf.edit
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -58,6 +59,8 @@ import indi.renakoni.nextvol.utils.navigationBarSpacer
 import indi.renakoni.nextvol.utils.showSnackbar
 import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
 import io.nightfish.lightnovelreader.api.bookshelf.BookshelfSortType
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,8 +70,8 @@ fun EditBookshelfScreen(
     bookshelf: Bookshelf,
     init: (Int) -> Unit,
     onClickBack: () -> Unit,
-    onClickSave: () -> Unit,
-    onClickDelete: (Int) -> Unit,
+    onClickSave: suspend () -> Unit,
+    onClickDelete: suspend (Int) -> Unit,
     onNameChange: (String) -> Unit,
     onSortTypeChange: (BookshelfSortType) -> Unit,
     onAutoCacheChange: (Boolean) -> Unit,
@@ -85,17 +88,38 @@ fun EditBookshelfScreen(
     val showNameError = nameValidationTriggered && isNameEmpty
     val bookshelfNamePlaceholder = stringResource(R.string.bookshelf_name_placeholder)
 
-    val handleSave = {
-        if (isNameEmpty) {
-            nameValidationTriggered = true
-            showSnackbar(
-                coroutineScope = coroutineScope,
-                hostState = snackbarHostState,
-                message = bookshelfNamePlaceholder,
-            )
-        } else {
-            onClickSave()
+    var confirmingDelete by rememberSaveable { mutableStateOf(false) }
+    var writing by remember { mutableStateOf(false) }
+    val editable = !writing && (bookshelfId < 0 || bookshelfId == bookshelf.id)
+    val saveFailure = stringResource(R.string.save_failed)
+    val deleteFailure = stringResource(R.string.bookshelf_delete_failed)
+
+    fun persist(failureMessage: String, operation: suspend () -> Unit) {
+        if (writing) return
+        writing = true
+        coroutineScope.launch {
+            try {
+                operation()
+                onClickBack()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                showSnackbar(coroutineScope, snackbarHostState, failureMessage)
+            } finally {
+                writing = false
+            }
         }
+    }
+
+    BackHandler(enabled = writing) {}
+    if (confirmingDelete) {
+        DeleteBookshelfDialog(
+            onDismissRequest = { confirmingDelete = false },
+            onConfirmation = {
+                confirmingDelete = false
+                persist(deleteFailure) { onClickDelete(bookshelfId) }
+            },
+        )
     }
 
     LaunchedEffect(bookshelfId) {
@@ -116,8 +140,13 @@ fun EditBookshelfScreen(
             TopBar(
                 title = title,
                 scrollBehavior = pinnedScrollBehavior,
+                canSave = editable,
+                canGoBack = !writing,
                 onClickBack = onClickBack,
-                onClickSave = handleSave,
+                onClickSave = {
+                    if (isNameEmpty) nameValidationTriggered = true
+                    else persist(saveFailure, onClickSave)
+                },
             )
         },
         snackbarHost = {
@@ -142,6 +171,7 @@ fun EditBookshelfScreen(
                 ) {
                     OutlinedTextField(
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = editable,
                         value = bookshelf.name,
                         onValueChange = {
                             nameValidationTriggered = true
@@ -188,6 +218,7 @@ fun EditBookshelfScreen(
             item(key = "bookshelf_settings") {
                 SettingsCategory(title = stringResource(R.string.bookshelf_settings)) {
                     SettingsMenuEntry(
+                        disabled = !editable,
                         painter = painterResource(R.drawable.sort_24px),
                         title = stringResource(R.string.bookshelf_sort_type),
                         options = BookshelfSortTypeOptions,
@@ -197,6 +228,7 @@ fun EditBookshelfScreen(
                         },
                     )
                     SettingsSwitchEntry(
+                        disabled = !editable,
                         painter = painterResource(R.drawable.cloud_download_24px),
                         title = stringResource(R.string.settings_auto_cache),
                         description = stringResource(R.string.settings_auto_cache_desc),
@@ -204,6 +236,7 @@ fun EditBookshelfScreen(
                         onCheckedChange = onAutoCacheChange,
                     )
                     SettingsSwitchEntry(
+                        disabled = !editable,
                         painter = painterResource(R.drawable.outline_schedule_24px),
                         title = stringResource(R.string.settings_book_update_reminder),
                         description = stringResource(R.string.settings_book_update_reminder_desc),
@@ -223,7 +256,8 @@ fun EditBookshelfScreen(
                         cornerRadius = tokens.cardRadius,
                         containerColor = colors.errorContainer.copy(alpha = if (tokens.isDark) 0.34f else 0.45f),
                         borderColor = colors.error.copy(alpha = 0.42f),
-                        onClick = { onClickDelete(bookshelfId) },
+                        enabled = editable,
+                        onClick = { confirmingDelete = true },
                     ) {
                         Row(
                             modifier = Modifier
@@ -274,6 +308,8 @@ private fun TopBar(
     title: String,
     scrollBehavior: TopAppBarScrollBehavior,
     onClickBack: () -> Unit,
+    canSave: Boolean,
+    canGoBack: Boolean,
     onClickSave: () -> Unit,
 ) {
     EditorialTopBar(
@@ -283,6 +319,7 @@ private fun TopBar(
         frosted = false,
         navigationIcon = {
             EditorialIconButton(
+                enabled = canGoBack,
                 onClick = onClickBack,
                 painter = painterResource(id = R.drawable.arrow_back_24px),
                 contentDescription = stringResource(R.string.sources_back),
@@ -290,6 +327,7 @@ private fun TopBar(
         },
         actions = {
             EditorialIconButton(
+                enabled = canSave,
                 onClick = onClickSave,
                 painter = painterResource(R.drawable.save_24px),
                 contentDescription = stringResource(R.string.action_save),
