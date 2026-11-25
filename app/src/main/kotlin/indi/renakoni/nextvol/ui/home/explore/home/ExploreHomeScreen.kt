@@ -1,26 +1,71 @@
 package indi.renakoni.nextvol.ui.home.explore.home
 
 import android.net.Uri
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollFactory
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,12 +73,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.SourceBookId
-import indi.renakoni.nextvol.data.web.*
+import indi.renakoni.nextvol.data.web.SourceCategory
+import indi.renakoni.nextvol.data.web.SourceDiscoveryBook
+import indi.renakoni.nextvol.data.web.SourceDiscoverySection
+import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.Cover
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
+import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.rememberListCover
 import indi.renakoni.nextvol.ui.home.HomeSettingsAction
-import indi.renakoni.nextvol.ui.home.discovery.*
-import indi.renakoni.nextvol.utils.fadingEdge
+import indi.renakoni.nextvol.ui.home.discovery.DiscoveryEmpty
+import indi.renakoni.nextvol.ui.home.discovery.DiscoveryFailure
+import indi.renakoni.nextvol.ui.home.discovery.DiscoveryFilterControl
+import indi.renakoni.nextvol.ui.home.discovery.DiscoveryPageContent
+import indi.renakoni.nextvol.ui.home.discovery.DiscoveryPageState
+import indi.renakoni.nextvol.ui.home.discovery.DiscoveryScroll
+import indi.renakoni.nextvol.ui.home.discovery.SourceScopeEmpty
+import indi.renakoni.nextvol.ui.home.discovery.SourceScopeTitle
+import indi.renakoni.nextvol.ui.home.discovery.SourceTabs
+import indi.renakoni.nextvol.ui.home.discovery.sourceTopBarHeight
 import io.nightfish.lightnovelreader.api.identifier.Identifier
 import kotlinx.coroutines.flow.first
 
@@ -56,19 +114,40 @@ fun ExploreHomeScreen(
     onRetryPreview: ((SourceDiscoverySection) -> Unit)? = null,
     coverFor: suspend (String) -> Uri? = { null },
 ) {
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { SourceScopeTitle(state, onScope) },
-            expandedHeight = sourceTopBarHeight(),
-            navigationIcon = { Icon(painterResource(R.drawable.outline_explore_24px), stringResource(R.string.nav_explore), Modifier.padding(12.dp)) },
-            actions = {
-                IconButton(onClick = onSearch) {
-                    Icon(painterResource(R.drawable.search_24px), stringResource(R.string.search_hub_title))
-                }
-                HomeSettingsAction(onSettings)
-            }, windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
-    }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            TopAppBar(
+                title = { SourceScopeTitle(state, onScope) },
+                expandedHeight = sourceTopBarHeight(),
+                actions = {
+                    EditorialIconButton(
+                        onClick = onSearch,
+                        painter = painterResource(R.drawable.search_24px),
+                        contentDescription = stringResource(R.string.search_hub_title),
+                    )
+                    HomeSettingsAction(onSettings)
+                    Spacer(Modifier.width(4.dp))
+                },
+                scrollBehavior = scrollBehavior,
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
+            )
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
             if (state.loadingSources) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -79,44 +158,75 @@ fun ExploreHomeScreen(
                 SourceTabs(state, onSelect, onPage)
                 val id = state.selected
                 val content = state.content[id] ?: DiscoveryPageContent()
-                if (id != null) key(id, content.resetId) {
-                    val list = rememberLazyListState(content.scroll.index, content.scroll.offset)
-                    val currentContent by rememberUpdatedState(content)
-                    LaunchedEffect(list) {
-                        if (!content.loaded && content.scroll != DiscoveryScroll()) {
-                            // A decayed page may first emit a short batch that clamps the saved position.
-                            // Wait for the complete feed unless the reader starts scrolling meanwhile.
-                            val ready = snapshotFlow { currentContent.loaded to list.isScrollInProgress }
-                                .first { (loaded, scrolling) -> loaded || scrolling }
-                            if (!ready.second) list.scrollToItem(content.scroll.index, content.scroll.offset)
+                if (id != null) {
+                    key(id, content.resetId) {
+                        val list = rememberLazyListState(content.scroll.index, content.scroll.offset)
+                        val currentContent by rememberUpdatedState(content)
+                        LaunchedEffect(list) {
+                            if (!content.loaded && content.scroll != DiscoveryScroll()) {
+                                // A decayed page may first emit a short batch that clamps the saved position.
+                                // Wait for the complete feed unless the reader starts scrolling meanwhile.
+                                val ready = snapshotFlow { currentContent.loaded to list.isScrollInProgress }
+                                    .first { (loaded, scrolling) -> loaded || scrolling }
+                                if (!ready.second) list.scrollToItem(content.scroll.index, content.scroll.offset)
+                            }
+                            snapshotFlow { DiscoveryScroll(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset) }
+                                .collect { onScroll(id, it) }
                         }
-                        snapshotFlow { DiscoveryScroll(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset) }
-                            .collect { onScroll(id, it) }
-                    }
-                    val titleHeight = with(LocalDensity.current) { (16.sp * 2.2f).toDp() }
-                    PullToRefreshBox(isRefreshing = content.refreshing || content.acting || content.loading && content.sections.isEmpty(),
-                        onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
-                        // A keyed trailing spacer would anchor the empty list when the first feed arrives.
-                        LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp)) {
-                            content.error?.let { error -> item(key = "error") {
-                                DiscoveryFailure(error, onRefresh, onManageSources, back = null, field = content.errorField, permission = content.errorPermission, diagnostic = content.errorDiagnostic, httpStatus = content.errorHttpStatus)
-                            } }
-                            items(content.filters, key = { "input:" + it.id }) { filter ->
-                                Column(Modifier.padding(horizontal = 16.dp)) {
-                                    DiscoveryFilterControl(filter, content.values[filter.id].orEmpty()) {
-                                        if (!content.acting && !content.loading) onInput(filter.id, it)
+                        PullToRefreshBox(
+                            isRefreshing = content.refreshing || content.acting || (content.loading && content.sections.isEmpty()),
+                            onRefresh = onRefresh,
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            // A keyed trailing spacer would anchor the empty list when the first feed arrives.
+                            LazyColumn(
+                                state = list,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
+                                verticalArrangement = Arrangement.spacedBy(22.dp),
+                            ) {
+                                content.error?.let { error ->
+                                    item(key = "error") {
+                                        DiscoveryFailure(
+                                            error = error,
+                                            retry = onRefresh,
+                                            manage = onManageSources,
+                                            back = null,
+                                            field = content.errorField,
+                                            permission = content.errorPermission,
+                                            diagnostic = content.errorDiagnostic,
+                                            httpStatus = content.errorHttpStatus,
+                                        )
                                     }
                                 }
-                            }
-                            items(content.buttons, key = { "action:" + it.id }) { button ->
-                                ListItem(headlineContent = { Text(button.title) },
-                                    modifier = Modifier.combinedClickable(enabled = !content.acting && !content.loading,
-                                        onClick = { onAction(button.id, false) }, onLongClick = { onAction(button.id, true) }))
-                            }
-                            if (content.loaded && content.sections.isEmpty() && content.buttons.isEmpty() && content.filters.isEmpty())
-                                item { DiscoveryEmpty(stringResource(R.string.explore_empty), onManageSources) }
-                            items(content.sections, key = { "section:" + it.id }) { section ->
-                                ExploreRowSection(Modifier, section, titleHeight, onMore, onBook, onManageSources, onRetryPreview, coverFor)
+                                items(content.filters, key = { "input:" + it.id }) { filter ->
+                                    Column(Modifier.padding(horizontal = 16.dp)) {
+                                        DiscoveryFilterControl(filter, content.values[filter.id].orEmpty()) {
+                                            if (!content.acting && !content.loading) onInput(filter.id, it)
+                                        }
+                                    }
+                                }
+                                items(content.buttons, key = { "action:" + it.id }) { button ->
+                                    ExploreActionRow(
+                                        title = button.title,
+                                        enabled = !content.acting && !content.loading,
+                                        onClick = { onAction(button.id, false) },
+                                        onLongClick = { onAction(button.id, true) },
+                                    )
+                                }
+                                if (content.loaded && content.sections.isEmpty() && content.buttons.isEmpty() && content.filters.isEmpty()) {
+                                    item { DiscoveryEmpty(stringResource(R.string.explore_empty), onManageSources) }
+                                }
+                                items(content.sections, key = { "section:" + it.id }) { section ->
+                                    ExploreRowSection(
+                                        row = section,
+                                        onClickExpand = onMore,
+                                        onClickBook = onBook,
+                                        onManageSources = onManageSources,
+                                        onRetryPreview = onRetryPreview,
+                                        coverFor = coverFor,
+                                    )
+                                }
                             }
                         }
                     }
@@ -126,49 +236,99 @@ fun ExploreHomeScreen(
     }
 }
 
+@Composable
+private fun ExploreActionRow(
+    title: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    enabled = enabled,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.W600),
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Icon(
+                painter = painterResource(R.drawable.arrow_forward_ios_24px),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+        EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ExploreRowSection(
-    modifier: Modifier,
     row: SourceDiscoverySection,
-    titleHeight: androidx.compose.ui.unit.Dp,
     onClickExpand: (SourceDiscoverySection) -> Unit,
     onClickBook: (SourceBookId) -> Unit,
     onManageSources: () -> Unit,
     onRetryPreview: ((SourceDiscoverySection) -> Unit)?,
     coverFor: suspend (String) -> Uri?,
 ) {
-    Column(
-        modifier = modifier
-    ) {
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier
-                .padding(vertical = 4.dp)
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .padding(horizontal = 16.dp),
+                .padding(start = 16.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                modifier = Modifier.weight(2f).semantics { heading() },
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { heading() },
                 text = row.title.ifBlank { stringResource(R.string.discovery_unnamed_entry) },
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.W600,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W700),
+                color = colors.onSurface,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             if (row.more != null) {
-                IconButton(
-                    modifier = Modifier.size(48.dp),
-                    onClick = {
-                        onClickExpand(row)
-                    }
+                val moreDesc = stringResource(R.string.explore_more)
+                Row(
+                    modifier = Modifier
+                        .heightIn(min = 36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onClickExpand(row) }
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = moreDesc
+                        }
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
+                    Text(
+                        text = moreDesc,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W500),
+                        color = colors.onSurfaceVariant,
+                    )
                     Icon(
-                        painter = painterResource(id = R.drawable.arrow_forward_24px),
-                        contentDescription = stringResource(R.string.explore_more)
+                        painter = painterResource(id = R.drawable.arrow_forward_ios_24px),
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant.copy(alpha = 0.72f),
+                        modifier = Modifier.size(11.dp),
                     )
                 }
             }
@@ -180,130 +340,183 @@ private fun ExploreRowSection(
         }
 
         if (row.previewLoading && validBooks.isNotEmpty()) {
-            LinearProgressIndicator(Modifier.padding(horizontal = 16.dp).fillMaxWidth())
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth(),
+            )
         }
         if (row.previewFailure != null || validBooks.isEmpty()) {
-            Surface(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp).fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                when {
-                    row.previewLoading -> Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(stringResource(R.string.discovery_preview_loading), style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                    }
-                    row.previewFailure != null -> {
-                        val failure = row.previewFailure
-                        DiscoveryFailure(failure.error,
-                            if (row.previewRetryAvailable && onRetryPreview != null) ({ onRetryPreview(row) }) else null,
-                            onManageSources, back = null, field = failure.field, permission = failure.permission,
-                            diagnostic = row.diagnosticFailure, httpStatus = row.httpStatus)
-                    }
-                    else -> Text(stringResource(R.string.discovery_preview_empty), Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            when {
+                row.previewLoading -> Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.discovery_preview_loading),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                    )
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
-            }
-        }
-        if (validBooks.isNotEmpty()) CompositionLocalProvider(LocalOverscrollFactory provides null) {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fadingEdge(
-                        Brush.horizontalGradient(
-                            0.01f to Color.Transparent,
-                            0.03f to Color.White,
-                            0.97f to Color.White,
-                            0.99f to Color.Transparent
-                        )
-                )
-                    .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                state = lazyRowState,
-                flingBehavior = rememberSnapFlingBehavior(lazyRowState)
-            ) {
-                item {
-                    Box(modifier = Modifier.width(10.dp))
-                }
-
-                items(
-                    items = validBooks,
-                    key = { it.id.storageKey }
-                ) { exploreDisplayBook ->
-                    ExploreBookCard(
-                        book = exploreDisplayBook,
-                        titleHeight = titleHeight,
-                        coverFor = coverFor,
-                        onClickBook = onClickBook
+                row.previewFailure != null -> {
+                    val failure = row.previewFailure
+                    DiscoveryFailure(
+                        error = failure.error,
+                        retry = if (row.previewRetryAvailable && onRetryPreview != null) ({ onRetryPreview(row) }) else null,
+                        manage = onManageSources,
+                        back = null,
+                        field = failure.field,
+                        permission = failure.permission,
+                        diagnostic = row.diagnosticFailure,
+                        httpStatus = row.httpStatus,
                     )
                 }
-
-                item {
-                    Box(modifier = Modifier.width(12.dp))
-                }
+                else -> Text(
+                    text = stringResource(R.string.discovery_preview_empty),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant,
+                )
             }
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        ) {
-            HorizontalDivider()
+        if (validBooks.isNotEmpty()) {
+            CompositionLocalProvider(LocalOverscrollFactory provides null) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    state = lazyRowState,
+                ) {
+                    items(
+                        items = validBooks,
+                        key = { it.id.storageKey },
+                    ) { exploreDisplayBook ->
+                        ExploreBookItem(
+                            book = exploreDisplayBook,
+                            coverFor = coverFor,
+                            onClickBook = onClickBook,
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun ExploreBookCard(
+private fun ExploreBookItem(
     book: SourceDiscoveryBook,
-    titleHeight: androidx.compose.ui.unit.Dp,
     coverFor: suspend (String) -> Uri?,
-    onClickBook: (SourceBookId) -> Unit
+    onClickBook: (SourceBookId) -> Unit,
 ) {
+    val tokens = NextVolDesign.tokens
+    val colors = MaterialTheme.colorScheme
+    val coverRadius = 10.dp
+    val coverShape = RoundedCornerShape(coverRadius)
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.965f else 1f,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 520f),
+        label = "exploreBookPressScale",
+    )
+
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { onClickBook(book.id) }
+            .width(110.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(coverShape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { onClickBook(book.id) },
+            ),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 4.dp)
+            modifier = Modifier
+                .shadow(
+                    elevation = if (tokens.isDark) 4.dp else 7.dp,
+                    shape = coverShape,
+                    ambientColor = tokens.glassShadow,
+                    spotColor = tokens.glassShadow,
+                    clip = false,
+                )
+                .clip(coverShape)
+                .drawWithContent {
+                    drawContent()
+                    // Subtle printed paperback spine groove + top specular edge.
+                    val spineWidth = 5.dp.toPx()
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.14f),
+                                Color.White.copy(alpha = 0.22f),
+                                Color.Transparent,
+                            ),
+                            startX = 0f,
+                            endX = spineWidth,
+                        ),
+                        size = Size(spineWidth, size.height),
+                    )
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = if (tokens.isDark) 0.14f else 0.28f),
+                                Color.Transparent,
+                            ),
+                            startY = 0f,
+                            endY = 3.dp.toPx(),
+                        ),
+                        topLeft = Offset.Zero,
+                        size = Size(size.width, 3.dp.toPx()),
+                    )
+                }
+                .border(
+                    width = 0.5.dp,
+                    color = if (tokens.isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f),
+                    shape = coverShape,
+                ),
         ) {
             Cover(
                 bookId = book.id.storageKey,
-                width = 98.dp,
-                height = 138.dp,
+                width = 110.dp,
+                height = 158.dp,
                 uri = rememberListCover(book.id.storageKey, book.coverUrl, coverFor),
                 title = book.title,
                 author = book.author,
-                rounded = 6.dp
+                rounded = coverRadius,
             )
         }
         Column(
-            modifier = Modifier
-                .width(100.dp)
-                .padding(horizontal = 2.dp)
-                .padding(top = 8.dp, bottom = 2.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                modifier = Modifier
-                    .height(titleHeight)
-                    .wrapContentHeight(Alignment.Top),
                 text = book.title,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    letterSpacing = 0.5.sp
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.5.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.W500,
                 ),
-                fontWeight = FontWeight.W500,
+                color = colors.onSurface,
+                minLines = 2,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             if (book.author.isNotEmpty()) {
                 Text(
                     text = book.author,
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

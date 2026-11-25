@@ -2,6 +2,13 @@
 
 pluginManagement {
     repositories {
+        exclusiveContent {
+            forRepository { maven { url = uri("gradle/maven") } }
+            filter {
+                includeModule("org.gradle.toolchains.foojay-resolver-convention", "org.gradle.toolchains.foojay-resolver-convention.gradle.plugin")
+                includeModule("org.gradle.toolchains", "foojay-resolver")
+            }
+        }
         google()
         mavenCentral()
         gradlePluginPortal()
@@ -38,6 +45,9 @@ dependencyResolutionManagement {
                     includeVersion("org.ow2.asm", module, "9.9")
                 }
                 includeVersion("org.ow2", "ow2", "1.5.1")
+                listOf("slf4j-api", "slf4j-parent", "slf4j-bom").forEach { module ->
+                    includeVersion("org.slf4j", module, "2.0.17")
+                }
                 includeVersion("org.apache.httpcomponents", "httpclient", "4.5.6")
                 // HttpClient inherits its dependency versions from these parent POMs.
                 includeVersion("org.apache.httpcomponents", "httpcomponents-client", "4.5.6")
