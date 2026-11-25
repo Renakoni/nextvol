@@ -9,9 +9,7 @@ import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
@@ -164,20 +161,26 @@ fun HomeNavigateBar(
     val animatedLensIndex by animateFloatAsState(
         targetValue = targetLensIndex,
         animationSpec = if (dragging) {
-            spring(dampingRatio = 0.85f, stiffness = 900f)
+            spring(dampingRatio = 0.88f, stiffness = 950f)
         } else {
-            spring(dampingRatio = 0.72f, stiffness = 390f)
+            spring(dampingRatio = 0.68f, stiffness = 320f)
         },
         label = "liquidNavLensPos",
     )
+    val dragLift by animateFloatAsState(
+        targetValue = if (dragging) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.68f, stiffness = 420f),
+        label = "liquidNavDragLift",
+    )
 
-    // Liquid stretch & jelly response while the droplet travels or is scrubbed by finger.
+    // Smooth liquid stretch & gentle volume swell while sliding or scrubbing across tabs.
     val travelDelta = abs(animatedLensIndex - targetLensIndex)
-    val lensScaleX = (1f + (travelDelta * 0.24f).coerceAtMost(0.18f) + if (dragging) 0.05f else 0f)
-    val lensScaleY = (1f - (travelDelta * 0.08f).coerceAtMost(0.06f) + if (dragging) 0.04f else 0f)
+    val stretch = (travelDelta * 0.22f).coerceAtMost(0.16f)
+    val lensScaleX = 1f + stretch + dragLift * 0.06f
+    val lensScaleY = 1f - stretch * 0.34f + dragLift * 0.045f
 
-    val barWidth = 244.dp * density.fontScale.coerceAtLeast(1f)
-    val barHeight = maxOf(50.dp, 29.dp + with(density) { TabLabelLineHeight.toDp() })
+    val barWidth = 256.dp * density.fontScale.coerceAtLeast(1f)
+    val barHeight = maxOf(52.dp, 31.dp + with(density) { TabLabelLineHeight.toDp() })
 
     Box(
         modifier = Modifier
@@ -197,21 +200,21 @@ fun HomeNavigateBar(
                 .height(barHeight),
             shape = CircleShape,
             variant = GlassVariant.Liquid,
-            blurRadius = 11.dp,
-            elevation = 12.dp,
-            borderWidth = 0.9.dp,
+            blurRadius = 10.dp,
+            elevation = 10.dp,
+            borderWidth = 0.75.dp,
         ) {
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 3.dp)
+                    .padding(horizontal = 4.dp)
                     .pointerInput(tabs.size, isRtl) {
-                        val slotWidthPx = size.width.toFloat() / tabs.size
+                        fun slotWidthPx() = size.width.toFloat() / tabs.size
                         detectHorizontalDragGestures(
                             onDragStart = { offset ->
                                 dragging = true
                                 val x = if (isRtl) size.width - offset.x else offset.x
-                                dragIndex = (x / slotWidthPx - 0.5f).coerceIn(0f, (tabs.size - 1).toFloat())
+                                dragIndex = (x / slotWidthPx() - 0.5f).coerceIn(0f, (tabs.size - 1).toFloat())
                             },
                             onDragCancel = {
                                 dragging = false
@@ -224,7 +227,7 @@ fun HomeNavigateBar(
                             onHorizontalDrag = { change, dragAmount ->
                                 change.consume()
                                 val signedDelta = if (isRtl) -dragAmount else dragAmount
-                                dragIndex = (dragIndex + signedDelta / slotWidthPx)
+                                dragIndex = (dragIndex + signedDelta / slotWidthPx())
                                     .coerceIn(0f, (tabs.size - 1).toFloat())
                             },
                         )
@@ -232,42 +235,13 @@ fun HomeNavigateBar(
             ) {
                 val slotWidth = maxWidth / tabs.size
                 val slotWidthPx = with(density) { slotWidth.toPx() }
-                val lensFillBrush = remember(tokens.isDark) {
-                    if (tokens.isDark) {
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.15f),
-                                Color.White.copy(alpha = 0.10f),
-                            ),
-                        )
-                    } else {
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0x160F172A),
-                                Color(0x1F0F172A),
-                            ),
-                        )
-                    }
-                }
-                val lensRimBrush = remember(tokens.isDark) {
-                    if (tokens.isDark) {
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.18f),
-                                Color.White.copy(alpha = 0.05f),
-                            ),
-                        )
-                    } else {
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.85f),
-                                Color(0x140F172A),
-                            ),
-                        )
-                    }
+                val lensColor = if (tokens.isDark) {
+                    Color.White.copy(alpha = 0.13f + dragLift * 0.05f)
+                } else {
+                    Color(0xFF0F172A).copy(alpha = 0.065f + dragLift * 0.03f)
                 }
 
-                // Sliding optical liquid droplet lens behind the 4 tab items.
+                // Clean borderless fluid droplet lens behind the 4 tab items.
                 Box(
                     modifier = Modifier
                         .offset {
@@ -275,14 +249,13 @@ fun HomeNavigateBar(
                         }
                         .width(slotWidth)
                         .fillMaxHeight()
-                        .padding(vertical = 3.dp)
+                        .padding(vertical = 4.dp)
                         .graphicsLayer {
                             scaleX = lensScaleX
                             scaleY = lensScaleY
                         }
                         .clip(CircleShape)
-                        .background(lensFillBrush)
-                        .border(BorderStroke(0.65.dp, lensRimBrush), CircleShape),
+                        .background(lensColor),
                 )
 
                 val highlightedIndex = if (dragging) {
@@ -322,14 +295,14 @@ private fun RowScope.LiquidNavigationTab(
 ) {
     val colors = MaterialTheme.colorScheme
     val contentTint by animateColorAsState(
-        targetValue = if (highlighted) colors.primary else colors.onSurface.copy(alpha = 0.82f),
+        targetValue = if (highlighted) colors.primary else colors.onSurface.copy(alpha = 0.88f),
         animationSpec = tween(160),
         label = "navTint",
     )
     val iconScale by animateFloatAsState(
-        targetValue = if (highlighted) 1.07f else 1.0f,
+        targetValue = if (highlighted) 1.05f else 1.0f,
         animationSpec = spring(
-            dampingRatio = 0.65f,
+            dampingRatio = 0.68f,
             stiffness = Spring.StiffnessMedium,
         ),
         label = "navIconScale",
@@ -345,7 +318,7 @@ private fun RowScope.LiquidNavigationTab(
                 onClick = onClick,
                 role = Role.Tab,
             )
-            .padding(horizontal = 2.dp, vertical = 3.dp),
+            .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically),
     ) {
@@ -354,7 +327,7 @@ private fun RowScope.LiquidNavigationTab(
             contentDescription = null,
             tint = contentTint,
             modifier = Modifier
-                .size(18.dp)
+                .size(19.dp)
                 .graphicsLayer {
                     scaleX = iconScale
                     scaleY = iconScale
@@ -363,9 +336,10 @@ private fun RowScope.LiquidNavigationTab(
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.5.sp,
+                fontSize = 10.sp,
                 lineHeight = TabLabelLineHeight,
-                fontWeight = if (highlighted) FontWeight.W600 else FontWeight.W500,
+                fontWeight = if (highlighted) FontWeight.W500 else FontWeight.W400,
+                letterSpacing = 0.sp,
             ),
             color = contentTint,
             maxLines = 1,

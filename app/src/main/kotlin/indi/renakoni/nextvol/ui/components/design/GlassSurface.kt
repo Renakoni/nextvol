@@ -26,16 +26,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.addOutline
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.shadow.DropShadowPainter
 import androidx.compose.ui.graphics.shadow.Shadow
@@ -70,8 +66,7 @@ enum class GlassVariant {
 
 /**
  * Floating translucent surface unifying Liquid Glass (Haze 2.1 hazeGlass),
- * Glassmorphism (hazeBlur), and graceful API 24-30 fallback with dual-bevel optical rims
- * and a true sculpted floating shadow that remains crisp over both pure-white and colorful surfaces.
+ * frosted blur (hazeBlur), and a translucent fallback on API 24-30.
  */
 @Composable
 fun LiquidGlassSurface(
@@ -90,10 +85,8 @@ fun LiquidGlassSurface(
     val tokens = NextVolDesign.tokens
     val surfaceBg = MaterialTheme.colorScheme.surface
 
-    val outerRimBrush = remember(tokens.isDark, tokens.glassBorderTop, tokens.glassBorderBottom) {
-        val bottom = tokens.glassBorderBottom
-        val top = if (tokens.isDark) tokens.glassBorderTop else bottom.copy(alpha = bottom.alpha * 0.6f)
-        Brush.linearGradient(listOf(top, bottom))
+    val outerRimBrush = remember(tokens.glassBorderTop, tokens.glassBorderBottom) {
+        Brush.verticalGradient(listOf(tokens.glassBorderTop, tokens.glassBorderBottom))
     }
 
     val useLiquidShader = variant == GlassVariant.Liquid &&
@@ -105,24 +98,29 @@ fun LiquidGlassSurface(
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     val effectiveBlurRadius = if (variant == GlassVariant.Liquid) {
-        minOf(blurRadius, 12.dp)
+        minOf(blurRadius, 10.dp)
     } else {
         blurRadius
     }
 
     val effectModifier = when {
         useLiquidShader -> {
-            val glassStyle = remember(shape, surfaceBg, tintColor, tokens.isDark, tokens.glassShadow) {
-                GlassStyle.clear.then {
+            val glassStyle = remember(shape, surfaceBg, tintColor, tokens.isDark) {
+                GlassStyle.regular.then {
                     shape(shape)
-                    backgroundColor(surfaceBg)
+                    backgroundColor(if (tokens.isDark) surfaceBg else Color.White)
                     tint(tintColor)
-                    specularIntensity(if (tokens.isDark) 0.42f else 0.68f)
-                    chromaticAberrationStrength(0.16f)
-                    ambientResponse(0.88f)
-                    edgeSoftness(3.dp)
-                    fresnelExponent(2.0f)
-                    edgeShadow(tokens.glassShadow)
+                    if (!tokens.isDark) {
+                        whitePoint(0.68f)
+                    }
+                    specularIntensity(if (tokens.isDark) 0.22f else 0.28f)
+                    chromaticAberrationStrength(0f)
+                    ambientResponse(if (tokens.isDark) 0.12f else 0.08f)
+                    edgeSoftness(1.2.dp)
+                    fresnelExponent(3.5f)
+                    edgeShadow(
+                        if (tokens.isDark) Color.Black.copy(alpha = 0.16f) else Color.Transparent,
+                    )
                 }
             }
             Modifier.hazeGlass(
@@ -131,11 +129,11 @@ fun LiquidGlassSurface(
             )
         }
         useFrostedBlur -> {
-            val blurStyle = remember(effectiveBlurRadius, surfaceBg, tintColor, fallbackColor) {
+            val blurStyle = remember(effectiveBlurRadius, surfaceBg, tintColor, fallbackColor, tokens.isDark) {
                 HazeBlurStyle {
                     blurRadius(effectiveBlurRadius)
-                    noiseFactor(0.02f)
-                    backgroundColor(surfaceBg)
+                    noiseFactor(0f)
+                    backgroundColor(if (tokens.isDark) surfaceBg else Color.White)
                     colorEffects(listOf(HazeColorEffect.tint(tintColor)))
                     fallbackColorEffect(HazeColorEffect.tint(fallbackColor))
                 }
@@ -153,17 +151,17 @@ fun LiquidGlassSurface(
         Modifier.drawWithCache {
             val outline = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
             val ambient = DropShadowPainter(shape, Shadow(
-                radius = elevation * 1.35f,
-                color = if (tokens.isDark) Color(0x72000000) else Color(0x260F172A),
-                offset = DpOffset(0.dp, elevation * 0.42f),
+                radius = elevation * 1.45f,
+                color = if (tokens.isDark) Color(0x52000000) else Color(0x140F172A),
+                offset = DpOffset(0.dp, elevation * 0.35f),
             ))
             val contact = DropShadowPainter(shape, Shadow(
-                radius = elevation * 0.42f,
-                color = if (tokens.isDark) Color(0x4A000000) else Color(0x160F172A),
-                offset = DpOffset(0.dp, elevation * 0.14f),
+                radius = elevation * 0.35f,
+                color = if (tokens.isDark) Color(0x2E000000) else Color(0x0A0F172A),
+                offset = DpOffset(0.dp, elevation * 0.10f),
             ))
             onDrawBehind {
-                // Only the exterior casts a shadow. The content behind the glass stays visible.
+                // Only the exterior casts a shadow. The content behind the glass stays clear.
                 clipPath(outline, clipOp = ClipOp.Difference) {
                     with(ambient) { draw(size) }
                     with(contact) { draw(size) }
@@ -174,67 +172,10 @@ fun LiquidGlassSurface(
         Modifier
     }
 
-    val glassSheenModifier = if (variant == GlassVariant.Liquid) {
-        val topGlow = if (tokens.isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.46f)
-        val bottomBounce = if (tokens.isDark) Color.White.copy(alpha = 0.025f) else Color.White.copy(alpha = 0.22f)
-        val innerBevelBrush = remember(tokens.isDark, tokens.glassBorderTop) {
-            if (tokens.isDark) {
-                Brush.linearGradient(
-                    colorStops = arrayOf(
-                        0.0f to Color.White.copy(alpha = 0.09f),
-                        0.45f to Color.White.copy(alpha = 0.02f),
-                        1.0f to Color.White.copy(alpha = 0.05f),
-                    ),
-                )
-            } else {
-                Brush.linearGradient(
-                    colorStops = arrayOf(
-                        0.0f to tokens.glassBorderTop.copy(alpha = tokens.glassBorderTop.alpha * 0.8f),
-                        0.45f to Color.White.copy(alpha = 0.20f),
-                        1.0f to Color.White.copy(alpha = 0.58f),
-                    ),
-                )
-            }
-        }
-        Modifier.drawWithCache {
-            val sheen = Brush.verticalGradient(
-                colorStops = arrayOf(
-                    0.0f to topGlow,
-                    0.40f to Color.Transparent,
-                    0.75f to Color.Transparent,
-                    1.0f to bottomBounce,
-                ),
-                startY = 0f,
-                endY = size.height,
-            )
-            val specularDot = Brush.radialGradient(
-                colors = listOf(
-                    if (tokens.isDark) Color.White.copy(alpha = 0.035f) else Color.White.copy(alpha = 0.26f),
-                    Color.Transparent,
-                ),
-                center = Offset(size.width * 0.20f, 0f),
-                radius = size.height * 1.45f,
-            )
-            val insetPx = borderWidth.toPx() + 0.6.dp.toPx()
-            val innerSize = size.copy(width = size.width - 2 * insetPx, height = size.height - 2 * insetPx)
-            val bevel = if (innerSize.isEmpty()) null else shape.createOutline(innerSize, layoutDirection, this)
-            val stroke = Stroke(width = 1.dp.toPx())
-            onDrawWithContent {
-                drawRect(brush = sheen)
-                drawRect(brush = specularDot)
-                drawContent()
-                if (bevel != null) inset(insetPx) { drawOutline(bevel, innerBevelBrush, style = stroke) }
-            }
-        }
-    } else {
-        Modifier
-    }
-
     val surfaceModifier = modifier
         .then(shadowModifier)
         .clip(shape)
         .then(effectModifier)
-        .then(glassSheenModifier)
         .border(BorderStroke(borderWidth, outerRimBrush), shape)
 
     Box(modifier = surfaceModifier) {
@@ -242,6 +183,26 @@ fun LiquidGlassSurface(
             content()
         }
     }
+}
+
+@Composable
+internal fun Modifier.plushCardSurface(): Modifier {
+    val tokens = NextVolDesign.tokens
+    val cornerRadius = 24.dp
+    return this
+        .squircleBackground(color = tokens.cardSurface, cornerRadius = cornerRadius)
+        .then(
+            if (tokens.isDark) {
+                Modifier.squircleBorder(
+                    width = 0.5.dp,
+                    color = Color.White.copy(alpha = 0.05f),
+                    cornerRadius = cornerRadius,
+                )
+            } else {
+                Modifier
+            },
+        )
+        .squircleClip(cornerRadius = cornerRadius)
 }
 
 /**

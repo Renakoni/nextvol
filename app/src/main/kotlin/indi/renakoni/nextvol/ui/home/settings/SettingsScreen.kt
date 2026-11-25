@@ -3,12 +3,12 @@ package indi.renakoni.nextvol.ui.home.settings
 import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -26,18 +26,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.work.OneTimeWorkRequest
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.SectionHeader
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.design.EditorialTopBar
+import indi.renakoni.nextvol.ui.components.design.plushCardSurface
 import indi.renakoni.nextvol.ui.home.settings.list.AppSettingsList
 import indi.renakoni.nextvol.ui.home.settings.list.DataSettingsList
 import indi.renakoni.nextvol.ui.home.settings.list.DisplaySettingsList
 import indi.renakoni.nextvol.ui.home.settings.list.ExtensionsSettingsList
 import indi.renakoni.nextvol.ui.home.settings.list.ReadingSettingsList
 import indi.renakoni.nextvol.utils.navigationBarSpacer
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleClip
 
 private const val DisplaySection = "display"
 
@@ -192,21 +190,20 @@ fun SettingsCategory(
     title: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val tokens = NextVolDesign.tokens
     title?.let {
         SectionHeader(
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 12.dp, bottom = 6.dp),
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 8.dp),
             text = it,
         )
     }
 
     Column(
         modifier = Modifier
+            .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .padding(bottom = 12.dp)
-            .squircleBackground(color = tokens.divider, cornerRadius = 18.dp)
-            .squircleClip(cornerRadius = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(0.6.dp),
+            .plushCardSurface()
+            .padding(vertical = 4.dp),
     ) {
         content()
     }

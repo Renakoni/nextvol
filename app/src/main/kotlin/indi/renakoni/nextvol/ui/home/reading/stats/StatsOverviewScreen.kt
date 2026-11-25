@@ -36,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -71,13 +70,12 @@ import indi.renakoni.nextvol.ui.components.calendar.rememberHeatMapCalendarState
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.design.EditorialTopBar
+import indi.renakoni.nextvol.ui.components.design.plushCardSurface
 import indi.renakoni.nextvol.utils.formReadingDuration
 import indi.renakoni.nextvol.utils.navigationBarSpacer
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.flow.Flow
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleClip
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
@@ -248,7 +246,6 @@ private fun CalendarBlock(
     viewModel: StatsOverviewViewModel,
     onSelectedDate: (LocalDate) -> Unit,
 ) {
-    val tokens = NextVolDesign.tokens
     val uiState = viewModel.uiState
     val now = LocalDate.now()
     val startDate = uiState.startDate
@@ -258,7 +255,6 @@ private fun CalendarBlock(
         firstVisibleMonth = now.yearMonth,
         firstDayOfWeek = DayOfWeek.MONDAY,
     )
-    val surfaceRadius = 20.dp
 
     Column(
         modifier = Modifier.padding(horizontal = 16.dp),
@@ -271,21 +267,7 @@ private fun CalendarBlock(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(
-                    if (!tokens.isDark) {
-                        Modifier.shadow(
-                            elevation = 3.dp,
-                            shape = RoundedCornerShape(surfaceRadius),
-                            ambientColor = tokens.glassShadow.copy(alpha = 0.05f),
-                            spotColor = tokens.glassShadow.copy(alpha = 0.05f),
-                            clip = false,
-                        )
-                    } else {
-                        Modifier
-                    },
-                )
-                .squircleBackground(color = tokens.cardSurface, cornerRadius = surfaceRadius)
-                .squircleClip(surfaceRadius)
+                .plushCardSurface()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
