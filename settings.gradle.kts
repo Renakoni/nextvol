@@ -33,6 +33,21 @@ dependencyResolutionManagement {
                     includeModule("sh.calvin.reorderable", "reorderable$suffix")
                     includeModule("org.jetbrains.compose.ui", "ui-backhandler$suffix")
                 }
+                includeVersion("org.conscrypt", "conscrypt-openjdk-uber", "2.5.2")
+                listOf("test-parameter-injector", "test-parameter-injector-parent").forEach { module ->
+                    includeVersion("com.google.testparameterinjector", module, "1.18")
+                }
+                listOf("error_prone_annotation", "error_prone_parent").forEach { module ->
+                    includeVersion("com.google.errorprone", module, "2.41.0")
+                }
+                includeVersion("org.junit", "junit-bom", "5.12.2")
+                listOf("junit-jupiter", "junit-jupiter-api", "junit-jupiter-engine", "junit-jupiter-params").forEach { module ->
+                    includeVersion("org.junit.jupiter", module, "5.12.2")
+                }
+                listOf("junit-platform-commons", "junit-platform-engine").forEach { module ->
+                    includeVersion("org.junit.platform", module, "1.12.2")
+                }
+                includeVersion("org.opentest4j", "opentest4j", "1.3.0")
                 includeVersion("org.codehaus.groovy", "groovy", "3.0.22")
                 includeVersion("org.jetbrains.kotlin", "compose-group-mapping", "2.4.10")
                 includeVersion("org.jetbrains.kotlin", "kotlin-reflect", "2.2.10")

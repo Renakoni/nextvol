@@ -77,31 +77,39 @@ internal fun buildNextVolDesignTokens(
         isDark = isDark,
         cardSurface = colorScheme.surfaceContainerLow,
         cardElevatedSurface = colorScheme.surfaceContainerHigh,
-        cardBorder = colorScheme.outlineVariant.copy(alpha = if (isDark) 0.42f else 0.52f),
-        divider = colorScheme.outlineVariant.copy(alpha = if (isDark) 0.36f else 0.46f),
+        cardBorder = if (isDark) {
+            Color.White.copy(alpha = 0.11f)
+        } else {
+            Color(0xFF0F172A).copy(alpha = 0.12f)
+        },
+        divider = if (isDark) {
+            Color.White.copy(alpha = 0.11f)
+        } else {
+            Color(0xFF0F172A).copy(alpha = 0.11f)
+        },
         iconBadgeContainer = colorScheme.primaryContainer.copy(alpha = if (isDark) 0.42f else 0.52f),
         iconBadgeContent = colorScheme.primary,
         glassSurfaceTint = if (isDark) {
-            colorScheme.surfaceContainerHigh.copy(alpha = 0.34f)
+            colorScheme.surfaceContainer.copy(alpha = 0.56f)
         } else {
-            Color.White.copy(alpha = 0.30f)
+            Color.White.copy(alpha = 0.46f)
         },
         glassFallbackSurface = if (isDark) {
-            colorScheme.surfaceContainerHigh.copy(alpha = 0.88f)
+            colorScheme.surfaceContainer.copy(alpha = 0.92f)
         } else {
-            Color.White.copy(alpha = 0.88f)
+            Color.White.copy(alpha = 0.92f)
         },
         glassBorderTop = if (isDark) {
-            Color.White.copy(alpha = 0.38f)
+            Color.White.copy(alpha = 0.18f)
         } else {
             Color.White.copy(alpha = 0.96f)
         },
         glassBorderBottom = if (isDark) {
-            Color.White.copy(alpha = 0.14f)
+            Color.White.copy(alpha = 0.08f)
         } else {
-            colorScheme.outlineVariant.copy(alpha = 0.52f)
+            Color(0xFF0F172A).copy(alpha = 0.15f)
         },
-        glassShadow = Color.Black.copy(alpha = if (isDark) 0.44f else 0.12f),
+        glassShadow = Color.Black.copy(alpha = if (isDark) 0.52f else 0.24f),
         activePillFill = colorScheme.primary.copy(alpha = if (isDark) 0.18f else 0.10f),
         activePillBorder = colorScheme.primary.copy(alpha = if (isDark) 0.28f else 0.16f),
         topBarGlassTint = if (isDark) {

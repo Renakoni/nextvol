@@ -15,3 +15,8 @@ Android Lint also resolves these versions from this directory.
 - Kotlin Reflect and Stdlib 2.2.10 — [Maven Central](https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/)
 - HttpClient 4.5.6 and its parent POMs — [Maven Central](https://repo.maven.apache.org/maven2/org/apache/httpcomponents/httpclient/4.5.6/)
 - ASM 9.9 (core, commons, tree and analysis) — [BSD 3-Clause license](org/ow2/asm/LICENSE.txt) · [Maven Central](https://repo.maven.apache.org/maven2/org/ow2/asm/)
+
+JVM tests resolve the following runtime dependencies and their published metadata locally.
+
+- Conscrypt OpenJDK Uber 2.5.2, TestParameterInjector 1.18 and Error Prone Annotation 2.41.0 use the [Apache License 2.0](../../LICENSE). [Conscrypt notices](org/conscrypt/NOTICE)
+- JUnit Jupiter 5.12.2 and JUnit Platform 1.12.2 retain their EPL-2.0 license notices in the JARs. OpenTest4J 1.3.0 includes its Apache-2.0 license. [JUnit](https://repo.maven.apache.org/maven2/org/junit/) and [OpenTest4J](https://repo.maven.apache.org/maven2/org/opentest4j/opentest4j/1.3.0/)

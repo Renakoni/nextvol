@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -47,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -55,6 +57,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
@@ -280,65 +283,93 @@ fun CategoriesScreen(
     }
 }
 
+private fun computeCategoryDirectoryColumns(
+    availableWidthDp: Int,
+    maxLabelLen: Int,
+    itemCount: Int,
+): Int {
+    if (itemCount <= 1) return 1
+    if (maxLabelLen > 10) {
+        return if (availableWidthDp >= 600 && itemCount >= 4) 2 else 1
+    }
+    val (minCellWidthDp, maxCols) = if (maxLabelLen <= 5) {
+        104 to 6
+    } else {
+        148 to 4
+    }
+    val rawCols = (availableWidthDp / minCellWidthDp).coerceIn(1, maxCols).coerceAtMost(itemCount)
+    // Avoid leaving a single orphan item on the last row when one fewer column balances better.
+    if (rawCols > 2 && itemCount % rawCols == 1) {
+        val balanced = rawCols - 1
+        if (itemCount % balanced != 1) {
+            return balanced
+        }
+    }
+    return rawCols
+}
+
 @Composable
 private fun CategoryDirectoryBlock(
     items: List<SourceDiscoveryCategory>,
     onCategory: (SourceDiscoveryCategory) -> Unit,
 ) {
     val maxLen = remember(items) { items.maxOfOrNull { it.title.trim().length } ?: 0 }
-    val columns = when {
-        maxLen <= 6 && items.size >= 4 -> 3
-        maxLen <= 10 && items.size >= 4 -> 2
-        else -> 1
-    }
 
-    if (columns == 1) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            items.forEachIndexed { index, category ->
-                CategoryDirectoryRow(
-                    category = category,
-                    onClick = { onCategory(category) },
-                )
-                if (index < items.lastIndex) {
-                    EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
-                }
-            }
-        }
-    } else {
-        val tokens = NextVolDesign.tokens
-        val rows = remember(items, columns) { items.chunked(columns) }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-        ) {
-            EditorialHairlineDivider()
-            rows.forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    for (col in 0 until columns) {
-                        val category = rowItems.getOrNull(col)
-                        if (category != null) {
-                            CategoryGridCell(
-                                category = category,
-                                onClick = { onCategory(category) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                        if (col < columns - 1) {
-                            VerticalDivider(
-                                modifier = Modifier.height(22.dp),
-                                thickness = 0.6.dp,
-                                color = tokens.divider,
-                            )
-                        }
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+    ) {
+        val columns = computeCategoryDirectoryColumns(
+            availableWidthDp = (maxWidth.value / LocalDensity.current.fontScale.coerceAtLeast(1f)).toInt(),
+            maxLabelLen = maxLen,
+            itemCount = items.size,
+        )
+
+        if (columns == 1) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                items.forEachIndexed { index, category ->
+                    CategoryDirectoryRow(
+                        category = category,
+                        onClick = { onCategory(category) },
+                    )
+                    if (index < items.lastIndex) {
+                        EditorialHairlineDivider()
                     }
                 }
+            }
+        } else {
+            val tokens = NextVolDesign.tokens
+            val rows = remember(items, columns) { items.chunked(columns) }
+            Column(modifier = Modifier.fillMaxWidth()) {
                 EditorialHairlineDivider()
+                rows.forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        for (col in 0 until columns) {
+                            val category = rowItems.getOrNull(col)
+                            if (category != null) {
+                                CategoryGridCell(
+                                    category = category,
+                                    onClick = { onCategory(category) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
+                            if (col < rowItems.lastIndex) {
+                                VerticalDivider(
+                                    modifier = Modifier.height(22.dp),
+                                    thickness = 0.75.dp,
+                                    color = tokens.divider,
+                                )
+                            }
+                        }
+                    }
+                    EditorialHairlineDivider()
+                }
             }
         }
     }
@@ -351,21 +382,20 @@ private fun CategoryGridCell(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    Row(
+    Box(
         modifier = modifier
-            .heightIn(min = 54.dp)
+            .heightIn(min = 52.dp)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(horizontal = 10.dp, vertical = 14.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = category.title.ifBlank { stringResource(R.string.discovery_unnamed_entry) },
             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W500),
             color = colors.onSurface,
-            maxLines = 1,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -381,7 +411,7 @@ private fun CategoryDirectoryRow(
             .fillMaxWidth()
             .heightIn(min = 52.dp)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = 4.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -396,7 +426,7 @@ private fun CategoryDirectoryRow(
         Icon(
             painter = painterResource(R.drawable.arrow_forward_ios_24px),
             contentDescription = null,
-            tint = colors.onSurfaceVariant.copy(alpha = 0.48f),
+            tint = colors.onSurfaceVariant.copy(alpha = 0.56f),
             modifier = Modifier.size(13.dp),
         )
     }
