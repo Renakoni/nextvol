@@ -1,22 +1,36 @@
 package indi.renakoni.nextvol.ui.components.design
 
 import android.os.Build
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -29,15 +43,22 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
@@ -50,8 +71,7 @@ import dev.chrisbanes.haze.blur.hazeBlur
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.theme.LocalNextVolHazeState
 import indi.renakoni.nextvol.theme.NextVolDesign
-import top.yukonga.miuix.kmp.basic.TabRow
-import top.yukonga.miuix.kmp.basic.TabRowDefaults
+import kotlin.math.roundToInt
 
 /**
  * Refined floating popup menu replacing raw boxy Material DropdownMenus.
@@ -192,7 +212,8 @@ fun EditorialPopupMenuItem(
 }
 
 /**
- * Miuix-powered capsule segmented tab bar harmonized with NextVol editorial tokens.
+ * Spring-sliding segmented control with crisp Light & Dark depth (lifted pure white thumb in Light,
+ * elevated graphite thumb with subtle top-lit glass specular rim in Dark).
  */
 @Composable
 fun EditorialPillTabRow(
@@ -201,19 +222,118 @@ fun EditorialPillTabRow(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (tabs.isEmpty()) return
+    val tokens = NextVolDesign.tokens
     val colors = MaterialTheme.colorScheme
-    TabRow(
-        tabs = tabs,
-        selectedTabIndex = selectedTabIndex,
-        onTabSelected = onTabSelected,
-        modifier = modifier,
-        colors = TabRowDefaults.tabRowColors(
-            backgroundColor = colors.surfaceContainer,
-            contentColor = colors.onSurfaceVariant,
-            selectedBackgroundColor = colors.surfaceContainerLowest,
-            selectedContentColor = colors.onSurface,
-        ),
+    val density = LocalDensity.current
+    val safeIndex = selectedTabIndex.coerceIn(0, tabs.lastIndex)
+    val trackColor = if (tokens.isDark) {
+        colors.surfaceContainerLow
+    } else {
+        colors.surfaceContainerHigh.copy(alpha = 0.78f)
+    }
+    val thumbColor = if (tokens.isDark) {
+        colors.surfaceContainerHighest
+    } else {
+        colors.surfaceContainerLowest
+    }
+    val thumbRimBrush = remember(tokens.isDark) {
+        if (tokens.isDark) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.18f),
+                    Color.White.copy(alpha = 0.04f),
+                ),
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.90f),
+                    Color.Black.copy(alpha = 0.04f),
+                ),
+            )
+        }
+    }
+    val animatedIndex by animateFloatAsState(
+        targetValue = safeIndex.toFloat(),
+        animationSpec = spring(dampingRatio = 0.80f, stiffness = 440f),
+        label = "editorialPillThumbPos",
     )
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(trackColor)
+            .padding(3.dp),
+    ) {
+        val slotWidth = maxWidth / tabs.size
+        val slotWidthPx = with(density) { slotWidth.toPx() }
+        val thumbShape = RoundedCornerShape(10.dp)
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset((animatedIndex * slotWidthPx).roundToInt(), 0) }
+                .width(slotWidth)
+                .fillMaxHeight()
+                .then(
+                    if (!tokens.isDark) {
+                        Modifier.shadow(
+                            elevation = 2.dp,
+                            shape = thumbShape,
+                            ambientColor = Color.Black.copy(alpha = 0.08f),
+                            spotColor = Color.Black.copy(alpha = 0.08f),
+                            clip = false,
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+                .clip(thumbShape)
+                .background(thumbColor)
+                .border(BorderStroke(0.6.dp, thumbRimBrush), thumbShape),
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .selectableGroup(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabs.forEachIndexed { index, title ->
+                val selected = index == safeIndex
+                val fg by animateColorAsState(
+                    targetValue = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                    animationSpec = tween(160),
+                    label = "editorialPillTabFg",
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(thumbShape)
+                        .selectable(
+                            selected = selected,
+                            role = Role.Tab,
+                            onClick = { onTabSelected(index) },
+                        )
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = if (selected) FontWeight.W600 else FontWeight.W500,
+                        ),
+                        color = fg,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -245,12 +365,12 @@ fun EditorialTopBar(
     val blurModifier = if (useBlur) {
         val blurStyle = remember(surfaceBg, tokens.topBarGlassTint, tokens.topBarFallbackSurface) {
             HazeBlurStyle {
-                blurRadius(18.dp)
-                noiseFactor(0.03f)
+                blurRadius(14.dp)
+                noiseFactor(0.02f)
                 backgroundColor(surfaceBg)
                 colorEffects(listOf(HazeColorEffect.tint(tokens.topBarGlassTint)))
                 fallbackColorEffect(HazeColorEffect.tint(tokens.topBarFallbackSurface))
-                progressive(HazeProgressive.verticalGradient(startIntensity = 1f, endIntensity = 0.25f))
+                progressive(HazeProgressive.verticalGradient(startIntensity = 1f, endIntensity = 0.12f))
             }
         }
         Modifier.hazeBlur(input = HazeInput.Sources(hazeState), style = blurStyle)
