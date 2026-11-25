@@ -92,7 +92,6 @@ fun SpeechSettingsScreen(
     schemeUsage: String? = null,
     onSchemes: (() -> Unit)? = null,
     schemeSummary: String? = null,
-    onBackgroundMusic: (() -> Unit)? = null,
 ) {
     var showPlayback by remember { mutableStateOf(false) }
     val hasPlayback = playback.request != null && playback.phase != SpeechPhase.Stopped
@@ -191,14 +190,6 @@ fun SpeechSettingsScreen(
                             painter = painterResource(R.drawable.play_arrow_24px),
                             title = stringResource(R.string.tts_playback_preferences),
                             description = stringResource(R.string.tts_playback_preferences_description),
-                            onClick = open,
-                        )
-                    }
-                    onBackgroundMusic?.let { open ->
-                        SettingsClickableEntry(
-                            painter = painterResource(R.drawable.music_note_24px),
-                            title = stringResource(R.string.tts_background_music),
-                            description = stringResource(R.string.tts_music_description),
                             onClick = open,
                         )
                     }

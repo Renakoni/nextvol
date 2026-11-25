@@ -40,10 +40,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.theme.NextVolDesign
-import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenu
-import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenuHeader
 import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenuItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -179,7 +177,6 @@ internal fun SpeechSourcesTopBar(
                         contentDescription = stringResource(R.string.tts_library_actions),
                     )
                     EditorialPopupMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        EditorialPopupMenuHeader(text = stringResource(R.string.tts_library_actions))
                         if (onBackgroundMusic != null) {
                             EditorialPopupMenuItem(
                                 text = stringResource(R.string.tts_background_music),
@@ -212,7 +209,6 @@ internal fun SpeechSourcesTopBar(
                             },
                         )
                         if (onRefresh != null) {
-                            EditorialHairlineDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
                             EditorialPopupMenuItem(
                                 text = stringResource(R.string.tts_refresh),
                                 enabled = !busy,

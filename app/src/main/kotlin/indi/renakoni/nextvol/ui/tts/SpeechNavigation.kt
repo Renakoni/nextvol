@@ -146,9 +146,7 @@ fun NavGraphBuilder.speechSettingsDestination() {
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.controller.state.collectAsStateWithLifecycle()
         var runtimeDialog by rememberSaveable { mutableStateOf(false) }
-        var backgroundMusicDialog by rememberSaveable { mutableStateOf(false) }
         if (runtimeDialog) SpeechRuntimeDialog { runtimeDialog = false }
-        if (backgroundMusicDialog) BackgroundMusicDialog { backgroundMusicDialog = false }
         LaunchedEffect(Unit) { viewModel.refresh() }
         val scheme = route.schemeId?.let { id -> schemes.schemes.items.find { it.id == id } }
         val currentSchemeName = state.settings.schemeName.ifBlank { stringResource(R.string.tts_scheme_initial) }
@@ -158,7 +156,6 @@ fun NavGraphBuilder.speechSettingsDestination() {
             onSchemes = { nav.navigate(SpeechSchemesRoute(bookId)) { launchSingleTop = true } }.takeIf { route.schemeId == null },
             schemeSummary = if (bookId != null && schemes.schemes.bindings[bookId] == null)
                 stringResource(R.string.tts_scheme_follow_name, currentSchemeName) else currentSchemeName,
-            onBackgroundMusic = { backgroundMusicDialog = true },
             onSources = { nav.navigate(HttpSpeechSourcesRoute(schemeId = state.settings.schemeId)) { launchSingleTop = true } },
             onPreferences = { nav.navigate(SpeechPreferencesRoute) { launchSingleTop = true } },
             onPlaybackPreferences = { nav.navigate(SpeechPlaybackSettingsRoute(bookId, state.settings.schemeId)) { launchSingleTop = true } },
