@@ -1,14 +1,11 @@
 package indi.renakoni.nextvol.ui.dialog
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -18,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -27,6 +25,8 @@ import androidx.navigation.toRoute
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.ui.components.BaseDialog
 import indi.renakoni.nextvol.ui.components.CheckBoxListItem
+import indi.renakoni.nextvol.ui.components.design.EditorialCard
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import io.nightfish.lightnovelreader.api.Route
 import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
 import io.nightfish.lightnovelreader.api.ui.LocalNavController
@@ -48,7 +48,7 @@ fun NavGraphBuilder.addBookToBookshelfDialog() {
             selectedBookshelfIds = uiState.selectedBookshelfIds,
             isLoading = uiState.isLoading,
             isSaving = uiState.isSaving,
-            errorMessage = uiState.errorMessage
+            errorMessage = uiState.errorMessage,
         )
     }
 }
@@ -67,7 +67,7 @@ fun AddBookToBookshelfDialog(
     selectedBookshelfIds: List<Int>,
     isLoading: Boolean = false,
     isSaving: Boolean = false,
-    errorMessage: Int? = null
+    errorMessage: Int? = null,
 ) {
     val scrollState = rememberScrollState()
     val enabled = !isLoading && !isSaving
@@ -81,35 +81,62 @@ fun AddBookToBookshelfDialog(
         confirmationEnabled = enabled && allBookshelf.isNotEmpty(),
         dismissEnabled = !isSaving,
     ) {
-        Column(Modifier.width(IntrinsicSize.Max).sizeIn(minWidth = 325.dp, maxHeight = 350.dp).verticalScroll(scrollState)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .heightIn(max = 360.dp)
+                .verticalScroll(scrollState),
+        ) {
             if (isLoading || isSaving) {
-                CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally).padding(16.dp))
-            } else if (allBookshelf.isEmpty() && errorMessage == null) {
-                Text(stringResource(R.string.nothing_here), Modifier.padding(horizontal = 24.dp, vertical = 16.dp))
-            }
-            allBookshelf.forEachIndexed { index, bookshelf ->
-                CheckBoxListItem(
+                CircularProgressIndicator(
                     modifier = Modifier
-                        .wrapContentWidth()
-                        .sizeIn(minWidth = 325.dp)
-                        .padding(horizontal = 10.dp),
-                    title = bookshelf.name,
-                    supportingText = stringResource(R.string.bookshelf_book_count, bookshelf.allBookIds.size),
-                    checked = selectedBookshelfIds.contains(bookshelf.id),
-                    enabled = enabled,
-                    onCheckedChange = {
-                        if (it) onSelectBookshelf(bookshelf.id) else onDeselectBookshelf(
-                            bookshelf.id
-                        )
-                    }
+                        .align(Alignment.CenterHorizontally)
+                        .padding(vertical = 24.dp),
                 )
-                if (index != allBookshelf.size - 1) {
-                    HorizontalDivider(Modifier.padding(horizontal = 10.dp))
+            } else if (allBookshelf.isEmpty() && errorMessage == null) {
+                Text(
+                    text = stringResource(R.string.nothing_here),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (allBookshelf.isNotEmpty()) {
+                EditorialCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 16.dp,
+                ) {
+                    allBookshelf.forEachIndexed { index, bookshelf ->
+                        CheckBoxListItem(
+                            modifier = Modifier.fillMaxWidth(),
+                            title = bookshelf.name,
+                            supportingText = stringResource(R.string.bookshelf_book_count, bookshelf.allBookIds.size),
+                            checked = selectedBookshelfIds.contains(bookshelf.id),
+                            enabled = enabled,
+                            onCheckedChange = { checked ->
+                                if (checked) onSelectBookshelf(bookshelf.id)
+                                else onDeselectBookshelf(bookshelf.id)
+                            },
+                        )
+                        if (index != allBookshelf.lastIndex) {
+                            EditorialHairlineDivider(Modifier.padding(horizontal = 14.dp))
+                        }
+                    }
                 }
             }
             errorMessage?.let {
-                Text(stringResource(it), Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.error)
+                Text(
+                    text = stringResource(it),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }

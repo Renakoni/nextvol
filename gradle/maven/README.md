@@ -6,6 +6,7 @@ This Maven repository contains build dependencies used by NextVol. Reorderable, 
 - The Kotlin Android 2.4.10 plugin marker is resolved locally during Gradle configuration. [Upstream POM](https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/android/org.jetbrains.kotlin.android.gradle.plugin/2.4.10/org.jetbrains.kotlin.android.gradle.plugin-2.4.10.pom)
 - Reorderable 3.1.0 — [Maven Central](https://repo.maven.apache.org/maven2/sh/calvin/reorderable/) · [source](https://github.com/Calvin-LL/Reorderable)
 - Compose Multiplatform BackHandler 1.9.1 — [Maven Central](https://repo.maven.apache.org/maven2/org/jetbrains/compose/ui/ui-backhandler/1.9.1/) · [source](https://github.com/JetBrains/compose-multiplatform-core)
+- JsonPath uses SLF4J API 2.0.17. Its JAR includes the MIT license and the local repository supplies both parent POMs. [Maven Central](https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.17/)
 - Release builds use Compose Group Mapping 2.4.10 with Kotlin Stdlib 2.2.21, JetBrains Annotations 13.0 and ASM Core/Tree 9.9.1. [Compose Group Mapping](https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/compose-group-mapping/2.4.10/) · [ASM license](org/ow2/asm/LICENSE.txt)
 
 Android Lint also resolves these versions from this directory.

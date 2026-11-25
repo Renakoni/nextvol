@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +36,7 @@ import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.TextComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
+import indi.renakoni.nextvol.theme.NextVolDesign
 
 @Composable
 fun rememberMarker(
@@ -42,12 +44,13 @@ fun rememberMarker(
         DefaultCartesianMarker.ValueFormatter.default(),
     showIndicator: Boolean = true,
 ): CartesianMarker {
+    val tokens = NextVolDesign.tokens
     val labelBackgroundShape = MarkerCornerBasedShape(CircleShape)
     val labelBackground =
         rememberShapeComponent(
-            fill = Fill(MaterialTheme.colorScheme.background),
+            fill = Fill(tokens.cardElevatedSurface),
             shape = labelBackgroundShape,
-            strokeFill = Fill(MaterialTheme.colorScheme.outline),
+            strokeFill = Fill(tokens.cardBorder),
             strokeThickness = 1.dp,
         )
     val label =
@@ -57,10 +60,12 @@ fun rememberMarker(
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     fontSize = 12.sp,
+                    fontWeight = FontWeight.W600,
+                    fontFeatureSettings = "tnum",
                 ),
-            padding = Insets(8.dp, 4.dp),
+            padding = Insets(10.dp, 5.dp),
             background = labelBackground,
-            minWidth = TextComponent.MinWidth.fixed(40.dp),
+            minWidth = TextComponent.MinWidth.fixed(44.dp),
         )
     val indicatorFrontComponent =
         rememberShapeComponent(Fill(MaterialTheme.colorScheme.surface), CircleShape)
@@ -72,7 +77,7 @@ fun rememberMarker(
             if (showIndicator) {
                 { color ->
                     LayeredComponent(
-                        back = ShapeComponent(Fill(color.copy(alpha = 0.15f)), CircleShape),
+                        back = ShapeComponent(Fill(color.copy(alpha = 0.16f)), CircleShape),
                         front =
                             LayeredComponent(
                                 back = ShapeComponent(fill = Fill(color), shape = CircleShape),
@@ -85,7 +90,7 @@ fun rememberMarker(
             } else {
                 null
             },
-        indicatorSize = 36.dp,
+        indicatorSize = 32.dp,
         guideline = guideline,
     )
 }

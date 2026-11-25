@@ -1,24 +1,20 @@
 package indi.renakoni.nextvol.ui.home.bookshelf.home
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
@@ -29,11 +25,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -41,7 +39,9 @@ import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
 import indi.renakoni.nextvol.data.book.get
+import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.Cover
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.utils.dateFormatter
 import indi.renakoni.nextvol.utils.withHaptic
 import io.nightfish.lightnovelreader.api.book.BookInformation
@@ -55,54 +55,63 @@ fun BookCardContent(
     latestChapterTitle: String? = null,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
-    titleHeight: Dp?
+    titleHeight: Dp? = null,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(146.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = withHaptic { onLongPress() },
-            )
-    ) {
+    val tokens = NextVolDesign.tokens
+    val coverRadius = 7.dp
+    val coverShape = RoundedCornerShape(coverRadius)
+    val rowBg = if (selected) tokens.activePillFill else Color.Transparent
+
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(4.dp)
+                .fillMaxWidth()
+                .background(rowBg)
+                .semantics { this.selected = selected }
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = withHaptic { onLongPress() },
+                )
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(94.dp, 144.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .size(68.dp, 98.dp)
+                    .border(
+                        width = if (selected) 1.5.dp else 0.5.dp,
+                        color = if (selected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        shape = coverShape,
+                    )
+                    .clip(coverShape),
             ) {
-                val alpha by animateFloatAsState(if (selected) 0.7f else 1f)
+                val alpha by animateFloatAsState(
+                    targetValue = if (selected) 0.72f else 1f,
+                    label = "bookCoverSelectedAlpha",
+                )
 
-                Box(
-                    modifier = Modifier.graphicsLayer(alpha = alpha)
-                ) {
+                Box(modifier = Modifier.graphicsLayer(alpha = alpha)) {
                     Cover(
                         bookId = bookInformation.id,
-                        width = 94.dp,
-                        height = 144.dp,
+                        width = 68.dp,
+                        height = 98.dp,
                         uri = bookInformation.coverUri,
                         title = bookInformation.title,
                         author = bookInformation.author,
-                        rounded = 8.dp
+                        rounded = coverRadius,
                     )
 
                     if (!latestChapterTitle.isNullOrBlank()) {
                         Box(
                             modifier = Modifier
-                                .padding(4.dp)
                                 .align(Alignment.TopEnd)
-                        ) {
-                            Badge(
-                                containerColor = colorScheme.error,
-                                modifier = Modifier.size(12.dp)
-                            )
-                        }
+                                .padding(5.dp)
+                                .size(9.dp)
+                                .clip(CircleShape)
+                                .background(colorScheme.error)
+                                .border(1.5.dp, colorScheme.surface, CircleShape),
+                        )
                     }
 
                     if (collected) {
@@ -111,14 +120,15 @@ fun BookCardContent(
                                 .padding(4.dp)
                                 .align(Alignment.TopStart)
                                 .size(20.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(colorScheme.secondaryContainer)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colorScheme.primaryContainer.copy(alpha = 0.92f)),
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
-                                modifier = Modifier.scale(0.75f, 0.75f),
+                                modifier = Modifier.size(13.dp),
                                 painter = painterResource(R.drawable.filled_bookmark_24px),
                                 contentDescription = stringResource(R.string.activity_collections),
-                                tint = colorScheme.onSurfaceVariant,
+                                tint = colorScheme.onPrimaryContainer,
                             )
                         }
                     }
@@ -127,220 +137,190 @@ fun BookCardContent(
                 if (selected) {
                     Box(
                         modifier = Modifier
-                            .fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                            .fillMaxSize()
+                            .background(colorScheme.primary.copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        val color = colorScheme.primary
-                        Canvas(
-                            modifier = Modifier.size(36.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(colorScheme.primary)
+                                .border(1.5.dp, colorScheme.surface, CircleShape),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            drawCircle(
-                                color = color,
-                                radius = 18.dp.toPx(),
+                            Icon(
+                                modifier = Modifier.size(16.dp),
+                                painter = painterResource(R.drawable.check_24px),
+                                tint = colorScheme.onPrimary,
+                                contentDescription = null,
                             )
                         }
-                        Icon(
-                            modifier = Modifier.size(22.dp),
-                            painter = painterResource(R.drawable.check_24px),
-                            tint = colorScheme.onPrimary,
-                            contentDescription = null
-                        )
                     }
                 }
             }
 
             Column(
-                modifier = Modifier
-                    .padding(start = 12.dp)
-                    .fillMaxHeight()
-                    .weight(1f),
-                verticalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    modifier = if (titleHeight != null) Modifier
-                        .height(titleHeight)
-                        .wrapContentHeight(Alignment.CenterVertically)
-                    else Modifier,
                     text = bookInformation.title,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    style = typography.titleMedium
+                    style = typography.titleMedium.copy(fontWeight = FontWeight.W600),
+                    color = colorScheme.onSurface,
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = bookInformation.author,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = typography.bodyMedium.copy(
-                            fontWeight = FontWeight.W600,
-                            color = colorScheme.primary
-                        )
-                    )
-                    if (bookInformation.lastUpdated.year > 1970 || bookInformation.isComplete)
-                        BookStatusIcon(bookInformation.isComplete)
-                }
-
-                val dateText = bookInformation.lastUpdated.format(dateFormatter())
-
-                // Unknown reading metadata must not render as a 1970 update and zero-word book.
-                if (bookInformation.subtitle.isNotBlank() && bookInformation.lastUpdated.year <= 1970 && bookInformation.wordCount.count == 0L) Text(
-                    text = bookInformation.subtitle,
-                    style = typography.labelMedium.copy(color = colorScheme.secondary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                ) else Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (bookInformation.lastUpdated.year > 1970) {
-                        TagChip(painterResource(R.drawable.update_24px))
-                        Text(
-                        text = dateText,
-                        style = typography.labelMedium.copy(color = colorScheme.secondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.StartEllipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                        )
-                    }
-
-                    Spacer(Modifier.width(2.dp))
-
-                    if (bookInformation.wordCount.count > 0) {
-                        TagChip(painterResource(R.drawable.article_24px))
-                        Text(
-                        text = bookInformation.wordCount.get(),
-                        style = typography.labelMedium.copy(color = colorScheme.secondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                        )
+                val metaParts = buildList {
+                    if (bookInformation.author.isNotBlank()) add(bookInformation.author)
+                    if (bookInformation.subtitle.isNotBlank() && bookInformation.lastUpdated.year <= 1970 && bookInformation.wordCount.count == 0L) {
+                        add(bookInformation.subtitle)
+                    } else {
+                        if (bookInformation.lastUpdated.year > 1970) {
+                            add(bookInformation.lastUpdated.format(dateFormatter()))
+                        }
+                        if (bookInformation.wordCount.count > 0) {
+                            add(bookInformation.wordCount.get())
+                        }
                     }
                 }
-
-
+                if (metaParts.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = metaParts.joinToString(" · "),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                            style = typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                            color = colorScheme.onSurfaceVariant,
+                        )
+                        if (bookInformation.lastUpdated.year > 1970 || bookInformation.isComplete) {
+                            BookStatusIcon(bookInformation.isComplete)
+                        }
+                    }
+                }
 
                 if (latestChapterTitle.isNullOrBlank()) {
                     val description = remember(bookInformation.id, bookInformation.description) {
                         bookDescriptionForDisplay(bookInformation.id, bookInformation.description).trim()
                     }
-                    Text(
-                        text = description,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        style = typography.bodyMedium.copy(
-                            color = colorScheme.secondary
+                    if (description.isNotBlank()) {
+                        Text(
+                            text = description,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
                         )
-                    )
+                    }
                 } else {
-                    Text(
-                        text = stringResource(R.string.book_updated_to_title),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = typography.bodyMedium
-                    )
-                    Text(
-                        text = latestChapterTitle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = typography.bodyMedium.copy(
-                            color = colorScheme.primary
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.book_updated_to_title),
+                            maxLines = 1,
+                            style = typography.labelSmall,
+                            color = colorScheme.onSurfaceVariant,
                         )
-                    )
+                        Text(
+                            text = latestChapterTitle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = typography.labelMedium.copy(fontWeight = FontWeight.W600),
+                            color = colorScheme.primary,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
+        EditorialHairlineDivider(Modifier.padding(start = 98.dp, end = 16.dp))
     }
 }
 
 @Composable
 fun TagChip(
-    painter: Painter
+    painter: Painter,
 ) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(colorScheme.surfaceContainer)
-            .padding(horizontal = 4.dp, vertical = 2.dp)
-    ) {
-        Icon(
-            modifier = Modifier.size(15.dp),
-            painter = painter,
-            contentDescription = null,
-            tint = colorScheme.onSurfaceVariant
-        )
-    }
+    Icon(
+        modifier = Modifier.size(14.dp),
+        painter = painter,
+        contentDescription = null,
+        tint = colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
 fun BookCardContentSkeleton(modifier: Modifier = Modifier) {
-    val skeletonColor = colorScheme.surfaceContainerLow
-    val skeletonRoundedCorner = RoundedCornerShape(4.dp)
+    val skeletonColor = colorScheme.surfaceContainerHigh
+    val skeletonRoundedCorner = RoundedCornerShape(6.dp)
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(146.dp)
-            .padding(4.dp)
-    ) {
-        Box(
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(94.dp, 144.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(skeletonColor)
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(start = 12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .height(40.dp)
-                    .clip(skeletonRoundedCorner)
-                    .background(skeletonColor)
+                    .size(68.dp, 98.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(skeletonColor),
             )
-            Box(
+
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.43f)
-                    .height(20.dp)
-                    .clip(skeletonRoundedCorner)
-                    .background(skeletonColor)
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .clip(skeletonRoundedCorner)
-                    .background(skeletonColor)
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .clip(skeletonRoundedCorner)
-                    .background(skeletonColor)
-            )
+                    .height(98.dp)
+                    .weight(1f),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.84f)
+                        .height(18.dp)
+                        .clip(skeletonRoundedCorner)
+                        .background(skeletonColor),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.48f)
+                        .height(14.dp)
+                        .clip(skeletonRoundedCorner)
+                        .background(skeletonColor),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .height(26.dp)
+                        .clip(skeletonRoundedCorner)
+                        .background(skeletonColor),
+                )
+            }
         }
+        EditorialHairlineDivider(Modifier.padding(start = 98.dp, end = 16.dp))
     }
 }
 
 @Composable
 fun BookStatusIcon(isComplete: Boolean) {
-    val painter: Painter = if (isComplete)
+    val painter: Painter = if (isComplete) {
         painterResource(R.drawable.done_all_24px)
-    else painterResource(R.drawable.hourglass_top_24px)
+    } else {
+        painterResource(R.drawable.hourglass_top_24px)
+    }
     Icon(
-        modifier = Modifier.size(16.dp),
+        modifier = Modifier.size(14.dp),
         painter = painter,
         contentDescription = null,
-        tint = colorScheme.outline
+        tint = colorScheme.onSurfaceVariant,
     )
 }

@@ -1,7 +1,6 @@
 package indi.renakoni.nextvol.ui.home.reading.stats
 
 import android.text.format.DateUtils
-import androidx.compose.ui.util.fastForEach
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
@@ -29,8 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastForEach
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.get
@@ -38,6 +39,7 @@ import com.github.michaelbull.result.onErr
 import com.github.michaelbull.result.onOk
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.statistics.BookRecord
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.home.reading.stats.detailed.BookStack
 import indi.renakoni.nextvol.ui.home.reading.stats.detailed.StatsCard
 import indi.renakoni.nextvol.ui.home.reading.stats.detailed.StatsDetailedUiState
@@ -48,18 +50,19 @@ import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
 val predefinedColors = listOf(
-    Color(0xFF2196F3),
-    Color(0xFF4CAF50),
-    Color(0xFFFF9800),
-    Color(0xFFF44336),
-    Color(0xFF9C27B0),
-    Color(0xFF00BCD4),
-    Color(0xFF3F51B5),
-    Color(0xFFFF5722),
+    Color(0xFF3E6BB3), // Archival Indigo
+    Color(0xFF3F8F64), // Editorial Jade
+    Color(0xFFC26A4A), // Warm Terracotta
+    Color(0xFF7B5EA7), // Muted Plum
+    Color(0xFF2D8C96), // Slate Teal
+    Color(0xFFC78F38), // Ochre Gold
+    Color(0xFFB5546E), // Dusty Rose
+    Color(0xFF5D768E), // Steel Blue
 )
 
 private fun assignColors(
-    records: List<BookRecord>
+    records: List<BookRecord>,
+    fallbackColor: Color,
 ): Map<String, Color> {
     return records
         .groupBy { it.bookId }
@@ -67,11 +70,7 @@ private fun assignColors(
         .toList()
         .sortedByDescending { it.second }
         .mapIndexed { index, (bookId, _) ->
-            val color = if (index < predefinedColors.size) {
-                predefinedColors[index]
-            } else {
-                Color.Gray
-            }
+            val color = predefinedColors.getOrElse(index) { fallbackColor }
             bookId to color
         }
         .toMap()
@@ -82,7 +81,7 @@ private fun assignColors(
  */
 private fun getBooksInRange(
     bookDateMap: Map<Pair<String, Flow<Result<BookInformation, WebRequestError>>>, LocalDate>,
-    dateRange: ClosedRange<LocalDate>
+    dateRange: ClosedRange<LocalDate>,
 ): List<Pair<String, Flow<Result<BookInformation, WebRequestError>>>> {
     return bookDateMap
         .filterValues { it in dateRange }
@@ -98,24 +97,25 @@ private fun getBooksInRange(
 private fun BookActivitySection(
     titleResId: Int,
     books: List<Pair<String, Flow<Result<BookInformation, WebRequestError>>>>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     if (books.isEmpty()) return
+    val untitledBook = stringResource(R.string.cover_untitled)
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
-            modifier = Modifier
-                .weight(1f, fill = true),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            modifier = Modifier.weight(1f, fill = true),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             Text(
                 text = stringResource(titleResId),
-                style = typography.titleMedium
+                style = typography.titleSmall.copy(fontWeight = FontWeight.W600),
+                color = colorScheme.onSurface,
             )
             val bookList = books.take(2)
             bookList.forEach { (bookId, flow) ->
@@ -123,26 +123,38 @@ private fun BookActivitySection(
                     val result by flow.collectAsStateWithLifecycle(null)
                     result?.onOk {
                         Text(
-                            text = it.title,
-                            style = typography.bodyMedium,
+                            text = it.title.ifBlank { untitledBook },
+                            style = typography.bodySmall,
                             maxLines = 1,
-                            color = colorScheme.secondary,
-                            overflow = TextOverflow.Ellipsis
+                            color = colorScheme.onSurfaceVariant,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }?.onErr {
-                        //TODO 错误显示
-                    } ?: {
-                        //TODO 加载显示
-                    }
+                        Text(
+                            text = untitledBook,
+                            style = typography.bodySmall,
+                            maxLines = 1,
+                            color = colorScheme.onSurfaceVariant,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    } ?: Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.65f)
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colorScheme.surfaceContainerHigh),
+                    )
                 }
             }
-            if (books.size > bookList.size)
+            if (books.size > bookList.size) {
                 Text(
                     text = stringResource(R.string.activity_etc, books.size),
-                    style = typography.bodyMedium,
+                    style = typography.labelSmall.copy(fontWeight = FontWeight.W600),
+                    color = colorScheme.primary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
+            }
         }
         Spacer(Modifier.width(12.dp))
         Box {
@@ -151,7 +163,7 @@ private fun BookActivitySection(
                 books = books,
                 count = 5,
                 rotate = 4.5f,
-                scaleEnabled = false
+                scaleEnabled = false,
             )
         }
     }
@@ -163,7 +175,7 @@ private fun BookActivitySection(
 @Composable
 fun ActivityStatsCard(
     uiState: StatsDetailedUiState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val dateRange = uiState.currentDateRange
     val startedBooks = getBooksInRange(uiState.bookFirstReadDateMap, dateRange)
@@ -175,28 +187,23 @@ fun ActivityStatsCard(
 
     StatsCard(
         modifier = modifier,
-        title = stringResource(R.string.activity)
+        title = stringResource(R.string.activity),
     ) {
         Column {
             val sections = listOf(
                 R.string.activity_first_read to startedBooks,
                 R.string.activity_collections to favoriteBooks,
-                R.string.activity_finished to finishedBooks
+                R.string.activity_finished to finishedBooks,
             ).filter { it.second.isNotEmpty() }
 
             sections.forEachIndexed { index, (title, books) ->
                 key(title) {
                     BookActivitySection(
                         titleResId = title,
-                        books = books
+                        books = books,
                     )
-
                     if (index != sections.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        )
+                        EditorialHairlineDivider(modifier = Modifier.padding(vertical = 4.dp))
                     }
                 }
             }
@@ -209,7 +216,7 @@ fun ActivityStatsCard(
  */
 @Composable
 fun ReadingDetailStatsCard(
-    uiState: StatsDetailedUiState
+    uiState: StatsDetailedUiState,
 ) {
     val dateRange = uiState.currentDateRange
     val allRecords = uiState.targetDateRangeRecordsMap
@@ -218,25 +225,36 @@ fun ReadingDetailStatsCard(
         .flatten()
 
     StatsCard(title = stringResource(R.string.reading_details)) {
-        Column {
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val books = allRecords
-                    .sortedBy { it.lastSeen }
-                    .map { it.bookId to it.bookInformationFlow }
-                    .distinctBy { it.first }
-                BookStack(
-                    books = books,
-                    count = 8,
-                    compact = false
-                )
-                Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(12.dp))
-
-            ReadingTimeBar(
-                recordList = allRecords,
+        if (allRecords.isEmpty()) {
+            Text(
+                text = stringResource(R.string.no_records),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 20.dp),
+                textAlign = TextAlign.Center,
+                style = typography.bodyMedium,
+                color = colorScheme.onSurfaceVariant,
             )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val books = allRecords
+                        .sortedBy { it.lastSeen }
+                        .map { it.bookId to it.bookInformationFlow }
+                        .distinctBy { it.first }
+                    BookStack(
+                        books = books,
+                        count = 8,
+                        compact = false,
+                    )
+                    Spacer(Modifier.weight(1f))
+                }
+
+                ReadingTimeBar(recordList = allRecords)
+            }
         }
     }
 }
@@ -245,11 +263,14 @@ fun ReadingDetailStatsCard(
 fun ReadingTimeBar(
     recordList: List<BookRecord>?,
 ) {
-
     if (recordList.isNullOrEmpty()) return
 
-    val colorMap = remember(recordList) {
-        assignColors(recordList)
+    val fallbackColor = colorScheme.outlineVariant
+    val untitledLabel = stringResource(R.string.cover_untitled)
+    val othersLabel = stringResource(R.string.others)
+
+    val colorMap = remember(recordList, fallbackColor) {
+        assignColors(recordList, fallbackColor)
     }
 
     val groupedTime = remember(recordList) {
@@ -263,59 +284,69 @@ fun ReadingTimeBar(
         groupedTime.take(8).forEach { (record, seconds) ->
             key(record.bookId) {
                 val information by record.bookInformationFlow.collectAsStateWithLifecycle(null)
-                add(TimeBarItem(information?.get()?.title ?: "Unknown", seconds,
-                    colorMap[record.bookId] ?: Color.Gray))
+                val resolvedTitle = information?.get()?.title?.takeIf { it.isNotBlank() } ?: untitledLabel
+                add(
+                    TimeBarItem(
+                        title = resolvedTitle,
+                        timeSeconds = seconds,
+                        color = colorMap[record.bookId] ?: fallbackColor,
+                    ),
+                )
             }
         }
         val othersTime = groupedTime.drop(8).sumOf { it.second }
-        if (othersTime > 0) add(TimeBarItem("Others", othersTime, Color.Gray))
+        if (othersTime > 0) add(TimeBarItem(othersLabel, othersTime, fallbackColor))
     }
     val normalizedItems = remember(barItems) {
         barItems.normalize()
     }
 
-    Column {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(14.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .height(12.dp)
+                .clip(CircleShape),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             normalizedItems.fastForEach { (item, ratio) ->
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .weight(ratio)
-                        .background(item.color)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(item.color),
                 )
             }
         }
-        Spacer(Modifier.height(12.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             normalizedItems.fastForEach { (item, _) ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(10.dp)
+                            .size(9.dp)
                             .clip(CircleShape)
-                            .background(item.color)
+                            .background(item.color),
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(10.dp))
                     Text(
                         modifier = Modifier.weight(1f),
                         text = item.title,
-                        style = typography.labelMedium,
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
                         text = DateUtils.formatElapsedTime(item.timeSeconds.toLong()),
-                        style = typography.labelMedium,
-                        color = colorScheme.onSurfaceVariant                    )
+                        style = typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                        color = colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

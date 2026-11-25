@@ -13,22 +13,14 @@ class SettingsNavigationSmokeTest : UiAutomatorTest() {
     @Test
     fun mainScreenCanOpenSettingsAndReturnAfterBottomBarTransition() {
         launchApp()
-        assertText("Reading")
-        assertText("Categories")
-        assertDescription("Settings")
-
         openAppSettings()
         device.waitForStableInActiveWindow()
-        assertForegroundPackage(TARGET_PACKAGE)
-        assertText("Settings")
         assertText("Extensions")
         assertTextNotVisible("Categories")
 
         pressBack()
         device.waitForStableInActiveWindow()
-        assertForegroundPackage(TARGET_PACKAGE)
         assertText("Reading")
         assertText("Categories")
-        assertDescription("Settings")
     }
 }

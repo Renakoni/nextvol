@@ -1,36 +1,68 @@
 package indi.renakoni.nextvol.ui.tts
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.home.settings.SettingsTopBar
 import indi.renakoni.nextvol.tts.names.SpeechNameCandidate
 import indi.renakoni.nextvol.tts.names.SpeechNameRecognizer
+import indi.renakoni.nextvol.ui.components.design.EditorialCard
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
+import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
+import indi.renakoni.nextvol.ui.components.design.EditorialPillTabRow
+import indi.renakoni.nextvol.ui.components.design.EditorialTopBar
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.ensureActive
 import javax.inject.Inject
 
 data class SpeechNameTestState(
@@ -69,16 +101,43 @@ class SpeechNameTestViewModel @Inject constructor(private val recognizer: Speech
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeechNameTestScreen(onBack: () -> Unit) {
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     var selected by rememberSaveable { mutableIntStateOf(0) }
     val saved = rememberSaveableStateHolder()
-    val tabs = listOf(R.string.tts_name_ner, R.string.tts_new_word_algorithm, R.string.tts_name_classification_tab)
-    Scaffold(topBar = { SettingsTopBar(TopAppBarDefaults.pinnedScrollBehavior(), R.string.tts_name_test, onBack) }) { padding ->
+    val tabs = listOf(
+        stringResource(R.string.tts_name_ner),
+        stringResource(R.string.tts_new_word_algorithm),
+        stringResource(R.string.tts_name_classification_tab),
+    )
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = {
+            EditorialTopBar(
+                title = stringResource(R.string.tts_name_test),
+                scrollBehavior = scrollBehavior,
+                hazeState = null,
+                frosted = false,
+                navigationIcon = {
+                    EditorialIconButton(
+                        onClick = onBack,
+                        painter = painterResource(R.drawable.arrow_back_24px),
+                        contentDescription = stringResource(R.string.sources_back),
+                    )
+                },
+            )
+        },
+    ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            PrimaryScrollableTabRow(selectedTabIndex = selected, edgePadding = 20.dp) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(selected == index, onClick = { selected = index }, text = { Text(stringResource(title)) })
-                }
-            }
+            EditorialPillTabRow(
+                tabs = tabs,
+                selectedTabIndex = selected,
+                onTabSelected = { selected = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
             saved.SaveableStateProvider(selected) {
                 when (selected) {
                     0 -> SpeechNameRecognitionContent()
@@ -97,47 +156,95 @@ internal fun SpeechNameRecognitionContent(modifier: Modifier = Modifier) {
     val sample = stringResource(R.string.tts_name_sample)
     var text by rememberSaveable { mutableStateOf(sample) }
     DisposableEffect(viewModel) { onDispose(viewModel::clear) }
-    LazyColumn(modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         item {
-            NameTestInput(text, { text = it; viewModel.clear() }, stringResource(R.string.tts_name_input),
-                Modifier.testTag("name-test-input"))
+            NameTestInput(
+                value = text,
+                onChange = {
+                    text = it
+                    viewModel.clear()
+                },
+                label = stringResource(R.string.tts_name_input),
+                modifier = Modifier.testTag("name-test-input"),
+            )
         }
         item {
-            NameTestAction(state.running, viewModel.available && text.isNotBlank(),
-                stringResource(R.string.tts_name_run), { viewModel.recognize(text) }, viewModel::clear)
+            NameTestAction(
+                running = state.running,
+                enabled = viewModel.available && text.isNotBlank(),
+                label = stringResource(R.string.tts_name_run),
+                onRun = { viewModel.recognize(text) },
+                onCancel = viewModel::clear,
+            )
         }
-        if (!viewModel.available) item { Text(stringResource(R.string.tts_name_unavailable)) }
-        state.error?.let { error -> item {
-            Text(stringResource(R.string.tts_name_error, error), color = MaterialTheme.colorScheme.error)
-        } }
+        if (!viewModel.available) {
+            item { Text(stringResource(R.string.tts_name_unavailable), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        state.error?.let { error ->
+            item { Text(stringResource(R.string.tts_name_error, error), color = MaterialTheme.colorScheme.error) }
+        }
         state.candidates?.let { candidates ->
             item {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.tts_name_results), Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleMedium)
-                    Text(candidates.size.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.tts_name_results),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.W600,
+                    )
+                    Text(
+                        text = candidates.size.toString(),
+                        style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
-            if (candidates.isEmpty()) item { Text(stringResource(R.string.tts_name_empty)) }
-            else item {
-                Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        val highlight = SpanStyle(background = MaterialTheme.colorScheme.secondaryContainer,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer)
-                        Text(buildAnnotatedString {
-                            var offset = 0
-                            candidates.forEach { candidate ->
-                                append(text.substring(offset, candidate.start))
-                                withStyle(highlight) { append(text.substring(candidate.start, candidate.end)) }
-                                offset = candidate.end
+            if (candidates.isEmpty()) {
+                item { Text(stringResource(R.string.tts_name_empty), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            } else {
+                item {
+                    EditorialCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(18.dp),
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            val highlight = SpanStyle(
+                                background = MaterialTheme.colorScheme.secondaryContainer,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            Text(
+                                text = buildAnnotatedString {
+                                    var offset = 0
+                                    candidates.forEach { candidate ->
+                                        append(text.substring(offset, candidate.start))
+                                        withStyle(highlight) { append(text.substring(candidate.start, candidate.end)) }
+                                        offset = candidate.end
+                                    }
+                                    append(text.substring(offset))
+                                },
+                                modifier = Modifier.testTag("name-test-result"),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            EditorialHairlineDivider()
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                candidates.forEach {
+                                    Text(
+                                        text = it.name,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.W600,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
                             }
-                            append(text.substring(offset))
-                        }, Modifier.testTag("name-test-result"), style = MaterialTheme.typography.bodyLarge)
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            candidates.forEach { Text(it.name, color = MaterialTheme.colorScheme.primary) }
                         }
                     }
                 }
@@ -147,28 +254,53 @@ internal fun SpeechNameRecognitionContent(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun NameTestInput(value: String, onChange: (String) -> Unit, label: String,
-    modifier: Modifier = Modifier, singleLine: Boolean = false) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, style = MaterialTheme.typography.titleMedium)
-        TextField(value, onChange, modifier.fillMaxWidth(),
-            singleLine = singleLine, minLines = if (singleLine) 1 else 7, maxLines = if (singleLine) 1 else 12,
-            textStyle = MaterialTheme.typography.bodyLarge, shape = RoundedCornerShape(16.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent))
+internal fun NameTestInput(
+    value: String,
+    onChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = false,
+) {
+    EditorialCard(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(14.dp),
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            modifier = modifier.fillMaxWidth(),
+            singleLine = singleLine,
+            minLines = if (singleLine) 1 else 6,
+            maxLines = if (singleLine) 1 else 12,
+            label = { Text(label) },
+            textStyle = MaterialTheme.typography.bodyLarge,
+            shape = RoundedCornerShape(14.dp),
+        )
     }
 }
 
 @Composable
-internal fun NameTestAction(running: Boolean, enabled: Boolean, label: String, onRun: () -> Unit, onCancel: () -> Unit) {
-    Button(onClick = if (running) onCancel else onRun, enabled = running || enabled,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(16.dp)) {
-        if (running) CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-        else Icon(painterResource(R.drawable.play_arrow_24px), null, Modifier.size(20.dp))
+internal fun NameTestAction(
+    running: Boolean,
+    enabled: Boolean,
+    label: String,
+    onRun: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Button(
+        onClick = if (running) onCancel else onRun,
+        enabled = running || enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp),
+        shape = CircleShape,
+    ) {
+        if (running) {
+            CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+        } else {
+            Icon(painterResource(R.drawable.play_arrow_24px), null, Modifier.size(20.dp))
+        }
         Spacer(Modifier.width(8.dp))
-        Text(if (running) stringResource(R.string.cancel) else label)
+        Text(if (running) stringResource(R.string.cancel) else label, fontWeight = FontWeight.W600)
     }
 }
