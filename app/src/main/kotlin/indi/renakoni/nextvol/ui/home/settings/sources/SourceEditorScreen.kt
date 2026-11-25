@@ -98,7 +98,9 @@ internal fun SourceEditorScreen(
             )
         }
     }
-    val matches = if (finding) remember(value.text, query) { editorMatches(value.text, query) } else emptyList()
+    val matches = remember(finding, value.text, query) {
+        if (finding) editorMatches(value.text, query) else emptyList()
+    }
     fun change(next: TextFieldValue) {
         value = next
         if (next.text != draft.rawJson) model.editDraft(next.text)
@@ -253,7 +255,7 @@ internal fun SourceEditorScreen(
             val message = if (error.detail == null) stringResource(error.message) else stringResource(error.message, error.detail)
             val located = error.line != null && error.column != null
             val text = if (located) {
-                stringResource(R.string.sources_editor_error_position, error.line!!, error.column!!) + " · " + message
+                stringResource(R.string.sources_editor_error_position, error.line, error.column) + " · " + message
             } else {
                 message
             }
