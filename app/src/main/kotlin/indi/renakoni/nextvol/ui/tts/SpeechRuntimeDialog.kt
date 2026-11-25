@@ -43,6 +43,7 @@ import indi.renakoni.nextvol.ui.components.design.EditorialCard
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
+import androidx.compose.ui.platform.LocalContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -53,7 +54,7 @@ internal fun SpeechRuntimeDialog(onDismiss: () -> Unit) {
     val tokens = NextVolDesign.tokens
     val downloads = hiltViewModel<SpeechRuntimeViewModel>().downloads
     val states by downloads.changes.collectAsStateWithLifecycle()
-    val acceleration by DeviceAcceleration.status.collectAsStateWithLifecycle()
+    val supportsGpt = DeviceAcceleration.supportsRuntime(LocalContext.current)
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(tokens.sheetRadius),
@@ -92,7 +93,7 @@ internal fun SpeechRuntimeDialog(onDismiss: () -> Unit) {
                         RuntimeRow(
                             pack = pack,
                             state = states.getValue(pack),
-                            supported = if (pack == SpeechRuntimePack.Vendor) true else acceleration.gpu,
+                            supported = pack == SpeechRuntimePack.Vendor || supportsGpt,
                             onStart = { downloads.start(pack) },
                             onCancel = { downloads.cancel(pack) },
                         )
@@ -107,7 +108,7 @@ internal fun SpeechRuntimeDialog(onDismiss: () -> Unit) {
 private fun RuntimeRow(
     pack: SpeechRuntimePack,
     state: RuntimeDownload,
-    supported: Boolean?,
+    supported: Boolean,
     onStart: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -143,7 +144,8 @@ private fun RuntimeRow(
                     val detail = when {
                         transfer != null -> "${megabytes(transfer.copied)} / ${megabytes(transfer.total)}"
                         state == RuntimeDownload.Installing -> stringResource(R.string.tts_runtime_installing)
-                        else -> megabytes(pack.archiveBytes)
+                        state == RuntimeDownload.Installed -> megabytes(pack.archiveBytes)
+                        else -> megabytes(pack.files.filterNot { it.installed }.sumOf { it.bytes })
                     }
                     Text(
                         text = detail,
@@ -151,18 +153,14 @@ private fun RuntimeRow(
                         color = colors.onSurfaceVariant,
                     )
                 }
-                if (supported != true) {
+                if (!supported) {
                     FilledTonalButton(
                         onClick = {},
                         enabled = false,
                         shape = CircleShape,
                         contentPadding = PaddingValues(horizontal = 12.dp),
                     ) {
-                        Text(
-                            stringResource(
-                                if (supported == null) R.string.sovits_acceleration_checking else R.string.sovits_acceleration_unsupported,
-                            ),
-                        )
+                        Text(stringResource(R.string.sovits_acceleration_unsupported))
                     }
                 } else {
                     when (state) {

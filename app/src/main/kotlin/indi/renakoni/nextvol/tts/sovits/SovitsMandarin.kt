@@ -22,7 +22,7 @@ internal class SovitsText(val phones: LongArray, val tokens: LongArray, val repe
 }
 
 internal class SovitsMandarin(dictionary: File, runtime: File) {
-    constructor(runtime: File) : this(File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/chinese_g2p"), runtime)
+    constructor(runtime: File) : this(File(SpeechRuntimePack.languageData.directory, "assets/gpt-sovits/chinese_g2p"), runtime)
     private val resources = ChineseG2pAssetRepository.load(dictionary)
     private val toneSandhi = ToneSandhiProcessor()
     private val erhua = ErhuaProcessor()

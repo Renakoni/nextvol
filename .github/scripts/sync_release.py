@@ -102,7 +102,7 @@ def mirror_asset(store, directory, release, tag, name, digest, content_type):
         return
     path = directory / name
     subprocess.run(["gh", "release", "download", tag, "--repo", REPOSITORY,
-                    "--pattern", name, "--dir", str(directory)], check=True, timeout=300)
+                    "--pattern", name, "--dir", str(directory), "--clobber"], check=True, timeout=300)
     with path.open("rb") as stream:
         if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
             raise ValueError(f"Component checksum mismatch: {name}")
@@ -112,7 +112,7 @@ def mirror_asset(store, directory, release, tag, name, digest, content_type):
 def mirror_components(store, apk):
     prefix = f"https://github.com/{REPOSITORY}/releases/download/"
     with ZipFile(apk) as archive:
-        for kind in ("vendor", "sovits"):
+        for kind in ("vendor", "sovits", "sovits-data"):
             catalog = f"assets/speech-runtimes/{kind}.json"
             if catalog not in archive.namelist():
                 continue

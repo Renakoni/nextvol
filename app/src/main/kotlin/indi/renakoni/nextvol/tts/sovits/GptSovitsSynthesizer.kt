@@ -47,7 +47,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                     synchronized(lifecycle) { generation.checkCancelled(); preparing = job }
                     try {
                         val npuRuntime = DeviceAcceleration.detect(context)
-                        if (!DeviceAcceleration.supportsRuntime(context) || DeviceAcceleration.status.value.gpu != true ||
+                        if (!DeviceAcceleration.supportsRuntime(context) ||
                             !SpeechRuntimePack.Sovits.installed || !SpeechRuntimePack.SovitsModels.installed)
                             throw SpeechException(SpeechError.OfflineUnavailable)
                         permit.acquire()
@@ -93,7 +93,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
             }
             android.util.Log.d("NextVolSoVITS", "Reference features cache hit=${cached != null}")
             SovitsNative.prepare(handle, prompt.phones, prompt.tokens, prompt.repeats, prompt.bertRuns, features)
-            if (settings.audio.sovitsGpu) {
+            if (settings.audio.sovitsGpu && DeviceAcceleration.status.value.gpu == true) {
                 acoustic = SovitsAcoustic(voice.copy(options = options), SovitsNative.condition(handle, false), SovitsNative.condition(handle, true))
                 acoustic?.prepare(context, npuRuntime)
             }

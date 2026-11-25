@@ -3,12 +3,12 @@
     <string name="sovits_shared_models">GPT-SoVITS shared models</string>
     <string name="sovits_gpu_acceleration">GPU acceleration</string>
     <string name="sovits_device_acceleration">Device acceleration (NPU)</string>
+    <string name="sovits_bridge_required">Install the GPT bridge to check WebGPU</string>
+    <string name="sovits_npu_device_supported">Compatible hardware; acceleration needs a usable HTP runtime</string>
     <string name="sovits_acceleration_checking">Checking</string>
     <string name="sovits_acceleration_supported">Supported</string>
     <string name="sovits_acceleration_unsupported">Not supported</string>
     <string name="sovits_acceleration_unknown_device">Unknown model</string>
-    <string name="sovits_gpu_unsupported">GPT-SoVITS requires a device that supports GPU acceleration.</string>
-    <string name="sovits_requires_gpu">Enable GPU acceleration first</string>
     <string name="sovits_disable_gpu">Turn off GPU acceleration</string>
     <string name="sovits_disable_gpu_warning">GPT-SoVITS will use the CPU, which may make speech generation much slower. We recommend keeping GPU acceleration on.</string>
     <string name="sovits_temperature">Temperature</string>

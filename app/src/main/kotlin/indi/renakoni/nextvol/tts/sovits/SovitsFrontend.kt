@@ -19,7 +19,7 @@ enum class SovitsReferenceLanguage(val code: String) {
 }
 
 internal class SovitsFrontend(mandarin: () -> SovitsMandarin, private val languages: File) : AutoCloseable {
-    constructor(runtime: File) : this({ SovitsMandarin(runtime) }, File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/languages"))
+    constructor(runtime: File) : this({ SovitsMandarin(runtime) }, File(SpeechRuntimePack.languageData.directory, "assets/gpt-sovits/languages"))
 
     private val mandarin by lazy(mandarin)
     private val english = lazy { EnglishG2p(File(languages, "english")) }

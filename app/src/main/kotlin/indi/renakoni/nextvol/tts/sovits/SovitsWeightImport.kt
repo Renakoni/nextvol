@@ -53,8 +53,6 @@ internal class SovitsWeightImport @Inject constructor(
 ) {
     suspend fun install(draft: SovitsImportDraft, progress: (SovitsImportMessage) -> Unit): InstalledOfflineVoice = withContext(Dispatchers.IO) {
         require(draft.ready)
-        DeviceAcceleration.detect(context)
-        requireSovits(DeviceAcceleration.status.value.gpu == true) { SovitsImportMessage(R.string.sovits_gpu_unsupported) }
         requireSovits(SpeechRuntimePack.Sovits.installed && SpeechRuntimePack.SovitsModels.installed) {
             SovitsImportMessage(R.string.sovits_runtime_required)
         }
@@ -88,7 +86,8 @@ internal class SovitsWeightImport @Inject constructor(
             }
             val gpt = requireNotNull(draft.gpt)
             val sovits = requireNotNull(draft.sovits)
-            val result = CheckpointImporter(stage, context.assets::open).convert(
+            val templates = File(SpeechRuntimePack.Sovits.directory, "assets")
+            val result = CheckpointImporter(stage) { name -> File(templates, name).inputStream() }.convert(
                 { open(gpt) }, { open(sovits) }, progress, task::ensureActive)
             val audioDirectory = File(result.character, "prompt_wav")
             check(audioDirectory.mkdir() && reference.renameTo(File(audioDirectory, reference.name)))

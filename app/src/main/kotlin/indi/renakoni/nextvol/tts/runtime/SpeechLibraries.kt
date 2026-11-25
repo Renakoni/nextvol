@@ -18,38 +18,54 @@ internal fun speechProcessAbis(context: Context): List<String> {
     return if (File(context.applicationInfo.nativeLibraryDir).name == "arm64") listOf("arm64-v8a") else abis.take(1)
 }
 
-internal enum class SpeechRuntimePack(val id: String) {
-    Vendor("vendor"), Sovits("sovits"), SovitsModels("sovits-models");
+internal data class RuntimeArchive(val sha256: String, val bytes: Long, val urls: List<String>, val path: String? = null)
 
-    private val spec by lazy {
-        SpeechLibraries.context.assets.open("speech-runtimes/$id.json").bufferedReader().use { JSONObject(it.readText()) }
+internal class RuntimeFiles(id: String, val archives: List<RuntimeArchive>) {
+    val root = File(SpeechLibraries.context.noBackupFilesDir, "speech-runtimes/$id")
+    private val revision = if (archives.size == 1) archives.single().sha256 else {
+        val hashes = archives.joinToString("-") { it.sha256 }
+        MessageDigest.getInstance("SHA-256").digest(hashes.toByteArray()).joinToString("") { "%02x".format(it) }
     }
-    internal data class Archive(val sha256: String, val bytes: Long, val urls: List<String>, val path: String? = null)
+    val directory = File(root, revision)
+    val bytes = archives.sumOf { it.bytes }
+    val installed get() = directory.isDirectory
+}
 
-    val archives: List<Archive> by lazy {
-        if (this == SovitsModels) {
-            val files = SpeechLibraries.context.assets.open("gpt-sovits/runtime-models.json").bufferedReader().use { JSONArray(it.readText()) }
-            return@lazy List(files.length()) { index ->
-                val file = files.getJSONObject(index)
-                val urls = file.getJSONArray("urls")
-                Archive(file.getString("sha256"), file.getLong("bytes"), List(urls.length(), urls::getString), file.getString("path"))
+internal enum class SpeechRuntimePack {
+    Vendor, Sovits, SovitsModels;
+
+    val files: List<RuntimeFiles> by lazy {
+        when (this) {
+            Vendor -> listOf(component("vendor", "vendor"))
+            Sovits -> listOf(component("sovits-bridge", "sovits"))
+            SovitsModels -> {
+                val models = SpeechLibraries.context.assets.open("gpt-sovits/runtime-models.json").bufferedReader().use { JSONArray(it.readText()) }
+                val weights = List(models.length()) { index ->
+                    val model = models.getJSONObject(index)
+                    val urls = model.getJSONArray("urls")
+                    RuntimeArchive(model.getString("sha256"), model.getLong("bytes"),
+                        List(urls.length(), urls::getString), model.getString("path"))
+                }
+                listOf(RuntimeFiles("sovits-models", weights), languageData)
             }
         }
-        val github = spec.getString("url")
-        val asset = github.substringAfter("/releases/download/")
-        listOf(Archive(spec.getString("sha256"), spec.getLong("size"),
-            listOf(github, "${ProjectLinks.DOWNLOADS}/releases/$asset")))
     }
-    val archiveBytes get() = archives.sumOf { it.bytes }
-    val root get() = File(SpeechLibraries.context.noBackupFilesDir, "speech-runtimes/$id")
-    private val revision by lazy {
-        val hashes = archives.joinToString("-") { it.sha256 }
-        if (this == SovitsModels) MessageDigest.getInstance("SHA-256").digest(hashes.toByteArray())
-            .joinToString("") { "%02x".format(it) } else hashes
-    }
-    val directory get() = File(root, revision)
+    val directory get() = files.first().directory
     val libraries get() = File(directory, "jniLibs/arm64-v8a")
-    val installed get() = directory.isDirectory
+    val installed get() = files.all { it.installed }
+    val archiveBytes get() = files.sumOf { it.bytes }
+
+    companion object {
+        // Keep the published language data and weights in their existing content-addressed directories.
+        val languageData by lazy { component("sovits", "sovits-data") }
+
+        private fun component(id: String, catalog: String): RuntimeFiles {
+            val spec = SpeechLibraries.context.assets.open("speech-runtimes/$catalog.json").bufferedReader().use { JSONObject(it.readText()) }
+            val github = spec.getString("url")
+            val mirror = "${ProjectLinks.DOWNLOADS}/releases/${github.substringAfter("/releases/download/")}"
+            return RuntimeFiles(id, listOf(RuntimeArchive(spec.getString("sha256"), spec.getLong("size"), listOf(github, mirror))))
+        }
+    }
 }
 
 internal object SpeechLibraries {
@@ -84,8 +100,11 @@ internal object SpeechLibraries {
         load(System.mapLibraryName(name))
     }
 
-    // Startup probes and synthesis share the APK's inference backends.
-    fun loadSovitsBridge() {
-        System.loadLibrary("nextvol-sovits")
+    @JvmStatic fun loadSovits(name: String) {
+        val libraries = SpeechRuntimePack.Sovits.libraries
+        System.load(File(libraries, "libortwebgpu.so").absolutePath)
+        System.load(File(libraries, System.mapLibraryName(name)).absolutePath)
     }
+
+    fun loadSovitsBridge() = loadSovits("nextvol-sovits")
 }

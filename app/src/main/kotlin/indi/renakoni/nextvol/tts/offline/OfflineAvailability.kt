@@ -92,9 +92,6 @@ class OfflineAvailabilityChecker internal constructor(
             if (!DeviceAcceleration.supportsProcess(device.abis))
                 return OfflineAvailability(R.string.sovits_runtime_unsupported, canRun = false)
             if (!matchaEnabled) return OfflineAvailability(R.string.tts_offline_runtime_missing, "GPT-SoVITS", false)
-            if (DeviceAcceleration.status.value.gpu != true)
-                return OfflineAvailability(if (DeviceAcceleration.status.value.gpu == null) R.string.sovits_acceleration_checking
-                    else R.string.sovits_gpu_unsupported, canRun = false)
             if (!SpeechRuntimePack.Sovits.installed || !SpeechRuntimePack.SovitsModels.installed)
                 return OfflineAvailability(R.string.sovits_runtime_required, canRun = false)
             return OfflineAvailability()

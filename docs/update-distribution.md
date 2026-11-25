@@ -40,8 +40,9 @@ APK 与 `SHA256SUMS` 放在 `/releases/vX.Y.Z/`，使用带版本的不可变地
 正式版 Release Notes 只写本版更新内容与变更记录，省略「下载与安装」章节。
 
 1. 普通构建从 `native/sovits/runtime.json` 读取已公开的 GPT-SoVITS 地址。`Prepare signed release` 使用 `-PpublishSpeechRuntime=true` 打包本次运行库，并将对应地址和大小写入正式 APK。
-2. 从签名 APK 读取 `assets/speech-runtimes/{vendor,sovits}.json`。厂商 v5 按 `native/offline/README.md` 制作，GPT-SoVITS ZIP 取自同次工作流的 `NextVol-X.Y.Z-speech-runtime` 附件。
+2. 从签名 APK 读取 `assets/speech-runtimes/{vendor,sovits,sovits-data}.json`。厂商 v5 按 `native/offline/README.md` 制作，GPT 桥接 ZIP 取自同次工作流的 `NextVol-X.Y.Z-speech-runtime` 附件。
    按 APK 中的下载地址准备组件草稿，核对附件摘要。已有相同摘要的组件可以复用。发布应用前先公开组件，组件使用预发布且不设为 Latest。发布新版组件后将 APK 中的 `sovits.json` 更新到 `native/sovits/runtime.json`，供后续开发构建使用。
+   共享模型继续使用原来的权重目录，发音数据和声码器图由 `sovits-data.json` 独立固定。更新这份数据时，用 `:app:packageSovitsData` 生成附件，公开后同步其地址、大小和摘要。
 3. 若签名 APK 包含 `assets/reader-fonts.json`，先公开该目录指定的字体组件，标记为预发布并保留应用为 Latest。上传各款原始字体和对应的许可，核对字体 SHA-256；后续应用版本可复用同一组件。
 4. 审阅并发布正式 `vX.Y.Z` Release，附件必须包含唯一的
    `NextVol-X.Y.Z-release.apk` 和 `SHA256SUMS`。

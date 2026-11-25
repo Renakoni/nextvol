@@ -290,7 +290,7 @@ internal fun SpeechPlaybackSettingsScreen(
                                 description = "${state.acceleration.gpuInfo?.takeIf { it.isNotBlank() } ?: stringResource(R.string.sovits_acceleration_unknown_device)} · ${
                                     stringResource(
                                         when (gpuSupported) {
-                                            null -> R.string.sovits_acceleration_checking
+                                            null -> R.string.sovits_bridge_required
                                             false -> R.string.sovits_acceleration_unsupported
                                             true -> R.string.sovits_acceleration_supported
                                         },
@@ -316,7 +316,7 @@ internal fun SpeechPlaybackSettingsScreen(
                             }
                             EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
                             val npuSupported = state.acceleration.npu
-                            val npuEnabled = npuSupported == true && state.audio.sovitsGpu
+                            val npuEnabled = npuSupported == true
                             val npuChecked = state.audio.sovitsNpu && npuEnabled
                             SpeechTextEntry(
                                 icon = R.drawable.tts_speed,
@@ -326,8 +326,7 @@ internal fun SpeechPlaybackSettingsScreen(
                                         when {
                                             npuSupported == null -> R.string.sovits_acceleration_checking
                                             !npuSupported -> R.string.sovits_acceleration_unsupported
-                                            !state.audio.sovitsGpu -> R.string.sovits_requires_gpu
-                                            else -> R.string.sovits_acceleration_supported
+                                            else -> R.string.sovits_npu_device_supported
                                         },
                                     )
                                 }",
