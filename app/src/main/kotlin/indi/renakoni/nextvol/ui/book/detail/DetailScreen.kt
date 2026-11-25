@@ -718,7 +718,10 @@ private fun DetailContent(
 
     val showHeaderBlocks = !selectingChapters && !searching
     val hasTagsBlock = bookInformation.publishingHouse.isNotEmpty() || bookInformation.tags.isNotEmpty()
-    val hasIntroBlock = bookInformation.description.isNotBlank()
+    val description = remember(bookInformation.id, bookInformation.description) {
+        bookDescriptionForDisplay(bookInformation.id, bookInformation.description)
+    }
+    val hasIntroBlock = description.isNotBlank()
 
     LaunchedEffect(
         directory.scrollToDirectory,
@@ -790,9 +793,7 @@ private fun DetailContent(
 
             if (hasIntroBlock) {
                 item(key = "intro") {
-                    IntroBlock(description = remember(bookInformation.id, bookInformation.description) {
-                        bookDescriptionForDisplay(bookInformation.id, bookInformation.description)
-                    })
+                    IntroBlock(description = description)
                 }
             }
         }
