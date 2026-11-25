@@ -661,4 +661,5 @@
     <string name="tts_language_detector_unavailable">The selected language detector or its model could not be loaded. Check the language rules and detection algorithm.</string>
     <string name="tts_segment_language">Language: %1$s</string>
     <string name="key_platform_nextvol_api" translatable="false">Nextvol api</string>
+    <string name="copied_to_clipboard">Copied</string>
 </resources>
