@@ -16,8 +16,8 @@ fun SectionHeader(
     Text(
         text = text,
         modifier = modifier,
-        color = colorScheme.primary,
-        style = typography.bodyLarge.copy(letterSpacing = 0.25.sp),
+        color = colorScheme.onSurfaceVariant,
+        style = typography.titleSmall.copy(letterSpacing = 0.25.sp),
         fontWeight = FontWeight.W600
     )
 }

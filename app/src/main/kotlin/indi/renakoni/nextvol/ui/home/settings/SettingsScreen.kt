@@ -37,7 +37,6 @@ import indi.renakoni.nextvol.ui.home.settings.list.ExtensionsSettingsList
 import indi.renakoni.nextvol.ui.home.settings.list.ReadingSettingsList
 import indi.renakoni.nextvol.utils.navigationBarSpacer
 import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleClip
 
 private const val DisplaySection = "display"
@@ -196,7 +195,7 @@ fun SettingsCategory(
     val tokens = NextVolDesign.tokens
     title?.let {
         SectionHeader(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 12.dp, bottom = 6.dp),
             text = it,
         )
     }
@@ -204,11 +203,10 @@ fun SettingsCategory(
     Column(
         modifier = Modifier
             .padding(horizontal = 16.dp)
-            .padding(bottom = 16.dp)
-            .squircleBackground(color = tokens.divider, cornerRadius = tokens.cardRadius)
-            .squircleBorder(width = 0.75.dp, color = tokens.cardBorder, cornerRadius = tokens.cardRadius)
-            .squircleClip(cornerRadius = tokens.cardRadius),
-        verticalArrangement = Arrangement.spacedBy(0.75.dp),
+            .padding(bottom = 12.dp)
+            .squircleBackground(color = tokens.divider, cornerRadius = 18.dp)
+            .squircleClip(cornerRadius = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(0.6.dp),
     ) {
         content()
     }
