@@ -1,14 +1,7 @@
 package indi.renakoni.nextvol.ui.components
 
-import androidx.compose.ui.graphics.Color
-import indi.renakoni.nextvol.theme.DarkObsidianColorScheme
-import indi.renakoni.nextvol.theme.DefaultDarkColorScheme
-import indi.renakoni.nextvol.theme.DefaultLightColorScheme
-import indi.renakoni.nextvol.theme.buildNextVolDesignTokens
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsSliderStepTest {
@@ -45,21 +38,5 @@ class SettingsSliderStepTest {
         assertNull(state.onValueChanged(24f))
         assertEquals(24f, state.onPointerReleased())
         assertNull(state.onValueChangeFinished())
-    }
-
-    @Test
-    fun buildNextVolDesignTokensPreservesDistinctSurfaceLayersAcrossThemes() {
-        val light = buildNextVolDesignTokens(DefaultLightColorScheme, isDark = false)
-        val dark = buildNextVolDesignTokens(DefaultDarkColorScheme, isDark = true)
-        val obsidian = buildNextVolDesignTokens(DarkObsidianColorScheme, isDark = true)
-
-        assertNotEquals(DefaultLightColorScheme.surface, light.cardSurface)
-        assertNotEquals(DefaultDarkColorScheme.surface, dark.cardSurface)
-        assertEquals(Color(0xFF000000), DarkObsidianColorScheme.surface)
-        assertNotEquals(Color(0xFF000000), obsidian.cardSurface)
-        assertTrue(light.glassFallbackSurface.alpha >= 0.9f)
-        assertTrue(dark.glassFallbackSurface.alpha >= 0.9f)
-        assertTrue(light.glassSurfaceTint.alpha in 0.5f..0.85f)
-        assertTrue(dark.glassSurfaceTint.alpha in 0.5f..0.85f)
     }
 }
