@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import indi.renakoni.nextvol.ProjectLinks
 import indi.renakoni.nextvol.R
 import indi.renakoni.nextvol.data.update.UpdateArtifactDownloader
 import indi.renakoni.nextvol.utils.textToast
@@ -30,6 +31,7 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 // Published filenames are immutable. Measurement and previews can reuse the parsed face.
 internal val readerFontFamilies = object : LruCache<File, FontFamily>(2) {
@@ -80,9 +82,15 @@ internal class ReaderFonts(private val context: Context) : ViewModel() {
 
     fun download(font: ReaderFont, selection: UriUserData) = install(font, selection) {
         val target = File(directory, requireNotNull(font.filename))
-        val url = "https://raw.githubusercontent.com/Renakoni/nextvol/v0.2.2/app/src/main/res/font/${target.name}"
+        val catalog = context.assets.open("reader-fonts.json").bufferedReader().use { JSONObject(it.readText()) }
+        val asset = "${catalog.getString("tag")}/${target.name}"
+        val url = checkNotNull(downloader.selectDownloadUrl(listOf(
+            "${ProjectLinks.GITHUB}/releases/download/$asset",
+            "${ProjectLinks.DOWNLOADS}/releases/$asset",
+        )))
+        val digest = catalog.getJSONObject("files").getString(target.name)
         var lastStep = -1L
-        check(downloader.downloadFile(url, temporary) { copied, total ->
+        check(downloader.downloadFile(url, temporary, digest) { copied, total ->
             val step = copied / 100_000
             if (step != lastStep || copied == total) {
                 withContext(Dispatchers.Main.immediate) { progress = copied to total }

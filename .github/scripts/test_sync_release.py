@@ -103,6 +103,20 @@ class ReleaseSyncTest(unittest.TestCase):
             self.publish()
             self.assertEqual(2, fetch.call_count)
 
+    def test_fonts_in_signed_catalog_are_mirrored_before_stable_metadata(self):
+        name = "reader.otf"
+        digest = hashlib.sha256(b"font").hexdigest()
+        with ZipFile(self.apk, "a") as archive:
+            archive.writestr("assets/reader-fonts.json", json.dumps(
+                {"tag": "reader-fonts-v1", "files": {name: digest}}))
+        release = dict(draft=False, assets=[dict(name=name, size=4, digest="sha256:" + digest)])
+        with patch.object(sync, "gh_api", return_value=release) as api, patch.object(sync.subprocess, "run") as fetch:
+            fetch.side_effect = lambda *args, **kwargs: self.apk.with_name(name).write_bytes(b"font")
+            self.publish()
+        api.assert_called_once_with(f"repos/{sync.REPOSITORY}/releases/tags/reader-fonts-v1")
+        self.assertEqual(digest, self.heads["releases/reader-fonts-v1/reader.otf"]["Metadata"]["sha256"])
+        self.assertEqual("put_object", self.store.mock_calls[-1][0])
+
     def test_old_versions_and_changed_content_never_overwrite_current_release(self):
         for previous in (self.manifest | dict(versionCode=10300011), self.manifest | dict(sha256="different")):
             self.store.get_object.side_effect = None
