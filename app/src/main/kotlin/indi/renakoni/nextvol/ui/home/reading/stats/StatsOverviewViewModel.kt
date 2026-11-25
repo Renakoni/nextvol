@@ -9,7 +9,6 @@ import indi.renakoni.nextvol.data.book.BookRepository
 import indi.renakoni.nextvol.data.statistics.Count
 import indi.renakoni.nextvol.data.statistics.StatsRepository
 import indi.renakoni.nextvol.utils.formReadingDuration
-import indi.renakoni.nextvol.utils.quickSelect
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.error.WebRequestError
 import kotlinx.coroutines.Dispatchers
@@ -89,21 +88,18 @@ class StatsOverviewViewModel @Inject constructor(
 
     private fun generateLevelMap(dailyCounts: Map<LocalDate, Count>) {
         val minutesByDate = dailyCounts.mapValues { (_, count) -> count.getTotalMinutes() }
-        val thresholds = minutesByDate.values.filter { it > 0 }.run {
-            if (isEmpty()) listOf(0, 0, 0) else listOf(
-                quickSelect(this, 0.25),
-                quickSelect(this, 0.5),
-                quickSelect(this, 0.75)
-            )
-        }
-        _uiState.thresholds = thresholds[2]
+        val activeMinutes = minutesByDate.values.filter { it > 0 }.sorted()
+        val low = activeMinutes.getOrElse(activeMinutes.size / 4) { 0 }
+        val middle = activeMinutes.getOrElse(activeMinutes.size / 2) { 0 }
+        val high = activeMinutes.getOrElse(activeMinutes.size * 3 / 4) { 0 }
+        _uiState.thresholds = high
 
         val dateLevelMap = minutesByDate.mapValues { (_, readingTime) ->
             when {
                 readingTime == 0 -> Level.Zero
-                readingTime >= thresholds[2] -> Level.Four
-                readingTime >= thresholds[1] -> Level.Three
-                readingTime >= thresholds[0] -> Level.Two
+                readingTime >= high -> Level.Four
+                readingTime >= middle -> Level.Three
+                readingTime >= low -> Level.Two
                 else -> Level.One
             }
         }
