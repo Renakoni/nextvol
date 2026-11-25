@@ -8,13 +8,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -27,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
@@ -42,12 +41,10 @@ import indi.renakoni.nextvol.data.book.bookDescriptionForDisplay
 import indi.renakoni.nextvol.data.book.get
 import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.Cover
+import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.utils.dateFormatter
 import indi.renakoni.nextvol.utils.withHaptic
 import io.nightfish.lightnovelreader.api.book.BookInformation
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
 
 @Composable
 fun BookCardContent(
@@ -61,37 +58,33 @@ fun BookCardContent(
     titleHeight: Dp? = null,
 ) {
     val tokens = NextVolDesign.tokens
-    val cardRadius = 18.dp
-    val containerColor = if (selected) tokens.activePillFill else tokens.cardSurface
-    val borderColor = if (selected) colorScheme.primary else tokens.cardBorder
+    val coverRadius = 7.dp
+    val coverShape = RoundedCornerShape(coverRadius)
+    val rowBg = if (selected) tokens.activePillFill else Color.Transparent
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .squircleBackground(color = containerColor, cornerRadius = cardRadius)
-            .squircleBorder(
-                width = if (selected) 1.4.dp else 0.75.dp,
-                color = borderColor,
-                cornerRadius = cardRadius,
-            )
-            .squircleClip(cardRadius)
-            .semantics { this.selected = selected }
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = withHaptic { onLongPress() },
-            ),
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .background(rowBg)
+                .semantics { this.selected = selected }
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = withHaptic { onLongPress() },
+                )
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(84.dp, 122.dp)
-                    .clip(RoundedCornerShape(10.dp)),
+                    .size(68.dp, 98.dp)
+                    .border(
+                        width = if (selected) 1.5.dp else 0.5.dp,
+                        color = if (selected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        shape = coverShape,
+                    )
+                    .clip(coverShape),
             ) {
                 val alpha by animateFloatAsState(
                     targetValue = if (selected) 0.72f else 1f,
@@ -101,12 +94,12 @@ fun BookCardContent(
                 Box(modifier = Modifier.graphicsLayer(alpha = alpha)) {
                     Cover(
                         bookId = bookInformation.id,
-                        width = 84.dp,
-                        height = 122.dp,
+                        width = 68.dp,
+                        height = 98.dp,
                         uri = bookInformation.coverUri,
                         title = bookInformation.title,
                         author = bookInformation.author,
-                        rounded = 10.dp,
+                        rounded = coverRadius,
                     )
 
                     if (!latestChapterTitle.isNullOrBlank()) {
@@ -114,7 +107,7 @@ fun BookCardContent(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(5.dp)
-                                .size(10.dp)
+                                .size(9.dp)
                                 .clip(CircleShape)
                                 .background(colorScheme.error)
                                 .border(1.5.dp, colorScheme.surface, CircleShape),
@@ -124,15 +117,15 @@ fun BookCardContent(
                     if (collected) {
                         Box(
                             modifier = Modifier
-                                .padding(5.dp)
+                                .padding(4.dp)
                                 .align(Alignment.TopStart)
-                                .size(22.dp)
+                                .size(20.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(colorScheme.primaryContainer.copy(alpha = 0.92f)),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(13.dp),
                                 painter = painterResource(R.drawable.filled_bookmark_24px),
                                 contentDescription = stringResource(R.string.activity_collections),
                                 tint = colorScheme.onPrimaryContainer,
@@ -150,14 +143,14 @@ fun BookCardContent(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
                                 .background(colorScheme.primary)
-                                .border(2.dp, colorScheme.surface, CircleShape),
+                                .border(1.5.dp, colorScheme.surface, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(16.dp),
                                 painter = painterResource(R.drawable.check_24px),
                                 tint = colorScheme.onPrimary,
                                 contentDescription = null,
@@ -169,7 +162,7 @@ fun BookCardContent(
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
                     text = bookInformation.title,
@@ -179,65 +172,34 @@ fun BookCardContent(
                     color = colorScheme.onSurface,
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = bookInformation.author,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                        style = typography.labelLarge.copy(
-                            fontWeight = FontWeight.W600,
-                            color = colorScheme.primary,
-                        ),
-                    )
-                    if (bookInformation.lastUpdated.year > 1970 || bookInformation.isComplete) {
-                        BookStatusIcon(bookInformation.isComplete)
+                val metaParts = buildList {
+                    if (bookInformation.author.isNotBlank()) add(bookInformation.author)
+                    if (bookInformation.subtitle.isNotBlank() && bookInformation.lastUpdated.year <= 1970 && bookInformation.wordCount.count == 0L) {
+                        add(bookInformation.subtitle)
+                    } else {
+                        if (bookInformation.lastUpdated.year > 1970) {
+                            add(bookInformation.lastUpdated.format(dateFormatter()))
+                        }
+                        if (bookInformation.wordCount.count > 0) {
+                            add(bookInformation.wordCount.get())
+                        }
                     }
                 }
-
-                val dateText = bookInformation.lastUpdated.format(dateFormatter())
-
-                // Unknown reading metadata must not render as a 1970 update and zero-word book.
-                if (bookInformation.subtitle.isNotBlank() && bookInformation.lastUpdated.year <= 1970 && bookInformation.wordCount.count == 0L) {
-                    Text(
-                        text = bookInformation.subtitle,
-                        style = typography.labelSmall,
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                } else {
+                if (metaParts.isNotEmpty()) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        if (bookInformation.lastUpdated.year > 1970) {
-                            TagChip(painterResource(R.drawable.update_24px))
-                            Text(
-                                text = dateText,
-                                style = typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                                color = colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.StartEllipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                        }
-
-                        if (bookInformation.wordCount.count > 0) {
-                            Spacer(Modifier.width(2.dp))
-                            TagChip(painterResource(R.drawable.article_24px))
-                            Text(
-                                text = bookInformation.wordCount.get(),
-                                style = typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                                color = colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
+                        Text(
+                            text = metaParts.joinToString(" · "),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                            style = typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                            color = colorScheme.onSurfaceVariant,
+                        )
+                        if (bookInformation.lastUpdated.year > 1970 || bookInformation.isComplete) {
+                            BookStatusIcon(bookInformation.isComplete)
                         }
                     }
                 }
@@ -252,7 +214,7 @@ fun BookCardContent(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant,
+                            color = colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
                         )
                     }
                 } else {
@@ -279,6 +241,7 @@ fun BookCardContent(
                 }
             }
         }
+        EditorialHairlineDivider(Modifier.padding(start = 98.dp, end = 16.dp))
     }
 }
 
@@ -286,80 +249,64 @@ fun BookCardContent(
 fun TagChip(
     painter: Painter,
 ) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(colorScheme.surfaceContainerHigh)
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-    ) {
-        Icon(
-            modifier = Modifier.size(13.dp),
-            painter = painter,
-            contentDescription = null,
-            tint = colorScheme.onSurfaceVariant,
-        )
-    }
+    Icon(
+        modifier = Modifier.size(14.dp),
+        painter = painter,
+        contentDescription = null,
+        tint = colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
 fun BookCardContentSkeleton(modifier: Modifier = Modifier) {
-    val tokens = NextVolDesign.tokens
     val skeletonColor = colorScheme.surfaceContainerHigh
     val skeletonRoundedCorner = RoundedCornerShape(6.dp)
-    val cardRadius = 18.dp
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .squircleBackground(color = tokens.cardSurface, cornerRadius = cardRadius)
-            .squircleBorder(width = 0.75.dp, color = tokens.cardBorder, cornerRadius = cardRadius)
-            .squircleClip(cardRadius)
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(84.dp, 122.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(skeletonColor),
-        )
-
-        Column(
-            modifier = Modifier
-                .height(122.dp)
-                .weight(1f),
-            verticalArrangement = Arrangement.SpaceBetween,
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .height(22.dp)
-                    .clip(skeletonRoundedCorner)
+                    .size(68.dp, 98.dp)
+                    .clip(RoundedCornerShape(7.dp))
                     .background(skeletonColor),
             )
-            Box(
+
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.45f)
-                    .height(16.dp)
-                    .clip(skeletonRoundedCorner)
-                    .background(skeletonColor),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.72f)
-                    .height(16.dp)
-                    .clip(skeletonRoundedCorner)
-                    .background(skeletonColor),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.95f)
-                    .height(30.dp)
-                    .clip(skeletonRoundedCorner)
-                    .background(skeletonColor),
-            )
+                    .height(98.dp)
+                    .weight(1f),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.84f)
+                        .height(18.dp)
+                        .clip(skeletonRoundedCorner)
+                        .background(skeletonColor),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.48f)
+                        .height(14.dp)
+                        .clip(skeletonRoundedCorner)
+                        .background(skeletonColor),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .height(26.dp)
+                        .clip(skeletonRoundedCorner)
+                        .background(skeletonColor),
+                )
+            }
         }
+        EditorialHairlineDivider(Modifier.padding(start = 98.dp, end = 16.dp))
     }
 }
 
@@ -371,7 +318,7 @@ fun BookStatusIcon(isComplete: Boolean) {
         painterResource(R.drawable.hourglass_top_24px)
     }
     Icon(
-        modifier = Modifier.size(15.dp),
+        modifier = Modifier.size(14.dp),
         painter = painter,
         contentDescription = null,
         tint = colorScheme.onSurfaceVariant,

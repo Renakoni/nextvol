@@ -10,11 +10,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -61,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -70,6 +71,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.michaelbull.result.Result
@@ -83,10 +85,8 @@ import com.valentinilk.shimmer.rememberShimmer
 import com.valentinilk.shimmer.shimmer
 import com.valentinilk.shimmer.unclippedBoundsInWindow
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.theme.NextVolDesign
 import indi.renakoni.nextvol.ui.components.EmptyPage
 import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
-import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
 import indi.renakoni.nextvol.ui.home.bookshelf.BookshelfBookItem
 import indi.renakoni.nextvol.ui.home.bookshelf.BookshelfUiState
 import indi.renakoni.nextvol.utils.bottomBarPadding
@@ -335,12 +335,12 @@ internal fun BookshelfHomeContent(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(116.dp * density.fontScale.coerceAtLeast(1f)),
+                    columns = GridCells.Adaptive(108.dp * density.fontScale.coerceAtLeast(1f)),
                     modifier = contentModifier,
                     state = gridState,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     sections.forEach { section ->
                         item(
@@ -376,7 +376,6 @@ private fun BookshelfPillTabStrip(
     selectedIndex: Int,
     onSelectBookshelf: (Int) -> Unit,
 ) {
-    val tokens = NextVolDesign.tokens
     val colors = MaterialTheme.colorScheme
     val rowState = rememberLazyListState()
 
@@ -396,54 +395,54 @@ private fun BookshelfPillTabStrip(
             modifier = Modifier
                 .fillMaxWidth()
                 .selectableGroup(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.Bottom,
         ) {
             itemsIndexed(
                 items = bookshelves,
                 key = { _, shelf -> shelf.id },
             ) { _, bookshelf ->
                 val selected = bookshelf.id == selectedBookshelfId
-                val bgColor by animateColorAsState(
-                    targetValue = if (selected) tokens.activePillFill else tokens.cardSurface,
-                    animationSpec = tween(200),
-                    label = "shelfTabBg",
-                )
-                val borderColor by animateColorAsState(
-                    targetValue = if (selected) tokens.activePillBorder else tokens.cardBorder,
-                    animationSpec = tween(200),
-                    label = "shelfTabBorder",
-                )
                 val textColor by animateColorAsState(
-                    targetValue = if (selected) colors.primary else colors.onSurfaceVariant,
-                    animationSpec = tween(200),
+                    targetValue = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                    animationSpec = tween(180),
                     label = "shelfTabText",
                 )
+                val indicatorColor by animateColorAsState(
+                    targetValue = if (selected) colors.primary else Color.Transparent,
+                    animationSpec = tween(180),
+                    label = "shelfTabIndicator",
+                )
 
-                Row(
+                Column(
                     modifier = Modifier
-                        .clip(CircleShape)
-                        .background(bgColor)
-                        .border(if (selected) 1.dp else 0.75.dp, borderColor, CircleShape)
+                        .width(IntrinsicSize.Max)
                         .selectable(
                             selected = selected,
                             onClick = { onSelectBookshelf(bookshelf.id) },
                             role = Role.Tab,
                         )
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        .padding(top = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = bookshelf.name,
                         modifier = Modifier.widthIn(max = 180.dp),
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = if (selected) FontWeight.W600 else FontWeight.W500,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
                         ),
                         color = textColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.5.dp)
+                            .clip(CircleShape)
+                            .background(indicatorColor),
                     )
                 }
             }
@@ -464,7 +463,7 @@ private class BookshelfSection(
     fun bookKey(id: String) = "${key}_$id"
 
     @Composable
-    fun Header(horizontalInset: androidx.compose.ui.unit.Dp = 16.dp) {
+    fun Header(horizontalInset: Dp = 16.dp) {
         CollapseHeader(
             icon = painterResource(icon),
             title = stringResource(title, books.size),
@@ -540,9 +539,7 @@ private fun BookshelfBookCard(
         } else {
             result?.onOk {
                 BookCardContent(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     bookInformation = it.bookInformation,
                     selected = selected,
                     collected = false,
@@ -554,7 +551,6 @@ private fun BookshelfBookCard(
             } ?: BookCardContentSkeleton(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
                     .then(if (shimmer != null) Modifier.shimmer(shimmer) else Modifier),
             )
         }
@@ -567,7 +563,7 @@ private fun CollapseHeader(
     title: String,
     expanded: Boolean,
     onToggleExpand: () -> Unit,
-    horizontalInset: androidx.compose.ui.unit.Dp = 16.dp,
+    horizontalInset: Dp = 16.dp,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(
@@ -578,25 +574,25 @@ private fun CollapseHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
+                .heightIn(min = 42.dp)
                 .clickable(onClick = onToggleExpand)
                 .padding(horizontal = horizontalInset, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            EditorialIconBadge(
+            Icon(
                 painter = icon,
-                size = 28.dp,
-                iconSize = 15.dp,
-                cornerRadius = 9.dp,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.W600,
                     fontFeatureSettings = "tnum",
                 ),
-                color = colors.onSurface,
+                color = colors.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -608,7 +604,7 @@ private fun CollapseHeader(
             Icon(
                 modifier = Modifier
                     .rotate(rotation)
-                    .size(20.dp),
+                    .size(18.dp),
                 painter = painterResource(R.drawable.keyboard_arrow_up_24px),
                 contentDescription = stringResource(if (expanded) R.string.collapse else R.string.expand),
                 tint = colors.onSurfaceVariant,
