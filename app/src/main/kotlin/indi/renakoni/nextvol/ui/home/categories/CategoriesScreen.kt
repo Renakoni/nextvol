@@ -90,8 +90,8 @@ private fun groupCategories(categories: List<SourceDiscoveryCategory>): List<Cat
     var currentItems = mutableListOf<SourceDiscoveryCategory>()
 
     fun flush() {
-        if (currentItems.isNotEmpty() || currentTitle != null) {
-            result.add(CategorySection(currentId, currentTitle, currentItems.toList()))
+        if (currentItems.isNotEmpty()) {
+            result.add(CategorySection(currentId, currentTitle, currentItems))
             currentItems = mutableListOf()
         }
     }
@@ -106,7 +106,7 @@ private fun groupCategories(categories: List<SourceDiscoveryCategory>): List<Cat
         }
     }
     flush()
-    return result.filter { it.items.isNotEmpty() }
+    return result
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -366,12 +366,6 @@ private fun CategoryGridCell(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
-        )
-        Icon(
-            painter = painterResource(R.drawable.arrow_forward_ios_24px),
-            contentDescription = null,
-            tint = colors.onSurfaceVariant.copy(alpha = 0.42f),
-            modifier = Modifier.size(11.dp),
         )
     }
 }
