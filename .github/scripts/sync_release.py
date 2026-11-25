@@ -91,7 +91,25 @@ def upload(store, key, path, digest, content_type):
     })
 
 
-def mirror_speech_runtimes(store, apk):
+def mirror_asset(store, directory, release, tag, name, digest, content_type):
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError(f"Invalid component checksum: {name}")
+    asset = next((a for a in release["assets"] if a["name"] == name), None)
+    if release["draft"] or not asset or asset["digest"] != "sha256:" + digest:
+        raise ValueError(f"Published component does not match the signed APK: {name}")
+    key = f"releases/{tag}/{name}"
+    if already_mirrored(store, key, digest, asset["size"]):
+        return
+    path = directory / name
+    subprocess.run(["gh", "release", "download", tag, "--repo", REPOSITORY,
+                    "--pattern", name, "--dir", str(directory)], check=True, timeout=300)
+    with path.open("rb") as stream:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
+            raise ValueError(f"Component checksum mismatch: {name}")
+    upload(store, key, path, digest, content_type)
+
+
+def mirror_components(store, apk):
     prefix = f"https://github.com/{REPOSITORY}/releases/download/"
     with ZipFile(apk) as archive:
         for kind in ("vendor", "sovits"):
@@ -101,23 +119,22 @@ def mirror_speech_runtimes(store, apk):
             spec = json.loads(archive.read(catalog))
             url, digest = spec["url"], spec["sha256"]
             location = re.fullmatch(re.escape(prefix) + r"(offline-runtime-[a-zA-Z0-9-]+)/([a-zA-Z0-9_-]+\.zip)", url)
-            if not location or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            if not location:
                 raise ValueError(f"Invalid {kind} catalog in signed APK")
             tag, name = location.groups()
             release = gh_api(f"repos/{REPOSITORY}/releases/tags/{tag}")
-            asset = next((a for a in release["assets"] if a["name"] == name), None)
-            if release["draft"] or not asset or asset["digest"] != "sha256:" + digest:
-                raise ValueError(f"Published runtime does not match the signed APK: {name}")
-            key = f"releases/{tag}/{name}"
-            if already_mirrored(store, key, digest, asset["size"]):
-                continue
-            path = apk.parent / name
-            subprocess.run(["gh", "release", "download", tag, "--repo", REPOSITORY,
-                            "--pattern", name, "--dir", str(apk.parent)], check=True, timeout=300)
-            with path.open("rb") as stream:
-                if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
-                    raise ValueError(f"Runtime ZIP checksum mismatch: {name}")
-            upload(store, key, path, digest, "application/zip")
+            mirror_asset(store, apk.parent, release, tag, name, digest, "application/zip")
+        if "assets/reader-fonts.json" in archive.namelist():
+            catalog = json.loads(archive.read("assets/reader-fonts.json"))
+            tag = catalog["tag"]
+            if not re.fullmatch(r"reader-fonts-v[0-9]+", tag) or not catalog["files"]:
+                raise ValueError("Invalid reader font catalog in signed APK")
+            release = gh_api(f"repos/{REPOSITORY}/releases/tags/{tag}")
+            for name, digest in catalog["files"].items():
+                if not re.fullmatch(r"[a-zA-Z0-9_-]+\.(otf|ttf)", name):
+                    raise ValueError(f"Invalid reader font filename: {name}")
+                mime = "font/otf" if name.endswith(".otf") else "font/ttf"
+                mirror_asset(store, apk.parent, release, tag, name, digest, mime)
 
 
 def publish(store, manifest, apk, checksums):
@@ -135,7 +152,7 @@ def publish(store, manifest, apk, checksums):
         digest = manifest["sha256"] if path == apk else hashlib.sha256(path.read_bytes()).hexdigest()
         if not already_mirrored(store, key, digest, path.stat().st_size):
             upload(store, key, path, digest, content_type)
-    mirror_speech_runtimes(store, apk)
+    mirror_components(store, apk)
     store.put_object(Bucket=BUCKET, Key=MANIFEST_KEY,
                      Body=(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode(),
                      ContentType="application/json; charset=utf-8", CacheControl="no-store")
