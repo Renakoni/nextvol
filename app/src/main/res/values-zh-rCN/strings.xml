@@ -369,13 +369,15 @@
     <string name="reading_details">阅读详情</string>
     <string name="to">至</string>
     <string name="heatmap_indicator_less">少</string>
-    <string name="heatmap_indicator_more">多 (%d+)</string>
+    <string name="heatmap_indicator_more">多</string>
+    <string name="heatmap_indicator_threshold">多 (%s以上)</string>
     <string name="time_range">时间范围</string>
     <string name="first_seen">最早 - %s</string>
     <string name="last_seen">最晚 - %s</string>
     <string name="no_records">没有记录</string>
     <string name="total_record">总记录</string>
     <string name="reading_sessions">阅读会话</string>
+    <string name="stats_last_six_months">近六个月</string>
     <string name="reading_duration">阅读时长</string>
     <string name="reading_duration_unit">时 %d 分</string>
     <string name="cached">已下载</string>

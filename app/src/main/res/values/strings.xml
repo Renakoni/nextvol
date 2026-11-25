@@ -382,13 +382,15 @@
     <string name="to">to</string>
     <string name="ellipsis" translatable="false">…</string>
     <string name="heatmap_indicator_less">Less</string>
-    <string name="heatmap_indicator_more">More (%d+)</string>
+    <string name="heatmap_indicator_more">More</string>
+    <string name="heatmap_indicator_threshold">More (%s+)</string>
     <string name="time_range">Seen</string>
     <string name="first_seen">First - %s</string>
     <string name="last_seen">Last - %s</string>
     <string name="no_records">No Records</string>
     <string name="total_record">Total Record</string>
     <string name="reading_sessions">Reading Sessions</string>
+    <string name="stats_last_six_months">Last 6 months</string>
     <string name="reading_duration">Reading Duration</string>
     <string name="reading_duration_unit">h %d min</string>
     <string name="cached">Downloaded</string>
