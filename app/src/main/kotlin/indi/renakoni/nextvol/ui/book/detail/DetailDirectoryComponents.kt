@@ -1,21 +1,19 @@
 package indi.renakoni.nextvol.ui.book.detail
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
@@ -58,7 +56,6 @@ import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenu
 import indi.renakoni.nextvol.ui.components.design.EditorialPopupMenuItem
 import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleClip
 
 @Composable
@@ -91,7 +88,6 @@ internal fun DirectoryVolumeHeader(
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .testTag("directory-volume:$volumeId")
             .squircleBackground(color = tokens.cardSurface, cornerRadius = radius)
-            .squircleBorder(width = 0.75.dp, color = tokens.cardBorder, cornerRadius = radius)
             .squircleClip(radius)
             .clickable(
                 onClickLabel = stringResource(if (expanded) R.string.collapse else R.string.expand),
@@ -157,17 +153,18 @@ internal fun DirectoryToolbar(
     } else {
         null
     }
+    var overflowExpanded by remember { mutableStateOf(false) }
+    val hasOverflowActions = chapterCount > 0 && (canLocate || !selecting)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
                 modifier = Modifier.weight(1f),
@@ -181,23 +178,12 @@ internal fun DirectoryToolbar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(tokens.cardSurface)
-                        .border(0.75.dp, tokens.cardBorder, CircleShape)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.info_volume_chapters_count, chapterCount),
-                        style = typography.labelSmall.copy(
-                            fontWeight = FontWeight.W600,
-                            fontFeatureSettings = "tnum",
-                        ),
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.info_volume_chapters_count, chapterCount),
+                    style = typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                    color = colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
             }
 
             EditorialIconButton(
@@ -207,7 +193,7 @@ internal fun DirectoryToolbar(
                 contentDescription = stringResource(
                     if (descending) R.string.detail_directory_descending else R.string.detail_directory_ascending,
                 ),
-                containerColor = if (descending) tokens.activePillFill else tokens.cardSurface,
+                containerColor = if (descending) tokens.activePillFill else Color.Transparent,
                 contentColor = if (descending) colorScheme.primary else colorScheme.onSurface,
                 modifier = Modifier.rotate(if (descending) 0f else 180f),
             )
@@ -218,55 +204,63 @@ internal fun DirectoryToolbar(
                 contentDescription = stringResource(
                     if (searchExpanded) R.string.reader_directory_clear_search else R.string.detail_directory_search,
                 ),
-                containerColor = if (searchExpanded) tokens.activePillFill else tokens.cardSurface,
+                containerColor = if (searchExpanded) tokens.activePillFill else Color.Transparent,
                 contentColor = if (searchExpanded) colorScheme.primary else colorScheme.onSurface,
             )
-        }
-
-        val hasDirectControls = chapterCount > 0 && (canLocate || !selecting || showPages || matchesText != null)
-        if (hasDirectControls) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FlowRow(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    if (canLocate) {
-                        DirectoryActionPill(
-                            text = stringResource(R.string.detail_directory_locate),
-                            iconRes = R.drawable.target_24px,
-                            selected = false,
-                            onClick = onLocate,
-                        )
-                    }
-                    if (!selecting) {
-                        DirectoryActionPill(
-                            text = stringResource(R.string.hide_read),
-                            iconRes = if (hideRead) R.drawable.check_24px else null,
-                            selected = hideRead,
-                            onClick = onToggleHideRead,
-                        )
-                    }
-                    if (matchesText != null) {
-                        Box(
-                            modifier = Modifier
-                                .heightIn(min = 34.dp)
-                                .clip(CircleShape)
-                                .background(tokens.cardElevatedSurface)
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = matchesText,
-                                style = typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-                                color = colorScheme.onSurfaceVariant,
+            if (hasOverflowActions) {
+                Box {
+                    EditorialIconButton(
+                        onClick = { overflowExpanded = true },
+                        enabled = chapterCount > 0,
+                        painter = painterResource(R.drawable.more_vert_24px),
+                        contentDescription = stringResource(R.string.action_more_options),
+                        containerColor = if (hideRead) tokens.activePillFill else Color.Transparent,
+                        contentColor = if (hideRead) colorScheme.primary else colorScheme.onSurface,
+                    )
+                    EditorialPopupMenu(
+                        expanded = overflowExpanded,
+                        onDismissRequest = { overflowExpanded = false },
+                    ) {
+                        if (canLocate) {
+                            EditorialPopupMenuItem(
+                                text = stringResource(R.string.detail_directory_locate),
+                                leadingIcon = painterResource(R.drawable.target_24px),
+                                onClick = {
+                                    overflowExpanded = false
+                                    onLocate()
+                                },
+                            )
+                        }
+                        if (!selecting) {
+                            EditorialPopupMenuItem(
+                                text = stringResource(R.string.hide_read),
+                                selected = hideRead,
+                                onClick = {
+                                    overflowExpanded = false
+                                    onToggleHideRead()
+                                },
                             )
                         }
                     }
+                }
+            }
+        }
+
+        if (showPages || matchesText != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (matchesText != null) {
+                    Text(
+                        text = matchesText,
+                        style = typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                        color = colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
                 if (showPages) {
                     DirectoryRangeMenu(
@@ -288,7 +282,7 @@ internal fun DirectoryToolbar(
                 onValueChange = onQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(0.75.dp, tokens.cardBorder, CircleShape)
+                    .padding(end = 8.dp)
                     .focusRequester(focus),
                 placeholder = {
                     Text(
@@ -318,11 +312,11 @@ internal fun DirectoryToolbar(
                 } else {
                     null
                 },
-                shape = CircleShape,
+                shape = RoundedCornerShape(12.dp),
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = tokens.cardSurface,
-                    unfocusedContainerColor = tokens.cardSurface,
+                    focusedContainerColor = colorScheme.surfaceContainer,
+                    unfocusedContainerColor = colorScheme.surfaceContainer,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                 ),
@@ -330,61 +324,6 @@ internal fun DirectoryToolbar(
                 keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
             )
         }
-    }
-}
-
-@Composable
-private fun DirectoryActionPill(
-    text: String,
-    iconRes: Int?,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val tokens = NextVolDesign.tokens
-    val bg by animateColorAsState(
-        targetValue = if (selected) tokens.activePillFill else tokens.cardSurface,
-        animationSpec = tween(180),
-        label = "dirPillBg",
-    )
-    val border by animateColorAsState(
-        targetValue = if (selected) tokens.activePillBorder else tokens.cardBorder,
-        animationSpec = tween(180),
-        label = "dirPillBorder",
-    )
-    val fg by animateColorAsState(
-        targetValue = if (selected) colorScheme.primary else colorScheme.onSurfaceVariant,
-        animationSpec = tween(180),
-        label = "dirPillFg",
-    )
-
-    Row(
-        modifier = Modifier
-            .heightIn(min = 34.dp)
-            .clip(CircleShape)
-            .background(bg)
-            .border(if (selected) 1.dp else 0.75.dp, border, CircleShape)
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { this.selected = selected }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        if (iconRes != null) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = fg,
-                modifier = Modifier.size(15.dp),
-            )
-        }
-        Text(
-            text = text,
-            style = typography.labelMedium.copy(
-                fontWeight = if (selected) FontWeight.W600 else FontWeight.W500,
-            ),
-            color = fg,
-            maxLines = 1,
-        )
     }
 }
 
@@ -445,16 +384,15 @@ private fun DirectoryRangeMenu(
         )
         Row(
             modifier = Modifier
-                .heightIn(min = 36.dp)
-                .clip(CircleShape)
-                .background(tokens.cardSurface)
-                .border(0.75.dp, tokens.cardBorder, CircleShape)
+                .heightIn(min = 34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(colorScheme.surfaceContainer)
                 .clickable(onClick = { expanded = true })
                 .semantics {
                     role = Role.Button
                     contentDescription = rangeDescription
                 }
-                .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {

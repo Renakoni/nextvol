@@ -462,7 +462,7 @@ fun DetailScreen(
                     variant = GlassVariant.Liquid,
                     hazeState = contentHazeState,
                     elevation = 12.dp,
-                    tintColor = colorScheme.primary.copy(alpha = if (tokens.isDark) 0.82f else 0.88f),
+                    tintColor = colorScheme.primary.copy(alpha = if (tokens.isDark) 0.74f else 0.78f),
                     fallbackColor = colorScheme.primary,
                     contentColor = colorScheme.onPrimary,
                     borderWidth = 1.dp,
@@ -1214,7 +1214,7 @@ private fun BookCardBlock(
     val wordCountText = if (bookInformation.wordCount.count > 0) bookInformation.wordCount.get() else null
     val heroBackdrop = Brush.verticalGradient(
         colors = listOf(
-            colorScheme.primaryContainer.copy(alpha = if (tokens.isDark) 0.18f else 0.24f),
+            colorScheme.primaryContainer.copy(alpha = if (tokens.isDark) 0.10f else 0.14f),
             colorScheme.surface,
         ),
     )
@@ -1227,21 +1227,23 @@ private fun BookCardBlock(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 190.dp)
-                .padding(horizontal = itemHorizontalPadding, vertical = 18.dp),
+                .heightIn(min = 186.dp)
+                .padding(horizontal = itemHorizontalPadding, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            val coverShape = RoundedCornerShape(10.dp)
             Box(
                 modifier = Modifier
                     .wrapContentSize()
                     .shadow(
-                        elevation = 10.dp,
-                        shape = RoundedCornerShape(12.dp),
+                        elevation = 6.dp,
+                        shape = coverShape,
                         ambientColor = tokens.glassShadow,
                         spotColor = tokens.glassShadow,
                         clip = false,
                     )
+                    .border(0.5.dp, colorScheme.outlineVariant.copy(alpha = 0.35f), coverShape)
                     .clickable(
                         onClick = {
                             if (coverFallback) {
@@ -1264,12 +1266,12 @@ private fun BookCardBlock(
             ) {
                 Cover(
                     bookId = bookInformation.id,
-                    height = 174.dp,
-                    width = 120.dp,
+                    height = 168.dp,
+                    width = 116.dp,
                     uri = bookInformation.coverUri,
                     title = bookInformation.title,
                     author = bookInformation.author,
-                    rounded = 12.dp,
+                    rounded = 10.dp,
                     onFallbackChanged = { coverFallback = it },
                 )
             }
@@ -1358,7 +1360,7 @@ private fun TagsBlock(
     bookInformation: BookInformation,
     onClickTag: (String) -> Unit,
 ) {
-    val tokens = NextVolDesign.tokens
+    val tagShape = RoundedCornerShape(8.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1372,10 +1374,9 @@ private fun TagsBlock(
             // Non-interactive metadata badge: publisher has no tap action.
             Box(
                 modifier = Modifier
-                    .clip(CircleShape)
-                    .background(tokens.cardElevatedSurface)
-                    .border(0.75.dp, tokens.cardBorder, CircleShape)
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                    .clip(tagShape)
+                    .background(colorScheme.surfaceContainerHigh.copy(alpha = 0.72f))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
             ) {
                 Text(
                     text = bookInformation.publishingHouse,
@@ -1389,16 +1390,15 @@ private fun TagsBlock(
         bookInformation.tags.forEach { tag ->
             Box(
                 modifier = Modifier
-                    .clip(CircleShape)
-                    .background(tokens.cardSurface)
-                    .border(0.75.dp, tokens.cardBorder, CircleShape)
+                    .clip(tagShape)
+                    .background(colorScheme.surfaceContainerLow)
                     .clickable(role = Role.Button) { onClickTag(tag) }
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
             ) {
                 Text(
                     text = tag,
                     style = typography.labelMedium.copy(fontWeight = FontWeight.W500),
-                    color = colorScheme.onSurface,
+                    color = colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
             }
@@ -1477,64 +1477,63 @@ private fun QuickOperationsBlock(
         modifier = Modifier
             .fillMaxWidth()
             .background(colorScheme.surface)
-            .padding(horizontal = itemHorizontalPadding, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(top = 8.dp, bottom = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        EditorialCard(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 20.dp,
+        EditorialHairlineDivider(Modifier.padding(horizontal = itemHorizontalPadding))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            QuickOperationButton(
+                icon = painterResource(
+                    if (isInBookshelf) R.drawable.filled_bookmark_add_24px else R.drawable.bookmark_add_24px,
+                ),
+                title = stringResource(
+                    if (isInBookshelf) R.string.activity_collections else R.string.add_to_bookshelf,
+                ),
+                active = isInBookshelf,
+                onClick = onClickAddToBookShelf,
+                modifier = Modifier.weight(1f),
+            )
+
+            if (showCache) {
+                VerticalDivider(Modifier.height(28.dp), thickness = 0.6.dp, color = tokens.divider)
                 QuickOperationButton(
                     icon = painterResource(
-                        if (isInBookshelf) R.drawable.filled_bookmark_add_24px else R.drawable.bookmark_add_24px,
+                        if (phase == BookDownloadPhase.Complete) R.drawable.filled_cloud_download_24px
+                        else R.drawable.cloud_download_24px,
                     ),
-                    title = stringResource(
-                        if (isInBookshelf) R.string.activity_collections else R.string.add_to_bookshelf,
-                    ),
-                    active = isInBookshelf,
-                    onClick = onClickAddToBookShelf,
-                    modifier = Modifier.weight(1f),
-                )
-
-                if (showCache) {
-                    VerticalDivider(Modifier.height(34.dp), color = tokens.divider)
-                    QuickOperationButton(
-                        icon = painterResource(
-                            if (phase == BookDownloadPhase.Complete) R.drawable.filled_cloud_download_24px
-                            else R.drawable.cloud_download_24px,
-                        ),
-                        title = downloadStatusLabel(downloadState),
-                        active = phase == BookDownloadPhase.Complete,
-                        supportingText = if (phase == BookDownloadPhase.Updating) {
-                            downloadItem?.progress?.takeIf { it >= 0f && it < 1f }?.let { "${(it * 100).toInt()}%" }
-                        } else {
-                            null
-                        },
-                        enabled = canCache && phase != BookDownloadPhase.Updating,
-                        onClick = onClickCache,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                VerticalDivider(Modifier.height(34.dp), color = tokens.divider)
-
-                QuickOperationButton(
-                    icon = painterResource(R.drawable.info_24px),
-                    title = stringResource(R.string.action_show_info),
-                    onClick = onClickShowInfo,
+                    title = downloadStatusLabel(downloadState),
+                    active = phase == BookDownloadPhase.Complete,
+                    supportingText = if (phase == BookDownloadPhase.Updating) {
+                        downloadItem?.progress?.takeIf { it >= 0f && it < 1f }?.let { "${(it * 100).toInt()}%" }
+                    } else {
+                        null
+                    },
+                    enabled = canCache && phase != BookDownloadPhase.Updating,
+                    onClick = onClickCache,
                     modifier = Modifier.weight(1f),
                 )
             }
+
+            VerticalDivider(Modifier.height(28.dp), thickness = 0.6.dp, color = tokens.divider)
+
+            QuickOperationButton(
+                icon = painterResource(R.drawable.info_24px),
+                title = stringResource(R.string.action_show_info),
+                onClick = onClickShowInfo,
+                modifier = Modifier.weight(1f),
+            )
         }
+        EditorialHairlineDivider(Modifier.padding(horizontal = itemHorizontalPadding))
 
         if (downloadState.content.phase != BookDownloadPhase.None) {
             Text(
                 text = downloadStatusText(downloadState),
-                modifier = Modifier.padding(horizontal = 6.dp),
+                modifier = Modifier.padding(horizontal = itemHorizontalPadding + 2.dp),
                 style = typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                 color = colorScheme.onSurfaceVariant,
             )
@@ -1544,7 +1543,6 @@ private fun QuickOperationsBlock(
 
 @Composable
 private fun IntroBlock(description: String) {
-    val tokens = NextVolDesign.tokens
     var expanded by rememberSaveable(description) { mutableStateOf(false) }
     var hasOverflow by remember(description) { mutableStateOf(false) }
 
@@ -1561,75 +1559,64 @@ private fun IntroBlock(description: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = itemHorizontalPadding, vertical = 6.dp),
+            .padding(horizontal = itemHorizontalPadding, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = stringResource(R.string.detail_introduction),
-            style = typography.displayMedium.copy(fontWeight = FontWeight.W700),
+            style = typography.titleMedium.copy(fontWeight = FontWeight.W700),
             color = colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
         )
 
-        EditorialCard(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 18.dp,
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(animationSpec = tween(220, easing = FastOutSlowInEasing))
+                .fadingEdge(if (!expanded && hasOverflow) fadingBrush else whiteBrush),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .animateContentSize(animationSpec = tween(220, easing = FastOutSlowInEasing))
-                        .fadingEdge(if (!expanded && hasOverflow) fadingBrush else whiteBrush),
-                ) {
-                    Text(
-                        text = description,
-                        style = typography.bodyLarge,
-                        maxLines = if (expanded) Int.MAX_VALUE else 4,
-                        overflow = TextOverflow.Ellipsis,
-                        color = colorScheme.onSurface,
-                        onTextLayout = { layout ->
-                            if (!expanded) {
-                                hasOverflow = layout.hasVisualOverflow
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
-                if (hasOverflow || expanded) {
-                    val rotation by animateFloatAsState(
-                        targetValue = if (expanded) 0f else 180f,
-                        animationSpec = tween(200),
-                        label = "introArrowRotation",
-                    )
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.End)
-                            .clip(CircleShape)
-                            .background(tokens.activePillFill)
-                            .border(0.75.dp, tokens.activePillBorder, CircleShape)
-                            .clickable(role = Role.Button) { expanded = !expanded }
-                            .padding(horizontal = 12.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.keyboard_arrow_up_24px),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(16.dp)
-                                .rotate(rotation),
-                            tint = colorScheme.primary,
-                        )
-                        Text(
-                            text = stringResource(if (expanded) R.string.collapse else R.string.expand),
-                            style = typography.labelMedium.copy(fontWeight = FontWeight.W600),
-                            color = colorScheme.primary,
-                        )
+            Text(
+                text = description,
+                style = typography.bodyLarge,
+                maxLines = if (expanded) Int.MAX_VALUE else 4,
+                overflow = TextOverflow.Ellipsis,
+                color = colorScheme.onSurface.copy(alpha = 0.88f),
+                onTextLayout = { layout ->
+                    if (!expanded) {
+                        hasOverflow = layout.hasVisualOverflow
                     }
-                }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        if (hasOverflow || expanded) {
+            val rotation by animateFloatAsState(
+                targetValue = if (expanded) 0f else 180f,
+                animationSpec = tween(200),
+                label = "introArrowRotation",
+            )
+            Row(
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(role = Role.Button) { expanded = !expanded }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = stringResource(if (expanded) R.string.collapse else R.string.expand),
+                    style = typography.labelLarge.copy(fontWeight = FontWeight.W500),
+                    color = colorScheme.primary,
+                )
+                Icon(
+                    painter = painterResource(R.drawable.keyboard_arrow_up_24px),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .rotate(rotation),
+                    tint = colorScheme.primary,
+                )
             }
         }
     }
