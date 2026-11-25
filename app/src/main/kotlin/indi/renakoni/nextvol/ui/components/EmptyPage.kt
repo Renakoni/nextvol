@@ -1,5 +1,6 @@
 package indi.renakoni.nextvol.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,20 +10,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import indi.renakoni.nextvol.theme.NextVolDesign
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.squircle.squircleClip
 
 @Composable
 fun EmptyPage(
@@ -32,7 +32,6 @@ fun EmptyPage(
     description: String,
     content: @Composable (() -> Unit)? = null
 ) {
-    val tokens = NextVolDesign.tokens
     val colors = MaterialTheme.colorScheme
     Box(
         modifier = modifier.fillMaxSize(),
@@ -40,62 +39,45 @@ fun EmptyPage(
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = 360.dp)
+                .widthIn(max = 320.dp)
                 .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
             Box(
                 modifier = Modifier
-                    .size(88.dp)
-                    .squircleBackground(
-                        color = tokens.cardSurface,
-                        cornerRadius = 28.dp,
-                    )
-                    .squircleBorder(
-                        width = 0.85.dp,
-                        color = tokens.cardBorder,
-                        cornerRadius = 28.dp,
-                    )
-                    .squircleClip(28.dp),
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(colors.surfaceContainerHigh.copy(alpha = 0.72f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .squircleBackground(
-                            color = tokens.iconBadgeContainer,
-                            cornerRadius = 20.dp,
-                        )
-                        .squircleClip(20.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        modifier = Modifier.size(32.dp),
-                        painter = icon,
-                        tint = colors.primary,
-                        contentDescription = null,
-                    )
-                }
+                Icon(
+                    modifier = Modifier.size(30.dp),
+                    painter = icon,
+                    tint = colors.onSurfaceVariant.copy(alpha = 0.78f),
+                    contentDescription = null,
+                )
             }
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(18.dp))
             Text(
                 text = title,
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W600),
                 color = colors.onSurface,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = description,
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    lineBreak = LineBreak.Paragraph.copy(strategy = LineBreak.Strategy.Balanced),
-                ),
-                color = colors.onSurfaceVariant,
-            )
+            if (description.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = description,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        lineBreak = LineBreak.Paragraph.copy(strategy = LineBreak.Strategy.Balanced),
+                    ),
+                    color = colors.onSurfaceVariant,
+                )
+            }
             content?.let {
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(18.dp))
                 it()
             }
         }

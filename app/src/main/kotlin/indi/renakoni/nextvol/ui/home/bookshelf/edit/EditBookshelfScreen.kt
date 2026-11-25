@@ -1,48 +1,66 @@
 package indi.renakoni.nextvol.ui.home.bookshelf.edit
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import indi.renakoni.nextvol.R
-import indi.renakoni.nextvol.ui.components.SectionHeader
-import indi.renakoni.nextvol.ui.components.SettingsClickableEntry
+import indi.renakoni.nextvol.theme.NextVolDesign
+import indi.renakoni.nextvol.ui.components.LnrSnackbar
 import indi.renakoni.nextvol.ui.components.SettingsMenuEntry
 import indi.renakoni.nextvol.ui.components.SettingsSwitchEntry
+import indi.renakoni.nextvol.ui.components.design.EditorialCard
+import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
+import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
+import indi.renakoni.nextvol.ui.components.design.EditorialTopBar
 import indi.renakoni.nextvol.ui.home.bookshelf.BookshelfSortTypeOptions
+import indi.renakoni.nextvol.ui.home.settings.SettingsCategory
 import indi.renakoni.nextvol.utils.LocalClaimSnackbarHost
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
+import indi.renakoni.nextvol.utils.navigationBarSpacer
 import indi.renakoni.nextvol.utils.showSnackbar
 import io.nightfish.lightnovelreader.api.bookshelf.Bookshelf
 import io.nightfish.lightnovelreader.api.bookshelf.BookshelfSortType
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,27 +70,58 @@ fun EditBookshelfScreen(
     bookshelf: Bookshelf,
     init: (Int) -> Unit,
     onClickBack: () -> Unit,
-    onClickSave: () -> Unit,
-    onClickDelete: (Int) -> Unit,
+    onClickSave: suspend () -> Unit,
+    onClickDelete: suspend (Int) -> Unit,
     onNameChange: (String) -> Unit,
     onSortTypeChange: (BookshelfSortType) -> Unit,
     onAutoCacheChange: (Boolean) -> Unit,
     onSystemUpdateReminderChange: (Boolean) -> Unit,
 ) {
+    val tokens = NextVolDesign.tokens
+    val colors = MaterialTheme.colorScheme
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = LocalSnackbarHost.current
     val pinnedScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
+    var nameValidationTriggered by rememberSaveable(bookshelfId) { mutableStateOf(false) }
     val isNameEmpty = bookshelf.name.isBlank()
+    val showNameError = nameValidationTriggered && isNameEmpty
     val bookshelfNamePlaceholder = stringResource(R.string.bookshelf_name_placeholder)
-    val showErrorSnackbar = {
-        showSnackbar(
-            coroutineScope = coroutineScope,
-            hostState = snackbarHostState,
-            message = bookshelfNamePlaceholder,
+
+    var confirmingDelete by rememberSaveable { mutableStateOf(false) }
+    var writing by remember { mutableStateOf(false) }
+    val editable = !writing && (bookshelfId < 0 || bookshelfId == bookshelf.id)
+    val saveFailure = stringResource(R.string.save_failed)
+    val deleteFailure = stringResource(R.string.bookshelf_delete_failed)
+
+    fun persist(failureMessage: String, operation: suspend () -> Unit) {
+        if (writing) return
+        writing = true
+        coroutineScope.launch {
+            try {
+                operation()
+                onClickBack()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                showSnackbar(coroutineScope, snackbarHostState, failureMessage)
+            } finally {
+                writing = false
+            }
+        }
+    }
+
+    BackHandler(enabled = writing) {}
+    if (confirmingDelete) {
+        DeleteBookshelfDialog(
+            onDismissRequest = { confirmingDelete = false },
+            onConfirmation = {
+                confirmingDelete = false
+                persist(deleteFailure) { onClickDelete(bookshelfId) }
+            },
         )
     }
+
     LaunchedEffect(bookshelfId) {
         init(bookshelfId)
     }
@@ -82,98 +131,173 @@ fun EditBookshelfScreen(
         claim(true)
         onDispose { claim(false) }
     }
+
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(pinnedScrollBehavior.nestedScrollConnection),
         topBar = {
             TopBar(
                 title = title,
                 scrollBehavior = pinnedScrollBehavior,
+                canSave = editable,
+                canGoBack = !writing,
                 onClickBack = onClickBack,
-                onClickSave = if (isNameEmpty) showErrorSnackbar else onClickSave
+                onClickSave = {
+                    if (isNameEmpty) nameValidationTriggered = true
+                    else persist(saveFailure, onClickSave)
+                },
             )
         },
         snackbarHost = {
-            SnackbarHost(LocalSnackbarHost.current)
-        }
-    ) {
-        LazyColumn(Modifier.padding(it)) {
-            item {
-                OutlinedTextField(
+            SnackbarHost(LocalSnackbarHost.current) { data -> LnrSnackbar(data) }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+        ) {
+            item(key = "name_input") {
+                EditorialCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    value = bookshelf.name,
-                    onValueChange = onNameChange,
-                    label = { Text(stringResource(R.string.name)) },
-                    supportingText = {
-                        if (isNameEmpty) {
-                            Text(
-                                text = bookshelfNamePlaceholder,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    },
-                    maxLines = 1,
-                    interactionSource = interactionSource,
-                    isError = isNameEmpty,
-                    trailingIcon = {
-                        IconButton(onClick = { onNameChange("") }) {
-                            Icon(
-                                painter = painterResource(R.drawable.cancel_24px),
-                                contentDescription = stringResource(R.string.action_clear_text),
-                                tint =
-                                    if (isFocused) OutlinedTextFieldDefaults.colors().focusedTrailingIconColor
-                                    else OutlinedTextFieldDefaults.colors().unfocusedTrailingIconColor
-                            )
-                        }
-                    }
-                )
-            }
-            item {
-                SectionHeader(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
-                    text = stringResource(R.string.bookshelf_settings)
-                )
-            }
-            item {
-                SettingsMenuEntry(
-                    painter = painterResource(R.drawable.sort_24px),
-                    title = stringResource(R.string.bookshelf_sort_type),
-                    options = BookshelfSortTypeOptions,
-                    selectedOptionKey = bookshelf.sortType.key,
-                    onOptionChange = {
-                        onSortTypeChange(BookshelfSortTypeOptions.getOptionWithValue(it).value)
-                    }
-                )
-            }
-            item {
-                SettingsSwitchEntry(
-                    painter = painterResource(R.drawable.cloud_download_24px),
-                    title = stringResource(R.string.settings_auto_cache),
-                    description = stringResource(R.string.settings_auto_cache_desc),
-                    checked = bookshelf.autoCache,
-                    onCheckedChange = onAutoCacheChange
-                )
-            }
-            item {
-                SettingsSwitchEntry(
-                    painter = painterResource(R.drawable.outline_schedule_24px),
-                    title = stringResource(R.string.settings_book_update_reminder),
-                    description = stringResource(R.string.settings_book_update_reminder_desc),
-                    checked = bookshelf.systemUpdateReminder,
-                    onCheckedChange = onSystemUpdateReminderChange
-                )
-            }
-            if (bookshelfId >= 0) {
-                item {
-                    SettingsClickableEntry(
-                        painter = painterResource(R.drawable.delete_forever_24px),
-                        title = stringResource(R.string.settings_delete_bookshelf),
-                        description = stringResource(R.string.settings_delete_bookshelf_desc),
-                        onClick = { onClickDelete(bookshelfId) }
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 14.dp),
+                    cornerRadius = tokens.cardRadius,
+                    contentPadding = PaddingValues(16.dp),
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = editable,
+                        value = bookshelf.name,
+                        onValueChange = {
+                            nameValidationTriggered = true
+                            onNameChange(it)
+                        },
+                        label = { Text(stringResource(R.string.name)) },
+                        placeholder = { Text(bookshelfNamePlaceholder) },
+                        supportingText = if (showNameError) {
+                            {
+                                Text(
+                                    text = bookshelfNamePlaceholder,
+                                    color = colors.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(tokens.controlRadius),
+                        interactionSource = interactionSource,
+                        isError = showNameError,
+                        trailingIcon = if (bookshelf.name.isNotEmpty()) {
+                            {
+                                IconButton(
+                                    onClick = {
+                                        nameValidationTriggered = true
+                                        onNameChange("")
+                                    },
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.cancel_24px),
+                                        contentDescription = stringResource(R.string.action_clear_text),
+                                    )
+                                }
+                            }
+                        } else {
+                            null
+                        },
                     )
                 }
             }
+
+            item(key = "bookshelf_settings") {
+                SettingsCategory(title = stringResource(R.string.bookshelf_settings)) {
+                    SettingsMenuEntry(
+                        disabled = !editable,
+                        painter = painterResource(R.drawable.sort_24px),
+                        title = stringResource(R.string.bookshelf_sort_type),
+                        options = BookshelfSortTypeOptions,
+                        selectedOptionKey = bookshelf.sortType.key,
+                        onOptionChange = {
+                            onSortTypeChange(BookshelfSortTypeOptions.getOptionWithValue(it).value)
+                        },
+                    )
+                    SettingsSwitchEntry(
+                        disabled = !editable,
+                        painter = painterResource(R.drawable.cloud_download_24px),
+                        title = stringResource(R.string.settings_auto_cache),
+                        description = stringResource(R.string.settings_auto_cache_desc),
+                        checked = bookshelf.autoCache,
+                        onCheckedChange = onAutoCacheChange,
+                    )
+                    SettingsSwitchEntry(
+                        disabled = !editable,
+                        painter = painterResource(R.drawable.outline_schedule_24px),
+                        title = stringResource(R.string.settings_book_update_reminder),
+                        description = stringResource(R.string.settings_book_update_reminder_desc),
+                        checked = bookshelf.systemUpdateReminder,
+                        onCheckedChange = onSystemUpdateReminderChange,
+                    )
+                }
+            }
+
+            if (bookshelfId >= 0) {
+                item(key = "danger_delete") {
+                    Spacer(Modifier.height(6.dp))
+                    EditorialCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        cornerRadius = tokens.cardRadius,
+                        containerColor = colors.errorContainer.copy(alpha = if (tokens.isDark) 0.34f else 0.45f),
+                        borderColor = colors.error.copy(alpha = 0.42f),
+                        enabled = editable,
+                        onClick = { confirmingDelete = true },
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            EditorialIconBadge(
+                                painter = painterResource(R.drawable.delete_forever_24px),
+                                containerColor = colors.error.copy(alpha = 0.16f),
+                                contentColor = colors.error,
+                            )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.settings_delete_bookshelf),
+                                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.W600),
+                                    color = colors.error,
+                                )
+                                Text(
+                                    text = stringResource(R.string.settings_delete_bookshelf_desc),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.onErrorContainer.copy(alpha = 0.85f),
+                                )
+                            }
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_ios_24px),
+                                contentDescription = null,
+                                tint = colors.error.copy(alpha = 0.72f),
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+                }
+            }
+
+            navigationBarSpacer()
         }
     }
 }
@@ -184,38 +308,33 @@ private fun TopBar(
     title: String,
     scrollBehavior: TopAppBarScrollBehavior,
     onClickBack: () -> Unit,
-    onClickSave: () -> Unit
+    canSave: Boolean,
+    canGoBack: Boolean,
+    onClickSave: () -> Unit,
 ) {
-    TopAppBar(
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.W600,
-                color = MaterialTheme.colorScheme.onSurface
+    EditorialTopBar(
+        title = title,
+        scrollBehavior = scrollBehavior,
+        hazeState = null,
+        frosted = false,
+        navigationIcon = {
+            EditorialIconButton(
+                enabled = canGoBack,
+                onClick = onClickBack,
+                painter = painterResource(id = R.drawable.arrow_back_24px),
+                contentDescription = stringResource(R.string.sources_back),
             )
         },
-        modifier = Modifier.fillMaxWidth(),
-        navigationIcon = {
-            IconButton(onClickBack) {
-                Icon(painterResource(
-                    id = R.drawable.arrow_back_24px),
-                    contentDescription = stringResource(R.string.sources_back)
-                )
-            }
-        },
         actions = {
-            IconButton(onClickSave) {
-                Icon(
-                    painter = painterResource(R.drawable.save_24px),
-                    contentDescription = stringResource(R.string.action_save)
-                )
-            }
+            EditorialIconButton(
+                enabled = canSave,
+                onClick = onClickSave,
+                painter = painterResource(R.drawable.save_24px),
+                contentDescription = stringResource(R.string.action_save),
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+                contentColor = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.width(4.dp))
         },
-        windowInsets =
-        WindowInsets.safeDrawing.only(
-            WindowInsetsSides.Horizontal + WindowInsetsSides.Top
-        ),
-        scrollBehavior = scrollBehavior
     )
 }
