@@ -73,7 +73,8 @@ def main():
     jni.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(library, jni / library.name)
     sovits = build / 'libnextvol-sovits.so'
-    shutil.copyfile(sovits, jni / sovits.name)
+    strip = llvm / ('llvm-strip.exe' if os.name == 'nt' else 'llvm-strip')
+    run([strip, '--strip-unneeded', '-o', jni / sovits.name, sovits])
     espeak = build / 'libnextvol-espeak.so'
     shutil.copyfile(espeak, jni / espeak.name)
     shutil.copyfile(runtime / 'install/lib/libonnxruntime.so', jni / 'libonnxruntime.so')

@@ -14,7 +14,7 @@ internal object SplitVocoderAssets {
 
     fun prepare(voice: GptSovitsVoice, useHtp: Boolean) {
         val directory = voice.model
-        val assets = File(SpeechRuntimePack.languageData.directory, "assets/gpt-sovits/graphs/${voice.version.directory}")
+        val assets = File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/graphs/${voice.version.directory}")
         val bundled = File(assets, "split-vits.json").bufferedReader().use { JSONObject(it.readText()) }
         require(sha256(File(directory, "vits_fp32.onnx")) == bundled.getString("source_sha256"))
         val hashes = bundled.getJSONObject("graphs")

@@ -130,9 +130,10 @@ the separate Microsoft QNN 1.27.0 runtime by absolute path and passes float
 buffers across runtime boundaries. QNN user-space libraries are supplied separately
 by the device integration. NextVol distributes none in its APK or GPT bridge.
 
-The GPT bridge contains JNI, Open JTalk, WebGPU and the checkpoint conversion
-templates. The shared model download reuses the existing weights and the separate
-34 MB pronunciation and graph archive. Converted voices live separately.
+The GPT bridge contains JNI, Open JTalk, WebGPU, the Mandarin frontend data and
+the checkpoint and vocoder graph templates. The common download combines five
+pinned model files (973,207,823 bytes) with the prepared English and Japanese
+language resources (29,142,223 bytes). Converted voices live separately.
 
 The English CMU/name lexicons, homograph tagger, fallback G2P model and Japanese
 Open JTalk frontend follow Voicebox. The source archive preserves the original
@@ -168,7 +169,7 @@ PyTorch ZIP64 checkpoints with `invalid CEN header`.
 
 The GPT bridge packages four common ONNX graphs under `assets/gpt-sovits/graphs` and
 a VITS graph and tensor manifest per variant under `checkpoint-v2pro{,plus}`.
-The language data archive supplies the GPU and HTP graphs. The separate base-model
+The same bridge supplies the GPU and HTP graphs. The separate base-model
 entry in Speech runtimes installs the five files pinned in `runtime-models.json`
 (about 973 MB), SHA-256 checked and atomically published under
 `noBackupFilesDir/speech-runtimes/sovits-models`. Imports reuse these files and

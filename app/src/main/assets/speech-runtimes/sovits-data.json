@@ -1,5 +1,5 @@
 {
-  "url": "https://github.com/Renakoni/nextvol/releases/download/offline-runtime-sovits-bf945b0142b541f7be7aae62261ea7edeabf77f7f6ee0456104e1edd62dace43/gpt-sovits-arm64.zip",
-  "sha256": "bf945b0142b541f7be7aae62261ea7edeabf77f7f6ee0456104e1edd62dace43",
-  "size": 34003728
+  "url": "https://github.com/Renakoni/nextvol/releases/download/offline-runtime-sovits-data-8002bf149d5a80f734275b086bc1ecd4be6d59f5f9af1da81cbb95fede15c920/gpt-sovits-data.zip",
+  "sha256": "8002bf149d5a80f734275b086bc1ecd4be6d59f5f9af1da81cbb95fede15c920",
+  "size": 29142223
 }

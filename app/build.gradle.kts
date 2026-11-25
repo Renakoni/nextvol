@@ -3,9 +3,6 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.MethodInsnNode
 import java.util.zip.*
-import java.security.MessageDigest
-import java.security.DigestInputStream
-import java.io.OutputStream
 import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
@@ -282,11 +279,9 @@ dependencies { implementation(files(webGpuApi)) }
 val packAssets = layout.buildDirectory.dir("speech-runtime-assets")
 val vendorSpec = rootProject.file("native/offline/runtime.json")
 val publishedSovitsSpec = rootProject.file("native/sovits/runtime.json")
-val publishSpeechRuntime = providers.gradleProperty("publishSpeechRuntime").map(String::toBoolean).getOrElse(false)
-val sovitsZip = layout.buildDirectory.file("outputs/speech-runtimes/gpt-sovits-arm64.zip")
-val packageSovitsRuntime by tasks.registering(Zip::class) {
-    archiveFileName.set(sovitsZip.get().asFile.name)
-    destinationDirectory.set(sovitsZip.get().asFile.parentFile)
+tasks.register<Zip>("packageSovitsRuntime") {
+    archiveFileName.set("gpt-sovits-arm64.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("outputs/speech-runtimes"))
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
     duplicatesStrategy = DuplicatesStrategy.FAIL
@@ -298,41 +293,16 @@ val packageSovitsRuntime by tasks.registering(Zip::class) {
         includeEmptyDirs = false
     }
     from(rootProject.file("native/sovits/bridge-assets")) { into("assets") }
+    from(rootProject.file("native/sovits/assets")) {
+        into("assets")
+        exclude("gpt-sovits/GPT-SoVITS-LICENSE.txt", "gpt-sovits/licenses/qnn/**")
+    }
     from(matchaOutput.resolve("assets/matcha-native/licenses/open-jtalk")) { into("assets/gpt-sovits/licenses/open-jtalk") }
 }
-// Publish a data revision only when the language resources or vocoder graphs change.
-tasks.register<Zip>("packageSovitsData") {
-    archiveFileName.set("gpt-sovits-data.zip")
-    destinationDirectory.set(layout.buildDirectory.dir("outputs/speech-runtimes"))
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
-    duplicatesStrategy = DuplicatesStrategy.FAIL
-    from(rootProject.file("native/sovits/assets")) { into("assets") }
-    from(zipTree(rootProject.file("native/sovits/reference-languages.zip")))
-}
-val prepareSpeechRuntimeCatalog by tasks.registering {
-    inputs.file(vendorSpec)
-    inputs.property("publishSpeechRuntime", publishSpeechRuntime)
-    if (publishSpeechRuntime) {
-        dependsOn("packageSovitsRuntime")
-        inputs.file(sovitsZip)
-    } else inputs.file(publishedSovitsSpec)
-    outputs.dir(packAssets)
-    doLast {
-        val directory = packAssets.get().asFile.resolve("speech-runtimes").apply { mkdirs() }
-        vendorSpec.copyTo(directory.resolve("vendor.json"), overwrite = true)
-        val spec = directory.resolve("sovits.json")
-        if (publishSpeechRuntime) {
-            val archive = sovitsZip.get().asFile
-            val digest = MessageDigest.getInstance("SHA-256")
-            archive.inputStream().buffered().use { stream ->
-                DigestInputStream(stream, digest).transferTo(OutputStream.nullOutputStream())
-            }
-            val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
-            val url = "https://github.com/Renakoni/nextvol/releases/download/offline-runtime-sovits-$sha256/${archive.name}"
-            spec.writeText("""{"url":"$url","sha256":"$sha256","size":${archive.length()}}""")
-        } else publishedSovitsSpec.copyTo(spec, overwrite = true)
-    }
+val prepareSpeechRuntimeCatalog by tasks.registering(Sync::class) {
+    into(packAssets)
+    from(vendorSpec) { into("speech-runtimes"); rename { "vendor.json" } }
+    from(publishedSovitsSpec) { into("speech-runtimes"); rename { "sovits.json" } }
 }
 android.sourceSets.getByName("main").assets.srcDir(packAssets.get().asFile)
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
