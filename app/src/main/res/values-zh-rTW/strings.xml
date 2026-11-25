@@ -369,13 +369,15 @@
     <string name="reading_details">閱讀詳情</string>
     <string name="to">至</string>
     <string name="heatmap_indicator_less">少</string>
-    <string name="heatmap_indicator_more">多 (%d+)</string>
+    <string name="heatmap_indicator_more">多</string>
+    <string name="heatmap_indicator_threshold">多 (%s以上)</string>
     <string name="time_range">時間範圍</string>
     <string name="first_seen">最早 - %s</string>
     <string name="last_seen">最晚 - %s</string>
     <string name="no_records">沒有記錄</string>
     <string name="total_record">總記錄</string>
     <string name="reading_sessions">閱讀會話</string>
+    <string name="stats_last_six_months">近六個月</string>
     <string name="reading_duration">閱讀時長</string>
     <string name="reading_duration_unit">時 %d 分</string>
     <string name="cached">已快取</string>
@@ -402,6 +404,7 @@
     <string name="edit_rule">編輯規則</string>
     <!-- Dialogs -->
     <string name="dialog_about_version">版本</string>
+    <string name="bookshelf_delete_failed">書架刪除失敗，請重試。</string>
     <string name="dialog_delete_bookshelf">刪除書架</string>
     <string name="dialog_delete_bookshelf_text">確定要刪除這個書架嗎？它將會永久消失！（真的很久！）</string>
     <string name="dialog_export_to_epub">匯出為 EPUB</string>

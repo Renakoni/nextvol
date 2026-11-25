@@ -21,7 +21,7 @@ class EditBookshelfViewModel @Inject constructor(
         private set
 
     fun init(id: Int?) {
-        id ?: return
+        if (id == null || id < 0 || bookshelf.id == id) return
         viewModelScope.launch(Dispatchers.IO) {
             bookshelf = bookshelfRepository.getBookshelf(id) ?: Bookshelf()
         }
@@ -51,9 +51,21 @@ class EditBookshelfViewModel @Inject constructor(
         )
     }
 
-    fun save() {
-        viewModelScope.launch(Dispatchers.IO) {
-            bookshelfRepository.addBookshelf(bookshelf)
+    suspend fun save(id: Int) {
+        val edited = bookshelf
+        if (id < 0) {
+            bookshelfRepository.addBookshelf(edited)
+        } else {
+            bookshelfRepository.updateBookshelf(id) { current ->
+                current.copy(
+                    name = edited.name,
+                    sortType = edited.sortType,
+                    autoCache = edited.autoCache,
+                    systemUpdateReminder = edited.systemUpdateReminder,
+                )
+            }
         }
     }
+
+    suspend fun delete(id: Int) = bookshelfRepository.deleteBookshelf(id)
 }

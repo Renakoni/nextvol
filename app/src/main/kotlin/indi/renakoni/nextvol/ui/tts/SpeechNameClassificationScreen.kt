@@ -11,7 +11,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,6 +19,7 @@ import indi.renakoni.nextvol.tts.names.SpeechNameClassification
 import indi.renakoni.nextvol.tts.names.SpeechNameClassifier
 import indi.renakoni.nextvol.tts.names.SpeechNameHint
 import indi.renakoni.nextvol.tts.names.SpeechNameHintBasis
+import indi.renakoni.nextvol.ui.components.design.EditorialCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -87,8 +87,8 @@ internal fun SpeechNameClassificationContent() {
             Text(stringResource(R.string.tts_name_classification_error, error), color = MaterialTheme.colorScheme.error)
         } }
         state.result?.let { result -> item {
-            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            EditorialCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(18.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(name, style = MaterialTheme.typography.titleMedium)
                     Text(stringResource(when (result.hint) {
                         SpeechNameHint.Male -> R.string.tts_name_hint_male
