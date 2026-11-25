@@ -98,7 +98,7 @@ internal fun SourceEditorScreen(
             )
         }
     }
-    val matches = remember(value.text, query) { editorMatches(value.text, query) }
+    val matches = if (finding) remember(value.text, query) { editorMatches(value.text, query) } else emptyList()
     fun change(next: TextFieldValue) {
         value = next
         if (next.text != draft.rawJson) model.editDraft(next.text)
