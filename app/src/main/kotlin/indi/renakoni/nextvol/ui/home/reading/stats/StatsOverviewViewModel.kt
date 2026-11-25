@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.michaelbull.result.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import indi.renakoni.nextvol.data.book.BookRepository
-import indi.renakoni.nextvol.data.statistics.Count
+import indi.renakoni.nextvol.data.statistics.BookRecord
 import indi.renakoni.nextvol.data.statistics.StatsRepository
 import indi.renakoni.nextvol.utils.formReadingDuration
 import io.nightfish.lightnovelreader.api.book.BookInformation
@@ -40,10 +40,8 @@ class StatsOverviewViewModel @Inject constructor(
             val startDate = _uiState.startDate
             val endDate = LocalDate.now()
 
-            val dailyCounts = statsRepository.getDailyCounts(startDate, endDate)
-            generateLevelMap(dailyCounts)
-
             val bookRecordsMap = statsRepository.getBookRecords(startDate, endDate)
+            generateLevelMap(bookRecordsMap)
             _uiState.bookRecordsByDate = bookRecordsMap
             selectDate(_uiState.selectedDate)
 
@@ -86,17 +84,17 @@ class StatsOverviewViewModel @Inject constructor(
         )
     }
 
-    private fun generateLevelMap(dailyCounts: Map<LocalDate, Count>) {
-        val minutesByDate = dailyCounts.mapValues { (_, count) -> count.getTotalMinutes() }
-        val activeMinutes = minutesByDate.values.filter { it > 0 }.sorted()
-        val low = activeMinutes.getOrElse(activeMinutes.size / 4) { 0 }
-        val middle = activeMinutes.getOrElse(activeMinutes.size / 2) { 0 }
-        val high = activeMinutes.getOrElse(activeMinutes.size * 3 / 4) { 0 }
-        _uiState.thresholds = high
+    private fun generateLevelMap(recordsByDate: Map<LocalDate, List<BookRecord>>) {
+        val secondsByDate = recordsByDate.mapValues { (_, records) -> records.sumOf { it.seconds.toLong() } }
+        val activeSeconds = secondsByDate.values.filter { it > 0 }.sorted()
+        val low = activeSeconds.getOrElse(activeSeconds.size / 4) { 0L }
+        val middle = activeSeconds.getOrElse(activeSeconds.size / 2) { 0L }
+        val high = activeSeconds.getOrElse(activeSeconds.size * 3 / 4) { 0L }
+        _uiState.highThresholdSeconds = high
 
-        val dateLevelMap = minutesByDate.mapValues { (_, readingTime) ->
+        val dateLevelMap = secondsByDate.mapValues { (_, readingTime) ->
             when {
-                readingTime == 0 -> Level.Zero
+                readingTime == 0L -> Level.Zero
                 readingTime >= high -> Level.Four
                 readingTime >= middle -> Level.Three
                 readingTime >= low -> Level.Two

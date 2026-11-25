@@ -328,8 +328,8 @@ private fun CalendarBlock(
                 }
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = if (uiState.thresholds > 0) {
-                        stringResource(R.string.heatmap_indicator_threshold, uiState.thresholds)
+                    text = if (uiState.highThresholdSeconds > 0) {
+                        stringResource(R.string.heatmap_indicator_threshold, formReadingDuration(uiState.highThresholdSeconds))
                     } else {
                         stringResource(R.string.heatmap_indicator_more)
                     },

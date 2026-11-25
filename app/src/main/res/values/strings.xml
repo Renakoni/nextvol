@@ -383,7 +383,7 @@
     <string name="ellipsis" translatable="false">…</string>
     <string name="heatmap_indicator_less">Less</string>
     <string name="heatmap_indicator_more">More</string>
-    <string name="heatmap_indicator_threshold">More (%d+ min)</string>
+    <string name="heatmap_indicator_threshold">More (%s+)</string>
     <string name="time_range">Seen</string>
     <string name="first_seen">First - %s</string>
     <string name="last_seen">Last - %s</string>

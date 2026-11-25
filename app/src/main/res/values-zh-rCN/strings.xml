@@ -370,7 +370,7 @@
     <string name="to">至</string>
     <string name="heatmap_indicator_less">少</string>
     <string name="heatmap_indicator_more">多</string>
-    <string name="heatmap_indicator_threshold">多 (%d 分钟以上)</string>
+    <string name="heatmap_indicator_threshold">多 (%s以上)</string>
     <string name="time_range">时间范围</string>
     <string name="first_seen">最早 - %s</string>
     <string name="last_seen">最晚 - %s</string>
