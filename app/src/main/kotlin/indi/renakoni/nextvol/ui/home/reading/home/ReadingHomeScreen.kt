@@ -86,6 +86,7 @@ import indi.renakoni.nextvol.ui.components.design.EditorialHairlineDivider
 import indi.renakoni.nextvol.ui.components.design.EditorialIconBadge
 import indi.renakoni.nextvol.ui.components.design.EditorialIconButton
 import indi.renakoni.nextvol.ui.components.design.EditorialTopBar
+import indi.renakoni.nextvol.ui.components.design.plushCardSurface
 import indi.renakoni.nextvol.ui.components.rememberSkeletonShimmer
 import indi.renakoni.nextvol.ui.home.HomeSettingsAction
 import indi.renakoni.nextvol.utils.LocalSnackbarHost
@@ -103,8 +104,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
-import top.yukonga.miuix.kmp.squircle.squircleBackground
-import top.yukonga.miuix.kmp.squircle.squircleClip
 import java.time.format.DateTimeFormatter
 import kotlin.time.Duration.Companion.seconds
 
@@ -463,7 +462,6 @@ private fun EditorialHeroBookCard(
     val progressPercent = remember(data.readingProgress) {
         (data.readingProgress.coerceIn(0f, 1f) * 100f).toInt()
     }
-    val heroCorner = 20.dp
     val coverShape = RoundedCornerShape(10.dp)
 
     val primaryContainer = colorScheme.primaryContainer
@@ -479,21 +477,7 @@ private fun EditorialHeroBookCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .then(
-                if (!tokens.isDark) {
-                    Modifier.shadow(
-                        elevation = 4.dp,
-                        shape = RoundedCornerShape(heroCorner),
-                        ambientColor = tokens.glassShadow.copy(alpha = 0.06f),
-                        spotColor = tokens.glassShadow.copy(alpha = 0.06f),
-                        clip = false,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .squircleBackground(color = tokens.cardSurface, cornerRadius = heroCorner)
-            .squircleClip(heroCorner)
+            .plushCardSurface()
             .background(ambientBrush)
             .clickable { onClickBook(info.id) }
             .padding(16.dp),

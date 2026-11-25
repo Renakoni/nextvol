@@ -92,22 +92,22 @@ internal fun buildNextVolDesignTokens(
         glassSurfaceTint = if (isDark) {
             colorScheme.surfaceContainer.copy(alpha = 0.56f)
         } else {
-            Color.White.copy(alpha = 0.46f)
+            Color.White.copy(alpha = 0.58f)
         },
         glassFallbackSurface = if (isDark) {
             colorScheme.surfaceContainer.copy(alpha = 0.92f)
         } else {
-            Color.White.copy(alpha = 0.92f)
+            Color.White.copy(alpha = 0.94f)
         },
         glassBorderTop = if (isDark) {
-            Color.White.copy(alpha = 0.18f)
+            Color.White.copy(alpha = 0.14f)
         } else {
-            Color.White.copy(alpha = 0.96f)
+            Color.White.copy(alpha = 0.90f)
         },
         glassBorderBottom = if (isDark) {
-            Color.White.copy(alpha = 0.08f)
+            Color.White.copy(alpha = 0.05f)
         } else {
-            Color(0xFF0F172A).copy(alpha = 0.15f)
+            Color(0xFF0F172A).copy(alpha = 0.08f)
         },
         glassShadow = Color.Black.copy(alpha = if (isDark) 0.52f else 0.24f),
         activePillFill = colorScheme.primary.copy(alpha = if (isDark) 0.18f else 0.10f),
