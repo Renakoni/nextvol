@@ -46,7 +46,6 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                     val job = currentCoroutineContext().job
                     synchronized(lifecycle) { generation.checkCancelled(); preparing = job }
                     try {
-                        val npuRuntime = DeviceAcceleration.detect(context)
                         if (!DeviceAcceleration.supportsRuntime(context) ||
                             !SpeechRuntimePack.Sovits.installed || !SpeechRuntimePack.SovitsModels.installed)
                             throw SpeechException(SpeechError.OfflineUnavailable)
@@ -55,6 +54,7 @@ internal class GptSovitsSynthesizer(private val context: Context, private val vo
                             ownsPermit = true
                             generation.checkCancelled()
                         }
+                        val npuRuntime = if (settings.audio.sovitsGpu) DeviceAcceleration.detect(context) else null
                         prepare(settings, npuRuntime.takeIf { settings.audio.sovitsNpu })
                     } finally { synchronized(lifecycle) { preparing = null } }
                 }

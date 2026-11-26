@@ -10,7 +10,8 @@
     <string name="sovits_acceleration_unsupported">不支持</string>
     <string name="sovits_acceleration_unknown_device">型号未知</string>
     <string name="sovits_disable_gpu">关闭 GPU 加速</string>
-    <string name="sovits_disable_gpu_warning">关闭后 GPT-SoVITS 将使用 CPU，语音生成可能明显变慢，建议保持开启。</string>
+    <string name="sovits_requires_gpu">请先开启 GPU 加速</string>
+    <string name="sovits_disable_gpu_warning">关闭 GPU 会同时关闭 NPU。GPT-SoVITS 将使用 CPU，语音生成可能变慢。</string>
     <string name="sovits_temperature">温度</string>
     <string name="sovits_top_k">Top-K</string>
     <string name="sovits_top_p">Top-P</string>

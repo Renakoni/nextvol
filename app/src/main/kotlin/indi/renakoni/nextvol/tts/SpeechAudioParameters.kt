@@ -13,8 +13,8 @@ data class SpeechAudioSettings(
     val minimumSampleRate: Int = 16000,
     val checkSilence: Boolean = false,
     val decodeStream: Boolean = false,
-    val sovitsGpu: Boolean = true,
-    val sovitsNpu: Boolean = true,
+    val sovitsGpu: Boolean = false,
+    val sovitsNpu: Boolean = false,
 )
 
 /** Only adjustments not already applied by the backend are sent to the common PCM processor. */

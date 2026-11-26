@@ -8,7 +8,7 @@ reference recording (up to 30 seconds) and its transcript in Chinese, Japanese o
 or newer in a compatible arm64 process.
 The Mandarin frontend uses the Voicebox normalization, segmentation,
 contextual pronunciation, tone sandhi and erhua before RoBERTa alignment.
-On arm64 the default is CPU + WebGPU. Reference encoding and autoregressive
+On arm64 the default is CPU synthesis. Reference encoding and autoregressive
 decoding use the CPU provider in the bundled ORT 1.27 build. The acoustic stage uses
 WebGPU when selected. A failed session or graph propagates an error to the reader.
 
@@ -91,7 +91,7 @@ For standard V2 Pro and V2 Pro Plus exports the app supplies weight-free graph
 templates. Before writing a derived graph alongside the weights it verifies the
 source VITS SHA-256. The HTP graphs are prepared when the device probe succeeds.
 The encoder runs on CPU and the FP32 HiFiGAN runs on WebGPU. CPU-only playback
-uses the full VITS graph when that mode is explicitly selected.
+uses the full VITS graph.
 
 The host reads the SoC, Vulkan version and Qualcomm DSP RPC feature from Android.
 After the GPT bridge is installed, its 234-byte arithmetic graph checks WebGPU with
@@ -101,10 +101,10 @@ in the app-private `files/QualcommRuntime` directory. The hardware preference an
 the backend's ability to execute are independent. Synthesis uses CPU when WebGPU
 is unavailable and WebGPU when a usable HTP runtime is absent.
 
-Supported GPU and NPU backends default to enabled. Playback settings can disable
-NPU, or disable GPU after a warning and allow CPU synthesis. Compatible voices with
-`v2-htp-{stem,body,head}.onnx`
-automatically use the NPU for latents of at least 192 frames. Shorter utterances
+Both acceleration switches default to off. Enabling GPU makes NPU selectable on
+compatible hardware. Confirming GPU shutdown clears both preferences. When NPU
+acceleration is enabled and HTP is available, voices with `v2-htp-{stem,body,head}.onnx`
+use the NPU for latents of at least 192 frames. Shorter utterances
 continue on GPU. HTP uses 64-frame windows with eight frames of context and
 FP32 stem/head stages. V2 Pro uses 512/16 stem/body-output channels and V2 Pro
 Plus uses 768/24. QNN stores its compiled context alongside the graph. If a
@@ -147,7 +147,7 @@ conditioning follow the V2 flow in Voicebox. Speaker weights are supplied locall
 
 ## Importing a voice
 
-Installing both the speech runtime and GPT-SoVITS base models on a GPU-supported
+Installing both the GPT bridge and GPT-SoVITS base models on a compatible arm64
 device pins a GPT-SoVITS tab immediately after System speech,
 including when it has no voices. Its menu opens the weight importer. Enter a voice
 name, select the matching GPT `.ckpt`, SoVITS `.pth` and reference audio in the

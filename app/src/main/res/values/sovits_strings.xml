@@ -10,7 +10,8 @@
     <string name="sovits_acceleration_unsupported">Not supported</string>
     <string name="sovits_acceleration_unknown_device">Unknown model</string>
     <string name="sovits_disable_gpu">Turn off GPU acceleration</string>
-    <string name="sovits_disable_gpu_warning">GPT-SoVITS will use the CPU, which may make speech generation much slower. We recommend keeping GPU acceleration on.</string>
+    <string name="sovits_requires_gpu">Enable GPU acceleration first</string>
+    <string name="sovits_disable_gpu_warning">Turning off GPU acceleration also turns off NPU acceleration. GPT-SoVITS will use the CPU and may generate speech more slowly.</string>
     <string name="sovits_temperature">Temperature</string>
     <string name="sovits_top_k">Top-K</string>
     <string name="sovits_top_p">Top-P</string>
