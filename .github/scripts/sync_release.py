@@ -102,7 +102,7 @@ def mirror_asset(store, directory, release, tag, name, digest, content_type):
         return
     path = directory / name
     subprocess.run(["gh", "release", "download", tag, "--repo", REPOSITORY,
-                    "--pattern", name, "--dir", str(directory)], check=True, timeout=300)
+                    "--pattern", name, "--dir", str(directory), "--clobber"], check=True, timeout=300)
     with path.open("rb") as stream:
         if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
             raise ValueError(f"Component checksum mismatch: {name}")
@@ -112,7 +112,7 @@ def mirror_asset(store, directory, release, tag, name, digest, content_type):
 def mirror_components(store, apk):
     prefix = f"https://github.com/{REPOSITORY}/releases/download/"
     with ZipFile(apk) as archive:
-        for kind in ("vendor", "sovits"):
+        for kind in ("vendor", "sovits", "sovits-data"):
             catalog = f"assets/speech-runtimes/{kind}.json"
             if catalog not in archive.namelist():
                 continue
@@ -159,14 +159,33 @@ def publish(store, manifest, apk, checksums):
     print(f"Synchronized {manifest['tag']}: {PUBLIC_BASE}/{MANIFEST_KEY}")
 
 
+def r2_store():
+    import boto3
+    from botocore.config import Config
+    # R2 uses the S3 protocol without AWS optional streaming checksums.
+    # The release SHA-256 is verified independently before upload.
+    config = Config(request_checksum_calculation="when_required", response_checksum_validation="when_required")
+    return boto3.client("s3", endpoint_url=f"https://{ACCOUNT}.r2.cloudflarestorage.com",
+                         region_name="auto", config=config)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--android-tools", type=Path, required=True)
     args = parser.parse_args()
     # Validate before using the tag in API paths or invoking a download.
+    component = re.fullmatch(r"offline-runtime-sovits-(data-)?([0-9a-f]{64})", args.tag)
+    if component:
+        release = gh_api(f"repos/{REPOSITORY}/releases/tags/{args.tag}")
+        if release["tag_name"] != args.tag or not release["prerelease"]:
+            raise ValueError("Expected a published GPT component prerelease")
+        name = "gpt-sovits-data.zip" if component[1] else "gpt-sovits-arm64.zip"
+        with tempfile.TemporaryDirectory(prefix="nextvol-component-") as temporary:
+            mirror_asset(r2_store(), Path(temporary), release, args.tag, name, component[2], "application/zip")
+        return
     if not re.fullmatch(r"v[0-9]+[.][0-9]+[.][0-9]+", args.tag):
-        parser.error("Expected vX.Y.Z")
+        parser.error("Expected a formal app tag or a content-addressed GPT component tag")
     release = gh_api(f"repos/{REPOSITORY}/releases/tags/{args.tag}")
     name = validate_release(release, args.tag)
     encoded = gh_api(f"repos/{REPOSITORY}/contents/app/build.gradle.kts?ref={args.tag}")["content"]
@@ -176,14 +195,7 @@ def main():
                         "--pattern", name, "--pattern", "SHA256SUMS", "--dir", temporary], check=True, timeout=300)
         apk, checksums = Path(temporary) / name, Path(temporary) / "SHA256SUMS"
         manifest = build_manifest(release, gradle, apk, checksums, args.android_tools)
-        import boto3
-        from botocore.config import Config
-        # R2 uses the S3 protocol without AWS optional streaming checksums.
-        # The release SHA-256 is verified independently before upload.
-        config = Config(request_checksum_calculation="when_required", response_checksum_validation="when_required")
-        store = boto3.client("s3", endpoint_url=f"https://{ACCOUNT}.r2.cloudflarestorage.com",
-                             region_name="auto", config=config)
-        publish(store, manifest, apk, checksums)
+        publish(r2_store(), manifest, apk, checksums)
 
 
 if __name__ == "__main__":

@@ -31,9 +31,9 @@ internal class SpeechRuntimeDownloads @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     // After a process restart only the revision in the current APK can be in use.
     private val recovery = scope.launch {
-        for (pack in SpeechRuntimePack.entries) {
-            val current = pack.directory
-            pack.root.listFiles()?.forEach { if (it != current) it.deleteRecursively() }
+        for (files in SpeechRuntimePack.entries.flatMap { it.files }) {
+            val current = files.directory
+            files.root.listFiles()?.forEach { if (it != current) it.deleteRecursively() }
         }
     }
     private val jobs = mutableMapOf<SpeechRuntimePack, Job>()
@@ -43,14 +43,23 @@ internal class SpeechRuntimeDownloads @Inject constructor(
     val changes = states.asStateFlow()
 
     @Synchronized fun start(pack: SpeechRuntimePack) {
-        if (pack != SpeechRuntimePack.Vendor && DeviceAcceleration.status.value.gpu != true) return
+        if (pack != SpeechRuntimePack.Vendor && !DeviceAcceleration.supportsRuntime(SpeechLibraries.context)) return
         val state = states.value[pack]
         if (state != RuntimeDownload.Available && state !is RuntimeDownload.Failed) return
-        set(pack, RuntimeDownload.Downloading(0, pack.archiveBytes))
+        val pending = pack.files.filterNot { it.installed }
+        val total = pending.sumOf { it.bytes }
+        set(pack, RuntimeDownload.Downloading(0, total))
         val job = scope.launch {
             try {
                 recovery.join()
-                install(pack)
+                var copied = 0L
+                for (files in pending) {
+                    install(pack, files, copied, total)
+                    copied += files.bytes
+                }
+                set(pack, RuntimeDownload.Installed)
+                availability.runtimeInstalled()
+                if (pack == SpeechRuntimePack.Sovits) DeviceAcceleration.detect(SpeechLibraries.context)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -63,8 +72,8 @@ internal class SpeechRuntimeDownloads @Inject constructor(
             synchronized(this) {
                 if (jobs[pack] == job) {
                     jobs.remove(pack)
-                    if (cause is CancellationException && states.value[pack] != RuntimeDownload.Installed) {
-                        set(pack, RuntimeDownload.Available)
+                    if (cause is CancellationException) {
+                        set(pack, if (pack.installed) RuntimeDownload.Installed else RuntimeDownload.Available)
                     }
                 }
             }
@@ -73,15 +82,15 @@ internal class SpeechRuntimeDownloads @Inject constructor(
 
     @Synchronized fun cancel(pack: SpeechRuntimePack) { jobs[pack]?.cancel() }
 
-    private suspend fun install(pack: SpeechRuntimePack) {
-        val root = pack.root.apply { mkdirs() }
+    private suspend fun install(pack: SpeechRuntimePack, files: RuntimeFiles, offset: Long, total: Long) {
+        val root = files.root.apply { mkdirs() }
         val archive = File(root, "download.tmp")
         val staging = File(root, "unpacking")
         try {
             val task = currentCoroutineContext()
             check(staging.mkdir()) { "Cannot create runtime staging directory" }
-            var installedBytes = 0L
-            for (part in pack.archives) {
+            var installedBytes = offset
+            for (part in files.archives) {
                 var nextProgressAt = 0L
                 val url = downloader.selectDownloadUrl(part.urls)
                     ?: throw IOException(SpeechLibraries.context.getString(R.string.tts_runtime_sources_unreachable))
@@ -89,11 +98,11 @@ internal class SpeechRuntimeDownloads @Inject constructor(
                     if (copied > part.bytes) throw IOException("Unexpected runtime download size")
                     val now = SystemClock.elapsedRealtime()
                     if (now >= nextProgressAt || copied == part.bytes) {
-                        set(pack, RuntimeDownload.Downloading(installedBytes + copied, pack.archiveBytes))
+                        set(pack, RuntimeDownload.Downloading(installedBytes + copied, total))
                         nextProgressAt = now + 100
                     }
                 }) throw IOException("Incomplete runtime download")
-                if (part == pack.archives.last()) set(pack, RuntimeDownload.Installing)
+                if (installedBytes + part.bytes == total) set(pack, RuntimeDownload.Installing)
                 if (part.path == null) unpack(archive, staging)
                 else {
                     val target = File(staging, part.path)
@@ -105,9 +114,7 @@ internal class SpeechRuntimeDownloads @Inject constructor(
             // A cancel and a completed installation must agree on which happened first.
             synchronized(this) {
                 task.ensureActive()
-                check(staging.renameTo(pack.directory)) { "Cannot install runtime" }
-                availability.runtimeInstalled()
-                set(pack, RuntimeDownload.Installed)
+                check(staging.renameTo(files.directory)) { "Cannot install runtime" }
             }
         } finally {
             archive.delete()

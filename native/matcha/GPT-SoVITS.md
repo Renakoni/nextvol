@@ -5,10 +5,10 @@ playback pipeline, including its settings, PCM processing and cancellation.
 
 `GptSovitsVoice` takes a local root, a V2 Pro or V2 Pro Plus character ID, a
 reference recording (up to 30 seconds) and its transcript in Chinese, Japanese or English. The backend supports Android 10
-or newer and a working GPU backend, established by the first-start inference probe.
+or newer in a compatible arm64 process.
 The Mandarin frontend uses the Voicebox normalization, segmentation,
 contextual pronunciation, tone sandhi and erhua before RoBERTa alignment.
-On arm64 the default is CPU + WebGPU. Reference encoding and autoregressive
+On arm64 the default is CPU synthesis. Reference encoding and autoregressive
 decoding use the CPU provider in the bundled ORT 1.27 build. The acoustic stage uses
 WebGPU when selected. A failed session or graph propagates an error to the reader.
 
@@ -91,26 +91,20 @@ For standard V2 Pro and V2 Pro Plus exports the app supplies weight-free graph
 templates. Before writing a derived graph alongside the weights it verifies the
 source VITS SHA-256. The HTP graphs are prepared when the device probe succeeds.
 The encoder runs on CPU and the FP32 HiFiGAN runs on WebGPU. CPU-only playback
-uses the full VITS graph when that mode is explicitly selected.
+uses the full VITS graph.
 
-After the first frame of the app, an IO worker runs a 234-byte arithmetic graph
-on WebGPU and Qualcomm HTP with CPU fallback disabled. The graph and inference
-backends are in the APK; no runtime download is needed. An earlier speech request
-shares the same probe. Results persist in app-private, non-backed-up storage
-across app updates. Unsupported GPUs disable GPT downloads and hide its tab.
-Device labels are read once from Vulkan physical-device properties and the bundled
-QNN backend's `deviceGetPlatformInfo` (HTP architecture), then cached alongside
-the probe results. An existing capability cache only needs the metadata query;
-it does not repeat inference. Missing metadata displays an unknown model and does
-not change support. Android product/SoC strings are never used as accelerator names.
-Vulkan labels describe the devices exposed by the driver, not an ORT adapter handle.
-`acceleration_info.cpp` uses only the metadata ABI prefix from QNN 2.42.0.251225
-(core API 2.32); its declarations must be checked against the SDK when upgrading
-the bundled backend. Other ABI versions return unknown metadata.
-Supported GPU and NPU backends default to enabled. Playback settings can disable
-NPU, or disable GPU after a warning and allow CPU synthesis. Compatible voices with
-`v2-htp-{stem,body,head}.onnx`
-automatically use the NPU for latents of at least 192 frames. Shorter utterances
+The host reads the SoC, Vulkan version and Qualcomm DSP RPC feature from Android.
+After the GPT bridge is installed, its 234-byte arithmetic graph checks WebGPU with
+CPU fallback disabled. No voice or shared weights are required. The optional HTP
+path runs that graph against an independently provisioned, compatible QNN runtime
+in the app-private `files/QualcommRuntime` directory. The hardware preference and
+the backend's ability to execute are independent. Synthesis uses CPU when WebGPU
+is unavailable and WebGPU when a usable HTP runtime is absent.
+
+Both acceleration switches default to off. Enabling GPU makes NPU selectable on
+compatible hardware. Confirming GPU shutdown clears both preferences. When NPU
+acceleration is enabled and HTP is available, voices with `v2-htp-{stem,body,head}.onnx`
+use the NPU for latents of at least 192 frames. Shorter utterances
 continue on GPU. HTP uses 64-frame windows with eight frames of context and
 FP32 stem/head stages. V2 Pro uses 512/16 stem/body-output channels and V2 Pro
 Plus uses 768/24. QNN stores its compiled context alongside the graph. If a
@@ -126,20 +120,20 @@ python native/sovits/split_vits_acoustic.py --model-dir <tts_models>
 python native/sovits/split_v2_htp.py <tts_models>
 ```
 
-The APK includes the arm64 runtime from Voicebox's V2 WebGPU build of ORT
+The downloadable GPT bridge includes the arm64 runtime from Voicebox's V2 WebGPU build of ORT
 1.27.0 (input AAR SHA-256
 `db6d7eba5c8c2f1debc61874b2e9abafd6b581a35c679ff5390b0442de89e698`).
 `native/sovits/package_webgpu.py` reproduces the slim AAR from that build and
 the matching ORT source notices. It gives WebGPU its own library name so the
 existing CPU runtime and Java WebGPU binding can coexist. The HTP bridge opens
 the separate Microsoft QNN 1.27.0 runtime by absolute path and passes float
-buffers across runtime boundaries. The APK also contains the matching Qualcomm
-2.42.0 SDK libraries from Maven Central. Device drivers alone do not replace these
-libraries. Probes and synthesis share the same backends.
+buffers across runtime boundaries. QNN user-space libraries are supplied separately
+by the device integration. NextVol distributes none in its APK or GPT bridge.
 
-The JNI bridge, including Open JTalk, is compiled with the APK. The on-demand
-runtime installer includes graph templates and pronunciation data, including the
-English and Japanese dictionaries, in one 34 MB ZIP. Converted voices live separately.
+The GPT bridge contains JNI, Open JTalk, WebGPU, the Mandarin frontend data and
+the checkpoint and vocoder graph templates. The common download combines five
+pinned model files (973,207,823 bytes) with the prepared English and Japanese
+language resources (29,142,223 bytes). Converted voices live separately.
 
 The English CMU/name lexicons, homograph tagger, fallback G2P model and Japanese
 Open JTalk frontend follow Voicebox. The source archive preserves the original
@@ -153,7 +147,7 @@ conditioning follow the V2 flow in Voicebox. Speaker weights are supplied locall
 
 ## Importing a voice
 
-Installing both the speech runtime and GPT-SoVITS base models on a GPU-supported
+Installing both the GPT bridge and GPT-SoVITS base models on a compatible arm64
 device pins a GPT-SoVITS tab immediately after System speech,
 including when it has no voices. Its menu opens the weight importer. Enter a voice
 name, select the matching GPT `.ckpt`, SoVITS `.pth` and reference audio in the
@@ -173,9 +167,9 @@ Other architectures, including V5, are rejected before template access.
 The reader retains Zip4j 2.11.5: Android's standard `ZipFile` rejects some real
 PyTorch ZIP64 checkpoints with `invalid CEN header`.
 
-The app packages four common ONNX graphs under `assets/gpt-sovits/graphs` and
+The GPT bridge packages four common ONNX graphs under `assets/gpt-sovits/graphs` and
 a VITS graph and tensor manifest per variant under `checkpoint-v2pro{,plus}`.
-The installed speech runtime supplies the GPU and HTP graphs. The separate base-model
+The same bridge supplies the GPU and HTP graphs. The separate base-model
 entry in Speech runtimes installs the five files pinned in `runtime-models.json`
 (about 973 MB), SHA-256 checked and atomically published under
 `noBackupFilesDir/speech-runtimes/sovits-models`. Imports reuse these files and

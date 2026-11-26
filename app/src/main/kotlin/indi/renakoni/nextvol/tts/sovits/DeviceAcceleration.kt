@@ -5,17 +5,14 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.os.Build
-import android.util.AtomicFile
+import android.content.pm.PackageManager
 import android.util.Log
 import androidx.annotation.ChecksSdkIntAtLeast
-import androidx.annotation.Keep
 import indi.renakoni.nextvol.BuildConfig
-import indi.renakoni.nextvol.tts.runtime.SpeechLibraries
+import indi.renakoni.nextvol.tts.runtime.SpeechRuntimePack
 import indi.renakoni.nextvol.tts.runtime.speechProcessAbis
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.json.JSONObject
-import org.json.JSONArray
 import java.io.File
 import java.nio.FloatBuffer
 
@@ -26,16 +23,13 @@ data class SovitsAccelerationStatus(
     val npuInfo: String? = null,
 )
 
-@Keep
 internal object DeviceAcceleration {
     private val mutableStatus = MutableStateFlow(SovitsAccelerationStatus())
     val status = mutableStatus.asStateFlow()
 
-    private val isQualcomm by lazy {
-        val manufacturer = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MANUFACTURER else Build.HARDWARE
-        manufacturer.contains("qualcomm", true) || manufacturer.equals("qti", true) ||
-            manufacturer.equals("qcom", true) || Build.HARDWARE.equals("qcom", true)
-    }
+    private val snapdragonPart = Regex("""\bSM[0-9]{4}\b""", RegexOption.IGNORE_CASE)
+    private var probedBridge = false
+    private var npuRuntime: File? = null
 
     // This translator cannot resolve the ARM64 ELF TLS used by the inference backend.
     private val usesUnsupportedTranslation by lazy {
@@ -50,57 +44,32 @@ internal object DeviceAcceleration {
     fun supportsProcess(abis: List<String>): Boolean = "arm64-v8a" in abis &&
         (Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a" || !usesUnsupportedTranslation)
 
-    /** First-draw worker and synthesis share one probe. Results persist across app updates. */
+    /** Platform facts need no bridge, installed voice or shared model weights. */
     @Synchronized fun detect(context: Context): File? {
-        val runtime = File(context.applicationInfo.nativeLibraryDir)
-        if (status.value.gpu == null) {
-            val cache = AtomicFile(File(context.noBackupFilesDir, "sovits-acceleration"))
-            val saved = runCatching { cache.openRead().bufferedReader().use {
-                val json = JSONObject(it.readText())
-                val hardware = json.optJSONArray("hardware")
-                SovitsAccelerationStatus(json.getBoolean("gpu"), json.getBoolean("npu"),
-                    hardware?.getString(0), hardware?.getString(1))
-            } }.getOrNull()
-            val supported = supportsRuntime(context)
-            var result = if (!supported) SovitsAccelerationStatus(false, false)
-            else if (saved != null) saved
-            else {
-                val gpu = probe("GPU") { probeGpu(context) }
-                val npu = gpu && isQualcomm && probe("NPU") {
-                    val graph = File(context.cacheDir, "sovits-npu-probe.onnx")
-                    try {
-                        context.assets.open("gpt-sovits/qnn-probe.onnx").use { input -> graph.outputStream().use(input::copyTo) }
-                        QnnSession.probe(runtime, graph)
-                    } finally { graph.delete() }
-                }
-                SovitsAccelerationStatus(gpu, npu)
-            }
-            if (supported && result.gpuInfo == null) {
-                var hardware = arrayOf("", "")
-                probe("Hardware info") {
-                    SpeechLibraries.loadSovitsBridge()
-                    hardware = hardwareInfo(runtime.absolutePath, isQualcomm)
-                }
-                result = result.copy(gpuInfo = hardware[0], npuInfo = hardware[1])
-            }
-            if (supported && result != saved) {
-                try {
-                    val output = cache.startWrite()
-                    try {
-                        output.write(JSONObject().put("gpu", result.gpu).put("npu", result.npu)
-                            .put("hardware", JSONArray(listOf(result.gpuInfo, result.npuInfo))).toString().toByteArray())
-                        cache.finishWrite(output)
-                    } catch (failure: Exception) { cache.failWrite(output); throw failure }
-                } catch (failure: Exception) { Log.w("NextVolSoVITS", "Cannot cache acceleration", failure) }
-            }
-            mutableStatus.value = result
-            Log.i("NextVolSoVITS", "Acceleration GPU=${result.gpu} NPU=${result.npu} cached=${saved != null} " +
-                "gpuInfo=${result.gpuInfo} npuInfo=${result.npuInfo}")
+        if (probedBridge) return npuRuntime
+        val supported = supportsRuntime(context)
+        val manufacturer = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MANUFACTURER else Build.HARDWARE
+        val soc = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else Build.BOARD
+        val device = soc.takeUnless { it.isBlank() || it == Build.UNKNOWN } ?: Build.MODEL
+        val pm = context.packageManager
+        val qualcomm = manufacturer.contains("Qualcomm", true) || manufacturer.equals("QTI", true) ||
+            manufacturer.equals("qcom", true) || Build.HARDWARE.equals("qcom", true) ||
+            soc.contains("Snapdragon", true) || snapdragonPart.containsMatchIn(soc) ||
+            "libcdsprpc.so" in pm.systemSharedLibraryNames.orEmpty()
+        val vulkan = pm.systemAvailableFeatures.firstOrNull { it.name == PackageManager.FEATURE_VULKAN_HARDWARE_VERSION }
+        val gpuInfo = vulkan?.version?.let { "Vulkan ${it ushr 22}.${(it ushr 12) and 1023}" }
+        var gpu: Boolean? = if (supported) null else false
+        if (supported && SpeechRuntimePack.Sovits.installed) {
+            val graph = File(SpeechRuntimePack.Sovits.directory, "assets/gpt-sovits/qnn-probe.onnx")
+            gpu = probe("GPU") { probeGpu(graph) }
+            val runtime = File(context.filesDir, "QualcommRuntime")
+            if (gpu && qualcomm && File(runtime, "libonnxruntime-qnn.so").isFile &&
+                probe("NPU") { QnnSession.probe(runtime, graph) }) npuRuntime = runtime
+            probedBridge = true
         }
-        return runtime.takeIf { status.value.npu == true }
+        mutableStatus.value = SovitsAccelerationStatus(gpu, qualcomm, gpuInfo, device)
+        return npuRuntime
     }
-
-    @JvmStatic private external fun hardwareInfo(runtime: String, queryNpu: Boolean): Array<String>
 
     private fun probe(name: String, execute: () -> Unit): Boolean = try {
         execute()
@@ -113,9 +82,9 @@ internal object DeviceAcceleration {
         false
     }
 
-    private fun probeGpu(context: Context) {
+    private fun probeGpu(model: File) {
         val environment = OrtEnvironment.getEnvironment()
-        val graph = context.assets.open("gpt-sovits/qnn-probe.onnx").use { it.readBytes() }
+        val graph = model.readBytes()
         OrtSession.SessionOptions().use { options ->
             options.addWebGPU(emptyMap())
             options.addConfigEntry("session.disable_cpu_ep_fallback", "1")

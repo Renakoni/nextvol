@@ -1,7 +1,8 @@
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.tree.ClassNode
+import org.objectweb.asm.tree.MethodInsnNode
 import java.util.zip.*
-import java.security.MessageDigest
-import java.security.DigestInputStream
-import java.io.OutputStream
 import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
@@ -218,6 +219,7 @@ android {
         }
     }
     packaging {
+        jniLibs.excludes += "**/libnextvol-sovits.so"
         jniLibs.useLegacyPackaging = true
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -231,7 +233,22 @@ android {
     }
 }
 
-// Keep the Java API available to host tests without packaging Android native libraries there.
+// Keep the Java API in the app's class loader. ORT's Android loader otherwise searches only the APK.
+fun sovitsJavaLoader(original: ByteArray): ByteArray {
+    val api = ClassNode()
+    ClassReader(original).accept(api, 0)
+    val load = api.methods.single { it.name == "load" && it.desc == "(Ljava/lang/String;)V" }
+    val calls = load.instructions.filterIsInstance<MethodInsnNode>().filter {
+        it.owner == "java/lang/System" && it.name == "loadLibrary" && it.desc == load.desc
+    }
+    check(calls.isNotEmpty()) { "ORT's Android library loader has changed" }
+    calls.forEach {
+        it.owner = "indi/renakoni/nextvol/tts/runtime/SpeechLibraries"
+        it.name = "loadSovits"
+    }
+    return ClassWriter(0).also(api::accept).toByteArray()
+}
+
 val webGpuAar = rootProject.file("native/sovits/onnxruntime-webgpu.aar")
 val webGpuApi = tasks.register("prepareSovitsJavaApi") {
     inputs.file(webGpuAar)
@@ -239,9 +256,21 @@ val webGpuApi = tasks.register("prepareSovitsJavaApi") {
     outputs.file(output)
     doLast {
         ZipFile(webGpuAar).use { aar ->
-            val jar = output.get().asFile
-            jar.parentFile.mkdirs()
-            aar.getInputStream(aar.getEntry("classes.jar")).use { input -> jar.outputStream().use(input::copyTo) }
+            ZipInputStream(aar.getInputStream(aar.getEntry("classes.jar"))).use { input ->
+                val jar = output.get().asFile
+                jar.parentFile.mkdirs()
+                ZipOutputStream(jar.outputStream()).use { out ->
+                    var entry = input.nextEntry
+                    while (entry != null) {
+                        out.putNextEntry(ZipEntry(entry.name).apply { time = 0 })
+                        if (entry.name == "ai/onnxruntime/OnnxRuntime.class") {
+                            out.write(sovitsJavaLoader(input.readBytes()))
+                        } else input.copyTo(out)
+                        out.closeEntry()
+                        entry = input.nextEntry
+                    }
+                }
+            }
         }
     }
 }
@@ -250,65 +279,30 @@ dependencies { implementation(files(webGpuApi)) }
 val packAssets = layout.buildDirectory.dir("speech-runtime-assets")
 val vendorSpec = rootProject.file("native/offline/runtime.json")
 val publishedSovitsSpec = rootProject.file("native/sovits/runtime.json")
-val publishSpeechRuntime = providers.gradleProperty("publishSpeechRuntime").map(String::toBoolean).getOrElse(false)
-val sovitsZip = layout.buildDirectory.file("outputs/speech-runtimes/gpt-sovits-arm64.zip")
-if (matchaNative) {
-    val sovitsQnn by configurations.creating { isTransitive = false }
-    dependencies {
-        add(sovitsQnn.name, "com.microsoft.onnxruntime:onnxruntime-android-qnn:1.27.0@aar")
-        add(sovitsQnn.name, "com.qualcomm.qti:qnn-runtime:2.42.0@aar")
-    }
-    val prepareSovitsBackends by tasks.registering(Sync::class) {
-        into(layout.buildDirectory.dir("sovits-backends"))
-        duplicatesStrategy = DuplicatesStrategy.FAIL
-        from(zipTree(webGpuAar)) {
-            include("jni/**", "assets/**")
-            eachFile { path = path.replaceFirst(Regex("^jni/"), "jniLibs/") }
-            includeEmptyDirs = false
-        }
-        from({ sovitsQnn.files.sortedBy { it.name }.map { zipTree(it) } }) {
-            include("jni/arm64-v8a/libonnxruntime.so", "jni/arm64-v8a/libQnnHtp*.so", "jni/arm64-v8a/libQnnSystem.so")
-            eachFile { path = path.replaceFirst("jni/", "jniLibs/") }
-            rename("libonnxruntime\\.so", "libonnxruntime-qnn.so")
-            includeEmptyDirs = false
-        }
-    }
-    android.sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("sovits-backends/jniLibs").get().asFile)
-    android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("sovits-backends/assets").get().asFile)
-    tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareSovitsBackends) }
-}
-val packageSovitsRuntime by tasks.registering(Zip::class) {
-    archiveFileName.set(sovitsZip.get().asFile.name)
-    destinationDirectory.set(sovitsZip.get().asFile.parentFile)
+tasks.register<Zip>("packageSovitsRuntime") {
+    archiveFileName.set("gpt-sovits-arm64.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("outputs/speech-runtimes"))
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
     duplicatesStrategy = DuplicatesStrategy.FAIL
-    from(rootProject.file("native/sovits/assets")) { into("assets") }
-    from(zipTree(rootProject.file("native/sovits/reference-languages.zip")))
-}
-val prepareSpeechRuntimeCatalog by tasks.registering {
-    inputs.file(vendorSpec)
-    inputs.property("publishSpeechRuntime", publishSpeechRuntime)
-    if (publishSpeechRuntime) {
-        dependsOn("packageSovitsRuntime")
-        inputs.file(sovitsZip)
-    } else inputs.file(publishedSovitsSpec)
-    outputs.dir(packAssets)
-    doLast {
-        val directory = packAssets.get().asFile.resolve("speech-runtimes").apply { mkdirs() }
-        vendorSpec.copyTo(directory.resolve("vendor.json"), overwrite = true)
-        val spec = directory.resolve("sovits.json")
-        if (publishSpeechRuntime) {
-            val archive = sovitsZip.get().asFile
-            val digest = MessageDigest.getInstance("SHA-256")
-            archive.inputStream().buffered().use { stream ->
-                DigestInputStream(stream, digest).transferTo(OutputStream.nullOutputStream())
-            }
-            val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
-            val url = "https://github.com/Renakoni/nextvol/releases/download/offline-runtime-sovits-$sha256/${archive.name}"
-            spec.writeText("""{"url":"$url","sha256":"$sha256","size":${archive.length()}}""")
-        } else publishedSovitsSpec.copyTo(spec, overwrite = true)
+    dependsOn("buildMatchaNative")
+    from(matchaOutput.resolve("jniLibs/arm64-v8a/libnextvol-sovits.so")) { into("jniLibs/arm64-v8a") }
+    from(zipTree(webGpuAar)) {
+        include("jni/arm64-v8a/*.so", "assets/**")
+        eachFile { path = path.replaceFirst(Regex("^jni/"), "jniLibs/") }
+        includeEmptyDirs = false
     }
+    from(rootProject.file("native/sovits/bridge-assets")) { into("assets") }
+    from(rootProject.file("native/sovits/assets")) {
+        into("assets")
+        exclude("gpt-sovits/GPT-SoVITS-LICENSE.txt", "gpt-sovits/licenses/qnn/**")
+    }
+    from(matchaOutput.resolve("assets/matcha-native/licenses/open-jtalk")) { into("assets/gpt-sovits/licenses/open-jtalk") }
+}
+val prepareSpeechRuntimeCatalog by tasks.registering(Sync::class) {
+    into(packAssets)
+    from(vendorSpec) { into("speech-runtimes"); rename { "vendor.json" } }
+    from(publishedSovitsSpec) { into("speech-runtimes"); rename { "sovits.json" } }
 }
 android.sourceSets.getByName("main").assets.srcDir(packAssets.get().asFile)
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {

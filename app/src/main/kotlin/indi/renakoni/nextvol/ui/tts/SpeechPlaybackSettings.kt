@@ -155,7 +155,7 @@ class SpeechPlaybackSettingsViewModel @Inject constructor(
 
     fun engineCacheCapacity(capacity: Int) = updateSettings { it.copy(engineCacheCapacity = capacity) }
 
-    fun audioSettings(audio: SpeechAudioSettings) = updateSettings { it.copy(audio = audio) }
+    fun audioSettings(change: (SpeechAudioSettings) -> SpeechAudioSettings) = updateSettings { it.copy(audio = change(it.audio)) }
 
     fun diagnosticLogging(enabled: Boolean) = updateSettings { it.copy(diagnosticLogging = enabled) }
 
@@ -208,7 +208,7 @@ internal fun SpeechPlaybackSettingsScreen(
     onNameTest: () -> Unit,
     onTextAnalysis: () -> Unit,
     onEngineCacheCapacity: (Int) -> Unit,
-    onAudioSettings: (SpeechAudioSettings) -> Unit,
+    onAudioSettings: ((SpeechAudioSettings) -> SpeechAudioSettings) -> Unit,
     onBackgroundMusic: (Boolean) -> Unit,
     onAutoAssign: (Boolean) -> Unit,
     onCacheLimit: (Int) -> Unit,
@@ -284,13 +284,17 @@ internal fun SpeechPlaybackSettingsScreen(
                         EditorialCard(modifier = Modifier.fillMaxWidth()) {
                             val gpuSupported = state.acceleration.gpu
                             val gpuChecked = state.audio.sovitsGpu && gpuSupported == true
+                            val toggleGpu: (Boolean) -> Unit = { enabled ->
+                                if (enabled) onAudioSettings { it.copy(sovitsGpu = true, sovitsNpu = false) }
+                                else confirmingGpuOff = true
+                            }
                             SpeechTextEntry(
                                 icon = R.drawable.tts_speed,
                                 title = R.string.sovits_gpu_acceleration,
                                 description = "${state.acceleration.gpuInfo?.takeIf { it.isNotBlank() } ?: stringResource(R.string.sovits_acceleration_unknown_device)} · ${
                                     stringResource(
                                         when (gpuSupported) {
-                                            null -> R.string.sovits_acceleration_checking
+                                            null -> R.string.sovits_bridge_required
                                             false -> R.string.sovits_acceleration_unsupported
                                             true -> R.string.sovits_acceleration_supported
                                         },
@@ -301,23 +305,22 @@ internal fun SpeechPlaybackSettingsScreen(
                                     value = gpuChecked,
                                     enabled = gpuSupported == true,
                                     role = Role.Switch,
-                                    onValueChange = {
-                                        if (it) onAudioSettings(state.audio.copy(sovitsGpu = true)) else confirmingGpuOff = true
-                                    },
+                                    onValueChange = toggleGpu,
                                 ),
                             ) {
                                 PlaybackSwitch(
                                     checked = gpuChecked,
                                     enabled = gpuSupported == true,
-                                    onCheckedChange = {
-                                        if (it) onAudioSettings(state.audio.copy(sovitsGpu = true)) else confirmingGpuOff = true
-                                    },
+                                    onCheckedChange = toggleGpu,
                                 )
                             }
                             EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
                             val npuSupported = state.acceleration.npu
-                            val npuEnabled = npuSupported == true && state.audio.sovitsGpu
+                            val npuEnabled = gpuChecked && npuSupported == true
                             val npuChecked = state.audio.sovitsNpu && npuEnabled
+                            val toggleNpu: (Boolean) -> Unit = { enabled ->
+                                onAudioSettings { it.copy(sovitsNpu = enabled && it.sovitsGpu) }
+                            }
                             SpeechTextEntry(
                                 icon = R.drawable.tts_speed,
                                 title = R.string.sovits_device_acceleration,
@@ -325,9 +328,10 @@ internal fun SpeechPlaybackSettingsScreen(
                                     stringResource(
                                         when {
                                             npuSupported == null -> R.string.sovits_acceleration_checking
-                                            !npuSupported -> R.string.sovits_acceleration_unsupported
-                                            !state.audio.sovitsGpu -> R.string.sovits_requires_gpu
-                                            else -> R.string.sovits_acceleration_supported
+                                            !npuSupported || gpuSupported == false -> R.string.sovits_acceleration_unsupported
+                                            gpuSupported == null -> R.string.sovits_bridge_required
+                                            !gpuChecked -> R.string.sovits_requires_gpu
+                                            else -> R.string.sovits_npu_device_supported
                                         },
                                     )
                                 }",
@@ -336,13 +340,13 @@ internal fun SpeechPlaybackSettingsScreen(
                                     value = npuChecked,
                                     enabled = npuEnabled,
                                     role = Role.Switch,
-                                    onValueChange = { onAudioSettings(state.audio.copy(sovitsNpu = it)) },
+                                    onValueChange = toggleNpu,
                                 ),
                             ) {
                                 PlaybackSwitch(
                                     checked = npuChecked,
                                     enabled = npuEnabled,
-                                    onCheckedChange = { onAudioSettings(state.audio.copy(sovitsNpu = it)) },
+                                    onCheckedChange = toggleNpu,
                                 )
                             }
                         }
@@ -552,7 +556,7 @@ internal fun SpeechPlaybackSettingsScreen(
                                 R.string.tts_audio_check_silence,
                                 if (state.audio.checkSilence) R.string.tts_audio_check_silence_on else R.string.tts_audio_check_silence_off,
                                 state.audio.checkSilence,
-                            ) { onAudioSettings(state.audio.copy(checkSilence = it)) }
+                            ) { enabled -> onAudioSettings { it.copy(checkSilence = enabled) } }
                             EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
                             SpeechTextSwitch(
                                 R.drawable.music_note_24px,
@@ -583,7 +587,7 @@ internal fun SpeechPlaybackSettingsScreen(
                                 R.string.tts_decode_stream,
                                 if (state.audio.decodeStream) R.string.tts_decode_stream_on else R.string.tts_decode_stream_off,
                                 state.audio.decodeStream,
-                            ) { onAudioSettings(state.audio.copy(decodeStream = it)) }
+                            ) { enabled -> onAudioSettings { it.copy(decodeStream = enabled) } }
                             EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
                             val rates = remember {
                                 object : MenuOptions(
@@ -602,7 +606,7 @@ internal fun SpeechPlaybackSettingsScreen(
                                 title = R.string.tts_audio_minimum_rate,
                                 options = rates,
                                 selectedOptionKey = state.audio.minimumSampleRate.toString(),
-                                onOptionChange = { onAudioSettings(state.audio.copy(minimumSampleRate = it.toInt())) },
+                                onOptionChange = { rate -> onAudioSettings { it.copy(minimumSampleRate = rate.toInt()) } },
                             )
                             EditorialHairlineDivider(Modifier.padding(horizontal = 16.dp))
                             val processors = remember {
@@ -616,7 +620,7 @@ internal fun SpeechPlaybackSettingsScreen(
                                 title = R.string.tts_audio_processor,
                                 options = processors,
                                 selectedOptionKey = state.audio.processor.toString(),
-                                onOptionChange = { onAudioSettings(state.audio.copy(processor = it.toInt())) },
+                                onOptionChange = { processor -> onAudioSettings { it.copy(processor = processor.toInt()) } },
                             )
                         }
                     }
@@ -806,7 +810,7 @@ internal fun SpeechPlaybackSettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        onAudioSettings(state.audio.copy(sovitsGpu = false))
+                        onAudioSettings { it.copy(sovitsGpu = false, sovitsNpu = false) }
                         confirmingGpuOff = false
                     },
                     shape = CircleShape,
